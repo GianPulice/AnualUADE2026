@@ -1,0 +1,3 @@
+*.prefab !text !filter !merge !diff
+*.asset !text !filter !merge !diff
+*.tga !text !filter !merge !diff
