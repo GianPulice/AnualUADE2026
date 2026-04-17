@@ -4,42 +4,41 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] private SO_Movement _movement;
-    [SerializeField] private Rigidbody _rigidbody;
-    [SerializeField] private Transform _cameraTransform;
-    [SerializeField] private Transform _orientation;
-    [SerializeField] private Transform _playerBody;
-    private Vector3 _moveDir = Vector3.zero;
+    [SerializeField] private SO_Movement movement;
+    [SerializeField] private CharacterController characterController;
+    [SerializeField] private Transform cameraTransform;
+    [SerializeField] private Transform orientation;
+    [SerializeField] private Transform playerBody;
+    private Vector3 moveDir = Vector3.zero;
+    private float currentVelocity = 0;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        _rigidbody = GetComponent<Rigidbody>();
-        _rigidbody.maxLinearVelocity = _movement.moveSpeed;
+        characterController = GetComponent<CharacterController>();
     }
 
     // Update is called once per frame
     void Update()
     {
         InputUpdate();
-    }
-    private void FixedUpdate()
-    {
         Movement();
     }
+    
     private void InputUpdate() 
     {
-        _orientation.forward = (transform.position - new Vector3(_cameraTransform.position.x, transform.position.y, _cameraTransform.position.z)).normalized;
-
-        _moveDir = _orientation.forward * Input.GetAxis("Vertical") + _orientation.right * Input.GetAxis("Horizontal");
-        _moveDir.Normalize();
-        if (_moveDir != Vector3.zero) 
-        {
-            _playerBody.forward = Vector3.Slerp(_playerBody.forward,_moveDir,Time.deltaTime * 10);
-        }
+        orientation.forward = (transform.position - new Vector3(cameraTransform.position.x, transform.position.y, cameraTransform.position.z)).normalized;
+        moveDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
+        moveDir.Normalize();
     }
     private void Movement() 
     {
-        _rigidbody.AddForce(_moveDir * _movement.acceleration);
+        if (moveDir != Vector3.zero)
+        {
+            playerBody.forward = Vector3.Slerp(playerBody.forward, moveDir, Time.deltaTime * movement.RotationSpeed);
+            if (currentVelocity < movement.MoveSpeed) currentVelocity += movement.Acceleration * Time.deltaTime;
+            characterController.Move(playerBody.forward * currentVelocity * Time.deltaTime);
+        }
+        
     }
 }
