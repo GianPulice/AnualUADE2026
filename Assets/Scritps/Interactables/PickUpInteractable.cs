@@ -17,6 +17,8 @@ public class PickupInteractable : MonoBehaviour, IInteractable
 
     public void Interact()
     {
+        if (InventoryManager.Instance.ReturnTrueIfInventoryIsFull()) return;
+
         InventoryManager.Instance.AddItem(itemToPick);
         Destroy(gameObject);
     }

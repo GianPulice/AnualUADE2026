@@ -2,10 +2,11 @@ using UnityEngine;
 
 public class InteractionManager : Singleton<InteractionManager>
 {
+    [SerializeField] private SO_InteractionManager SO_interactionManager;
+
     private Camera playerCamera;
 
-    private LayerMask interactionLayer = LayerMask.NameToLayer("Interactable");
-    private float interactionDistance = 3f;
+    private LayerMask interactionLayer;
 
     [Header("Debug")]
     [SerializeField] private bool drawRay = true;
@@ -28,20 +29,13 @@ public class InteractionManager : Singleton<InteractionManager>
     }
 
 
-    public string GetCurrentInteractionText()
-    {
-        if (currentInteractable == null) return string.Empty;
-
-        return currentInteractable.GetInteractText();
-    }
-
-
     /// <summary>
     /// Analizar esta linea de codigo por si en un futuro agregagan mas camaras
     /// </summary>
     private void InitializeInteractionManager()
     {
         playerCamera = Camera.main;
+        interactionLayer = LayerMask.GetMask("Interactable");
     }
 
     private void DetectInteractable()
@@ -52,10 +46,10 @@ public class InteractionManager : Singleton<InteractionManager>
 
         if (drawRay)
         {
-            Debug.DrawRay(ray.origin, ray.direction * interactionDistance, Color.green);
+            Debug.DrawRay(ray.origin, ray.direction * SO_interactionManager.InteractionDistance, Color.green);
         }
 
-        if (Physics.Raycast(ray, out RaycastHit hit, interactionDistance, interactionLayer))
+        if (Physics.Raycast(ray, out RaycastHit hit, SO_interactionManager.InteractionDistance, interactionLayer))
         {
             if (hit.collider.TryGetComponent(out IInteractable interactable))
             {
@@ -63,7 +57,7 @@ public class InteractionManager : Singleton<InteractionManager>
                 return;
             }
 
-            currentInteractable = hit.collider.GetComponentInParent<IInteractable>();
+            currentInteractable = hit.collider.GetComponent<IInteractable>() ?? hit.collider.GetComponentInParent<IInteractable>() ?? hit.collider.GetComponentInChildren<IInteractable>();
         }
     }
 
