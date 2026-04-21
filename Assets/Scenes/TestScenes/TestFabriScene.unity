@@ -1204,7 +1204,7 @@ PrefabInstance:
       objectReference: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
     - target: {fileID: 6137332638113486697, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: CameraRadius
-      value: 0.1
+      value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 6370844470014348898, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.x
