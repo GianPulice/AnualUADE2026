@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6866595372486211810}
+  - component: {fileID: 6697063734817033035}
   - component: {fileID: 994673842611029010}
   - component: {fileID: 7645358371398037388}
   m_Layer: 0
@@ -35,6 +36,18 @@ Transform:
   - {fileID: 2232447445971585158}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6697063734817033035
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eac0da26dd7bbe243ac731622c8ee8cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStateManager
 --- !u!114 &994673842611029010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -48,7 +61,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   movement: {fileID: 11400000, guid: 905f7ad2f405aa04ebcea7944e1ae8ea, type: 2}
-  characterController: {fileID: 7645358371398037388}
+  charController: {fileID: 7645358371398037388}
   cameraTransform: {fileID: 2232447445971585158}
   orientation: {fileID: 7985739827390264409}
   playerBody: {fileID: 1080261930441474811}

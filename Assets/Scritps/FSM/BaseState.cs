@@ -3,9 +3,10 @@ using System;
 
 public abstract class BaseState<EState> where EState : Enum
 {
+    public EState NextState;
     public BaseState(EState key) 
     {
-            Statekey = key;
+        Statekey = key;
     }
     public EState Statekey { get; private set; }
 
