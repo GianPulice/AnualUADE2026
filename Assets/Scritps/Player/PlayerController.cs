@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     [SerializeField] private SO_Movement movement;
-    [SerializeField] private CharacterController characterController;
+    [SerializeField] private CharacterController charController;
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
@@ -15,10 +15,13 @@ public class PlayerController : MonoBehaviour
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
 
+    public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
+
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        characterController = GetComponent<CharacterController>();
+        charController = GetComponent<CharacterController>();
     }
 
     // Update is called once per frame
@@ -44,15 +47,15 @@ public class PlayerController : MonoBehaviour
             {
                 isCrouch = true;
                 speedMultiplier = movement.CrouchSpeedMultiplier;
-                characterController.height = 0.9f;
-                characterController.center = new Vector3(0, 0.45f, 0);
+                charController.height = 0.9f;
+                charController.center = new Vector3(0, 0.45f, 0);
             }
             else 
             {
                 isCrouch = false;
                 speedMultiplier = 1;
-                characterController.height = 1.8f;
-                characterController.center = new Vector3(0, 0.9f, 0);
+                charController.height = 1.8f;
+                charController.center = new Vector3(0, 0.9f, 0);
             }
         }
 
@@ -72,9 +75,10 @@ public class PlayerController : MonoBehaviour
                     currentVelocity += movement.Acceleration * Time.deltaTime;
                 }
                 else currentVelocity = movement.MoveSpeed * speedMultiplier;
-                characterController.Move(playerBody.forward * currentVelocity * Time.deltaTime);
-                Debug.Log(currentVelocity);
+                charController.Move(playerBody.forward * currentVelocity * Time.deltaTime);
+                //Debug.Log(currentVelocity);
             }
+            else currentVelocity = 0;
         }
     }
 }

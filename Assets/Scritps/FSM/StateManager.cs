@@ -8,11 +8,11 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
     protected BaseState<EState> CurrentState;
     protected bool IsTransitioningState = false;
 
-    private void Start()
+    public virtual void Start()
     {
         CurrentState.EnterState();
     }
-    private void Update()
+    public void Update()
     {
         EState nextStateKey = CurrentState.GetNextState();
         if(!IsTransitioningState && nextStateKey.Equals(CurrentState.Statekey))
