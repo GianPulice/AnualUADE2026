@@ -1,12 +1,13 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEditor.Animations;
 
 public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 {
-    private PlayerController playerController;
-    public PlayerMovingState(PlayerStateManager.EPlayerState key, PlayerController playerController) : base(key)
+    private PlayerStateManager playerStateManager;
+    public PlayerMovingState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
-        this.playerController = playerController;
+        playerStateManager = stateManager;
     }
 
     public override void EnterState()
@@ -17,6 +18,8 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
     public override void ExitState()
     {
         Debug.Log("Exit Moving State");
+        playerStateManager.CurrentVelocity = 0;
+        playerStateManager.AnimatorController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         NextState = Statekey;
     }
 
@@ -28,22 +31,50 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void OnTriggerEnter(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        
+
     }
 
     public override void UpdateState()
     {
-        //Debug.Log("Updating Moving State");
-        if (playerController.CurrentVelocity <= 0) NextState = PlayerStateManager.EPlayerState.Idle;
-    }
+        if (playerStateManager.IsInteracting)
+        {
+            NextState = PlayerStateManager.EPlayerState.Interacting;
+        }
+        else if (playerStateManager.IsHidden)
+        {
+            NextState = PlayerStateManager.EPlayerState.Hidden;
+        }
+        else
+        {
+            if (playerStateManager.MoveDir != Vector3.zero)
+            {
+                playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.MoveDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
+                if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                {
+                    playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
+                }
+                else 
+                { 
+                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
+                }
+                playerStateManager.CharController.Move(playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity * Time.deltaTime);
+                playerStateManager.AnimatorController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+            }
+            else
+            {
+                NextState = PlayerStateManager.EPlayerState.Idle;
+            }
+        }
+    } 
 }
+

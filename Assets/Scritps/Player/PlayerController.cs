@@ -15,7 +15,13 @@ public class PlayerController : MonoBehaviour
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
 
+
+    public SO_Movement Movement { get => movement; set => movement = value; }
+    public CharacterController CharController { get => charController; set => charController = value; }
+    public Transform PlayerBody { get => playerBody; set => playerBody = value; }
+    public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
     public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
+    public float SpeedMultiplier { get => speedMultiplier; set => speedMultiplier = value; }
 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -28,7 +34,6 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         InputUpdate();
-        Movement();
     }
     
     private void InputUpdate() 
@@ -39,7 +44,23 @@ public class PlayerController : MonoBehaviour
         // Conseguir vector dirección de movimiento segun los inputs
         moveDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
         moveDir.Normalize();
-        
+
+        if (MoveDir != Vector3.zero)
+        {
+            playerBody.forward = Vector3.Slerp(PlayerBody.forward, MoveDir, Time.deltaTime * Movement.RotationSpeed);
+            if (CurrentVelocity < Movement.MoveSpeed * SpeedMultiplier)
+            {
+                CurrentVelocity += Movement.Acceleration * Time.deltaTime;
+            }
+            else CurrentVelocity = Movement.MoveSpeed * SpeedMultiplier;
+            CharController.Move(PlayerBody.forward * CurrentVelocity * Time.deltaTime);
+        }
+        else
+        {
+            currentVelocity = 0;
+            CharController.Move(PlayerBody.forward * CurrentVelocity * Time.deltaTime);
+        }
+
         //Mecánica Agacharse
         if (Input.GetButtonDown("Crouch")) 
         {
@@ -62,23 +83,5 @@ public class PlayerController : MonoBehaviour
         //Mecánica Correr
         if (Input.GetButtonDown("Sprint") && !isCrouch) speedMultiplier = 1.5f;
         else if (Input.GetButtonUp("Sprint") && !isCrouch) speedMultiplier = 1f;
-    }
-    private void Movement() 
-    {
-        if (canMove)
-        {
-            if (moveDir != Vector3.zero)
-            {
-                playerBody.forward = Vector3.Slerp(playerBody.forward, moveDir, Time.deltaTime * movement.RotationSpeed);
-                if (currentVelocity < movement.MoveSpeed * speedMultiplier)
-                {
-                    currentVelocity += movement.Acceleration * Time.deltaTime;
-                }
-                else currentVelocity = movement.MoveSpeed * speedMultiplier;
-                charController.Move(playerBody.forward * currentVelocity * Time.deltaTime);
-                //Debug.Log(currentVelocity);
-            }
-            else currentVelocity = 0;
-        }
     }
 }
