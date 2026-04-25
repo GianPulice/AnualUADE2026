@@ -37,7 +37,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _EnableEffect: 1
+    - _EnableEffect: 0
     - _JitterResolution: 50
     - _PixelSize: 256
     - _Speed: 1

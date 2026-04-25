@@ -433,6 +433,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6339708130738634067}
+  - component: {fileID: 715351175831437850}
   m_Layer: 5
   m_Name: Module Group
   m_TagString: Untagged
@@ -463,3 +464,23 @@ RectTransform:
   m_AnchoredPosition: {x: 763.55, y: -73.785}
   m_SizeDelta: {x: 1527.1, y: 147.57}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &715351175831437850
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9007872005174515416}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 387f80ced2fc9cc4ea2ef1792d966386, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ModuleData
+  moduleID: 
+  moduleLabel: 
+  status: 0
+  failuresCount: 0
+  MaxFailures: 3
+  timerDuration: 0
+  timeRemaining: 0
+  isTimerRunning: 0

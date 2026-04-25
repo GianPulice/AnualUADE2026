@@ -34,6 +34,10 @@ public class InventoryView : MonoBehaviour
     void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
+
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+
         canvasGroup.alpha = 0f;
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
@@ -49,6 +53,8 @@ public class InventoryView : MonoBehaviour
     /// <summary>Muestra u oculta el panel de inventario.</summary>
     public void SetVisible(bool visible)
     {
+        if (canvasGroup == null) return;
+
         targetVisible = visible;
         canvasGroup.interactable = visible;
         canvasGroup.blocksRaycasts = visible;
@@ -60,6 +66,12 @@ public class InventoryView : MonoBehaviour
     /// </summary>
     public void RefreshList(InventoryManager inventoryManager)
     {
+        if (itemListContainer == null || itemSlotPrefab == null)
+        {
+            Debug.LogError("Faltan referencias en InventoryView.");
+            return;
+        }
+
         // Reciclar todos los slots activos al pool
         foreach (ItemSlotView slot in activeSlots)
         {
@@ -82,6 +94,7 @@ public class InventoryView : MonoBehaviour
 
     private void AnimateVisibility()
     {
+        if (canvasGroup == null) return;
         float target = targetVisible ? 1f : 0f;
         canvasGroup.alpha = Mathf.Lerp(canvasGroup.alpha, target, Time.deltaTime * fadeSpeed);
     }

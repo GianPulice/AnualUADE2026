@@ -16,7 +16,6 @@ public class ItemSlotView : MonoBehaviour
 
     [Header("Texto")]
     [SerializeField] private TextMeshProUGUI itemNameText;
-    [SerializeField] private TextMeshProUGUI itemTypeText;
 
     [Header("Visuales de tipo")]
     [SerializeField] private Image itemTypeColorBox;   // El cuadrado de color por tipo
@@ -33,9 +32,6 @@ public class ItemSlotView : MonoBehaviour
     [SerializeField] private Color componentColor;
     [SerializeField] private Color notesColor;
     [SerializeField] private Color esentialColor;
-
-    [Header("Checkbox activo")]
-    [SerializeField] private Toggle activeToggle;  // El checkbox que muestra si está activo/equipado
 
     // ── Privados ─────────────────────────────────────────────────────────────
 
@@ -69,17 +65,13 @@ public class ItemSlotView : MonoBehaviour
         if (itemNameText != null)
             itemNameText.text = item.ItemName;
 
-        // Tipo
-        if (itemTypeText != null)
-            itemTypeText.text = item.ItemType.ToString(); // Asume que SO_InventoryItem tiene ItemType
-
         // Color por tipo
         if (itemTypeColorBox != null)
             itemTypeColorBox.color = GetColorForItemType(item.ItemType);
 
         // Ícono por tipo (si existe en el SO)
-        if (itemTypeIcon != null && item.ItemIcon != null)
-            itemTypeIcon.sprite = item.ItemIcon;
+        if (itemTypeIcon != null && item.ItemIconInventory != null)
+            itemTypeIcon.sprite = item.ItemIconInventory;
 
         // Estado visual normal (no seleccionado)
         SetSelectedVisual(false);
