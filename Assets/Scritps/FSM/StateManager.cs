@@ -12,7 +12,7 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
     {
         CurrentState.EnterState();
     }
-    public void Update()
+    public virtual void Update()
     {
         EState nextStateKey = CurrentState.GetNextState();
         if(!IsTransitioningState && nextStateKey.Equals(CurrentState.Statekey))
