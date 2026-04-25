@@ -16,8 +16,7 @@ public class InventoryManager : Singleton<InventoryManager>
     {
         CreateSingleton(true);
     }
-
-
+    public IReadOnlyList<SO_InventoryItem> GetItems() => SO_inventoryItems.AsReadOnly();
     public void AddItem(SO_InventoryItem item)
     {
         if (item == null) return;
@@ -25,6 +24,7 @@ public class InventoryManager : Singleton<InventoryManager>
         SO_inventoryItems.Add(item);
         currentInventoryItems++;
         Debug.Log($"Item agregado: {item.ItemName}");
+        InventoryEvents.ItemAdded(item);
     }
 
     public void RemoveItem(SO_InventoryItem item)
@@ -36,6 +36,7 @@ public class InventoryManager : Singleton<InventoryManager>
             SO_inventoryItems.Remove(item);
             currentInventoryItems--;
             Debug.Log($"Item removido: {item.ItemName}");
+            InventoryEvents.ItemRemoved(item);
         }
     }
 
@@ -54,6 +55,7 @@ public class InventoryManager : Singleton<InventoryManager>
             /// Analizar esta linea de codigo, porque determinados elementos del inventario no se pueden usar
             currentInventoryItems--;
             Debug.Log($"Usando item: {item.ItemName}");
+            InventoryEvents.ItemUsed(item);
         }
     }
 

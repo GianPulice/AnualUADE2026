@@ -4,10 +4,19 @@ using UnityEngine;
 public class SO_InventoryItem : ScriptableObject
 {
     [SerializeField] private string itemName;
+    [SerializeField] private ItemType itemType;
     [SerializeField] private string itemDescription;
-    [SerializeField] private Sprite spriteUI;
+    [SerializeField] private Sprite itemIcon;
 
     public string ItemName { get => itemName; }
+    public ItemType ItemType { get => itemType; }
     public string ItemDescription { get => itemDescription; }
-    public Sprite SpriteUI { get => spriteUI; }
+    public Sprite ItemIcon { get => itemIcon; }
+}
+public enum ItemType
+{
+    Keys,
+    Components,
+    Notes,
+    Essentials
 }
