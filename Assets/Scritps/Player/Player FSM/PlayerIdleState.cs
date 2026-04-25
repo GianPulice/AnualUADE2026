@@ -2,10 +2,10 @@ using UnityEngine;
 
 public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 {
-    private PlayerController playerController;
-    public PlayerIdleState(PlayerStateManager.EPlayerState key, PlayerController playerController) : base(key)
+    private PlayerStateManager playerStateManager;
+    public PlayerIdleState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
-        this.playerController = playerController;
+        playerStateManager = stateManager;
     }
 
     public override void EnterState()
@@ -42,7 +42,14 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        //Debug.Log("Updating Idle State");
-        if(playerController.CurrentVelocity > 0) NextState = PlayerStateManager.EPlayerState.Moving;
+        if (playerStateManager.IsInteracting)
+        {
+            NextState = PlayerStateManager.EPlayerState.Interacting;
+        }
+        else if (playerStateManager.IsHidden)
+        {
+            NextState = PlayerStateManager.EPlayerState.Hidden;
+        }
+        else if (playerStateManager.MoveDir != Vector3.zero) NextState = PlayerStateManager.EPlayerState.Moving;
     }
 }
