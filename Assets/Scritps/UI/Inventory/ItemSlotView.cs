@@ -1,104 +1,237 @@
 using System;
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 /// <summary>
 /// VIEW de una fila de ítem en la lista del inventario.
 /// 
 /// Responsabilidades:
-///   - Mostrar nombre, tipo y color del ítem
-///   - Notificar al Controller cuando es seleccionado
+///   - Mostrar icono, nombre y dot de color según categoría
+///   - Mostrar borde izquierdo rojo cuando está seleccionado
+///   - Notificar el click al Controller a través de un callback
 /// </summary>
-public class ItemSlotView : MonoBehaviour
+public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHandler
 {
+    [SerializeField] private SO_ItemCategoryConfig categoryConfig;
     // ── Serialized ───────────────────────────────────────────────────────────
-
-    [Header("Texto")]
-    [SerializeField] private TextMeshProUGUI itemNameText;
-
-    [Header("Visuales de tipo")]
-    [SerializeField] private Image itemTypeColorBox;   // El cuadrado de color por tipo
-    [SerializeField] private Image itemTypeIcon;       // Ícono opcional por tipo (puede ser null)
-
-    [Header("Selección")]
+    [Header("UI")]
     [SerializeField] private Button selectButton;
-    [SerializeField] private Image slotBackground;
-    [SerializeField] private Color normalColor    = new Color(0.1f, 0.1f, 0.1f, 1f);
-    [SerializeField] private Color selectedColor  = new Color(0.2f, 0.4f, 0.2f, 1f);
+    [SerializeField] private TextMeshProUGUI itemNameText;
+    [SerializeField] private Image iconImage;
+    [SerializeField] private Image iconBackground;
 
-    [Header("Item Colors")]
-    [SerializeField] private Color keysColor;
-    [SerializeField] private Color componentColor;
-    [SerializeField] private Color notesColor;
-    [SerializeField] private Color esentialColor;
+    [Header("Selected Fill")]
+    [SerializeField] private Image selectionFillImage; // Filled Horizontal
+    [SerializeField] private float fillDuration = 0.45f;
+    [SerializeField] private float alphaDuration = 0.15f;
+    [SerializeField] private float emptyMultiplier = 2.2f;
 
-    // ── Privados ─────────────────────────────────────────────────────────────
+    [Header("Colors")]
+    [SerializeField] private Color idleFillColor = Color.clear;
+    [SerializeField] private Color selectedFillColor = Color.white;
+    // ── Estado ────────────────────────────────────────────────────────────────
 
-    private SO_InventoryItem currentItem;
-    private Action<SO_InventoryItem> onSelected;
+    private Action<SO_InventoryItem> onClicked;
 
-    // ── Unity ────────────────────────────────────────────────────────────────
+    private bool isHovering;
+    private bool isSelected;
+
+    private float currentFill;
+    private float targetFill;
+
+    private float currentAlpha;
+    private float targetAlpha;
+
+    public SO_InventoryItem Item { get; private set; }
+
+    // ── Unity ─────────────────────────────────────────────────────────────────
 
     void Awake()
     {
-        selectButton?.onClick.AddListener(OnButtonClicked);
+        if (selectButton != null)
+            selectButton.onClick.AddListener(OnButtonClicked);
+
+        if (selectionFillImage != null)
+        {
+            currentFill = 0f;
+            currentAlpha = 0f;
+            selectionFillImage.fillAmount = 0f;
+            selectionFillImage.color = idleFillColor;
+        }
     }
 
     void OnDestroy()
     {
         selectButton?.onClick.RemoveListener(OnButtonClicked);
     }
+    private void Update()
+    {
+        TickVisuals();
+    }
 
-    // ── API pública ──────────────────────────────────────────────────────────
+    // ── API pública ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Configura el slot con un ítem y el callback de selección.
+    /// Configura el slot con un ítem y registra el callback de click.
     /// Llamado por InventoryView al refrescar la lista.
     /// </summary>
-    public void Setup(SO_InventoryItem item, Action<SO_InventoryItem> onSelectedCallback)
+    public void Setup(SO_InventoryItem item, Action<SO_InventoryItem> clickCallback)
     {
-        currentItem = item;
-        onSelected = onSelectedCallback;
+        Item = item;
+        onClicked = clickCallback;
 
-        // Nombre
-        if (itemNameText != null)
-            itemNameText.text = item.ItemName;
+        var visuals = categoryConfig.Get(item.Category);
 
-        // Color por tipo
-        if (itemTypeColorBox != null)
-            itemTypeColorBox.color = GetColorForItemType(item.ItemType);
+        itemNameText.text = item.ItemName;
+        iconImage.sprite = item.ItemIcon;
+        iconBackground.color = visuals.BackgroundColor;
 
-        // Ícono por tipo (si existe en el SO)
-        if (itemTypeIcon != null && item.ItemIconInventory != null)
-            itemTypeIcon.sprite = item.ItemIconInventory;
+        ApplyButtonColor(visuals.MainColor);
+        SetFillColor(visuals.ButtonColor);
 
-        // Estado visual normal (no seleccionado)
-        SetSelectedVisual(false);
+        ResetVisualState();
+    }
+    private void ResetVisualState()
+    {
+        isHovering = false;
+        isSelected = false;
+
+        currentFill = 0f;
+        targetFill = 0f;
+
+        currentAlpha = 0f;
+        targetAlpha = 0f;
+
+        if (selectionFillImage != null)
+        {
+            selectionFillImage.fillAmount = 0f;
+
+            Color c = selectionFillImage.color;
+            c.a = 0f;
+            selectionFillImage.color = c;
+        }
+    }
+    public void SetSelected(bool selected)
+    {
+        isSelected = selected;
+
+        if (isSelected)
+        {
+            targetFill = 1f;
+            targetAlpha = 1f;
+
+            if (selectionFillImage != null)
+                selectionFillImage.color = selectedFillColor;
+        }
+        else
+        {
+            targetFill = isHovering ? 1f : 0f;
+            targetAlpha = isHovering ? 1f : 0f;
+
+            if (selectionFillImage != null)
+                selectionFillImage.color = idleFillColor;
+        }
     }
 
-    public void SetSelectedVisual(bool isSelected)
+    public void SetFillColor(Color color)
     {
-        if (slotBackground != null)
-            slotBackground.color = isSelected ? selectedColor : normalColor;
+        idleFillColor = color;
+        selectedFillColor = color;
+
+        if (!isSelected && selectionFillImage != null)
+            selectionFillImage.color = color;
     }
 
-    // ── Privados ─────────────────────────────────────────────────────────────
+    public void CancelHover()
+    {
+        isHovering = false;
+
+        if (!isSelected)
+            targetFill = 0f;
+    }
+
+    // -- POINTER EVENTS ---------------------------
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (selectButton == null || !selectButton.interactable)
+            return;
+
+        isHovering = true;
+
+        if (!isSelected)
+        {
+            targetFill = 1f;
+
+            if (selectionFillImage != null)
+                selectionFillImage.color = idleFillColor;
+        }
+        targetAlpha = 1f;
+        targetFill = 1f;
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        isHovering = false;
+
+        if (!isSelected)
+            targetFill = 0f;
+        targetAlpha = isSelected ? 1f : 0f;
+        targetFill = isSelected ? 1f : 0f;
+    }
+
+    // ── Privados ──────────────────────────────────────────────────────────────
+
+    private void TickVisuals()
+    {
+        if (selectionFillImage == null)
+            return;
+
+        float speed = 1f / fillDuration;
+
+        if (targetFill < currentFill)
+            speed *= emptyMultiplier;
+
+        currentFill = Mathf.MoveTowards(
+            currentFill,
+            targetFill,
+            speed * Time.unscaledDeltaTime
+        );
+
+        selectionFillImage.fillAmount = currentFill;
+        float alphaSpeed = 1f / alphaDuration;
+
+        currentAlpha = Mathf.MoveTowards(
+            currentAlpha,
+            targetAlpha,
+            alphaSpeed * Time.unscaledDeltaTime
+        );
+
+        Color c = selectionFillImage.color;
+        c.a = currentAlpha;
+        selectionFillImage.color = c;
+    }
 
     private void OnButtonClicked()
     {
-        onSelected?.Invoke(currentItem);
+        onClicked?.Invoke(Item);
     }
 
-    private Color GetColorForItemType(ItemType type)
+    private void ApplyButtonColor(Color color)
     {
-        return type switch
-        {
-            ItemType.Keys       => keysColor, //Rojo
-            ItemType.Components => componentColor, // Verde
-            ItemType.Notes      => notesColor,  // Azul
-            ItemType.Essentials => esentialColor,  //Amarillo     
-            _                   => Color.white
-        };
+        if (selectButton == null) return;
+
+        ColorBlock cb = selectButton.colors;
+
+        cb.normalColor = color;
+        cb.highlightedColor = color;
+        cb.pressedColor = color;
+        cb.selectedColor = color;
+        cb.disabledColor = Color.gray;
+
+        selectButton.colors = cb;
     }
+
 }
+

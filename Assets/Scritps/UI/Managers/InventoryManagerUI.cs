@@ -1,25 +1,45 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
-public class InventoryManagerUI : Singleton<InventoryManagerUI> 
+/// <summary>
+/// Controlador principal del sistema de inventario UI
+///
+/// Responsabilidades :
+///   - Manejar input (Tab abre, ESC/Tab cierra, pila de capas)
+///   - Controlar Time.timeScale al abrir/cerrar
+///   - Activar/desactivar el cursor del mouse
+///   - Orquestar comunicación entre Model y Views mediante InventoryEvents
+///   - Gestionar timers de módulos con unscaledDeltaTime
+///   - Mantener la pila de capas activas (inventario → diálogo → ESC)
+///
+/// NO manipula UI directamente.
+/// NO contiene lógica de negocio (eso es InventoryManager).
+/// </summary>
+
+public class InventoryManagerUI : Singleton<InventoryManagerUI>
 {
+    // -- Configuración -------------------
+
     [Header("Input")]
     [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
 
-    [Header("M�dulos")]
+    [Header("Módulos del dispositivo")]
     [SerializeField] private List<ModuleData> modules = new List<ModuleData>();
 
-    [Header("Referencias a Views")]
+    [Header("Views")]
     [SerializeField] private InventoryView inventoryView;
     [SerializeField] private ItemDetailView itemDetailView;
-    [SerializeField] private ModuleView moduleView;
+    [SerializeField] private ModuleHUDView moduleHUDView;
+    [SerializeField] private DiscardDialogView discardDialogView;
 
-    // ------------------ Estado interno ------------------
+    // -- Estado interno -------------------
 
     private bool isInventoryOpen = false;
+    private bool isDiscardOpen = false;
     private SO_InventoryItem selectedItem = null;
+    private SO_InventoryItem pendingDiscard = null;
 
-    //------------------ Unity ------------------
+    // -- Unity -------------------
 
     void Awake()
     {
@@ -34,7 +54,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
     void Update()
     {
-        HandleToggleInput();
+        HandleInput();
         TickModuleTimers();
     }
 
@@ -43,21 +63,14 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         UnsubscribeFromEvents();
     }
 
-    // ------------------ Inicializaci�n ------------------
+    // ------------------ Inicialización ------------------
 
     private void InitializeViews()
     {
-        // El inventario empieza cerrado
         inventoryView?.SetVisible(false);
-
-        // Cargar la lista inicial de �tems
-        RefreshItemList();
-
-        // Inicializar vista de m�dulos
-        moduleView?.Initialize(modules);
-
-        // Limpiar detalle
-        itemDetailView?.ClearDetail();
+        itemDetailView?.ShowEmpty();
+        discardDialogView?.Hide();
+        moduleHUDView?.Initialize(modules);
     }
 
     private void SubscribeToEvents()
@@ -65,8 +78,9 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         InventoryEvents.OnItemAdded += HandleItemAdded;
         InventoryEvents.OnItemRemoved += HandleItemRemoved;
         InventoryEvents.OnItemSelected += HandleItemSelected;
-        InventoryEvents.OnItemUsed += HandleItemUsed;
-        InventoryEvents.OnItemDiscarded += HandleItemDiscarded;
+        InventoryEvents.OnDiscardRequested += HandleDiscardRequested;
+        InventoryEvents.OnDiscardConfirmed += HandleDiscardConfirmed;
+        InventoryEvents.OnDiscardCancelled += HandleDiscardCancelled;
     }
 
     private void UnsubscribeFromEvents()
@@ -74,85 +88,181 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         InventoryEvents.OnItemRemoved -= HandleItemRemoved;
         InventoryEvents.OnItemSelected -= HandleItemSelected;
-        InventoryEvents.OnItemUsed -= HandleItemUsed;
-        InventoryEvents.OnItemDiscarded -= HandleItemDiscarded;
+        InventoryEvents.OnDiscardRequested -= HandleDiscardRequested;
+        InventoryEvents.OnDiscardConfirmed -= HandleDiscardConfirmed;
+        InventoryEvents.OnDiscardCancelled -= HandleDiscardCancelled;
     }
 
     // ------------------ Input ------------------ Despues se quita cuando se integre con el sistema de input
 
-    private void HandleToggleInput()
+    private void HandleInput()
     {
-        if (Input.GetKeyDown(toggleKey))
+        // ESC: capa superior primero
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
-            ToggleInventory();
+            if (isDiscardOpen)
+            {
+                CancelDiscard();
+                return;
+            }
+
+            if (isInventoryOpen)
+            {
+                CloseInventory();
+                return;
+            }
+        }
+
+        // Tab: toggle del inventario (solo si no hay diálogo abierto)
+        if (Input.GetKeyDown(toggleKey) && !isDiscardOpen)
+        {
+            if (isInventoryOpen) CloseInventory();
+            else OpenInventory();
         }
     }
 
-    public void ToggleInventory()
+    // -- Apertura / Cierre --------------------
+
+    /// <summary>
+    /// Abre el inventario:
+    ///   - Time.timeScale = 0 (pausa el gameplay)
+    ///   - Cursor habilitado y visible
+    ///   - Lista refresheada
+    ///   - Primer ítem seleccionado automáticamente si hay ítems
+    /// </summary>
+    public void OpenInventory()
     {
-        isInventoryOpen = !isInventoryOpen;
-        inventoryView?.SetVisible(isInventoryOpen);
+        if (isInventoryOpen) return;
 
-        if (isInventoryOpen)
-        {
-            RefreshItemList();
-        }
-        else
-        {
-            selectedItem = null;
-            itemDetailView?.ClearDetail();
-        }
+        isInventoryOpen = true;
 
-        InventoryEvents.InventoryToggled(isInventoryOpen);
+        Time.timeScale = 0f;
+
+        // Activar cursor para interactuar con la UI
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // Mostrar y poblar la vista
+        inventoryView?.SetVisible(true);
+        RefreshItemList();
+
+        //AutoSelectFirstItem();
+
+        InventoryEvents.InventoryToggled(true);
     }
 
-    // -- Acciones de �tems (llamadas desde ItemSlotView via botones) -------
+    /// <summary>
+    /// Cierra el inventario:
+    ///   - Time.timeScale = 1 (reanuda gameplay)
+    ///   - Cursor deshabilitado (vuelve al estado de juego)
+    ///   - Detener audio de grabación si estaba reproduciéndose
+    /// </summary>
+    public void CloseInventory()
+    {
+        if (!isInventoryOpen) return;
 
+        isInventoryOpen = false;
+        selectedItem = null;
+
+        // Reanudar gameplay
+        Time.timeScale = 1f;
+
+        // Desactivar cursor
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        // Ocultar vista y limpiar detalle
+        inventoryView?.SetVisible(false);
+        itemDetailView?.ShowEmpty();
+
+        // Detener audio de grabación
+        //  itemDetailView?.StopAudio();
+
+        InventoryEvents.InventoryToggled(false);
+    }
+
+    // ── Selección de ítem ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Llamado por ItemSlotView cuando el jugador clickea un ítem.
+    /// Notifica a las Views a través del evento.
+    /// </summary>
     public void SelectItem(SO_InventoryItem item)
     {
         if (item == null) return;
         selectedItem = item;
         InventoryEvents.ItemSelected(item);
     }
-    public void UseSelectedItem()
-    {
-        if (selectedItem == null) return;
 
-        InventoryManager.Instance.UseItem(selectedItem);
-        InventoryEvents.ItemUsed(selectedItem);
+    private void AutoSelectFirstItem()
+    {
+        IReadOnlyList<SO_InventoryItem> allItems = InventoryManager.Instance.GetAllItems();
+
+        if (allItems.Count > 0)
+        {
+            SelectItem(allItems[0]);
+        }
+        else
+        {
+            // Lista vacía: mostrar estado vacío en el panel de detalle
+            itemDetailView?.ShowEmpty();
+        }
     }
 
-    public void DiscardSelectedItem()
+    // ── Descarte ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Llamado por ItemDetailView al presionar el botón de descarte.
+    /// NO elimina el ítem — solo solicita la confirmación.
+    /// </summary>
+    public void RequestDiscard(SO_InventoryItem item)
     {
-        if (selectedItem == null) return;
+        if (item == null) return;
 
-        SO_InventoryItem toDiscard = selectedItem;
-        selectedItem = null;
+        pendingDiscard = item;
+        isDiscardOpen = true;
 
-        InventoryManager.Instance.RemoveItem(toDiscard);
-        InventoryEvents.ItemDiscarded(toDiscard);
-        InventoryEvents.ItemRemoved(toDiscard);
+        InventoryEvents.DiscardRequested(item);
     }
 
-    // ------------------ Event Handlers ------------------
+    /// <summary>Llamado por DiscardDialogView al confirmar.</summary>
+    public void ConfirmDiscard()
+    {
+        if (pendingDiscard == null) return;
+
+        SO_InventoryItem toDiscard = pendingDiscard;
+        pendingDiscard = null;
+        isDiscardOpen = false;
+
+        InventoryManager.Instance.DiscardItem(toDiscard);
+        InventoryEvents.DiscardConfirmed(toDiscard);
+    }
+
+    /// <summary>Llamado por DiscardDialogView al cancelar o por ESC.</summary>
+    public void CancelDiscard()
+    {
+        pendingDiscard = null;
+        isDiscardOpen = false;
+        InventoryEvents.DiscardCancelled();
+    }
+
+    // -- Handlers de eventos --------------------
+
     private void HandleItemAdded(SO_InventoryItem item)
     {
         RefreshItemList();
-
-        if (InventoryManager.Instance.ReturnTrueIfInventoryIsFull())
-        {
-            InventoryEvents.InventoryFull();
-        }
     }
 
     private void HandleItemRemoved(SO_InventoryItem item)
     {
         RefreshItemList();
 
+        // Si el ítem removido era el seleccionado, limpiar el panel de detalle
         if (selectedItem == item)
         {
             selectedItem = null;
-            itemDetailView?.ClearDetail();
+            itemDetailView?.ShowEmpty();
+            AutoSelectFirstItem();
         }
     }
 
@@ -161,35 +271,43 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         itemDetailView?.ShowDetail(item);
     }
 
-    private void HandleItemUsed(SO_InventoryItem item)
+    private void HandleDiscardRequested(SO_InventoryItem item)
     {
-        RefreshItemList();
+        discardDialogView?.Show(item);
     }
 
-    private void HandleItemDiscarded(SO_InventoryItem item)
+    private void HandleDiscardConfirmed(SO_InventoryItem item)
     {
-        // El refresh ya lo hace HandleItemRemoved que se dispara junto
+        discardDialogView?.Hide();
     }
 
-    // ------------------ M�dulos ------------------
+    private void HandleDiscardCancelled()
+    {
+        discardDialogView?.Hide();
+    }
 
+    // -- Módulos (unscaledDeltaTime) --------------------
+
+    /// <summary>
+    /// Actualiza los timers de módulos con unscaledDeltaTime.
+    /// Esto asegura que el countdown siga corriendo aunque Time.timeScale == 0.
+    /// </summary>
     private void TickModuleTimers()
     {
         foreach (ModuleData module in modules)
         {
-            if (!module.isTimerRunning) continue;
+            if (module.Status != ModuleStatus.Active || !module.IsTimerRunning) continue;
 
-            module.timeRemaining -= Time.deltaTime;
+            module.TimeRemaining -= Time.unscaledDeltaTime;
 
-            if (module.timeRemaining <= 0f)
+            if (module.TimeRemaining <= 0f)
             {
-                module.timeRemaining = 0f;
-                module.isTimerRunning = false;
-                module.status = ModuleStatus.Failure;
-                module.failuresCount++;
+                module.TimeRemaining = 0f;
+                module.IsTimerRunning = false;
+                module.Status = ModuleStatus.Exploded;
 
-                InventoryEvents.ModuleFailure(module);
-                InventoryEvents.ModuleStatusChanged(module);
+                InventoryEvents.ModuleExploded(module);
+                InventoryEvents.ModuleStateChanged(module);
             }
             else
             {
@@ -198,43 +316,59 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         }
     }
 
-    /// <summary>Activa el timer de un m�dulo por su ID.</summary>
+    // -- API pública de módulos --------------------
+
+    // Zona rara, despues hay que chequear cuando el desarrollo de los modulos este mas avanzado.
+    // Por ahora se deja esta API pública para facilitar la integración con el sistema de módulos, pero
+    // idealmente el InventoryManagerUI no debería exponer métodos específicos de módulos,
+    // sino solo manejar su estado interno y comunicarlo a través de eventos.
+
+    /// <summary>Inicia o reinicia el timer de un módulo.</summary>
     public void StartModuleTimer(string moduleId)
     {
         ModuleData module = GetModule(moduleId);
         if (module == null) return;
 
-        module.timeRemaining = module.timerDuration;
-        module.isTimerRunning = true;
-        module.status = ModuleStatus.Active;
+        module.TimeRemaining = module.TimerDuration;
+        module.IsTimerRunning = true;
+        module.Status = ModuleStatus.Active;
 
-        InventoryEvents.ModuleStatusChanged(module);
+        InventoryEvents.ModuleStateChanged(module);
     }
 
-    /// <summary>Resetea los fallos de un m�dulo.</summary>
-    public void ResetModuleFailures(string moduleId)
+    /// <summary>Marca un módulo como resuelto (puzzle completado).</summary>
+    public void ResolveModule(string moduleId)
     {
         ModuleData module = GetModule(moduleId);
         if (module == null) return;
 
-        module.failuresCount = 0;
-        module.status = ModuleStatus.Active;
+        module.IsTimerRunning = false;
+        module.Status = ModuleStatus.Resolved;
 
-        InventoryEvents.ModuleStatusChanged(module);
+        InventoryEvents.ModuleStateChanged(module);
     }
 
-    public ModuleData GetModule(string moduleId)
-    {
-        return modules.Find(m => m.moduleID == moduleId);
-    }
+    public ModuleData GetModule(string moduleId) =>
+        modules.Find(m => m.ModuleID == moduleId);
 
     public List<ModuleData> GetAllModules() => modules;
 
-    // -- Helpers ------------------
+    public int GetExplodedCount() =>
+        modules.FindAll(m => m.Status == ModuleStatus.Exploded).Count;
+
+    public ModuleData GetActiveModule() =>
+        modules.Find(m => m.Status == ModuleStatus.Active && m.IsTimerRunning);
+
+    // -- Helpers --------------------
 
     private void RefreshItemList()
     {
         if (!isInventoryOpen) return;
         inventoryView?.RefreshList(InventoryManager.Instance);
     }
+
+    // -- Accessors de estado --------------------
+
+    public bool IsInventoryOpen => isInventoryOpen;
+    public SO_InventoryItem SelectedItem => selectedItem;
 }

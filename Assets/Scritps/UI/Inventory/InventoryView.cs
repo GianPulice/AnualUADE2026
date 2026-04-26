@@ -1,78 +1,117 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
 /// VIEW principal del inventario.
 /// 
 /// Responsabilidades:
-///   - Mostrar/ocultar el panel con animación
-///   - Instanciar y reciclar ItemSlotViews según la lista actual
-///   - NO sabe nada de lógica de negocio
+///   - Mostrar/ocultar el panel
+///   - Instanciar GroupLabelUI + ItemSlotView por cada ítem
+///   - Usar object pooling para no instanciar en cada refresh
+///   - NO conoce lógica de negocio ni de módulos
+///
+/// NOTA: El panel aparece/desaparece instantáneamente [Luego animacion]
+/// Recordar añadir una animacion mas adelante
+/// Las pools tambien son temporales, despues se van a añadir unas mas genericas
 /// </summary>
-[RequireComponent(typeof(CanvasGroup))]
+
 public class InventoryView : MonoBehaviour
 {
     // ── Serialized ───────────────────────────────────────────────────────────
 
-    [Header("Lista de ítems")]
-    [SerializeField] private Transform itemListContainer;   // El ScrollView Content
+    [Header("Contenedor de la lista")]
+    [SerializeField] private Transform itemListContainer;   // ScrollRect Content 
+
+    [Header("Prefabs")]
     [SerializeField] private ItemSlotView itemSlotPrefab;
+    [SerializeField] private GroupLabelView groupLabelPrefab;
 
-    [Header("Animación")]
-    [SerializeField] private float fadeSpeed = 8f;
+    [Header("Panel raíz")]
+    [SerializeField] private GameObject rootPanel;
 
-    // ── Privados ─────────────────────────────────────────────────────────────
+    // ── Pools ─────────────────────────────────────────────────────────────────
 
-    private CanvasGroup canvasGroup;
-    private bool targetVisible = false;
+    private readonly Queue<ItemSlotView> slotPool = new Queue<ItemSlotView>();
+    private readonly Queue<GroupLabelView> groupLabelPool = new Queue<GroupLabelView>();
 
-    private List<ItemSlotView> activeSlots = new List<ItemSlotView>();
-    private Queue<ItemSlotView> slotPool = new Queue<ItemSlotView>();
+    private readonly List<ItemSlotView> activeSlots = new List<ItemSlotView>();
+    private readonly List<GroupLabelView> activeGroupLabels = new List<GroupLabelView>();
 
-    // ── Unity ────────────────────────────────────────────────────────────────
+    // ── Orden de categorías en la lista ───────────────────────────
 
-    void Awake()
+    private static readonly ItemCategory[] CategoryOrder =
     {
-        canvasGroup = GetComponent<CanvasGroup>();
-
-        if (canvasGroup == null)
-            canvasGroup = gameObject.AddComponent<CanvasGroup>();
-
-        canvasGroup.alpha = 0f;
-        canvasGroup.interactable = false;
-        canvasGroup.blocksRaycasts = false;
-    }
-
-    void Update()
-    {
-        AnimateVisibility();
-    }
+        ItemCategory.Key,
+        ItemCategory.Component,
+        ItemCategory.Note,
+        ItemCategory.Special
+    };
 
     // ── API pública ──────────────────────────────────────────────────────────
 
     /// <summary>Muestra u oculta el panel de inventario.</summary>
     public void SetVisible(bool visible)
     {
-        if (canvasGroup == null) return;
-
-        targetVisible = visible;
-        canvasGroup.interactable = visible;
-        canvasGroup.blocksRaycasts = visible;
+        if (rootPanel != null)
+            rootPanel.SetActive(visible);
     }
 
     /// <summary>
-    /// Recibe el InventoryManager (Model) y actualiza la lista de slots.
-    /// El Controller llama esto cada vez que el inventario cambia.
+    /// Reconstruye la lista completa a partir del Model.
+    /// Agrupa ítems por categoría. Omite grupos vacíos (spec §4.2).
     /// </summary>
-    public void RefreshList(InventoryManager inventoryManager)
+    public void RefreshList(InventoryManager model)
     {
-        if (itemListContainer == null || itemSlotPrefab == null)
-        {
-            Debug.LogError("Faltan referencias en InventoryView.");
-            return;
-        }
+        ReturnAllToPool();
 
-        // Reciclar todos los slots activos al pool
+        IReadOnlyList<SO_InventoryItem> allItems = model.GetAllItems();
+
+        foreach (ItemCategory category in CategoryOrder)
+        {
+            List<SO_InventoryItem> group = allItems
+                .Where(i => i.Category == category)
+                .ToList();
+
+            // Omitir grupos vacíos (spec §4.2)
+            if (group.Count == 0) continue;
+
+            // Etiqueta de grupo
+            GroupLabelView label = GetOrCreateGroupLabel();
+            label.Setup(category);
+            label.gameObject.SetActive(true);
+            activeGroupLabels.Add(label);
+
+            // Ítems del grupo
+            foreach (SO_InventoryItem item in group)
+            {
+                ItemSlotView slot = GetOrCreateSlot();
+                slot.Setup(item, OnSlotClicked);
+                slot.gameObject.SetActive(true);
+                activeSlots.Add(slot);
+            }
+        }
+    }
+    public void HighlightItem(SO_InventoryItem item)
+    {
+        foreach (ItemSlotView slot in activeSlots)
+        {
+            slot.SetSelected(slot.Item == item);
+        }
+    }
+
+    // ── Callbacks ─────────────────────────────────────────────────────────────
+
+    private void OnSlotClicked(SO_InventoryItem item)
+    {
+        HighlightItem(item);
+        InventoryManagerUI.Instance.SelectItem(item);
+    }
+
+    // ── Pool (Temporary) ──────────────────────────────────────────────────
+
+    private void ReturnAllToPool()
+    {
         foreach (ItemSlotView slot in activeSlots)
         {
             slot.gameObject.SetActive(false);
@@ -80,37 +119,23 @@ public class InventoryView : MonoBehaviour
         }
         activeSlots.Clear();
 
-        // Reconstruir con la lista actual
-        foreach (SO_InventoryItem item in inventoryManager.GetItems())
+        foreach (GroupLabelView label in activeGroupLabels)
         {
-            ItemSlotView slot = GetOrCreateSlot();
-            slot.Setup(item, OnSlotSelected);
-            slot.gameObject.SetActive(true);
-            activeSlots.Add(slot);
+            label.gameObject.SetActive(false);
+            groupLabelPool.Enqueue(label);
         }
-    }
-
-    // ── Privados ─────────────────────────────────────────────────────────────
-
-    private void AnimateVisibility()
-    {
-        if (canvasGroup == null) return;
-        float target = targetVisible ? 1f : 0f;
-        canvasGroup.alpha = Mathf.Lerp(canvasGroup.alpha, target, Time.deltaTime * fadeSpeed);
+        activeGroupLabels.Clear();
     }
 
     private ItemSlotView GetOrCreateSlot()
     {
-        if (slotPool.Count > 0)
-        {
-            return slotPool.Dequeue();
-        }
-
+        if (slotPool.Count > 0) return slotPool.Dequeue();
         return Instantiate(itemSlotPrefab, itemListContainer);
     }
 
-    private void OnSlotSelected(SO_InventoryItem item)
+    private GroupLabelView GetOrCreateGroupLabel()
     {
-        InventoryManagerUI.Instance.SelectItem(item);
+        if (groupLabelPool.Count > 0) return groupLabelPool.Dequeue();
+        return Instantiate(groupLabelPrefab, itemListContainer);
     }
 }
