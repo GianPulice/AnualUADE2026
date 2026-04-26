@@ -42,11 +42,11 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        if (playerStateManager.IsInteracting)
+        /*if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
         }
-        else if (playerStateManager.IsHidden)
+        else*/ if (playerStateManager.IsHidden)
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }

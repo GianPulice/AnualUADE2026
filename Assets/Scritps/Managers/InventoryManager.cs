@@ -46,16 +46,17 @@ public class InventoryManager : Singleton<InventoryManager>
         return SO_inventoryItems.Contains(item);
     }
 
-    public void UseItem(SO_InventoryItem item)
+    public void UseItem(SO_InventoryItem item, bool consume = false)
     {
         if (item == null) return;
 
         if (HasItem(item))
         {
-            /// Analizar esta linea de codigo, porque determinados elementos del inventario no se pueden usar
-            currentInventoryItems--;
             Debug.Log($"Usando item: {item.ItemName}");
             InventoryEvents.ItemUsed(item);
+
+            if (consume)
+                RemoveItem(item);
         }
     }
 

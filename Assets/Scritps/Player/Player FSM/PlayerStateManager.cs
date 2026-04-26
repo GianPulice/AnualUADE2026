@@ -35,7 +35,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         Idle,
         Moving,
-        Interacting,
+        //Interacting,
         Hidden,
         InDanger,
         Disabled,
@@ -58,7 +58,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         States.Add(EPlayerState.Idle,new PlayerIdleState(EPlayerState.Idle, this));
         States.Add(EPlayerState.Moving, new PlayerMovingState(EPlayerState.Moving, this));
-        States.Add(EPlayerState.Interacting, new PlayerInteractingState(EPlayerState.Interacting, this));
+        //States.Add(EPlayerState.Interacting, new PlayerInteractingState(EPlayerState.Interacting, this));
         States.Add(EPlayerState.Hidden, new PlayerHiddenState(EPlayerState.Hidden, this));
         States.Add(EPlayerState.Disabled, new PlayerDisabledState(EPlayerState.Disabled, this));
         CurrentState = States[EPlayerState.Idle];
@@ -98,11 +98,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         else if (Input.GetButtonUp("Sprint") && !isCrouch) speedMultiplier = 1f;
 
         //Testeo de estado Interacting
-        if (Input.GetKeyDown(KeyCode.E))
+        /*if (Input.GetKeyDown(KeyCode.E))
         {
             if (isInteracting) isInteracting = false;
             else isInteracting = true;
-        }
+        }*/
 
         //Testeo de estado Hidden
         if (Input.GetKeyDown(KeyCode.R))
