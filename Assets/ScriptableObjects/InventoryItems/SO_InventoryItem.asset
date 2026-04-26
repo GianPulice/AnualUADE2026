@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
   m_Name: SO_InventoryItem
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemId: 
   itemName: Key
-  spriteUI: {fileID: 0}
+  itemType: 0
+  itemDescription: 
+  itemIconInventory: {fileID: 0}
+  parameters: []
