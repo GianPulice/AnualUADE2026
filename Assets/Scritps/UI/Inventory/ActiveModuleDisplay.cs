@@ -13,9 +13,9 @@ using TMPro;
 public class ActiveModuleDisplay : MonoBehaviour
 {
     [Header("Textos")]
-    [SerializeField] private TextMeshProUGUI timerText;      // "00:00"
-    [SerializeField] private TextMeshProUGUI timeLabelText;  // "Time Left"
-    [SerializeField] private TextMeshProUGUI moduleIdText;   // ID del módulo activo
+    [Tooltip("00:00")][SerializeField] private TextMeshProUGUI timerText;      
+    [Tooltip("Time Left")][SerializeField] private TextMeshProUGUI timeLabelText;  
+    [Tooltip("ID del módulo activo")][SerializeField] private TextMeshProUGUI moduleIdText;    
 
     [Header("Imagen circular / radial fill")]
     [SerializeField] private Image radialFill;               // Image con FillMethod = Radial360
@@ -26,7 +26,7 @@ public class ActiveModuleDisplay : MonoBehaviour
             timerText.text = module.FormattedTime;
 
         if (moduleIdText != null)
-            moduleIdText.text = module.moduleID;
+            moduleIdText.text = module.ModuleID;
 
         if (radialFill != null)
             radialFill.fillAmount = module.TimerProgress;

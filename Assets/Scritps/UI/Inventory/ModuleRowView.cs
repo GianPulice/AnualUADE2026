@@ -1,6 +1,6 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 /// <summary>
 /// VIEW de una fila de módulo individual (M1_Logs, M2_Logs, etc.).
@@ -9,65 +9,68 @@ using TMPro;
 public class ModuleRowView : MonoBehaviour
 {
     [Header("Textos")]
-    [SerializeField] private TextMeshProUGUI moduleLogLabel;
-    [SerializeField] private TextMeshProUGUI statusText;
+    [SerializeField] private TextMeshProUGUI moduleLabel;   // "M1", "M2", "M3"
+    [SerializeField] private TextMeshProUGUI statusText;    // "ACTIVO", "RESUELTO", etc.
 
     [Header("Barra de progreso")]
-    [SerializeField] private Slider progressBar;
-    [SerializeField] private Image progressFill;  // Para cambiar color según estado
+    [SerializeField] private Image progressFill;  // Para color dinámico
 
-    [Header("Colores de estado")]
-    [SerializeField] private Color activeColor  = new Color(0.8f, 0.1f, 0.1f);  // Rojo (tu UI)
-    [SerializeField] private Color warningColor = new Color(1f,   0.6f, 0f);     // Naranja
-    [SerializeField] private Color failureColor = new Color(0.3f, 0.3f, 0.3f);  // Gris
-    [SerializeField] private Color inactiveColor= new Color(0.2f, 0.2f, 0.2f);
-
-    // ── API pública ──────────────────────────────────────────────────────────
+    // Colores de estado del nombre (spec §3.2)
+    private static readonly Color LabelActiveColor = new Color(0.80f, 0.10f, 0.10f); // #cc1a1a
+    private static readonly Color LabelResolvedColor = new Color(0.10f, 0.42f, 0.10f); // #1a6a1a
+    private static readonly Color LabelInactiveColor = new Color(0.16f, 0.16f, 0.16f); // #2a2a2a
+    private static readonly Color LabelExplodedColor = new Color(0.35f, 0.16f, 0.00f); // #5a2a00
 
     public void Setup(ModuleData module)
     {
-        if (moduleLogLabel != null) moduleLogLabel.text = module.moduleLabel;
-        UpdateTimer(module);
+        if (moduleLabel != null) moduleLabel.text = module.ModuleLogLabel;
+        UpdateProgress(module);
         UpdateStatus(module);
     }
 
-    public void UpdateTimer(ModuleData module)
+    public void UpdateProgress(ModuleData module)
     {
-        if (progressBar != null)
-            progressBar.value = module.TimerProgress;
+        if (progressFill != null)
+        {
+            progressFill.fillAmount = module.Status switch
+            {
+                ModuleStatus.Active => module.TimerProgress,
+                ModuleStatus.Resolved => 1f,
+                _ => 0f
+            };
+            progressFill.color = module.BarColor;
+
+        }
     }
 
     public void UpdateStatus(ModuleData module)
     {
-        if (statusText != null)
-            statusText.text = module.status.ToString();
-
-        if (progressFill != null)
+        // Label del módulo
+        if (moduleLabel != null)
         {
-            progressFill.color = module.status switch
+            moduleLabel.color = module.Status switch
             {
-                ModuleStatus.Active   => activeColor,
-                ModuleStatus.Warning  => warningColor,
-                ModuleStatus.Failure  => failureColor,
-                ModuleStatus.Inactive => inactiveColor,
-                _                     => activeColor
+                ModuleStatus.Active => LabelActiveColor,
+                ModuleStatus.Resolved => LabelResolvedColor,
+                ModuleStatus.Inactive => LabelInactiveColor,
+                ModuleStatus.Exploded => LabelExplodedColor,
+                _ => LabelInactiveColor
             };
         }
-    }
 
-    public void PlayFailureAnimation()
-    {
-        // Podés reemplazar por LeanTween o una animación de Unity
-        // Por ahora hace un flash rápido en el progress fill
-        if (progressFill != null)
+        // Texto de estado
+        if (statusText != null)
         {
-            LeanTween.value(gameObject, 1f, 0f, 0.3f)
-                .setOnUpdate((float val) => {
-                    Color c = progressFill.color;
-                    c.a = val;
-                    progressFill.color = c;
-                })
-                .setLoopPingPong(3);
+            statusText.text = module.Status switch
+            {
+                ModuleStatus.Active => "ACTIVO",
+                ModuleStatus.Resolved => "RESUELTO",
+                ModuleStatus.Inactive => "INACTIVO",
+                ModuleStatus.Exploded => "EXPLOTADO",
+                _ => "INACTIVO"
+            };
         }
+
+        UpdateProgress(module);
     }
 }

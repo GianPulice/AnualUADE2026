@@ -72,4 +72,8 @@ public class SequencePanelInteractable : MonoBehaviour, IInteractable
     {
         currentSequence.Clear();
     }
+    public bool IsRepeatable()
+    {
+        return false;
+    }
 }

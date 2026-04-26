@@ -67,7 +67,7 @@ public class DoorInteractable : MonoBehaviour, IInteractable
         isOpen = true;
 
         if (doorData.ConsumeKey && doorData.RequiredKey != null)
-            InventoryManager.Instance.RemoveItem(doorData.RequiredKey);
+            InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
 
         PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
 
@@ -85,5 +85,9 @@ public class DoorInteractable : MonoBehaviour, IInteractable
         Collider collider = GetComponent<Collider>();
         if (collider != null)
             collider.enabled = false;
+    }
+    public bool IsRepeatable()
+    {
+        return false;
     }
 }

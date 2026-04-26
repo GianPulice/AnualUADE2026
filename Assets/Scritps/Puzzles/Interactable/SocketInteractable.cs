@@ -32,7 +32,7 @@ public class SocketInteractable : MonoBehaviour, IInteractable
         if (!CanInteract()) return;
 
         if (socketData.ConsumeItem)
-            InventoryManager.Instance.RemoveItem(socketData.RequiredItem);
+            InventoryManager.Instance.ConsumeItem(socketData.RequiredItem);
 
         PuzzleStateManager.Instance.SetSocketInserted(socketData.SocketId);
 
@@ -51,5 +51,9 @@ public class SocketInteractable : MonoBehaviour, IInteractable
         }
 
         Debug.Log($"Socket insertado: {socketData.SocketId}");
+    }
+    public bool IsRepeatable()
+    {
+        return false;
     }
 }

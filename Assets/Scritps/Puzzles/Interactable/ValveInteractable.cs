@@ -68,5 +68,9 @@ public class ValveInteractable : MonoBehaviour, IInteractable
 
         Debug.Log($"Válvula {valveData.ValveId} en posición {nextPosition}");
     }
+    public bool IsRepeatable()
+    {
+        return false;
+    }
 }
 

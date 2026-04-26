@@ -17,20 +17,11 @@ public class InteractionManagerUI : Singleton<InteractionManagerUI>
     }
 
 
-    private void ShowCurrentInteractionMessageText()
+    public void ShowCurrentInteractionMessageText()
     {
         if (InteractionManager.Instance.CurrentInteractable != null)
         {
-            if (InventoryManager.Instance.ReturnTrueIfInventoryIsFull())
-            {
-                interactionMessageText.text = "Inventario lleno";
-                return;
-            }
-
-            else
-            {
                 interactionMessageText.text = "Presione la tecla 'E' para " + InteractionManager.Instance.CurrentInteractable.GetInteractText();
-            }
         }
 
         else
