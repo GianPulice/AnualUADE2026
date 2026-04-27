@@ -36,8 +36,10 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
     private bool isInventoryOpen = false;
     private bool isDiscardOpen = false;
+
     private SO_InventoryItem selectedItem = null;
     private SO_InventoryItem pendingDiscard = null;
+    private SO_InventoryItem currentSelectedItem;
 
     // -- Unity -------------------
 
@@ -100,17 +102,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         // ESC: capa superior primero
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            if (isDiscardOpen)
-            {
-                CancelDiscard();
-                return;
-            }
-
-            if (isInventoryOpen)
-            {
-                CloseInventory();
-                return;
-            }
+            HandleCancelInput();
         }
 
         // Tab: toggle del inventario (solo si no hay diálogo abierto)
@@ -191,6 +183,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
     {
         if (item == null) return;
         selectedItem = item;
+        currentSelectedItem = item;
         InventoryEvents.ItemSelected(item);
     }
 
@@ -286,12 +279,37 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         discardDialogView?.Hide();
     }
 
+    private void HandleCancelInput()
+    {
+        //Agregar un if mas para cuando este la de Audio
+        if (isDiscardOpen) // (Usa la variable booleana que controle tu modal)
+        {
+            CancelDiscard();
+            return;
+        }
+        if (currentSelectedItem != null)
+        {
+            ClearSelection();
+            return;
+        }
+        CloseInventory();
+    }
+
+    private void ClearSelection()
+    {
+        currentSelectedItem = null;
+
+        InventoryEvents.ItemSelected(null);
+
+        inventoryView.HighlightItem(null);
+    }
+
     // -- Módulos (unscaledDeltaTime) --------------------
 
-    /// <summary>
-    /// Actualiza los timers de módulos con unscaledDeltaTime.
-    /// Esto asegura que el countdown siga corriendo aunque Time.timeScale == 0.
-    /// </summary>
+        /// <summary>
+        /// Actualiza los timers de módulos con unscaledDeltaTime.
+        /// Esto asegura que el countdown siga corriendo aunque Time.timeScale == 0.
+        /// </summary>
     private void TickModuleTimers()
     {
         foreach (ModuleData module in modules)

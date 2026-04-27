@@ -213,7 +213,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
         selectionFillImage.color = c;
     }
 
-    private void OnButtonClicked()
+    public void OnButtonClicked()
     {
         onClicked?.Invoke(Item);
     }

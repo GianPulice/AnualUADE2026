@@ -25,13 +25,13 @@ public class ItemDetailView : MonoBehaviour
     [Tooltip("Selecciona un item / para ver el detalle")]
     [SerializeField] private GameObject emptyStatePanel;
     [Tooltip("Todo el contenido real")]
-    [SerializeField] private GameObject detailContentPanel; 
+    [SerializeField] private GameObject detailContentPanel;
     // ── Header ───────────────────────────────────────────────────────────────
 
     [Header("Header del ítem")]
     [SerializeField] private Image iconImage;
     [Tooltip("El fondo verde del tipo en tu UI")]
-    [SerializeField] private Image iconBackground;  
+    [SerializeField] private Image iconBackground;
     [SerializeField] private TextMeshProUGUI itemNameText; //13px
     [SerializeField] private TextMeshProUGUI categoryTagText; //8px
     [SerializeField] private Image categoryTagBackground;
@@ -71,7 +71,7 @@ public class ItemDetailView : MonoBehaviour
     [Header("Botón de descarte")]
     [SerializeField] private Button discardButton;
     [Tooltip("[ descartar {nombre} ]")]
-    [SerializeField] private TextMeshProUGUI discardButtonText;  
+    [SerializeField] private TextMeshProUGUI discardButtonText;
 
     // ── Colores de metadata ───────────────────────────────────────────────────
 
@@ -122,10 +122,17 @@ public class ItemDetailView : MonoBehaviour
     public void ShowEmpty()
     {
         currentItem = null;
-        if(enableAudioFeatures) StopAudio();
+        if (enableAudioFeatures) StopAudio();
 
         emptyStatePanel?.SetActive(true);
         detailContentPanel?.SetActive(false);
+
+        if (docBox != null) docBox.SetActive(false);
+
+        if (enableAudioFeatures && audioPlayerBox != null)
+        {
+            audioPlayerBox.SetActive(false);
+        }
     }
 
     /// <summary>Muestra los detalles del ítem seleccionado.</summary>
@@ -200,8 +207,11 @@ public class ItemDetailView : MonoBehaviour
     private void PopulateContent(SO_InventoryItem item)
     {
         // Ocultar ambas cajas por defecto
-        docBox?.SetActive(false);
-        audioPlayerBox?.SetActive(false);
+        if (docBox != null) docBox.SetActive(false);
+        if (enableAudioFeatures && audioPlayerBox != null)
+        {
+            audioPlayerBox.SetActive(false);
+        }
 
         switch (item.ContentType)
         {
@@ -212,10 +222,14 @@ public class ItemDetailView : MonoBehaviour
                 break;
 
             case ItemContentType.Audio:
-                audioPlayerBox?.SetActive(true);
-                if (audioSource != null)
-                    audioSource.clip = item.AudioClip;
-                UpdateAudioTimeText();
+                if (enableAudioFeatures)
+                {
+                    if (audioPlayerBox != null) audioPlayerBox.SetActive(true);
+                    if (audioSource != null)
+                        audioSource.clip = item.AudioClip;
+
+                    UpdateAudioTimeText();
+                }
                 break;
 
             case ItemContentType.None:

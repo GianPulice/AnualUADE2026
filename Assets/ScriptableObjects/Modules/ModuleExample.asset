@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ModuleData
   ModuleID: 0
   ModuleLogLabel: MX_Example
-  Status: 0
+  Status: 1
   TimerDuration: 54
   TimeRemaining: 0
   IsTimerRunning: 0
