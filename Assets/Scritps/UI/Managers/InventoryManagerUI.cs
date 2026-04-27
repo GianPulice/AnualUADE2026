@@ -108,6 +108,10 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         // Tab: toggle del inventario (solo si no hay diálogo abierto)
         if (Input.GetKeyDown(toggleKey) && !isDiscardOpen)
         {
+            if(itemDetailView != null && itemDetailView.IsDocOpen)
+            {
+                itemDetailView.HideDoc();
+            }
             if (isInventoryOpen) CloseInventory();
             else OpenInventory();
         }
@@ -172,7 +176,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
         InventoryEvents.InventoryToggled(false);
     }
-
+    public void OpenDocument() => itemDetailView?.ShowDoc();
+    public void CloseDocument() => itemDetailView?.HideDoc();
     // ── Selección de ítem ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -281,17 +286,24 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
     private void HandleCancelInput()
     {
-        //Agregar un if mas para cuando este la de Audio
-        if (isDiscardOpen) // (Usa la variable booleana que controle tu modal)
+        if (isDiscardOpen)
         {
             CancelDiscard();
             return;
         }
+
+        if (itemDetailView != null && itemDetailView.IsDocOpen)
+        {
+            itemDetailView.HideDoc();
+            return;
+        }
+
         if (currentSelectedItem != null)
         {
             ClearSelection();
             return;
         }
+
         CloseInventory();
     }
 
