@@ -20,4 +20,8 @@ public class NoteInteractable : MonoBehaviour, IInteractable
     {
         Debug.Log(noteText);
     }
+    public bool IsRepeatable()
+    {
+        return false;
+    }
 }

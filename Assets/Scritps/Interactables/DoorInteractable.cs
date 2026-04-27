@@ -2,55 +2,92 @@ using UnityEngine;
 
 public class DoorInteractable : MonoBehaviour, IInteractable
 {
-    [SerializeField] private SO_InventoryItem requiredItem;
-    [SerializeField] private bool isLocked;
-    [SerializeField] private bool consumeItem;
-    [SerializeField] private bool isOpen;
+    [SerializeField] private SO_DoorData doorData;
 
+    private bool isOpen;
+
+    private void Awake()
+    {
+        if (doorData == null)
+        {
+            Debug.LogError($"DoorInteractable sin SO_DoorData en {gameObject.name}");
+            return;
+        }
+
+        isOpen = PuzzleStateManager.Instance != null &&
+                 PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
+
+        ApplyVisualState();
+    }
 
     public string GetInteractText()
     {
-        if (isLocked)
-        {
-            if (requiredItem != null)
-                return $"Abrir puerta (requiere {requiredItem.ItemName})";
+        if (doorData == null) return "Puerta sin configurar";
 
-            return "Puerta cerrada";
-        }
+        if (isOpen) return string.Empty;
 
-        return isOpen ? "Cerrar puerta" : "Abrir puerta";
+        if (doorData.RequiredKey != null)
+            return $"Abrir con {doorData.RequiredKey.ItemName}";
+
+        return doorData.OpenPrompt;
     }
 
     public bool CanInteract()
     {
-        if (!isLocked) return true;
+        if (doorData == null) return false;
+        if (isOpen) return false;
 
-        if (requiredItem == null) return false;
+        if (doorData.RequiredKey != null &&
+            !InventoryManager.Instance.HasItem(doorData.RequiredKey))
+        {
+            return false;
+        }
 
-        return InventoryManager.Instance.HasItem(requiredItem);
+        if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
+            !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public void Interact()
     {
-        if (isLocked)
-        {
-            if (requiredItem != null && InventoryManager.Instance.HasItem(requiredItem))
-            {
-                isLocked = false;
+        if (!CanInteract()) return;
 
-                if (consumeItem)
-                    InventoryManager.Instance.RemoveItem(requiredItem);
-            }
+        OpenDoor();
+    }
 
-            else
-            {
-                Debug.Log("No tenés el item requerido.");
-                return;
-            }
-        }
+    public void OpenDoor()
+    {
+        if (doorData == null) return;
+        if (isOpen) return;
 
-        isOpen = !isOpen;
+        isOpen = true;
 
-        Debug.Log(isOpen ? "Puerta abierta" : "Puerta cerrada");
+        if (doorData.ConsumeKey && doorData.RequiredKey != null)
+            InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
+
+        PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+
+        ApplyVisualState();
+
+        Debug.Log($"Puerta abierta: {doorData.DoorId}");
+    }
+
+    private void ApplyVisualState()
+    {
+        if (!isOpen) return;
+
+        transform.rotation = Quaternion.Euler(transform.eulerAngles.x, transform.eulerAngles.y + 90f, transform.eulerAngles.z);
+
+        Collider collider = GetComponent<Collider>();
+        if (collider != null)
+            collider.enabled = false;
+    }
+    public bool IsRepeatable()
+    {
+        return false;
     }
 }

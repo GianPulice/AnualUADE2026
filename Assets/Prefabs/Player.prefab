@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 7645358371398037388}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -127,8 +127,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.19559586, y: -0.195255, z: 0.039772958, w: 0.960227}
-  m_LocalPosition: {x: 0.77046025, y: 2.43851, z: -1.8161547}
+  m_LocalRotation: {x: 0.10785614, y: -0.07464597, z: 0.008121458, w: 0.9913269}
+  m_LocalPosition: {x: 0.77762794, y: 2.5082529, z: -1.8330498}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -158,7 +158,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 40
+    FieldOfView: 70
     OrthographicSize: 10
     NearClipPlane: 0.01
     FarClipPlane: 300
@@ -223,7 +223,7 @@ MonoBehaviour:
   VerticalAxis:
     Value: -5.659715
     Center: 17.5
-    Range: {x: -45, y: 45}
+    Range: {x: -80, y: 80}
     Wrap: 0
     Recentering:
       Enabled: 0
@@ -262,7 +262,7 @@ MonoBehaviour:
       Size: {x: 0.8, y: 0.8}
       Offset: {x: 0, y: 0}
   CenterOnActivate: 1
-  TargetOffset: {x: 0, y: 0, z: 0}
+  TargetOffset: {x: 0.5, y: 0.5, z: 0}
   Damping: {x: 0, y: 0}
   Lookahead:
     Enabled: 0
