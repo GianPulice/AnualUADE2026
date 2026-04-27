@@ -12,10 +12,19 @@ public class SocketInteractable : MonoBehaviour, IInteractable
 
     public string GetInteractText()
     {
-        if (socketData == null) return "Socket sin configurar";
-        if (IsInserted) return "Ya insertado";
+        if (socketData == null)
+            return string.Empty;
 
-        return socketData.GetPromptText();
+        if (socketData.RequiredItem == null)
+            return string.Empty;
+
+        if (IsInserted)
+            return $"{socketData.RequiredItem.ItemName} insertado";
+
+        if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
+            return $"No tienes {socketData.RequiredItem.ItemName}";
+
+        return $"Presione la tecla 'E' para insertar {socketData.RequiredItem.ItemName}";
     }
 
     public bool CanInteract()

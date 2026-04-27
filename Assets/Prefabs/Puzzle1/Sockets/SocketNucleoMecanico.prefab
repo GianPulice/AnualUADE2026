@@ -492,9 +492,9 @@ GameObject:
   - component: {fileID: 4678342084709284386}
   - component: {fileID: 2172284652876069278}
   - component: {fileID: 5405741228895794217}
-  - component: {fileID: 8221545152509093141}
+  - component: {fileID: 7825961739477075812}
   m_Layer: 6
-  m_Name: InventoryItem
+  m_Name: SocketNucleoMecanico
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -551,7 +551,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 63136dd2647b1614cad4aae7a3c260dd, type: 2}
+  - {fileID: 2100000, guid: cfd61fcd7830c73448c43fedd4278b07, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -596,7 +596,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8221545152509093141
+--- !u!114 &7825961739477075812
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -605,13 +605,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 8438275548156035699}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
+  m_Script: {fileID: 11500000, guid: 1015ad33702e73942b7cf3d6a5f33db8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
-  itemToPick: {fileID: 11400000, guid: 7d5ddc9ea3140e942aa067aa150eda25, type: 2}
-  imageFar: {fileID: 1240659242534678575}
-  imageClose: {fileID: 6485533186749571408}
-  farTrigger: {fileID: 1474874593842136251}
-  closeTrigger: {fileID: 4969835287158309658}
-  farRadius: 3
-  closeRadius: 1.5
+  m_EditorClassIdentifier: Assembly-CSharp::SocketInteractable
+  socketData: {fileID: 11400000, guid: 375b7abcffe18b343b60d1454ef4de25, type: 2}

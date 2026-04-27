@@ -19,17 +19,27 @@ public class InteractionManagerUI : Singleton<InteractionManagerUI>
 
     public void ShowCurrentInteractionMessageText()
     {
-        if (InteractionManager.Instance.CurrentInteractable != null)
+        if (InteractionManager.Instance == null || InteractionManager.Instance.CurrentInteractable == null)
         {
-                interactionMessageText.text = "Presione la tecla 'E' para " + InteractionManager.Instance.CurrentInteractable.GetInteractText();
+            ClearMessage();
+            return;
         }
 
-        else
+        string interactText = InteractionManager.Instance.CurrentInteractable.GetInteractText();
+
+        if (string.IsNullOrWhiteSpace(interactText))
         {
-            if (interactionMessageText.text != string.Empty)
-            {
-                interactionMessageText.text = string.Empty;
-            }
+            ClearMessage();
+            return;
         }
+
+        interactionMessageText.text = interactText;
+    }
+
+
+    private void ClearMessage()
+    {
+        if (interactionMessageText.text != string.Empty)
+            interactionMessageText.text = string.Empty;
     }
 }
