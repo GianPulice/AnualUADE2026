@@ -46,7 +46,9 @@ public class PickupInteractable : MonoBehaviour, IInteractable
     }
     public string GetInteractText()
     {
-        return itemToPick != null ? $"Recoger {itemToPick.ItemName}" : "Recoger";
+        return itemToPick != null
+            ? $"Presione la tecla 'E' para agarrar {itemToPick.ItemName}"
+            : "Presione la tecla 'E' para agarrar";
     }
 
     public bool CanInteract()

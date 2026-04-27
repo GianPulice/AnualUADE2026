@@ -494,7 +494,7 @@ GameObject:
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 8221545152509093141}
   m_Layer: 6
-  m_Name: InventoryItem
+  m_Name: InventoryItemNucleoMecanico
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -509,8 +509,8 @@ Transform:
   m_GameObject: {fileID: 8438275548156035699}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 11.1725, y: 1.76, z: 0.961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 11.3786, y: 1.5539, z: 0.961}
+  m_LocalScale: {x: 0.5877, y: 0.5877, z: 0.5877}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 331537296593505761}
@@ -551,7 +551,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 63136dd2647b1614cad4aae7a3c260dd, type: 2}
+  - {fileID: 2100000, guid: cfd61fcd7830c73448c43fedd4278b07, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -608,7 +608,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
-  itemToPick: {fileID: 11400000, guid: 7d5ddc9ea3140e942aa067aa150eda25, type: 2}
+  itemToPick: {fileID: 11400000, guid: 295ff2b7bf839e24db19d08b2eef82c6, type: 2}
   imageFar: {fileID: 1240659242534678575}
   imageClose: {fileID: 6485533186749571408}
   farTrigger: {fileID: 1474874593842136251}
