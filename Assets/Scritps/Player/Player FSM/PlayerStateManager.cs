@@ -10,6 +10,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Transform playerBody;
     [SerializeField] private Animator animatorController;
     private Vector3 moveDir = Vector3.zero;
+    private Vector3 charGravity = Vector3.zero;
     private bool isCrouch = false;
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
@@ -23,6 +24,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public CharacterController CharController { get => charController; set => charController = value; }
     public Transform PlayerBody { get => playerBody; set => playerBody = value; }
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
+    public Vector3 CharGravity { get => charGravity; set => charGravity = value; }
     public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
     public float SpeedMultiplier { get => speedMultiplier; set => speedMultiplier = value; }
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
@@ -52,6 +54,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public override void Update() 
     {
         InputUpdate();
+        GravityController();
         base.Update();
     }
     private void InitializeStates() 
@@ -62,6 +65,17 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         States.Add(EPlayerState.Hidden, new PlayerHiddenState(EPlayerState.Hidden, this));
         States.Add(EPlayerState.Disabled, new PlayerDisabledState(EPlayerState.Disabled, this));
         CurrentState = States[EPlayerState.Idle];
+    }
+    private void GravityController() 
+    {
+        if (charController.isGrounded) 
+        {
+            charGravity.y = -0.5f;
+        }
+        else 
+        {
+            charGravity.y = -9.8f;
+        }
     }
     private void InputUpdate()
     {

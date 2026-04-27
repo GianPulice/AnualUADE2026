@@ -67,7 +67,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 { 
                     playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
                 }
-                playerStateManager.CharController.Move(playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity * Time.deltaTime);
+                playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
                 playerStateManager.AnimatorController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
             else
