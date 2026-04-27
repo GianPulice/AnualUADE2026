@@ -1,3 +1,5 @@
+using System.Threading;
+using Unity.Android.Gradle.Manifest;
 using UnityEngine;
 
 public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
@@ -42,6 +44,7 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
+        playerStateManager.CharController.Move(playerStateManager.CharGravity * Time.deltaTime);
         if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
