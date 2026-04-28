@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee8576f7b14b41a41a28681bcb115d35, type: 3}
   m_Name: SO_PlayerMovement
   m_EditorClassIdentifier: Assembly-CSharp::SO_Movement
-  moveSpeed: 3.5
-  acceleration: 8
-  rotationSpeed: 8
-  crouchSpeedMultiplier: 0.6
-  footstepNoiseRadius: 0
+  moveSpeed: 3
+  acceleration: 6
+  rotationSpeed: 10
+  crouchSpeedMultiplier: 0.45
+  footstepNoiseRadius: 6
   crouchNoiseRadius: 0
