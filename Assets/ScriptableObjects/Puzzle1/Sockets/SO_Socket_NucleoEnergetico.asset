@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -18,8 +17,3 @@ MonoBehaviour:
   requiredItem: {fileID: 11400000, guid: 85c61301028d4d64ba4dd8f9a552dcf6, type: 2}
   consumeItem: 1
   promptTextOverride: Insertar nucleo energetico
-=======
-version https://git-lfs.github.com/spec/v1
-oid sha256:44530e510c0f2b4a25a9073234a6158d0cf851d3e89cf805be9d388eed483f19
-size 670
->>>>>>> SanitVivas

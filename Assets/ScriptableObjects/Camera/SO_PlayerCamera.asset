@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -18,8 +17,3 @@ MonoBehaviour:
   cameraSmoothing: 0.2
   shoulderOffset: {x: 0.8, y: 0.6, z: 0.4}
   maxVerticalAngle: 80
-=======
-version https://git-lfs.github.com/spec/v1
-oid sha256:ddc0b7032cca1236e80c7b4543679ab554e57bcdf01de2bce1dd94c448225d6a
-size 577
->>>>>>> SanitVivas
