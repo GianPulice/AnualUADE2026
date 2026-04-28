@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!1 &776918807408105353
@@ -448,3 +449,8 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+=======
+version https://git-lfs.github.com/spec/v1
+oid sha256:74cef46f95f725a841cc1d0071caaa1d0e86f006ffa63fc95134744c58d4bdb8
+size 14251
+>>>>>>> SanitVivas

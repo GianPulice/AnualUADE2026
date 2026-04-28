@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -25,3 +26,8 @@ MonoBehaviour:
   textContent: "AJDKADJKADWIDJAIWJDIASIJDAJOWIJDOIAWJDI \nSJDIAJDIASJDASIDJ\nASOJDOASJDOAJODOWJDJWODJS\nDASKDPAWKPDKAWPDFJAOWFHNAWF"
   audioClip: {fileID: 0}
   targetID: 2
+=======
+version https://git-lfs.github.com/spec/v1
+oid sha256:3439f66366d4104fa8b6525012650816e424b29d2311cb784d43843cf92804d7
+size 820
+>>>>>>> SanitVivas

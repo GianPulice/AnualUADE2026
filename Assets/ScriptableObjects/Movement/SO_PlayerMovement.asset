@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
@@ -18,3 +19,8 @@ MonoBehaviour:
   crouchSpeedMultiplier: 0.45
   footstepNoiseRadius: 6
   crouchNoiseRadius: 0
+=======
+version https://git-lfs.github.com/spec/v1
+oid sha256:223f6d9004bcceba2554c3945d5c8ce2e6395ce3b351193c4b3ca7c8b1953ae8
+size 585
+>>>>>>> SanitVivas
