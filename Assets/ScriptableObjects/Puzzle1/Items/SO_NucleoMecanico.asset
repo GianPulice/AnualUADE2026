@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: 
   itemName: 
-  category: 0
+  category: 1
   itemDescription: 
   itemIcon: {fileID: 0}
   isMetallic: 0
