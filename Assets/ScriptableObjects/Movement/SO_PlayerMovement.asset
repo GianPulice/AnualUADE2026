@@ -1,3 +1,20 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:2380a9f6f7d8a31e9457417c545a77505560e0bae1d3cc81c8252a1e0b8068a9
-size 565
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee8576f7b14b41a41a28681bcb115d35, type: 3}
+  m_Name: SO_PlayerMovement
+  m_EditorClassIdentifier: Assembly-CSharp::SO_Movement
+  moveSpeed: 3.5
+  acceleration: 8
+  rotationSpeed: 8
+  crouchSpeedMultiplier: 0.6
+  footstepNoiseRadius: 0
+  crouchNoiseRadius: 0
