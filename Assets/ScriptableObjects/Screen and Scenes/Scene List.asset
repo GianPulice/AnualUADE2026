@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc6ebf0cfdc2e9a4b864f40f522633c6, type: 3}
+  m_Name: Scene List
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SceneList
+  scenes:
+  - sceneAsset: {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
+    scenePath: "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
+    sceneName: "TestI\xF1aki"
+    label: "TestI\xF1aki"
+  - sceneAsset: {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
+    scenePath: Assets/Scenes/UI/MainMenu.unity
+    sceneName: MainMenu
+    label: Main Menu
