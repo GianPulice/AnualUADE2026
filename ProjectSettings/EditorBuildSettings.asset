@@ -14,5 +14,14 @@ EditorBuildSettings:
   - enabled: 1
     path: "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
     guid: 1120f7b037eec3c46afc6903f9030d84
+  - enabled: 1
+    path: Assets/Scenes/TestScenes/TestAlesio.unity
+    guid: 5706619538145cd409f2caee7c53bc45
+  - enabled: 1
+    path: Assets/Scenes/TestScenes/TestFabriScene.unity
+    guid: e5c45e55ee68db845b576231abb65368
+  - enabled: 1
+    path: Assets/Scenes/TestScenes/TestLevel.unity
+    guid: a0f71041ec58c8241bff773ecb9790d1
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
