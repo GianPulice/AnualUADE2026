@@ -44,7 +44,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneLabel("TestIñaki")) return;
+        if (!ValidateSceneLabel("TestIñaki")) return;     
         await Close();
         screenChannel.RaisePushScreen("TestIñaki");
     }

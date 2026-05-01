@@ -21,3 +21,15 @@ MonoBehaviour:
     scenePath: Assets/Scenes/UI/MainMenu.unity
     sceneName: MainMenu
     label: Main Menu
+  - sceneAsset: {fileID: 102900000, guid: a0f71041ec58c8241bff773ecb9790d1, type: 3}
+    scenePath: Assets/Scenes/TestScenes/TestLevel.unity
+    sceneName: TestLevel
+    label: TestLevel
+  - sceneAsset: {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
+    scenePath: Assets/Scenes/TestScenes/TestAlesio.unity
+    sceneName: TestAlesio
+    label: TestAlesio
+  - sceneAsset: {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}
+    scenePath: Assets/Scenes/TestScenes/TestFabriScene.unity
+    sceneName: TestFabriScene
+    label: TestFabri
