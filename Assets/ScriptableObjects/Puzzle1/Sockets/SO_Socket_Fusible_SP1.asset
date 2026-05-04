@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 118d3e561610c784f91e5534719cc6f4, type: 3}
-  m_Name: SO_Socket_NucleoMecanico
+  m_Name: SO_Socket_Fusible_SP1
   m_EditorClassIdentifier: Assembly-CSharp::SO_SocketData
-  socketId: socket_nucleo_mecanico
-  linkedPuzzleId: puzzle_central_piso1
-  requiredItem: {fileID: 11400000, guid: 295ff2b7bf839e24db19d08b2eef82c6, type: 2}
+  socketId: socket_fusible_sp1
+  linkedPuzzleId: 
+  requiredItem: {fileID: 11400000, guid: 8489d61e6c4458045ba525d91adc4cc1, type: 2}
   consumeItem: 1
-  promptTextOverride: "Insertar N\xFAcleo Mec\xE1nico"
+  promptTextOverride: Insertar fusible

@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
-  m_Name: SO_NucleoMecanico
+  m_Name: SO_LlaveIngenieria
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemID: nucleo_mecanico
-  itemName: Nucleo Mecanico
-  category: 1
-  itemDescription: Componente obtenido al resolver el Sub-Puzzle 2.
+  itemID: llave_ingenieria
+  itemName: Llave de Ingenieria
+  category: 0
+  itemDescription: Llave industrial para abrir la sala de valvulas del SP3.
   itemIcon: {fileID: 0}
   isMetallic: 1
   isConsumable: 1
-  consumeDescription: Se consume al insertarlo en el Hub Central.
+  consumeDescription: Se consume al abrir la puerta de la sala de valvulas.
   isUnique: 1
   contentType: 0
   textContent: 
   audioClip: {fileID: 0}
-  targetID: socket_nucleo_mecanico
+  targetID: puerta_sp3_valvulas
