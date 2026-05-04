@@ -4,10 +4,8 @@ public class HubPuzzleController : MonoBehaviour
 {
     [SerializeField] private SO_HubPuzzleData hubData;
 
-    private void Update()
-    {
-        CheckHubCompletion();
-    }
+    public string PuzzleId => hubData != null ? hubData.PuzzleId : string.Empty;
+
 
     public void CheckHubCompletion()
     {
@@ -26,6 +24,9 @@ public class HubPuzzleController : MonoBehaviour
 
         Debug.Log($"Hub completado: {hubData.PuzzleId}");
 
-        // Aca se conecta con cinemática / desbloqueo piso 3 desde otro sistema mas adelante cuando avancemos
+        // ACA DESPUES:
+        // - reproducir cinemática
+        // - abrir acceso Piso 3
+        // - activar ascensor / puerta final
     }
 }

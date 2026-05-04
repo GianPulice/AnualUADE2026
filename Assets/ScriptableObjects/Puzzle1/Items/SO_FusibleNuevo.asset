@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
-  m_Name: SO_NucleoReguladorPresion
+  m_Name: SO_FusibleNuevo
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemID: 
-  itemName: 
+  itemID: fusible_nuevo
+  itemName: Fusible Nuevo
   category: 1
-  itemDescription: 
+  itemDescription: Fusible necesario para activar la caja de fusibles del SP1.
   itemIcon: {fileID: 0}
-  isMetallic: 0
-  isConsumable: 0
-  consumeDescription: 
+  isMetallic: 1
+  isConsumable: 1
+  consumeDescription: Se consume al insertarlo en la caja de fusibles.
   isUnique: 1
   contentType: 0
   textContent: 
   audioClip: {fileID: 0}
-  targetID: 
+  targetID: socket_fusible_sp1
