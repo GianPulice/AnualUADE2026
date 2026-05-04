@@ -44,21 +44,21 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneLabel("TestIñaki")) return;     
+        if (!ValidateSceneGroup("TestIñaki")) return;     
         await Close();
         screenChannel.RaisePushScreen("TestIñaki");
     }
 
     private async UniTask HandleLoadGame()
     {
-        if (!ValidateSceneLabel("UI_SaveSlots")) return;
+        if (!ValidateSceneGroup("UI_SaveSlots")) return;
         await Close();
         screenChannel.RaisePushScreen("UI_SaveSlots");
     }
 
     private async UniTask HandleSettings()
     {
-        if (!ValidateSceneLabel("UI_Settings")) return;
+        if (!ValidateSceneGroup("UI_Settings")) return;
         await Close();
         screenChannel.RaisePushScreen("UI_Settings");
     }
@@ -73,20 +73,18 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     }
 
     // Método de seguridad para debuggear rápido en el editor
-    private bool ValidateSceneLabel(string label)
+    private bool ValidateSceneGroup(string label)
     {
         if (sceneDatabase == null)
         {
-            Debug.LogError($"[MainMenuController] Falta asignar el SO_SceneList en el Inspector.");
+            Debug.LogError("[MainMenuController] Falta asignar el SO_SceneList en el Inspector.");
             return false;
         }
 
-        // Buscamos si el label existe en las entradas del SO[cite: 1]
-        bool exists = sceneDatabase.scenes.Exists(s => s.label == label);
+        bool exists = sceneDatabase.ContainsGroup(label);
         if (!exists)
-        {
-            Debug.LogWarning($"[MainMenuController] El label '{label}' no existe en el SO_SceneList.");
-        }
+            Debug.LogWarning($"[MainMenuController] El grupo '{label}' no existe en el SO_SceneList.");
+
         return exists;
     }
 }

@@ -2,59 +2,54 @@
 using UnityEditor;
 using UnityEngine;
 
-[CustomPropertyDrawer(typeof(SceneEntry))]
+[CustomPropertyDrawer(typeof(SceneGroupEntry))]
 public class SceneEntryDrawer : PropertyDrawer
 {
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
         EditorGUI.BeginProperty(position, label, property);
 
-        var sceneAssetProp = property.FindPropertyRelative("sceneAsset");
-        var scenePathProp  = property.FindPropertyRelative("scenePath");
-        var sceneNameProp  = property.FindPropertyRelative("sceneName");
-        var labelProp      = property.FindPropertyRelative("label");
+        var labelProp = property.FindPropertyRelative("label");
+        var sceneAssetsProp = property.FindPropertyRelative("sceneAssets");
 
-        float lineH   = EditorGUIUtility.singleLineHeight;
+        float lineH = EditorGUIUtility.singleLineHeight;
         float spacing = EditorGUIUtility.standardVerticalSpacing;
+        float y = position.y;
 
-        // Fila 1: SceneAsset
-        Rect sceneRect = new Rect(position.x, position.y, position.width, lineH);
-        EditorGUI.BeginChangeCheck();
-        EditorGUI.PropertyField(sceneRect, sceneAssetProp, new GUIContent("Scene"));
-        if (EditorGUI.EndChangeCheck())
+        // Fila 1: Label del grupo
+        EditorGUI.PropertyField(
+            new Rect(position.x, y, position.width, lineH),
+            labelProp,
+            new GUIContent("Label del grupo")
+        );
+        y += lineH + spacing;
+
+        // Fila 2+: Lista de SceneAssets
+        EditorGUI.PropertyField(
+            new Rect(position.x, y, position.width, EditorGUI.GetPropertyHeight(sceneAssetsProp, true)),
+            sceneAssetsProp,
+            new GUIContent("Escenas del grupo"),
+            true
+        );
+        y += EditorGUI.GetPropertyHeight(sceneAssetsProp, true) + spacing;
+
+        // Warnings: escenas no presentes en Build Settings
+        for (int i = 0; i < sceneAssetsProp.arraySize; i++)
         {
-            // Sincronizar path y nombre cuando cambia el asset
-            var asset = sceneAssetProp.objectReferenceValue as SceneAsset;
-            if (asset != null)
-            {
-                scenePathProp.stringValue = AssetDatabase.GetAssetPath(asset);
-                sceneNameProp.stringValue = asset.name;
-            }
-            else
-            {
-                scenePathProp.stringValue = "";
-                sceneNameProp.stringValue = "";
-            }
-        }
+            var assetProp = sceneAssetsProp.GetArrayElementAtIndex(i);
+            var asset = assetProp.objectReferenceValue as SceneAsset;
+            if (asset == null) continue;
 
-        // Fila 2: Label opcional
-        Rect labelRect = new Rect(position.x, position.y + lineH + spacing, position.width, lineH);
-        EditorGUI.PropertyField(labelRect, labelProp, new GUIContent("Label (opcional)"));
-
-        // Fila 3: Path (readonly, informativo)
-        if (!string.IsNullOrEmpty(scenePathProp.stringValue))
-        {
-            Rect pathRect = new Rect(position.x, position.y + (lineH + spacing) * 2, position.width, lineH);
-            GUI.enabled = false;
-            EditorGUI.TextField(pathRect, "Path", scenePathProp.stringValue);
-            GUI.enabled = true;
-
-            // Warning si la escena no está en Build Settings
-            var asset = sceneAssetProp.objectReferenceValue as SceneAsset;
-            if (asset != null && !IsInBuildSettings(scenePathProp.stringValue))
+            string path = AssetDatabase.GetAssetPath(asset);
+            if (!IsInBuildSettings(path))
             {
-                Rect warnRect = new Rect(position.x, position.y + (lineH + spacing) * 3, position.width, lineH);
-                EditorGUI.HelpBox(warnRect, "⚠ Esta escena no está en Build Settings.", MessageType.Warning);
+                float warnH = lineH * 1.8f;
+                EditorGUI.HelpBox(
+                    new Rect(position.x, y, position.width, warnH),
+                    $"⚠  '{asset.name}' no está en Build Settings.",
+                    MessageType.Warning
+                );
+                y += warnH + spacing;
             }
         }
 
@@ -63,21 +58,25 @@ public class SceneEntryDrawer : PropertyDrawer
 
     public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
     {
-        var scenePathProp  = property.FindPropertyRelative("scenePath");
-        var sceneAssetProp = property.FindPropertyRelative("sceneAsset");
+        var sceneAssetsProp = property.FindPropertyRelative("sceneAssets");
 
-        float lineH   = EditorGUIUtility.singleLineHeight;
+        float lineH = EditorGUIUtility.singleLineHeight;
         float spacing = EditorGUIUtility.standardVerticalSpacing;
 
-        // Scene + Label + Path + (warning opcional)
-        float height = (lineH + spacing) * 2; // Scene + Label siempre
-        if (!string.IsNullOrEmpty(scenePathProp.stringValue))
-        {
-            height += lineH + spacing; // Path
+        // Label + lista
+        float height = lineH + spacing;
+        height += EditorGUI.GetPropertyHeight(sceneAssetsProp, true) + spacing;
 
-            var asset = sceneAssetProp.objectReferenceValue as SceneAsset;
-            if (asset != null && !IsInBuildSettings(scenePathProp.stringValue))
-                height += lineH + spacing * 2; // Warning
+        // Warning por cada escena fuera de Build Settings
+        for (int i = 0; i < sceneAssetsProp.arraySize; i++)
+        {
+            var assetProp = sceneAssetsProp.GetArrayElementAtIndex(i);
+            var asset = assetProp.objectReferenceValue as SceneAsset;
+            if (asset == null) continue;
+
+            string path = AssetDatabase.GetAssetPath(asset);
+            if (!IsInBuildSettings(path))
+                height += lineH * 1.8f + spacing;
         }
 
         return height;

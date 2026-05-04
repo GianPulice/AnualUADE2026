@@ -12,24 +12,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc6ebf0cfdc2e9a4b864f40f522633c6, type: 3}
   m_Name: Scene List
   m_EditorClassIdentifier: Assembly-CSharp::SO_SceneList
-  scenes:
-  - sceneAsset: {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
-    scenePath: "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
-    sceneName: "TestI\xF1aki"
-    label: "TestI\xF1aki"
-  - sceneAsset: {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
-    scenePath: Assets/Scenes/UI/MainMenu.unity
-    sceneName: MainMenu
-    label: Main Menu
-  - sceneAsset: {fileID: 102900000, guid: a0f71041ec58c8241bff773ecb9790d1, type: 3}
-    scenePath: Assets/Scenes/TestScenes/TestLevel.unity
-    sceneName: TestLevel
-    label: TestLevel
-  - sceneAsset: {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
-    scenePath: Assets/Scenes/TestScenes/TestAlesio.unity
-    sceneName: TestAlesio
-    label: TestAlesio
-  - sceneAsset: {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}
-    scenePath: Assets/Scenes/TestScenes/TestFabriScene.unity
-    sceneName: TestFabriScene
-    label: TestFabri
+  persistentSceneAssets:
+  - {fileID: 102900000, guid: ab068ce3817e6774480589fc3d2f636a, type: 3}
+  persistentSceneNames:
+  - Data
+  sceneGroups:
+  - label: "TestI\xF1aki"
+    sceneAssets:
+    - {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
+    - {fileID: 102900000, guid: a0f71041ec58c8241bff773ecb9790d1, type: 3}
+    - {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
+    scenePaths:
+    - "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
+    - Assets/Scenes/TestScenes/TestLevel.unity
+    - Assets/Scenes/TestScenes/TestAlesio.unity
+    sceneNames:
+    - "TestI\xF1aki"
+    - TestLevel
+    - TestAlesio
+  - label: Menu
+    sceneAssets:
+    - {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
+    scenePaths:
+    - Assets/Scenes/UI/MainMenu.unity
+    sceneNames:
+    - MainMenu
