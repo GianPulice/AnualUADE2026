@@ -12,10 +12,7 @@ public class SocketInteractable : MonoBehaviour, IInteractable
 
     public string GetInteractText()
     {
-        if (socketData == null)
-            return string.Empty;
-
-        if (socketData.RequiredItem == null)
+        if (socketData == null || socketData.RequiredItem == null)
             return string.Empty;
 
         if (IsInserted)
@@ -24,7 +21,7 @@ public class SocketInteractable : MonoBehaviour, IInteractable
         if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
             return $"No tienes {socketData.RequiredItem.ItemName}";
 
-        return $"Presione la tecla 'E' para insertar {socketData.RequiredItem.ItemName}";
+        return socketData.GetPromptText();
     }
 
     public bool CanInteract()
@@ -45,22 +42,39 @@ public class SocketInteractable : MonoBehaviour, IInteractable
 
         PuzzleStateManager.Instance.SetSocketInserted(socketData.SocketId);
 
-        if (!string.IsNullOrWhiteSpace(socketData.LinkedPuzzleId))
-        {
-            PuzzleController[] puzzleControllers = FindObjectsByType<PuzzleController>(FindObjectsInactive.Exclude);
-
-            foreach (PuzzleController controller in puzzleControllers)
-            {
-                if (controller.PuzzleId == socketData.LinkedPuzzleId)
-                {
-                    controller.StartPuzzle();
-                    break;
-                }
-            }
-        }
+        NotifyLinkedPuzzle();
 
         Debug.Log($"Socket insertado: {socketData.SocketId}");
     }
+
+    private void NotifyLinkedPuzzle()
+    {
+        if (socketData == null) return;
+        if (string.IsNullOrWhiteSpace(socketData.LinkedPuzzleId)) return;
+
+        HubPuzzleController[] hubs = FindObjectsByType<HubPuzzleController>(FindObjectsInactive.Exclude);
+
+        foreach (HubPuzzleController hub in hubs)
+        {
+            if (hub.PuzzleId == socketData.LinkedPuzzleId)
+            {
+                hub.CheckHubCompletion();
+                return;
+            }
+        }
+
+        PuzzleController[] puzzleControllers = FindObjectsByType<PuzzleController>(FindObjectsInactive.Exclude);
+
+        foreach (PuzzleController controller in puzzleControllers)
+        {
+            if (controller.PuzzleId == socketData.LinkedPuzzleId)
+            {
+                controller.StartPuzzle();
+                return;
+            }
+        }
+    }
+
     public bool IsRepeatable()
     {
         return false;

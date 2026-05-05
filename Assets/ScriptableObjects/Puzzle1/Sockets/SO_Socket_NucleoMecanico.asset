@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SO_Socket_NucleoMecanico
   m_EditorClassIdentifier: Assembly-CSharp::SO_SocketData
   socketId: socket_nucleo_mecanico
-  linkedPuzzleId: 
+  linkedPuzzleId: puzzle_central_piso1
   requiredItem: {fileID: 11400000, guid: 295ff2b7bf839e24db19d08b2eef82c6, type: 2}
   consumeItem: 1
   promptTextOverride: "Insertar N\xFAcleo Mec\xE1nico"
