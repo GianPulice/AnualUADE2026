@@ -16,7 +16,8 @@ public class ValveInteractable : MonoBehaviour, IInteractable
         }
     }
 
-    private void Awake()
+    // Cambiarlo a Awake cuando se haga la escena Data
+    private void Start()
     {
         if (valveData == null)
         {

@@ -492,9 +492,9 @@ GameObject:
   - component: {fileID: 4678342084709284386}
   - component: {fileID: 2172284652876069278}
   - component: {fileID: 5405741228895794217}
-  - component: {fileID: 7825961739477075812}
+  - component: {fileID: 8221545152509093141}
   m_Layer: 6
-  m_Name: SocketNucleoReguladorPresion
+  m_Name: InventoryItemFusibleNuevo
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -509,8 +509,8 @@ Transform:
   m_GameObject: {fileID: 8438275548156035699}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 11.1725, y: 1.76, z: 0.961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 11.3786, y: 1.5539, z: 0.961}
+  m_LocalScale: {x: 0.5877, y: 0.5877, z: 0.5877}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 331537296593505761}
@@ -551,7 +551,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 777c3d9b487334e4c83a1b09d061af19, type: 2}
+  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -596,7 +596,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7825961739477075812
+--- !u!114 &8221545152509093141
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -605,7 +605,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 8438275548156035699}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1015ad33702e73942b7cf3d6a5f33db8, type: 3}
+  m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SocketInteractable
-  socketData: {fileID: 11400000, guid: 2f71e973b1c668846be2fc8c636f3d4e, type: 2}
+  m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
+  itemToPick: {fileID: 11400000, guid: 8489d61e6c4458045ba525d91adc4cc1, type: 2}
+  imageFar: {fileID: 1240659242534678575}
+  imageClose: {fileID: 6485533186749571408}
+  farTrigger: {fileID: 1474874593842136251}
+  closeTrigger: {fileID: 4969835287158309658}
+  farRadius: 3
+  closeRadius: 1.5

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0dc0560e27ff46f429d5960df7ce2c73, type: 3}
+  m_Name: SO_ValvePuzzle_SP3
+  m_EditorClassIdentifier: Assembly-CSharp::SO_ValvePuzzleData
+  puzzleId: sp3_valvulas
+  rewardItem: {fileID: 11400000, guid: d3906647a151b8340a108eb835d9e2a4, type: 2}
+  requirements:
+  - valveId: valve_sp3_1
+    requiredPosition: 2
+  - valveId: valve_sp3_2
+    requiredPosition: 0
+  - valveId: valve_sp3_3
+    requiredPosition: 3
