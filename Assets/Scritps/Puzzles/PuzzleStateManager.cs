@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 public class PuzzleStateManager : Singleton<PuzzleStateManager>
 {
@@ -9,10 +8,12 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     private readonly Dictionary<string, int> valvePositions = new Dictionary<string, int>();
     private readonly Dictionary<string, string> containerSlots = new Dictionary<string, string>();
 
-    private void Awake()
+
+    void Awake()
     {
         CreateSingleton(true);
     }
+
 
     public void SetPuzzleCompleted(string puzzleId)
     {
