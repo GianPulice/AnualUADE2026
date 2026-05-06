@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class ValveInteractable : MonoBehaviour, IInteractable
@@ -17,7 +18,7 @@ public class ValveInteractable : MonoBehaviour, IInteractable
     }
 
     // Cambiarlo a Awake cuando se haga la escena Data
-    private void Start()
+    private void Awake()
     {
         if (valveData == null)
         {
@@ -25,8 +26,19 @@ public class ValveInteractable : MonoBehaviour, IInteractable
             return;
         }
 
-        PuzzleStateManager.Instance.SetValvePosition(valveData.ValveId, CurrentPosition);
+        StartCoroutine(wait());
+
+        //PuzzleStateManager.Instance.SetValvePosition(valveData.ValveId, CurrentPosition);
     }
+
+    private IEnumerator wait()
+    {
+        yield return new WaitForSeconds(3);
+
+        PuzzleStateManager.Instance.SetValvePosition(valveData.ValveId, CurrentPosition);
+
+    }
+
 
     public string GetInteractText()
     {

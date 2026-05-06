@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class InteractionManager : Singleton<InteractionManager>
 {
@@ -7,9 +8,6 @@ public class InteractionManager : Singleton<InteractionManager>
     private Camera playerCamera;
 
     private LayerMask interactionLayer;
-
-    [Header("Debug")]
-    [SerializeField] private bool drawRay = true;
 
     private IInteractable currentInteractable;
 
@@ -20,6 +18,7 @@ public class InteractionManager : Singleton<InteractionManager>
     {
         CreateSingleton(true);
         InitializeInteractionManager();
+        SuscribeToOnSceneLoadedEvent();
     }
 
     void Update()
@@ -29,25 +28,32 @@ public class InteractionManager : Singleton<InteractionManager>
     }
 
 
-    /// <summary>
-    /// Analizar esta linea de codigo por si en un futuro agregagan mas camaras
-    /// </summary>
+    // No necesita desuscripcion porque es singleton
+    private void SuscribeToOnSceneLoadedEvent()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (playerCamera == null)
+        {
+            playerCamera = Camera.main;
+        }
+    }
+
     private void InitializeInteractionManager()
     {
-        playerCamera = Camera.main;
         interactionLayer = LayerMask.GetMask("Interactable");
     }
 
     private void DetectInteractable()
     {
+        if (playerCamera == null) return;
+
         currentInteractable = null;
 
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-
-        if (drawRay)
-        {
-            Debug.DrawRay(ray.origin, ray.direction * SO_interactionManager.InteractionDistance, Color.green);
-        }
 
         if (Physics.Raycast(ray, out RaycastHit hit, SO_interactionManager.InteractionDistance, interactionLayer))
         {
