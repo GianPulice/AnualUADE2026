@@ -13,27 +13,27 @@ MonoBehaviour:
   m_Name: Scene List
   m_EditorClassIdentifier: Assembly-CSharp::SO_SceneList
   persistentSceneAssets:
-  - {fileID: 102900000, guid: ab068ce3817e6774480589fc3d2f636a, type: 3}
+  - {fileID: 102900000, guid: f17bf9e99ef267742a8c02e8e2aeae3d, type: 3}
   persistentSceneNames:
   - Data
   sceneGroups:
   - label: "TestI\xF1aki"
     sceneAssets:
     - {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
-    - {fileID: 102900000, guid: a0f71041ec58c8241bff773ecb9790d1, type: 3}
-    - {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
     - "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
-    - Assets/Scenes/TestScenes/TestLevel.unity
-    - Assets/Scenes/TestScenes/TestAlesio.unity
+    - Assets/Scenes/UI/LevelUI.unity
     sceneNames:
     - "TestI\xF1aki"
-    - TestLevel
-    - TestAlesio
+    - LevelUI
   - label: Menu
     sceneAssets:
     - {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
+    - {fileID: 102900000, guid: bc7c4ed2b08b289478a432f1c485b1e5, type: 3}
     scenePaths:
-    - Assets/Scenes/UI/MainMenu.unity
+    - Assets/Scenes/GameScenes/MainMenu.unity
+    - Assets/Scenes/UI/MainMenuUI.unity
     sceneNames:
     - MainMenu
+    - MainMenuUI
