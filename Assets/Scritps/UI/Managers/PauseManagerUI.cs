@@ -1,8 +1,12 @@
 ﻿using Cysharp.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+
 public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 {
+    [Header("Arquitectura (MVC)")]
+    [Tooltip("Necesitamos el canal de eventos para salir correctamente al Menú Principal")]
+    [SerializeField] private ScreenEventChannel screenChannel;
+
     [Header("Sub-Menues")]
     [Tooltip("El Prefab de Settings que se abrirá por encima de la pausa")]
     [SerializeField] private GameObject settingsPrefab;
@@ -17,7 +21,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     {
         if (view != null)
         {
-            view.gameObject.SetActive(false);
+            view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
         }
         if (model == null)
         {
@@ -43,15 +47,8 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
         view.OnSettingsClicked -= HandleSettings;
         view.OnExitClicked -= HandleExit;
     }
-
-    private void Start()
-    {
-        Open().Forget();
-    }
-
     private void HandlePauseStateChanged(PauseState state)
     {
-        // Evitamos que el jugador rompa la animación spameando Escape
         if (_isTransitioning) return;
 
         if (state == PauseState.Paused)
@@ -63,22 +60,21 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     private async UniTaskVoid OpenSafe()
     {
         _isTransitioning = true;
-        await Open(); 
+        await Open();
+        Time.timeScale = 0f;
         _isTransitioning = false;
     }
 
     private async UniTaskVoid CloseSafe()
     {
         _isTransitioning = true;
-
-        // Si teníamos las opciones abiertas, las cerramos para que no aparezcan mágicamente
-        // la próxima vez que el jugador ponga pausa.
+        Time.timeScale = 1f;
         if (_settingsInstance != null)
         {
             _settingsInstance.SetActive(false);
         }
 
-        await Close(); 
+        await Close();
         _isTransitioning = false;
     }
 
@@ -91,7 +87,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleSettings()
     {
-        if(settingsPrefab == null) return;
+        if (settingsPrefab == null) return;
         if (_settingsInstance == null)
         {
             Transform parent = subMenuContainer != null ? subMenuContainer : transform;
@@ -105,9 +101,17 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleExit()
     {
+        Time.timeScale = 1f;
         PauseManager.RequestUnpause();
 
-        SceneManager.LoadScene("MainMenu");
+        if (screenChannel != null)
+        {
+            screenChannel.RaisePushScreen("MainMenu");
+        }
+        else
+        {
+            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel en el inspector para poder salir al menú.");
+        }
     }
 
 

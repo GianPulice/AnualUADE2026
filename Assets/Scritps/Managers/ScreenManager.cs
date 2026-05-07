@@ -1,164 +1,140 @@
 ﻿using UnityEngine;
-using UnityEngine.SceneManagement;
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
-using System.Linq;
-
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public class ScreenManager : Singleton<ScreenManager>
 {
-    [SerializeField] private List<SceneUIBinding> sceneUIBindings = new List<SceneUIBinding>();
+    [Header("Dependencies")]
+    [SerializeField] private SceneLoader sceneLoader;
+    [SerializeField] private ScreenEventChannel screenChannel;
+    [SerializeField] private SO_SceneList sceneDatabase;
 
-    private List<string> currentUIScenes = new();
+    private Stack<string> activeScreens = new Stack<string>();
 
-
-    void Awake()
+    private void Awake()
     {
         CreateSingleton(true);
-        SuscribeToOnSceneLoadedEvent();
+        if (sceneDatabase == null) Debug.LogError("[ScreenManager] Faltan asignar el SO_SceneList!");
+        if (screenChannel == null) Debug.LogError("[ScreenManager] Faltan asignar el Event Channel!");
     }
 
-#if UNITY_EDITOR
-    void OnValidate()
+    private void OnEnable()
     {
-        foreach (SceneUIBinding binding in sceneUIBindings)
+        Debug.Log("<color=cyan>[ScreenManager] Habilitado y escuchando eventos</color>");
+        if (screenChannel != null)
         {
-            binding.UpdateNames();
+            // VOLVEMOS A ESCUCHAR EL TELÉFONO
+            screenChannel.OnPushScreenRequested += OnPushScreenRequestedWrapper;
+            screenChannel.OnPopScreenRequested += OnPopScreenRequestedWrapper;
+            screenChannel.OnClearAllScreensRequested += OnClearAllRequestedWrapper;
         }
     }
-#endif
 
-
-    // No necesita desuscripcion porque es singleton
-    private void SuscribeToOnSceneLoadedEvent()
+    private void OnDisable()
     {
-        SceneManager.sceneLoaded += OnSceneLoaded;
-    }
-
-    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        HandleSceneUIAsync(scene.name).Forget();
-    }
-
-    private async UniTaskVoid HandleSceneUIAsync(string loadedSceneName)
-    {
-        List<string> nextUIScenes = GetUIScenesForScene(loadedSceneName);
-
-        if (nextUIScenes == null || nextUIScenes.Count == 0)
+        if (screenChannel != null)
         {
-            await UnloadCurrentUIAsync();
+            screenChannel.OnPushScreenRequested -= OnPushScreenRequestedWrapper;
+            screenChannel.OnPopScreenRequested -= OnPopScreenRequestedWrapper;
+            screenChannel.OnClearAllScreensRequested -= OnClearAllRequestedWrapper;
+        }
+    }
+
+    // ── Wrappers (Reciben los eventos de tu MainMenuController) ──
+
+    private void OnPushScreenRequestedWrapper(string screenLabel)
+    {
+        Debug.Log($"<color=cyan>[ScreenManager] PUSH recibido: {screenLabel}</color>");
+        HandlePushScreenAsync(screenLabel).Forget();
+    }
+
+    private void OnPopScreenRequestedWrapper()
+    {
+        Debug.Log("<color=cyan>[ScreenManager] POP recibido</color>");
+        HandlePopScreenAsync().Forget();
+    }
+
+    private void OnClearAllRequestedWrapper()
+    {
+        Debug.Log("<color=cyan>[ScreenManager] CLEAR ALL recibido</color>");
+        HandleClearAllAsync().Forget();
+    }
+
+    // ── Handlers (Manejan la lógica de carga usando tu SceneLoader) ──
+
+    private async UniTask HandlePushScreenAsync(string screenLabel)
+    {
+        if (activeScreens.Count > 0 && activeScreens.Peek() == screenLabel)
+        {
+            Debug.LogWarning($"[ScreenManager] '{screenLabel}' ya es la pantalla activa.");
             return;
         }
 
-        await UnloadCurrentUIAsync();
-
-        foreach (string uiScene in nextUIScenes)
+        var groupEntry = sceneDatabase.GetGroup(screenLabel);
+        if (groupEntry == null || groupEntry.sceneNames.Count == 0)
         {
-            if (!SceneManager.GetSceneByName(uiScene).isLoaded)
-            {
-                await LoadSceneAdditiveAsync(uiScene);
-            }
-
-            currentUIScenes.Add(uiScene);
-            Debug.Log($"[ScreenManager] UI cargada: {uiScene}");
-        }
-    }
-
-    private async UniTask UnloadCurrentUIAsync()
-    {
-        if (currentUIScenes.Count == 0)
-            return;
-
-        foreach (string uiScene in currentUIScenes)
-        {
-            if (SceneManager.GetSceneByName(uiScene).isLoaded)
-            {
-                await UnloadSceneAsync(uiScene);
-                Debug.Log($"[ScreenManager] UI descargada: {uiScene}");
-            }
-        }
-
-        currentUIScenes.Clear();
-    }
-
-    private List<string> GetUIScenesForScene(string sceneName)
-    {
-        foreach (SceneUIBinding binding in sceneUIBindings)
-        {
-            if (binding.SceneNames.Contains(sceneName))
-            {
-                return new List<string>(binding.UISceneNames);
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Carga una escena de forma aditiva y reporta el progreso.
-    /// </summary>
-    /// <param name="sceneName">Nombre de la escena a cargar.</param>
-    private async UniTask LoadSceneAdditiveAsync(string sceneName)
-    {
-        AsyncOperation asyncOperation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
-
-        if (asyncOperation == null)
-        {
-            Debug.LogError($"No se pudo cargar la escena '{sceneName}'");
+            Debug.LogError($"[ScreenManager] No se encontró el grupo '{screenLabel}' en el SO_SceneList.");
             return;
         }
 
-        await asyncOperation.ToUniTask();
+        // Descargamos la pantalla anterior
+        if (activeScreens.Count > 0)
+        {
+            string previous = activeScreens.Pop();
+            await UnloadGroupAsync(previous);
+        }
+
+        // Cargamos el nuevo grupo de escenas
+        activeScreens.Push(screenLabel);
+        await LoadGroupAsync(groupEntry);
+
+        Debug.Log($"<color=green>[ScreenManager] Grupo '{screenLabel}' cargado exitosamente.</color>");
     }
 
-    /// <summary>
-    /// Descarga una escena aditiva de la memoria.
-    /// </summary>
-    private async UniTask UnloadSceneAsync(string sceneName)
+    private async UniTask HandlePopScreenAsync()
     {
-        AsyncOperation asyncOperation = SceneManager.UnloadSceneAsync(sceneName);
+        if (activeScreens.Count == 0) return;
 
-        if (asyncOperation != null)
-        {
-            await asyncOperation.ToUniTask();
-        }
+        string screenLabelToClose = activeScreens.Pop();
+        await UnloadGroupAsync(screenLabelToClose);
     }
-}
 
-[System.Serializable]
-public class SceneUIBinding
-{
-#if UNITY_EDITOR
-    [SerializeField] private List<SceneAsset> gameplayScenes = new();
-    [SerializeField] private List<SceneAsset> UIScenes = new();
-#endif
-
-    [HideInInspector][SerializeField] private List<string> sceneNames = new();
-    [HideInInspector][SerializeField] private List<string> uiSceneNames = new();
-
-    public IReadOnlyList<string> SceneNames => sceneNames;
-    public IReadOnlyList<string> UISceneNames => uiSceneNames;
-
-    public void UpdateNames()
+    private async UniTask HandleClearAllAsync()
     {
-#if UNITY_EDITOR
-        sceneNames.Clear();
-        uiSceneNames.Clear();
-
-        foreach (SceneAsset scene in gameplayScenes)
+        List<UniTask> unloadTasks = new List<UniTask>();
+        while (activeScreens.Count > 0)
         {
-            if (scene != null)
-                sceneNames.Add(scene.name);
+            string label = activeScreens.Pop();
+            unloadTasks.Add(UnloadGroupAsync(label));
         }
+        await UniTask.WhenAll(unloadTasks);
+    }
 
-        foreach (SceneAsset scene in UIScenes)
+    // ── Helpers ──
+
+    private async UniTask LoadGroupAsync(SceneGroupEntry group)
+    {
+        List<UniTask> tasks = new List<UniTask>();
+        foreach (string sceneName in group.sceneNames)
         {
-            if (scene != null)
-                uiSceneNames.Add(scene.name);
+            tasks.Add(sceneLoader.LoadSceneAdditiveAsync(sceneName));
         }
-#endif
+        await UniTask.WhenAll(tasks);
+    }
+
+    private async UniTask UnloadGroupAsync(string label)
+    {
+        var group = sceneDatabase.GetGroup(label);
+        if (group == null) return;
+
+        List<UniTask> tasks = new List<UniTask>();
+        foreach (string sceneName in group.sceneNames)
+        {
+            // Protegemos las escenas persistentes (como Data) para que no se borren
+            if (sceneDatabase.persistentSceneNames.Contains(sceneName)) continue;
+
+            tasks.Add(sceneLoader.UnloadSceneAsync(sceneName));
+        }
+        await UniTask.WhenAll(tasks);
     }
 }

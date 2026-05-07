@@ -1,5 +1,6 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenModel>
 {
@@ -44,8 +45,12 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneGroup("TestIñaki")) return;     
+        if (!ValidateSceneGroup("TestIñaki")) return;
+
         await Close();
+
+        await UnloadBootstrapAsync();
+
         screenChannel.RaisePushScreen("TestIñaki");
     }
 
@@ -71,7 +76,17 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         Application.Quit();
 #endif
     }
+    private async UniTask UnloadBootstrapAsync()
+    {
+        // Reemplaza "Bootstrap" por el nombre exacto de tu escena si es diferente
+        Scene bootstrapScene = SceneManager.GetSceneByName("Bootstrap");
 
+        if (bootstrapScene.isLoaded)
+        {
+            Debug.Log("<color=orange>[MainMenuController] Descargando escena Bootstrap...</color>");
+            await SceneManager.UnloadSceneAsync(bootstrapScene);
+        }
+    }
     // Método de seguridad para debuggear rápido en el editor
     private bool ValidateSceneGroup(string label)
     {
