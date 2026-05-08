@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 public class PuzzleStateManager : Singleton<PuzzleStateManager>
 {
@@ -7,11 +6,14 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     private readonly HashSet<string> insertedSockets = new HashSet<string>();
     private readonly HashSet<string> openedDoors = new HashSet<string>();
     private readonly Dictionary<string, int> valvePositions = new Dictionary<string, int>();
+    private readonly Dictionary<string, string> containerSlots = new Dictionary<string, string>();
 
-    private void Awake()
+
+    void Awake()
     {
         CreateSingleton(true);
     }
+
 
     public void SetPuzzleCompleted(string puzzleId)
     {
@@ -56,5 +58,30 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     {
         if (string.IsNullOrWhiteSpace(valveId)) return defaultValue;
         return valvePositions.TryGetValue(valveId, out int position) ? position : defaultValue;
+    }
+
+    public void SetContainerSlot(string containerId, string slotId)
+    {
+        if (string.IsNullOrWhiteSpace(containerId)) return;
+        if (string.IsNullOrWhiteSpace(slotId)) return;
+
+        containerSlots[containerId] = slotId;
+    }
+
+    public string GetContainerSlot(string containerId, string defaultSlotId = "")
+    {
+        if (string.IsNullOrWhiteSpace(containerId)) return defaultSlotId;
+
+        return containerSlots.TryGetValue(containerId, out string slotId)
+            ? slotId
+            : defaultSlotId;
+    }
+
+    public void ClearContainerSlot(string containerId)
+    {
+        if (string.IsNullOrWhiteSpace(containerId)) return;
+
+        if (containerSlots.ContainsKey(containerId))
+            containerSlots.Remove(containerId);
     }
 }

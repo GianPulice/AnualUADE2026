@@ -45,7 +45,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
     void Awake()
     {
-        CreateSingleton(true);
+        CreateSingleton(false);
     }
 
     void Start()

@@ -1,4 +1,4 @@
-using UnityEditor.Animations;
+
 using UnityEngine;
 
 public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
@@ -53,8 +53,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     public override void Update() 
     {
+        if(PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+
         InputUpdate();
         GravityController();
+        
         base.Update();
     }
     private void InitializeStates() 

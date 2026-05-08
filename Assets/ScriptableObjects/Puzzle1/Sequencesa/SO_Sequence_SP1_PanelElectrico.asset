@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cc23749ce40b734f87f79deff54eb5d, type: 3}
+  m_Name: SO_Sequence_SP1_PanelElectrico
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SequencePuzzleData
+  puzzleId: sp1_panel_electrico
+  requiredSocketId: socket_fusible_sp1
+  promptText: Interactuar con panel electrico
+  rewardItem: {fileID: 11400000, guid: 85c61301028d4d64ba4dd8f9a552dcf6, type: 2}
+  correctSequence: 03000000010000000400000002000000
