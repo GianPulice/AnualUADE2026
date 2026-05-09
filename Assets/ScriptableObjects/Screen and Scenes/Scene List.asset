@@ -37,3 +37,23 @@ MonoBehaviour:
     sceneNames:
     - MainMenu
     - MainMenuUI
+  - label: TestAlesio
+    sceneAssets:
+    - {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/Scenes/TestScenes/TestAlesio.unity
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestAlesio
+    - LevelUI
+  - label: TestFabri
+    sceneAssets:
+    - {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/Scenes/TestScenes/TestFabriScene.unity
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestFabriScene
+    - LevelUI
