@@ -1,11 +1,12 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEditor.Animations;
+using UnityEditorInternal;
 
-public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
+public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 {
     private PlayerStateManager playerStateManager;
-    public PlayerMovingState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
+    public PlayerCrouchState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
     }
@@ -13,17 +14,20 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
     public override void EnterState()
     {
         Debug.Log("Enter Moving State");
+
+        playerStateManager.AnimController.SetBool("isCrouch", true);
+        playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
+        playerStateManager.CharController.height = 0.9f;
+        playerStateManager.CharController.center = new Vector3(0, 0.45f, 0);
     }
 
     public override void ExitState()
     {
         Debug.Log("Exit Moving State");
+        playerStateManager.AnimController.SetBool("isCrouch", false);
         playerStateManager.SpeedMultiplier = 1;
-        if (NextState != PlayerStateManager.EPlayerState.Crouch)
-        {
-            playerStateManager.CurrentVelocity = 0;
-            playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
-        }
+        playerStateManager.CharController.height = 1.8f;
+        playerStateManager.CharController.center = new Vector3(0, 0.9f, 0);
         NextState = Statekey;
     }
 
@@ -50,6 +54,10 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
+        if (!playerStateManager.IsCrouch) 
+        {
+            NextState = PlayerStateManager.EPlayerState.Idle;
+        }
         if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
@@ -58,34 +66,23 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }
-        else if (playerStateManager.IsCrouch) 
-        {
-            NextState = PlayerStateManager.EPlayerState.Crouch;
-        }
         else
         {
             if (playerStateManager.MoveDir != Vector3.zero)
             {
-                //Mecánica Correr
-                if (Input.GetButton("Sprint")) playerStateManager.SpeedMultiplier = 1.5f;
-                else playerStateManager.SpeedMultiplier = 1f;
-
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.MoveDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
                 }
-                else 
-                { 
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
+                else
+                {
+                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
                 }
-                playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
-                playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
-            else
-            {
-                NextState = PlayerStateManager.EPlayerState.Idle;
-            }
+            else playerStateManager.CurrentVelocity = 0;
+            playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
+            playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
     } 
 }
