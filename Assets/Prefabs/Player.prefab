@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 6866595372486211810}
   - component: {fileID: 6697063734817033035}
-  - component: {fileID: 994673842611029010}
   - component: {fileID: 7645358371398037388}
   m_Layer: 7
   m_Name: Player
@@ -54,24 +53,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 2232447445971585158}
   orientation: {fileID: 7985739827390264409}
   playerBody: {fileID: 8595893570503489205}
-  animatorController: {fileID: 6599834768830831435}
---- !u!114 &994673842611029010
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 236206719962157421}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 573bab227a77629478c8524066d8ea05, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  movement: {fileID: 11400000, guid: 905f7ad2f405aa04ebcea7944e1ae8ea, type: 2}
-  charController: {fileID: 7645358371398037388}
-  cameraTransform: {fileID: 2232447445971585158}
-  orientation: {fileID: 7985739827390264409}
-  playerBody: {fileID: 8595893570503489205}
+  animController: {fileID: 6599834768830831435}
 --- !u!143 &7645358371398037388
 CharacterController:
   m_ObjectHideFlags: 0

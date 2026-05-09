@@ -50,6 +50,10 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }
+        else if (playerStateManager.IsCrouch)
+        {
+            NextState = PlayerStateManager.EPlayerState.Crouch;
+        }
         else if (playerStateManager.MoveDir != Vector3.zero) NextState = PlayerStateManager.EPlayerState.Moving;
     }
 }
