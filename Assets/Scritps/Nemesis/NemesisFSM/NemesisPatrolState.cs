@@ -8,17 +8,17 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void EnterState()
     {
-        throw new System.NotImplementedException();
+        
     }
 
     public override void ExitState()
     {
-        throw new System.NotImplementedException();
+        
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
     {
-        throw new System.NotImplementedException();
+       return Statekey;
     }
 
     public override void OnTriggerEnter(Collider other)
@@ -38,6 +38,6 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        throw new System.NotImplementedException();
+        
     }
 }

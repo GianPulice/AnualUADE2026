@@ -13,8 +13,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        Debug.Log("Enter Moving State");
-
+        //Debug.Log("Enter Moving State");
         playerStateManager.AnimController.SetBool("isCrouch", true);
         playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
         playerStateManager.CharController.height = 0.9f;
@@ -23,7 +22,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void ExitState()
     {
-        Debug.Log("Exit Moving State");
+        //Debug.Log("Exit Moving State");
         playerStateManager.AnimController.SetBool("isCrouch", false);
         playerStateManager.SpeedMultiplier = 1;
         playerStateManager.CharController.height = 1.8f;
