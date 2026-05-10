@@ -12,12 +12,12 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        Debug.Log("Enter Moving State");
+        //Debug.Log("Enter Moving State");
     }
 
     public override void ExitState()
     {
-        Debug.Log("Exit Moving State");
+        //Debug.Log("Exit Moving State");
         playerStateManager.SpeedMultiplier = 1;
         if (NextState != PlayerStateManager.EPlayerState.Crouch)
         {

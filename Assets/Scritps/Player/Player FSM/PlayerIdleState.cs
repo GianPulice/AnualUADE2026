@@ -10,12 +10,12 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        Debug.Log("Enter Idle State");
+        //Debug.Log("Enter Idle State");
     }
 
     public override void ExitState()
     {
-        Debug.Log("Exit Idle State");
+        //Debug.Log("Exit Idle State");
         NextState = Statekey;
     }
 
