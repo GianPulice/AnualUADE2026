@@ -18,13 +18,13 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     {
         Debug.Log("Exit Interacting State");
         playerStateManager.SpeedMultiplier = 1f;
-        NextState = Statekey;
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if (NextState != Statekey) return NextState;
-        else return Statekey;
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)
