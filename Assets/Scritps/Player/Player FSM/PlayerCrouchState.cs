@@ -27,13 +27,13 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         playerStateManager.SpeedMultiplier = 1;
         playerStateManager.CharController.height = 1.8f;
         playerStateManager.CharController.center = new Vector3(0, 0.9f, 0);
-        NextState = Statekey;
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if (NextState != Statekey) return NextState;
-        else return Statekey;
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)

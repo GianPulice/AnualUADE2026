@@ -24,13 +24,13 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             playerStateManager.CurrentVelocity = 0;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
-        NextState = Statekey;
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if (NextState != Statekey) return NextState;
-        else return Statekey;
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)
