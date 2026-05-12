@@ -89,7 +89,7 @@ public class ValveInteractable : BaseRangeInteractable
 
     public override bool IsRepeatable()
     {
-        return false;
+        return true;
     }
 }
 
