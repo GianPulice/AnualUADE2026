@@ -16,13 +16,13 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
     public override void ExitState()
     {
         Debug.Log("Exit Hidden State");
-        NextState = Statekey;
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if (NextState != Statekey) return NextState;
-        else return Statekey;
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)

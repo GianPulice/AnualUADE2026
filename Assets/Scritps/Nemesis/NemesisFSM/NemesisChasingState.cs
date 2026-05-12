@@ -1,24 +1,33 @@
+using Unity.Mathematics;
 using UnityEngine;
 
 public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 {
-    public NemesisChasingState(NemesisStateManager.ENemesisState key) : base(key)
+    private NemesisStateManager nemesisStateManager;
+
+    private float currentTime = 0f;
+    private float timeToExit = 5f;
+
+    public NemesisChasingState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
+        nemesisStateManager = stateManager;
     }
 
     public override void EnterState()
     {
-        throw new System.NotImplementedException();
+        Debug.Log(" Nemesis Enter Chasing State");
     }
 
     public override void ExitState()
     {
-        throw new System.NotImplementedException();
+        Debug.Log(" Nemesis Exit Chasing State");
+        NextState = StateKey;
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
     {
-        throw new System.NotImplementedException();
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)
@@ -38,6 +47,22 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        throw new System.NotImplementedException();
+        if (nemesisStateManager.HasTarget) 
+        { 
+            nemesisStateManager.SelfTransform.forward = Vector3.Slerp(nemesisStateManager.SelfTransform.forward,nemesisStateManager.FieldOfView.LastKnownPosition - nemesisStateManager.SelfTransform.position,10 * Time.deltaTime);
+            currentTime = 0;
+        }
+        else
+        {
+            if (currentTime < timeToExit)
+            {
+                currentTime += Time.deltaTime;
+            }
+            else 
+            {
+                currentTime = 0;
+                NextState = NemesisStateManager.ENemesisState.Patrolling;
+            }
+        }
     }
 }
