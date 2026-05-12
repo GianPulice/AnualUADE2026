@@ -19,6 +19,8 @@ public class InteractionManagerUI : Singleton<InteractionManagerUI>
 
     public void ShowCurrentInteractionMessageText()
     {
+        if (interactionMessageText == null) return;
+
         if (InteractionManager.Instance == null || InteractionManager.Instance.CurrentInteractable == null)
         {
             ClearMessage();
@@ -36,10 +38,11 @@ public class InteractionManagerUI : Singleton<InteractionManagerUI>
         interactionMessageText.text = interactText;
     }
 
-
     private void ClearMessage()
     {
-        if (interactionMessageText.text != string.Empty)
+        if (interactionMessageText != null && interactionMessageText.text != string.Empty)
+        {
             interactionMessageText.text = string.Empty;
+        }
     }
 }

@@ -1,26 +1,27 @@
 using UnityEngine;
 
-public class NoteInteractable : MonoBehaviour, IInteractable
+public class NoteInteractable : BaseRangeInteractable
 {
     [TextArea]
     [SerializeField] private string noteText;
 
 
-    public string GetInteractText()
+    public override string GetInteractText()
     {
         return "Leer nota";
     }
 
-    public bool CanInteract()
+    protected override bool CanInteractInCloseRange()
     {
         return true;
     }
 
-    public void Interact()
+    protected override void OnInteract()
     {
         Debug.Log(noteText);
     }
-    public bool IsRepeatable()
+
+    public override bool IsRepeatable()
     {
         return false;
     }
