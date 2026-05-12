@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc6ebf0cfdc2e9a4b864f40f522633c6, type: 3}
+  m_Name: Scene List
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SceneList
+  persistentSceneAssets:
+  - {fileID: 102900000, guid: f17bf9e99ef267742a8c02e8e2aeae3d, type: 3}
+  persistentSceneNames:
+  - Data
+  sceneGroups:
+  - label: "TestI\xF1aki"
+    sceneAssets:
+    - {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - "TestI\xF1aki"
+    - LevelUI
+  - label: Menu
+    sceneAssets:
+    - {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
+    - {fileID: 102900000, guid: bc7c4ed2b08b289478a432f1c485b1e5, type: 3}
+    scenePaths:
+    - Assets/Scenes/GameScenes/MainMenu.unity
+    - Assets/Scenes/UI/MainMenuUI.unity
+    sceneNames:
+    - MainMenu
+    - MainMenuUI
+  - label: TestAlesio
+    sceneAssets:
+    - {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/Scenes/TestScenes/TestAlesio.unity
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestAlesio
+    - LevelUI
+  - label: TestFabri
+    sceneAssets:
+    - {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/Scenes/TestScenes/TestFabriScene.unity
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestFabriScene
+    - LevelUI

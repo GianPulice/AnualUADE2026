@@ -1,74 +1,163 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class InteractionManager : Singleton<InteractionManager>
 {
-    [SerializeField] private SO_InteractionManager SO_interactionManager;
+    [Header("Camera")]
+    [SerializeField] private bool requireCameraVisibility = true;
+
+    [Header("Vision Check")]
+    [SerializeField] private bool requireClearLineOfSight = false;
+    [SerializeField] private LayerMask lineOfSightBlockingLayers = ~0;
 
     private Camera playerCamera;
-
-    private LayerMask interactionLayer;
-
-    [Header("Debug")]
-    [SerializeField] private bool drawRay = true;
+    private readonly List<IInteractable> nearbyInteractables = new();
 
     private IInteractable currentInteractable;
 
     public IInteractable CurrentInteractable => currentInteractable;
 
-
-    void Awake()
+    private void Awake()
     {
         CreateSingleton(true);
-        InitializeInteractionManager();
+        SuscribeToOnSceneLoadedEvent();
+        RefreshCamera();
     }
 
-    void Update()
+    private void Update()
     {
-        DetectInteractable();
+        RefreshCamera();
+        UpdateCurrentInteractable();
         Interact();
     }
 
-
-    /// <summary>
-    /// Analizar esta linea de codigo por si en un futuro agregagan mas camaras
-    /// </summary>
-    private void InitializeInteractionManager()
+    private void SuscribeToOnSceneLoadedEvent()
     {
-        playerCamera = Camera.main;
-        interactionLayer = LayerMask.GetMask("Interactable");
+        SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
-    private void DetectInteractable()
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        RefreshCamera();
+    }
+
+    private void RefreshCamera()
+    {
+        if (playerCamera == null)
+        {
+            playerCamera = Camera.main;
+        }
+    }
+
+    public void RegisterInteractable(IInteractable interactable)
+    {
+        if (interactable == null) return;
+
+        if (!nearbyInteractables.Contains(interactable))
+        {
+            nearbyInteractables.Add(interactable);
+        }
+    }
+
+    public void UnregisterInteractable(IInteractable interactable)
+    {
+        if (interactable == null) return;
+
+        nearbyInteractables.Remove(interactable);
+
+        if (currentInteractable == interactable)
+        {
+            currentInteractable = null;
+        }
+    }
+
+    private void UpdateCurrentInteractable()
     {
         currentInteractable = null;
 
-        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        if (nearbyInteractables.Count == 0) return;
 
-        if (drawRay)
+        for (int i = nearbyInteractables.Count - 1; i >= 0; i--)
         {
-            Debug.DrawRay(ray.origin, ray.direction * SO_interactionManager.InteractionDistance, Color.green);
-        }
+            IInteractable interactable = nearbyInteractables[i];
 
-        if (Physics.Raycast(ray, out RaycastHit hit, SO_interactionManager.InteractionDistance, interactionLayer))
-        {
-            if (hit.collider.TryGetComponent(out IInteractable interactable))
+            if (interactable == null)
             {
-                currentInteractable = interactable;
-                return;
+                nearbyInteractables.RemoveAt(i);
+                continue;
             }
 
-            currentInteractable = hit.collider.GetComponent<IInteractable>() ?? hit.collider.GetComponentInParent<IInteractable>() ?? hit.collider.GetComponentInChildren<IInteractable>();
+            if (!interactable.CanInteract()) continue;
+
+            MonoBehaviour interactableBehaviour = interactable as MonoBehaviour;
+
+            if (interactableBehaviour == null) continue;
+
+            if (requireCameraVisibility && !IsVisibleByCamera(interactableBehaviour.transform))
+                continue;
+
+            if (requireClearLineOfSight && !HasClearLineOfSight(interactableBehaviour.transform))
+                continue;
+
+            currentInteractable = interactable;
+            return;
         }
+    }
+
+    private bool IsVisibleByCamera(Transform target)
+    {
+        if (playerCamera == null) return false;
+
+        Vector3 viewportPoint = playerCamera.WorldToViewportPoint(target.position);
+
+        bool isInFrontOfCamera = viewportPoint.z > 0f;
+        bool isInsideCameraView =
+            viewportPoint.x >= 0f &&
+            viewportPoint.x <= 1f &&
+            viewportPoint.y >= 0f &&
+            viewportPoint.y <= 1f;
+
+        return isInFrontOfCamera && isInsideCameraView;
+    }
+
+    private bool HasClearLineOfSight(Transform target)
+    {
+        if (playerCamera == null) return false;
+
+        Vector3 origin = playerCamera.transform.position;
+        Vector3 direction = target.position - origin;
+        float distance = direction.magnitude;
+
+        if (Physics.Raycast(origin, direction.normalized, out RaycastHit hit, distance, lineOfSightBlockingLayers))
+        {
+            IInteractable hitInteractable =
+                hit.collider.GetComponent<IInteractable>() ??
+                hit.collider.GetComponentInParent<IInteractable>();
+
+            return hitInteractable == currentInteractable;
+        }
+
+        return true;
     }
 
     private void Interact()
     {
-        if (Input.GetKeyDown(KeyCode.E) && currentInteractable != null)
+        if (!Input.GetKeyDown(KeyCode.E)) return;
+        if (currentInteractable == null) return;
+        if (!currentInteractable.CanInteract()) return;
+
+        IInteractable interactableToUse = currentInteractable;
+
+        bool wasRepeatable = interactableToUse.IsRepeatable();
+
+        interactableToUse.Interact();
+
+        currentInteractable = null;
+
+        if (!wasRepeatable)
         {
-            if (currentInteractable.CanInteract())
-            {
-                currentInteractable.Interact();
-            }
+            UnregisterInteractable(interactableToUse);
         }
     }
 }

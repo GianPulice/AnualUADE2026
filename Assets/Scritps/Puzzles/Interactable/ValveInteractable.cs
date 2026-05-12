@@ -1,6 +1,7 @@
+using System.Collections;
 using UnityEngine;
 
-public class ValveInteractable : MonoBehaviour, IInteractable
+public class ValveInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_ValveData valveData;
 
@@ -12,28 +13,43 @@ public class ValveInteractable : MonoBehaviour, IInteractable
         get
         {
             if (valveData == null) return 0;
-            return PuzzleStateManager.Instance.GetValvePosition(valveData.ValveId, valveData.InitialPosition);
+            return PuzzleStateManager.Instance.GetValvePosition(
+                valveData.ValveId,
+                valveData.InitialPosition
+            );
         }
     }
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         if (valveData == null)
         {
             Debug.LogError($"ValveInteractable sin SO_ValveData en {gameObject.name}");
             return;
         }
 
-        PuzzleStateManager.Instance.SetValvePosition(valveData.ValveId, CurrentPosition);
+        StartCoroutine(InitializeValveState());
     }
 
-    public string GetInteractText()
+    private IEnumerator InitializeValveState()
+    {
+        yield return new WaitForSeconds(3);
+
+        PuzzleStateManager.Instance.SetValvePosition(
+            valveData.ValveId,
+            CurrentPosition
+        );
+    }
+
+    public override string GetInteractText()
     {
         if (valveData == null) return "Válvula sin configurar";
         return valveData.PromptText;
     }
 
-    public bool CanInteract()
+    protected override bool CanInteractInCloseRange()
     {
         if (valveData == null) return false;
 
@@ -44,18 +60,20 @@ public class ValveInteractable : MonoBehaviour, IInteractable
         return true;
     }
 
-    public void Interact()
+    protected override void OnInteract()
     {
-        if (!CanInteract()) return;
-
         int nextPosition = CurrentPosition + 1;
 
         if (nextPosition >= valveData.MaxPositions)
             nextPosition = 0;
 
-        PuzzleStateManager.Instance.SetValvePosition(valveData.ValveId, nextPosition);
+        PuzzleStateManager.Instance.SetValvePosition(
+            valveData.ValveId,
+            nextPosition
+        );
 
-        ValvePuzzleController[] controllers = FindObjectsByType<ValvePuzzleController>(FindObjectsInactive.Exclude);
+        ValvePuzzleController[] controllers =
+            FindObjectsByType<ValvePuzzleController>(FindObjectsInactive.Exclude);
 
         foreach (ValvePuzzleController controller in controllers)
         {
@@ -68,7 +86,8 @@ public class ValveInteractable : MonoBehaviour, IInteractable
 
         Debug.Log($"Válvula {valveData.ValveId} en posición {nextPosition}");
     }
-    public bool IsRepeatable()
+
+    public override bool IsRepeatable()
     {
         return false;
     }

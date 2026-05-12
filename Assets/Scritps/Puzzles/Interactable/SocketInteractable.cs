@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class SocketInteractable : MonoBehaviour, IInteractable
+public class SocketInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_SocketData socketData;
 
@@ -10,12 +10,9 @@ public class SocketInteractable : MonoBehaviour, IInteractable
     public string SocketId => socketData != null ? socketData.SocketId : string.Empty;
     public string LinkedPuzzleId => socketData != null ? socketData.LinkedPuzzleId : string.Empty;
 
-    public string GetInteractText()
+    public override string GetInteractText()
     {
-        if (socketData == null)
-            return string.Empty;
-
-        if (socketData.RequiredItem == null)
+        if (socketData == null || socketData.RequiredItem == null)
             return string.Empty;
 
         if (IsInserted)
@@ -24,10 +21,10 @@ public class SocketInteractable : MonoBehaviour, IInteractable
         if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
             return $"No tienes {socketData.RequiredItem.ItemName}";
 
-        return $"Presione la tecla 'E' para insertar {socketData.RequiredItem.ItemName}";
+        return socketData.GetPromptText();
     }
 
-    public bool CanInteract()
+    protected override bool CanInteractInCloseRange()
     {
         if (socketData == null) return false;
         if (IsInserted) return false;
@@ -36,32 +33,49 @@ public class SocketInteractable : MonoBehaviour, IInteractable
         return InventoryManager.Instance.HasItem(socketData.RequiredItem);
     }
 
-    public void Interact()
+    protected override void OnInteract()
     {
-        if (!CanInteract()) return;
-
         if (socketData.ConsumeItem)
             InventoryManager.Instance.ConsumeItem(socketData.RequiredItem);
 
         PuzzleStateManager.Instance.SetSocketInserted(socketData.SocketId);
 
-        if (!string.IsNullOrWhiteSpace(socketData.LinkedPuzzleId))
-        {
-            PuzzleController[] puzzleControllers = FindObjectsByType<PuzzleController>(FindObjectsInactive.Exclude);
-
-            foreach (PuzzleController controller in puzzleControllers)
-            {
-                if (controller.PuzzleId == socketData.LinkedPuzzleId)
-                {
-                    controller.StartPuzzle();
-                    break;
-                }
-            }
-        }
+        NotifyLinkedPuzzle();
 
         Debug.Log($"Socket insertado: {socketData.SocketId}");
     }
-    public bool IsRepeatable()
+
+    private void NotifyLinkedPuzzle()
+    {
+        if (socketData == null) return;
+        if (string.IsNullOrWhiteSpace(socketData.LinkedPuzzleId)) return;
+
+        HubPuzzleController[] hubs =
+            FindObjectsByType<HubPuzzleController>(FindObjectsInactive.Exclude);
+
+        foreach (HubPuzzleController hub in hubs)
+        {
+            if (hub.PuzzleId == socketData.LinkedPuzzleId)
+            {
+                hub.CheckHubCompletion();
+                return;
+            }
+        }
+
+        PuzzleController[] puzzleControllers =
+            FindObjectsByType<PuzzleController>(FindObjectsInactive.Exclude);
+
+        foreach (PuzzleController controller in puzzleControllers)
+        {
+            if (controller.PuzzleId == socketData.LinkedPuzzleId)
+            {
+                controller.StartPuzzle();
+                return;
+            }
+        }
+    }
+
+    public override bool IsRepeatable()
     {
         return false;
     }
