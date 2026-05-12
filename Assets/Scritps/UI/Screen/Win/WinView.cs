@@ -5,7 +5,6 @@ using Cysharp.Threading.Tasks;
 public class WinView : BaseResultView
 {
     [Header("Win-specific")]
-    [SerializeField] private GameObject _starsContainer;
     [SerializeField] private TextMeshProUGUI _titleText;
 
     protected override void Awake()

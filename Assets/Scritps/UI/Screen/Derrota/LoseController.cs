@@ -22,6 +22,8 @@ public class LoseController : BaseScreenController<LoseView,GameResultModel>
 
         view.OnRetryClicked += HandleRetry;
         view.OnMainMenuClicked += HandleMainMenu;
+
+        view.OnOptionsClicked += HandleOptions;
     }
 
     private void OnEnable() => GameResultManager.OnGameResult += HandleGameResult;
@@ -69,5 +71,10 @@ public class LoseController : BaseScreenController<LoseView,GameResultModel>
         Time.timeScale = 1f;
         _screenChannel.RaiseClearAll();
         _screenChannel.RaisePushScreen(_mainMenuGroup);
+    }
+
+    private void HandleOptions()
+    {
+        Debug.Log("Settings no implementado aún.");
     }
 }
