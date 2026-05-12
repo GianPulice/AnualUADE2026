@@ -346,7 +346,7 @@ GameObject:
   - component: {fileID: 5879673404586246306}
   - component: {fileID: 848034176517661206}
   m_Layer: 5
-  m_Name: ButtonTryAgain
+  m_Name: ButtonMainMenu
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -640,7 +640,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: TRY AGAIN
+  m_text: MAIN MENU
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
   m_sharedMaterial: {fileID: 8440886963500490541, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
@@ -725,10 +725,10 @@ GameObject:
   - component: {fileID: 9071601772168963090}
   - component: {fileID: 920375944250077105}
   - component: {fileID: 5777520890614585411}
-  - component: {fileID: 6936739420111863895}
-  - component: {fileID: 2973032742874045454}
+  - component: {fileID: 6466206073267941919}
+  - component: {fileID: 6018445596683342706}
   m_Layer: 5
-  m_Name: CanvasLose
+  m_Name: CanvasWin
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -834,7 +834,7 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
---- !u!114 &6936739420111863895
+--- !u!114 &6466206073267941919
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -843,31 +843,30 @@ MonoBehaviour:
   m_GameObject: {fileID: 4709029339952726109}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c14a098d092eee848a15afabadf478fe, type: 3}
+  m_Script: {fileID: 11500000, guid: d3b129f847befbf4881f4439451353c6, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LoseController
-  view: {fileID: 2973032742874045454}
-  _screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
-  _currentLevelGroup: Level1_Group
-  _mainMenuGroup: Menu
---- !u!114 &2973032742874045454
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4709029339952726109}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 715a1dff082b15149baee68cfff57a9c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LoseView
+  m_EditorClassIdentifier: Assembly-CSharp::WinView
   canvasGroup: {fileID: 5777520890614585411}
   fadeDuration: 0.3
-  _btnRetry: {fileID: 848034176517661206}
-  _btnMainMenu: {fileID: 4341359398883929596}
-  _btnNextLevel: {fileID: 167617397132968645}
+  _btnRetry: {fileID: 167617397132968645}
+  _btnMainMenu: {fileID: 848034176517661206}
+  _btnNextLevel: {fileID: 4341359398883929596}
   _titleText: {fileID: 2803530870595234126}
+--- !u!114 &6018445596683342706
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4709029339952726109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baabb399f4e98264bbd1884cc81c8a6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WinController
+  view: {fileID: 6466206073267941919}
+  _screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
+  _mainMenuGroup: Menu
 --- !u!1 &5804301734765387445
 GameObject:
   m_ObjectHideFlags: 0
@@ -1019,7 +1018,7 @@ GameObject:
   - component: {fileID: 1420041197544225777}
   - component: {fileID: 2803530870595234126}
   m_Layer: 5
-  m_Name: LoseText
+  m_Name: WinText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
