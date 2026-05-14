@@ -5,6 +5,3 @@
 *.mp4 filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.mp3 filter=lfs diff=lfs merge=lfs -text
-*.prefab !text !filter !merge !diff
-*.asset !text !filter !merge !diff
-*.tga !text !filter !merge !diff
