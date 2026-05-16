@@ -11,12 +11,12 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
     public override void EnterState()
     {
         //Debug.Log("Enter Idle State");
+        NextState = StateKey;
     }
 
     public override void ExitState()
     {
         //Debug.Log("Exit Idle State");
-        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -42,11 +42,11 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        /*if (playerStateManager.IsInteracting)
+        if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
         }
-        else*/ if (playerStateManager.IsHidden)
+        else if (playerStateManager.IsHidden)
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }

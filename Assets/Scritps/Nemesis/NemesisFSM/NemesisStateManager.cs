@@ -4,12 +4,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 {
     [SerializeField] private Transform selfTransform;
     [SerializeField] private FieldOfView fieldOfView;
+    [SerializeField] private SO_NemesisData nemesisData;
 
     private bool hasTarget = false;
 
     public Transform SelfTransform { get => selfTransform; set => selfTransform = value; }
     public FieldOfView FieldOfView { get => fieldOfView; set => fieldOfView = value; }
     public bool HasTarget { get => hasTarget;}
+    public SO_NemesisData NemesisData { get => nemesisData;}
 
     public enum ENemesisState 
     {
@@ -39,7 +41,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         States.Add(ENemesisState.Patrolling, new NemesisPatrolState(ENemesisState.Patrolling, this));
         States.Add(ENemesisState.Chasing, new NemesisChasingState(ENemesisState.Chasing,this));
-        States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching));
+        States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching,this));
         States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating));
         CurrentState = States[ENemesisState.Patrolling];
     }

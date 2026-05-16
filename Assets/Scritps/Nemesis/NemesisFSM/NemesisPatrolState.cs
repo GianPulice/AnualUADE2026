@@ -4,21 +4,23 @@ using UnityEngine.InputSystem.Controls;
 public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 {
     private NemesisStateManager nemesisStateManager;
+    private float timeToNextWP = 0f;
 
     public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
+        timeToNextWP = nemesisStateManager.NemesisData.PatrolWaypointWaitTime;
     }
 
     public override void EnterState()
     {
         Debug.Log("Nemesis Enter Patrol State");
+        NextState = StateKey;
     }
 
     public override void ExitState()
     {
         Debug.Log("Nemesis Exit Patrol State");
-        NextState = StateKey;
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()

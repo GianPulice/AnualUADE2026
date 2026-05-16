@@ -13,6 +13,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
     public override void EnterState()
     {
         //Debug.Log("Enter Moving State");
+        NextState = StateKey;
     }
 
     public override void ExitState()
@@ -24,7 +25,6 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             playerStateManager.CurrentVelocity = 0;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
-        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -79,11 +79,12 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 { 
                     playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
                 }
-                playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
+                playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
             else
             {
+                playerStateManager.RigBody.linearVelocity = new Vector3(0, playerStateManager.RigBody.linearVelocity.y, 0);
                 NextState = PlayerStateManager.EPlayerState.Idle;
             }
         }

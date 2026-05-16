@@ -16,8 +16,9 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         //Debug.Log("Enter Moving State");
         playerStateManager.AnimController.SetBool("isCrouch", true);
         playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
-        playerStateManager.CharController.height = 0.9f;
-        playerStateManager.CharController.center = new Vector3(0, 0.45f, 0);
+        playerStateManager.CapsuleColl.height = 0.9f;
+        playerStateManager.CapsuleColl.center = new Vector3(0, 0.45f, 0);
+        NextState = StateKey;
     }
 
     public override void ExitState()
@@ -25,9 +26,8 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         //Debug.Log("Exit Moving State");
         playerStateManager.AnimController.SetBool("isCrouch", false);
         playerStateManager.SpeedMultiplier = 1;
-        playerStateManager.CharController.height = 1.8f;
-        playerStateManager.CharController.center = new Vector3(0, 0.9f, 0);
-        NextState = StateKey;
+        playerStateManager.CapsuleColl.height = 1.8f;
+        playerStateManager.CapsuleColl.center = new Vector3(0, 0.9f, 0);
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -80,7 +80,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
                 }
             }
             else playerStateManager.CurrentVelocity = 0;
-            playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
+            playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
     } 

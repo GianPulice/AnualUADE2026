@@ -10,7 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 6866595372486211810}
   - component: {fileID: 6697063734817033035}
-  - component: {fileID: 7645358371398037388}
+  - component: {fileID: 8279488126507840101}
+  - component: {fileID: 5462070032916073715}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -49,13 +50,43 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStateManager
   movement: {fileID: 11400000, guid: 905f7ad2f405aa04ebcea7944e1ae8ea, type: 2}
-  charController: {fileID: 7645358371398037388}
+  rigBody: {fileID: 8279488126507840101}
+  capsuleColl: {fileID: 5462070032916073715}
+  boxColl: {fileID: 9050374754818723081}
   cameraTransform: {fileID: 2232447445971585158}
   orientation: {fileID: 7985739827390264409}
   playerBody: {fileID: 8595893570503489205}
   animController: {fileID: 6599834768830831435}
---- !u!143 &7645358371398037388
-CharacterController:
+  isInteracting: 0
+--- !u!54 &8279488126507840101
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 112
+  m_CollisionDetection: 0
+--- !u!136 &5462070032916073715
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -69,15 +100,13 @@ CharacterController:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
+  m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 1.8
+  serializedVersion: 2
   m_Radius: 0.3
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.03
-  m_MinMoveDistance: 0.001
+  m_Height: 1.8
+  m_Direction: 1
   m_Center: {x: 0, y: 0.9, z: 0}
 --- !u!1 &1088243688451712710
 GameObject:
@@ -109,8 +138,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.107856244, y: -0.07464595, z: 0.008121471, w: 0.9913269}
-  m_LocalPosition: {x: 0.7776278, y: 2.5082526, z: -1.8330495}
+  m_LocalRotation: {x: 0.2823649, y: -0.71276397, z: 0.40202817, w: 0.5006106}
+  m_LocalPosition: {x: 1.2873224, y: 3.4847183, z: 0.2840023}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -193,7 +222,7 @@ MonoBehaviour:
     SplineCurvature: 0.5
   RecenteringTarget: 3
   HorizontalAxis:
-    Value: -22.98793
+    Value: -102.441
     Center: 0
     Range: {x: -180, y: 180}
     Wrap: 1
@@ -203,7 +232,7 @@ MonoBehaviour:
       Time: 2
     Restrictions: 0
   VerticalAxis:
-    Value: -5.659715
+    Value: 60.220455
     Center: 17.5
     Range: {x: -80, y: 80}
     Wrap: 0
@@ -752,6 +781,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e0cab904534471041919441c1dcd534e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6599834768830831435}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e0cab904534471041919441c1dcd534e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 9050374754818723081}
   m_SourcePrefab: {fileID: 100100000, guid: e0cab904534471041919441c1dcd534e, type: 3}
 --- !u!4 &8595893570503489205 stripped
 Transform:
@@ -785,3 +817,24 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!65 &9050374754818723081
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8935545200099257359}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.5, y: 1, z: 0.5}
+  m_Center: {x: 0, y: 1, z: 0.5}

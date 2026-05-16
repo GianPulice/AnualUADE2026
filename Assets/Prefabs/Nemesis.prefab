@@ -49,6 +49,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NemesisStateManager
   selfTransform: {fileID: 1071633149383001357}
   fieldOfView: {fileID: 7262208103517849607}
+  nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!114 &7262208103517849607
 MonoBehaviour:
   m_ObjectHideFlags: 0

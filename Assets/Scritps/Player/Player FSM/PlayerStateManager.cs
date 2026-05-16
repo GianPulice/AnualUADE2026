@@ -4,7 +4,9 @@ using UnityEngine;
 public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 {
     [SerializeField] private SO_Movement movement;
-    [SerializeField] private CharacterController charController;
+    [SerializeField] private Rigidbody rigBody;
+    [SerializeField] private CapsuleCollider capsuleColl;
+    [SerializeField] private BoxCollider boxColl;
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
@@ -15,13 +17,15 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
 
-    private bool isInteracting = false;
+    [SerializeField] private bool isInteracting = false;
     private bool isHidden = false;
     private bool isInDanger = false;
     private bool isDisabled = false;
 
     public SO_Movement Movement { get => movement; set => movement = value; }
-    public CharacterController CharController { get => charController; set => charController = value; }
+    public Rigidbody RigBody { get => rigBody; set => rigBody = value; }
+    public CapsuleCollider CapsuleColl { get => capsuleColl; set => capsuleColl = value; }
+    public BoxCollider BoxColl { get => boxColl; set => boxColl = value; }
     public Transform PlayerBody { get => playerBody; set => playerBody = value; }
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
     public Vector3 CharGravity { get => charGravity; set => charGravity = value; }
@@ -46,7 +50,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     void Awake()
     {
-        charController = GetComponent<CharacterController>();
+        rigBody = GetComponent<Rigidbody>();
         InitializeStates();
     }
     public override void Start()
@@ -58,7 +62,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         if(PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
         InputUpdate();
-        GravityController();
         
         base.Update();
     }
@@ -71,17 +74,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         States.Add(EPlayerState.Hidden, new PlayerHiddenState(EPlayerState.Hidden, this));
         States.Add(EPlayerState.Disabled, new PlayerDisabledState(EPlayerState.Disabled, this));
         CurrentState = States[EPlayerState.Idle];
-    }
-    private void GravityController() 
-    {
-        if (charController.isGrounded) 
-        {
-            charGravity.y = -0.5f;
-        }
-        else 
-        {
-            charGravity.y = -9.8f;
-        }
     }
     private void InputUpdate()
     {
@@ -106,11 +98,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         }
 
         //Testeo de estado Interacting
-        /*if (Input.GetKeyDown(KeyCode.E))
+        if (Input.GetKeyDown(KeyCode.E))
         {
             if (isInteracting) isInteracting = false;
             else isInteracting = true;
-        }*/
+        }
 
         //Testeo de estado Hidden
         if (Input.GetKeyDown(KeyCode.R))
@@ -132,5 +124,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             if (isDisabled) isDisabled = false;
             else isDisabled = true;
         }
+    }
+    public void SetPlayerPositionAndDirection(Vector3 newPosition, Vector3 newForward) 
+    {
+        transform.position = newPosition;
+        playerBody.forward = newForward;
     }
 }
