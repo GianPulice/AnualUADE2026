@@ -12,11 +12,13 @@ public abstract class BaseScreenView : MonoBehaviour
         gameObject.SetActive(true);
 
         canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;    
+        canvasGroup.blocksRaycasts = false;
 
         float time = 0;
         while (time < fadeDuration)
         {
-            time += Time.deltaTime;
+            time += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Lerp(0f, 1f, time / fadeDuration);
             await UniTask.Yield();
         }
@@ -28,6 +30,9 @@ public abstract class BaseScreenView : MonoBehaviour
 
     public virtual async UniTask HideAsync()
     {
+        if (UnityEngine.EventSystems.EventSystem.current != null)
+            UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
+
         // Immediately block inputs so the player can't double-click during the fade
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
@@ -35,7 +40,7 @@ public abstract class BaseScreenView : MonoBehaviour
         float time = 0;
         while (time < fadeDuration)
         {
-            time += Time.deltaTime;
+            time += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Lerp(1f, 0f, time / fadeDuration);
             await UniTask.Yield();
         }

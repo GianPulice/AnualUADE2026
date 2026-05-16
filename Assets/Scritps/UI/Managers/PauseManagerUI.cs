@@ -57,18 +57,35 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
             CloseSafe().Forget();
     }
 
+    protected override void OnBeforeOpen()
+    {
+        Time.timeScale = 0f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    protected override void OnBeforeClose()
+    {
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+        if (_settingsInstance != null)
+        {
+            _settingsInstance.SetActive(false);
+        }
+        view.ResetButtonStates();
+    }
+
     private async UniTaskVoid OpenSafe()
     {
         _isTransitioning = true;
         await Open();
-        Time.timeScale = 0f;
         _isTransitioning = false;
     }
 
     private async UniTaskVoid CloseSafe()
     {
         _isTransitioning = true;
-        Time.timeScale = 1f;
         if (_settingsInstance != null)
         {
             _settingsInstance.SetActive(false);
@@ -113,7 +130,5 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
             Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel en el inspector para poder salir al menú.");
         }
     }
-
-
 
 }
