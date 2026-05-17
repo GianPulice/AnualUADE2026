@@ -1,6 +1,8 @@
+using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// VIEW principal del inventario.
@@ -22,6 +24,8 @@ public class InventoryView : MonoBehaviour
 
     [Header("Contenedor de la lista")]
     [SerializeField] private Transform itemListContainer;   // ScrollRect Content 
+    [SerializeField] private ScrollRect scrollRect;
+    [SerializeField] private RectTransform viewport;
 
     [Header("Prefabs")]
     [SerializeField] private ItemSlotView itemSlotPrefab;
@@ -73,10 +77,8 @@ public class InventoryView : MonoBehaviour
                 .Where(i => i.Category == category)
                 .ToList();
 
-            // Omitir grupos vacíos (spec §4.2)
             if (group.Count == 0) continue;
 
-            // Etiqueta de grupo
             GroupLabelView label = GetOrCreateGroupLabel();
             label.Setup(category);
             label.gameObject.SetActive(true);
@@ -91,6 +93,23 @@ public class InventoryView : MonoBehaviour
                 activeSlots.Add(slot);
             }
         }
+
+        int siblingIndex = 0;
+        for (int i = 0; i < activeGroupLabels.Count; i++)
+        {
+            // Buscar los slots que pertenecen a este label por categoría
+            ItemCategory category = CategoryOrder.First(c =>
+                activeGroupLabels[i].Category == c);
+
+            activeGroupLabels[i].transform.SetSiblingIndex(siblingIndex++);
+
+            foreach (ItemSlotView slot in activeSlots.Where(s => s.Item.Category == category))
+            {
+                slot.transform.SetSiblingIndex(siblingIndex++);
+            }
+        }
+
+        CheckScrollNeeded().Forget();
     }
     public void HighlightItem(SO_InventoryItem item)
     {
@@ -98,6 +117,26 @@ public class InventoryView : MonoBehaviour
         {
             slot.SetSelected(slot.Item == item);
         }
+    }
+
+    private async UniTaskVoid CheckScrollNeeded()
+    {
+        await UniTask.WaitForEndOfFrame(this);
+
+        RectTransform content = itemListContainer as RectTransform;
+        
+        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+
+        // 3. Medir usando rect.height (tamaño real en píxeles) en lugar de sizeDelta
+        float contentHeight = content.rect.height;
+        float viewportHeight = viewport.rect.height;
+
+        bool overflows = contentHeight > viewportHeight;
+
+        // Log informativo para debug
+        Debug.Log($"[Scroll] Real Content Height: {contentHeight} | Viewport: {viewportHeight} | Overflows: {overflows}");
+
+        scrollRect.vertical = true;
     }
 
     // ── Callbacks ─────────────────────────────────────────────────────────────

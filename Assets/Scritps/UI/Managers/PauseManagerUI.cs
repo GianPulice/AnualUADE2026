@@ -123,7 +123,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
         if (screenChannel != null)
         {
-            screenChannel.RaisePushScreen("MainMenu");
+            screenChannel.RaisePushScreen("Menu");
         }
         else
         {
