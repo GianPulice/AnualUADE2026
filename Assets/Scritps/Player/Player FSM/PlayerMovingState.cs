@@ -62,15 +62,19 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
         {
             NextState = PlayerStateManager.EPlayerState.Crouch;
         }
+        else if (!playerStateManager.IsGrounded) 
+        {
+            NextState = PlayerStateManager.EPlayerState.Idle;
+        }
         else
         {
-            if (playerStateManager.MoveDir != Vector3.zero)
+            if (playerStateManager.InputDir != Vector3.zero)
             {
                 //Mecánica Correr
                 if (Input.GetButton("Sprint")) playerStateManager.SpeedMultiplier = 1.5f;
                 else playerStateManager.SpeedMultiplier = 1f;
 
-                playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.MoveDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
+                playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
@@ -79,12 +83,12 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 { 
                     playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
                 }
-                playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
+                playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
             else
             {
-                playerStateManager.RigBody.linearVelocity = new Vector3(0, playerStateManager.RigBody.linearVelocity.y, 0);
+                playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
                 NextState = PlayerStateManager.EPlayerState.Idle;
             }
         }

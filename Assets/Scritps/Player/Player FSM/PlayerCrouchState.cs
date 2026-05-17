@@ -67,9 +67,9 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         }
         else
         {
-            if (playerStateManager.MoveDir != Vector3.zero)
+            if (playerStateManager.InputDir != Vector3.zero)
             {
-                playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.MoveDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
+                playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;

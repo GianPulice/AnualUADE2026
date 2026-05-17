@@ -42,6 +42,10 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
+        if (playerStateManager.IsGrounded)
+        {
+            playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
+        }
         if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
@@ -53,7 +57,10 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
         else if (playerStateManager.IsCrouch)
         {
             NextState = PlayerStateManager.EPlayerState.Crouch;
+        }        
+        else if (playerStateManager.InputDir != Vector3.zero)
+        {
+            NextState = PlayerStateManager.EPlayerState.Moving;
         }
-        else if (playerStateManager.MoveDir != Vector3.zero) NextState = PlayerStateManager.EPlayerState.Moving;
     }
-}
+}  

@@ -1,8 +1,11 @@
 
+using System.Security.Cryptography;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 {
+    // Components
     [SerializeField] private SO_Movement movement;
     [SerializeField] private Rigidbody rigBody;
     [SerializeField] private CapsuleCollider capsuleColl;
@@ -11,12 +14,18 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
     [SerializeField] private Animator animController;
+
+    // Movement Variables
+    [SerializeField] private LayerMask groundLeyerMask;
+    [SerializeField] private float groundAngleLimit;
+    private Vector3 inputDir = Vector3.zero;
     private Vector3 moveDir = Vector3.zero;
-    private Vector3 charGravity = Vector3.zero;
-    private bool isCrouch = false;
+    private bool isGrounded = false;
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
 
+    // State booleans
+    private bool isCrouch = false;
     [SerializeField] private bool isInteracting = false;
     private bool isHidden = false;
     private bool isInDanger = false;
@@ -27,8 +36,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public CapsuleCollider CapsuleColl { get => capsuleColl; set => capsuleColl = value; }
     public BoxCollider BoxColl { get => boxColl; set => boxColl = value; }
     public Transform PlayerBody { get => playerBody; set => playerBody = value; }
+    public Vector3 InputDir { get => inputDir; set => inputDir = value; }
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
-    public Vector3 CharGravity { get => charGravity; set => charGravity = value; }
+    public bool IsGrounded { get => isGrounded; set => isGrounded = value; }
     public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
     public float SpeedMultiplier { get => speedMultiplier; set => speedMultiplier = value; }
@@ -38,7 +48,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
     public Animator AnimController { get => animController; set => animController = value; }
 
-    public enum EPlayerState 
+    public enum EPlayerState
     {
         Idle,
         Moving,
@@ -57,19 +67,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         base.Start();
     }
-    public override void Update() 
+    public override void Update()
     {
-        if(PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+        if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
         InputUpdate();
-        
+        CheckGround();
+        Debug.Log(IsGrounded);
         base.Update();
     }
-    private void InitializeStates() 
+    private void InitializeStates()
     {
-        States.Add(EPlayerState.Idle,new PlayerIdleState(EPlayerState.Idle, this));
+        States.Add(EPlayerState.Idle, new PlayerIdleState(EPlayerState.Idle, this));
         States.Add(EPlayerState.Moving, new PlayerMovingState(EPlayerState.Moving, this));
-        States.Add (EPlayerState.Crouch, new PlayerCrouchState(EPlayerState.Crouch, this));
+        States.Add(EPlayerState.Crouch, new PlayerCrouchState(EPlayerState.Crouch, this));
         States.Add(EPlayerState.Interacting, new PlayerBoxInteractingState(EPlayerState.Interacting, this));
         States.Add(EPlayerState.Hidden, new PlayerHiddenState(EPlayerState.Hidden, this));
         States.Add(EPlayerState.Disabled, new PlayerDisabledState(EPlayerState.Disabled, this));
@@ -81,8 +92,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         orientation.forward = (transform.position - new Vector3(cameraTransform.position.x, transform.position.y, cameraTransform.position.z)).normalized;
 
         // Conseguir vector dirección de movimiento segun los inputs
-        moveDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
-        moveDir.Normalize();
+        inputDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
+        inputDir.Normalize();
 
         //Mecánica Agacharse
         if (Input.GetButtonDown("Crouch"))
@@ -112,7 +123,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         }
 
         //Testeo de estado InDanger
-        if (Input.GetKeyDown(KeyCode. T))
+        if (Input.GetKeyDown(KeyCode.T))
         {
             if (isInDanger) isInDanger = false;
             else isInDanger = true;
@@ -125,7 +136,32 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             else isDisabled = true;
         }
     }
-    public void SetPlayerPositionAndDirection(Vector3 newPosition, Vector3 newForward) 
+    private void CheckGround()
+    {
+        if (Physics.CheckSphere(transform.position, capsuleColl.radius -0.1f, groundLeyerMask))
+        {
+            isGrounded = true;
+            rigBody.useGravity = false;
+            Physics.Raycast(transform.position + Vector3.up,Vector3.down,out RaycastHit hitRay);
+            float groundAngle = Vector3.Angle(hitRay.normal, Vector3.up);
+            Debug.Log(groundAngle);
+            if (groundAngle < groundAngleLimit)
+            {
+                moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
+            }
+            else
+            {
+                isGrounded = false;
+                rigBody.useGravity = true;
+            }
+        }
+        else 
+        {
+            isGrounded = false;
+            rigBody.useGravity = true;
+        }
+    }
+    public void SetPlayerPositionAndDirection(Vector3 newPosition, Vector3 newForward)
     {
         transform.position = newPosition;
         playerBody.forward = newForward;
