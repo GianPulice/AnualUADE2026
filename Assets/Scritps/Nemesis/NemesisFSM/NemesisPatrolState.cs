@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem.Controls;
 
@@ -5,6 +6,8 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 {
     private NemesisStateManager nemesisStateManager;
     private float timeToNextWP = 0f;
+    private float currentTime = 0f;
+    private int wayPointIndex = 0;
 
     public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
@@ -16,11 +19,14 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
     {
         Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
+
+        nemesisStateManager.NavAgent.isStopped = false;
     }
 
     public override void ExitState()
     {
         Debug.Log("Nemesis Exit Patrol State");
+        nemesisStateManager.NavAgent.isStopped = true;
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -50,9 +56,18 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
         }
-        else
+        else if (nemesisStateManager.WayPoints.Count > 0) 
         {
-            nemesisStateManager.SelfTransform.RotateAround(Vector3.up, 3 * Time.deltaTime);
+            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.WayPoints[wayPointIndex].position);
+            if(tempDistance > nemesisStateManager.NavAgent.stoppingDistance) 
+            {
+                nemesisStateManager.NavAgent.destination = nemesisStateManager.WayPoints[wayPointIndex].position;
+            }
+            else 
+            {
+                if (wayPointIndex < nemesisStateManager.WayPoints.Count - 1) wayPointIndex++;
+                else wayPointIndex = 0;
+            }
         }
     }
 }
