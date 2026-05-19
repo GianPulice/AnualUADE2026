@@ -19,14 +19,11 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
     {
         Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
-
-        nemesisStateManager.NavAgent.isStopped = false;
     }
 
     public override void ExitState()
     {
         Debug.Log("Nemesis Exit Patrol State");
-        nemesisStateManager.NavAgent.isStopped = true;
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()

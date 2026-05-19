@@ -16,7 +16,7 @@ public class FieldOfView : MonoBehaviour
     private List<GameObject> visibleTargets;
     private float TemporalViewDelay = 0;
     private bool hasTarget = false;
-    private Vector3 lastKnownPosition;
+    [SerializeField] private Vector3 lastKnownPosition;
 
     //private List<Vector3> gizmoPoint;
 

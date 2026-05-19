@@ -34,35 +34,33 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void OnTriggerEnter(Collider other)
     {
-        throw new System.NotImplementedException();
+        
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        throw new System.NotImplementedException();
+        
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        throw new System.NotImplementedException();
+        
     }
 
     public override void UpdateState()
     {
         if (nemesisStateManager.HasTarget) 
-        { 
-            nemesisStateManager.SelfTransform.forward = Vector3.Slerp(nemesisStateManager.SelfTransform.forward,nemesisStateManager.FieldOfView.LastKnownPosition - nemesisStateManager.SelfTransform.position,10 * Time.deltaTime);
+        {
+            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfView.LastKnownPosition;
         }
         else
         {
             if (currentTime < timeToExit)
             {
                 currentTime += Time.deltaTime;
-
             }
             else 
             {
-                Debug.Log(currentTime);
                 NextState = NemesisStateManager.ENemesisState.Searching;
             }
         }
