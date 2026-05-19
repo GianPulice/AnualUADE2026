@@ -86,6 +86,17 @@ public abstract class BaseRangeInteractable : MonoBehaviour, IInteractable
 
         farTrigger.isTrigger = true;
         closeTrigger.isTrigger = true;
+
+        ApplyConfigRadii();
+    }
+
+    private void ApplyConfigRadii()
+    {
+        if (InteractionManager.Instance == null || InteractionManager.Instance.Config == null) return;
+
+        SO_InteractionManager cfg = InteractionManager.Instance.Config;
+        farTrigger.radius = cfg.FarRadius;
+        closeTrigger.radius = cfg.CloseRadius;
     }
 
     private void ConfigureInteractionZone()

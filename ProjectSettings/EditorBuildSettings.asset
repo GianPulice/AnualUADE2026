@@ -27,6 +27,9 @@ EditorBuildSettings:
     path: Assets/Scenes/TestScenes/TestLevel.unity
     guid: a0f71041ec58c8241bff773ecb9790d1
   - enabled: 1
+    path: Assets/Scenes/TestScenes/TestBlocking.unity
+    guid: f0627437e4450b04d867af222ec3ec99
+  - enabled: 1
     path: Assets/Scenes/UI/MainMenuUI.unity
     guid: bc7c4ed2b08b289478a432f1c485b1e5
   - enabled: 1

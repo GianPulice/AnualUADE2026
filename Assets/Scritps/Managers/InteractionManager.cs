@@ -4,12 +4,18 @@ using UnityEngine.SceneManagement;
 
 public class InteractionManager : Singleton<InteractionManager>
 {
+    [Header("Config")]
+    [Tooltip("Radios globales para todos los BaseRangeInteractable de la escena.")]
+    [SerializeField] private SO_InteractionManager config;
+
     [Header("Camera")]
     [SerializeField] private bool requireCameraVisibility = true;
 
     [Header("Vision Check")]
     [SerializeField] private bool requireClearLineOfSight = false;
     [SerializeField] private LayerMask lineOfSightBlockingLayers = ~0;
+
+    public SO_InteractionManager Config => config;
 
     private Camera playerCamera;
     private readonly List<IInteractable> nearbyInteractables = new();
@@ -100,23 +106,23 @@ public class InteractionManager : Singleton<InteractionManager>
                 if (requireClearLineOfSight && !HasClearLineOfSight(interactableBehaviour.transform))
                     continue;
 
-                // Si pasamos todas las validaciones, este es el objeto válido
+                // Si pasamos todas las validaciones, este es el objeto vï¿½lido
                 detectedInteractable = interactable;
                 break;
             }
         }
 
         // Comprobamos si el objeto interactuable es diferente al del frame anterior
-        // Esto también maneja el caso donde dejamos de mirar un objeto (detectedInteractable es null)
+        // Esto tambiï¿½n maneja el caso donde dejamos de mirar un objeto (detectedInteractable es null)
         if (detectedInteractable != lastInteractable)
         {
             lastInteractable = detectedInteractable;
             currentInteractable = detectedInteractable;
 
             if (currentInteractable != null)
-                Debug.Log($"[Manager] ¡Detecté un objeto! Disparando evento para: {currentInteractable.GetInteractText()}");
+                Debug.Log($"[Manager] ï¿½Detectï¿½ un objeto! Disparando evento para: {currentInteractable.GetInteractText()}");
             else
-                Debug.Log($"[Manager] Dejé de mirar el objeto. Disparando evento para ocultar UI.");
+                Debug.Log($"[Manager] Dejï¿½ de mirar el objeto. Disparando evento para ocultar UI.");
 
             // Disparamos el evento para que la UI reaccione y haga el Fade In/Out
             InteractionEvents.TargetChanged(currentInteractable);

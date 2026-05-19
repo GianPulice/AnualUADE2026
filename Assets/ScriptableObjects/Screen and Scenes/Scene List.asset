@@ -57,3 +57,13 @@ MonoBehaviour:
     sceneNames:
     - TestFabriScene
     - LevelUI
+  - label: TestBlocking
+    sceneAssets:
+    - {fileID: 102900000, guid: f0627437e4450b04d867af222ec3ec99, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/Scenes/TestScenes/TestingBlockout.unity
+    - Assets/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestingBlockout
+    - LevelUI

@@ -348,6 +348,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0fcb10c651308a04c9db45bc4720e77b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionManager
+  config: {fileID: 11400000, guid: fcadfc5691e27104abfa01a2505ab2fd, type: 2}
   requireCameraVisibility: 1
   requireClearLineOfSight: 0
   lineOfSightBlockingLayers:

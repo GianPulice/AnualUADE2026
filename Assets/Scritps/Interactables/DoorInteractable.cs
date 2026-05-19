@@ -1,10 +1,24 @@
+using System.Collections;
 using UnityEngine;
 
 public class DoorInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DoorData doorData;
 
+    [Header("Animacion de apertura (doble puerta)")]
+    [Tooltip("Panel izquierdo. Se desliza hacia -X (su izquierda local).")]
+    [SerializeField] private Transform leftPanel;
+    [Tooltip("Panel derecho. Se desliza hacia +X (su derecha local).")]
+    [SerializeField] private Transform rightPanel;
+    [Tooltip("Distancia que se desliza cada panel al abrirse, en unidades locales.")]
+    [SerializeField, Min(0f)] private float slideDistance = 1f;
+    [Tooltip("Duracion total del deslizamiento, en segundos.")]
+    [SerializeField, Min(0.01f)] private float slideDuration = 0.6f;
+
+    private Vector3 leftClosedLocalPos;
+    private Vector3 rightClosedLocalPos;
     private bool isOpen;
+    private bool isAnimating;
 
     protected override void Awake()
     {
@@ -16,10 +30,12 @@ public class DoorInteractable : BaseRangeInteractable
             return;
         }
 
+        CacheClosedPositions();
+
         isOpen = PuzzleStateManager.Instance != null &&
                  PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
 
-        ApplyVisualState();
+        if (isOpen) ApplyOpenStateImmediate();
     }
 
     public override string GetInteractText()
@@ -37,7 +53,7 @@ public class DoorInteractable : BaseRangeInteractable
     protected override bool CanInteractInCloseRange()
     {
         if (doorData == null) return false;
-        if (isOpen) return false;
+        if (isOpen || isAnimating) return false;
 
         if (doorData.RequiredKey != null &&
             !InventoryManager.Instance.HasItem(doorData.RequiredKey))
@@ -62,35 +78,68 @@ public class DoorInteractable : BaseRangeInteractable
     public void OpenDoor()
     {
         if (doorData == null) return;
-        if (isOpen) return;
-
-        isOpen = true;
+        if (isOpen || isAnimating) return;
 
         if (doorData.ConsumeKey && doorData.RequiredKey != null)
             InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
 
         PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
 
-        ApplyVisualState();
+        StartCoroutine(AnimateOpen());
 
         Debug.Log($"Puerta abierta: {doorData.DoorId}");
     }
 
-    private void ApplyVisualState()
+    private IEnumerator AnimateOpen()
     {
-        if (!isOpen) return;
+        isAnimating = true;
 
-        transform.rotation = Quaternion.Euler(
-            transform.eulerAngles.x,
-            transform.eulerAngles.y + 90f,
-            transform.eulerAngles.z
-        );
+        Vector3 leftTarget = leftClosedLocalPos + Vector3.left * slideDistance;
+        Vector3 rightTarget = rightClosedLocalPos + Vector3.right * slideDistance;
 
-        Collider collider = GetComponent<Collider>();
+        float t = 0f;
+        while (t < slideDuration)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / slideDuration));
 
-        if (collider != null)
-            collider.enabled = false;
+            if (leftPanel != null)
+                leftPanel.localPosition = Vector3.Lerp(leftClosedLocalPos, leftTarget, k);
+            if (rightPanel != null)
+                rightPanel.localPosition = Vector3.Lerp(rightClosedLocalPos, rightTarget, k);
+
+            yield return null;
+        }
+
+        if (leftPanel != null) leftPanel.localPosition = leftTarget;
+        if (rightPanel != null) rightPanel.localPosition = rightTarget;
+
+        //DisableBlockingCollider();
+        isOpen = true;
+        isAnimating = false;
     }
+
+    private void ApplyOpenStateImmediate()
+    {
+        if (leftPanel != null)
+            leftPanel.localPosition = leftClosedLocalPos + Vector3.left * slideDistance;
+        if (rightPanel != null)
+            rightPanel.localPosition = rightClosedLocalPos + Vector3.right * slideDistance;
+
+        //DisableBlockingCollider();
+    }
+
+    private void CacheClosedPositions()
+    {
+        if (leftPanel != null) leftClosedLocalPos = leftPanel.localPosition;
+        if (rightPanel != null) rightClosedLocalPos = rightPanel.localPosition;
+    }
+
+    /*private void DisableBlockingCollider()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+    }*/
 
     public override bool IsRepeatable()
     {
