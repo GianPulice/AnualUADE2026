@@ -53,7 +53,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 2232447445971585158}
   orientation: {fileID: 7985739827390264409}
   playerBody: {fileID: 8595893570503489205}
-  animatorController: {fileID: 6599834768830831435}
+  animController: {fileID: 6599834768830831435}
 --- !u!143 &7645358371398037388
 CharacterController:
   m_ObjectHideFlags: 0
