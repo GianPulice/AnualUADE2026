@@ -9,7 +9,7 @@ public class InteractionZone : MonoBehaviour
     private Collider zoneCollider;
 
 
-    private void Awake()
+    void Awake()
     {
         zoneCollider = GetComponent<Collider>();
         zoneCollider.isTrigger = true;

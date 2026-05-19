@@ -20,6 +20,7 @@ public class PickupInteractable : BaseRangeInteractable
 
     protected override void OnInteract()
     {
+        AudioManager.Instance.PlaySFX("PickUpInteractable");
         InventoryManager.Instance.AddItem(itemToPick);
         Destroy(gameObject);
     }
