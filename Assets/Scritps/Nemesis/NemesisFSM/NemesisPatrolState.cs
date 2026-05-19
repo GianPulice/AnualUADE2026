@@ -1,30 +1,24 @@
 using UnityEngine;
-using UnityEngine.InputSystem.Controls;
 
 public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 {
-    private NemesisStateManager nemesisStateManager;
-
-    public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
+    public NemesisPatrolState(NemesisStateManager.ENemesisState key) : base(key)
     {
-        nemesisStateManager = stateManager;
     }
 
     public override void EnterState()
     {
-        Debug.Log("Nemesis Enter Patrol State");
+        throw new System.NotImplementedException();
     }
 
     public override void ExitState()
     {
-        Debug.Log("Nemesis Exit Patrol State");
-        NextState = StateKey;
+        throw new System.NotImplementedException();
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
     {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
+        throw new System.NotImplementedException();
     }
 
     public override void OnTriggerEnter(Collider other)
@@ -44,13 +38,6 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasTarget)
-        {
-            NextState = NemesisStateManager.ENemesisState.Chasing;
-        }
-        else
-        {
-            nemesisStateManager.SelfTransform.RotateAround(Vector3.up, 3 * Time.deltaTime);
-        }
+        throw new System.NotImplementedException();
     }
 }
