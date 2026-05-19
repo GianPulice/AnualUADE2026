@@ -12,16 +12,18 @@ public class SocketInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (socketData == null || socketData.RequiredItem == null)
-            return string.Empty;
-
-        if (IsInserted)
-            return $"{socketData.RequiredItem.ItemName} insertado";
-
-        if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
-            return $"No tienes {socketData.RequiredItem.ItemName}";
-
+        if (socketData == null || socketData.RequiredItem == null) return string.Empty;
+        if (IsInserted) return $"{socketData.RequiredItem.ItemName} insertado";
         return socketData.GetPromptText();
+    }
+
+    public override string GetInfoText()
+    {
+        if (socketData == null || socketData.RequiredItem == null) return string.Empty;
+        if (IsInserted) return string.Empty;
+        if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
+            return $"Necesitas {socketData.RequiredItem.ItemName}";
+        return string.Empty;
     }
 
     protected override bool CanInteractInCloseRange()

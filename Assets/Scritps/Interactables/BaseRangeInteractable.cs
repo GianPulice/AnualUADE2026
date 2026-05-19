@@ -51,6 +51,8 @@ public abstract class BaseRangeInteractable : MonoBehaviour, IInteractable
 
     public abstract string GetInteractText();
 
+    public virtual string GetInfoText() => string.Empty;
+
     public bool CanInteract()
     {
         return playerInCloseRange && CanInteractInCloseRange();

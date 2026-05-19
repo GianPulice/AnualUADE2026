@@ -50,6 +50,21 @@ public class DoorInteractable : BaseRangeInteractable
         return doorData.OpenPrompt;
     }
 
+    public override string GetInfoText()
+    {
+        if (doorData == null || isOpen) return string.Empty;
+
+        if (doorData.RequiredKey != null &&
+            !InventoryManager.Instance.HasItem(doorData.RequiredKey))
+            return $"Necesitas {doorData.RequiredKey.ItemName}";
+
+        if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
+            !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
+            return doorData.LockedPrompt;
+
+        return string.Empty;
+    }
+
     protected override bool CanInteractInCloseRange()
     {
         if (doorData == null) return false;

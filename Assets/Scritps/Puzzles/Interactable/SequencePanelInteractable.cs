@@ -55,15 +55,17 @@ public class SequencePanelInteractable : BaseRangeInteractable
     {
         if (sequenceData == null) return "Panel sin configurar";
         if (isCompleted) return string.Empty;
+        return sequenceData.PromptText;
+    }
 
+    public override string GetInfoText()
+    {
+        if (sequenceData == null || isCompleted) return string.Empty;
         if (!string.IsNullOrWhiteSpace(sequenceData.RequiredSocketId) &&
             (PuzzleStateManager.Instance == null ||
              !PuzzleStateManager.Instance.IsSocketInserted(sequenceData.RequiredSocketId)))
-        {
             return "Falta insertar el fusible";
-        }
-
-        return sequenceData.PromptText;
+        return string.Empty;
     }
 
     protected override bool CanInteractInCloseRange()
