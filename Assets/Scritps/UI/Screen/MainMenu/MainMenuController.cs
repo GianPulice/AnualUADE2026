@@ -9,6 +9,8 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     [Header("Data Reference")]
     [SerializeField] private SO_SceneList sceneDatabase;
+    [Header("Temp")]
+    [SerializeField] private string firstSceneLabel = "TestBlocking";
 
     //Para desuscribir lambdas
     private System.Action _onNewGame;
@@ -45,13 +47,13 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneGroup("TestIñaki")) return;
+        if (!ValidateSceneGroup(firstSceneLabel)) return;
 
         await Close();
 
         await UnloadBootstrapAsync();
 
-        screenChannel.RaisePushScreen("TestIñaki");
+        screenChannel.RaisePushScreen(firstSceneLabel);
     }
 
     private async UniTask HandleLoadGame()
