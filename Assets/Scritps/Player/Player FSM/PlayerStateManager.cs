@@ -14,6 +14,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
     [SerializeField] private Animator animController;
+    [SerializeField] private AudioSource audioEmiter;
 
     // Movement Variables
     [SerializeField] private LayerMask groundLeyerMask;
@@ -73,7 +74,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         InputUpdate();
         CheckGround();
-        //Debug.Log(IsGrounded);
         base.Update();
     }
     private void InitializeStates()
@@ -144,7 +144,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             rigBody.useGravity = false;
             Physics.Raycast(transform.position + Vector3.up,Vector3.down,out RaycastHit hitRay);
             float groundAngle = Vector3.Angle(hitRay.normal, Vector3.up);
-            //Debug.Log(groundAngle);
             if (groundAngle < groundAngleLimit)
             {
                 moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
