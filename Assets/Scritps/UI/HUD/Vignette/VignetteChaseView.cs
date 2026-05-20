@@ -11,15 +11,12 @@ public class VignetteChaseView : BaseScreenView
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
         canvasGroup.alpha = 0f;
-    }
 
-    void OnEnable()
-    {
         NemesisEvents.OnChaseStarted += HandleChaseStarted;
         NemesisEvents.OnChaseEnded   += HandleChaseEnded;
     }
 
-    void OnDisable()
+    void OnDestroy()
     {
         NemesisEvents.OnChaseStarted -= HandleChaseStarted;
         NemesisEvents.OnChaseEnded   -= HandleChaseEnded;

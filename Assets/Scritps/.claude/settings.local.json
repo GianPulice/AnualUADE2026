@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Iñaki\\\\Documents\\\\GitHub\\\\AnualUADE2026\\\\Assets\\\\Scritps\" -Recurse -File)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\Iñaki\\\\Documents\\\\GitHub\\\\AnualUADE2026\\\\Assets\\\\Prefabs\\\\UI\\\\CanvasWin.prefab\" -Pattern \"m_Name|WinController|WinView|_screenChannel|canvasGroup|m_IsActive|m_Enabled\")",
+      "Bash(Select-Object -First 60)",
+      "Bash(Format-Table LineNumber, Line -AutoSize)"
     ]
   }
 }

@@ -10,16 +10,18 @@ public class InteractionPromptView : BaseScreenView
 
     private IInteractable currentTarget;
 
-    private void Awake() => gameObject.SetActive(false);
-
-    private void OnEnable()
+    private void Awake()
     {
+        canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
         InteractionEvents.OnTargetChanged += HandleTargetChanged;
         InventoryEvents.OnItemAdded       += HandleInventoryChanged;
         InventoryEvents.OnItemRemoved     += HandleInventoryChanged;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         InteractionEvents.OnTargetChanged -= HandleTargetChanged;
         InventoryEvents.OnItemAdded       -= HandleInventoryChanged;
@@ -32,7 +34,7 @@ public class InteractionPromptView : BaseScreenView
         if (target != null)
             RefreshDisplay(animate: true);
         else
-            HidePrompt().Forget();
+            Fade(0f, 0.15f).Forget();
     }
 
     private void HandleInventoryChanged(SO_InventoryItem _) => RefreshDisplay(animate: false);
@@ -44,8 +46,8 @@ public class InteractionPromptView : BaseScreenView
         if (currentTarget.CanInteract())
         {
             promptText.color = normalColor;
-            promptText.text  = $"[E] {currentTarget.GetInteractText()}";
-            if (animate) ShowPrompt().Forget();
+            promptText.text  = $"{currentTarget.GetInteractText()}";
+            if (animate) Fade(1f, 0.15f).Forget();
         }
         else
         {
@@ -54,24 +56,12 @@ public class InteractionPromptView : BaseScreenView
             {
                 promptText.color = infoColor;
                 promptText.text  = info;
-                if (animate) ShowPrompt().Forget();
+                if (animate) Fade(1f, 0.15f).Forget();
             }
             else
             {
-                HidePrompt().Forget();
+                Fade(0f, 0.15f).Forget();
             }
         }
-    }
-
-    private async UniTaskVoid ShowPrompt()
-    {
-        gameObject.SetActive(true);
-        await Fade(1f, 0.15f);
-    }
-
-    private async UniTaskVoid HidePrompt()
-    {
-        await Fade(0f, 0.15f);
-        gameObject.SetActive(false);
     }
 }

@@ -59,7 +59,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.5283019, g: 0.5283019, b: 0.5283019, a: 0.5019608}
+  m_Color: {r: 0.23584908, g: 0.23584908, b: 0.23584908, a: 0.8666667}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -143,8 +143,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: 
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
+  m_sharedMaterial: {fileID: 8440886963500490541, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -326,7 +326,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7541991012675058394}
   m_Enabled: 1
-  m_Alpha: 1
+  m_Alpha: 0
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
@@ -345,3 +345,5 @@ MonoBehaviour:
   canvasGroup: {fileID: 5839313216277701894}
   fadeDuration: 0.3
   promptText: {fileID: 4558817985911680388}
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  infoColor: {r: 0.55, g: 0.55, b: 0.55, a: 1}

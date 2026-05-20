@@ -1,12 +1,9 @@
-﻿using UnityEngine;
 using Cysharp.Threading.Tasks;
+using UnityEngine;
 
-// Del Win te manda a Main Menu y Main Menu tiene el boton de Exit Game.
-
-public class WinController : BaseScreenController<WinView,GameResultModel>
+public class WinController : BaseScreenController<WinView, GameResultModel>
 {
     [Header("Event Channels")]
-    [Tooltip("Canal para comunicar los cambios de pantalla al ScreenManager.")]
     [SerializeField] private ScreenEventChannel _screenChannel;
 
     [Header("Navigation Groups (Labels)")]
@@ -14,34 +11,47 @@ public class WinController : BaseScreenController<WinView,GameResultModel>
 
     private bool _isTransitioning;
 
-    // ── Lifecycle ─────────────────────────────────────────────
     private void Awake()
     {
+        if (view == null)
+        {
+            Debug.LogError($"[{nameof(WinController)}] view no asignada en el Inspector.");
+            return;
+        }
+
         if (model == null)
         {
             model = new GameResultModel();
             model.Initialize();
         }
 
-        // Ahora el único botón que nos importa al ganar es volver al menú
-        view.OnMainMenuClicked += HandleMainMenu;
-    }
+        view.gameObject.SetActive(false);
 
-    private void OnEnable() => GameResultManager.OnGameResult += HandleGameResult;
-    private void OnDisable() => GameResultManager.OnGameResult -= HandleGameResult;
+        view.OnMainMenuClicked += HandleMainMenu;
+        view.OnExitClicked     += HandleExit;
+        GameResultManager.OnGameResult += HandleGameResult;
+    }
 
     private void OnDestroy()
     {
+        if (view == null) return;
+
         view.OnMainMenuClicked -= HandleMainMenu;
+        view.OnExitClicked     -= HandleExit;
+        GameResultManager.OnGameResult -= HandleGameResult;
     }
 
-    // ── BaseScreenController hooks ────────────────────────────
     protected override void OnBeforeOpen()
     {
+        Time.timeScale = 0f;
         view.SetData(model);
     }
 
-    // ── Cross-scene event ─────────────────────────────────────
+    protected override void OnBeforeClose()
+    {
+        Time.timeScale = 1f;
+    }
+
     private void HandleGameResult(GameResultModel incomingModel)
     {
         if (incomingModel.GameState != GameState.Win) return;
@@ -58,11 +68,15 @@ public class WinController : BaseScreenController<WinView,GameResultModel>
         _isTransitioning = false;
     }
 
-    // ── Buttons ───────────────────────────────────────────────
     private void HandleMainMenu()
     {
         Time.timeScale = 1f;
-        _screenChannel.RaiseClearAll(); // Limpiamos la pantalla de victoria y el nivel de fondo
-        _screenChannel.RaisePushScreen(_mainMenuGroup); // Cargamos el menú principal
+        _screenChannel.RaiseClearAll();
+        _screenChannel.RaisePushScreen(_mainMenuGroup);
+    }
+
+    private void HandleExit()
+    {
+        Application.Quit();
     }
 }

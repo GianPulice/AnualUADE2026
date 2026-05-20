@@ -13020,6 +13020,14 @@ PrefabInstance:
       propertyPath: TargetOffset.z
       value: 0.4
       objectReference: {fileID: 0}
+    - target: {fileID: 6330980959763312705, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: m_Icon
+      value: 
+      objectReference: {fileID: 3443629218296621865, guid: 0000000000000000d000000000000000, type: 0}
+    - target: {fileID: 6330980959763312705, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: m_Name
+      value: HoldPoint
+      objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.x
       value: -3.1
@@ -13059,6 +13067,14 @@ PrefabInstance:
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7260628874358196746, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.236
+      objectReference: {fileID: 0}
+    - target: {fileID: 7260628874358196746, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.493
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -15952,7 +15968,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 768123874908606878, guid: 7349c1c4899a7404b905afe58fcacf5d, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.01
+      value: 3.12
       objectReference: {fileID: 0}
     - target: {fileID: 768123874908606878, guid: 7349c1c4899a7404b905afe58fcacf5d, type: 3}
       propertyPath: m_LocalPosition.z

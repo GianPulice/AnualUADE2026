@@ -19,33 +19,36 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void Awake()
     {
-        if (view != null)
+        if (view == null)
         {
-            view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
+            Debug.LogError($"[{nameof(PauseManagerUI)}] view no asignada en el Inspector.");
+            return;
         }
+
+        view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
+
         if (model == null)
         {
             model = new EmptyScreenModel();
             model.Initialize();
         }
-    }
 
-    private void OnEnable()
-    {
         PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
 
         view.OnContinueClicked += HandleContinue;
         view.OnSettingsClicked += HandleSettings;
-        view.OnExitClicked += HandleExit;
+        view.OnExitClicked     += HandleExit;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         PauseManager.OnPauseStateChanged -= HandlePauseStateChanged;
 
+        if (view == null) return;
+
         view.OnContinueClicked -= HandleContinue;
         view.OnSettingsClicked -= HandleSettings;
-        view.OnExitClicked -= HandleExit;
+        view.OnExitClicked     -= HandleExit;
     }
     private void HandlePauseStateChanged(PauseState state)
     {
@@ -118,17 +121,16 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleExit()
     {
+        _isTransitioning = true;
+
         Time.timeScale = 1f;
+
         PauseManager.RequestUnpause();
 
         if (screenChannel != null)
-        {
             screenChannel.RaisePushScreen("Menu");
-        }
         else
-        {
-            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel en el inspector para poder salir al menú.");
-        }
+            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel.");
     }
 
 }

@@ -1,47 +1,60 @@
-﻿using UnityEngine;
 using Cysharp.Threading.Tasks;
-public class LoseController : BaseScreenController<LoseView,GameResultModel>
+using UnityEngine;
+
+public class LoseController : BaseScreenController<LoseView, GameResultModel>
 {
     [Header("Event Channels")]
     [SerializeField] private ScreenEventChannel _screenChannel;
 
     [Header("Navigation Groups (Labels)")]
-    [SerializeField] private string _currentLevelGroup = "Level1_Group"; // Necesario para reintentar
+    [SerializeField] private string _currentLevelGroup = "Level1_Group";
     [SerializeField] private string _mainMenuGroup = "MainMenu_Group";
 
     private bool _isTransitioning;
 
-    // ── Lifecycle ─────────────────────────────────────────────
     private void Awake()
     {
+        if (view == null)
+        {
+            Debug.LogError($"[{nameof(LoseController)}] view no asignada en el Inspector.");
+            return;
+        }
+
         if (model == null)
         {
             model = new GameResultModel();
             model.Initialize();
         }
 
-        view.OnRetryClicked += HandleRetry;
-        view.OnMainMenuClicked += HandleMainMenu;
+        view.gameObject.SetActive(false);
 
+        view.OnRetryClicked   += HandleRetry;
         view.OnOptionsClicked += HandleOptions;
+        view.OnExitClicked    += HandleExit;
+        GameResultManager.OnGameResult += HandleGameResult;
     }
-
-    private void OnEnable() => GameResultManager.OnGameResult += HandleGameResult;
-    private void OnDisable() => GameResultManager.OnGameResult -= HandleGameResult;
 
     private void OnDestroy()
     {
-        view.OnRetryClicked -= HandleRetry;
-        view.OnMainMenuClicked -= HandleMainMenu;
+        if (view == null) return;
+
+        view.OnRetryClicked   -= HandleRetry;
+        view.OnOptionsClicked -= HandleOptions;
+        view.OnExitClicked    -= HandleExit;
+        GameResultManager.OnGameResult -= HandleGameResult;
     }
 
-    // ── BaseScreenController hooks ────────────────────────────
     protected override void OnBeforeOpen()
     {
+        Time.timeScale = 0f;
         view.SetData(model);
     }
 
-    // ── Cross-scene event ─────────────────────────────────────
+    protected override void OnBeforeClose()
+    {
+        Time.timeScale = 1f;
+    }
+
     private void HandleGameResult(GameResultModel incomingModel)
     {
         if (incomingModel.GameState != GameState.Lose) return;
@@ -58,23 +71,22 @@ public class LoseController : BaseScreenController<LoseView,GameResultModel>
         _isTransitioning = false;
     }
 
-    // ── Buttons ───────────────────────────────────────────────
     private void HandleRetry()
     {
         Time.timeScale = 1f;
-        _screenChannel.RaisePopScreen(); // Descargamos la pantalla de derrota y el nivel actual
-        _screenChannel.RaisePushScreen(_currentLevelGroup); // Volvemos a cargar el nivel limpio
-    }
-
-    private void HandleMainMenu()
-    {
-        Time.timeScale = 1f;
-        _screenChannel.RaiseClearAll();
-        _screenChannel.RaisePushScreen(_mainMenuGroup);
+        _screenChannel.RaisePopScreen();
+        _screenChannel.RaisePushScreen(_currentLevelGroup);
     }
 
     private void HandleOptions()
     {
         Debug.Log("Settings no implementado aún.");
+    }
+
+    private void HandleExit()
+    {
+        Time.timeScale = 1f;
+        _screenChannel.RaiseClearAll();
+        _screenChannel.RaisePushScreen(_mainMenuGroup);
     }
 }

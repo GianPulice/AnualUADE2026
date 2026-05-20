@@ -10,10 +10,11 @@ public class VignetteProximityView : BaseScreenView
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
         canvasGroup.alpha = 0f;
+
+        NemesisEvents.OnProximityChanged += HandleProximityChanged;
     }
 
-    void OnEnable()  => NemesisEvents.OnProximityChanged += HandleProximityChanged;
-    void OnDisable() => NemesisEvents.OnProximityChanged -= HandleProximityChanged;
+    void OnDestroy() => NemesisEvents.OnProximityChanged -= HandleProximityChanged;
 
     private void HandleProximityChanged(float t) =>
         canvasGroup.alpha = t * maxAlpha;

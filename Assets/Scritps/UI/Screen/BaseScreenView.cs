@@ -43,11 +43,12 @@ public abstract class BaseScreenView : MonoBehaviour
         float time = 0;
         while (time < fadeDuration)
         {
+            if (canvasGroup == null) return;
             time += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Lerp(1f, 0f, time / fadeDuration);
             await UniTask.Yield();
         }
-
+        if(canvasGroup == null) return;
         canvasGroup.alpha = 0f;
         gameObject.SetActive(false);
     }
