@@ -1,47 +1,126 @@
+using System;
 using UnityEngine;
 
 public class SettingsModel : BaseScreenModel
 {
-    private const string KEY_MASTER      = "Settings_MasterVolume";
-    private const string KEY_MUSIC       = "Settings_MusicVolume";
-    private const string KEY_SFX         = "Settings_SFXVolume";
-    private const string KEY_SENSITIVITY = "Settings_Sensitivity";
-    private const float  DEFAULT_SENSITIVITY = 1f;
+    /// <summary>
+    /// Disparado cuando <see cref="Apply"/> persiste los cambios.
+    /// Suscriptores típicos: <c>CameraSensitivityApplier</c>, sistemas de post-process futuros.
+    /// </summary>
+    public static event Action OnSettingsApplied;
 
+    // ── Keys de PlayerPrefs ──────────────────────────────────────────────────
+    // Conectados:
+    private const string KEY_MASTER       = "Settings_MasterVolume";
+    private const string KEY_MUSIC        = "Settings_MusicVolume";
+    private const string KEY_SFX          = "Settings_SFXVolume";
+    private const string KEY_SENSITIVITY  = "Settings_Sensitivity";
+    // Placeholders (se almacenan pero todavía nadie los lee):
+    private const string KEY_VOICE        = "Settings_VoiceVolume";
+    private const string KEY_INVERT_Y     = "Settings_InvertYAxis";
+    private const string KEY_BRIGHTNESS   = "Settings_Brightness";
+    private const string KEY_CONTRAST     = "Settings_Contrast";
+    private const string KEY_GAMMA        = "Settings_Gamma";
+    private const string KEY_CRT          = "Settings_CRTScanlines";
+    private const string KEY_DITHER       = "Settings_PSXDithering";
+    private const string KEY_RESOLUTION   = "Settings_ResolutionIndex";
+    private const string KEY_WINDOW_MODE  = "Settings_WindowMode";
+    private const string KEY_FPS_LIMIT    = "Settings_FPSLimit";
+    private const string KEY_VSYNC        = "Settings_VSync";
+    private const string KEY_AUDIO_BG     = "Settings_AudioInBackground";
+
+    // ── Defaults ─────────────────────────────────────────────────────────────
+    private const float  DEFAULT_SENSITIVITY = 1f;
+    private const float  DEFAULT_VOICE       = 1f;
+    private const float  DEFAULT_BRIGHTNESS  = 0.7f;
+    private const float  DEFAULT_CONTRAST    = 0.55f;
+    private const float  DEFAULT_GAMMA       = 0.5f;
+    private const bool   DEFAULT_CRT         = true;
+    private const bool   DEFAULT_DITHER      = true;
+    private const bool   DEFAULT_INVERT_Y    = false;
+    private const int    DEFAULT_RESOLUTION  = 0;
+    private const int    DEFAULT_WINDOW_MODE = 0;
+    private const int    DEFAULT_FPS_LIMIT   = 0;
+    private const bool   DEFAULT_VSYNC       = true;
+    private const bool   DEFAULT_AUDIO_BG    = false;
+
+    // ── Estado conectado ─────────────────────────────────────────────────────
     public float MasterVolume { get; private set; }
     public float MusicVolume  { get; private set; }
     public float SFXVolume    { get; private set; }
     public float Sensitivity  { get; private set; }
 
-    private float _snapMaster;
-    private float _snapMusic;
-    private float _snapSFX;
-    private float _snapSensitivity;
+    // ── Estado placeholder (todavía no leído por ningún sistema) ─────────────
+    public float VoiceVolume      { get; private set; }
+    public bool  InvertYAxis      { get; private set; }
+    public float Brightness       { get; private set; }
+    public float Contrast         { get; private set; }
+    public float Gamma            { get; private set; }
+    public bool  CRTScanlines     { get; private set; }
+    public bool  PSXDithering     { get; private set; }
+    public int   ResolutionIndex  { get; private set; }
+    public int   WindowMode       { get; private set; }
+    public int   FPSLimit         { get; private set; }
+    public bool  VSync            { get; private set; }
+    public bool  AudioInBackground { get; private set; }
 
-    // Carga desde PlayerPrefs (o valores actuales de AudioManager como fallback)
+    // ── Snapshot para revert ─────────────────────────────────────────────────
+    private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity, _snapVoice;
+    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg;
+    private float _snapBrightness, _snapContrast, _snapGamma;
+    private int   _snapResolution, _snapWindowMode, _snapFPSLimit;
+
     public override void Initialize()
     {
-        float defMaster = AudioManager.Instance != null ? AudioManager.Instance.MasterVolume : 1f;
-        float defMusic  = AudioManager.Instance != null ? AudioManager.Instance.MusicVolume  : 1f;
-        float defSFX    = AudioManager.Instance != null ? AudioManager.Instance.SFXVolume    : 1f;
+        float defMaster = AudioManager.Exists ? AudioManager.Instance.MasterVolume : 1f;
+        float defMusic  = AudioManager.Exists ? AudioManager.Instance.MusicVolume  : 1f;
+        float defSFX    = AudioManager.Exists ? AudioManager.Instance.SFXVolume    : 1f;
 
         MasterVolume = PlayerPrefs.GetFloat(KEY_MASTER,      defMaster);
         MusicVolume  = PlayerPrefs.GetFloat(KEY_MUSIC,       defMusic);
         SFXVolume    = PlayerPrefs.GetFloat(KEY_SFX,         defSFX);
         Sensitivity  = PlayerPrefs.GetFloat(KEY_SENSITIVITY, DEFAULT_SENSITIVITY);
 
+        VoiceVolume       = PlayerPrefs.GetFloat(KEY_VOICE,       DEFAULT_VOICE);
+        InvertYAxis       = GetPrefBool(KEY_INVERT_Y,             DEFAULT_INVERT_Y);
+        Brightness        = PlayerPrefs.GetFloat(KEY_BRIGHTNESS,  DEFAULT_BRIGHTNESS);
+        Contrast          = PlayerPrefs.GetFloat(KEY_CONTRAST,    DEFAULT_CONTRAST);
+        Gamma             = PlayerPrefs.GetFloat(KEY_GAMMA,       DEFAULT_GAMMA);
+        CRTScanlines      = GetPrefBool(KEY_CRT,                  DEFAULT_CRT);
+        PSXDithering      = GetPrefBool(KEY_DITHER,               DEFAULT_DITHER);
+        ResolutionIndex   = PlayerPrefs.GetInt(KEY_RESOLUTION,    DEFAULT_RESOLUTION);
+        WindowMode        = PlayerPrefs.GetInt(KEY_WINDOW_MODE,   DEFAULT_WINDOW_MODE);
+        FPSLimit          = PlayerPrefs.GetInt(KEY_FPS_LIMIT,     DEFAULT_FPS_LIMIT);
+        VSync             = GetPrefBool(KEY_VSYNC,                DEFAULT_VSYNC);
+        AudioInBackground = GetPrefBool(KEY_AUDIO_BG,             DEFAULT_AUDIO_BG);
+
         IsInitialized = true;
         TakeSnapshot();
     }
 
-    // ── Setters (llamados por la View al mover sliders) ──────────
+    // ── Setters (Volume + Sensibilidad: conectados) ──────────────────────────
 
-    public void SetMasterVolume(float v) { MasterVolume = Mathf.Clamp01(v);       NotifyDataChanged(); }
-    public void SetMusicVolume(float v)  { MusicVolume  = Mathf.Clamp01(v);       NotifyDataChanged(); }
-    public void SetSFXVolume(float v)    { SFXVolume    = Mathf.Clamp01(v);       NotifyDataChanged(); }
-    public void SetSensitivity(float v)  { Sensitivity  = Mathf.Max(0.01f, v);    NotifyDataChanged(); }
+    public void SetMasterVolume(float v) { MasterVolume = Mathf.Clamp01(v);    NotifyDataChanged(); }
+    public void SetMusicVolume(float v)  { MusicVolume  = Mathf.Clamp01(v);    NotifyDataChanged(); }
+    public void SetSFXVolume(float v)    { SFXVolume    = Mathf.Clamp01(v);    NotifyDataChanged(); }
+    public void SetSensitivity(float v)  { Sensitivity  = Mathf.Max(0.01f, v); NotifyDataChanged(); }
 
-    // ── Persistencia ─────────────────────────────────────────────
+    // ── Setters placeholder ──────────────────────────────────────────────────
+
+    public void SetVoiceVolume(float v)     { VoiceVolume = Mathf.Clamp01(v); NotifyDataChanged(); }
+    public void SetInvertYAxis(bool v)      { InvertYAxis = v;                NotifyDataChanged(); }
+    public void SetBrightness(float v)      { Brightness = Mathf.Clamp01(v);  NotifyDataChanged(); }
+    public void SetContrast(float v)        { Contrast = Mathf.Clamp01(v);    NotifyDataChanged(); }
+    public void SetGamma(float v)           { Gamma = Mathf.Clamp01(v);       NotifyDataChanged(); }
+    public void SetCRTScanlines(bool v)     { CRTScanlines = v;               NotifyDataChanged(); }
+    public void SetPSXDithering(bool v)     { PSXDithering = v;               NotifyDataChanged(); }
+    public void SetResolutionIndex(int v)   { ResolutionIndex = v;            NotifyDataChanged(); }
+    public void SetWindowMode(int v)        { WindowMode = v;                 NotifyDataChanged(); }
+    public void SetFPSLimit(int v)          { FPSLimit = v;                   NotifyDataChanged(); }
+    public void SetVSync(bool v)            { VSync = v;                      NotifyDataChanged(); }
+    public void SetAudioInBackground(bool v){ AudioInBackground = v;          NotifyDataChanged(); }
+
+    // ── Persistencia ─────────────────────────────────────────────────────────
 
     public void Apply()
     {
@@ -49,6 +128,20 @@ public class SettingsModel : BaseScreenModel
         PlayerPrefs.SetFloat(KEY_MUSIC,       MusicVolume);
         PlayerPrefs.SetFloat(KEY_SFX,         SFXVolume);
         PlayerPrefs.SetFloat(KEY_SENSITIVITY, Sensitivity);
+
+        PlayerPrefs.SetFloat(KEY_VOICE,      VoiceVolume);
+        SetPrefBool(KEY_INVERT_Y,            InvertYAxis);
+        PlayerPrefs.SetFloat(KEY_BRIGHTNESS, Brightness);
+        PlayerPrefs.SetFloat(KEY_CONTRAST,   Contrast);
+        PlayerPrefs.SetFloat(KEY_GAMMA,      Gamma);
+        SetPrefBool(KEY_CRT,                 CRTScanlines);
+        SetPrefBool(KEY_DITHER,              PSXDithering);
+        PlayerPrefs.SetInt(KEY_RESOLUTION,   ResolutionIndex);
+        PlayerPrefs.SetInt(KEY_WINDOW_MODE,  WindowMode);
+        PlayerPrefs.SetInt(KEY_FPS_LIMIT,    FPSLimit);
+        SetPrefBool(KEY_VSYNC,               VSync);
+        SetPrefBool(KEY_AUDIO_BG,            AudioInBackground);
+
         PlayerPrefs.Save();
 
         if (AudioManager.Exists)
@@ -59,15 +152,53 @@ public class SettingsModel : BaseScreenModel
         }
 
         TakeSnapshot();
+        OnSettingsApplied?.Invoke();
     }
 
-    // Descarta cambios sin persistir y restaura el snapshot
+    /// <summary>Restaura defaults en memoria. NO persiste hasta que se llame Apply.</summary>
+    public void ResetToDefaults()
+    {
+        MasterVolume = AudioManager.Exists ? AudioManager.Instance.MasterVolume : 1f;
+        MusicVolume  = AudioManager.Exists ? AudioManager.Instance.MusicVolume  : 1f;
+        SFXVolume    = AudioManager.Exists ? AudioManager.Instance.SFXVolume    : 1f;
+        Sensitivity  = DEFAULT_SENSITIVITY;
+
+        VoiceVolume       = DEFAULT_VOICE;
+        InvertYAxis       = DEFAULT_INVERT_Y;
+        Brightness        = DEFAULT_BRIGHTNESS;
+        Contrast          = DEFAULT_CONTRAST;
+        Gamma             = DEFAULT_GAMMA;
+        CRTScanlines      = DEFAULT_CRT;
+        PSXDithering      = DEFAULT_DITHER;
+        ResolutionIndex   = DEFAULT_RESOLUTION;
+        WindowMode        = DEFAULT_WINDOW_MODE;
+        FPSLimit          = DEFAULT_FPS_LIMIT;
+        VSync             = DEFAULT_VSYNC;
+        AudioInBackground = DEFAULT_AUDIO_BG;
+
+        NotifyDataChanged();
+    }
+
     public void Revert()
     {
         MasterVolume = _snapMaster;
         MusicVolume  = _snapMusic;
         SFXVolume    = _snapSFX;
         Sensitivity  = _snapSensitivity;
+
+        VoiceVolume       = _snapVoice;
+        InvertYAxis       = _snapInvertY;
+        Brightness        = _snapBrightness;
+        Contrast          = _snapContrast;
+        Gamma             = _snapGamma;
+        CRTScanlines      = _snapCRT;
+        PSXDithering      = _snapDither;
+        ResolutionIndex   = _snapResolution;
+        WindowMode        = _snapWindowMode;
+        FPSLimit          = _snapFPSLimit;
+        VSync             = _snapVSync;
+        AudioInBackground = _snapAudioBg;
+
         NotifyDataChanged();
     }
 
@@ -77,5 +208,22 @@ public class SettingsModel : BaseScreenModel
         _snapMusic       = MusicVolume;
         _snapSFX         = SFXVolume;
         _snapSensitivity = Sensitivity;
+        _snapVoice       = VoiceVolume;
+        _snapInvertY     = InvertYAxis;
+        _snapBrightness  = Brightness;
+        _snapContrast    = Contrast;
+        _snapGamma       = Gamma;
+        _snapCRT         = CRTScanlines;
+        _snapDither      = PSXDithering;
+        _snapResolution  = ResolutionIndex;
+        _snapWindowMode  = WindowMode;
+        _snapFPSLimit    = FPSLimit;
+        _snapVSync       = VSync;
+        _snapAudioBg     = AudioInBackground;
     }
+
+    // ── Helpers PlayerPrefs (no soporta bool nativamente) ────────────────────
+
+    private static bool GetPrefBool(string key, bool def) => PlayerPrefs.GetInt(key, def ? 1 : 0) != 0;
+    private static void SetPrefBool(string key, bool value) => PlayerPrefs.SetInt(key, value ? 1 : 0);
 }

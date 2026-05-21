@@ -7,14 +7,6 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     [Tooltip("Necesitamos el canal de eventos para salir correctamente al Menú Principal")]
     [SerializeField] private ScreenEventChannel screenChannel;
 
-    [Header("Sub-Menues")]
-    [Tooltip("El Prefab de Settings que se abrirá por encima de la pausa")]
-    [SerializeField] private GameObject settingsPrefab;
-
-    [Tooltip("El lugar del Canvas donde se instanciará Settings. Si está vacío, usa este mismo objeto.")]
-    [SerializeField] private Transform subMenuContainer;
-
-    private GameObject _settingsInstance;
     private bool _isTransitioning;
 
     private void Awake()
@@ -72,10 +64,6 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
         Time.timeScale = 1f;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-        if (_settingsInstance != null)
-        {
-            _settingsInstance.SetActive(false);
-        }
         view.ResetButtonStates();
     }
 
@@ -89,11 +77,6 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     private async UniTaskVoid CloseSafe()
     {
         _isTransitioning = true;
-        if (_settingsInstance != null)
-        {
-            _settingsInstance.SetActive(false);
-        }
-
         await Close();
         _isTransitioning = false;
     }
@@ -107,16 +90,13 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleSettings()
     {
-        if (settingsPrefab == null) return;
-        if (_settingsInstance == null)
+        if (SettingsController.Instance == null)
         {
-            Transform parent = subMenuContainer != null ? subMenuContainer : transform;
-            _settingsInstance = Instantiate(settingsPrefab, parent);
+            Debug.LogError("[PauseManagerUI] SettingsController.Instance es null. " +
+                           "¿Está la escena UI_Settings cargada en el bootstrap?");
+            return;
         }
-        else
-        {
-            _settingsInstance.SetActive(true);
-        }
+        SettingsController.Instance.OpenScreen();
     }
 
     private void HandleExit()

@@ -11,6 +11,8 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     private bool isOpen;
     private bool isTransitioning;
 
+    public bool IsOpen => isOpen;
+
     private void Awake()
     {
         Instance = this;

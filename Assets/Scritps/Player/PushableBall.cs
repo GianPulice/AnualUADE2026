@@ -18,6 +18,7 @@ public class PushableBall : MonoBehaviour
 
     private void Update()
     {
+        if (PauseManager.IsGameplayInputBlocked) return;
         if (!playerNearby && !isPushing) return;
 
         if (Input.GetKeyDown(KeyCode.E))

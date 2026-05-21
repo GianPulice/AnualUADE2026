@@ -65,9 +65,15 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleSettings()
     {
-        if (!ValidateSceneGroup("UI_Settings")) return;
-        await Close();
-        screenChannel.RaisePushScreen("UI_Settings");
+        if (SettingsController.Instance == null)
+        {
+            Debug.LogError("[MainMenuController] SettingsController.Instance es null. " +
+                           "Â¿EstÃ¡ la escena UI_Settings cargada en el bootstrap?");
+            return;
+        }
+
+        SettingsController.Instance.OpenScreen();
+        await UniTask.CompletedTask;
     }
 
     private void HandleExit()
@@ -89,7 +95,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
             await SceneManager.UnloadSceneAsync(bootstrapScene);
         }
     }
-    // Método de seguridad para debuggear rápido en el editor
+    // Mï¿½todo de seguridad para debuggear rï¿½pido en el editor
     private bool ValidateSceneGroup(string label)
     {
         if (sceneDatabase == null)

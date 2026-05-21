@@ -43,11 +43,30 @@ public class PauseManager : Singleton<PauseManager>
     private void Update()
     {
         if (pauseAction == null && Input.GetKeyDown(pauseKey))
+        {
+            // Si hay una UI bloqueante abierta, el ESC va a ella en lugar de a la pausa.
+            if (IsBlockingUIOpen()) return;
             Toggle();
+        }
+    }
+
+    /// <summary>
+    /// True cuando hay una UI modal abierta que debe consumir el ESC antes que la pausa.
+    /// </summary>
+    private static bool IsBlockingUIOpen()
+    {
+        if (SequencePanelUIController.Exists && SequencePanelUIController.Instance.IsOpen) return true;
+        if (InventoryManagerUI.Instance != null && InventoryManagerUI.Instance.IsInventoryOpen) return true;
+        if (DocumentReaderController.Instance != null && DocumentReaderController.Instance.IsOpen) return true;
+        if (SettingsController.Instance != null && SettingsController.Instance.IsOpen) return true;
+        return false;
     }
 
     // -- Public Methods -------------------------
     public bool IsPaused => model.IsPaused;
+
+    /// <summary>True cuando el gameplay debe ignorar inputs del player (movimiento, agacharse, etc.).</summary>
+    public static bool IsGameplayInputBlocked => Exists && Instance.IsPaused;
     public void Pause() => model.Pause();
     public void Unpause() => model.Unpause();
     public void Toggle() => model.Toggle();
@@ -64,7 +83,7 @@ public class PauseManager : Singleton<PauseManager>
         }
         else
         {
-            Debug.LogWarning("[PauseManager] La UI pidió despausar, pero la Instancia de PauseManager no existe.");
+            Debug.LogWarning("[PauseManager] La UI pidiï¿½ despausar, pero la Instancia de PauseManager no existe.");
         }
     }
 }
