@@ -221,10 +221,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: CanvasWin
       objectReference: {fileID: 0}
-    - target: {fileID: 6466206073267941919, guid: 06de630a0bbf5014b85ab06268d973a4, type: 3}
-      propertyPath: _btnRetry
-      value: 
-      objectReference: {fileID: 0}
     - target: {fileID: 8958212507161195972, guid: 06de630a0bbf5014b85ab06268d973a4, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -415,11 +411,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e4c665d11c9ad5e4daaab8d891a2b93c, type: 3}
---- !u!224 &824725911 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 5505226224445921015, guid: e4c665d11c9ad5e4daaab8d891a2b93c, type: 3}
-  m_PrefabInstance: {fileID: 824725910}
-  m_PrefabAsset: {fileID: 0}
 --- !u!114 &824725912 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 7012229958043064661, guid: e4c665d11c9ad5e4daaab8d891a2b93c, type: 3}
@@ -485,21 +476,9 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 626616300444077527, guid: 8625aa80dfd8ed94a8aa1d067bcef154, type: 3}
-      propertyPath: m_SortingOrder
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 626616300444077527, guid: 8625aa80dfd8ed94a8aa1d067bcef154, type: 3}
-      propertyPath: m_AdditionalShaderChannelsFlag
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 4709029339952726109, guid: 8625aa80dfd8ed94a8aa1d067bcef154, type: 3}
       propertyPath: m_Name
       value: CanvasLose
-      objectReference: {fileID: 0}
-    - target: {fileID: 4709029339952726109, guid: 8625aa80dfd8ed94a8aa1d067bcef154, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8958212507161195972, guid: 8625aa80dfd8ed94a8aa1d067bcef154, type: 3}
       propertyPath: m_Pivot.x
@@ -845,8 +824,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PauseManagerUI
   view: {fileID: 824725912}
   screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
-  settingsPrefab: {fileID: 0}
-  subMenuContainer: {fileID: 824725911}
 --- !u!1 &1593416012
 GameObject:
   m_ObjectHideFlags: 0
