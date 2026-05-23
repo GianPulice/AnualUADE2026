@@ -34,6 +34,20 @@ public class InteractionManager : Singleton<InteractionManager>
     private void Update()
     {
         RefreshCamera();
+
+        // Si hay UI modal abierta o el juego esta en pausa, no detectamos ni procesamos
+        // interactuables. Esto evita el bug "el player interactua con la pausa abierta".
+        if (PauseManager.IsGameplayInputBlocked)
+        {
+            if (currentInteractable != null)
+            {
+                currentInteractable = null;
+                lastInteractable = null;
+                InteractionEvents.TargetChanged(null);
+            }
+            return;
+        }
+
         UpdateCurrentInteractable();
         Interact();
     }

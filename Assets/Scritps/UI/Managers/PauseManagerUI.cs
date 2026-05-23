@@ -1,13 +1,19 @@
 ﻿using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
+public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>, IModalUI
 {
     [Header("Arquitectura (MVC)")]
     [Tooltip("Necesitamos el canal de eventos para salir correctamente al Menú Principal")]
     [SerializeField] private ScreenEventChannel screenChannel;
 
     private bool _isTransitioning;
+
+    // -- IModalUI --
+    public string ModalId => "Pause";
+    public bool ConsumesEscape => true;   // ESC cierra la pausa.
+    public bool BlocksPause   => false;   // ES la pausa: no se bloquea a si misma.
+    public void RequestClose() => PauseManager.RequestUnpause();
 
     private void Awake()
     {
@@ -54,16 +60,13 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     protected override void OnBeforeOpen()
     {
-        Time.timeScale = 0f;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        // Time.timeScale y cursor los gobierna UIStateManager.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
     }
 
     protected override void OnBeforeClose()
     {
-        Time.timeScale = 1f;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
         view.ResetButtonStates();
     }
 
@@ -85,7 +88,18 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleContinue()
     {
+        // El boton "Continuar" tambien funciona como "Salir del puzzle abierto":
+        // primero cierra cualquier modal que haya quedado debajo de la pausa
+        // (por ejemplo, el SequencePanel que el jugador estaba jugando antes de pausar).
+        // Despues despausa.
         PauseManager.RequestUnpause();
+
+        if (UIStateManager.Exists)
+        {
+            // Pop hasta vaciar el stack (la pausa ya se removio sola al cerrarse).
+            // Asi el jugador vuelve al gameplay limpio.
+            UIStateManager.Instance.CloseAll();
+        }
     }
 
     private void HandleSettings()
@@ -103,6 +117,8 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     {
         _isTransitioning = true;
 
+        // Cerramos cualquier modal residual (panel de secuencia, etc.) antes de salir.
+        if (UIStateManager.Exists) UIStateManager.Instance.CloseAll();
         Time.timeScale = 1f;
 
         PauseManager.RequestUnpause();

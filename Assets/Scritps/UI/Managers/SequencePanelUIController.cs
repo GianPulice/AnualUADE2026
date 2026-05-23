@@ -7,33 +7,27 @@ using UnityEngine;
 ///
 /// Es generico: una sola UI sirve para todos los SequencePanelInteractable del juego.
 /// </summary>
-public class SequencePanelUIController : Singleton<SequencePanelUIController>
+public class SequencePanelUIController : Singleton<SequencePanelUIController>, IModalUI
 {
     [Header("View")]
     [SerializeField] private SequencePanelView view;
 
-    [Header("Input")]
-    [SerializeField] private KeyCode closeKey = KeyCode.Escape;
-
     private SequencePanelInteractable activePanel;
     private bool isOpen;
 
-    private CursorLockMode previousCursorLock;
-    private bool previousCursorVisible;
-
     public bool IsOpen => isOpen;
+
+    // -- IModalUI --
+    public string ModalId => "SequencePanel";
+    public bool ConsumesEscape => false;  // ESC sube al PauseManager y abre la pausa encima.
+    public bool BlocksPause   => false;   // La pausa puede aparecer sobre el panel.
+    public void RequestClose() => Close();
 
     private void Awake()
     {
         CreateSingleton(false);
 
         if (view != null) view.SetVisibleImmediate(false);
-    }
-
-    private void Update()
-    {
-        if (!isOpen) return;
-        if (Input.GetKeyDown(closeKey)) Close();
     }
 
     public void Open(SequencePanelInteractable panel)
@@ -51,12 +45,8 @@ public class SequencePanelUIController : Singleton<SequencePanelUIController>
 
         SubscribeToPanel(panel);
 
-        previousCursorLock = Cursor.lockState;
-        previousCursorVisible = Cursor.visible;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-
-        Time.timeScale = 0f;
+        // Time.timeScale y cursor los gobierna UIStateManager.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
 
         view.Bind(panel);
         view.Show();
@@ -74,16 +64,7 @@ public class SequencePanelUIController : Singleton<SequencePanelUIController>
         activePanel = null;
         isOpen = false;
 
-        if (PauseManager.Instance == null || !PauseManager.Instance.IsPaused)
-        {
-            Time.timeScale = 1f;
-            Cursor.lockState = previousCursorLock == CursorLockMode.None
-                ? CursorLockMode.Locked
-                : previousCursorLock;
-            Cursor.visible = previousCursorVisible && previousCursorLock == CursorLockMode.None
-                ? previousCursorVisible
-                : false;
-        }
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
         if (view != null) view.Hide();
     }

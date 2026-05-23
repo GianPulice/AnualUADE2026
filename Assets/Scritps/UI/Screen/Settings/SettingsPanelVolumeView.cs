@@ -21,9 +21,9 @@ public class SettingsPanelVolumeView : MonoBehaviour
     [SerializeField] private Slider _sliderMusic;
     [SerializeField] private TextMeshProUGUI _labelMusic;
 
-    [Header("Voice (placeholder)")]
-    [SerializeField] private Slider _sliderVoice;
-    [SerializeField] private TextMeshProUGUI _labelVoice;
+    //[Header("Voice (placeholder)")]
+    //[SerializeField] private Slider _sliderVoice;
+    //[SerializeField] private TextMeshProUGUI _labelVoice;
 
     public event Action<float> OnMasterChanged;
     public event Action<float> OnSFXChanged;
@@ -38,8 +38,8 @@ public class SettingsPanelVolumeView : MonoBehaviour
             _sliderSFX.onValueChanged.AddListener(v => { SetLabel(_labelSFX, v); OnSFXChanged?.Invoke(v); });
         if (_sliderMusic != null)
             _sliderMusic.onValueChanged.AddListener(v => { SetLabel(_labelMusic, v); OnMusicChanged?.Invoke(v); });
-        if (_sliderVoice != null)
-            _sliderVoice.onValueChanged.AddListener(v => { SetLabel(_labelVoice, v); OnVoiceChanged?.Invoke(v); });
+        //if (_sliderVoice != null)
+        //    _sliderVoice.onValueChanged.AddListener(v => { SetLabel(_labelVoice, v); OnVoiceChanged?.Invoke(v); });
     }
 
     private void OnDestroy()
@@ -47,7 +47,7 @@ public class SettingsPanelVolumeView : MonoBehaviour
         if (_sliderMaster != null) _sliderMaster.onValueChanged.RemoveAllListeners();
         if (_sliderSFX != null)    _sliderSFX.onValueChanged.RemoveAllListeners();
         if (_sliderMusic != null)  _sliderMusic.onValueChanged.RemoveAllListeners();
-        if (_sliderVoice != null)  _sliderVoice.onValueChanged.RemoveAllListeners();
+       // if (_sliderVoice != null)  _sliderVoice.onValueChanged.RemoveAllListeners();
     }
 
     public void Populate(SettingsModel model)
@@ -57,12 +57,12 @@ public class SettingsPanelVolumeView : MonoBehaviour
         SetSilent(_sliderMaster, model.MasterVolume);
         SetSilent(_sliderSFX,    model.SFXVolume);
         SetSilent(_sliderMusic,  model.MusicVolume);
-        SetSilent(_sliderVoice,  model.VoiceVolume);
+       // SetSilent(_sliderVoice,  model.VoiceVolume);
 
         SetLabel(_labelMaster, model.MasterVolume);
         SetLabel(_labelSFX,    model.SFXVolume);
         SetLabel(_labelMusic,  model.MusicVolume);
-        SetLabel(_labelVoice,  model.VoiceVolume);
+       // SetLabel(_labelVoice,  model.VoiceVolume);
     }
 
     private static void SetSilent(Slider slider, float value) => slider?.SetValueWithoutNotify(value);

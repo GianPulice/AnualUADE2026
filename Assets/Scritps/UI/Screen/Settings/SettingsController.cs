@@ -1,7 +1,7 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class SettingsController : BaseScreenController<SettingsView, SettingsModel>
+public class SettingsController : BaseScreenController<SettingsView, SettingsModel>, IModalUI
 {
     /// <summary>
     /// Accessor global. La escena UI_Settings es persistente (cargada en el bootstrap),
@@ -16,6 +16,12 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     private bool _isTransitioning;
 
     public bool IsOpen => _isOpen;
+
+    // -- IModalUI --
+    public string ModalId => "Settings";
+    public bool ConsumesEscape => true;   // ESC cierra Settings (vuelve a pausa o menu).
+    public bool BlocksPause   => true;    // Estando en Settings no debe abrirse otra pausa.
+    public void RequestClose() => HandleBack();
 
     private void Awake()
     {
@@ -41,22 +47,20 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         UnwireViewEvents();
     }
 
-    private void Update()
-    {
-        if (IsActive && Input.GetKeyDown(_closeKey))
-            HandleBack();
-    }
+    // El cierre por ESC ahora lo gobierna UIStateManager via UI/Exit -> RequestClose -> HandleBack.
 
     protected override void OnBeforeOpen()
     {
         _isOpen = true;
         model.Initialize();
         view.Populate(model);
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
     }
 
     protected override void OnBeforeClose()
     {
         _isOpen = false;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
     /// <summary>

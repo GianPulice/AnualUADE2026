@@ -14,8 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SceneList
   persistentSceneAssets:
   - {fileID: 102900000, guid: f17bf9e99ef267742a8c02e8e2aeae3d, type: 3}
+  - {fileID: 102900000, guid: 4e1d823d8c19721469ae9ea166359101, type: 3}
   persistentSceneNames:
   - Data
+  - SettingsScene
   sceneGroups:
   - label: "TestI\xF1aki"
     sceneAssets:
@@ -62,8 +64,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: f0627437e4450b04d867af222ec3ec99, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
-    - Assets/Scenes/TestScenes/TestingBlockout.unity
+    - Assets/Scenes/TestScenes/TestBlocking.unity
     - Assets/Scenes/UI/LevelUI.unity
     sceneNames:
-    - TestingBlockout
+    - TestBlocking
     - LevelUI
