@@ -1,4 +1,3 @@
-
 using System.Security.Cryptography;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -31,6 +30,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private bool isHidden = false;
     private bool isInDanger = false;
     private bool isDisabled = false;
+
 
     public SO_Movement Movement { get => movement; set => movement = value; }
     public Rigidbody RigBody { get => rigBody; set => rigBody = value; }
@@ -109,11 +109,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         }
 
         //Testeo de estado Interacting
-        if (Input.GetKeyDown(KeyCode.E))
+        /*if (Input.GetKeyDown(KeyCode.E))
         {
             if (isInteracting) isInteracting = false;
             else isInteracting = true;
-        }
+        }*/
 
         //Testeo de estado Hidden
         if (Input.GetKeyDown(KeyCode.R))
@@ -162,7 +162,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     public void SetPlayerPositionAndDirection(Vector3 newPosition, Vector3 newForward)
     {
-        transform.position = newPosition;
+        transform.position = new Vector3(newPosition.x, transform.position.y, newPosition.z);
         playerBody.forward = newForward;
     }
 }

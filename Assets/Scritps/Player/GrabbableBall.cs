@@ -1,3 +1,5 @@
+using System.Threading;
+using UnityEditor.Rendering;
 using UnityEngine;
 
 public class GrabbableBall : MonoBehaviour
@@ -5,9 +7,15 @@ public class GrabbableBall : MonoBehaviour
     [SerializeField] private string playerTag = "Player";
 
     private Rigidbody rb;
-    private Transform holdPoint;
+    private Transform currentTriggerTransform;
+    private PlayerStateManager player;
     private bool playerNearby;
     private bool isGrabbed;
+
+    public string PlayerTag { get => playerTag; set => playerTag = value; }
+    public Transform CurrentTriggerTransform { get => currentTriggerTransform; set => currentTriggerTransform = value; }
+    public PlayerStateManager Player { get => player; set => player = value; }
+    public bool PlayerNearby { get => playerNearby; set => playerNearby = value; }
 
     private void Awake()
     {
@@ -27,7 +35,7 @@ public class GrabbableBall : MonoBehaviour
         }
     }
 
-    private void OnTriggerEnter(Collider other)
+    /*private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag(playerTag)) return;
 
@@ -48,7 +56,8 @@ public class GrabbableBall : MonoBehaviour
             return;
         }
 
-        holdPoint = foundHoldPoint;
+        //holdPoint = foundHoldPoint;
+        player = other.GetComponent<PlayerStateManager>();
         playerNearby = true;
     }
 
@@ -57,34 +66,43 @@ public class GrabbableBall : MonoBehaviour
         if (!other.CompareTag(playerTag)) return;
 
         playerNearby = false;
+        player = null;
 
-        if (!isGrabbed)
-            holdPoint = null;
-    }
+        if (!isGrabbed) ;
+            //holdPoint = null;
+    }*/
 
     private void Grab()
     {
-        if (holdPoint == null) return;
+        if (player == null) return;
 
         isGrabbed = true;
 
-        rb.isKinematic = true;
-        rb.useGravity = false;
+        rb.mass = 1;
+        //rb.isKinematic = true;
+        //rb.useGravity = false;
 
-        transform.SetParent(holdPoint);
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
+        player.IsInteracting = true;
+        Vector3 tempDir = new Vector3(transform.position.x - currentTriggerTransform.position.x, 0, transform.position.z - currentTriggerTransform.position.z).normalized;
+        player.SetPlayerPositionAndDirection(currentTriggerTransform.position, tempDir);
+
+        //transform.SetParent(player.transform,true);
+        //transform.localPosition = Vector3.zero;
+        //transform.localRotation = Quaternion.identity;
     }
 
     private void Release()
     {
+        player.IsInteracting = false;
+
         isGrabbed = false;
 
-        transform.SetParent(null);
+        //transform.SetParent(null);
 
-        rb.isKinematic = false;
-        rb.useGravity = true;
+        rb.mass = 1000;
+        //rb.isKinematic = false;
+        //rb.useGravity = true;
 
-        holdPoint = null;
+        //holdPoint = null;
     }
 }

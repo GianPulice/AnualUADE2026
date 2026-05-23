@@ -50,7 +50,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eac0da26dd7bbe243ac731622c8ee8cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStateManager
-  movement: {fileID: 11400000, guid: 905f7ad2f405aa04ebcea7944e1ae8ea, type: 2}
+  movement: {fileID: 11400000, guid: c3cc91429757c39488a63085ee710e41, type: 2}
   rigBody: {fileID: 8279488126507840101}
   capsuleColl: {fileID: 5462070032916073715}
   boxColl: {fileID: 9050374754818723081}
@@ -483,7 +483,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 47dca3a52a6149147929951e82abf777, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraController
-  cameraConfig: {fileID: 11400000, guid: c1863f885e5a31c4e818c2b9ae7acf71, type: 2}
+  cameraConfig: {fileID: 11400000, guid: 372ddb5b57ce76f478437eba53d422e9, type: 2}
 --- !u!1 &2139289041195358087
 GameObject:
   m_ObjectHideFlags: 0
@@ -939,5 +939,5 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.5, y: 1, z: 0.5}
-  m_Center: {x: 0, y: 1, z: 0.5}
+  m_Size: {x: 0.5, y: 1, z: 0.25}
+  m_Center: {x: 0, y: 1, z: 0.4}
