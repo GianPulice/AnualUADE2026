@@ -4,6 +4,10 @@ using UnityEngine.SceneManagement;
 
 public class InteractionManager : Singleton<InteractionManager>
 {
+    [Header("Config")]
+    [Tooltip("Radios globales para todos los BaseRangeInteractable de la escena.")]
+    [SerializeField] private SO_InteractionManager config;
+
     [Header("Camera")]
     [SerializeField] private bool requireCameraVisibility = true;
 
@@ -11,11 +15,13 @@ public class InteractionManager : Singleton<InteractionManager>
     [SerializeField] private bool requireClearLineOfSight = false;
     [SerializeField] private LayerMask lineOfSightBlockingLayers = ~0;
 
+    public SO_InteractionManager Config => config;
+
     private Camera playerCamera;
     private readonly List<IInteractable> nearbyInteractables = new();
 
     private IInteractable currentInteractable;
-
+    private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
     private void Awake()
@@ -74,34 +80,52 @@ public class InteractionManager : Singleton<InteractionManager>
 
     private void UpdateCurrentInteractable()
     {
-        currentInteractable = null;
+        IInteractable detectedInteractable = null;
 
-        if (nearbyInteractables.Count == 0) return;
-
-        for (int i = nearbyInteractables.Count - 1; i >= 0; i--)
+        if (nearbyInteractables.Count > 0)
         {
-            IInteractable interactable = nearbyInteractables[i];
-
-            if (interactable == null)
+            for (int i = nearbyInteractables.Count - 1; i >= 0; i--)
             {
-                nearbyInteractables.RemoveAt(i);
-                continue;
+                IInteractable interactable = nearbyInteractables[i];
+
+                if (interactable == null)
+                {
+                    nearbyInteractables.RemoveAt(i);
+                    continue;
+                }
+
+                if (!interactable.CanInteract()) continue;
+
+                MonoBehaviour interactableBehaviour = interactable as MonoBehaviour;
+
+                if (interactableBehaviour == null) continue;
+
+                if (requireCameraVisibility && !IsVisibleByCamera(interactableBehaviour.transform))
+                    continue;
+
+                if (requireClearLineOfSight && !HasClearLineOfSight(interactableBehaviour.transform))
+                    continue;
+
+                // Si pasamos todas las validaciones, este es el objeto v�lido
+                detectedInteractable = interactable;
+                break;
             }
+        }
 
-            if (!interactable.CanInteract()) continue;
+        // Comprobamos si el objeto interactuable es diferente al del frame anterior
+        // Esto tambi�n maneja el caso donde dejamos de mirar un objeto (detectedInteractable es null)
+        if (detectedInteractable != lastInteractable)
+        {
+            lastInteractable = detectedInteractable;
+            currentInteractable = detectedInteractable;
 
-            MonoBehaviour interactableBehaviour = interactable as MonoBehaviour;
+            if (currentInteractable != null)
+                Debug.Log($"[Manager] �Detect� un objeto! Disparando evento para: {currentInteractable.GetInteractText()}");
+            else
+                Debug.Log($"[Manager] Dej� de mirar el objeto. Disparando evento para ocultar UI.");
 
-            if (interactableBehaviour == null) continue;
-
-            if (requireCameraVisibility && !IsVisibleByCamera(interactableBehaviour.transform))
-                continue;
-
-            if (requireClearLineOfSight && !HasClearLineOfSight(interactableBehaviour.transform))
-                continue;
-
-            currentInteractable = interactable;
-            return;
+            // Disparamos el evento para que la UI reaccione y haga el Fade In/Out
+            InteractionEvents.TargetChanged(currentInteractable);
         }
     }
 

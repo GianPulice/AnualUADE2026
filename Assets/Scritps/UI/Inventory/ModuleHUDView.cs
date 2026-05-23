@@ -34,14 +34,14 @@ public class ModuleHUDView : MonoBehaviour
 
     // ── Unity ─────────────────────────────────────────────────────────────────
 
-    void OnEnable()
+    void Awake()
     {
         InventoryEvents.OnModuleTimerTick += HandleTimerTick;
         InventoryEvents.OnModuleStateChanged += HandleStateChanged;
         InventoryEvents.OnModuleExploded += HandleModuleExploded;
     }
 
-    void OnDisable()
+    void OnDestroy()
     {
         InventoryEvents.OnModuleTimerTick -= HandleTimerTick;
         InventoryEvents.OnModuleStateChanged -= HandleStateChanged;

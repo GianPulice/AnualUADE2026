@@ -33,15 +33,16 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if (PauseManager.IsGameplayInputBlocked) return;
         InputUpdate();
     }
     
     private void InputUpdate() 
     {
-        // Conseguir forward en función de a donde mira la cámara
+        // Conseguir forward en funciï¿½n de a donde mira la cï¿½mara
         orientation.forward = (transform.position - new Vector3(cameraTransform.position.x, transform.position.y, cameraTransform.position.z)).normalized;
         
-        // Conseguir vector dirección de movimiento segun los inputs
+        // Conseguir vector direcciï¿½n de movimiento segun los inputs
         moveDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
         moveDir.Normalize();
 
@@ -61,7 +62,7 @@ public class PlayerController : MonoBehaviour
             CharController.Move(PlayerBody.forward * CurrentVelocity * Time.deltaTime);
         }
 
-        //Mecánica Agacharse
+        //Mecï¿½nica Agacharse
         if (Input.GetButtonDown("Crouch")) 
         {
             if (!isCrouch) 
@@ -80,7 +81,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        //Mecánica Correr
+        //Mecï¿½nica Correr
         if (Input.GetButtonDown("Sprint") && !isCrouch) speedMultiplier = 1.5f;
         else if (Input.GetButtonUp("Sprint") && !isCrouch) speedMultiplier = 1f;
     }

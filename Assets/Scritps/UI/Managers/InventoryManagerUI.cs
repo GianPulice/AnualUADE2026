@@ -134,7 +134,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
         Time.timeScale = 0f;
 
-        // Activar cursor para interactuar con la UI
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
@@ -160,14 +159,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         isInventoryOpen = false;
         selectedItem = null;
 
-        // Reanudar gameplay
-        Time.timeScale = 1f;
+        if (PauseManager.Instance == null || !PauseManager.Instance.IsPaused)
+        {
+            Time.timeScale = 1f;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
 
-        // Desactivar cursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
-        // Ocultar vista y limpiar detalle
         inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
 

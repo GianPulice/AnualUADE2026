@@ -1,16 +1,19 @@
-using UnityEngine;
+using System.Collections.Generic;
 
-public class SaveSlotsModel : MonoBehaviour
+public class SaveSlotsModel : BaseScreenModel
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    private IReadOnlyList<SO_SaveSlotData> _slots;
+
+    public IReadOnlyList<SO_SaveSlotData> Slots => _slots;
+
+    public void SetDatabase(SO_SaveSlotDatabase database)
     {
-        
+        _slots = database != null ? database.Slots : null;
+        NotifyDataChanged();
     }
 
-    // Update is called once per frame
-    void Update()
+    public override void Initialize()
     {
-        
+        IsInitialized = true;
     }
 }

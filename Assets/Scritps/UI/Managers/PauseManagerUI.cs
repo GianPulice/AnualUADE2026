@@ -7,45 +7,40 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
     [Tooltip("Necesitamos el canal de eventos para salir correctamente al Menú Principal")]
     [SerializeField] private ScreenEventChannel screenChannel;
 
-    [Header("Sub-Menues")]
-    [Tooltip("El Prefab de Settings que se abrirá por encima de la pausa")]
-    [SerializeField] private GameObject settingsPrefab;
-
-    [Tooltip("El lugar del Canvas donde se instanciará Settings. Si está vacío, usa este mismo objeto.")]
-    [SerializeField] private Transform subMenuContainer;
-
-    private GameObject _settingsInstance;
     private bool _isTransitioning;
 
     private void Awake()
     {
-        if (view != null)
+        if (view == null)
         {
-            view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
+            Debug.LogError($"[{nameof(PauseManagerUI)}] view no asignada en el Inspector.");
+            return;
         }
+
+        view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
+
         if (model == null)
         {
             model = new EmptyScreenModel();
             model.Initialize();
         }
-    }
 
-    private void OnEnable()
-    {
         PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
 
         view.OnContinueClicked += HandleContinue;
         view.OnSettingsClicked += HandleSettings;
-        view.OnExitClicked += HandleExit;
+        view.OnExitClicked     += HandleExit;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         PauseManager.OnPauseStateChanged -= HandlePauseStateChanged;
 
+        if (view == null) return;
+
         view.OnContinueClicked -= HandleContinue;
         view.OnSettingsClicked -= HandleSettings;
-        view.OnExitClicked -= HandleExit;
+        view.OnExitClicked     -= HandleExit;
     }
     private void HandlePauseStateChanged(PauseState state)
     {
@@ -57,23 +52,31 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
             CloseSafe().Forget();
     }
 
+    protected override void OnBeforeOpen()
+    {
+        Time.timeScale = 0f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    protected override void OnBeforeClose()
+    {
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+        view.ResetButtonStates();
+    }
+
     private async UniTaskVoid OpenSafe()
     {
         _isTransitioning = true;
         await Open();
-        Time.timeScale = 0f;
         _isTransitioning = false;
     }
 
     private async UniTaskVoid CloseSafe()
     {
         _isTransitioning = true;
-        Time.timeScale = 1f;
-        if (_settingsInstance != null)
-        {
-            _settingsInstance.SetActive(false);
-        }
-
         await Close();
         _isTransitioning = false;
     }
@@ -87,33 +90,27 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>
 
     private void HandleSettings()
     {
-        if (settingsPrefab == null) return;
-        if (_settingsInstance == null)
+        if (SettingsController.Instance == null)
         {
-            Transform parent = subMenuContainer != null ? subMenuContainer : transform;
-            _settingsInstance = Instantiate(settingsPrefab, parent);
+            Debug.LogError("[PauseManagerUI] SettingsController.Instance es null. " +
+                           "¿Está la escena UI_Settings cargada en el bootstrap?");
+            return;
         }
-        else
-        {
-            _settingsInstance.SetActive(true);
-        }
+        SettingsController.Instance.OpenScreen();
     }
 
     private void HandleExit()
     {
+        _isTransitioning = true;
+
         Time.timeScale = 1f;
+
         PauseManager.RequestUnpause();
 
         if (screenChannel != null)
-        {
-            screenChannel.RaisePushScreen("MainMenu");
-        }
+            screenChannel.RaisePushScreen("Menu");
         else
-        {
-            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel en el inspector para poder salir al menú.");
-        }
+            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel.");
     }
-
-
 
 }

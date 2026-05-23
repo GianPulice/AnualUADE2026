@@ -4,46 +4,36 @@ using UnityEngine.UI;
 
 public abstract class BaseResultView : BaseScreenView
 {
-    //-- Shared UI -----------------------
     [Header("Buttons (shared)")]
     [SerializeField] private Button _btnRetry;
     [SerializeField] private Button _btnMainMenu;
     [SerializeField] private Button _btnNextLevel;
+    [SerializeField] private Button _btnExit;
 
-    // -- Button Events ----------------------
     public event Action OnRetryClicked;
     public event Action OnMainMenuClicked;
     public event Action OnNextLevelClicked;
-
-    // -- Unity Methods ----------------------
+    public event Action OnExitClicked;
 
     protected virtual void Awake()
     {
-        _btnRetry.onClick.AddListener(() => OnRetryClicked?.Invoke());
-        _btnMainMenu.onClick.AddListener(() => OnMainMenuClicked?.Invoke());
-        _btnNextLevel.onClick.AddListener(() => OnNextLevelClicked?.Invoke());
+        _btnRetry?.onClick.AddListener(() => OnRetryClicked?.Invoke());
+        _btnMainMenu?.onClick.AddListener(() => OnMainMenuClicked?.Invoke());
+        _btnNextLevel?.onClick.AddListener(() => OnNextLevelClicked?.Invoke());
+        _btnExit?.onClick.AddListener(() => OnExitClicked?.Invoke());
     }
+
     protected virtual void OnDestroy()
     {
         _btnRetry?.onClick.RemoveAllListeners();
         _btnMainMenu?.onClick.RemoveAllListeners();
         _btnNextLevel?.onClick.RemoveAllListeners();
+        _btnExit?.onClick.RemoveAllListeners();
     }
 
+    public virtual void SetData(GameResultModel model) { }
 
-    // -- Data Binding ----------------------
-    public virtual void SetData(GameResultModel model)
-    {
-        // Base implementation can be empty or set shared UI elements if needed
-    }
-    protected void HideNextLevelButton()
-    {
-        if(_btnNextLevel != null)
-            _btnNextLevel.gameObject.SetActive(false);
-    }
-    protected void HideRetryButton()
-    {
-        if(_btnRetry != null)
-            _btnRetry.gameObject.SetActive(false);
-    }
+    protected void HideRetryButton()    => _btnRetry?.gameObject.SetActive(false);
+    protected void HideMainMenuButton() => _btnMainMenu?.gameObject.SetActive(false);
+    protected void HideNextLevelButton() => _btnNextLevel?.gameObject.SetActive(false);
 }

@@ -10,9 +10,12 @@ public class GroupLabelView : MonoBehaviour
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
     [SerializeField] private TextMeshProUGUI labelText;
 
+    public ItemCategory Category { get; private set; }
+
     public void Setup(ItemCategory category)
     {
         if (labelText != null)
             labelText.text = categoryConfig.Get(category).GroupLabel;
+            Category = category;
     }
 }

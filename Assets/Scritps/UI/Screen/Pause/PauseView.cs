@@ -29,5 +29,19 @@ public class PauseView : BaseScreenView
         buttonExit?.onClick.RemoveAllListeners();
     }
 
+    public void ResetButtonStates()
+    {
+        ResetButton(buttonContinue);
+        ResetButton(buttonSettings);
+        ResetButton(buttonExit);
+    }
+    private void ResetButton(Button btn)
+    {
+        if (btn == null) return;
+        btn.OnPointerExit(new UnityEngine.EventSystems.PointerEventData(
+            UnityEngine.EventSystems.EventSystem.current));
+        btn.OnDeselect(null);
+    }
+
     //-- Zona de efectos (WIP) ----------------------
 }

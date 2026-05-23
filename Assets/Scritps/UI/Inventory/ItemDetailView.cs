@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -57,6 +58,7 @@ public class ItemDetailView : MonoBehaviour
     [SerializeField] private GameObject docPanel;
     [SerializeField] private TextMeshProUGUI docPanelText;
     [SerializeField] private ScrollRect docScrollRect;
+    [SerializeField] private RectTransform docViewport;
     [SerializeField] private Button openDocButton;  // "leer documento" dentro del detalle
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
@@ -187,6 +189,7 @@ public class ItemDetailView : MonoBehaviour
         // Resetear scroll al inicio cada vez que se abre
         if (docScrollRect != null)
             docScrollRect.verticalNormalizedPosition = 1f;
+        CheckDocScrollNeeded().Forget();
     }
 
     /// <summary>
@@ -294,6 +297,17 @@ public class ItemDetailView : MonoBehaviour
     {
         if (currentItem == null) return;
         InventoryManagerUI.Instance.RequestDiscard(currentItem);
+    }
+
+    private async UniTaskVoid CheckDocScrollNeeded()
+    {
+        await UniTask.WaitForEndOfFrame(this);
+
+        if (docScrollRect == null || docViewport == null) return;
+
+        RectTransform content = docScrollRect.content;
+        bool overflows = content.sizeDelta.y > docViewport.rect.height;
+        docScrollRect.vertical = overflows;
     }
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
