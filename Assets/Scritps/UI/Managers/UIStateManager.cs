@@ -214,9 +214,14 @@ public class UIStateManager : Singleton<UIStateManager>
     private void RestoreSnapshot()
     {
         if (!snapshotTaken) return;
-        Time.timeScale = Mathf.Approximately(previousTimeScale, 0f) ? 1f : previousTimeScale;
-        Cursor.lockState = previousCursorLock == CursorLockMode.None ? CursorLockMode.Locked : previousCursorLock;
-        Cursor.visible = previousCursorVisible && previousCursorLock != CursorLockMode.Locked;
+        // Restaurar EXACTAMENTE el estado previo. Sin reinterpretar:
+        // - En gameplay: cursor estaba Locked + invisible -> queda asi.
+        // - En main menu: cursor estaba None + visible -> queda asi.
+        // - Time.timeScale: usualmente 1 en main menu y en gameplay, asi que tambien
+        //   restauramos el valor exacto guardado.
+        Time.timeScale = previousTimeScale;
+        Cursor.lockState = previousCursorLock;
+        Cursor.visible = previousCursorVisible;
         snapshotTaken = false;
     }
 }
