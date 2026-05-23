@@ -1,7 +1,7 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class DocumentReaderController : BaseScreenController<DocumentReaderView, DocumentReaderModel>
+public class DocumentReaderController : BaseScreenController<DocumentReaderView, DocumentReaderModel>, IModalUI
 {
     public static DocumentReaderController Instance { get; private set; }
 
@@ -13,6 +13,12 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
 
     public bool IsOpen => isOpen;
 
+    // -- IModalUI --
+    public string ModalId => "DocumentReader";
+    public bool ConsumesEscape => true;
+    public bool BlocksPause   => false;   // Pausa puede abrirse encima del documento
+    public void RequestClose() => CloseSafe().Forget();
+
     private void Awake()
     {
         Instance = this;
@@ -23,11 +29,7 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         if (view != null) view.gameObject.SetActive(false);
     }
 
-    private void Update()
-    {
-        if (isOpen && Input.GetKeyDown(closeKey))
-            CloseSafe().Forget();
-    }
+    // El cierre por ESC ahora lo gobierna UIStateManager via UI/Exit -> RequestClose.
 
     public void Open(SO_DocumentData data)
     {
@@ -41,15 +43,13 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     protected override void OnBeforeOpen()
     {
         isOpen = true;
-        Time.timeScale = 0f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
     }
 
     protected override void OnBeforeClose()
     {
         isOpen = false;
-
-        if (PauseManager.Instance == null || !PauseManager.Instance.IsPaused)
-            Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
     private async UniTaskVoid OpenSafe()
