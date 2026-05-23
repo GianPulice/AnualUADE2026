@@ -23,7 +23,6 @@ public class ScreenManager : Singleton<ScreenManager>
         Debug.Log("<color=cyan>[ScreenManager] Habilitado y escuchando eventos</color>");
         if (screenChannel != null)
         {
-            // VOLVEMOS A ESCUCHAR EL TELÉFONO
             screenChannel.OnPushScreenRequested += OnPushScreenRequestedWrapper;
             screenChannel.OnPopScreenRequested += OnPopScreenRequestedWrapper;
             screenChannel.OnClearAllScreensRequested += OnClearAllRequestedWrapper;

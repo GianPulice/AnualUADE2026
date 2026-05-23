@@ -234,7 +234,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 3
+  m_Radius: 8
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &6485533186749571408
 GameObject:
@@ -403,7 +403,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 1.5
+  m_Radius: 5.75
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &8375677623048069146
 GameObject:
@@ -491,10 +491,11 @@ GameObject:
   - component: {fileID: 3097519461228478499}
   - component: {fileID: 4678342084709284386}
   - component: {fileID: 2172284652876069278}
+  - component: {fileID: 8045248341366030310}
   - component: {fileID: 5405741228895794217}
-  - component: {fileID: 8221545152509093141}
+  - component: {fileID: 4237558627561065639}
   m_Layer: 6
-  m_Name: InventoryItem
+  m_Name: Valve
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -509,8 +510,8 @@ Transform:
   m_GameObject: {fileID: 8438275548156035699}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 11.1725, y: 1.76, z: 0.961}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 11.3786, y: 1.5539, z: 0.961}
+  m_LocalScale: {x: 0.5877, y: 0.5877, z: 0.5877}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 331537296593505761}
@@ -575,6 +576,33 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!54 &8045248341366030310
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8438275548156035699}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!65 &5405741228895794217
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -596,7 +624,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8221545152509093141
+--- !u!114 &4237558627561065639
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -605,13 +633,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 8438275548156035699}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
+  m_Script: {fileID: 11500000, guid: d6616da11ad5be643bc1b42ccd9fa600, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
-  itemToPick: {fileID: 11400000, guid: 7d5ddc9ea3140e942aa067aa150eda25, type: 2}
-  imageFar: {fileID: 1240659242534678575}
-  imageClose: {fileID: 6485533186749571408}
-  farTrigger: {fileID: 1474874593842136251}
-  closeTrigger: {fileID: 4969835287158309658}
-  farRadius: 3
-  closeRadius: 1.5
+  m_EditorClassIdentifier: Assembly-CSharp::ValveInteractable
+  valveData: {fileID: 0}

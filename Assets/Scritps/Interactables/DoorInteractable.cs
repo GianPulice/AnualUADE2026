@@ -1,13 +1,15 @@
 using UnityEngine;
 
-public class DoorInteractable : MonoBehaviour, IInteractable
+public class DoorInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DoorData doorData;
 
     private bool isOpen;
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         if (doorData == null)
         {
             Debug.LogError($"DoorInteractable sin SO_DoorData en {gameObject.name}");
@@ -20,7 +22,7 @@ public class DoorInteractable : MonoBehaviour, IInteractable
         ApplyVisualState();
     }
 
-    public string GetInteractText()
+    public override string GetInteractText()
     {
         if (doorData == null) return "Puerta sin configurar";
 
@@ -32,7 +34,7 @@ public class DoorInteractable : MonoBehaviour, IInteractable
         return doorData.OpenPrompt;
     }
 
-    public bool CanInteract()
+    protected override bool CanInteractInCloseRange()
     {
         if (doorData == null) return false;
         if (isOpen) return false;
@@ -52,10 +54,8 @@ public class DoorInteractable : MonoBehaviour, IInteractable
         return true;
     }
 
-    public void Interact()
+    protected override void OnInteract()
     {
-        if (!CanInteract()) return;
-
         OpenDoor();
     }
 
@@ -80,13 +80,19 @@ public class DoorInteractable : MonoBehaviour, IInteractable
     {
         if (!isOpen) return;
 
-        transform.rotation = Quaternion.Euler(transform.eulerAngles.x, transform.eulerAngles.y + 90f, transform.eulerAngles.z);
+        transform.rotation = Quaternion.Euler(
+            transform.eulerAngles.x,
+            transform.eulerAngles.y + 90f,
+            transform.eulerAngles.z
+        );
 
         Collider collider = GetComponent<Collider>();
+
         if (collider != null)
             collider.enabled = false;
     }
-    public bool IsRepeatable()
+
+    public override bool IsRepeatable()
     {
         return false;
     }

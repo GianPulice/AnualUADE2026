@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ContainerInteractable : MonoBehaviour, IInteractable
+public class ContainerInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_ContainerData containerData;
     [SerializeField] private ContainerSlot[] possibleSlots;
@@ -10,8 +10,11 @@ public class ContainerInteractable : MonoBehaviour, IInteractable
     public string ContainerId => containerData != null ? containerData.ContainerId : string.Empty;
     public string LinkedPuzzleId => containerData != null ? containerData.LinkedPuzzleId : string.Empty;
 
-    private void Awake()
+
+    protected override void Awake()
     {
+        base.Awake();
+
         if (containerData == null)
         {
             Debug.LogError($"ContainerInteractable sin SO_ContainerData en {gameObject.name}");
@@ -27,13 +30,13 @@ public class ContainerInteractable : MonoBehaviour, IInteractable
         );
     }
 
-    public string GetInteractText()
+    public override string GetInteractText()
     {
         if (containerData == null) return "Contenedor sin configurar";
         return containerData.PromptText;
     }
 
-    public bool CanInteract()
+    protected override bool CanInteractInCloseRange()
     {
         if (containerData == null) return false;
 
@@ -44,10 +47,8 @@ public class ContainerInteractable : MonoBehaviour, IInteractable
         return possibleSlots != null && possibleSlots.Length > 0;
     }
 
-    public void Interact()
+    protected override void OnInteract()
     {
-        if (!CanInteract()) return;
-
         currentSlotIndex++;
 
         if (currentSlotIndex >= possibleSlots.Length)
@@ -90,7 +91,8 @@ public class ContainerInteractable : MonoBehaviour, IInteractable
 
     private void NotifyPuzzleController()
     {
-        ContainerPuzzleController[] controllers = FindObjectsByType<ContainerPuzzleController>(FindObjectsInactive.Exclude);
+        ContainerPuzzleController[] controllers =
+            FindObjectsByType<ContainerPuzzleController>(FindObjectsInactive.Exclude);
 
         foreach (ContainerPuzzleController controller in controllers)
         {
@@ -102,7 +104,7 @@ public class ContainerInteractable : MonoBehaviour, IInteractable
         }
     }
 
-    public bool IsRepeatable()
+    public override bool IsRepeatable()
     {
         return true;
     }
