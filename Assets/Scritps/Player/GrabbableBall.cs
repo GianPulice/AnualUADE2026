@@ -12,6 +12,9 @@ public class GrabbableBall : MonoBehaviour
     private bool playerNearby;
     private bool isGrabbed;
 
+    private float spamProtectionTimer = 0.2f;
+    private float currentTimer = 0;
+
     public string PlayerTag { get => playerTag; set => playerTag = value; }
     public Transform CurrentTriggerTransform { get => currentTriggerTransform; set => currentTriggerTransform = value; }
     public PlayerStateManager Player { get => player; set => player = value; }
@@ -26,13 +29,18 @@ public class GrabbableBall : MonoBehaviour
     {
         if (!playerNearby && !isGrabbed) return;
 
-        if (Input.GetKeyDown(KeyCode.E))
+        if (currentTimer >= spamProtectionTimer)
         {
-            if (!isGrabbed)
-                Grab();
-            else
-                Release();
+            if (Input.GetKeyDown(KeyCode.E))
+            {
+                currentTimer = 0;
+                if (!isGrabbed)
+                    Grab();
+                else
+                    Release();
+            }
         }
+        else currentTimer += Time.deltaTime;
     }
 
     /*private void OnTriggerEnter(Collider other)

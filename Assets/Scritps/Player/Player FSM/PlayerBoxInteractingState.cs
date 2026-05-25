@@ -66,7 +66,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                 }
             }
             else playerStateManager.CurrentVelocity = 0;
-            playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
+            playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + Vector3.down;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
     }

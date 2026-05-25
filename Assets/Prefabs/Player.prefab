@@ -98,7 +98,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 236206719962157421}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: df00322edabc06a44a2e750a49f7210f, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -484,37 +484,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraController
   cameraConfig: {fileID: 11400000, guid: 372ddb5b57ce76f478437eba53d422e9, type: 2}
---- !u!1 &2139289041195358087
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 542300189196141270}
-  m_Layer: 0
-  m_Name: HoldPoint
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &542300189196141270
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2139289041195358087}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.075, z: 0.70899963}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 8595893570503489205}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4678779371031117235
 GameObject:
   m_ObjectHideFlags: 0
@@ -876,10 +845,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0cab904534471041919441c1dcd534e, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 542300189196141270}
+    m_AddedGameObjects: []
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e0cab904534471041919441c1dcd534e, type: 3}
       insertIndex: -1
@@ -927,7 +893,7 @@ BoxCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8935545200099257359}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: df00322edabc06a44a2e750a49f7210f, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0

@@ -44,7 +44,7 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
     {
         if (playerStateManager.IsGrounded)
         {
-            playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
+            playerStateManager.RigBody.linearVelocity = new Vector3(0,playerStateManager.RigBody.linearVelocity.y,0);
         }
         if (playerStateManager.IsInteracting)
         {

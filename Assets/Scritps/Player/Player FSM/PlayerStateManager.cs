@@ -138,14 +138,16 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     private void CheckGround()
     {
-        if (Physics.CheckSphere(transform.position, capsuleColl.radius -0.1f, groundLeyerMask))
+        if (Physics.CheckSphere(transform.position, capsuleColl.radius, groundLeyerMask))
         {
-            isGrounded = true;
-            rigBody.useGravity = false;
             Physics.Raycast(transform.position + Vector3.up,Vector3.down,out RaycastHit hitRay);
             float groundAngle = Vector3.Angle(hitRay.normal, Vector3.up);
+            //Debug.Log(groundAngle);
             if (groundAngle < groundAngleLimit)
             {
+                isGrounded = true;
+                if(groundAngle > 1) rigBody.useGravity = false;
+                else rigBody.useGravity = true;
                 moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
             }
             else
