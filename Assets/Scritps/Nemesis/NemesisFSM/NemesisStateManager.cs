@@ -7,9 +7,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private Transform selfTransform;
     [SerializeField] private FieldOfView fieldOfView;
     [SerializeField] private SO_NemesisData nemesisData;
+    [SerializeField] private SO_NemesisMovement nemesisMovement;
     [SerializeField] private Vector3 targetPosition;
     [SerializeField] private NavMeshAgent navAgent;
     [SerializeField] private List<Transform> wayPoints = new List<Transform>();
+    [SerializeField] private Animator animController;
 
     private bool hasTarget = false;
 
@@ -17,9 +19,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public FieldOfView FieldOfView { get => fieldOfView; set => fieldOfView = value; }
     public bool HasTarget { get => hasTarget;}
     public SO_NemesisData NemesisData { get => nemesisData;}
+    public SO_NemesisMovement NemesisMovement { get => nemesisMovement; set => nemesisMovement = value; }
     public Vector3 TargetPosition { get => targetPosition; set => targetPosition = value; }
     public NavMeshAgent NavAgent { get => navAgent; set => navAgent = value; }
     public List<Transform> WayPoints { get => wayPoints; set => wayPoints = value; }
+    public Animator AnimController { get => animController; set => animController = value; }
 
     public enum ENemesisState 
     {

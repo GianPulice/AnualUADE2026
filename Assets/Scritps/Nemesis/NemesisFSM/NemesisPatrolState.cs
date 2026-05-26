@@ -17,13 +17,15 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void EnterState()
     {
-        Debug.Log("Nemesis Enter Patrol State");
+        //Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
+        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.PatrolSpeed;
     }
 
     public override void ExitState()
     {
-        Debug.Log("Nemesis Exit Patrol State");
+        //Debug.Log("Nemesis Exit Patrol State");
+        nemesisStateManager.AnimController.SetBool("isWalking", false);
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -59,11 +61,21 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
             if(tempDistance > nemesisStateManager.NavAgent.stoppingDistance) 
             {
                 nemesisStateManager.NavAgent.destination = nemesisStateManager.WayPoints[wayPointIndex].position;
+                nemesisStateManager.AnimController.SetBool("isWalking", true);
             }
             else 
             {
-                if (wayPointIndex < nemesisStateManager.WayPoints.Count - 1) wayPointIndex++;
-                else wayPointIndex = 0;
+                if (currentTime < timeToNextWP) 
+                {
+                    currentTime += Time.deltaTime;
+                    nemesisStateManager.AnimController.SetBool("isWalking", false);
+                }
+                else
+                {
+                    currentTime = 0;
+                    if (wayPointIndex < nemesisStateManager.WayPoints.Count - 1) wayPointIndex++;
+                    else wayPointIndex = 0;
+                }
             }
         }
     }

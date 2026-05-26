@@ -16,14 +16,17 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void EnterState()
     {
-        Debug.Log("Nemesis Enter Chasing State");
+        //Debug.Log("Nemesis Enter Chasing State");
         NextState = StateKey;
         currentTime = 0;
+        nemesisStateManager.AnimController.SetBool("isRunning", true);
+        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.ChaseSpeed;
     }
 
     public override void ExitState()
     {
-        Debug.Log("Nemesis Exit Chasing State");
+        //Debug.Log("Nemesis Exit Chasing State");
+        nemesisStateManager.AnimController.SetBool("isRunning", false);
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -51,12 +54,26 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
     {
         if (nemesisStateManager.HasTarget) 
         {
-            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfView.LastKnownPosition;
+            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfView.LastKnownPosition; 
+            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
+            if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+            {
+                nemesisStateManager.NavAgent.ResetPath();
+                nemesisStateManager.NavAgent.velocity = Vector3.zero;
+                Debug.Log("Ya te Caché");
+                nemesisStateManager.AnimController.SetBool("isRunning", false);
+            }
+            else nemesisStateManager.AnimController.SetBool("isRunning", true);
         }
         else
         {
             if (currentTime < timeToExit)
             {
+                float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
+                if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+                {
+                    nemesisStateManager.AnimController.SetBool("isRunning", false);
+                }
                 currentTime += Time.deltaTime;
             }
             else 

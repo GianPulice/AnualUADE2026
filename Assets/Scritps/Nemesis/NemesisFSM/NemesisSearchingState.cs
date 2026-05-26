@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -18,11 +19,13 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         Debug.Log("Nemesis Enter Searching State");
         NextState = StateKey;
         currentTime = 0;
+        nemesisStateManager.AnimController.SetBool("isRunning", true);
     }
 
     public override void ExitState()
     {
         Debug.Log("Nemesis Exit Searching State");
+        nemesisStateManager.AnimController.SetBool("isRunning", false);
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -57,13 +60,29 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             if (currentTime < timeOut)
             {
                 currentTime += Time.deltaTime;
-                nemesisStateManager.SelfTransform.RotateAround(Vector3.up, -3 * Time.deltaTime);
+                float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
+                if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+                {
+                    nemesisStateManager.NavAgent.destination = GetRandomPointInNavMesh();
+                }
             }
             else
             {
                 NextState = NemesisStateManager.ENemesisState.Patrolling;
-                Debug.Log(currentTime);
             }
         }
+    }
+    private Vector3 GetRandomPointInNavMesh() 
+    {
+        // Radio de busqueda
+        float range = 5f;
+        Vector3 randomPoint = Vector3.zero;
+        do
+        {
+            randomPoint = nemesisStateManager.NavAgent.destination + (Random.onUnitSphere + nemesisStateManager.transform.forward ) * range;
+        }
+        while (!NavMesh.SamplePosition(randomPoint,out NavMeshHit hit,1f,NavMesh.AllAreas));
+        Debug.Log("Punto Random Encontrado");
+        return randomPoint;
     }
 }
