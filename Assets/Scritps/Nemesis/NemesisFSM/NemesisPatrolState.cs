@@ -51,9 +51,13 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasTarget)
+        if (nemesisStateManager.HasVisualTarget)
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
+        }
+        else if (nemesisStateManager.HasAudioTarget) 
+        {
+            NextState = NemesisStateManager.ENemesisState.Investigating;
         }
         else if (nemesisStateManager.WayPoints.Count > 0) 
         {

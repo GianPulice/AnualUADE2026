@@ -18,6 +18,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
         playerStateManager.CapsuleColl.height = 0.9f;
         playerStateManager.CapsuleColl.center = new Vector3(0, 0.45f, 0);
+        playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.CrouchNoiseRadius;
         NextState = StateKey;
     }
 
@@ -28,6 +29,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         playerStateManager.SpeedMultiplier = 1;
         playerStateManager.CapsuleColl.height = 1.8f;
         playerStateManager.CapsuleColl.center = new Vector3(0, 0.9f, 0);
+        playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -69,6 +71,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         {
             if (playerStateManager.InputDir != Vector3.zero)
             {
+                playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
                 {
@@ -79,7 +82,11 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
                     playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
                 }
             }
-            else playerStateManager.CurrentVelocity = 0;
+            else 
+            {
+                playerStateManager.CurrentVelocity = 0;
+                playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
+            }
             playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }

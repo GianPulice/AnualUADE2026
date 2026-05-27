@@ -52,7 +52,7 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasTarget) 
+        if (nemesisStateManager.HasVisualTarget) 
         {
             nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfView.LastKnownPosition; 
             float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
@@ -72,7 +72,7 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
                 float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
                 if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
                 {
-                    nemesisStateManager.AnimController.SetBool("isRunning", false);
+                    NextState = NemesisStateManager.ENemesisState.Searching;
                 }
                 currentTime += Time.deltaTime;
             }

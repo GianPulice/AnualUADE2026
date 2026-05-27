@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1071633149383001357}
   - component: {fileID: 5253595690117749195}
+  - component: {fileID: 6366883338896328337}
   - component: {fileID: 7262208103517849607}
   - component: {fileID: 5684726728193510827}
   m_Layer: 0
@@ -49,12 +50,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NemesisStateManager
   selfTransform: {fileID: 1071633149383001357}
   fieldOfView: {fileID: 7262208103517849607}
+  fieldOfListening: {fileID: 6366883338896328337}
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
   nemesisMovement: {fileID: 11400000, guid: a3c36718f82fd9d4aad8c4758fe45368, type: 2}
   targetPosition: {x: 0, y: 0, z: 0}
   navAgent: {fileID: 5684726728193510827}
   wayPoints: []
   animController: {fileID: 1288472604488426125}
+--- !u!114 &6366883338896328337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b79531d4ce3c3364bbb259863a3e1165, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FieldOfListenig
+  listenRange: 5
+  listenDelay: 0.1
+  listenMask:
+    serializedVersion: 2
+    m_Bits: 256
 --- !u!114 &7262208103517849607
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -69,6 +88,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
   viewRange: 5
   viewAngle: 90
+  viewDelay: 0.1
   viewTransform: {fileID: 6977403083150097782}
   targetMask:
     serializedVersion: 2
@@ -76,7 +96,6 @@ MonoBehaviour:
   obstacleMask:
     serializedVersion: 2
     m_Bits: 1
-  lastKnownPosition: {x: 0, y: 0, z: 0}
 --- !u!195 &5684726728193510827
 NavMeshAgent:
   m_ObjectHideFlags: 0

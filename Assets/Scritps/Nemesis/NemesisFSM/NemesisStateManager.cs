@@ -6,24 +6,26 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 {
     [SerializeField] private Transform selfTransform;
     [SerializeField] private FieldOfView fieldOfView;
+    [SerializeField] private FieldOfListenig fieldOfListening;
     [SerializeField] private SO_NemesisData nemesisData;
     [SerializeField] private SO_NemesisMovement nemesisMovement;
-    [SerializeField] private Vector3 targetPosition;
     [SerializeField] private NavMeshAgent navAgent;
     [SerializeField] private List<Transform> wayPoints = new List<Transform>();
     [SerializeField] private Animator animController;
 
-    private bool hasTarget = false;
+    private bool hasVisualTarget = false;
+    private bool hasAudioTarget = false;
 
     public Transform SelfTransform { get => selfTransform; set => selfTransform = value; }
-    public FieldOfView FieldOfView { get => fieldOfView; set => fieldOfView = value; }
-    public bool HasTarget { get => hasTarget;}
-    public SO_NemesisData NemesisData { get => nemesisData;}
+    public FieldOfView FieldOfView { get => fieldOfView; }
+    public FieldOfListenig FieldOfListenig {get => fieldOfListening; }
+    public SO_NemesisData NemesisData { get => nemesisData; }
     public SO_NemesisMovement NemesisMovement { get => nemesisMovement; set => nemesisMovement = value; }
-    public Vector3 TargetPosition { get => targetPosition; set => targetPosition = value; }
     public NavMeshAgent NavAgent { get => navAgent; set => navAgent = value; }
     public List<Transform> WayPoints { get => wayPoints; set => wayPoints = value; }
     public Animator AnimController { get => animController; set => animController = value; }
+    public bool HasVisualTarget { get => hasVisualTarget;}
+    public bool HasAudioTarget { get => hasAudioTarget;}
 
     public enum ENemesisState 
     {
@@ -45,7 +47,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
-        hasTarget = fieldOfView.HasTarget;
+        hasVisualTarget = fieldOfView.HasVisualTarget;
+        hasAudioTarget = fieldOfListening.HasAudioTarget;
         
         base.Update();
     }
@@ -54,7 +57,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         States.Add(ENemesisState.Patrolling, new NemesisPatrolState(ENemesisState.Patrolling, this));
         States.Add(ENemesisState.Chasing, new NemesisChasingState(ENemesisState.Chasing,this));
         States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching,this));
-        States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating));
+        States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating,this));
         CurrentState = States[ENemesisState.Patrolling];
     }
 

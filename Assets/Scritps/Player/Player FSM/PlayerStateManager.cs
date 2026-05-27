@@ -9,11 +9,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Rigidbody rigBody;
     [SerializeField] private CapsuleCollider capsuleColl;
     [SerializeField] private BoxCollider boxColl;
+    [SerializeField] private SphereCollider audioEmitingZone;
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
     [SerializeField] private Animator animController;
-    [SerializeField] private AudioSource audioEmiter;
 
     // Movement Variables
     [SerializeField] private LayerMask groundLeyerMask;
@@ -36,6 +36,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public Rigidbody RigBody { get => rigBody; set => rigBody = value; }
     public CapsuleCollider CapsuleColl { get => capsuleColl; set => capsuleColl = value; }
     public BoxCollider BoxColl { get => boxColl; set => boxColl = value; }
+    public SphereCollider AudioEmitingZone { get => audioEmitingZone; set => audioEmitingZone = value; }
     public Transform PlayerBody { get => playerBody; set => playerBody = value; }
     public Vector3 InputDir { get => inputDir; set => inputDir = value; }
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }

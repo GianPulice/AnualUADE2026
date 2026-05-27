@@ -36,6 +36,7 @@ Transform:
   - {fileID: 7985739827390264409}
   - {fileID: 8595893570503489205}
   - {fileID: 2232447445971585158}
+  - {fileID: 1254155243632376421}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6697063734817033035
@@ -54,11 +55,11 @@ MonoBehaviour:
   rigBody: {fileID: 8279488126507840101}
   capsuleColl: {fileID: 5462070032916073715}
   boxColl: {fileID: 9050374754818723081}
+  audioEmitingZone: {fileID: 4092073231337979445}
   cameraTransform: {fileID: 2232447445971585158}
   orientation: {fileID: 7985739827390264409}
   playerBody: {fileID: 8595893570503489205}
   animController: {fileID: 6599834768830831435}
-  audioEmiter: {fileID: 5563071216055759055}
   groundLeyerMask:
     serializedVersion: 2
     m_Bits: 1
@@ -515,6 +516,59 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6866595372486211810}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &7599618300231866561
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1254155243632376421}
+  - component: {fileID: 4092073231337979445}
+  m_Layer: 8
+  m_Name: AudioEmitingRange
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1254155243632376421
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7599618300231866561}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6866595372486211810}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!135 &4092073231337979445
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7599618300231866561}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 256
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 5
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &8124501242665881950
 PrefabInstance:
   m_ObjectHideFlags: 0

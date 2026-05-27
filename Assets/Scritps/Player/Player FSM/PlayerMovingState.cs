@@ -14,6 +14,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
     {
         //Debug.Log("Enter Moving State");
         NextState = StateKey;
+        playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.FootstepNoiseRadius;
     }
 
     public override void ExitState()
@@ -71,8 +72,16 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             if (playerStateManager.InputDir != Vector3.zero)
             {
                 //Mecánica Correr
-                if (Input.GetButton("Sprint")) playerStateManager.SpeedMultiplier = 1.5f;
-                else playerStateManager.SpeedMultiplier = 1f;
+                if (Input.GetButton("Sprint"))
+                {
+                    playerStateManager.SpeedMultiplier = 1.5f;
+                    playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;
+                }
+                else 
+                { 
+                    playerStateManager.SpeedMultiplier = 1f;
+                    playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.FootstepNoiseRadius;
+                }
 
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)

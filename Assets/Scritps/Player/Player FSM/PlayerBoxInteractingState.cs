@@ -16,6 +16,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         playerStateManager.BoxColl.enabled = true;
         playerStateManager.IsCrouch = false;
         playerStateManager.AnimController.SetBool("isPushing", true);
+        playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.FootstepNoiseRadius;
         NextState = StateKey;
     }
 

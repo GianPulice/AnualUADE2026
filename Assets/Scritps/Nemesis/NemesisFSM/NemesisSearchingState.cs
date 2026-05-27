@@ -51,7 +51,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasTarget)
+        if (nemesisStateManager.HasVisualTarget)
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
         }
@@ -60,10 +60,14 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             if (currentTime < timeOut)
             {
                 currentTime += Time.deltaTime;
+                if (nemesisStateManager.HasAudioTarget)
+                {
+                    nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListenig.LastKnownPosition;
+                }
                 float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
                 if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
                 {
-                    nemesisStateManager.NavAgent.destination = GetRandomPointInNavMesh();
+                   nemesisStateManager.NavAgent.destination = GetRandomPointInNavMesh();
                 }
             }
             else

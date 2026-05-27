@@ -12,11 +12,13 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
     {
         //Debug.Log("Enter Idle State");
         NextState = StateKey;
+        playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
     }
 
     public override void ExitState()
     {
         //Debug.Log("Exit Idle State");
+        playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
