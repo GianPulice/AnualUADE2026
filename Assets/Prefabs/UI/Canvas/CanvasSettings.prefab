@@ -2536,10 +2536,10 @@ MonoBehaviour:
   canvasGroup: {fileID: 6213911226549769077}
   fadeDuration: 0.3
   _tabSelector: {fileID: 6391575733023613787}
-  _volumePanel: {fileID: 2487170375398414538}
-  _controlsPanel: {fileID: 5651931702369233053}
+  _volumePanel: {fileID: 8172625437929164457}
+  _controlsPanel: {fileID: 4374934195972514977}
   _brightnessPanel: {fileID: 759973860297533800}
-  _screenPanel: {fileID: 8350665473227483068}
+  _screenPanel: {fileID: 972766103401688715}
   _btnApply: {fileID: 6760178084892582885}
   _btnReset: {fileID: 8163861947298376035}
   _btnBack: {fileID: 5782310137602493164}
@@ -3533,7 +3533,7 @@ GameObject:
   - component: {fileID: 1147467519447305358}
   - component: {fileID: 4394357379847034831}
   - component: {fileID: 2885418703663744246}
-  - component: {fileID: 8350665473227483068}
+  - component: {fileID: 972766103401688715}
   m_Layer: 5
   m_Name: Panel_Screen
   m_TagString: Untagged
@@ -3629,7 +3629,7 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &8350665473227483068
+--- !u!114 &972766103401688715
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -3638,7 +3638,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1814993517410147016}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 60d42fe29286a334f9785ae48056c229, type: 3}
+  m_Script: {fileID: 11500000, guid: 073c4a9e09932a549b365e5c8fc2e9a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsPanelScreenView
   _dropdownResolution: {fileID: 5623556292020639200}
@@ -12658,7 +12658,7 @@ GameObject:
   - component: {fileID: 1834566164068870776}
   - component: {fileID: 8270186473134806902}
   - component: {fileID: 2022657257478848698}
-  - component: {fileID: 5651931702369233053}
+  - component: {fileID: 4374934195972514977}
   m_Layer: 5
   m_Name: Panel_Controls
   m_TagString: Untagged
@@ -12758,7 +12758,7 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &5651931702369233053
+--- !u!114 &4374934195972514977
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -12767,7 +12767,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6212205515108779423}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 329643c73d3638f49bdcfcc1a35c83a0, type: 3}
+  m_Script: {fileID: 11500000, guid: a9ace23a41b854f4a81712bcad4b3e88, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsPanelControlsView
   _sliderSensitivity: {fileID: 7492797872719164071}
@@ -13031,7 +13031,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6316943289891578924}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4624aa214ea6df248bd52ed8e65628ae, type: 3}
+  m_Script: {fileID: 11500000, guid: 310c120b4ffe16e43a47f240cdaa437d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsTabSelector
   _tabs:
@@ -13047,7 +13047,7 @@ MonoBehaviour:
   - button: {fileID: 4427616314094811972}
     panel: {fileID: 6529260435931656420}
     activeIndicator: {fileID: 5523525278464361447}
-  _initialTab: 0
+  _initialTab: 3
 --- !u!1 &6326276022485626260
 GameObject:
   m_ObjectHideFlags: 0
@@ -13838,7 +13838,7 @@ GameObject:
   - component: {fileID: 4417036240367550611}
   - component: {fileID: 3389204104685080664}
   - component: {fileID: 485304198647408931}
-  - component: {fileID: 2487170375398414538}
+  - component: {fileID: 8172625437929164457}
   m_Layer: 5
   m_Name: Panel_Volume
   m_TagString: Untagged
@@ -13932,7 +13932,7 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &2487170375398414538
+--- !u!114 &8172625437929164457
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -13941,15 +13941,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 6529260435931656420}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bfbe0bf6f0f21eb45a1400777026ee13, type: 3}
+  m_Script: {fileID: 11500000, guid: 7d8a1404ed8834f45929e23e750b98fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsPanelVolumeView
   _sliderMaster: {fileID: 8876753082591502547}
-  _labelMaster: {fileID: 4217248337712596063}
+  _labelMaster: {fileID: 5223497919263152433}
   _sliderSFX: {fileID: 529651606204330942}
-  _labelSFX: {fileID: 2893928057458682695}
+  _labelSFX: {fileID: 7332553812243134982}
   _sliderMusic: {fileID: 515341126598537031}
-  _labelMusic: {fileID: 7293935421427060220}
+  _labelMusic: {fileID: 3821858329287663940}
 --- !u!1 &6742450444958034349
 GameObject:
   m_ObjectHideFlags: 0
@@ -15608,7 +15608,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 8077589936683761604}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3885bc7a9fec78143929679897a46928, type: 3}
+  m_Script: {fileID: 11500000, guid: 957915ed881663b4fbf300703ea693d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsPanelBrightnessView
   _sliderBrightness: {fileID: 2751733918767000671}

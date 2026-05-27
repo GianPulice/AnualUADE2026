@@ -1,0 +1,189 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-3929798292804311727
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_05
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 5
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []
+--- !u!114 &-3152608404614743014
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_02
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 2
+  isEmpty: 0
+  zoneName: "Piso 2 \u2014 Tecnico"
+  playTimeSeconds: 4080
+  lastSavedIso: 2026-05-25T03:15:25.6896681Z
+  modules:
+  - moduleId: M1_Energetico
+    status: 2
+    timeRemaining: 0
+    timerDuration: 300
+  - moduleId: M2_Mecanico
+    status: 1
+    timeRemaining: 240
+    timerDuration: 300
+  - moduleId: M3_Presion
+    status: 0
+    timeRemaining: 0
+    timerDuration: 300
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []
+--- !u!114 &-2222766352170478392
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_04
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 4
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []
+--- !u!114 &-1664439781255960611
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_06
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 6
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []
+--- !u!114 &-268426749046650711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_01
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 1
+  isEmpty: 0
+  zoneName: Zona Restringida
+  playTimeSeconds: 9240
+  lastSavedIso: 2026-05-27T03:03:25.6821637Z
+  modules:
+  - moduleId: M1_Energetico
+    status: 2
+    timeRemaining: 0
+    timerDuration: 300
+  - moduleId: M2_Mecanico
+    status: 2
+    timeRemaining: 0
+    timerDuration: 300
+  - moduleId: M3_Presion
+    status: 1
+    timeRemaining: 180
+    timerDuration: 300
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ff0a2959a6ded649ab3972040316cb9, type: 3}
+  m_Name: SO_SaveSlotDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotDatabase
+  slots:
+  - {fileID: -268426749046650711}
+  - {fileID: -3152608404614743014}
+  - {fileID: 7451830280555169826}
+  - {fileID: -2222766352170478392}
+  - {fileID: -3929798292804311727}
+  - {fileID: -1664439781255960611}
+--- !u!114 &7451830280555169826
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4eb4502bd50b1445be7144e6319d138, type: 3}
+  m_Name: SaveSlot_03
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
+  slotIndex: 3
+  isEmpty: 0
+  zoneName: Hub Central
+  playTimeSeconds: 1320
+  lastSavedIso: 2026-05-20T03:15:25.6906655Z
+  modules:
+  - moduleId: M1_Energetico
+    status: 1
+    timeRemaining: 90
+    timerDuration: 300
+  - moduleId: M2_Mecanico
+    status: 0
+    timeRemaining: 0
+    timerDuration: 300
+  - moduleId: M3_Presion
+    status: 0
+    timeRemaining: 0
+    timerDuration: 300
+  currentZoneId: 
+  collectedItemIds: []
+  completedPuzzleIds: []
+  insertedSocketIds: []

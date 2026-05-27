@@ -1,6 +1,15 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
+/// <summary>
+/// Controller del Save Slots screen. **Solo visual** — el click en un slot no carga ninguna
+/// escena; emite un evento <see cref="OnSlotSelected"/> + log para que el sistema de save
+/// real se conecte en el futuro sin tocar esta UI.
+///
+/// El botón Back sí está conectado a <c>ScreenEventChannel.RaisePopScreen()</c> para volver
+/// al MainMenu durante testing.
+/// </summary>
 public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlotsModel>
 {
     [Header("Event Channels")]
@@ -9,9 +18,12 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
     [Header("Data")]
     [SerializeField] private SO_SaveSlotDatabase _database;
 
-    [Header("Navigation (stub)")]
-    [Tooltip("Mientras no exista save real, todos los slots cargan este grupo de escena.")]
-    [SerializeField] private string _firstSceneLabel = "TestBlocking";
+    /// <summary>
+    /// Disparado cuando el player clickea un slot (sea "cargar" o "nueva"). Hoy ningún
+    /// listener real está conectado — cuando se haga el save system, el GameLoader se
+    /// suscribe a este evento y decide qué hacer según <see cref="SO_SaveSlotData.IsEmpty"/>.
+    /// </summary>
+    public event Action<int> OnSlotSelected;
 
     private void Awake()
     {
@@ -56,23 +68,8 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
 
     private void HandleSlotClicked(int slotIndex)
     {
-        // Stub: cualquier slot dispara el flow de nueva partida.
-        // Cuando exista save real, distinguir entre cargar (slot con datos) y nueva (vacío).
-        LoadSlotStub(slotIndex).Forget();
-    }
-
-    private async UniTaskVoid LoadSlotStub(int slotIndex)
-    {
-        Debug.Log($"<color=cyan>[SaveSlotsController] Slot {slotIndex} → cargando '{_firstSceneLabel}' (stub).</color>");
-
-        if (_screenChannel == null)
-        {
-            Debug.LogError("[SaveSlotsController] Falta asignar el ScreenEventChannel.");
-            return;
-        }
-
-        await Close();
-        _screenChannel.RaisePushScreen(_firstSceneLabel);
+        Debug.Log($"<color=cyan>[SaveSlotsController] Slot {slotIndex} clickeado (visual stub).</color>");
+        OnSlotSelected?.Invoke(slotIndex);
     }
 
     private void HandleBackClicked()

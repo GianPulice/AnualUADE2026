@@ -95,11 +95,28 @@ Pendiente cuando se quieran conectar:
 
 ## 💾 Save Slots
 
-Stub visual implementado. Las 6 cards cargan `firstSceneLabel` igual (sin save real).
+Stub visual implementado. La estructura del `SO_SaveSlotData` ya está preparada para
+recibir datos del save real:
 
-- [ ] **Conectar al sistema de save real** cuando exista. Spec implícito: cada card debe leer su `SO_SaveSlotData` desde disco, no desde un asset estático.
+- `modules` ← `ModuleManager.GetAllModules()` snapshot (con moduleId, status, timeRemaining, timerDuration).
+- `currentZoneId` ← zona/sala donde el player guardó.
+- `collectedItemIds` ← `InventoryManager.GetAllItems()` → IDs.
+- `completedPuzzleIds` + `insertedSocketIds` ← `PuzzleStateManager.GetState()`.
+- `playTimeSeconds` ← tiempo acumulado desde el inicio de la partida.
+- `lastSavedIso` ← `DateTime.UtcNow.ToString("o")` al momento del save.
+
+Pendiente:
+
+- [ ] **Conectar `OnSlotSelected(int)`** al sistema de save real cuando exista. Un futuro `GameLoader` (o el `MainMenuController`) se suscribe y decide:
+  - Si `slot.IsEmpty` → carga la escena de inicio nueva.
+  - Si NO `slot.IsEmpty` → carga la escena de gameplay aplicando los datos del slot.
+- [ ] **Save / Load real**: serializar `SO_SaveSlotData` a JSON en `Application.persistentDataPath` y reconstruirlos al boot. Hoy los datos viven como sub-assets del `SO_SaveSlotDatabase`.
+- [ ] **Diferenciar "cargar" vs "nueva"** en `HandleSlotClicked` según `slot.IsEmpty`. Hoy ambos disparan el mismo evento.
+- [ ] **Confirmación "¿Sobrescribir slot?"** si el slot ya tenía datos al hacer "nueva".
 - [ ] **Botón "borrar slot"** con confirmación, similar al discard del inventario.
 - [ ] **Indicador de slot recién guardado** (animación o destacado visual).
+- [ ] **Timer del módulo activo** en la card: si `modules[i].status == Active`, mostrar `timeRemaining / timerDuration` como barra debajo del pip correspondiente.
+- [ ] **Tooltip al hover** sobre cada pip con el nombre del módulo (`moduleId`).
 
 ---
 

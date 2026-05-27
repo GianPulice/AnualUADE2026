@@ -4,10 +4,14 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Panel de Screen — PLACEHOLDER.
+/// Panel de Screen — PLACEHOLDER visual.
 /// Resolución / Modo / FPSLimit / VSync se almacenan en el modelo pero todavía no se aplican
-/// (esto requiere Screen.SetResolution + Application.targetFrameRate + QualitySettings.vSyncCount
-/// además de un listado de resoluciones soportadas; se hará junto con el resto del Brightness/Screen).
+/// (esto requiere <c>Screen.SetResolution</c> + <c>Application.targetFrameRate</c> +
+/// <c>QualitySettings.vSyncCount</c>, ver TODO-UI.md).
+///
+/// Los dropdowns se pueblan en <see cref="Awake"/> con las opciones serializadas
+/// (defaults del wireframe <c>options_menu_v2_wired.html</c>). Editar desde el Inspector
+/// si querés cambiar el orden o agregar resoluciones.
 /// </summary>
 public class SettingsPanelScreenView : MonoBehaviour
 {
@@ -19,6 +23,42 @@ public class SettingsPanelScreenView : MonoBehaviour
     [Header("Toggle")]
     [SerializeField] private Toggle _toggleVSync;
 
+    [Header("Opciones de los dropdowns")]
+    [Tooltip("Resoluciones disponibles. Los índices se persisten en SettingsModel.ResolutionIndex. " +
+             "Cambiar el orden invalida saves previos.")]
+    [SerializeField]
+    private string[] _resolutionOptions =
+    {
+        "1920 x 1080",
+        "2560 x 1440",
+        "3840 x 2160",
+        "1366 x 768",
+        "1280 x 720",
+    };
+
+    [Tooltip("Modos de ventana. El índice mapea al enum FullScreenMode cuando se conecte. " +
+             "Orden actual: Pantalla completa = ExclusiveFullScreen, Ventana = Windowed, " +
+             "Sin bordes = FullScreenWindow.")]
+    [SerializeField]
+    private string[] _windowModeOptions =
+    {
+        "Pantalla completa",
+        "Ventana",
+        "Sin bordes",
+    };
+
+    [Tooltip("Límites de FPS. El índice 0 = sin límite (-1 en Application.targetFrameRate). " +
+             "El resto mapea directo al valor numérico.")]
+    [SerializeField]
+    private string[] _fpsLimitOptions =
+    {
+        "Sin limite",
+        "30",
+        "60",
+        "120",
+        "144",
+    };
+
     public event Action<int>  OnResolutionChanged;
     public event Action<int>  OnWindowModeChanged;
     public event Action<int>  OnFPSLimitChanged;
@@ -26,6 +66,11 @@ public class SettingsPanelScreenView : MonoBehaviour
 
     private void Awake()
     {
+        // Poblar ANTES de suscribir listeners para evitar onValueChanged espurios al inicializar.
+        PopulateDropdown(_dropdownResolution, _resolutionOptions);
+        PopulateDropdown(_dropdownWindowMode, _windowModeOptions);
+        PopulateDropdown(_dropdownFPSLimit,   _fpsLimitOptions);
+
         if (_dropdownResolution != null)
             _dropdownResolution.onValueChanged.AddListener(v => OnResolutionChanged?.Invoke(v));
         if (_dropdownWindowMode != null)
@@ -51,5 +96,17 @@ public class SettingsPanelScreenView : MonoBehaviour
         if (_dropdownWindowMode != null) _dropdownWindowMode.SetValueWithoutNotify(model.WindowMode);
         if (_dropdownFPSLimit != null)   _dropdownFPSLimit.SetValueWithoutNotify(model.FPSLimit);
         if (_toggleVSync != null)        _toggleVSync.SetIsOnWithoutNotify(model.VSync);
+    }
+
+    private static void PopulateDropdown(TMP_Dropdown dropdown, string[] options)
+    {
+        if (dropdown == null || options == null) return;
+        dropdown.ClearOptions();
+
+        var optionData = new System.Collections.Generic.List<TMP_Dropdown.OptionData>(options.Length);
+        foreach (string label in options)
+            optionData.Add(new TMP_Dropdown.OptionData(label));
+
+        dropdown.AddOptions(optionData);
     }
 }

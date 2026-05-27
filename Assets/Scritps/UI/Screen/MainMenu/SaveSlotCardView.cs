@@ -1,13 +1,13 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// View individual de una card del Save Slots screen.
-/// Sigue el wireframe: número de slot, zona, 3 pips (M1/M2/M3),
-/// meta (tiempo, último guardado, módulos), y un botón de acción
-/// que dice "cargar partida" o "nueva partida" según si el slot está vacío.
+/// Lee la nueva estructura del <see cref="SO_SaveSlotData"/> con lista de
+/// <see cref="ModuleSaveEntry"/> (primeros 3 → pips) y timestamp relativo runtime.
 /// </summary>
 public class SaveSlotCardView : MonoBehaviour
 {
@@ -19,7 +19,7 @@ public class SaveSlotCardView : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _modulesLabel;
     [SerializeField] private TextMeshProUGUI _actionButtonLabel;
 
-    [Header("Pips")]
+    [Header("Pips (los primeros 3 módulos)")]
     [SerializeField] private Image _pip1;
     [SerializeField] private Image _pip2;
     [SerializeField] private Image _pip3;
@@ -65,29 +65,33 @@ public class SaveSlotCardView : MonoBehaviour
             return;
         }
 
-        if (_zoneLabel != null)        _zoneLabel.text        = data.ZoneName;
-        if (_playTimeLabel != null)    _playTimeLabel.text    = $"Tiempo jugado  {FormatPlayTime(data.PlayTimeSeconds)}";
-        if (_lastSavedLabel != null)   _lastSavedLabel.text   = $"Guardado  {data.LastSavedDescription}";
-        if (_modulesLabel != null)     _modulesLabel.text     = $"Modulos  {data.ResolvedModulesCount} / 3 resueltos";
+        if (_zoneLabel != null)         _zoneLabel.text         = data.ZoneName;
+        if (_playTimeLabel != null)     _playTimeLabel.text     = $"Tiempo jugado  {FormatPlayTime(data.PlayTimeSeconds)}";
+        if (_lastSavedLabel != null)    _lastSavedLabel.text    = $"Guardado  {data.GetRelativeSavedDescription()}";
+        if (_modulesLabel != null)      _modulesLabel.text      = $"Modulos  {data.ResolvedModulesCount} / 3 resueltos";
         if (_actionButtonLabel != null) _actionButtonLabel.text = _loadText;
 
-        SetPip(_pip1, data.Module1Status);
-        SetPip(_pip2, data.Module2Status);
-        SetPip(_pip3, data.Module3Status);
+        IReadOnlyList<ModuleSaveEntry> modules = data.Modules;
+        SetPip(_pip1, GetModuleStatus(modules, 0));
+        SetPip(_pip2, GetModuleStatus(modules, 1));
+        SetPip(_pip3, GetModuleStatus(modules, 2));
     }
 
     private void SetEmptyState()
     {
-        if (_zoneLabel != null)        _zoneLabel.text        = "— vacio —";
-        if (_playTimeLabel != null)    _playTimeLabel.text    = "Tiempo jugado  —";
-        if (_lastSavedLabel != null)   _lastSavedLabel.text   = "Guardado  —";
-        if (_modulesLabel != null)     _modulesLabel.text     = "Modulos  —";
+        if (_zoneLabel != null)         _zoneLabel.text         = "— vacio —";
+        if (_playTimeLabel != null)     _playTimeLabel.text     = "Tiempo jugado  —";
+        if (_lastSavedLabel != null)    _lastSavedLabel.text    = "Guardado  —";
+        if (_modulesLabel != null)      _modulesLabel.text      = "Modulos  —";
         if (_actionButtonLabel != null) _actionButtonLabel.text = _newText;
 
         SetPip(_pip1, ModuleSlotStatus.Inactive);
         SetPip(_pip2, ModuleSlotStatus.Inactive);
         SetPip(_pip3, ModuleSlotStatus.Inactive);
     }
+
+    private static ModuleSlotStatus GetModuleStatus(IReadOnlyList<ModuleSaveEntry> list, int idx)
+        => list != null && idx < list.Count ? list[idx].status : ModuleSlotStatus.Inactive;
 
     private void SetPip(Image pip, ModuleSlotStatus status)
     {
