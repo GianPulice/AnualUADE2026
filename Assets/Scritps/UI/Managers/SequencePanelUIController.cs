@@ -1,90 +1,155 @@
+using System;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Singleton que orquesta la apertura/cierre de la UI del panel de secuencia.
-/// Vive en la escena LevelUI. Cualquier SequencePanelInteractable del mundo lo invoca
-/// con Open(panel) cuando el jugador presiona E.
+/// Controller del panel de secuencia. Sigue el patrón MVC y se registra en el
+/// <see cref="UIStateManager"/> como <see cref="IModalUI"/> al abrirse.
 ///
-/// Es generico: una sola UI sirve para todos los SequencePanelInteractable del juego.
+/// Vive en la escena <c>LevelUI</c>. La lógica del puzzle vive en el Interactable;
+/// este controller solo orquesta el flow open/close. Time.timeScale, cursor y el
+/// manejo de ESC los gobierna el <see cref="UIStateManager"/>.
 /// </summary>
-public class SequencePanelUIController : Singleton<SequencePanelUIController>, IModalUI
+public class SequencePanelUIController
+    : BaseScreenController<SequencePanelView, SequencePanelModel>, IModalUI
 {
-    [Header("View")]
-    [SerializeField] private SequencePanelView view;
+    public static SequencePanelUIController Instance { get; private set; }
 
-    private SequencePanelInteractable activePanel;
-    private bool isOpen;
+    private bool _isOpen;
+    private bool _isTransitioning;
 
-    public bool IsOpen => isOpen;
+    public bool IsOpen => _isOpen;
 
-    // -- IModalUI --
-    public string ModalId => "SequencePanel";
-    public bool ConsumesEscape => false;  // ESC sube al PauseManager y abre la pausa encima.
-    public bool BlocksPause   => false;   // La pausa puede aparecer sobre el panel.
-    public void RequestClose() => Close();
+    // ── IModalUI ────────────────────────────────────────────────────────────
+    public string ModalId       => "SequencePanel";
+    public bool   ConsumesEscape => false;   // ESC pasa a la pausa (panel queda debajo).
+    public bool   BlocksPause   => false;   // Permite pausar encima.
+    public void RequestClose() => CloseSafe().Forget();
+
+    // ── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Awake()
     {
-        CreateSingleton(false);
+        Instance = this;
 
-        if (view != null) view.SetVisibleImmediate(false);
-    }
-
-    public void Open(SequencePanelInteractable panel)
-    {
-        if (panel == null) return;
-        if (isOpen) return;
         if (view == null)
         {
-            Debug.LogError("[SequencePanelUIController] View no asignada.");
+            Debug.LogError($"[{nameof(SequencePanelUIController)}] view no asignada en el Inspector.");
             return;
         }
 
-        activePanel = panel;
-        isOpen = true;
+        if (model == null)
+        {
+            model = new SequencePanelModel();
+            model.Initialize();
+        }
 
-        SubscribeToPanel(panel);
+        view.gameObject.SetActive(false);
+
+        // View → Controller
+        view.OnButtonClicked += HandleButtonClicked;
+        view.OnCloseClicked  += HandleCloseClicked;
+
+        // Model → Controller (feedback del puzzle hacia la view)
+        model.OnButtonPressed    += HandleModelButtonPressed;
+        model.OnSequenceFailed   += HandleModelSequenceFailed;
+        model.OnSequenceCompleted += HandleModelSequenceCompleted;
+    }
+
+    private void OnDestroy()
+    {
+        if (view != null)
+        {
+            view.OnButtonClicked -= HandleButtonClicked;
+            view.OnCloseClicked  -= HandleCloseClicked;
+        }
+
+        if (model != null)
+        {
+            model.OnButtonPressed    -= HandleModelButtonPressed;
+            model.OnSequenceFailed   -= HandleModelSequenceFailed;
+            model.OnSequenceCompleted -= HandleModelSequenceCompleted;
+            model.UnbindPanel();
+        }
+    }
+
+    // ── API pública ──────────────────────────────────────────────────────────
+
+    /// <summary>Punto de entrada: el Interactable llama aquí al activarse.</summary>
+    public void Open(SequencePanelInteractable panel)
+    {
+        if (panel == null) return;
+        if (_isOpen || _isTransitioning) return;
+
+        model.BindPanel(panel);
+        OpenSafe().Forget();
+    }
+
+    // ── Hooks del BaseScreenController ──────────────────────────────────────
+
+    protected override void OnBeforeOpen()
+    {
+        _isOpen = true;
+        view.Populate(model);
 
         // Time.timeScale y cursor los gobierna UIStateManager.
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
-
-        view.Bind(panel);
-        view.Show();
     }
 
-    public void Close()
+    protected override void OnBeforeClose()
     {
-        if (!isOpen) return;
-
-        // Si el jugador cierra sin completar, reseteamos lo ingresado.
-        if (activePanel != null && !activePanel.IsCompleted)
-            activePanel.ResetSequence();
-
-        UnsubscribeFromPanel(activePanel);
-        activePanel = null;
-        isOpen = false;
+        _isOpen = false;
+        model.ResetSequenceIfIncomplete();
 
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
-
-        if (view != null) view.Hide();
     }
 
-    private void SubscribeToPanel(SequencePanelInteractable panel)
+    protected override void OnAfterClose() => model.UnbindPanel();
+
+    // ── Handlers ────────────────────────────────────────────────────────────
+
+    private void HandleButtonClicked(int id) => model.TryPressButton(id);
+
+    private void HandleCloseClicked() => CloseSafe().Forget();
+
+    private void HandleModelButtonPressed(int id)
     {
-        if (panel == null) return;
-        panel.OnSequenceCompleted += HandleSequenceCompleted;
+        view.HighlightPressedButton(id);
+        view.RefreshSequenceDisplay(model.EnteredSequence);
     }
 
-    private void UnsubscribeFromPanel(SequencePanelInteractable panel)
+    private void HandleModelSequenceFailed()
     {
-        if (panel == null) return;
-        panel.OnSequenceCompleted -= HandleSequenceCompleted;
+        view.ShowFailFlash();
+        view.RefreshSequenceDisplay(model.EnteredSequence);
     }
 
-    private void HandleSequenceCompleted()
+    private void HandleModelSequenceCompleted()
     {
-        // Cerrar la UI al resolver el puzzle. La animacion de exito la maneja la View
-        // antes de cerrar, si quiere.
-        Close();
+        view.ShowCompleted();
+        CloseAfterDelay(0.6f).Forget();
+    }
+
+    // ── Helpers async ───────────────────────────────────────────────────────
+
+    private async UniTaskVoid OpenSafe()
+    {
+        _isTransitioning = true;
+        await base.Open();
+        _isTransitioning = false;
+    }
+
+    private async UniTaskVoid CloseSafe()
+    {
+        if (_isTransitioning) return;
+        _isTransitioning = true;
+        await base.Close();
+        _isTransitioning = false;
+    }
+
+    private async UniTaskVoid CloseAfterDelay(float seconds)
+    {
+        await UniTask.Delay(TimeSpan.FromSeconds(seconds), DelayType.UnscaledDeltaTime);
+        CloseSafe().Forget();
     }
 }

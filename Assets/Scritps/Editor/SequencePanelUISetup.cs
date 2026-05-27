@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using TMPro;
 using UnityEditor;
@@ -202,20 +203,21 @@ public static class SequencePanelUISetup
 
         // ---- View + refs ----
         SequencePanelView view = canvasGO.AddComponent<SequencePanelView>();
-        BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic;
-        typeof(SequencePanelView).GetField("canvasGroup", bf).SetValue(view, cg);
-        typeof(SequencePanelView).GetField("buttonsParent", bf).SetValue(view, gridRT);
-        typeof(SequencePanelView).GetField("buttonPrefab", bf).SetValue(view, btnTemplateGO.GetComponent<Button>());
-        typeof(SequencePanelView).GetField("titleText", bf).SetValue(view, titleText);
-        typeof(SequencePanelView).GetField("sequenceDisplayText", bf).SetValue(view, seqText);
-        typeof(SequencePanelView).GetField("statusText", bf).SetValue(view, statusText);
-        typeof(SequencePanelView).GetField("closeButton", bf).SetValue(view, closeBtn);
+        // canvasGroup vive en la base BaseScreenView (protected) → necesitamos buscar en la jerarquía.
+        SetPrivateField(view, "canvasGroup", cg);
+        SetPrivateField(view, "buttonsParent", gridRT);
+        SetPrivateField(view, "buttonPrefab", btnTemplateGO.GetComponent<Button>());
+        SetPrivateField(view, "titleText", titleText);
+        SetPrivateField(view, "sequenceDisplayText", seqText);
+        SetPrivateField(view, "statusText", statusText);
+        SetPrivateField(view, "closeButton", closeBtn);
 
         // ---- Controller GameObject ----
         GameObject ctrlGO = new GameObject("SequencePanelUIController");
         SceneManager.MoveGameObjectToScene(ctrlGO, levelUI);
         SequencePanelUIController ctrl = ctrlGO.AddComponent<SequencePanelUIController>();
-        typeof(SequencePanelUIController).GetField("view", bf).SetValue(ctrl, view);
+        // view también vive en la base BaseScreenController.
+        SetPrivateField(ctrl, "view", view);
 
         canvasGO.SetActive(false);
 
@@ -228,6 +230,30 @@ public static class SequencePanelUISetup
     private static void DestroyIfExists(string name)
     {
         GameObject existing = GameObject.Find(name);
-        if (existing != null) Object.DestroyImmediate(existing);
+        if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
+    }
+
+    /// <summary>
+    /// Asigna un campo privado/protegido por reflection, buscando también en clases base.
+    /// Necesario porque <c>canvasGroup</c> (en <c>BaseScreenView</c>) y <c>view</c>
+    /// (en <c>BaseScreenController</c>) son protected y declarados en la base.
+    /// </summary>
+    private static void SetPrivateField(object target, string fieldName, object value)
+    {
+        Type type = target.GetType();
+        FieldInfo field = null;
+        while (type != null && field == null)
+        {
+            field = type.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            type = type.BaseType;
+        }
+
+        if (field == null)
+        {
+            Debug.LogError($"[SequencePanelUISetup] No se encontró el campo '{fieldName}' en {target.GetType().Name} ni en sus bases.");
+            return;
+        }
+
+        field.SetValue(target, value);
     }
 }

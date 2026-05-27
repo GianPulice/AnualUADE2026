@@ -24,6 +24,10 @@ public class InteractionManager : Singleton<InteractionManager>
     private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
+    // Cooldown entre pulsaciones de E (spec: 0.2s para evitar activaciones dobles).
+    private const float InteractCooldown = 0.2f;
+    private float lastInteractTime = -999f;
+
     private void Awake()
     {
         CreateSingleton(true);
@@ -182,8 +186,11 @@ public class InteractionManager : Singleton<InteractionManager>
     private void Interact()
     {
         if (!Input.GetKeyDown(KeyCode.E)) return;
+        if (Time.unscaledTime - lastInteractTime < InteractCooldown) return;
         if (currentInteractable == null) return;
         if (!currentInteractable.CanInteract()) return;
+
+        lastInteractTime = Time.unscaledTime;
 
         IInteractable interactableToUse = currentInteractable;
 

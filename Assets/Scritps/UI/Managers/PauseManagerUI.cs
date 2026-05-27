@@ -88,18 +88,10 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
     private void HandleContinue()
     {
-        // El boton "Continuar" tambien funciona como "Salir del puzzle abierto":
-        // primero cierra cualquier modal que haya quedado debajo de la pausa
-        // (por ejemplo, el SequencePanel que el jugador estaba jugando antes de pausar).
-        // Despues despausa.
+        // "Continuar" solo despausa. Si habia una modal abierta debajo (ej: SequencePanel),
+        // el jugador vuelve a esa modal — NO la cerramos. Para salir limpio al gameplay
+        // tiene que cerrar la modal manualmente o usar "Exit al menu".
         PauseManager.RequestUnpause();
-
-        if (UIStateManager.Exists)
-        {
-            // Pop hasta vaciar el stack (la pausa ya se removio sola al cerrarse).
-            // Asi el jugador vuelve al gameplay limpio.
-            UIStateManager.Instance.CloseAll();
-        }
     }
 
     private void HandleSettings()

@@ -592,9 +592,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 912777969}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1005d2cdf99459c4fbc25f36b38e71dc, type: 3}
+  m_Script: {fileID: 11500000, guid: 90bbea4f0d0a0254686c6f854ea4f33c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DocumentReaderController
+  view: {fileID: 0}
+  closeKey: 27
 --- !u!4 &912777971
 Transform:
   m_ObjectHideFlags: 0
@@ -888,6 +890,10 @@ PrefabInstance:
       propertyPath: m_SizeDelta.x
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1099002138031224469, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1557889040146693690, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -922,6 +928,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2975424260614910987, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
       propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3357846861616497310, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3357846861616497310, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3357846861616497310, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMin.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3645131136348005447, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
@@ -1020,6 +1038,10 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4456021970296953662, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5915361622310188407, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
       propertyPath: m_Value
       value: 1
@@ -1031,6 +1053,22 @@ PrefabInstance:
     - target: {fileID: 6249979196592145189, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6249979196592145189, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8207738486016335941, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8207738486016335941, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8606792682723245708, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -0.000030517578
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1171,15 +1209,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca0790085bc90884a9481bccd2896054, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VisionRangeController
+  config: {fileID: 11400000, guid: e2cbd4bbb05549f4e95dbb04f86dfda5, type: 2}
   playerTag: Player
   playerOverride: {fileID: 0}
   searchEveryNFrames: 30
-  visionStart: 2
-  visionEndDark: 6
-  visionEndLit: 25
-  fogColor: {r: 0, g: 0, b: 0, a: 1}
-  lightPreservation: 2
-  lerpSpeed: 2
+  fallbackVisionStart: 5
+  fallbackVisionEndDark: 6
+  fallbackVisionEndLit: 25
+  fallbackFogColor: {r: 0.115566045, g: 0.35951787, b: 0.5, a: 1}
+  fallbackLightPreservation: 5
+  fallbackLerpSpeed: 2
 --- !u!1 &1593416012
 GameObject:
   m_ObjectHideFlags: 0

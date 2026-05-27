@@ -1852,7 +1852,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: -17, y: -17}
+  m_SizeDelta: {x: -17, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &8054117993092836766
 CanvasRenderer:
@@ -5144,8 +5144,8 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5157104282387638830}
-  - {fileID: 8468001168049311909}
   - {fileID: 2584768646367435343}
+  - {fileID: 8468001168049311909}
   - {fileID: 5487911329469840196}
   m_Father: {fileID: 6239592708443821494}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3583e74fc6df914fb5b66cd9ed83459, type: 3}
+  m_Name: SO_VisionFog_SilentHill
+  m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
+  visionStart: 1.25
+  visionEndDark: 5
+  visionEndLit: 25
+  fogColor: {r: 0.28627452, g: 0.34117648, b: 0.3882353, a: 1}
+  lightPreservation: 0.25
+  lerpSpeed: 2

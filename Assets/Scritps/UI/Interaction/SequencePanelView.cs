@@ -1,17 +1,19 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Vista del panel de secuencia. Genera dinamicamente N botones segun el panel
-/// recibido en Bind() y delega cada press al SequencePanelInteractable.
-/// No conoce nada del puzzle especifico — recibe solo el panel y la cantidad de botones.
+/// View del panel de secuencia. Solo presenta — NO conoce al
+/// <see cref="SequencePanelInteractable"/>. Emite eventos cuando el usuario
+/// interactúa, y expone métodos públicos para que el controller refresque la UI.
+///
+/// El <c>canvasGroup</c> se hereda de <see cref="BaseScreenView"/>.
 /// </summary>
-public class SequencePanelView : MonoBehaviour
+public class SequencePanelView : BaseScreenView
 {
     [Header("Refs")]
-    [SerializeField] private CanvasGroup canvasGroup;
     [SerializeField] private RectTransform buttonsParent;
     [SerializeField] private Button buttonPrefab;
     [SerializeField] private TextMeshProUGUI titleText;
@@ -21,30 +23,38 @@ public class SequencePanelView : MonoBehaviour
 
     [Header("Feedback")]
     [SerializeField] private Color buttonDefaultColor = new Color(0.07f, 0.07f, 0.07f, 1f);
-    [SerializeField] private Color buttonActiveColor = new Color(0.1f, 0.4f, 0.16f, 1f);
-    [SerializeField] private Color buttonWrongColor = new Color(0.4f, 0.1f, 0.1f, 1f);
+    [SerializeField] private Color buttonActiveColor  = new Color(0.1f, 0.4f, 0.16f, 1f);
+    [SerializeField] private Color buttonWrongColor   = new Color(0.4f, 0.1f, 0.1f, 1f);
     [SerializeField] private float wrongFlashDuration = 0.6f;
 
     [Header("Strings")]
-    [SerializeField] private string titleString = "Panel Electrico";
-    [SerializeField] private string statusIdleString = "Ingrese la secuencia";
+    [SerializeField] private string titleString       = "Panel Electrico";
+    [SerializeField] private string statusIdleString  = "Ingrese la secuencia";
     [SerializeField] private string statusWrongString = "Secuencia incorrecta. Reiniciando...";
-    [SerializeField] private string statusOkString = "Secuencia correcta!";
+    [SerializeField] private string statusOkString    = "Secuencia correcta!";
 
-    private SequencePanelInteractable boundPanel;
+    /// <summary>Se dispara cuando el usuario clickea uno de los botones del grid.</summary>
+    public event Action<int> OnButtonClicked;
+
+    /// <summary>Se dispara cuando el usuario clickea el botón de cerrar de la UI.</summary>
+    public event Action OnCloseClicked;
+
     private readonly List<Button> spawnedButtons = new List<Button>();
     private float wrongFlashTimer;
-    private bool isFlashingWrong;
+    private bool  isFlashingWrong;
 
     private void Awake()
     {
-        if (closeButton != null) closeButton.onClick.AddListener(OnCloseClicked);
+        if (closeButton != null)
+            closeButton.onClick.AddListener(HandleCloseClicked);
     }
 
     private void OnDestroy()
     {
-        if (closeButton != null) closeButton.onClick.RemoveListener(OnCloseClicked);
-        UnsubscribeFromPanel();
+        if (closeButton != null)
+            closeButton.onClick.RemoveListener(HandleCloseClicked);
+
+        ClearButtons();
     }
 
     private void Update()
@@ -59,66 +69,65 @@ public class SequencePanelView : MonoBehaviour
         }
     }
 
-    public void SetVisibleImmediate(bool visible)
-    {
-        gameObject.SetActive(visible);
-        if (canvasGroup == null) return;
-        canvasGroup.alpha = visible ? 1f : 0f;
-        canvasGroup.interactable = visible;
-        canvasGroup.blocksRaycasts = visible;
-    }
+    // ── API pública (la llama el controller) ────────────────────────────────
 
-    public void Show()
+    /// <summary>
+    /// Refresca toda la UI según el modelo. Construye los botones, setea título
+    /// y status idle, limpia la secuencia mostrada.
+    /// </summary>
+    public void Populate(SequencePanelModel model)
     {
-        gameObject.SetActive(true);
-        if (canvasGroup != null)
-        {
-            canvasGroup.alpha = 1f;
-            canvasGroup.interactable = true;
-            canvasGroup.blocksRaycasts = true;
-        }
-    }
-
-    public void Hide()
-    {
-        if (canvasGroup != null)
-        {
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-        }
-        gameObject.SetActive(false);
-    }
-
-    public void Bind(SequencePanelInteractable panel)
-    {
-        UnsubscribeFromPanel();
-        boundPanel = panel;
+        isFlashingWrong = false;
+        wrongFlashTimer = 0f;
 
         if (titleText != null) titleText.text = titleString;
         UpdateStatus(statusIdleString);
-        UpdateSequenceDisplay();
 
-        BuildButtons(panel.ButtonCount);
-        SubscribeToPanel();
+        BuildButtons(model != null ? model.ButtonCount : 0);
+        RefreshSequenceDisplay(model != null ? model.EnteredSequence : null);
     }
 
-    private void SubscribeToPanel()
+    public void RefreshSequenceDisplay(IReadOnlyList<int> entered)
     {
-        if (boundPanel == null) return;
-        boundPanel.OnButtonPressed += HandleButtonPressed;
-        boundPanel.OnSequenceFailed += HandleSequenceFailed;
-        boundPanel.OnSequenceCompleted += HandleSequenceCompleted;
+        if (sequenceDisplayText == null) return;
+
+        if (entered == null || entered.Count == 0)
+        {
+            sequenceDisplayText.text = "Ingresada: —";
+            return;
+        }
+
+        sequenceDisplayText.text = "Ingresada: " + string.Join(" — ", entered);
     }
 
-    private void UnsubscribeFromPanel()
+    /// <summary>Marca botón individual como recién presionado (verde).</summary>
+    public void HighlightPressedButton(int buttonId)
     {
-        if (boundPanel == null) return;
-        boundPanel.OnButtonPressed -= HandleButtonPressed;
-        boundPanel.OnSequenceFailed -= HandleSequenceFailed;
-        boundPanel.OnSequenceCompleted -= HandleSequenceCompleted;
-        boundPanel = null;
+        int idx = buttonId - 1;
+        if (idx < 0 || idx >= spawnedButtons.Count) return;
+        SetButtonColor(spawnedButtons[idx], buttonActiveColor);
     }
+
+    public void ShowFailFlash()
+    {
+        UpdateStatus(statusWrongString);
+        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonWrongColor);
+        isFlashingWrong = true;
+        wrongFlashTimer = wrongFlashDuration;
+    }
+
+    public void ShowCompleted()
+    {
+        UpdateStatus(statusOkString);
+        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonActiveColor);
+    }
+
+    public void ResetButtonColors()
+    {
+        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonDefaultColor);
+    }
+
+    // ── Internos ────────────────────────────────────────────────────────────
 
     private void BuildButtons(int count)
     {
@@ -140,7 +149,7 @@ public class SequencePanelView : MonoBehaviour
             TextMeshProUGUI label = btn.GetComponentInChildren<TextMeshProUGUI>(true);
             if (label != null) label.text = buttonId.ToString();
 
-            btn.onClick.AddListener(() => OnButtonClicked(buttonId));
+            btn.onClick.AddListener(() => HandleButtonClicked(buttonId));
             SetButtonColor(btn, buttonDefaultColor);
 
             spawnedButtons.Add(btn);
@@ -158,59 +167,17 @@ public class SequencePanelView : MonoBehaviour
         spawnedButtons.Clear();
     }
 
-    private void OnButtonClicked(int buttonId)
+    private void HandleButtonClicked(int buttonId)
     {
-        if (boundPanel == null) return;
         if (isFlashingWrong) return;
-        boundPanel.TryPressButton(buttonId);
+        OnButtonClicked?.Invoke(buttonId);
     }
 
-    private void HandleButtonPressed(int buttonId)
-    {
-        UpdateSequenceDisplay();
-
-        int idx = buttonId - 1;
-        if (idx >= 0 && idx < spawnedButtons.Count)
-            SetButtonColor(spawnedButtons[idx], buttonActiveColor);
-    }
-
-    private void HandleSequenceFailed()
-    {
-        UpdateStatus(statusWrongString);
-        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonWrongColor);
-        isFlashingWrong = true;
-        wrongFlashTimer = wrongFlashDuration;
-        UpdateSequenceDisplay();
-    }
-
-    private void HandleSequenceCompleted()
-    {
-        UpdateStatus(statusOkString);
-        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonActiveColor);
-    }
-
-    private void UpdateSequenceDisplay()
-    {
-        if (sequenceDisplayText == null || boundPanel == null) return;
-
-        IReadOnlyList<int> entered = boundPanel.EnteredSequence;
-        if (entered.Count == 0)
-        {
-            sequenceDisplayText.text = "Ingresada: —";
-            return;
-        }
-
-        sequenceDisplayText.text = "Ingresada: " + string.Join(" — ", entered);
-    }
+    private void HandleCloseClicked() => OnCloseClicked?.Invoke();
 
     private void UpdateStatus(string text)
     {
         if (statusText != null) statusText.text = text;
-    }
-
-    private void ResetButtonColors()
-    {
-        foreach (Button b in spawnedButtons) SetButtonColor(b, buttonDefaultColor);
     }
 
     private void SetButtonColor(Button btn, Color color)
@@ -220,14 +187,8 @@ public class SequencePanelView : MonoBehaviour
         if (img != null) img.color = color;
 
         ColorBlock cb = btn.colors;
-        cb.normalColor = color;
+        cb.normalColor   = color;
         cb.selectedColor = color;
         btn.colors = cb;
-    }
-
-    private void OnCloseClicked()
-    {
-        if (SequencePanelUIController.Instance != null)
-            SequencePanelUIController.Instance.Close();
     }
 }

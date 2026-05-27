@@ -16,14 +16,17 @@ using UnityEngine;
 /// Setea globals que el shader fullscreen lee:
 ///   _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation
 ///
-/// Setup:
-///   1. Pegar este componente a un GameObject en escena persistente (LevelUI).
-///   2. Asegurarse de que el player en gameplay tenga el tag <c>"Player"</c>.
-///   3. Ajustar rangos en Inspector según el nivel.
+/// Configuración:
+///   - Asignar un <see cref="SO_VisionFogConfig"/> para usar preset por nivel.
+///   - Si no se asigna, usa los campos "Fallback" del Inspector (defaults razonables).
 /// </summary>
 [DefaultExecutionOrder(100)] // después del PlayerController, antes del render
 public class VisionRangeController : MonoBehaviour
 {
+    [Header("Preset (opcional)")]
+    [Tooltip("Si está asignado, sus valores reemplazan los del fallback. Si está vacío, se usan los campos de abajo.")]
+    [SerializeField] private SO_VisionFogConfig config;
+
     [Header("Player")]
     [Tooltip("Tag del GameObject del player. Se busca en runtime porque vive en otra escena (gameplay aditivo).")]
     [SerializeField] private string playerTag = "Player";
@@ -34,25 +37,13 @@ public class VisionRangeController : MonoBehaviour
     [Tooltip("Cada cuántos frames re-buscar al player si todavía no apareció. Más bajo = más responsivo, más costoso.")]
     [SerializeField, Min(1)] private int searchEveryNFrames = 30;
 
-    [Header("Rangos de visión (metros)")]
-    [Tooltip("Distancia hasta la cual no hay niebla. Spec default: 5m.")]
-    [SerializeField, Min(0f)] private float visionStart   = 5f;
-
-    [Tooltip("Rango máximo en oscuridad total (lightLevel = 0). Cierra el fog cerca.")]
-    [SerializeField, Min(0f)] private float visionEndDark = 6f;
-
-    [Tooltip("Rango máximo en zona iluminada (lightLevel = 1). Fog casi imperceptible.")]
-    [SerializeField, Min(0f)] private float visionEndLit  = 25f;
-
-    [Header("Look del fog")]
-    [SerializeField] private Color fogColor = Color.black;
-
-    [Tooltip("Preservación de zonas brillantes. 0 = la niebla cubre todo. >1 = las luces 'perforan' la niebla. Spec recomienda 2.")]
-    [SerializeField, Range(0f, 5f)] private float lightPreservation = 2f;
-
-    [Header("Suavizado entre zonas")]
-    [Tooltip("Velocidad de transición del rango al cambiar de zona oscura a iluminada (o viceversa).")]
-    [SerializeField, Range(0.1f, 5f)] private float lerpSpeed = 2f;
+    [Header("Fallback (usado solo si no hay config asignada)")]
+    [SerializeField, Min(0f)] private float fallbackVisionStart       = 5f;
+    [SerializeField, Min(0f)] private float fallbackVisionEndDark     = 6f;
+    [SerializeField, Min(0f)] private float fallbackVisionEndLit      = 25f;
+    [SerializeField] private Color fallbackFogColor                   = Color.black;
+    [SerializeField, Range(0f, 5f)] private float fallbackLightPreservation = 0f;
+    [SerializeField, Range(0.1f, 5f)] private float fallbackLerpSpeed       = 2f;
 
     private Transform _player;
     private float _currentVisionEnd;
@@ -63,9 +54,17 @@ public class VisionRangeController : MonoBehaviour
     private static readonly int FogColorId  = Shader.PropertyToID("_FogColor");
     private static readonly int LightPresId = Shader.PropertyToID("_LightPreservation");
 
+    // ── Propiedades efectivas (config si hay, sino fallback) ─────────────────
+    private float  VisionStart       => config != null ? config.visionStart       : fallbackVisionStart;
+    private float  VisionEndDark     => config != null ? config.visionEndDark     : fallbackVisionEndDark;
+    private float  VisionEndLit      => config != null ? config.visionEndLit      : fallbackVisionEndLit;
+    private Color  FogColor          => config != null ? config.fogColor          : fallbackFogColor;
+    private float  LightPreservation => config != null ? config.lightPreservation : fallbackLightPreservation;
+    private float  LerpSpeed         => config != null ? config.lerpSpeed         : fallbackLerpSpeed;
+
     private void Start()
     {
-        _currentVisionEnd = visionEndLit;
+        _currentVisionEnd = VisionEndLit;
         TryAcquirePlayer();
     }
 
@@ -85,14 +84,14 @@ public class VisionRangeController : MonoBehaviour
         }
 
         float lightLevel = SampleLightLevel();
-        float targetVisionEnd = Mathf.Lerp(visionEndDark, visionEndLit, lightLevel);
-        _currentVisionEnd = Mathf.Lerp(_currentVisionEnd, targetVisionEnd, Time.deltaTime * lerpSpeed);
+        float targetVisionEnd = Mathf.Lerp(VisionEndDark, VisionEndLit, lightLevel);
+        _currentVisionEnd = Mathf.Lerp(_currentVisionEnd, targetVisionEnd, Time.deltaTime * LerpSpeed);
 
         Shader.SetGlobalVector(PlayerPosId, _player.position);
-        Shader.SetGlobalFloat(VStartId, visionStart);
+        Shader.SetGlobalFloat(VStartId, VisionStart);
         Shader.SetGlobalFloat(VEndId, _currentVisionEnd);
-        Shader.SetGlobalColor(FogColorId, fogColor);
-        Shader.SetGlobalFloat(LightPresId, lightPreservation);
+        Shader.SetGlobalColor(FogColorId, FogColor);
+        Shader.SetGlobalFloat(LightPresId, LightPreservation);
     }
 
     private void TryAcquirePlayer()

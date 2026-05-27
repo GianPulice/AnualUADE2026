@@ -153,7 +153,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         inventoryView?.SetVisible(true);
         RefreshItemList();
 
-        //AutoSelectFirstItem();
+        AutoSelectFirstItem();
 
         InventoryEvents.InventoryToggled(true);
     }

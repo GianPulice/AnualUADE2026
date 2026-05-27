@@ -9414,6 +9414,23 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1079145390}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1104700823 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1088243688451712710, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+  m_PrefabInstance: {fileID: 1448015033}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1104700831
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1104700823}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e544e4cd622b1347b9116a4fa183ba1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraInputBlocker
 --- !u!1 &1107721357
 GameObject:
   m_ObjectHideFlags: 0
@@ -13030,7 +13047,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -3.1
+      value: -21.5
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.y
@@ -13038,7 +13055,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -54.6
+      value: -82.91
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.w
@@ -13079,7 +13096,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1088243688451712710, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1104700831}
   m_SourcePrefab: {fileID: 100100000, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
 --- !u!1 &1466782804
 GameObject:
@@ -15484,7 +15504,7 @@ Transform:
   m_GameObject: {fileID: 1725169767}
   serializedVersion: 2
   m_LocalRotation: {x: 0.034648307, y: 0.88064104, z: 0.06519872, w: -0.46799567}
-  m_LocalPosition: {x: -1.6114968, y: 2.1383147, z: -53.735153}
+  m_LocalPosition: {x: -20.011497, y: 2.1383147, z: -82.04516}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

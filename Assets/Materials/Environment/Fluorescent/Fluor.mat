@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Flicker
-  m_Shader: {fileID: 4800000, guid: a11276a7a5c7f69429b697c9e8a4b175, type: 3}
+  m_Name: Fluor
+  m_Shader: {fileID: 4800000, guid: ef992422f9b1ec44581d65ee50df56f4, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

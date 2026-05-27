@@ -65,7 +65,7 @@ Material:
     - _Cull: 2
     - _DstBlend: 0
     - _DstBlendAlpha: 0
-    - _EmissionIntensity: 0
+    - _EmissionIntensity: 0.15
     - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
@@ -73,14 +73,14 @@ Material:
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
-    - _TintIntensity: 0.15
+    - _TintIntensity: 0.25
     - _WorkflowMode: 0
     - _ZTest: 4
     - _ZWrite: 1
     - _ZWriteControl: 0
     m_Colors:
-    - _BaseColor: {r: 0.29019606, g: 0.29019606, b: 0.29019606, a: 1}
-    - _EmissionColor: {r: 0.43137246, g: 0.5568627, b: 0.61960775, a: 1}
-    - _TintColor: {r: 0.21568623, g: 0.27843136, b: 0.30980387, a: 1}
+    - _BaseColor: {r: 0.5566038, g: 0.5566038, b: 0.5566038, a: 1}
+    - _EmissionColor: {r: 1.2807971, g: 0.15103737, b: 0.15103737, a: 1}
+    - _TintColor: {r: 0.4811321, g: 0.02944281, b: 0, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
