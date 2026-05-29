@@ -596,7 +596,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DocumentReaderController
   view: {fileID: 0}
-  closeKey: 27
 --- !u!4 &912777971
 Transform:
   m_ObjectHideFlags: 0
@@ -1209,16 +1208,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca0790085bc90884a9481bccd2896054, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VisionRangeController
-  config: {fileID: 11400000, guid: e2cbd4bbb05549f4e95dbb04f86dfda5, type: 2}
+  defaultConfig: {fileID: 11400000, guid: e2cbd4bbb05549f4e95dbb04f86dfda5, type: 2}
   playerTag: Player
   playerOverride: {fileID: 0}
   searchEveryNFrames: 30
-  fallbackVisionStart: 5
-  fallbackVisionEndDark: 6
-  fallbackVisionEndLit: 25
-  fallbackFogColor: {r: 0.115566045, g: 0.35951787, b: 0.5, a: 1}
-  fallbackLightPreservation: 5
-  fallbackLerpSpeed: 2
 --- !u!1 &1593416012
 GameObject:
   m_ObjectHideFlags: 0

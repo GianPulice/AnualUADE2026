@@ -2,38 +2,39 @@ using UnityEngine;
 
 /// <summary>
 /// Preset de configuración del vision fog. Asignable al <see cref="VisionRangeController"/>
-/// para tener distintas atmósferas por nivel/zona sin tocar código.
+/// como default o usado por un <c>LightZone</c> trigger para definir el "feeling" de
+/// una zona puntual del nivel.
 ///
-/// Para crear un preset nuevo:
-///   Project window → click derecho → Create → Rendering → Vision Fog Config.
+/// El diseñador no piensa en cantidad de luz física — piensa en qué atmósfera
+/// debe tener esta zona. Ejemplos típicos:
+///   - Default_Dark        — pasillos sin destino, fog cierra cerca
+///   - SafeRoom            — sala segura, visión amplia aunque haya poca luz
+///   - PuzzleRoom_Lit      — sala con monitores, visión media-amplia
+///   - BossArena           — atmósfera tensa, visión corta aunque haya antorchas
+///   - SilentHill_Foggy    — niebla densa estilo Silent Hill, gris medio
 ///
-/// Ejemplos típicos de presets:
-///   - Interior_Dark        — pasillos sin luz, fog cierra cerca (visionEndDark 4, color negro)
-///   - Interior_Lit         — sala con luces, fog se aleja (visionEndDark 8, lightPreservation 0.5)
-///   - Exterior_Foggy       — Silent Hill style (gris medio, rangos chicos, lightPreservation 0)
-///   - Boss_Arena           — atmósfera tensa (color rojizo sutil, rangos custom)
+/// Para crear: Project window → click derecho → Create → Rendering → Vision Fog Config.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_VisionFog_", menuName = "Rendering/Vision Fog Config")]
 public class SO_VisionFogConfig : ScriptableObject
 {
-    [Header("Rangos de visión (metros)")]
+    [Header("Rango de visión (metros)")]
     [Tooltip("Distancia hasta la cual no hay niebla.")]
     [Min(0f)] public float visionStart = 5f;
 
-    [Tooltip("Rango máximo en oscuridad total (ambient light = 0). Cierra el fog cerca.")]
-    [Min(0f)] public float visionEndDark = 6f;
-
-    [Tooltip("Rango máximo en zona iluminada (ambient light = 1). Fog casi imperceptible.")]
-    [Min(0f)] public float visionEndLit = 25f;
+    [Tooltip("Distancia donde la niebla cubre 100%. Valores chicos = más opresivo, " +
+             "valores altos = visión amplia.")]
+    [Min(0f)] public float visionEnd = 20f;
 
     [Header("Look")]
-    [Tooltip("Color base de la niebla. Negro = oscuridad pura. Gris medio = niebla densa.")]
+    [Tooltip("Color base de la niebla. Negro = oscuridad pura. Gris medio = niebla densa estilo Silent Hill.")]
     public Color fogColor = Color.black;
 
     [Tooltip("Preservación de zonas brillantes. 0 = la niebla cubre todo. >1 = las luces 'perforan' la niebla.")]
     [Range(0f, 5f)] public float lightPreservation = 0f;
 
-    [Header("Transición")]
-    [Tooltip("Velocidad de transición al cambiar de zona oscura a iluminada (o viceversa).")]
-    [Range(0.1f, 5f)] public float lerpSpeed = 2f;
+    [Header("Transición al activarse")]
+    [Tooltip("Segundos que tarda el fog en interpolar de la config anterior a esta. " +
+             "0 = cambio instantáneo.")]
+    [Min(0f)] public float transitionDuration = 1f;
 }

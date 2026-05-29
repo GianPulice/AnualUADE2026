@@ -88,9 +88,17 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         CloseSafe().Forget();
     }
 
+    /// <summary>
+    /// "Reset values" del wireframe: revierte los cambios pendientes a los valores que
+    /// había al abrir Settings (o al último Apply). No cierra la pantalla — solo deshace
+    /// los cambios sin tocados de los sliders/toggles.
+    ///
+    /// Si en el futuro hace falta "Reset to factory defaults" (volver a los valores fábrica
+    /// del juego), agregar un botón separado y llamar a <c>model.ResetToDefaults()</c>.
+    /// </summary>
     private void HandleReset()
     {
-        model.ResetToDefaults();
+        model.Revert();
         view.Populate(model);
     }
 
