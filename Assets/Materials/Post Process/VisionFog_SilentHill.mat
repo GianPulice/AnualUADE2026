@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SilentHillFog
-  m_Shader: {fileID: -6465566751694194690, guid: 48ed5c9d91ba7944aac5cef540fdec74, type: 3}
+  m_Name: VisionFog_SilentHill
+  m_Shader: {fileID: -6465566751694194690, guid: 34d7e7724bdcb954c82ee79e5275b371, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -37,14 +37,9 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _FogNoiseIntensity: 0.257
-    - _FogNoiseScale: 0.01
-    - _FogScrollSpeed: 0.25
-    - _LightIntensity: 2
-    - _VisionEnd: 20
-    - _VisionStart: 5
-    m_Colors:
-    - _FogColor: {r: 0, g: 0, b: 0, a: 1}
-    - _PlayerPos: {r: 0, g: 0, b: 0, a: 0}
+    - _FogNoiseIntensity: 0.4
+    - _FogNoiseScale: 0.05
+    - _FogScrollSpeed: 0.1
+    m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

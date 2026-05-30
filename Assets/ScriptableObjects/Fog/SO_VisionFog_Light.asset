@@ -9,11 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d3583e74fc6df914fb5b66cd9ed83459, type: 3}
+  m_Script: {fileID: 11500000, guid: 9610cc42620bd3b4eafa9fc758329e80, type: 3}
   m_Name: SO_VisionFog_Light
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
   visionStart: 5
   visionEnd: 20
   fogColor: {r: 0, g: 0, b: 0, a: 1}
   lightPreservation: 0
-  transitionDuration: 7
+  transitionDuration: 1
