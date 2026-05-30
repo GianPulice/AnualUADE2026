@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: VisionFog
-  m_Shader: {fileID: -6465566751694194690, guid: 48ed5c9d91ba7944aac5cef540fdec74, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: 34d7e7724bdcb954c82ee79e5275b371, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

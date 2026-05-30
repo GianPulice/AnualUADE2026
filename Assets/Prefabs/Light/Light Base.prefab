@@ -159,8 +159,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 3033032239168611880}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6c6cbf3dcc58ffd45ad52b1b4bafe980, type: 3}
+  m_Script: {fileID: 11500000, guid: 570c6c4ed05495a42ab92b5d1ada0c2c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LightZone
-  config: {fileID: 11400000, guid: 2eac4d8bae2fad04fb69b28ffcc9f971, type: 2}
+  config: {fileID: 11400000, guid: 56fdc00862d936140817761bb5b2783e, type: 2}
   playerTag: Player

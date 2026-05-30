@@ -875,7 +875,7 @@
     },
     "m_SourceType": 0,
     "m_FunctionName": "VisionFog",
-    "m_FunctionSource": "a160dc691bd44ff4281446380bc846a9",
+    "m_FunctionSource": "0ad6c09f5001c0440b0ecd4581e15263",
     "m_FunctionSourceUsePragmas": true,
     "m_FunctionBody": "Enter function body here..."
 }
@@ -1062,7 +1062,7 @@
     },
     "m_SourceType": 0,
     "m_FunctionName": "WorldFromDepth",
-    "m_FunctionSource": "a160dc691bd44ff4281446380bc846a9",
+    "m_FunctionSource": "0ad6c09f5001c0440b0ecd4581e15263",
     "m_FunctionSourceUsePragmas": true,
     "m_FunctionBody": "Enter function body here..."
 }
