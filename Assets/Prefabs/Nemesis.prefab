@@ -53,7 +53,6 @@ MonoBehaviour:
   fieldOfListening: {fileID: 6366883338896328337}
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
   nemesisMovement: {fileID: 11400000, guid: a3c36718f82fd9d4aad8c4758fe45368, type: 2}
-  targetPosition: {x: 0, y: 0, z: 0}
   navAgent: {fileID: 5684726728193510827}
   wayPoints: []
   animController: {fileID: 1288472604488426125}
@@ -66,14 +65,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 6133474145954848426}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b79531d4ce3c3364bbb259863a3e1165, type: 3}
+  m_Script: {fileID: 11500000, guid: aca499dee1b7a584c880fb935b80dead, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfListenig
-  listenRange: 5
+  listenRange: 0
   listenDelay: 0.1
   listenMask:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 0
 --- !u!114 &7262208103517849607
 MonoBehaviour:
   m_ObjectHideFlags: 0
