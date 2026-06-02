@@ -495,7 +495,11 @@ GameObject:
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 4237558627561065639}
   m_Layer: 6
+<<<<<<<< HEAD:Assets/Prefabs/ValveFather/Valve.prefab
   m_Name: Valve
+========
+  m_Name: Valvula_1
+>>>>>>>> secondBackup-iña:Assets/Prefabs/Puzzle1/Valves/Valvula_1.prefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -636,4 +640,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6616da11ad5be643bc1b42ccd9fa600, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ValveInteractable
+<<<<<<<< HEAD:Assets/Prefabs/ValveFather/Valve.prefab
   valveData: {fileID: 0}
+========
+  valveData: {fileID: 11400000, guid: 842843114b576a34685663de01afe016, type: 2}
+>>>>>>>> secondBackup-iña:Assets/Prefabs/Puzzle1/Valves/Valvula_1.prefab
