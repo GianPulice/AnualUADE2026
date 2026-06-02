@@ -1,5 +1,3 @@
-using System.Threading;
-using UnityEditor.Rendering;
 using UnityEngine;
 
 public class GrabbableBall : MonoBehaviour
@@ -83,7 +81,6 @@ public class GrabbableBall : MonoBehaviour
     private void Grab()
     {
         if (player == null) return;
-
         isGrabbed = true;
 
         rb.mass = 1;

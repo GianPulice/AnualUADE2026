@@ -63,7 +63,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6318150025655715247}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94556868cd6e586418125b5a9432e5cb, type: 3}
+  m_Script: {fileID: 11500000, guid: dbdaa5ebfc9b927428a848b68422b673, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PushBoxTriggerLogic
   Owner: {fileID: 6114506311072273757}
@@ -130,7 +130,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 7147146883778526186}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94556868cd6e586418125b5a9432e5cb, type: 3}
+  m_Script: {fileID: 11500000, guid: dbdaa5ebfc9b927428a848b68422b673, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PushBoxTriggerLogic
   Owner: {fileID: 6114506311072273757}
@@ -197,7 +197,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 7281301254266987304}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94556868cd6e586418125b5a9432e5cb, type: 3}
+  m_Script: {fileID: 11500000, guid: dbdaa5ebfc9b927428a848b68422b673, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PushBoxTriggerLogic
   Owner: {fileID: 6114506311072273757}
@@ -452,7 +452,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 8671121699634703305}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94556868cd6e586418125b5a9432e5cb, type: 3}
+  m_Script: {fileID: 11500000, guid: dbdaa5ebfc9b927428a848b68422b673, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PushBoxTriggerLogic
   Owner: {fileID: 6114506311072273757}
