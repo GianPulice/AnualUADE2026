@@ -9,6 +9,8 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     [Header("Data Reference")]
     [SerializeField] private SO_SceneList sceneDatabase;
+    [Header("Temp")]
+    [SerializeField] private string firstSceneLabel = "TestBlocking";
 
     //Para desuscribir lambdas
     private System.Action _onNewGame;
@@ -45,13 +47,13 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneGroup("TestIñaki")) return;
+        if (!ValidateSceneGroup(firstSceneLabel)) return;
 
         await Close();
 
         await UnloadBootstrapAsync();
 
-        screenChannel.RaisePushScreen("TestIñaki");
+        screenChannel.RaisePushScreen(firstSceneLabel);
     }
 
     private async UniTask HandleLoadGame()
@@ -63,9 +65,15 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private async UniTask HandleSettings()
     {
-        if (!ValidateSceneGroup("UI_Settings")) return;
-        await Close();
-        screenChannel.RaisePushScreen("UI_Settings");
+        if (SettingsController.Instance == null)
+        {
+            Debug.LogError("[MainMenuController] SettingsController.Instance es null. " +
+                           "Â¿EstÃ¡ la escena UI_Settings cargada en el bootstrap?");
+            return;
+        }
+
+        SettingsController.Instance.OpenScreen();
+        await UniTask.CompletedTask;
     }
 
     private void HandleExit()
@@ -87,7 +95,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
             await SceneManager.UnloadSceneAsync(bootstrapScene);
         }
     }
-    // Método de seguridad para debuggear rápido en el editor
+    // Mï¿½todo de seguridad para debuggear rï¿½pido en el editor
     private bool ValidateSceneGroup(string label)
     {
         if (sceneDatabase == null)

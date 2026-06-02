@@ -10,19 +10,19 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        Debug.Log("Enter Idle State");
+        //Debug.Log("Enter Idle State");
     }
 
     public override void ExitState()
     {
-        Debug.Log("Exit Idle State");
-        NextState = Statekey;
+        //Debug.Log("Exit Idle State");
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if(NextState != Statekey) return NextState;
-        else return Statekey;
+        if(NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)
@@ -49,6 +49,10 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
         else*/ if (playerStateManager.IsHidden)
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
+        }
+        else if (playerStateManager.IsCrouch)
+        {
+            NextState = PlayerStateManager.EPlayerState.Crouch;
         }
         else if (playerStateManager.MoveDir != Vector3.zero) NextState = PlayerStateManager.EPlayerState.Moving;
     }

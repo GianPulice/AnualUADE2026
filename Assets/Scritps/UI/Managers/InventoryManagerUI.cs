@@ -16,12 +16,19 @@ using UnityEngine;
 /// NO contiene lógica de negocio (eso es InventoryManager).
 /// </summary>
 
-public class InventoryManagerUI : Singleton<InventoryManagerUI>
+public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 {
     // -- Configuración -------------------
 
     [Header("Input")]
     [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
+
+    // -- IModalUI -------------------
+    public string ModalId => "Inventory";
+    public bool ConsumesEscape => true;   // ESC cierra capas del inventario si pausa NO esta arriba
+    public bool BlocksPause   => false;   // La pausa es overlay global: puede abrirse encima del inventario
+    // RequestClose maneja TODAS las capas del inventario (discard dialog -> doc -> selection -> inventario).
+    public void RequestClose() => HandleCancelInput();
 
     [Header("Módulos del dispositivo")]
     [SerializeField] private List<ModuleData> modules = new List<ModuleData>();
@@ -99,21 +106,28 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
     private void HandleInput()
     {
-        // ESC: capa superior primero
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            HandleCancelInput();
-        }
+        // El cierre por ESC lo gobierna UIStateManager (UI/Exit action -> RequestClose).
+        // Aca solo manejamos Tab para abrir/cerrar el inventario.
 
-        // Tab: toggle del inventario (solo si no hay diálogo abierto)
-        if (Input.GetKeyDown(toggleKey) && !isDiscardOpen)
+        if (!Input.GetKeyDown(toggleKey) || isDiscardOpen) return;
+
+        if (isInventoryOpen)
         {
-            if(itemDetailView != null && itemDetailView.IsDocOpen)
+            // Solo cerramos por Tab si el inventario es el top del stack.
+            if (UIStateManager.Exists && !ReferenceEquals(UIStateManager.Instance.Peek(), this)) return;
+
+            if (itemDetailView != null && itemDetailView.IsDocOpen)
             {
                 itemDetailView.HideDoc();
+                return;
             }
-            if (isInventoryOpen) CloseInventory();
-            else OpenInventory();
+            CloseInventory();
+        }
+        else
+        {
+            // Solo abre si NO hay ninguna otra modal encima (pausa, panel, doc...).
+            if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
+            OpenInventory();
         }
     }
 
@@ -132,17 +146,14 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
 
         isInventoryOpen = true;
 
-        Time.timeScale = 0f;
-
-        // Activar cursor para interactuar con la UI
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        // El UIStateManager se encarga de Time.timeScale y del cursor.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
 
         // Mostrar y poblar la vista
         inventoryView?.SetVisible(true);
         RefreshItemList();
 
-        //AutoSelectFirstItem();
+        AutoSelectFirstItem();
 
         InventoryEvents.InventoryToggled(true);
     }
@@ -160,14 +171,9 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>
         isInventoryOpen = false;
         selectedItem = null;
 
-        // Reanudar gameplay
-        Time.timeScale = 1f;
+        // El UIStateManager restaura Time.timeScale y cursor cuando el stack queda vacio.
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
-        // Desactivar cursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
-        // Ocultar vista y limpiar detalle
         inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
 

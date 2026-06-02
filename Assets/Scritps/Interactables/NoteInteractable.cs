@@ -1,27 +1,22 @@
 using UnityEngine;
 
-public class NoteInteractable : MonoBehaviour, IInteractable
+public class NoteInteractable : BaseRangeInteractable
 {
-    [TextArea]
-    [SerializeField] private string noteText;
+    [SerializeField] private SO_DocumentData documentData;
 
+    public override string GetInteractText() => "Leer";
 
-    public string GetInteractText()
+    protected override bool CanInteractInCloseRange() => documentData != null;
+
+    protected override void OnInteract()
     {
-        return "Leer nota";
+        if (DocumentReaderController.Instance == null)
+        {
+            Debug.LogError("[NoteInteractable] No hay DocumentReaderController en escena (LevelUI).");
+            return;
+        }
+        DocumentReaderController.Instance.Open(documentData);
     }
 
-    public bool CanInteract()
-    {
-        return true;
-    }
-
-    public void Interact()
-    {
-        Debug.Log(noteText);
-    }
-    public bool IsRepeatable()
-    {
-        return false;
-    }
+    public override bool IsRepeatable() => true;
 }

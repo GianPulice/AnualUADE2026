@@ -14,6 +14,8 @@ public class PauseManager : Singleton<PauseManager>
     //-- Model ------------------------------
     private PauseModel model;
 
+    private Action<InputAction.CallbackContext> pauseActionHandler;
+
     private void Awake()
     {
         CreateSingleton(true);
@@ -27,14 +29,16 @@ public class PauseManager : Singleton<PauseManager>
         if (pauseAction != null)
         {
             pauseAction.action.Enable();
-            pauseAction.action.performed += _ => Toggle();
+            pauseActionHandler = _ => TryToggleFromInput();
+            pauseAction.action.performed += pauseActionHandler;
         }
     }
     private void OnDisable()
     {
-        if (pauseAction != null)
+        if (pauseAction != null && pauseActionHandler != null)
         {
-            pauseAction.action.performed -= _ => Toggle();
+            pauseAction.action.performed -= pauseActionHandler;
+            pauseActionHandler = null;
         }
     }
 
@@ -42,12 +46,35 @@ public class PauseManager : Singleton<PauseManager>
 
     private void Update()
     {
-        if (pauseAction == null && Input.GetKeyDown(pauseKey))
-            Toggle();
+        if (pauseAction == null && Input.GetKeyDown(pauseKey)) TryToggleFromInput();
+    }
+
+    /// <summary>
+    /// Llamado por la action Player/Pause. Responsabilidad UNICA: ABRIR la pausa.
+    /// El CIERRE de la pausa lo maneja UIStateManager via UI/Exit -> PauseManagerUI.RequestClose.
+    ///
+    /// La pausa es un OVERLAY GLOBAL: se abre encima de cualquier modal (inventario, document,
+    /// SequencePanel...). Solo respeta BlocksPause (por si en el futuro alguna modal especifica
+    /// no quiere ser interrumpida; hoy ninguna gameplay-UI lo bloquea).
+    /// </summary>
+    private void TryToggleFromInput()
+    {
+        if (IsPaused) return;   // si ya esta en pausa, el cierre va por UI/Exit.
+
+        if (UIStateManager.Exists && UIStateManager.Instance.IsBlockingPause) return;
+
+        Pause();
     }
 
     // -- Public Methods -------------------------
     public bool IsPaused => model.IsPaused;
+
+    /// <summary>
+    /// True cuando el gameplay debe ignorar inputs del player (movimiento, camara, interaccion).
+    /// Bloquea tanto en pausa como con cualquier UI modal abierta.
+    /// </summary>
+    public static bool IsGameplayInputBlocked
+        => (Exists && Instance.IsPaused) || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
     public void Pause() => model.Pause();
     public void Unpause() => model.Unpause();
     public void Toggle() => model.Toggle();
@@ -64,7 +91,7 @@ public class PauseManager : Singleton<PauseManager>
         }
         else
         {
-            Debug.LogWarning("[PauseManager] La UI pidió despausar, pero la Instancia de PauseManager no existe.");
+            Debug.LogWarning("[PauseManager] La UI pidiï¿½ despausar, pero la Instancia de PauseManager no existe.");
         }
     }
 }

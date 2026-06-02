@@ -12,21 +12,25 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        Debug.Log("Enter Moving State");
+        //Debug.Log("Enter Moving State");
     }
 
     public override void ExitState()
     {
-        Debug.Log("Exit Moving State");
-        playerStateManager.CurrentVelocity = 0;
-        playerStateManager.AnimatorController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
-        NextState = Statekey;
+        //Debug.Log("Exit Moving State");
+        playerStateManager.SpeedMultiplier = 1;
+        if (NextState != PlayerStateManager.EPlayerState.Crouch)
+        {
+            playerStateManager.CurrentVelocity = 0;
+            playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+        }
+        NextState = StateKey;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
     {
-        if (NextState != Statekey) return NextState;
-        else return Statekey;
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)
@@ -46,18 +50,26 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        /*if (playerStateManager.IsInteracting)
+        if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
         }
-        else */if (playerStateManager.IsHidden)
+        else if (playerStateManager.IsHidden)
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
+        }
+        else if (playerStateManager.IsCrouch) 
+        {
+            NextState = PlayerStateManager.EPlayerState.Crouch;
         }
         else
         {
             if (playerStateManager.MoveDir != Vector3.zero)
             {
+                //Mecánica Correr
+                if (Input.GetButton("Sprint")) playerStateManager.SpeedMultiplier = 1.5f;
+                else playerStateManager.SpeedMultiplier = 1f;
+
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.MoveDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
                 if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
                 {
@@ -68,7 +80,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                     playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
                 }
                 playerStateManager.CharController.Move((playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + playerStateManager.CharGravity) * Time.deltaTime);
-                playerStateManager.AnimatorController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+                playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
             else
             {

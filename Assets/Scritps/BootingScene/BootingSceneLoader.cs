@@ -45,6 +45,8 @@ public class BootingSceneLoader : MonoBehaviour
 
         Debug.Log($"<color=orange>[Bootstrapper] 3. Delegando carga al ScreenManager. Grupo: {nextGroupToLoad}</color>");
         screenChannel.RaisePushScreen(nextGroupToLoad);
+        await UniTask.Yield();
+        await sceneLoader.UnloadSceneAsync("Bootstrap");
     }
 
     private string GetNextGroupToLoad()

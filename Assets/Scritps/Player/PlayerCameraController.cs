@@ -20,6 +20,15 @@ public class PlayerCameraController : MonoBehaviour
         AplyConfig();
     }
 
+    void Update()
+    {
+        // Cuando hay UI modal abierta o el juego esta en pausa, no leemos input de camara.
+        if (cinemachineInputAxisController == null) return;
+        bool shouldEnable = !PauseManager.IsGameplayInputBlocked;
+        if (cinemachineInputAxisController.enabled != shouldEnable)
+            cinemachineInputAxisController.enabled = shouldEnable;
+    }
+
     void AplyConfig()
     {
         cinemachineCamera.Lens.FieldOfView = cameraConfig.Fov;

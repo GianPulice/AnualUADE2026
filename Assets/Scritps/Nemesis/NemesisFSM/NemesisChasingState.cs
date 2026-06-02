@@ -8,12 +8,12 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void EnterState()
     {
-        throw new System.NotImplementedException();
+        NemesisEvents.ChaseStarted();
     }
 
     public override void ExitState()
     {
-        throw new System.NotImplementedException();
+        NemesisEvents.ChaseEnded();
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()

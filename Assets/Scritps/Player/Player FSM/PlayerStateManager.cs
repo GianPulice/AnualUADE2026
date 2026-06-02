@@ -8,7 +8,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private Transform orientation;
     [SerializeField] private Transform playerBody;
-    [SerializeField] private Animator animatorController;
+    [SerializeField] private Animator animController;
     private Vector3 moveDir = Vector3.zero;
     private Vector3 charGravity = Vector3.zero;
     private bool isCrouch = false;
@@ -26,18 +26,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
     public Vector3 CharGravity { get => charGravity; set => charGravity = value; }
     public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
+    public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
     public float SpeedMultiplier { get => speedMultiplier; set => speedMultiplier = value; }
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
-    public Animator AnimatorController { get => animatorController; set => animatorController = value; }
+    public Animator AnimController { get => animController; set => animController = value; }
 
     public enum EPlayerState 
     {
         Idle,
         Moving,
-        //Interacting,
+        Crouch,
+        Interacting,
         Hidden,
         InDanger,
         Disabled,
@@ -64,7 +66,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         States.Add(EPlayerState.Idle,new PlayerIdleState(EPlayerState.Idle, this));
         States.Add(EPlayerState.Moving, new PlayerMovingState(EPlayerState.Moving, this));
-        //States.Add(EPlayerState.Interacting, new PlayerInteractingState(EPlayerState.Interacting, this));
+        States.Add (EPlayerState.Crouch, new PlayerCrouchState(EPlayerState.Crouch, this));
+        States.Add(EPlayerState.Interacting, new PlayerBoxInteractingState(EPlayerState.Interacting, this));
         States.Add(EPlayerState.Hidden, new PlayerHiddenState(EPlayerState.Hidden, this));
         States.Add(EPlayerState.Disabled, new PlayerDisabledState(EPlayerState.Disabled, this));
         CurrentState = States[EPlayerState.Idle];
@@ -95,24 +98,12 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             if (!isCrouch)
             {
                 isCrouch = true;
-                animatorController.SetBool("isCrouch", true);
-                speedMultiplier = movement.CrouchSpeedMultiplier;
-                charController.height = 0.9f;
-                charController.center = new Vector3(0, 0.45f, 0);
             }
             else
             {
                 isCrouch = false;
-                animatorController.SetBool("isCrouch", false);
-                speedMultiplier = 1;
-                charController.height = 1.8f;
-                charController.center = new Vector3(0, 0.9f, 0);
             }
         }
-
-        //Mecánica Correr
-        if (Input.GetButtonDown("Sprint") && !isCrouch) speedMultiplier = 1.5f;
-        else if (Input.GetButtonUp("Sprint") && !isCrouch) speedMultiplier = 1f;
 
         //Testeo de estado Interacting
         /*if (Input.GetKeyDown(KeyCode.E))
