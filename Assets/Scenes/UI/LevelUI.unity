@@ -216,6 +216,17 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 566045626b10b894db241ff45cf8da2e, type: 3}
+--- !u!114 &40560451 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 371256681430424888, guid: 566045626b10b894db241ff45cf8da2e, type: 3}
+  m_PrefabInstance: {fileID: 40560450}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1b3a51c2262fa94ea12479be9b8f9bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DocumentReaderView
 --- !u!114 &184349637 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 7012229958043064661, guid: 935a7c5347ee4c949a6c973d0574cf6c, type: 3}
@@ -700,9 +711,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 912777969}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90bbea4f0d0a0254686c6f854ea4f33c, type: 3}
+  m_Script: {fileID: 11500000, guid: 2978ff0cb3a965e42b175e6a0a341037, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DocumentReaderController
+  view: {fileID: 40560451}
 --- !u!4 &912777971
 Transform:
   m_ObjectHideFlags: 0
@@ -846,6 +858,10 @@ PrefabInstance:
     - target: {fileID: 5658965337819115953, guid: b8d8bb9cd56921b4092cdec311dcc320, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -802.0449
+      objectReference: {fileID: 0}
+    - target: {fileID: 6936739420111863895, guid: b8d8bb9cd56921b4092cdec311dcc320, type: 3}
+      propertyPath: _currentLevelGroup
+      value: "TestI\xF1aki"
       objectReference: {fileID: 0}
     - target: {fileID: 8958212507161195972, guid: b8d8bb9cd56921b4092cdec311dcc320, type: 3}
       propertyPath: m_Pivot.x

@@ -494,7 +494,6 @@ GameObject:
   - component: {fileID: 801768757801768997}
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 8221545152509093141}
-  - component: {fileID: -1227490877317812290}
   m_Layer: 6
   m_Name: InventoryItem
   m_TagString: Untagged
@@ -638,21 +637,3 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
   itemToPick: {fileID: 0}
---- !u!114 &-1227490877317812290
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8438275548156035699}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 97b7f5db5f3002f4bbf0442b0330b173, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
-  farTint: 0.25
-  farEmission: 0
-  nearTint: 0.65
-  nearEmission: 0.25
-  lerpDuration: 0.3
-  targetRenderer: {fileID: 2172284652876069278}

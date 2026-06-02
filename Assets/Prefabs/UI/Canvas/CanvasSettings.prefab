@@ -13050,7 +13050,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4624aa214ea6df248bd52ed8e65628ae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsTabSelector
-  _tabs: []
+  _tabs:
+  - button: {fileID: 5360333811823847755}
+    panel: {fileID: 8077589936683761604}
+    activeIndicator: {fileID: 7476361184934322638}
+  - button: {fileID: 5328302706891799620}
+    panel: {fileID: 6212205515108779423}
+    activeIndicator: {fileID: 352542686092657409}
+  - button: {fileID: 2696401223918390637}
+    panel: {fileID: 1814993517410147016}
+    activeIndicator: {fileID: 4727044736610341715}
+  - button: {fileID: 4427616314094811972}
+    panel: {fileID: 6529260435931656420}
+    activeIndicator: {fileID: 5523525278464361447}
   _initialTab: 3
 --- !u!1 &6326276022485626260
 GameObject:
@@ -13954,6 +13966,8 @@ MonoBehaviour:
   _labelSFX: {fileID: 7332553812243134982}
   _sliderMusic: {fileID: 515341126598537031}
   _labelMusic: {fileID: 3821858329287663940}
+  _sliderVoice: {fileID: 0}
+  _labelVoice: {fileID: 0}
 --- !u!1 &6742450444958034349
 GameObject:
   m_ObjectHideFlags: 0
