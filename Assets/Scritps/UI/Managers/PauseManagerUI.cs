@@ -13,6 +13,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
     public string ModalId => "Pause";
     public bool ConsumesEscape => true;   // ESC cierra la pausa.
     public bool BlocksPause   => false;   // ES la pausa: no se bloquea a si misma.
+    public bool PausesGame    => true;
     public void RequestClose() => PauseManager.RequestUnpause();
 
     private void Awake()

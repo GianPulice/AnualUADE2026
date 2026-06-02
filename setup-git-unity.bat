@@ -14,7 +14,7 @@ if not exist "%UNITY_YAML_MERGE%" (
 )
 
 git config merge.unityyamlmerge.name "Unity SmartMerge"
-git config merge.unityyamlmerge.driver "\"%UNITY_YAML_MERGE%\" merge -p --force --fallback none %%O %%B %%A %%A"
+git config merge.unityyamlmerge.driver "\"%UNITY_YAML_MERGE%\" merge -p --force --fallback git %%O %%B %%A %%A"
 
 echo Listo! Unity SmartMerge configurado correctamente.
 echo Driver: %UNITY_YAML_MERGE%

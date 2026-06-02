@@ -24,6 +24,7 @@ public class SequencePanelUIController
     public string ModalId       => "SequencePanel";
     public bool   ConsumesEscape => false;   // ESC pasa a la pausa (panel queda debajo).
     public bool   BlocksPause   => false;   // Permite pausar encima.
+    public bool   PausesGame    => true;
     public void RequestClose() => CloseSafe().Forget();
 
     // ── Lifecycle ───────────────────────────────────────────────────────────

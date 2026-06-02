@@ -7,6 +7,8 @@ public class SequenceButtonInteractable : MonoBehaviour, IInteractable
     [SerializeField] private string promptText = "Presionar boton";
 
 
+    public string GetInfoText() => string.Empty;
+
     public string GetInteractText()
     {
         return $"{promptText} {buttonId}";
@@ -21,7 +23,7 @@ public class SequenceButtonInteractable : MonoBehaviour, IInteractable
     {
         if (!CanInteract()) return;
 
-        panel.PressButton(buttonId);
+        panel.TryPressButton(buttonId);
     }
 
     public bool IsRepeatable()

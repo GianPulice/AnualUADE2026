@@ -57,6 +57,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
         await UnloadBootstrapAsync();
 
+        GameResultManager.ResetSession();
         screenChannel.RaisePushScreen(firstSceneLabel);
     }
 

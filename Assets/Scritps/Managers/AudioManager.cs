@@ -7,6 +7,7 @@ public class AudioManager : Singleton<AudioManager>
     [SerializeField, Range(0f, 1f)] private float masterVolume = 1f;
     [SerializeField, Range(0f, 1f)] private float musicVolume = 1f;
     [SerializeField, Range(0f, 1f)] private float sfxVolume = 1f;
+    [SerializeField, Range(0f, 1f)] private float voiceVolume = 1f;
 
     [Header("Pool de SFX")]
     private int initialPoolSize = 20;
@@ -109,6 +110,7 @@ public class AudioManager : Singleton<AudioManager>
     public float MasterVolume => masterVolume;
     public float MusicVolume => musicVolume;
     public float SFXVolume => sfxVolume;
+    public float VoiceVolume => voiceVolume;
 
     public void SetMasterVolume(float linear01)
     {
@@ -127,6 +129,12 @@ public class AudioManager : Singleton<AudioManager>
     {
         sfxVolume = Mathf.Clamp01(linear01);
         // Los SFX que ya estan sonando mantienen su volumen; los nuevos usaran este valor.
+    }
+
+    public void SetVoiceVolume(float linear01)
+    {
+        voiceVolume = Mathf.Clamp01(linear01);
+        // Las líneas de voz que se reproduzcan a futuro deben leer VoiceVolume al disparar.
     }
 
     // ---------- Internos ----------

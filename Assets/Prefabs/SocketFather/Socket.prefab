@@ -495,11 +495,7 @@ GameObject:
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 7825961739477075812}
   m_Layer: 6
-<<<<<<<< HEAD:Assets/Prefabs/SocketFather/Socket.prefab
   m_Name: Socket
-========
-  m_Name: SocketReguladorPresion
->>>>>>>> secondBackup-iña:Assets/Prefabs/Puzzle1/Sockets/SocketReguladorPresion.prefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
