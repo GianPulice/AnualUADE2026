@@ -149,6 +149,7 @@ public class SettingsModel : BaseScreenModel
             AudioManager.Instance.SetMasterVolume(MasterVolume);
             AudioManager.Instance.SetMusicVolume(MusicVolume);
             AudioManager.Instance.SetSFXVolume(SFXVolume);
+            AudioManager.Instance.SetVoiceVolume(VoiceVolume);
         }
 
         TakeSnapshot();

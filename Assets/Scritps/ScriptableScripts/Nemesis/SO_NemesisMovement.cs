@@ -1,7 +1,7 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "SO_NemesisMovemetn", menuName = "Scriptable Objects/SO_NemesisMovemetn")]
-public class SO_NemesisMovemetn : ScriptableObject
+[CreateAssetMenu(fileName = "SO_NemesisMovement", menuName = "Scriptable Objects/SO_NemesisMovement")]
+public class SO_NemesisMovement : ScriptableObject
 {
     [SerializeField] private float patrolSpeed;
     [SerializeField] private float investigationSpeed;

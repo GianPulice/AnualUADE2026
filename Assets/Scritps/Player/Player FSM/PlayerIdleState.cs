@@ -11,12 +11,14 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
     public override void EnterState()
     {
         //Debug.Log("Enter Idle State");
+        NextState = StateKey;
+        playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
     }
 
     public override void ExitState()
     {
         //Debug.Log("Exit Idle State");
-        NextState = StateKey;
+        playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -42,18 +44,25 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        /*if (playerStateManager.IsInteracting)
+        if (playerStateManager.IsGrounded)
+        {
+            playerStateManager.RigBody.linearVelocity = new Vector3(0,playerStateManager.RigBody.linearVelocity.y,0);
+        }
+        if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;
         }
-        else*/ if (playerStateManager.IsHidden)
+        else if (playerStateManager.IsHidden)
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }
         else if (playerStateManager.IsCrouch)
         {
             NextState = PlayerStateManager.EPlayerState.Crouch;
+        }        
+        else if (playerStateManager.InputDir != Vector3.zero)
+        {
+            NextState = PlayerStateManager.EPlayerState.Moving;
         }
-        else if (playerStateManager.MoveDir != Vector3.zero) NextState = PlayerStateManager.EPlayerState.Moving;
     }
-}
+}  

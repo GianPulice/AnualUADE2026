@@ -15,5 +15,5 @@ MonoBehaviour:
   visionStart: 5
   visionEnd: 8
   fogColor: {r: 0, g: 0, b: 0, a: 1}
-  lightPreservation: 0
-  transitionDuration: 7
+  lightPreservation: 0.05
+  transitionDuration: 5

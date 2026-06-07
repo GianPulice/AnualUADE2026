@@ -21,6 +21,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     public string ModalId => "Settings";
     public bool ConsumesEscape => true;   // ESC cierra Settings (vuelve a pausa o menu).
     public bool BlocksPause   => true;    // Estando en Settings no debe abrirse otra pausa.
+    public bool PausesGame    => true;
     public void RequestClose() => HandleBack();
 
     private void Awake()
