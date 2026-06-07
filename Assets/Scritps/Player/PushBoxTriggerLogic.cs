@@ -11,6 +11,11 @@ public class PushBoxTriggerLogic : MonoBehaviour
         Owner.PlayerNearby = true;
         Owner.CurrentTriggerTransform = transform;
     }
+    private void OnTriggerStay(Collider other)
+    {
+        if (!other.CompareTag(Owner.PlayerTag)) return;
+        if (Owner.Player == null) Owner.Player = other.GetComponent<PlayerStateManager>();
+    }
     private void OnTriggerExit(Collider other)
     {
         if (!other.CompareTag(Owner.PlayerTag)) return;
