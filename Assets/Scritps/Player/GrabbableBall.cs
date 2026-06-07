@@ -98,6 +98,7 @@ public class GrabbableBall : MonoBehaviour
 
     private void Release()
     {
+        if (player == null) return;
         player.IsInteracting = false;
 
         isGrabbed = false;
