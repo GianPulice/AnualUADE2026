@@ -84,8 +84,6 @@ public class AudioManager : Singleton<AudioManager>
     private void Awake()
     {
         CreateSingleton(true);
-        if (Instance != this) return;
-
         LoadVolumesFromPrefs();
         InitMusicSource();
         InitSfxPool();
