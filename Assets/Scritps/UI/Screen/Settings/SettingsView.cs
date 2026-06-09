@@ -31,10 +31,14 @@ public class SettingsView : BaseScreenView
     public event Action<float> OnMasterChanged;
     public event Action<float> OnMusicChanged;
     public event Action<float> OnSFXChanged;
+    public event Action<float> OnVoiceChanged;
+    public event Action<float> OnAmbienceChanged;
+    public event Action<float> OnPlayerChanged;
+    public event Action<float> OnNemesisChanged;
+    public event Action<float> OnUIChanged;
     public event Action<float> OnSensitivityChanged;
 
     // Placeholders (el modelo los recibe; ningún sistema los lee aún):
-    public event Action<float> OnVoiceChanged;
     public event Action<bool>  OnInvertYChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;
@@ -83,23 +87,35 @@ public class SettingsView : BaseScreenView
     private void WireVolumePanel()
     {
         if (_volumePanel == null) return;
-        _volumePanel.OnMasterChanged += ForwardMaster;
-        _volumePanel.OnMusicChanged  += ForwardMusic;
-        _volumePanel.OnSFXChanged    += ForwardSFX;
-        _volumePanel.OnVoiceChanged  += ForwardVoice;
+        _volumePanel.OnMasterChanged   += ForwardMaster;
+        _volumePanel.OnMusicChanged    += ForwardMusic;
+        _volumePanel.OnSFXChanged      += ForwardSFX;
+        _volumePanel.OnVoiceChanged    += ForwardVoice;
+        _volumePanel.OnAmbienceChanged += ForwardAmbience;
+        _volumePanel.OnPlayerChanged   += ForwardPlayer;
+        _volumePanel.OnNemesisChanged  += ForwardNemesis;
+        _volumePanel.OnUIChanged       += ForwardUI;
     }
     private void UnwireVolumePanel()
     {
         if (_volumePanel == null) return;
-        _volumePanel.OnMasterChanged -= ForwardMaster;
-        _volumePanel.OnMusicChanged  -= ForwardMusic;
-        _volumePanel.OnSFXChanged    -= ForwardSFX;
-        _volumePanel.OnVoiceChanged  -= ForwardVoice;
+        _volumePanel.OnMasterChanged   -= ForwardMaster;
+        _volumePanel.OnMusicChanged    -= ForwardMusic;
+        _volumePanel.OnSFXChanged      -= ForwardSFX;
+        _volumePanel.OnVoiceChanged    -= ForwardVoice;
+        _volumePanel.OnAmbienceChanged -= ForwardAmbience;
+        _volumePanel.OnPlayerChanged   -= ForwardPlayer;
+        _volumePanel.OnNemesisChanged  -= ForwardNemesis;
+        _volumePanel.OnUIChanged       -= ForwardUI;
     }
-    private void ForwardMaster(float v) => OnMasterChanged?.Invoke(v);
-    private void ForwardMusic(float v)  => OnMusicChanged?.Invoke(v);
-    private void ForwardSFX(float v)    => OnSFXChanged?.Invoke(v);
-    private void ForwardVoice(float v)  => OnVoiceChanged?.Invoke(v);
+    private void ForwardMaster(float v)   => OnMasterChanged?.Invoke(v);
+    private void ForwardMusic(float v)    => OnMusicChanged?.Invoke(v);
+    private void ForwardSFX(float v)      => OnSFXChanged?.Invoke(v);
+    private void ForwardVoice(float v)    => OnVoiceChanged?.Invoke(v);
+    private void ForwardAmbience(float v) => OnAmbienceChanged?.Invoke(v);
+    private void ForwardPlayer(float v)   => OnPlayerChanged?.Invoke(v);
+    private void ForwardNemesis(float v)  => OnNemesisChanged?.Invoke(v);
+    private void ForwardUI(float v)       => OnUIChanged?.Invoke(v);
 
     private void WireControlsPanel()
     {
