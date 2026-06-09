@@ -209,10 +209,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bb4fa6de2072544da25b2c856f21a77, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
+  mixer: {fileID: 24100000, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  masterGroup: {fileID: 24300002, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  musicGroup: {fileID: -2219433998997485648, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  ambienceGroup: {fileID: -563977852298575556, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  sfxGroup: {fileID: 454002457957499964, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  playerGroup: {fileID: -7369055098823251660, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  nemesisGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  uiGroup: {fileID: -3323808777528936358, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  voiceGroup: {fileID: 6132113099376921698, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
   masterVolume: 1
   musicVolume: 1
+  ambienceVolume: 1
   sfxVolume: 1
+  playerVolume: 1
+  nemesisVolume: 1
+  uiVolume: 1
   voiceVolume: 1
+  initialPoolSize: 20
   sounds:
   - {fileID: 11400000, guid: 597ae0f2d9de8be47b6ea553baef2afd, type: 2}
 --- !u!4 &201702926
