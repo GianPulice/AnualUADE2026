@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEditor.Animations;
-using UnityEditorInternal;
+//using UnityEditor.Animations;
+//using UnityEditorInternal;
 
 public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 {
