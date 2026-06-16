@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
   visionStart: 4
   visionEnd: 5
-  fogColor: {r: 0.09433961, g: 0.090334624, b: 0.090334624, a: 1}
+  fogColor: {r: 0, g: 0, b: 0, a: 1}
   lightPreservation: 0.05
   transitionDuration: 5
