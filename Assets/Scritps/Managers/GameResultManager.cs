@@ -37,6 +37,23 @@ public static class GameResultManager
         OnGameResult?.Invoke(_model);
     }
 
+    /// <summary>
+    /// Todos los módulos explotaron. Dispara antes de llamar a este método:
+    /// - OnSaveDeleteRequested para que SaveManager borre el slot activo.
+    /// </summary>
+    public static event Action OnSaveDeleteRequested;
+
+    public static void ReportGameOver(float time, int resolvedModules)
+    {
+        if (_resultReported) return;
+        _resultReported = true;
+
+        OnSaveDeleteRequested?.Invoke();
+
+        _model.SetResult(GameState.GameOver, time, resolvedModules);
+        OnGameResult?.Invoke(_model);
+    }
+
     /// <summary>Llamar al cargar la escena de gameplay para habilitar un nuevo reporte.</summary>
     public static void ResetSession()
     {

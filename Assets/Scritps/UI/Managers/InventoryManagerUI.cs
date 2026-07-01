@@ -44,6 +44,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     private bool isInventoryOpen = false;
     private bool isDiscardOpen = false;
+    private float _sessionTime = 0f;
 
     private SO_InventoryItem selectedItem = null;
     private SO_InventoryItem pendingDiscard = null;
@@ -64,6 +65,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     void Update()
     {
+        _sessionTime += Time.unscaledDeltaTime;
         HandleInput();
         TickModuleTimers();
     }
@@ -345,6 +347,11 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
                 InventoryEvents.ModuleExploded(module);
                 InventoryEvents.ModuleStateChanged(module);
+
+                if (module.causesBlindness)
+                    InventoryEvents.BlindnessTriggered(module.blindnessDuration);
+
+                CheckGameOver();
             }
             else
             {
@@ -352,6 +359,17 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
             }
         }
     }
+
+    private void CheckGameOver()
+    {
+        if (modules.Count == 0) return;
+        if (GetExplodedCount() < modules.Count) return;
+
+        int resolved = modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
+        GameResultManager.ReportGameOver(_sessionTime, resolved);
+    }
+
+    public void ResetSessionTime() => _sessionTime = 0f;
 
     // -- API pública de módulos --------------------
 

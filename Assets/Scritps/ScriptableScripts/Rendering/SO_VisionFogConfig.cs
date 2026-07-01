@@ -37,4 +37,20 @@ public class SO_VisionFogConfig : ScriptableObject
     [Tooltip("Segundos que tarda el fog en interpolar de la config anterior a esta. " +
              "0 = cambio instantáneo.")]
     [Min(0f)] public float transitionDuration = 1f;
+
+    // ── GD PENDIENTE §3.7 ──────────────────────────────────────────────────────
+    // Qué objetos muestran silueta a través de la niebla.
+    // Default = None hasta acordar con GD cuándo aplica (playtesting).
+    [Header("Siluetas en niebla — GD pendiente §3.7")]
+    [Tooltip("None hasta validación con GD. Items = silueta solo en ítems recogibles. " +
+             "Puzzles = silueta en interactuables. All = ambos.")]
+    public SilhouetteMode silhouetteMode = SilhouetteMode.None;
+}
+
+public enum SilhouetteMode
+{
+    None,
+    Items,
+    Puzzles,
+    All
 }

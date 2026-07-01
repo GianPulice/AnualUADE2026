@@ -46,62 +46,73 @@ public class SO_ItemCategoryConfig : ScriptableObject
     {
         Key = new CategoryVisuals
         {
-            MainColor = HexToColor("#801A1A"),        // Rojo oscuro
-            BackgroundColor = HexToColor("#801A1A"),
-            ButtonColor = HexToColor("#801A1A"),
-            TextColor = HexToColor("#999999"),        // Gris medio
-            SelectedTextColor = HexToColor("#E0E0E0"),// Gris claro al seleccionar
-            SelectedBGColor = HexToColor("#A62222"),  // Rojo más claro al seleccionar
-            GroupLabel = "— key",
-            TagLabel = "Key"
+            MainColor          = HexToColor("#801A1A"),
+            BackgroundColor    = HexToColor("#801A1A"),
+            ButtonColor        = HexToColor("#801A1A"),
+            TextColor          = HexToColor("#999999"),
+            SelectedTextColor  = HexToColor("#E0E0E0"),
+            SelectedBGColor    = HexToColor("#A62222"),
+            GroupLabel         = "— key",
+            TagLabel           = "Key",
+            // §4.4 Color Spec — tinte 3D ItemPSX
+            shaderTintColor    = HexToColor("#37474F"),
+            shaderEmissionColor = Color.black,
         };
 
         Component = new CategoryVisuals
         {
-            MainColor = HexToColor("#1A661A"),        // Verde oscuro
-            BackgroundColor = HexToColor("#1A661A"),
-            ButtonColor = HexToColor("#1A661A"),
-            TextColor = HexToColor("#999999"),
-            SelectedTextColor = HexToColor("#E0E0E0"),
-            SelectedBGColor = HexToColor("#248F24"),  // Verde más claro al seleccionar
-            GroupLabel = "— component",
-            TagLabel = "Puzzle Component"
+            MainColor          = HexToColor("#1A661A"),
+            BackgroundColor    = HexToColor("#1A661A"),
+            ButtonColor        = HexToColor("#1A661A"),
+            TextColor          = HexToColor("#999999"),
+            SelectedTextColor  = HexToColor("#E0E0E0"),
+            SelectedBGColor    = HexToColor("#248F24"),
+            GroupLabel         = "— component",
+            TagLabel           = "Puzzle Component",
+            shaderTintColor    = HexToColor("#4E342E"),
+            shaderEmissionColor = HexToColor("#FFC850"), // ámbar tenue — visible solo con _EmissionIntensity > 0
         };
 
         Note = new CategoryVisuals
         {
-            MainColor = HexToColor("#1A1A80"),        // Azul oscuro
-            BackgroundColor = HexToColor("#1A1A80"),
-            ButtonColor = HexToColor("#1A1A80"),
-            TextColor = HexToColor("#999999"),
-            SelectedTextColor = HexToColor("#E0E0E0"),
-            SelectedBGColor = HexToColor("#2424B3"),  // Azul más claro al seleccionar
-            GroupLabel = "— note",
-            TagLabel = "Notes"
+            MainColor          = HexToColor("#1A1A80"),
+            BackgroundColor    = HexToColor("#1A1A80"),
+            ButtonColor        = HexToColor("#1A1A80"),
+            TextColor          = HexToColor("#999999"),
+            SelectedTextColor  = HexToColor("#E0E0E0"),
+            SelectedBGColor    = HexToColor("#2424B3"),
+            GroupLabel         = "— note",
+            TagLabel           = "Notes",
+            shaderTintColor    = HexToColor("#263238"),
+            shaderEmissionColor = Color.black,
         };
 
         Special = new CategoryVisuals
         {
-            MainColor = HexToColor("#8C5319"),        // Naranja oscuro / Marrón
-            BackgroundColor = HexToColor("#8C5319"),
-            ButtonColor = HexToColor("#8C5319"),
-            TextColor = HexToColor("#999999"),
-            SelectedTextColor = HexToColor("#E0E0E0"),
-            SelectedBGColor = HexToColor("#BF7326"),  // Naranja más claro al seleccionar
-            GroupLabel = "— essential",              // Actualizado para coincidir con la UI
-            TagLabel = "Essential"
+            MainColor          = HexToColor("#8C5319"),
+            BackgroundColor    = HexToColor("#8C5319"),
+            ButtonColor        = HexToColor("#8C5319"),
+            TextColor          = HexToColor("#999999"),
+            SelectedTextColor  = HexToColor("#E0E0E0"),
+            SelectedBGColor    = HexToColor("#BF7326"),
+            GroupLabel         = "— essential",
+            TagLabel           = "Essential",
+            shaderTintColor    = HexToColor("#1A237E"),
+            shaderEmissionColor = Color.black,
         };
 
         Default = new CategoryVisuals
         {
-            MainColor = HexToColor("#333333"),        // Gris oscuro
-            BackgroundColor = HexToColor("#333333"),
-            ButtonColor = HexToColor("#333333"),
-            TextColor = HexToColor("#999999"),
-            SelectedTextColor = HexToColor("#E0E0E0"),
-            SelectedBGColor = HexToColor("#4D4D4D"),  // Gris medio al seleccionar
-            GroupLabel = "— Others",
-            TagLabel = "Ítem"
+            MainColor          = HexToColor("#333333"),
+            BackgroundColor    = HexToColor("#333333"),
+            ButtonColor        = HexToColor("#333333"),
+            TextColor          = HexToColor("#999999"),
+            SelectedTextColor  = HexToColor("#E0E0E0"),
+            SelectedBGColor    = HexToColor("#4D4D4D"),
+            GroupLabel         = "— Others",
+            TagLabel           = "Ítem",
+            shaderTintColor    = HexToColor("#37474F"),
+            shaderEmissionColor = Color.black,
         };
 
 #if UNITY_EDITOR
@@ -127,14 +138,20 @@ public class SO_ItemCategoryConfig : ScriptableObject
 [System.Serializable]
 public struct CategoryVisuals
 {
-    public Color MainColor;              // Color principal del slot
-    public Color BackgroundColor;        // Fondo del icono
-    public Color ButtonColor;            // Color del boton
-    public Color TextColor;              // Texto normal
-    public Color SelectedBGColor;        // Fondo al seleccionar
-    public Color SelectedTextColor;      // Fondo texto al seleccionar
+    public Color MainColor;
+    public Color BackgroundColor;
+    public Color ButtonColor;
+    public Color TextColor;
+    public Color SelectedBGColor;
+    public Color SelectedTextColor;
 
     [Header("UI")]
-    public string GroupLabel;            // "— llaves"
-    public string TagLabel;              // "Llave de acceso"
+    public string GroupLabel;
+    public string TagLabel;
+
+    [Header("Shader 3D (ItemPSX) — §4.4 Color Spec")]
+    [Tooltip("Color del tinte en _TintColor del shader ItemPSX.")]
+    public Color shaderTintColor;
+    [Tooltip("Color de emisión en _EmissionColor. Negro = sin emisión (salvo Componentes: ámbar).")]
+    public Color shaderEmissionColor;
 }

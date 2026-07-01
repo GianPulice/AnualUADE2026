@@ -46,11 +46,22 @@ public class ItemProximityHighlight : MonoBehaviour
     [Tooltip("Duración del lerp en segundos. Spec: 0.3s.")]
     [SerializeField, Min(0.01f)] private float lerpDuration = 0.3f;
 
+    [Header("Tinte de categoría (ItemPSX §4.4)")]
+    [Tooltip("Categoría del ítem — determina _TintColor y _EmissionColor del shader.")]
+    [SerializeField] private ItemCategory category;
+    [Tooltip("Config global de categorías. Asignar el asset SO_ItemCategoryConfig del proyecto.")]
+    [SerializeField] private SO_ItemCategoryConfig categoryConfig;
+
     [Header("Renderer (opcional — autodetecta el del GameObject)")]
     [SerializeField] private Renderer targetRenderer;
 
-    private static readonly int TintId     = Shader.PropertyToID("_TintIntensity");
-    private static readonly int EmissionId = Shader.PropertyToID("_EmissionIntensity");
+    private static readonly int TintId       = Shader.PropertyToID("_TintIntensity");
+    private static readonly int EmissionId   = Shader.PropertyToID("_EmissionIntensity");
+    private static readonly int TintColorId  = Shader.PropertyToID("_TintColor");
+    private static readonly int EmitColorId  = Shader.PropertyToID("_EmissionColor");
+
+    private Color _tintColor;
+    private Color _emissionColor;
 
     private MaterialPropertyBlock _propBlock;
     private Coroutine _activeLerp;
@@ -63,6 +74,19 @@ public class ItemProximityHighlight : MonoBehaviour
         _propBlock = new MaterialPropertyBlock();
         _currentTint = farTint;
         _currentEmission = farEmission;
+
+        if (categoryConfig != null)
+        {
+            CategoryVisuals visuals = categoryConfig.Get(category);
+            _tintColor    = visuals.shaderTintColor;
+            _emissionColor = visuals.shaderEmissionColor;
+        }
+        else
+        {
+            _tintColor    = Color.grey;
+            _emissionColor = Color.black;
+        }
+
         ApplyProps();
     }
 
@@ -117,8 +141,10 @@ public class ItemProximityHighlight : MonoBehaviour
     {
         if (targetRenderer == null) return;
         targetRenderer.GetPropertyBlock(_propBlock);
-        _propBlock.SetFloat(TintId,     _currentTint);
-        _propBlock.SetFloat(EmissionId, _currentEmission);
+        _propBlock.SetFloat(TintId,      _currentTint);
+        _propBlock.SetFloat(EmissionId,  _currentEmission);
+        _propBlock.SetColor(TintColorId, _tintColor);
+        _propBlock.SetColor(EmitColorId, _emissionColor);
         targetRenderer.SetPropertyBlock(_propBlock);
     }
 }

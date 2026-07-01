@@ -1,14 +1,18 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class LoseController : BaseScreenController<LoseView, GameResultModel>
+// Controlador de la pantalla de Game Over por módulos.
+// NO implementa IModalUI — es una pantalla final, no un overlay modal.
+// Gestiona Time.timeScale directamente como LoseController (mismo patrón).
+// La vista tiene título GAME OVER rojo + vignette roja + stats.
+// El save del slot activo ya fue borrado por GameResultManager.OnSaveDeleteRequested.
+public class GameOverController : BaseScreenController<GameOverView, GameResultModel>
 {
     [Header("Event Channels")]
     [SerializeField] private ScreenEventChannel _screenChannel;
 
-    [Header("Navigation Groups (Labels)")]
-    [SerializeField] private string _currentLevelGroup = "Level1_Group";
-    [SerializeField] private string _mainMenuGroup = "MainMenu_Group";
+    [Header("Navigation")]
+    [SerializeField] private string _mainMenuGroup = "Menu";
 
     private bool _isTransitioning;
 
@@ -16,7 +20,7 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
     {
         if (view == null)
         {
-            Debug.LogError($"[{nameof(LoseController)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(GameOverController)}] view no asignada en el Inspector.");
             return;
         }
 
@@ -27,18 +31,13 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
         }
 
         view.gameObject.SetActive(false);
-
-        view.OnRetryClicked += HandleRetry;
-        view.OnExitClicked  += HandleExit;
+        view.OnMenuClicked += HandleMenu;
         GameResultManager.OnGameResult += HandleGameResult;
     }
 
     private void OnDestroy()
     {
-        if (view == null) return;
-
-        view.OnRetryClicked -= HandleRetry;
-        view.OnExitClicked  -= HandleExit;
+        if (view != null) view.OnMenuClicked -= HandleMenu;
         GameResultManager.OnGameResult -= HandleGameResult;
     }
 
@@ -53,12 +52,12 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
         Time.timeScale = 1f;
     }
 
-    private void HandleGameResult(GameResultModel incomingModel)
+    private void HandleGameResult(GameResultModel incoming)
     {
-        if (incomingModel.GameState != GameState.Lose) return;
+        if (incoming.GameState != GameState.GameOver) return;
         if (_isTransitioning) return;
 
-        InjectDependencies(incomingModel);
+        InjectDependencies(incoming);
         OpenSafe().Forget();
     }
 
@@ -69,14 +68,7 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
         _isTransitioning = false;
     }
 
-    private void HandleRetry()
-    {
-        Time.timeScale = 1f;
-        _screenChannel.RaisePopScreen();
-        _screenChannel.RaisePushScreen(_currentLevelGroup);
-    }
-
-    private void HandleExit()
+    private void HandleMenu()
     {
         Time.timeScale = 1f;
         _screenChannel.RaiseClearAll();
