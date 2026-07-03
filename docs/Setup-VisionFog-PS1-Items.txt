@@ -1,0 +1,172 @@
+========================================================================
+ WIRED - SETUP EN UNITY EDITOR
+ VisionFog (linterna + bypass + densidad) / PS1 Filter (dither, scanlines,
+ chromatic aberration / glitch) / ItemPSX (outline opt-in)
+ Referencia rapida - no necesitas volver al chat.
+========================================================================
+
+ARCHIVOS NUEVOS / MODIFICADOS
+------------------------------------------------------------------------
+  Materials/VisionFog.hlsl                         (mod) globals nuevos
+  Materials/Post Process/PS1_PostProcess_HLSL.shader (nuevo)
+  Materials/Post Process/PS1Effect.mat             (mod) apunta al shader nuevo
+  Materials/Items/ItemPSX_Outline.shader           (nuevo)
+  Materials/Items/ItemPsx.mat                      (mod) apunta al shader nuevo
+  Scritps/ScriptableScripts/Rendering/SO_VisionFogConfig.cs (mod) campos nuevos
+  Scritps/Rendering/VisionRangeController.cs        (mod) pushea globals nuevos
+  Scritps/Rendering/FogLightSource.cs               (nuevo)
+  Scritps/Rendering/FogLightBypass.cs               (nuevo)
+  Scritps/Rendering/GlitchController.cs             (nuevo)
+
+  NOTA: los shadergraph originales (PS1_PostProcess / ItemPSX) NO se tocaron,
+  quedan como referencia. Los .mat ahora apuntan a los .shader nuevos.
+
+
+PASO 0 - REIMPORTAR
+------------------------------------------------------------------------
+  1. Abrir Unity Hub -> AnualUADE2026. Esperar reimport (5-30s).
+  2. Window > General > Console. No debe haber errores rojos.
+  3. Warning ignorable: "SRP Batcher: Object doesn't have UnityPerMaterial"
+     sobre el fog -> normal (los globals van fuera del cbuffer a proposito).
+  4. Si aparece "Blit.hlsl not found" o "GUID conflict" -> avisar (fix rapido).
+
+
+PASO 1 - VERIFICAR LOS .MAT
+------------------------------------------------------------------------
+  PS1Effect.mat    -> Shader debe decir "Hidden/Custom/PS1PostProcessHLSL"
+                      Headers visibles: Pixelation, Dither, Scanlines,
+                      Chromatic Aberration.
+  ItemPsx.mat      -> Shader debe decir "Custom/ItemPSXOutline"
+                      Seccion Outline visible, _OutlineIntensity = 0 (apagado).
+  VisionFog.mat    -> sin cambios, sigue con shadergraph.
+
+  Si dice "Hidden/InternalErrorShader" -> GUID mal, avisar.
+
+
+PASO 2 - SO_VisionFogConfig (assets .asset en ScriptableObjects/Fog/)
+------------------------------------------------------------------------
+  Abrir cada asset y setear los campos nuevos (arrancan en 0):
+
+    densityPower          1 base  /  1.5-2 en zonas opresivas
+    playerLightRange      3.5 base /  8 en Hub    (spec 3.3 = 3.5m base)
+    playerLightIntensity  1
+    playerLightColor      HDR #FFC850 (ambar del modulo, spec 2.5)
+
+  OJO: si en el Paso 3 usas "Use Light Component = true" (recomendado),
+  estos valores son FALLBACK. El runtime toma range/color del Light real.
+
+
+PASO 3 - FogLightSource SOBRE LA LUZ DEL DISPOSITIVO
+------------------------------------------------------------------------
+  1. Abrir escena de gameplay (se carga desde Bootstrap).
+  2. Hierarchy -> GameObject con Tag "Player" -> expandir hijos.
+  3. Elegir el hijo con el Light ambar (mat_device_luz_ambar_jugador).
+  4. Add Component -> "Fog Light Source".
+  5. Inspector del componente:
+       Light Component      -> autocompletado; verificar que es el ambar.
+       Use Light Component  -> CHECKED.
+       Range Multiplier     -> 2  (Light.range 3.5 => fog radius ~7m).
+       Intensity Multiplier -> 1.
+  6. Ctrl+S.
+
+  TEST: Play -> halo claro alrededor del player. Bajar Light.range en runtime
+  -> el halo se achica. Cambiar Light.color -> cambia el tinte del hueco.
+  (Esto valida que la degradacion de modulos futura (2.5.1) funciona sola.)
+
+
+PASO 4 - (OPCIONAL) FogLightBypass EN FAROLAS / MONITORES
+------------------------------------------------------------------------
+  1. Seleccionar la farola / monitor en Hierarchy.
+  2. Add Component -> "Fog Light Bypass".
+  3. Radius (metros): 3-5 farolas emergencia, 2 monitores, 8-10 generador.
+  4. Gizmo esfera amarilla visible al seleccionar el objeto.
+
+  ALTERNATIVA spec 3.4: en vez de este componente estatico, llamar
+  VisionRangeController.RegisterBypass(...) desde ZoneLightController.OnActivate()
+  y UnregisterBypass(...) en OnDeactivate() cuando exista ese sistema.
+
+
+PASO 5 - APLICAR ItemPsx.mat (CRITERIO SPEC)
+------------------------------------------------------------------------
+  Los 4 items del spec 4.5 (llaves, componentes, pistas, especiales):
+    -> NO usar outline. Seguir con los 4 preset existentes
+       (mat_item_keys, mat_item_components, mat_item_clues, mat_item_special)
+       gestionados por ItemProximityHighlight.cs. Spec 4.3 = tint+emission,
+       NO outline.
+
+  Puzzles / decorativos interactuables (spec 4.7 - palancas, paneles, valvulas):
+    -> AQUI si podes subir _OutlineIntensity a 0.3-1 en materiales puntuales
+       para reforzar el interactuable. Decision de arte/GD.
+
+  REGLA DURA: outline > 0 sobre un item del 4.5 rompe el spec. Consultar GD.
+
+
+PASO 6 - GlitchController (CHROMATIC ABERRATION / VHS)
+------------------------------------------------------------------------
+  1. GameObject persistente (Bootstrap / Data / LevelUI, o el mismo que tiene
+     PS1EffectApplier).
+  2. Add Component -> "Glitch Controller".
+  3. Inspector:
+       Ps1 Material    -> arrastrar Materials/Post Process/PS1Effect.mat
+       Interval Range  -> (8, 45)     [spec 6.10]
+       Duration Range  -> (0.1, 0.4)  [spec 6.10]
+       Max CA Offset   -> 0.008
+  4. Ctrl+S.
+
+  ACCESIBILIDAD: lee PlayerPrefs "Settings_VHSGlitch" (1=on). Cuando Options
+  exponga el toggle: PlayerPrefs.SetInt("Settings_VHSGlitch", v) +
+  SettingsModel.RaiseSettingsApplied(). Mismo patron que PS1EffectApplier
+  (Settings_CRTScanlines / Settings_PSXDithering).
+
+  GATE POR MODALES: al abrir Inventory/SkillCheck/Examine setear
+  GlitchController.SuspendTriggering = true; al cerrar, false. (spec 6.10)
+
+
+PASO 7 - VERIFICACION EN PLAY
+------------------------------------------------------------------------
+  1. Play desde Bootstrap.
+  2. Mover player -> burbuja clara lo sigue, niebla con "respiracion" de noise.
+  3. Window > Analysis > Frame Debugger -> Enable -> buscar "Draw Fullscreen"
+     del fog -> panel Globals debe mostrar:
+       _PlayerPos            != (0,0,0)
+       _VisionEnd            > 0
+       _PlayerLightPosition  = pos de la Light ambar
+       _PlayerLightRange     ~ Light.range * 2
+       _PlayerLightColor     = color del Light (ambar)
+       _FogLightBypassCount  = nro de bypasses activos
+  4. Pasar cerca de un FogLightBypass -> niebla se abre local.
+  5. Esperar 8-45s -> flash rapido de CA (glitch). Si nunca aparece:
+     PlayerPrefs.SetInt("Settings_VHSGlitch",1) o activar en Options.
+  6. Test outline: aplicar ItemPsx.mat a un cubo + esfera, subir
+     _OutlineIntensity en runtime -> borde iluminado sigue cada forma
+     (funciona en cualquier mesh, sin conocer su geometria).
+
+
+PROPERTIES POR SISTEMA (referencia de inspector)
+------------------------------------------------------------------------
+  PS1 (PS1Effect.mat):
+    _EnableEffect (master), _PixelSize, _WarpStrength, _WarpIntensity,
+    _JitterResolution,
+    _EnableDither, _DitherStrength, _DitherLevels,
+    _EnableScanlines, _ScanlineIntensity (0.06 spec), _ScanlineCount,
+    _EnableChromaticAberration, _ChromaticAberrationOffset (0, lo mueve Glitch)
+
+  ItemPSX (ItemPsx.mat):
+    _BaseMap, _BaseColor, _TintColor, _TintIntensity, _EmissionColor,
+    _EmissionIntensity, _Smoothness,
+    _OutlineColor, _OutlineIntensity (0 = apagado), _OutlinePower
+
+  Fog (globals via VisionRangeController, NO en el .mat):
+    _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation,
+    _FogDensityPower, _PlayerLightPosition, _PlayerLightRange,
+    _PlayerLightIntensity, _PlayerLightColor,
+    _FogLightBypassData[8], _FogLightBypassCount
+
+
+PENDIENTES CONOCIDOS (fuera del pedido original)
+------------------------------------------------------------------------
+  - VHS vertical shift (_VHSShift) del spec 6.10: no implementado aun.
+  - Ojos del Nemesis a traves de niebla (spec 3.6): feature separada.
+  - Siluetas de interactuables (spec 3.7): pending GD.
+  - Migrar FogLightBypass a evento de ZoneLightController cuando exista.
+========================================================================

@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 801768757801768997}
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 8221545152509093141}
+  - component: {fileID: -6211692202051949099}
   m_Layer: 6
   m_Name: InventoryItem
   m_TagString: Untagged
@@ -69,7 +70,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 63136dd2647b1614cad4aae7a3c260dd, type: 2}
+  - {fileID: 2100000, guid: a4ccbc485f0ae564a8d76ea6c8a6e939, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -154,3 +155,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
   itemToPick: {fileID: 0}
+--- !u!114 &-6211692202051949099
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8438275548156035699}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  farTint: 0.25
+  farEmission: 0.15
+  nearTint: 0.4
+  nearEmission: 0.2
+  lerpDuration: 0.3
+  overrideCategory: 0
+  category: 1
+  categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}
+  targetRenderer: {fileID: 0}

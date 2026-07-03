@@ -5,6 +5,10 @@ public class PickupInteractable : BaseRangeInteractable
     [Header("Item")]
     [SerializeField] private SO_InventoryItem itemToPick;
 
+    /// <summary>Item asignado a este pickup. Lo lee <see cref="ItemProximityHighlight"/>
+    /// para resolver la categoría automáticamente sin duplicar el dropdown a mano.</summary>
+    public SO_InventoryItem Item => itemToPick;
+
 
     public override string GetInteractText()
     {

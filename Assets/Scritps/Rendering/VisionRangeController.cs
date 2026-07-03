@@ -15,11 +15,15 @@ using UnityEngine;
 /// Mientras no hay player, setea <c>_VisionEnd = 0</c> → el shader hace early-out → no fog.
 ///
 /// Globals seteadas:
-///   _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation
+///   _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation, _FogDensityPower,
+///   _PlayerLightPosition, _PlayerLightRange, _PlayerLightIntensity, _PlayerLightColor,
+///   _FogLightBypassData[8], _FogLightBypassCount
 /// </summary>
 [DefaultExecutionOrder(100)]
 public class VisionRangeController : MonoBehaviour
 {
+    public const int MaxBypassZones = 8;
+
     [Header("Default config")]
     [Tooltip("Preset que se aplica cuando el player no está en ninguna LightZone. " +
              "Suele ser una zona 'oscura' / opresiva — los LightZones modulan hacia arriba.")]
@@ -41,26 +45,48 @@ public class VisionRangeController : MonoBehaviour
     // Stack de configs activas: la última pusheada gana. El bottom es siempre defaultConfig.
     private readonly List<SO_VisionFogConfig> _configStack = new List<SO_VisionFogConfig>();
 
+    // Fuente de luz del player (opcional) y bypass zones registradas por sus componentes.
+    private FogLightSource _playerLight;
+    private static readonly List<FogLightBypass> s_bypassZones = new List<FogLightBypass>(MaxBypassZones);
+
+    // Buffer reutilizable para el push del array al shader.
+    private readonly Vector4[] _bypassBuffer = new Vector4[MaxBypassZones];
+
     // Valores actuales del fog (interpolados frame a frame).
     private float _currentVisionStart;
     private float _currentVisionEnd;
     private Color _currentFogColor;
     private float _currentLightPreservation;
+    private float _currentDensityPower = 1f;
+    private float _currentPlayerLightRange;
+    private float _currentPlayerLightIntensity;
+    private Color _currentPlayerLightColor = Color.black;
 
     // Targets (los del config activo del top del stack).
     private float _targetVisionStart;
     private float _targetVisionEnd;
     private Color _targetFogColor;
     private float _targetLightPreservation;
+    private float _targetDensityPower = 1f;
+    private float _targetPlayerLightRange;
+    private float _targetPlayerLightIntensity;
+    private Color _targetPlayerLightColor = Color.black;
 
     // Velocidad de transición actual (en unidades por segundo, derivada del transitionDuration).
     private float _lerpRate = 4f;
 
-    private static readonly int PlayerPosId = Shader.PropertyToID("_PlayerPos");
-    private static readonly int VStartId    = Shader.PropertyToID("_VisionStart");
-    private static readonly int VEndId      = Shader.PropertyToID("_VisionEnd");
-    private static readonly int FogColorId  = Shader.PropertyToID("_FogColor");
-    private static readonly int LightPresId = Shader.PropertyToID("_LightPreservation");
+    private static readonly int PlayerPosId       = Shader.PropertyToID("_PlayerPos");
+    private static readonly int VStartId          = Shader.PropertyToID("_VisionStart");
+    private static readonly int VEndId            = Shader.PropertyToID("_VisionEnd");
+    private static readonly int FogColorId        = Shader.PropertyToID("_FogColor");
+    private static readonly int LightPresId       = Shader.PropertyToID("_LightPreservation");
+    private static readonly int DensityPowerId    = Shader.PropertyToID("_FogDensityPower");
+    private static readonly int PlayerLightPosId  = Shader.PropertyToID("_PlayerLightPosition");
+    private static readonly int PlayerLightRngId  = Shader.PropertyToID("_PlayerLightRange");
+    private static readonly int PlayerLightIntId  = Shader.PropertyToID("_PlayerLightIntensity");
+    private static readonly int PlayerLightColId  = Shader.PropertyToID("_PlayerLightColor");
+    private static readonly int BypassDataId      = Shader.PropertyToID("_FogLightBypassData");
+    private static readonly int BypassCountId     = Shader.PropertyToID("_FogLightBypassCount");
 
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
@@ -70,10 +96,14 @@ public class VisionRangeController : MonoBehaviour
         {
             ApplyTargetsFromConfig(defaultConfig);
             // Inicializar valores actuales al target para evitar lerp desde 0 al arrancar.
-            _currentVisionStart = _targetVisionStart;
-            _currentVisionEnd   = _targetVisionEnd;
-            _currentFogColor    = _targetFogColor;
-            _currentLightPreservation = _targetLightPreservation;
+            _currentVisionStart         = _targetVisionStart;
+            _currentVisionEnd           = _targetVisionEnd;
+            _currentFogColor            = _targetFogColor;
+            _currentLightPreservation   = _targetLightPreservation;
+            _currentDensityPower        = _targetDensityPower;
+            _currentPlayerLightRange    = _targetPlayerLightRange;
+            _currentPlayerLightIntensity= _targetPlayerLightIntensity;
+            _currentPlayerLightColor    = _targetPlayerLightColor;
         }
 
         TryAcquirePlayer();
@@ -87,21 +117,64 @@ public class VisionRangeController : MonoBehaviour
                 TryAcquirePlayer();
 
             Shader.SetGlobalFloat(VEndId, 0f); // early-out del shader
+            Shader.SetGlobalFloat(PlayerLightRngId, 0f);
+            Shader.SetGlobalInt(BypassCountId, 0);
             return;
         }
 
         // Interpolar valores actuales hacia los targets.
         float t = Time.deltaTime * _lerpRate;
-        _currentVisionStart       = Mathf.Lerp(_currentVisionStart, _targetVisionStart, t);
-        _currentVisionEnd         = Mathf.Lerp(_currentVisionEnd,   _targetVisionEnd,   t);
-        _currentFogColor          = Color.Lerp(_currentFogColor,    _targetFogColor,    t);
-        _currentLightPreservation = Mathf.Lerp(_currentLightPreservation, _targetLightPreservation, t);
+        _currentVisionStart         = Mathf.Lerp(_currentVisionStart,         _targetVisionStart,         t);
+        _currentVisionEnd           = Mathf.Lerp(_currentVisionEnd,           _targetVisionEnd,           t);
+        _currentFogColor            = Color.Lerp(_currentFogColor,            _targetFogColor,            t);
+        _currentLightPreservation   = Mathf.Lerp(_currentLightPreservation,   _targetLightPreservation,   t);
+        _currentDensityPower        = Mathf.Lerp(_currentDensityPower,        _targetDensityPower,        t);
+        _currentPlayerLightRange    = Mathf.Lerp(_currentPlayerLightRange,    _targetPlayerLightRange,    t);
+        _currentPlayerLightIntensity= Mathf.Lerp(_currentPlayerLightIntensity,_targetPlayerLightIntensity,t);
+        _currentPlayerLightColor    = Color.Lerp(_currentPlayerLightColor,    _targetPlayerLightColor,    t);
 
         Shader.SetGlobalVector(PlayerPosId, _player.position);
-        Shader.SetGlobalFloat(VStartId, _currentVisionStart);
-        Shader.SetGlobalFloat(VEndId, _currentVisionEnd);
+        Shader.SetGlobalFloat(VStartId,   _currentVisionStart);
+        Shader.SetGlobalFloat(VEndId,     _currentVisionEnd);
         Shader.SetGlobalColor(FogColorId, _currentFogColor);
-        Shader.SetGlobalFloat(LightPresId, _currentLightPreservation);
+        Shader.SetGlobalFloat(LightPresId,      _currentLightPreservation);
+        Shader.SetGlobalFloat(DensityPowerId,   _currentDensityPower);
+
+        // Linterna del player — si hay un FogLightSource asignado tomamos su transform
+        // en tiempo real; si no, usamos la posición del player como fallback.
+        // Si el FogLightSource está en modo "leer del Light component" (default), sus
+        // range/color/intensity ganan sobre los del SO — así la degradación futura
+        // de módulos (§2.5.1) baja el fogClearRadius automáticamente.
+        Vector3 lightPos = _playerLight != null ? _playerLight.transform.position : _player.position;
+        Shader.SetGlobalVector(PlayerLightPosId, lightPos);
+
+        if (_playerLight != null && _playerLight.HasLightOverride)
+        {
+            Shader.SetGlobalFloat(PlayerLightRngId, _playerLight.OverrideRange);
+            Shader.SetGlobalFloat(PlayerLightIntId, _playerLight.OverrideIntensity);
+            Shader.SetGlobalColor(PlayerLightColId, _playerLight.OverrideColor);
+        }
+        else
+        {
+            Shader.SetGlobalFloat(PlayerLightRngId, _currentPlayerLightRange);
+            Shader.SetGlobalFloat(PlayerLightIntId, _currentPlayerLightIntensity);
+            Shader.SetGlobalColor(PlayerLightColId, _currentPlayerLightColor);
+        }
+
+        // Bypass zones activas — compacto los primeros N en el buffer y pusheo el array.
+        int count = 0;
+        for (int i = 0; i < s_bypassZones.Count && count < MaxBypassZones; i++)
+        {
+            FogLightBypass b = s_bypassZones[i];
+            if (b == null || !b.isActiveAndEnabled || b.radius <= 0f) continue;
+            Vector3 p = b.transform.position;
+            _bypassBuffer[count++] = new Vector4(p.x, p.y, p.z, b.radius);
+        }
+        // Limpia el resto para no leer basura de frames anteriores.
+        for (int i = count; i < MaxBypassZones; i++) _bypassBuffer[i] = Vector4.zero;
+
+        Shader.SetGlobalVectorArray(BypassDataId, _bypassBuffer);
+        Shader.SetGlobalInt(BypassCountId, count);
     }
 
     // ── API pública para LightZones ─────────────────────────────────────────
@@ -150,14 +223,35 @@ public class VisionRangeController : MonoBehaviour
             ApplyTargetsFromConfig(newDefault);
     }
 
+    // ── API para FogLightSource / FogLightBypass ────────────────────────────
+
+    /// <summary>Setear (o limpiar con null) la linterna del player que se lee cada frame.</summary>
+    public void SetPlayerLightSource(FogLightSource source) => _playerLight = source;
+
+    public static void RegisterBypass(FogLightBypass zone)
+    {
+        if (zone == null || s_bypassZones.Contains(zone)) return;
+        s_bypassZones.Add(zone);
+    }
+
+    public static void UnregisterBypass(FogLightBypass zone)
+    {
+        if (zone == null) return;
+        s_bypassZones.Remove(zone);
+    }
+
     // ── Internals ───────────────────────────────────────────────────────────
 
     private void ApplyTargetsFromConfig(SO_VisionFogConfig config)
     {
-        _targetVisionStart       = config.visionStart;
-        _targetVisionEnd         = config.visionEnd;
-        _targetFogColor          = config.fogColor;
-        _targetLightPreservation = config.lightPreservation;
+        _targetVisionStart          = config.visionStart;
+        _targetVisionEnd            = config.visionEnd;
+        _targetFogColor             = config.fogColor;
+        _targetLightPreservation    = config.lightPreservation;
+        _targetDensityPower         = config.densityPower;
+        _targetPlayerLightRange     = config.playerLightRange;
+        _targetPlayerLightIntensity = config.playerLightIntensity;
+        _targetPlayerLightColor     = config.playerLightColor;
 
         // Convertir transitionDuration (segundos) en lerp rate (1/s).
         // Aproximación: si querés llegar al 99% en `transitionDuration` segundos, el rate
