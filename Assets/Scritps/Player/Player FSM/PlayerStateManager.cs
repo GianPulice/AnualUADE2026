@@ -23,6 +23,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private bool isGrounded = false;
     private float currentVelocity = 0f;
     private float speedMultiplier = 1f;
+    private Vector3 nextPosition;
+    private Vector3 nextDirection;
 
     // State booleans
     private bool isCrouch = false;
@@ -49,6 +51,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
     public Animator AnimController { get => animController; set => animController = value; }
+    public Vector3 NextPosition { get => nextPosition; set => nextPosition = value; }
+    public Vector3 NextDirection { get => nextDirection; set => nextDirection = value; }
 
     public enum EPlayerState
     {
@@ -165,7 +169,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     public void SetPlayerPositionAndDirection(Vector3 newPosition, Vector3 newForward)
     {
-        transform.position = new Vector3(newPosition.x, transform.position.y, newPosition.z);
-        playerBody.forward = newForward;
+        nextPosition = new Vector3(newPosition.x, transform.position.y, newPosition.z);
+        nextDirection = newForward;
     }
 }

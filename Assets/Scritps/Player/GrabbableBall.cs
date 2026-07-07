@@ -10,7 +10,7 @@ public class GrabbableBall : MonoBehaviour
     private bool playerNearby;
     private bool isGrabbed;
 
-    private float spamProtectionTimer = 0.2f;
+    private float spamProtectionTimer = 0.5f;
     private float currentTimer = 0;
 
     public string PlayerTag { get => playerTag; set => playerTag = value; }
@@ -82,33 +82,17 @@ public class GrabbableBall : MonoBehaviour
     {
         if (player == null) return;
         isGrabbed = true;
-
         rb.mass = 1;
-        //rb.isKinematic = true;
-        //rb.useGravity = false;
-
         player.IsInteracting = true;
         Vector3 tempDir = new Vector3(transform.position.x - currentTriggerTransform.position.x, 0, transform.position.z - currentTriggerTransform.position.z).normalized;
         player.SetPlayerPositionAndDirection(currentTriggerTransform.position, tempDir);
-
-        //transform.SetParent(player.transform,true);
-        //transform.localPosition = Vector3.zero;
-        //transform.localRotation = Quaternion.identity;
     }
 
     private void Release()
     {
         if (player == null) return;
         player.IsInteracting = false;
-
         isGrabbed = false;
-
-        //transform.SetParent(null);
-
         rb.mass = 1000;
-        //rb.isKinematic = false;
-        //rb.useGravity = true;
-
-        //holdPoint = null;
     }
 }

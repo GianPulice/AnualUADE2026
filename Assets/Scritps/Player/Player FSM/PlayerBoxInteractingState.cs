@@ -4,6 +4,9 @@ using UnityEngine.Assemblies;
 public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerState>
 {
     private PlayerStateManager playerStateManager;
+    private bool finishAnim = false;
+    private float animTimer = 0.2f;
+    private float currentTimer = 0f;
     public PlayerBoxInteractingState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -18,6 +21,8 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         playerStateManager.AnimController.SetBool("isPushing", true);
         playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.FootstepNoiseRadius;
         NextState = StateKey;
+        finishAnim = false;
+        currentTimer = 0f;
     }
 
     public override void ExitState()
@@ -55,20 +60,38 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         if (!playerStateManager.IsInteracting) NextState = PlayerStateManager.EPlayerState.Idle;
         else
         {
-            if (Input.GetAxis("Vertical") > 0)
+            if (!finishAnim) 
             {
-                if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                if (currentTimer < animTimer) 
                 {
-                    playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
+                    playerStateManager.transform.position = Vector3.Slerp(playerStateManager.transform.position, playerStateManager.NextPosition,currentTimer/animTimer);
+                    playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.NextDirection, currentTimer / animTimer);
+                    currentTimer += Time.deltaTime;
                 }
-                else
+                else 
                 {
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                    playerStateManager.transform.position = Vector3.Slerp(playerStateManager.transform.position, playerStateManager.NextPosition, 1);
+                    playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.NextDirection, 1);
+                    finishAnim = true;
                 }
             }
-            else playerStateManager.CurrentVelocity = 0;
-            playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + Vector3.down;
-            playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+            else
+            {
+                if (Input.GetAxis("Vertical") > 0)
+                {
+                    if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                    {
+                        playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
+                    }
+                    else
+                    {
+                        playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                    }
+                }
+                else playerStateManager.CurrentVelocity = 0;
+                playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity + Vector3.down;
+                playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+            }
         }
     }
 }
