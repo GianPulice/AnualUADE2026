@@ -4,7 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Panel de Controls del Settings: sensibilidad (funcional) + invertir Y (placeholder).
+/// Panel de Controls del Settings: sensibilidad + invertir Y (ambos funcionales,
+/// los aplica CameraSensitivityApplier al hacer Apply).
 /// Los keybinds del wireframe son labels estáticos por ahora — el rebinding se hará
 /// cuando se implemente con InputSystem.
 /// </summary>
@@ -14,7 +15,7 @@ public class SettingsPanelControlsView : MonoBehaviour
     [SerializeField] private Slider _sliderSensitivity;
     [SerializeField] private TextMeshProUGUI _labelSensitivity;
 
-    [Header("Invertir Y (placeholder)")]
+    [Header("Invertir Y")]
     [SerializeField] private Toggle _toggleInvertY;
 
     public event Action<float> OnSensitivityChanged;

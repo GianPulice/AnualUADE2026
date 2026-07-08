@@ -4,10 +4,10 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Panel de Brightness — PLACEHOLDER.
-/// Los controles se exponen y guardan en el modelo, pero hoy ningún sistema los lee.
-/// Cuando se implemente post-process URP, suscribirse a SettingsModel.OnSettingsApplied
-/// y leer Brightness/Contrast/Gamma/CRTScanlines/PSXDithering desde el modelo o PlayerPrefs.
+/// Panel de Brightness. Los controles se guardan en el modelo y SÍ afectan al juego:
+/// Brightness/Contrast/Gamma los aplica PostProcessSettingsApplier (Global Volume) y
+/// CRTScanlines/PSXDithering los aplica PS1EffectApplier, ambos al dispararse
+/// SettingsModel.OnSettingsApplied. Requisito: cada applier colocado en su GameObject.
 /// </summary>
 public class SettingsPanelBrightnessView : MonoBehaviour
 {

@@ -227,6 +227,7 @@ GameObject:
   - component: {fileID: 6137332638113486697}
   - component: {fileID: 1395814622830544848}
   - component: {fileID: 8297827854600459647}
+  - component: {fileID: 6846287691701151233}
   m_Layer: 7
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -485,6 +486,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraController
   cameraConfig: {fileID: 11400000, guid: 372ddb5b57ce76f478437eba53d422e9, type: 2}
+--- !u!114 &6846287691701151233
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088243688451712710}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94bdac1eb0c482c47915ef00b17d555f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraSensitivityApplier
+  _verticalAxisName: 
 --- !u!1 &4678779371031117235
 GameObject:
   m_ObjectHideFlags: 0

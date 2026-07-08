@@ -136,7 +136,12 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnUIChanged          += model.SetUIVolume;
         view.OnSensitivityChanged += model.SetSensitivity;
 
-        // Placeholders (se guardan en el modelo pero todavía no afectan al juego)
+        // Todos estos SÍ afectan al juego vía appliers que escuchan SettingsModel.OnSettingsApplied
+        // (cada applier debe estar colocado en su GameObject en la escena):
+        //   InvertY                     → CameraSensitivityApplier (rig de cámara)
+        //   Brightness/Contrast/Gamma   → PostProcessSettingsApplier (Global Volume)
+        //   CRT / Dither                → PS1EffectApplier (persistente, con PS1Effect.mat)
+        //   Resolution/Window/FPS/VSync → ScreenSettingsApplier (persistente)
         view.OnInvertYChanged    += model.SetInvertYAxis;
         view.OnBrightnessChanged += model.SetBrightness;
         view.OnContrastChanged   += model.SetContrast;

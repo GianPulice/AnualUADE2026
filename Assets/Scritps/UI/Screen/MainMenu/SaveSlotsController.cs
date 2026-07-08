@@ -52,6 +52,15 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
         Close().Forget();
     }
 
+    /// <summary>Devuelve el slot por su SlotIndex (1-based), o null si no existe.</summary>
+    public SO_SaveSlotData GetSlot(int slotIndex)
+    {
+        if (model?.Slots == null) return null;
+        foreach (SO_SaveSlotData slot in model.Slots)
+            if (slot != null && slot.SlotIndex == slotIndex) return slot;
+        return null;
+    }
+
     private void HandleSlotClicked(int slotIndex)
     {
         Debug.Log($"<color=cyan>[SaveSlotsController] Slot {slotIndex} clickeado (visual stub).</color>");
