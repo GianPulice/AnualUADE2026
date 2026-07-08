@@ -1813,14 +1813,6 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 1701921630584223004, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1701921630584223004, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1701921630584223004, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -1860,37 +1852,9 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2283158211561607001, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_Mass
-      value: 1000
-      objectReference: {fileID: 0}
-    - target: {fileID: 2283158211561607001, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_Constraints
-      value: 112
-      objectReference: {fileID: 0}
-    - target: {fileID: 2283158211561607001, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_Interpolate
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2283158211561607001, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_IsKinematic
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2283158211561607001, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_CollisionDetection
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6114506311072273757, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_Enabled
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 7332867751031854402, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
       propertyPath: m_Name
       value: Pelota_A
-      objectReference: {fileID: 0}
-    - target: {fileID: 7588172819945011106, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: m_ProvidesContacts
-      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2789,10 +2753,6 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5253595690117749195, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: wayPoints.Array.size
-      value: 5
-      objectReference: {fileID: 0}
-    - target: {fileID: 5253595690117749195, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
       propertyPath: 'wayPoints.Array.data[0]'
       value: 
       objectReference: {fileID: 2092289967}
@@ -2812,44 +2772,11 @@ PrefabInstance:
       propertyPath: 'wayPoints.Array.data[4]'
       value: 
       objectReference: {fileID: 1150451221}
-    - target: {fileID: 5684726728193510827, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: m_AutoBraking
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 5684726728193510827, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: m_Acceleration
-      value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 5684726728193510827, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: m_StoppingDistance
-      value: 1.5
-      objectReference: {fileID: 0}
     - target: {fileID: 6133474145954848426, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
       propertyPath: m_Name
       value: Nemesis
       objectReference: {fileID: 0}
-    - target: {fileID: 6133474145954848426, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6366883338896328337, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: listenRange
-      value: 10
-      objectReference: {fileID: 0}
-    - target: {fileID: 6366883338896328337, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: listenMask.m_Bits
-      value: 256
-      objectReference: {fileID: 0}
-    - target: {fileID: 7262208103517849607, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: m_Enabled
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7262208103517849607, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
-      propertyPath: viewRange
-      value: 10
-      objectReference: {fileID: 0}
-    m_RemovedComponents:
-    - {fileID: 8210290628286334285, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+    m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
