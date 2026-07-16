@@ -63,4 +63,8 @@ public class FieldOfView : MonoBehaviour
         }
         else hasVisualTarget = false;
     }
+    public PlayerStateManager GetCurrentTarget() 
+    {
+        return visibleTargets[0].GetComponent<PlayerStateManager>();
+    }
 }

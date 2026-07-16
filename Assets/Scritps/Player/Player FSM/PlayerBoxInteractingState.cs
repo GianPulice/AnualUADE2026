@@ -57,7 +57,11 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     public override void UpdateState()
     {
-        if (!playerStateManager.IsInteracting) NextState = PlayerStateManager.EPlayerState.Idle;
+        if (playerStateManager.IsDisabled)
+        {
+            NextState = PlayerStateManager.EPlayerState.Disabled;
+        }
+        else if (!playerStateManager.IsInteracting) NextState = PlayerStateManager.EPlayerState.Idle;
         else
         {
             if (!finishAnim) 

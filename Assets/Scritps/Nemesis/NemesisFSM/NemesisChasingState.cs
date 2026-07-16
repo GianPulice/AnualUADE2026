@@ -60,8 +60,8 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
             {
                 nemesisStateManager.NavAgent.ResetPath();
                 nemesisStateManager.NavAgent.velocity = Vector3.zero;
-                Debug.Log("Ya te Caché");
                 nemesisStateManager.AnimController.SetBool("isRunning", false);
+                NextState = NemesisStateManager.ENemesisState.Catch;
             }
             else nemesisStateManager.AnimController.SetBool("isRunning", true);
         }

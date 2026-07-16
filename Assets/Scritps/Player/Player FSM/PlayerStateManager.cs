@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -15,6 +16,14 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [SerializeField] private Transform playerBody;
     [SerializeField] private Animator animController;
 
+    public SO_Movement Movement { get => movement; set => movement = value; }
+    public Rigidbody RigBody { get => rigBody; set => rigBody = value; }
+    public CapsuleCollider CapsuleColl { get => capsuleColl; set => capsuleColl = value; }
+    public BoxCollider BoxColl { get => boxColl; set => boxColl = value; }
+    public SphereCollider AudioEmitingZone { get => audioEmitingZone; set => audioEmitingZone = value; }
+    public Transform PlayerBody { get => playerBody; set => playerBody = value; }
+    public Animator AnimController { get => animController; set => animController = value; }
+
     // Movement Variables
     [SerializeField] private LayerMask groundLeyerMask;
     [SerializeField] private float groundAngleLimit;
@@ -26,33 +35,36 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private Vector3 nextPosition;
     private Vector3 nextDirection;
 
-    // State booleans
-    private bool isCrouch = false;
-    [SerializeField] private bool isInteracting = false;
-    private bool isHidden = false;
-    private bool isInDanger = false;
-    private bool isDisabled = false;
-
-
-    public SO_Movement Movement { get => movement; set => movement = value; }
-    public Rigidbody RigBody { get => rigBody; set => rigBody = value; }
-    public CapsuleCollider CapsuleColl { get => capsuleColl; set => capsuleColl = value; }
-    public BoxCollider BoxColl { get => boxColl; set => boxColl = value; }
-    public SphereCollider AudioEmitingZone { get => audioEmitingZone; set => audioEmitingZone = value; }
-    public Transform PlayerBody { get => playerBody; set => playerBody = value; }
     public Vector3 InputDir { get => inputDir; set => inputDir = value; }
     public Vector3 MoveDir { get => moveDir; set => moveDir = value; }
     public bool IsGrounded { get => isGrounded; set => isGrounded = value; }
     public float CurrentVelocity { get => currentVelocity; set => currentVelocity = value; }
-    public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
     public float SpeedMultiplier { get => speedMultiplier; set => speedMultiplier = value; }
+    public Vector3 NextPosition { get => nextPosition; set => nextPosition = value; }
+    public Vector3 NextDirection { get => nextDirection; set => nextDirection = value; }
+
+    // State booleans
+    [SerializeField] private bool isInteracting = false;
+    private bool isCrouch = false;
+    private bool isHidden = false;
+    private bool isInDanger = false;
+    private bool isDisabled = false;
+
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
+    public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
     public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
-    public Animator AnimController { get => animController; set => animController = value; }
-    public Vector3 NextPosition { get => nextPosition; set => nextPosition = value; }
-    public Vector3 NextDirection { get => nextDirection; set => nextDirection = value; }
+
+    // Player Module Booleans
+    private bool legsModuleDamage = false;
+    private bool chestModuleDamage = false;
+    private bool headModuleDamage = false;
+    private int modulesDamagedCount = 0;
+
+    public bool LegsModuleDamage { get => legsModuleDamage; set => legsModuleDamage = value; }
+    public bool ChestModuleDamage { get => chestModuleDamage; set => chestModuleDamage = value; }
+    public bool HeadModuleDamage { get => headModuleDamage; set => headModuleDamage = value; }
 
     public enum EPlayerState
     {
@@ -113,13 +125,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             }
         }
 
-        //Testeo de estado Interacting
-        /*if (Input.GetKeyDown(KeyCode.E))
-        {
-            if (isInteracting) isInteracting = false;
-            else isInteracting = true;
-        }*/
-
         //Testeo de estado Hidden
         if (Input.GetKeyDown(KeyCode.R))
         {
@@ -171,5 +176,24 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         nextPosition = new Vector3(newPosition.x, transform.position.y, newPosition.z);
         nextDirection = newForward;
+    }
+    public void OnCaptured() 
+    {
+        if(!isDisabled) isDisabled = true;
+    }
+    public void OnLegsModuleExplosion() 
+    {
+        legsModuleDamage = true;
+        modulesDamagedCount++;
+    }
+    public void OnChestModuleExplosion() 
+    {
+        chestModuleDamage = true;
+        modulesDamagedCount++;
+    }
+    public void OnHeadModuleExplosion() 
+    {
+        headModuleDamage = true;
+        modulesDamagedCount++;
     }
 }

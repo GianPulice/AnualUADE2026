@@ -33,6 +33,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Investigating,
         Chasing,
         Searching,
+        Catch,
     }
 
     void Awake()
@@ -58,6 +59,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         States.Add(ENemesisState.Chasing, new NemesisChasingState(ENemesisState.Chasing,this));
         States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching,this));
         States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating,this));
+        States.Add(ENemesisState.Catch, new NemesisCatchState(ENemesisState.Catch, this));
         CurrentState = States[ENemesisState.Patrolling];
     }
 

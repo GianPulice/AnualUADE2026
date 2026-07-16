@@ -55,6 +55,10 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
+        if (playerStateManager.IsDisabled)
+        {
+            NextState = PlayerStateManager.EPlayerState.Disabled;
+        }
         if (!playerStateManager.IsCrouch) 
         {
             NextState = PlayerStateManager.EPlayerState.Idle;
