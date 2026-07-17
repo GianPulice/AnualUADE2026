@@ -17,7 +17,7 @@ using UnityEngine;
 /// Globals seteadas:
 ///   _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation, _FogDensityPower,
 ///   _PlayerLightPosition, _PlayerLightRange, _PlayerLightIntensity, _PlayerLightColor,
-///   _FogLightBypassData[8], _FogLightBypassCount
+///   _VisionFogBlurStrength, _FogLightBypassData[8], _FogLightBypassCount
 /// </summary>
 [DefaultExecutionOrder(100)]
 public class VisionRangeController : MonoBehaviour
@@ -61,6 +61,7 @@ public class VisionRangeController : MonoBehaviour
     private float _currentPlayerLightRange;
     private float _currentPlayerLightIntensity;
     private Color _currentPlayerLightColor = Color.black;
+    private float _currentBlurStrength;
 
     // Targets (los del config activo del top del stack).
     private float _targetVisionStart;
@@ -71,6 +72,7 @@ public class VisionRangeController : MonoBehaviour
     private float _targetPlayerLightRange;
     private float _targetPlayerLightIntensity;
     private Color _targetPlayerLightColor = Color.black;
+    private float _targetBlurStrength;
 
     // Velocidad de transición actual (en unidades por segundo, derivada del transitionDuration).
     private float _lerpRate = 4f;
@@ -85,6 +87,7 @@ public class VisionRangeController : MonoBehaviour
     private static readonly int PlayerLightRngId  = Shader.PropertyToID("_PlayerLightRange");
     private static readonly int PlayerLightIntId  = Shader.PropertyToID("_PlayerLightIntensity");
     private static readonly int PlayerLightColId  = Shader.PropertyToID("_PlayerLightColor");
+    private static readonly int BlurStrengthId    = Shader.PropertyToID("_VisionFogBlurStrength");
     private static readonly int BypassDataId      = Shader.PropertyToID("_FogLightBypassData");
     private static readonly int BypassCountId     = Shader.PropertyToID("_FogLightBypassCount");
 
@@ -104,6 +107,7 @@ public class VisionRangeController : MonoBehaviour
             _currentPlayerLightRange    = _targetPlayerLightRange;
             _currentPlayerLightIntensity= _targetPlayerLightIntensity;
             _currentPlayerLightColor    = _targetPlayerLightColor;
+            _currentBlurStrength        = _targetBlurStrength;
         }
 
         TryAcquirePlayer();
@@ -122,6 +126,13 @@ public class VisionRangeController : MonoBehaviour
             return;
         }
 
+        // Releer el config activo cada frame — así tocar sliders del SO en el Inspector
+        // mientras estás en Play se ve al toque, sin necesitar un nuevo Push/Pop.
+        SO_VisionFogConfig activeConfig = _configStack.Count > 0
+            ? _configStack[_configStack.Count - 1]
+            : defaultConfig;
+        if (activeConfig != null) ApplyTargetsFromConfig(activeConfig);
+
         // Interpolar valores actuales hacia los targets.
         float t = Time.deltaTime * _lerpRate;
         _currentVisionStart         = Mathf.Lerp(_currentVisionStart,         _targetVisionStart,         t);
@@ -132,6 +143,7 @@ public class VisionRangeController : MonoBehaviour
         _currentPlayerLightRange    = Mathf.Lerp(_currentPlayerLightRange,    _targetPlayerLightRange,    t);
         _currentPlayerLightIntensity= Mathf.Lerp(_currentPlayerLightIntensity,_targetPlayerLightIntensity,t);
         _currentPlayerLightColor    = Color.Lerp(_currentPlayerLightColor,    _targetPlayerLightColor,    t);
+        _currentBlurStrength        = Mathf.Lerp(_currentBlurStrength,        _targetBlurStrength,        t);
 
         Shader.SetGlobalVector(PlayerPosId, _player.position);
         Shader.SetGlobalFloat(VStartId,   _currentVisionStart);
@@ -139,6 +151,7 @@ public class VisionRangeController : MonoBehaviour
         Shader.SetGlobalColor(FogColorId, _currentFogColor);
         Shader.SetGlobalFloat(LightPresId,      _currentLightPreservation);
         Shader.SetGlobalFloat(DensityPowerId,   _currentDensityPower);
+        Shader.SetGlobalFloat(BlurStrengthId,   _currentBlurStrength);
 
         // Linterna del player — si hay un FogLightSource asignado tomamos su transform
         // en tiempo real; si no, usamos la posición del player como fallback.
@@ -240,6 +253,33 @@ public class VisionRangeController : MonoBehaviour
         s_bypassZones.Remove(zone);
     }
 
+    // ── API para VisionFogTrack (Timeline) ──────────────────────────────────
+
+    /// <summary>
+    /// Escribe los globals directo, sin pasar por el stack ni el lerp de LateUpdate.
+    /// La llama <c>VisionFogMixerBehaviour</c> con el resultado ya mezclado de los
+    /// clips activos en la pista — pensado para scrub-preview en el editor sin dar Play.
+    /// </summary>
+    public void ApplyPreviewBlend(float visionStart, float visionEnd, Color fogColor,
+        float lightPreservation, float densityPower,
+        float playerLightRange, float playerLightIntensity, Color playerLightColor,
+        float blurStrength)
+    {
+        Vector3 previewPos = playerOverride != null ? playerOverride.position : transform.position;
+
+        Shader.SetGlobalVector(PlayerPosId, previewPos);
+        Shader.SetGlobalFloat(VStartId, visionStart);
+        Shader.SetGlobalFloat(VEndId, visionEnd);
+        Shader.SetGlobalColor(FogColorId, fogColor);
+        Shader.SetGlobalFloat(LightPresId, lightPreservation);
+        Shader.SetGlobalFloat(DensityPowerId, densityPower);
+        Shader.SetGlobalVector(PlayerLightPosId, previewPos);
+        Shader.SetGlobalFloat(PlayerLightRngId, playerLightRange);
+        Shader.SetGlobalFloat(PlayerLightIntId, playerLightIntensity);
+        Shader.SetGlobalColor(PlayerLightColId, playerLightColor);
+        Shader.SetGlobalFloat(BlurStrengthId, blurStrength);
+    }
+
     // ── Internals ───────────────────────────────────────────────────────────
 
     private void ApplyTargetsFromConfig(SO_VisionFogConfig config)
@@ -252,6 +292,7 @@ public class VisionRangeController : MonoBehaviour
         _targetPlayerLightRange     = config.playerLightRange;
         _targetPlayerLightIntensity = config.playerLightIntensity;
         _targetPlayerLightColor     = config.playerLightColor;
+        _targetBlurStrength         = config.blurStrength;
 
         // Convertir transitionDuration (segundos) en lerp rate (1/s).
         // Aproximación: si querés llegar al 99% en `transitionDuration` segundos, el rate

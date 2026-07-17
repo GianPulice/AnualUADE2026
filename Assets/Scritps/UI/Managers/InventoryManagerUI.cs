@@ -39,6 +39,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     [SerializeField] private ItemDetailView itemDetailView;
     [SerializeField] private ModuleHUDView moduleHUDView;
     [SerializeField] private DiscardDialogView discardDialogView;
+    [SerializeField] private InventoryTabPanelAnimator panelAnimator;
 
     // -- Estado interno -------------------
 
@@ -153,7 +154,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
 
         // Mostrar y poblar la vista
-        inventoryView?.SetVisible(true);
+        if (panelAnimator != null) panelAnimator.Open();
+        else inventoryView?.SetVisible(true);
         RefreshItemList();
 
         AutoSelectFirstItem();
@@ -177,7 +179,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // El UIStateManager restaura Time.timeScale y cursor cuando el stack queda vacio.
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
-        inventoryView?.SetVisible(false);
+        if (panelAnimator != null) panelAnimator.Close();
+        else inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
 
         // Detener audio de grabación

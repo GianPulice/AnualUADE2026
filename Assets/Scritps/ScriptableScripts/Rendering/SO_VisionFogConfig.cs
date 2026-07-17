@@ -37,6 +37,10 @@ public class SO_VisionFogConfig : ScriptableObject
              "la sensación de falta de visibilidad sin cambiar el rango. <1 la suaviza.")]
     [Range(0.25f, 4f)] public float densityPower = 1f;
 
+    [Tooltip("Desenfoque óptico (no solo oscurecimiento) hacia visionEnd. 0 = sin blur, " +
+             "solo el fundido a fogColor de siempre. Valores típicos: 0.005–0.02.")]
+    [Range(0f, 0.05f)] public float blurStrength = 0f;
+
     [Header("Linterna del player (perfora la niebla)")]
     [Tooltip("Radio (metros) donde la linterna del player disuelve la niebla. 0 = feature apagado. " +
              "Requiere un componente FogLightSource sobre la linterna del player.")]
