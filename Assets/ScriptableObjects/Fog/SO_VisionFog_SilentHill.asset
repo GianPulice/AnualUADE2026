@@ -16,4 +16,9 @@ MonoBehaviour:
   visionEnd: 10
   fogColor: {r: 0.1975792, g: 0.33370763, b: 0.3773585, a: 1}
   lightPreservation: 0.5
+  densityPower: 4
+  playerLightRange: 8
+  playerLightIntensity: 1
+  playerLightColor: {r: 1, g: 0.85, b: 0.6, a: 1}
   transitionDuration: 5
+  silhouetteMode: 0

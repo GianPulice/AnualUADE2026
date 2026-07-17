@@ -13,6 +13,7 @@ Material:
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords:
+  - _CLAMPWARPEDGES_ON
   - _ENABLECHROMATICABERRATION_ON
   - _ENABLEDITHER_ON
   - _ENABLEEFFECT_ON
@@ -42,7 +43,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _ChromaticAberrationOffset: 0.0112
-    - _ClampWarpEdges: 0
+    - _ClampWarpEdges: 1
     - _DitherLevels: 7
     - _DitherStrength: 0.05
     - _EnableChromaticAberration: 1
