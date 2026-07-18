@@ -13,11 +13,12 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         NextState = StateKey;
         Debug.Log("Dispara animacion de captura");
         nemesisStateManager.FieldOfView.GetCurrentTarget().OnCaptured();
+        nemesisStateManager.AnimController.SetBool("isCatching", true);
     }
 
     public override void ExitState()
     {
-        
+        nemesisStateManager.AnimController.SetBool("isCatching", false);
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
