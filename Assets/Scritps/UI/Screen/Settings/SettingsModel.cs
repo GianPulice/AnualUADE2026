@@ -20,7 +20,10 @@ public class SettingsModel : BaseScreenModel
     private const string KEY_NEMESIS      = "Settings_NemesisVolume";
     private const string KEY_UI           = "Settings_UIVolume";
     private const string KEY_SENSITIVITY  = "Settings_Sensitivity";
-    // Placeholders (se almacenan pero todavía nadie los lee):
+    // Aplicados al juego por appliers que leen estas keys al dispararse OnSettingsApplied
+    // (InvertY→CameraSensitivityApplier, Brightness/Contrast/Gamma→PostProcessSettingsApplier,
+    //  CRT/Dither→PS1EffectApplier, Resolution/Window/FPS/VSync→ScreenSettingsApplier,
+    //  AudioBG→AudioBackgroundApplier):
     private const string KEY_INVERT_Y     = "Settings_InvertYAxis";
     private const string KEY_BRIGHTNESS   = "Settings_Brightness";
     private const string KEY_CONTRAST     = "Settings_Contrast";
@@ -59,7 +62,7 @@ public class SettingsModel : BaseScreenModel
     public float UIVolume       { get; private set; }
     public float Sensitivity    { get; private set; }
 
-    // ── Estado placeholder (todavía no leído por ningún sistema) ─────────────
+    // ── Estado de video/controles (leído por los *Applier.cs al hacer Apply) ─
     public bool  InvertYAxis      { get; private set; }
     public float Brightness       { get; private set; }
     public float Contrast         { get; private set; }
@@ -176,7 +179,7 @@ public class SettingsModel : BaseScreenModel
     }
     public void SetSensitivity(float v)  { Sensitivity  = Mathf.Max(0.01f, v); NotifyDataChanged(); }
 
-    // ── Setters placeholder ──────────────────────────────────────────────────
+    // ── Setters de video/controles (aplicados por los *Applier.cs en Apply) ──
 
     public void SetInvertYAxis(bool v)      { InvertYAxis = v;                NotifyDataChanged(); }
     public void SetBrightness(float v)      { Brightness = Mathf.Clamp01(v);  NotifyDataChanged(); }

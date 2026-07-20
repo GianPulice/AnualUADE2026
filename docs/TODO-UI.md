@@ -48,6 +48,7 @@ El sistema de puzzles está parcialmente implementado:
 - ✅ Sub-Puzzle 1: panel eléctrico + caja de fusibles
 - ❌ Sub-Puzzle 2: contenedores (no implementado)
 - ❌ Sub-Puzzle 3: 3 válvulas (no implementado)
+- ✅ **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación): `SkillCheckController` + `SkillCheckView` + `SkillCheckModel` + `SO_SkillCheckData`. `IModalUI.PausesGame=false` (tiempo corre). Invocar: `SkillCheckController.Instance.Open(data)`. **Prefab y cableado de escena pendientes.**
 - ❌ Hub Central: 3 ranuras de inserción (no implementado, es el endgame del Piso 1)
 - ❌ Cinemática post-Hub
 
@@ -117,6 +118,17 @@ Pendiente:
 - [ ] **Indicador de slot recién guardado** (animación o destacado visual).
 - [ ] **Timer del módulo activo** en la card: si `modules[i].status == Active`, mostrar `timeRemaining / timerDuration` como barra debajo del pip correspondiente.
 - [ ] **Tooltip al hover** sobre cada pip con el nombre del módulo (`moduleId`).
+
+---
+
+## 💀 Screens de resultado (B5 / B6)
+
+Implementado en esta iteración:
+
+- ✅ **B5 — Ceguera M3**: `BlindnessOverlayView.cs` (HUD, permanente). Añadidos `causesBlindness` + `blindnessDuration` a `ModuleData`. Evento `InventoryEvents.OnBlindnessTriggered`. Fire desde `InventoryManagerUI.TickModuleTimers`. **Cableado de escena: agregar GO con CanvasGroup negro + BlindnessOverlayView al Canvas HUD en la escena Level_UI.**
+- ✅ **B6 — Game Over por módulos**: `GameOverController` + `GameOverView` (en `UI/Screen/GameOver/`). `GameState.GameOver` añadido al enum. `GameResultManager.ReportGameOver()` con `OnSaveDeleteRequested`. **Prefab y escena pendientes: duplicar prefab Lose, cambiar título a "GAME OVER" rojo `#CC1A1A`, añadir vignette roja `#0D0000`, asignar `GameOverController`. `mainMenuGroup` debe coincidir con la label del ScreenManager.**
+- ✅ **LoseView neutralizada**: eliminado título "You lose!" y botón Options. Ahora Retry = "Cargar último guardado", Exit = "Ir al menú". **Actualizar labels de botones en el prefab Lose.**
+- ✅ **InventoryManagerUI**: añadido `_sessionTime` tracker, `CheckGameOver()` (fire cuando todos los módulos explotan), `GetActiveModule()` (para SkillCheck), `ResetSessionTime()`.
 
 ---
 

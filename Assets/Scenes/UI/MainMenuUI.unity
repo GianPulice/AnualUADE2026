@@ -177,10 +177,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: CanvasSaveSlots
       objectReference: {fileID: 0}
-    - target: {fileID: 3173404182668173306, guid: a4d1bd1365acdf54986df8d54b0a1a72, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 6862724767379481141, guid: a4d1bd1365acdf54986df8d54b0a1a72, type: 3}
       propertyPath: m_Pivot.x
       value: 0

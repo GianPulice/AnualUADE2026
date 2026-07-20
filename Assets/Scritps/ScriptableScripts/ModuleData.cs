@@ -11,9 +11,14 @@ public class ModuleData : ScriptableObject
     public ModuleStatus Status = ModuleStatus.Inactive;
 
     [Header("Timer")]
-    public float TimerDuration;     // Duración total en segundos
-    public float TimeRemaining;     // Decrementado por el Controller con unscaledDeltaTime
+    public float TimerDuration;
+    public float TimeRemaining;
     public bool IsTimerRunning;
+
+    [Header("Ceguera")]
+    public bool causesBlindness = false;
+    [Tooltip("Segundos de oscuridad total cuando este mÃ³dulo explota.")]
+    public float blindnessDuration = 3f;
 
     // Solo lectura para la UI
     public float TimerProgress => TimerDuration > 0f
@@ -52,7 +57,7 @@ public class ModuleData : ScriptableObject
         return Status switch
         {
             ModuleStatus.Resolved => new Color(0.10f, 0.42f, 0.10f), // #1a6a1a verde
-            ModuleStatus.Exploded => new Color(0.35f, 0.16f, 0.00f), // #5a2a00 marrón
+            ModuleStatus.Exploded => new Color(0.35f, 0.16f, 0.00f), // #5a2a00 marrï¿½n
             ModuleStatus.Inactive => new Color(0.13f, 0.13f, 0.13f), // #222 gris
             _ => new Color(0.13f, 0.13f, 0.13f)
         };
@@ -60,8 +65,8 @@ public class ModuleData : ScriptableObject
 }
 public enum ModuleStatus
 {
-    Inactive,   // No iniciado — barra gris
-    Active,     // Corriendo — barra roja, timer vivo
-    Resolved,   // Completado correctamente — barra verde, 100% fijo
-    Exploded    // Timer llegó a cero — barra marrón, 0%
+    Inactive,   // No iniciado ï¿½ barra gris
+    Active,     // Corriendo ï¿½ barra roja, timer vivo
+    Resolved,   // Completado correctamente ï¿½ barra verde, 100% fijo
+    Exploded    // Timer llegï¿½ a cero ï¿½ barra marrï¿½n, 0%
 }

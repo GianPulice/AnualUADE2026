@@ -8,6 +8,7 @@ public enum GameState
 {
     Win,
     Lose,
+    GameOver,
     None
 }
 

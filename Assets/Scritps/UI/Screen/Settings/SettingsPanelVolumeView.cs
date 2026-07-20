@@ -8,11 +8,16 @@ using UnityEngine.UI;
 /// del juego: Master, Music, SFX, Voice, Ambience, Player, Nemesis, UI.
 ///
 /// Los sliders son opcionales — si el prefab solo asigna un subconjunto, el resto
-/// queda inactivo sin warnings. Esto permite ir agregando filas al prefab sin
-/// romper escenas viejas.
+/// queda inactivo sin warnings.
+///
+/// Los sliders trabajan en rango 0..100 (configurar en el Inspector:
+/// Min Value = 0, Max Value = 100, Whole Numbers = true). El modelo y el
+/// AudioManager siguen usando 0..1; la conversión se hace acá, en el borde.
 /// </summary>
 public class SettingsPanelVolumeView : MonoBehaviour
 {
+    private const float SLIDER_MAX = 100f;
+
     [Header("Master")]
     [SerializeField] private Slider _sliderMaster;
     [SerializeField] private TextMeshProUGUI _labelMaster;
@@ -101,10 +106,15 @@ public class SettingsPanelVolumeView : MonoBehaviour
         SetLabel(_labelUI,       model.UIVolume);
     }
 
-    private static void Wire(Slider slider, TextMeshProUGUI label, Action<float> forward)
+    // El slider trabaja 0..100; al modelo se reenvía normalizado a 0..1.
+    private static void Wire(Slider slider, TextMeshProUGUI label, Action<float> forward01)
     {
         if (slider == null) return;
-        slider.onValueChanged.AddListener(v => { SetLabel(label, v); forward(v); });
+        slider.onValueChanged.AddListener(v =>
+        {
+            SetLabelRaw(label, v);
+            forward01(v / SLIDER_MAX);
+        });
     }
 
     private static void Unwire(Slider slider)
@@ -113,13 +123,18 @@ public class SettingsPanelVolumeView : MonoBehaviour
         slider.onValueChanged.RemoveAllListeners();
     }
 
-    private static void SetSilent(Slider slider, float value)
+    private static void SetSilent(Slider slider, float value01)
     {
-        if (slider != null) slider.SetValueWithoutNotify(value);
+        if (slider != null) slider.SetValueWithoutNotify(value01 * SLIDER_MAX);
     }
 
     private static void SetLabel(TextMeshProUGUI label, float value01)
     {
-        if (label != null) label.text = Mathf.RoundToInt(value01 * 100f).ToString();
+        if (label != null) label.text = Mathf.RoundToInt(value01 * SLIDER_MAX).ToString();
+    }
+
+    private static void SetLabelRaw(TextMeshProUGUI label, float value0to100)
+    {
+        if (label != null) label.text = Mathf.RoundToInt(value0to100).ToString();
     }
 }

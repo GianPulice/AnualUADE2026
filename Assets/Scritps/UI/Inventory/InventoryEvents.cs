@@ -3,44 +3,46 @@ using UnityEngine;
 
 public class InventoryEvents : MonoBehaviour
 {
-    /// <summary>Un ítem fue agregado al inventario (recogido del mundo).</summary>
+    /// <summary>Un ï¿½tem fue agregado al inventario (recogido del mundo).</summary>
     public static event Action<SO_InventoryItem> OnItemAdded;
 
-    /// <summary>Un ítem fue removido del inventario (por descarte o consumo).</summary>
+    /// <summary>Un ï¿½tem fue removido del inventario (por descarte o consumo).</summary>
     public static event Action<SO_InventoryItem> OnItemRemoved;
 
-    /// <summary>El jugador seleccionó un ítem en la lista. Poblar el panel de detalle.</summary>
+    /// <summary>El jugador seleccionï¿½ un ï¿½tem en la lista. Poblar el panel de detalle.</summary>
     public static event Action<SO_InventoryItem> OnItemSelected;
 
-    /// <summary>Un ítem consumible fue usado al interactuar con un objeto del mundo.</summary>
+    /// <summary>Un ï¿½tem consumible fue usado al interactuar con un objeto del mundo.</summary>
     public static event Action<SO_InventoryItem> OnItemConsumed;
 
     // ------------------ Descarte ------------------
 
-    /// <summary>El jugador presionó "descartar". Abrir el diálogo de confirmación.</summary>
+    /// <summary>El jugador presionï¿½ "descartar". Abrir el diï¿½logo de confirmaciï¿½n.</summary>
     public static event Action<SO_InventoryItem> OnDiscardRequested;
 
-    /// <summary>El jugador confirmó el descarte. Eliminar el ítem definitivamente.</summary>
+    /// <summary>El jugador confirmï¿½ el descarte. Eliminar el ï¿½tem definitivamente.</summary>
     public static event Action<SO_InventoryItem> OnDiscardConfirmed;
 
-    /// <summary>El jugador canceló el descarte (ESC o botón cancelar).</summary>
+    /// <summary>El jugador cancelï¿½ el descarte (ESC o botï¿½n cancelar).</summary>
     public static event Action OnDiscardCancelled;
 
-    //------------------ Módulos ------------------
+    //------------------ Mï¿½dulos ------------------
 
-    /// <summary>El estado de un módulo cambió (Activo, Resuelto, Explotado, Inactivo).</summary>
+    /// <summary>El estado de un mï¿½dulo cambiï¿½ (Activo, Resuelto, Explotado, Inactivo).</summary>
     public static event Action<ModuleData> OnModuleStateChanged;
 
-    /// <summary>Tick del timer del módulo activo. Disparado cada frame mientras corre.</summary>
+    /// <summary>Tick del timer del mï¿½dulo activo. Disparado cada frame mientras corre.</summary>
     public static event Action<ModuleData> OnModuleTimerTick;
 
-    /// <summary>Un módulo llegó a cero y explotó. Aplicar penalización.</summary>
+    /// <summary>Un mï¿½dulo llegï¿½ a cero y explotï¿½. Aplicar penalizaciï¿½n.</summary>
     public static event Action<ModuleData> OnModuleExploded;
 
     // ------------------ UI ------------------
 
     public static event Action<bool> OnInventoryToggled;
 
+    /// <summary>Un mÃ³dulo con causesBlindness explotÃ³. DuraciÃ³n en segundos.</summary>
+    public static event Action<float> OnBlindnessTriggered;
 
     // ------------------ Invokers ------------------
 
@@ -58,4 +60,5 @@ public class InventoryEvents : MonoBehaviour
     public static void ModuleExploded(ModuleData data) => OnModuleExploded?.Invoke(data);
 
     public static void InventoryToggled(bool isOpen) => OnInventoryToggled?.Invoke(isOpen);
+    public static void BlindnessTriggered(float duration) => OnBlindnessTriggered?.Invoke(duration);
 }

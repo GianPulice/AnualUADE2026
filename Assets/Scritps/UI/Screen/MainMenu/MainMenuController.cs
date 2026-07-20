@@ -39,6 +39,9 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         view.OnLoadGameClicked += _onLoadGame;
         view.OnSettingsClicked += _onSettings;
         view.OnExitClicked += HandleExit;
+
+        if (_saveSlotsController != null)
+            _saveSlotsController.OnSlotSelected += HandleSlotSelected;
     }
 
     protected override void OnBeforeClose()
@@ -47,18 +50,14 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         view.OnLoadGameClicked -= _onLoadGame;
         view.OnSettingsClicked -= _onSettings;
         view.OnExitClicked -= HandleExit;
+
+        if (_saveSlotsController != null)
+            _saveSlotsController.OnSlotSelected -= HandleSlotSelected;
     }
 
     private async UniTask HandleNewGame()
     {
-        if (!ValidateSceneGroup(firstSceneLabel)) return;
-
-        await Close();
-
-        await UnloadBootstrapAsync();
-
-        GameResultManager.ResetSession();
-        screenChannel.RaisePushScreen(firstSceneLabel);
+        await EnterGameplay(firstSceneLabel);
     }
 
     private UniTask HandleLoadGame()
@@ -70,6 +69,39 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         }
         _saveSlotsController.Show();
         return UniTask.CompletedTask;
+    }
+
+    private void HandleSlotSelected(int slotIndex)
+    {
+        SO_SaveSlotData slot = _saveSlotsController.GetSlot(slotIndex);
+
+        // Con las piezas actuales no hay restore real de partida: tanto un slot vacío
+        // ("[ nueva partida ]") como uno con datos ("[ cargar partida ]") entran a la
+        // misma escena de gameplay. Cuando exista el save system, acá se decide cargar
+        // los datos del slot (currentZoneId, módulos, items). Ver TODO-UI · Save Slots.
+        string label = firstSceneLabel;
+        Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} " +
+                  $"({(slot != null && slot.IsEmpty ? "vacío → nueva" : "con datos → cargar")}) " +
+                  $"→ entrando a '{label}'.</color>");
+
+        _saveSlotsController.Hide();
+        EnterGameplay(label).Forget();
+    }
+
+    /// <summary>
+    /// Flujo compartido New Game / Load: cierra el menú, descarga el bootstrap,
+    /// resetea la sesión de resultado y empuja el grupo de escenas de gameplay.
+    /// </summary>
+    private async UniTask EnterGameplay(string sceneLabel)
+    {
+        if (!ValidateSceneGroup(sceneLabel)) return;
+
+        await Close();
+
+        await UnloadBootstrapAsync();
+
+        GameResultManager.ResetSession();
+        screenChannel.RaisePushScreen(sceneLabel);
     }
 
     private async UniTask HandleSettings()

@@ -28,9 +28,8 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
 
         view.gameObject.SetActive(false);
 
-        view.OnRetryClicked   += HandleRetry;
-        view.OnOptionsClicked += HandleOptions;
-        view.OnExitClicked    += HandleExit;
+        view.OnRetryClicked += HandleRetry;
+        view.OnExitClicked  += HandleExit;
         GameResultManager.OnGameResult += HandleGameResult;
     }
 
@@ -38,9 +37,8 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
     {
         if (view == null) return;
 
-        view.OnRetryClicked   -= HandleRetry;
-        view.OnOptionsClicked -= HandleOptions;
-        view.OnExitClicked    -= HandleExit;
+        view.OnRetryClicked -= HandleRetry;
+        view.OnExitClicked  -= HandleExit;
         GameResultManager.OnGameResult -= HandleGameResult;
     }
 
@@ -76,11 +74,6 @@ public class LoseController : BaseScreenController<LoseView, GameResultModel>
         Time.timeScale = 1f;
         _screenChannel.RaisePopScreen();
         _screenChannel.RaisePushScreen(_currentLevelGroup);
-    }
-
-    private void HandleOptions()
-    {
-        Debug.Log("Settings no implementado aún.");
     }
 
     private void HandleExit()

@@ -38,7 +38,7 @@ public class SettingsView : BaseScreenView
     public event Action<float> OnUIChanged;
     public event Action<float> OnSensitivityChanged;
 
-    // Placeholders (el modelo los recibe; ningún sistema los lee aún):
+    // Aplicados al juego por sus appliers (ver *Applier.cs) al hacer Apply:
     public event Action<bool>  OnInvertYChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;
