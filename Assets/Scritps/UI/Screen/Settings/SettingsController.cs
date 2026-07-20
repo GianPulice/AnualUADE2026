@@ -21,6 +21,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     public string ModalId => "Settings";
     public bool ConsumesEscape => true;   // ESC cierra Settings (vuelve a pausa o menu).
     public bool BlocksPause   => true;    // Estando en Settings no debe abrirse otra pausa.
+    public bool PausesGame    => true;
     public void RequestClose() => HandleBack();
 
     private void Awake()
@@ -124,14 +125,18 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnResetClicked += HandleReset;
         view.OnBackClicked  += HandleBack;
 
-        // Conectados
+        // Conectados al AudioManager (preview en vivo + persistencia en Apply)
         view.OnMasterChanged      += model.SetMasterVolume;
         view.OnMusicChanged       += model.SetMusicVolume;
         view.OnSFXChanged         += model.SetSFXVolume;
+        view.OnVoiceChanged       += model.SetVoiceVolume;
+        view.OnAmbienceChanged    += model.SetAmbienceVolume;
+        view.OnPlayerChanged      += model.SetPlayerVolume;
+        view.OnNemesisChanged     += model.SetNemesisVolume;
+        view.OnUIChanged          += model.SetUIVolume;
         view.OnSensitivityChanged += model.SetSensitivity;
 
         // Placeholders (se guardan en el modelo pero todavía no afectan al juego)
-        view.OnVoiceChanged      += model.SetVoiceVolume;
         view.OnInvertYChanged    += model.SetInvertYAxis;
         view.OnBrightnessChanged += model.SetBrightness;
         view.OnContrastChanged   += model.SetContrast;
@@ -153,9 +158,13 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnMasterChanged      -= model.SetMasterVolume;
         view.OnMusicChanged       -= model.SetMusicVolume;
         view.OnSFXChanged         -= model.SetSFXVolume;
+        view.OnVoiceChanged       -= model.SetVoiceVolume;
+        view.OnAmbienceChanged    -= model.SetAmbienceVolume;
+        view.OnPlayerChanged      -= model.SetPlayerVolume;
+        view.OnNemesisChanged     -= model.SetNemesisVolume;
+        view.OnUIChanged          -= model.SetUIVolume;
         view.OnSensitivityChanged -= model.SetSensitivity;
 
-        view.OnVoiceChanged      -= model.SetVoiceVolume;
         view.OnInvertYChanged    -= model.SetInvertYAxis;
         view.OnBrightnessChanged -= model.SetBrightness;
         view.OnContrastChanged   -= model.SetContrast;

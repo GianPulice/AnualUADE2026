@@ -38,12 +38,12 @@ Material:
     m_Ints: []
     m_Floats:
     - _EnableEffect: 1
-    - _JitterResolution: 50
-    - _PixelSize: 256
+    - _JitterResolution: 150
+    - _PixelSize: 200
     - _Speed: 1
     - _WarpIntensity: 0.0018
     - _WarpScale: 20
-    - _WarpStrength: 1.2
+    - _WarpStrength: 0.5
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
