@@ -3,6 +3,7 @@ using UnityEngine;
 public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 {
     private NemesisStateManager nemesisStateManager;
+    private PlayerStateManager player;
     public NemesisCatchState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
@@ -12,7 +13,10 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     {
         NextState = StateKey;
         Debug.Log("Dispara animacion de captura");
-        nemesisStateManager.FieldOfView.GetCurrentTarget().OnCaptured();
+        player = nemesisStateManager.FieldOfView.GetCurrentTarget();
+        player.OnCaptured();
+        player.transform.LookAt(nemesisStateManager.transform);
+        nemesisStateManager.transform.LookAt(player.transform);
         nemesisStateManager.AnimController.SetBool("isCatching", true);
     }
 
@@ -23,7 +27,8 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
     public override NemesisStateManager.ENemesisState GetNextState()
     {
-        throw new System.NotImplementedException();
+        if (NextState != StateKey) return NextState;
+        else return StateKey;
     }
 
     public override void OnTriggerEnter(Collider other)

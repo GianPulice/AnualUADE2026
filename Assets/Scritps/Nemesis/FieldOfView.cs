@@ -9,6 +9,7 @@ public class FieldOfView : MonoBehaviour
     [Range(0, 360)]
     [SerializeField] private float viewAngle;
     [SerializeField] private float viewDelay = 0.1f;
+    [SerializeField] private float minDistance = 1f;
     [SerializeField] private Transform viewTransform;
     [SerializeField] private LayerMask targetMask;
     [SerializeField] private LayerMask obstacleMask;
@@ -46,9 +47,8 @@ public class FieldOfView : MonoBehaviour
                 Vector3 targetPoint = targetsInViewRadius[i].bounds.center + new Vector3(0f, j * targetsInViewRadius[i].bounds.extents.y * 0.9f, 0f);
                 float distToTarget = Vector3.Distance(viewTransform.position, targetPoint);
                 Vector3 dirToTarget = (targetPoint - viewTransform.position).normalized;
-                if (Vector3.Angle(viewTransform.forward, dirToTarget) < viewAngle / 2)
+                if (Vector3.Angle(viewTransform.forward, dirToTarget) < viewAngle / 2 || distToTarget <= minDistance)
                 {
-
                     if (!Physics.Raycast(viewTransform.position, dirToTarget, distToTarget, obstacleMask))
                     {
                         if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) visibleTargets.Add(targetsInViewRadius[i].gameObject);
