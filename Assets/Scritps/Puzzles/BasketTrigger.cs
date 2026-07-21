@@ -9,6 +9,8 @@ public class BasketTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (other.isTrigger) return;
+
         BallPuzzleItem ball = other.GetComponentInParent<BallPuzzleItem>();
 
         if (ball == null) return;
@@ -26,6 +28,8 @@ public class BasketTrigger : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
+        if (other.isTrigger) return;
+
         BallPuzzleItem ball = other.GetComponentInParent<BallPuzzleItem>();
 
         if (ball == null) return;
