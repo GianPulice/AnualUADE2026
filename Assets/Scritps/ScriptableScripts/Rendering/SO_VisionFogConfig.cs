@@ -33,8 +33,44 @@ public class SO_VisionFogConfig : ScriptableObject
     [Tooltip("Preservación de zonas brillantes. 0 = la niebla cubre todo. >1 = las luces 'perforan' la niebla.")]
     [Range(0f, 5f)] public float lightPreservation = 0f;
 
+    [Tooltip("Curva de densidad. 1 = lineal (comportamiento base). >1 acelera el cierre — refuerza " +
+             "la sensación de falta de visibilidad sin cambiar el rango. <1 la suaviza.")]
+    [Range(0.25f, 4f)] public float densityPower = 1f;
+
+    [Tooltip("Desenfoque óptico (no solo oscurecimiento) hacia visionEnd. 0 = sin blur, " +
+             "solo el fundido a fogColor de siempre. Valores típicos: 0.005–0.02.")]
+    [Range(0f, 0.05f)] public float blurStrength = 0f;
+
+    [Header("Linterna del player (perfora la niebla)")]
+    [Tooltip("Radio (metros) donde la linterna del player disuelve la niebla. 0 = feature apagado. " +
+             "Requiere un componente FogLightSource sobre la linterna del player.")]
+    [Range(0f, 30f)] public float playerLightRange = 8f;
+
+    [Tooltip("Cuán fuerte es el 'hueco' que la linterna hace en la niebla.")]
+    [Range(0f, 3f)] public float playerLightIntensity = 1f;
+
+    [Tooltip("Tinte que la linterna del player agrega al color de escena en la zona iluminada.")]
+    [ColorUsage(showAlpha: false, hdr: true)]
+    public Color playerLightColor = new Color(1f, 0.85f, 0.6f);
+
     [Header("Transición al activarse")]
     [Tooltip("Segundos que tarda el fog en interpolar de la config anterior a esta. " +
              "0 = cambio instantáneo.")]
     [Min(0f)] public float transitionDuration = 1f;
+
+    // ── GD PENDIENTE §3.7 ──────────────────────────────────────────────────────
+    // Qué objetos muestran silueta a través de la niebla.
+    // Default = None hasta acordar con GD cuándo aplica (playtesting).
+    [Header("Siluetas en niebla — GD pendiente §3.7")]
+    [Tooltip("None hasta validación con GD. Items = silueta solo en ítems recogibles. " +
+             "Puzzles = silueta en interactuables. All = ambos.")]
+    public SilhouetteMode silhouetteMode = SilhouetteMode.None;
+}
+
+public enum SilhouetteMode
+{
+    None,
+    Items,
+    Puzzles,
+    All
 }

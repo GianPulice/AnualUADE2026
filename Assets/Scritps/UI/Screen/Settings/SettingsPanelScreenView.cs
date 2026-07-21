@@ -4,10 +4,10 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Panel de Screen — PLACEHOLDER visual.
-/// Resolución / Modo / FPSLimit / VSync se almacenan en el modelo pero todavía no se aplican
-/// (esto requiere <c>Screen.SetResolution</c> + <c>Application.targetFrameRate</c> +
-/// <c>QualitySettings.vSyncCount</c>, ver TODO-UI.md).
+/// Panel de Screen. Resolución / Modo / FPSLimit / VSync se guardan en el modelo y los
+/// aplica ScreenSettingsApplier al hacer Apply (<c>Screen.SetResolution</c> +
+/// <c>Application.targetFrameRate</c> + <c>QualitySettings.vSyncCount</c>).
+/// Nota: <c>Screen.SetResolution</c> es no-op en Play Mode del Editor; probar en build.
 ///
 /// Los dropdowns se pueblan en <see cref="Awake"/> con las opciones serializadas
 /// (defaults del wireframe <c>options_menu_v2_wired.html</c>). Editar desde el Inspector

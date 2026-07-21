@@ -7,14 +7,40 @@
 // zonas iluminadas se aleja.
 //
 // Properties globales que setea el controller:
-//   _PlayerPos          (float3)  posición world del jugador
-//   _VisionStart        (float)   distancia donde empieza la niebla
-//   _VisionEnd          (float)   distancia donde la niebla cubre 100%
-//   _FogColor           (float3)  color de la niebla (negro por default)
-//   _LightPreservation  (float)   las zonas brillantes "perforan" la niebla
+//   _PlayerPos             (float3)  posición world del jugador
+//   _VisionStart           (float)   distancia donde empieza la niebla
+//   _VisionEnd             (float)   distancia donde la niebla cubre 100%
+//   _FogColor              (float3)  color de la niebla (negro por default)
+//   _LightPreservation     (float)   las zonas brillantes "perforan" la niebla
+//   _FogDensityPower       (float)   curva de densidad — > 1 acelera el cierre (opresivo), < 1 lo suaviza
+//   _PlayerLightPosition   (float3)  origen de la linterna del player en world-space
+//   _PlayerLightRange      (float)   radio efectivo (metros) — si <= 0, la luz del player está apagada
+//   _PlayerLightIntensity  (float)   fuerza del "hueco" que la linterna hace en la niebla (0..1+)
+//   _PlayerLightColor      (float3)  reservado (no se usa para tintar — ver nota en VisionFog_float)
+//   _FogLightBypassCount   (int)     cantidad efectiva de bypass zones (0..8)
+//   _FogLightBypassData    (float4[])  xyz = world pos, w = radius (metros). Las luces adentro perforan.
+//
+// El parámetro `blurredSceneColor` NO es una global — lo arma el propio Shader Graph
+// promediando 4 nodos "Scene Color" offseteados por _VisionFogBlurStrength (property del
+// grafo, declarada como Global igual que _VisionStart) y se conecta como puerto extra al
+// nodo Custom Function. El sampleo de textura queda en el grafo; acá solo se mezcla.
 
 #ifndef VISION_FOG_INCLUDED
 #define VISION_FOG_INCLUDED
+
+// ── Uniforms globales que declara el shader (setteadas desde C#) ────────────
+// Se declaran aquí para que el HLSL las vea sin necesidad de exponer
+// nuevos slots en el shadergraph. Todas son opcionales — el shader hace
+// fallback si el controller no las setea.
+float   _FogDensityPower;
+float3  _PlayerLightPosition;
+float   _PlayerLightRange;
+float   _PlayerLightIntensity;
+float3  _PlayerLightColor;
+
+#define VISION_FOG_MAX_BYPASS 8
+float4  _FogLightBypassData[VISION_FOG_MAX_BYPASS]; // xyz = pos, w = radius
+int     _FogLightBypassCount;
 
 // Reconstruye la posición world a partir de las UV pantalla y el depth raw.
 // Usar el output de Sample Scene Depth (Raw) como input `depth`.
@@ -65,11 +91,45 @@ float vfFBM(float2 p)
     return v;
 }
 
+// Calcula qué tanto una linterna esférica "perfora" la niebla en este píxel.
+// Distancia menor al range → factor 1 (sin niebla). Fuera del range → 0.
+float vfPlayerLightMask(float3 worldPos)
+{
+    if (_PlayerLightRange <= 0.001) return 0.0;
+
+    float d = distance(worldPos, _PlayerLightPosition);
+    // Curva cuadrática — el hueco se siente "focal", no lineal.
+    float mask = saturate(1.0 - d / _PlayerLightRange);
+    mask = mask * mask;
+    return mask * _PlayerLightIntensity;
+}
+
+// Acumula el efecto de todas las bypass zones activas (ej: farolas, hogueras).
+// Cada bypass reduce fogFactor en su radio.
+float vfBypassZonesMask(float3 worldPos)
+{
+    float acc = 0.0;
+    int count = min(_FogLightBypassCount, VISION_FOG_MAX_BYPASS);
+    [loop]
+    for (int i = 0; i < count; i++)
+    {
+        float4 bp = _FogLightBypassData[i];
+        float r = bp.w;
+        if (r <= 0.001) continue;
+        float d = distance(worldPos, bp.xyz);
+        float m = saturate(1.0 - d / r);
+        m = m * m; // falloff cuadrático
+        acc = max(acc, m);
+    }
+    return acc;
+}
+
 // Aplica el vision fog al color de escena.
 // Distancia horizontal (xz) — niebla cilíndrica desde el player.
 // Cambiar a distance(worldPos, playerPos) para niebla esférica si el nivel tiene desnivel vertical.
 void VisionFog_float(
     float3 sceneColor,
+    float3 blurredSceneColor, // promedio de 4 samples de Scene Color offseteadas — armado en el grafo
     float3 worldPos,
     float  depth,
     float3 playerPos,
@@ -96,10 +156,25 @@ void VisionFog_float(
     // Banda lineal entre start y end. Saturate evita negativos antes de start.
     float fogFactor = saturate((distFromPlayer - visionStart) / (visionEnd - visionStart));
 
+    // Curva de densidad — permite al diseñador acelerar el cierre para reforzar
+    // la sensación de falta de visibilidad sin tocar visionEnd. Default = 1 (lineal).
+    float densityPower = max(_FogDensityPower, 0.001);
+    fogFactor = pow(fogFactor, densityPower);
+
     // Preservar zonas iluminadas: una luz brillante a 15m sigue siendo visible.
     // Patrón clásico de survival horror — las luces guían al jugador a través de la niebla.
     float luminance = dot(sceneColor, float3(0.299, 0.587, 0.114));
     fogFactor *= 1.0 - saturate(luminance * lightPreservation);
+
+    // ── Bypass zones: puntos del mundo donde el diseñador quiere que la luz
+    // atraviese la niebla incluso sin brightness en el buffer (ej: farolas
+    // apagadas visualmente pero narrativamente iluminadas). ─────────────────
+    float bypass = vfBypassZonesMask(worldPos);
+    fogFactor *= 1.0 - saturate(bypass);
+
+    // ── Linterna del player: crea un "hueco" en la niebla y agrega tinte. ────
+    float playerLight = vfPlayerLightMask(worldPos);
+    fogFactor *= 1.0 - saturate(playerLight);
 
     // ── Noise animado estilo Silent Hill ──────────────────────────────────
     // Dos capas de FBM en world-space scrolleando en direcciones distintas
@@ -119,7 +194,19 @@ void VisionFog_float(
     float skyMask = step(0.9999, depth);
     fogFactor = lerp(fogFactor, 1.0, skyMask);
 
-    result = lerp(sceneColor, fogColor, fogFactor);
+    // Nítido cerca del player, blureado (no solo oscurecido) hacia visionEnd. Usamos el
+    // fogFactor ya final acá — así la linterna y las bypass zones "limpian" el blur al
+    // mismo tiempo que limpian el color, en vez de dejar un halo borroso donde ya no hay niebla.
+    float3 baseColor = lerp(sceneColor, blurredSceneColor, fogFactor);
+    float3 blended = lerp(baseColor, fogColor, fogFactor);
+
+    // NO sumamos tinte extra acá. La iluminación real (personaje, paredes, etc.)
+    // ya viene de la Light de Unity que FogLightSource está leyendo — este shader
+    // solo "perfora" la niebla (baja fogFactor) para revelar esa escena ya
+    // iluminada. Sumar _PlayerLightColor encima duplicaba la luz (Light real +
+    // tinte aditivo del post-fx) y sobre-exponía todo lo que quedaba dentro del
+    // radio, sobre todo superficies claras como el personaje.
+    result = blended;
 }
 
 #endif

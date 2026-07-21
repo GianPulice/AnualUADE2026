@@ -38,11 +38,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     [SerializeField] private ItemDetailView itemDetailView;
     [SerializeField] private ModuleHUDView moduleHUDView;
     [SerializeField] private DiscardDialogView discardDialogView;
+    [SerializeField] private InventoryTabPanelAnimator panelAnimator;
 
     // -- Estado interno -------------------
 
     private bool isInventoryOpen = false;
     private bool isDiscardOpen = false;
+    private float _sessionTime = 0f;
 
     private SO_InventoryItem selectedItem = null;
     private SO_InventoryItem pendingDiscard = null;
@@ -63,6 +65,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     void Update()
     {
+        _sessionTime += Time.unscaledDeltaTime;
         HandleInput();
         TickModuleTimers();
     }
@@ -150,7 +153,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
 
         // Mostrar y poblar la vista
-        inventoryView?.SetVisible(true);
+        if (panelAnimator != null) panelAnimator.Open();
+        else inventoryView?.SetVisible(true);
         RefreshItemList();
 
         AutoSelectFirstItem();
@@ -174,7 +178,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // El UIStateManager restaura Time.timeScale y cursor cuando el stack queda vacio.
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
-        inventoryView?.SetVisible(false);
+        if (panelAnimator != null) panelAnimator.Close();
+        else inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
 
         // Detener audio de grabación
@@ -344,6 +349,11 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
                 InventoryEvents.ModuleExploded(module);
                 InventoryEvents.ModuleStateChanged(module);
+
+                if (module.causesBlindness)
+                    InventoryEvents.BlindnessTriggered(module.blindnessDuration);
+
+                CheckGameOver();
             }
             else
             {
@@ -351,6 +361,17 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
             }
         }
     }
+
+    private void CheckGameOver()
+    {
+        if (modules.Count == 0) return;
+        if (GetExplodedCount() < modules.Count) return;
+
+        int resolved = modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
+        GameResultManager.ReportGameOver(_sessionTime, resolved);
+    }
+
+    public void ResetSessionTime() => _sessionTime = 0f;
 
     // -- API pública de módulos --------------------
 

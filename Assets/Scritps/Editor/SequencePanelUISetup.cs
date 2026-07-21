@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using TMPro;
 using UnityEditor;
@@ -16,6 +17,37 @@ public static class SequencePanelUISetup
 {
     private const string LevelUIScenePath = "Assets/Scenes/UI/LevelUI.unity";
 
+    // ── Paleta ──────────────────────────────────────────────────────────────
+    private static readonly Color ColorBackdrop      = new Color(0f, 0f, 0f, 0.80f);
+    private static readonly Color ColorPanelBorder   = new Color(0.28f, 0.62f, 0.98f, 0.90f);
+    private static readonly Color ColorPanelFill     = new Color(0.07f, 0.09f, 0.14f, 0.98f);
+    private static readonly Color ColorAccent        = new Color(0.36f, 0.72f, 1f,    1f);
+    private static readonly Color ColorText          = new Color(0.94f, 0.96f, 1f,    1f);
+    private static readonly Color ColorTextMuted     = new Color(0.66f, 0.72f, 0.85f, 1f);
+    private static readonly Color ColorSequenceOk    = new Color(0.50f, 0.95f, 0.60f, 1f);
+    private static readonly Color ColorButtonFill    = new Color(0.11f, 0.14f, 0.22f, 1f);
+    private static readonly Color ColorButtonOutline = new Color(0.28f, 0.62f, 0.98f, 0.55f);
+    private static readonly Color ColorButtonHover   = new Color(0.75f, 0.85f, 1f,    1f);
+    private static readonly Color ColorButtonPressed = new Color(0.50f, 0.70f, 0.90f, 1f);
+    private static readonly Color ColorClose         = new Color(0.32f, 0.10f, 0.10f, 1f);
+    private static readonly Color ColorCloseHover    = new Color(0.55f, 0.18f, 0.18f, 1f);
+    private static readonly Color ColorDividerStrong = new Color(0.36f, 0.72f, 1f,    0.45f);
+    private static readonly Color ColorDividerSoft   = new Color(0.36f, 0.72f, 1f,    0.15f);
+
+    // ── Dimensiones (en el sistema de referencia 1920x1080) ─────────────────
+    private const float PanelWidth        = 900f;
+    private const float PanelHeight       = 820f;
+    private const int   PadX              = 56;
+    private const int   PadYTop           = 40;
+    private const int   PadYBottom        = 40;
+    private const int   VSpacing          = 22;
+    private const float HeaderHeight      = 64f;
+    private const float StatusHeight      = 40f;
+    private const float SeqDisplayHeight  = 52f;
+    private const float GridHeight        = 360f;
+    private const float ButtonCell        = 150f;
+    private const float ButtonSpacing     = 20f;
+
     [MenuItem("Tools/Puzzle UI/Setup Sequence Panel UI")]
     public static void Build()
     {
@@ -31,192 +63,192 @@ public static class SequencePanelUISetup
 
         int uiLayer = LayerMask.NameToLayer("UI");
 
-        // ---- Canvas root ----
-        GameObject canvasGO = new GameObject("SequencePanelCanvas",
-            typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler),
-            typeof(GraphicRaycaster), typeof(CanvasGroup));
-        canvasGO.layer = uiLayer;
+        // ── Canvas root ────────────────────────────────────────────────────
+        GameObject canvasGO = New("SequencePanelCanvas", null, uiLayer,
+            typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster), typeof(CanvasGroup));
         Canvas canvas = canvasGO.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 50;
         CanvasScaler scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
         CanvasGroup cg = canvasGO.GetComponent<CanvasGroup>();
         cg.alpha = 0f; cg.interactable = false; cg.blocksRaycasts = false;
         SceneManager.MoveGameObjectToScene(canvasGO, levelUI);
 
-        // ---- Background ----
-        GameObject bgGO = new GameObject("Background", typeof(RectTransform), typeof(Image));
-        bgGO.layer = uiLayer;
-        bgGO.transform.SetParent(canvasGO.transform, false);
-        RectTransform bgRT = bgGO.GetComponent<RectTransform>();
-        bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
-        bgRT.offsetMin = Vector2.zero; bgRT.offsetMax = Vector2.zero;
-        bgGO.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.75f);
+        // ── Backdrop full-screen ───────────────────────────────────────────
+        GameObject bgGO = New("Backdrop", canvasGO.transform, uiLayer, typeof(Image));
+        Stretch(bgGO.GetComponent<RectTransform>());
+        bgGO.GetComponent<Image>().color = ColorBackdrop;
 
-        // ---- Panel central ----
-        GameObject panelGO = new GameObject("Panel",
-            typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup));
-        panelGO.layer = uiLayer;
-        panelGO.transform.SetParent(canvasGO.transform, false);
+        // ── Panel (marco exterior) ─────────────────────────────────────────
+        GameObject panelGO = New("Panel", canvasGO.transform, uiLayer, typeof(Image));
+        panelGO.GetComponent<Image>().color = ColorPanelBorder;
         RectTransform panelRT = panelGO.GetComponent<RectTransform>();
         panelRT.anchorMin = new Vector2(0.5f, 0.5f);
         panelRT.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRT.pivot = new Vector2(0.5f, 0.5f);
-        panelRT.sizeDelta = new Vector2(760, 720);
+        panelRT.pivot     = new Vector2(0.5f, 0.5f);
+        panelRT.sizeDelta = new Vector2(PanelWidth, PanelHeight);
         panelRT.anchoredPosition = Vector2.zero;
-        panelGO.GetComponent<Image>().color = new Color(0.09f, 0.10f, 0.16f, 0.98f);
-        VerticalLayoutGroup vlg = panelGO.GetComponent<VerticalLayoutGroup>();
-        vlg.padding = new RectOffset(40, 40, 36, 36);
-        vlg.spacing = 18;
-        vlg.childAlignment = TextAnchor.UpperCenter;
-        vlg.childControlWidth = true; vlg.childControlHeight = true;
+
+        // Panel interior (2px offset del marco → simula borde)
+        GameObject innerGO = New("PanelInner", panelGO.transform, uiLayer, typeof(Image), typeof(VerticalLayoutGroup));
+        innerGO.GetComponent<Image>().color = ColorPanelFill;
+        RectTransform innerRT = innerGO.GetComponent<RectTransform>();
+        innerRT.anchorMin = Vector2.zero; innerRT.anchorMax = Vector2.one;
+        innerRT.offsetMin = new Vector2(2, 2);
+        innerRT.offsetMax = new Vector2(-2, -2);
+        VerticalLayoutGroup vlg = innerGO.GetComponent<VerticalLayoutGroup>();
+        vlg.padding             = new RectOffset(PadX, PadX, PadYTop, PadYBottom);
+        vlg.spacing             = VSpacing;
+        vlg.childAlignment      = TextAnchor.UpperCenter;
+        vlg.childControlWidth   = true;  vlg.childControlHeight   = true;
         vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
 
-        // ---- Close button (absoluto, top-right del panel) ----
-        GameObject closeGO = new GameObject("CloseButton",
-            typeof(RectTransform), typeof(Image), typeof(Button));
-        closeGO.layer = uiLayer;
-        closeGO.transform.SetParent(panelGO.transform, false);
-        RectTransform closeRT = closeGO.GetComponent<RectTransform>();
-        closeRT.anchorMin = new Vector2(1f, 1f);
-        closeRT.anchorMax = new Vector2(1f, 1f);
-        closeRT.pivot = new Vector2(1f, 1f);
-        closeRT.sizeDelta = new Vector2(36, 36);
-        closeRT.anchoredPosition = new Vector2(-12, -12);
-        closeGO.GetComponent<Image>().color = new Color(0.32f, 0.10f, 0.10f, 1f);
-        Button closeBtn = closeGO.GetComponent<Button>();
-        ColorBlock closeColors = closeBtn.colors;
-        closeColors.highlightedColor = new Color(0.55f, 0.18f, 0.18f, 1f);
-        closeColors.pressedColor = new Color(0.4f, 0.12f, 0.12f, 1f);
-        closeBtn.colors = closeColors;
-        LayoutElement closeIgnore = closeGO.AddComponent<LayoutElement>();
-        closeIgnore.ignoreLayout = true;
-        GameObject closeLabelGO = new GameObject("Label",
-            typeof(RectTransform), typeof(TextMeshProUGUI));
-        closeLabelGO.layer = uiLayer;
-        closeLabelGO.transform.SetParent(closeGO.transform, false);
-        RectTransform clRT = closeLabelGO.GetComponent<RectTransform>();
-        clRT.anchorMin = Vector2.zero; clRT.anchorMax = Vector2.one;
-        clRT.offsetMin = Vector2.zero; clRT.offsetMax = Vector2.zero;
-        TextMeshProUGUI closeLabel = closeLabelGO.GetComponent<TextMeshProUGUI>();
-        closeLabel.text = "X"; closeLabel.fontSize = 20; closeLabel.fontStyle = FontStyles.Bold;
-        closeLabel.alignment = TextAlignmentOptions.Center;
-        closeLabel.color = Color.white;
+        // ── Header: Title + Close (anclado top-right) ──────────────────────
+        GameObject headerGO = New("Header", innerGO.transform, uiLayer, typeof(LayoutElement));
+        LayoutElement headerLE = headerGO.GetComponent<LayoutElement>();
+        headerLE.minHeight = HeaderHeight; headerLE.preferredHeight = HeaderHeight; headerLE.flexibleHeight = 0f;
 
-        // ---- Title (centrado, fila propia) ----
-        GameObject titleGO = new GameObject("TitleText",
-            typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
-        titleGO.layer = uiLayer;
-        titleGO.transform.SetParent(panelGO.transform, false);
+        GameObject titleGO = New("TitleText", headerGO.transform, uiLayer, typeof(TextMeshProUGUI));
+        Stretch(titleGO.GetComponent<RectTransform>());
         TextMeshProUGUI titleText = titleGO.GetComponent<TextMeshProUGUI>();
-        titleText.text = "PANEL ELECTRICO";
-        titleText.fontSize = 38;
-        titleText.fontStyle = FontStyles.Bold;
-        titleText.alignment = TextAlignmentOptions.Center;
-        titleText.color = new Color(0.92f, 0.92f, 1f, 1f);
-        titleText.characterSpacing = 8f;
-        LayoutElement titleLE = titleGO.GetComponent<LayoutElement>();
-        titleLE.minHeight = 50; titleLE.preferredHeight = 50;
+        titleText.text            = "PANEL ELECTRICO";
+        titleText.fontSize        = 44;
+        titleText.fontStyle       = FontStyles.Bold;
+        titleText.alignment       = TextAlignmentOptions.Center;
+        titleText.color           = ColorText;
+        titleText.characterSpacing = 12f;
+        titleText.textWrappingMode = TextWrappingModes.NoWrap;
+        titleText.overflowMode     = TextOverflowModes.Ellipsis;
 
-        // ---- Divisor (linea fina debajo del titulo) ----
-        GameObject divGO = new GameObject("Divider",
-            typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-        divGO.layer = uiLayer;
-        divGO.transform.SetParent(panelGO.transform, false);
-        divGO.GetComponent<Image>().color = new Color(0.3f, 0.4f, 0.6f, 0.5f);
-        LayoutElement divLE = divGO.GetComponent<LayoutElement>();
-        divLE.minHeight = 1; divLE.preferredHeight = 1;
+        GameObject closeGO = New("CloseButton", headerGO.transform, uiLayer, typeof(Image), typeof(Button));
+        RectTransform closeRT = closeGO.GetComponent<RectTransform>();
+        closeRT.anchorMin = new Vector2(1f, 0.5f);
+        closeRT.anchorMax = new Vector2(1f, 0.5f);
+        closeRT.pivot     = new Vector2(1f, 0.5f);
+        closeRT.sizeDelta = new Vector2(44, 44);
+        closeRT.anchoredPosition = new Vector2(0, 0);
+        closeGO.GetComponent<Image>().color = ColorClose;
+        Button closeBtn = closeGO.GetComponent<Button>();
+        ColorBlock ccb = closeBtn.colors;
+        ccb.normalColor      = Color.white;
+        ccb.highlightedColor = ColorCloseHover;
+        ccb.pressedColor     = new Color(0.4f, 0.12f, 0.12f, 1f);
+        ccb.selectedColor    = Color.white;
+        closeBtn.colors = ccb;
 
-        // ---- Status ----
-        GameObject statusGO = new GameObject("StatusText",
-            typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
-        statusGO.layer = uiLayer;
-        statusGO.transform.SetParent(panelGO.transform, false);
+        GameObject closeLabelGO = New("Label", closeGO.transform, uiLayer, typeof(TextMeshProUGUI));
+        Stretch(closeLabelGO.GetComponent<RectTransform>());
+        TextMeshProUGUI closeLabel = closeLabelGO.GetComponent<TextMeshProUGUI>();
+        closeLabel.text      = "X";
+        closeLabel.fontSize  = 22;
+        closeLabel.fontStyle = FontStyles.Bold;
+        closeLabel.alignment = TextAlignmentOptions.Center;
+        closeLabel.color     = Color.white;
+
+        // ── Divisor superior ───────────────────────────────────────────────
+        MakeDivider("DividerTop", innerGO.transform, uiLayer, ColorDividerStrong, 2);
+
+        // ── Status ─────────────────────────────────────────────────────────
+        GameObject statusGO = New("StatusText", innerGO.transform, uiLayer, typeof(TextMeshProUGUI), typeof(LayoutElement));
         LayoutElement statusLE = statusGO.GetComponent<LayoutElement>();
-        statusLE.minHeight = 32; statusLE.preferredHeight = 32;
+        statusLE.minHeight = StatusHeight; statusLE.preferredHeight = StatusHeight; statusLE.flexibleHeight = 0f;
         TextMeshProUGUI statusText = statusGO.GetComponent<TextMeshProUGUI>();
-        statusText.text = "Ingrese la secuencia";
-        statusText.fontSize = 20;
+        statusText.text      = "Ingrese la secuencia";
+        statusText.fontSize  = 22;
         statusText.alignment = TextAlignmentOptions.Center;
-        statusText.color = new Color(0.78f, 0.82f, 0.95f, 1f);
+        statusText.color     = ColorTextMuted;
 
-        // ---- Grid container ----
-        GameObject gridGO = new GameObject("ButtonsContainer",
-            typeof(RectTransform), typeof(GridLayoutGroup), typeof(LayoutElement));
-        gridGO.layer = uiLayer;
-        gridGO.transform.SetParent(panelGO.transform, false);
+        // ── Grid (contenedor centrado) ─────────────────────────────────────
+        // Wrapper con HorizontalLayoutGroup para centrar el grid dentro del ancho total.
+        GameObject gridWrapGO = New("GridWrapper", innerGO.transform, uiLayer,
+            typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        LayoutElement wrapLE = gridWrapGO.GetComponent<LayoutElement>();
+        wrapLE.minHeight = GridHeight; wrapLE.preferredHeight = GridHeight; wrapLE.flexibleHeight = 0f;
+        HorizontalLayoutGroup hlg = gridWrapGO.GetComponent<HorizontalLayoutGroup>();
+        hlg.childAlignment       = TextAnchor.MiddleCenter;
+        hlg.padding              = new RectOffset(0, 0, 0, 0);
+        hlg.spacing              = 0;
+        hlg.childControlWidth    = false; hlg.childControlHeight = false;
+        hlg.childForceExpandWidth = false; hlg.childForceExpandHeight = false;
+
+        float gridW = ButtonCell * 4 + ButtonSpacing * 3;
+        float gridH = ButtonCell * 2 + ButtonSpacing * 1;
+
+        GameObject gridGO = New("ButtonsContainer", gridWrapGO.transform, uiLayer,
+            typeof(GridLayoutGroup), typeof(LayoutElement));
         LayoutElement gridLE = gridGO.GetComponent<LayoutElement>();
-        gridLE.minHeight = 420; gridLE.preferredHeight = 420;
+        gridLE.minWidth  = gridW; gridLE.preferredWidth  = gridW;
+        gridLE.minHeight = gridH; gridLE.preferredHeight = gridH;
+        gridLE.flexibleWidth = 0f; gridLE.flexibleHeight = 0f;
         GridLayoutGroup grid = gridGO.GetComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(140, 140);
-        grid.spacing = new Vector2(16, 16);
-        grid.padding = new RectOffset(20, 20, 20, 20);
-        grid.childAlignment = TextAnchor.MiddleCenter;
-        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.cellSize        = new Vector2(ButtonCell, ButtonCell);
+        grid.spacing         = new Vector2(ButtonSpacing, ButtonSpacing);
+        grid.padding         = new RectOffset(0, 0, 0, 0);
+        grid.childAlignment  = TextAnchor.MiddleCenter;
+        grid.constraint      = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 4;
         RectTransform gridRT = gridGO.GetComponent<RectTransform>();
+        gridRT.sizeDelta = new Vector2(gridW, gridH);
 
-        // ---- Button template (inactivo, fuera del grid) ----
-        GameObject btnTemplateGO = new GameObject("ButtonTemplate",
-            typeof(RectTransform), typeof(Image), typeof(Button));
-        btnTemplateGO.layer = uiLayer;
-        btnTemplateGO.transform.SetParent(canvasGO.transform, false);
+        // ── Button Template (inactivo, fuera del layout) ──────────────────
+        GameObject btnTemplateGO = New("ButtonTemplate", canvasGO.transform, uiLayer, typeof(Image), typeof(Button), typeof(Outline));
         btnTemplateGO.SetActive(false);
         Image btnImg = btnTemplateGO.GetComponent<Image>();
-        btnImg.color = new Color(0.13f, 0.14f, 0.20f, 1f);
+        btnImg.color = ColorButtonFill;
+        Outline btnOutline = btnTemplateGO.GetComponent<Outline>();
+        btnOutline.effectColor    = ColorButtonOutline;
+        btnOutline.effectDistance = new Vector2(2, -2);
         Button btnTemplate = btnTemplateGO.GetComponent<Button>();
-        ColorBlock btnColors = btnTemplate.colors;
-        btnColors.normalColor = new Color(1f, 1f, 1f, 1f);
-        btnColors.highlightedColor = new Color(0.75f, 0.85f, 1f, 1f);
-        btnColors.pressedColor = new Color(0.6f, 0.75f, 0.9f, 1f);
-        btnColors.colorMultiplier = 1f;
-        btnTemplate.colors = btnColors;
-        GameObject btnLabelGO = new GameObject("Label",
-            typeof(RectTransform), typeof(TextMeshProUGUI));
-        btnLabelGO.layer = uiLayer;
-        btnLabelGO.transform.SetParent(btnTemplateGO.transform, false);
-        RectTransform btnLabelRT = btnLabelGO.GetComponent<RectTransform>();
-        btnLabelRT.anchorMin = Vector2.zero; btnLabelRT.anchorMax = Vector2.one;
-        btnLabelRT.offsetMin = Vector2.zero; btnLabelRT.offsetMax = Vector2.zero;
+        ColorBlock bcb = btnTemplate.colors;
+        bcb.normalColor      = Color.white;
+        bcb.highlightedColor = ColorButtonHover;
+        bcb.pressedColor     = ColorButtonPressed;
+        bcb.selectedColor    = Color.white;
+        bcb.colorMultiplier  = 1f;
+        btnTemplate.colors = bcb;
+
+        GameObject btnLabelGO = New("Label", btnTemplateGO.transform, uiLayer, typeof(TextMeshProUGUI));
+        Stretch(btnLabelGO.GetComponent<RectTransform>());
         TextMeshProUGUI btnLabel = btnLabelGO.GetComponent<TextMeshProUGUI>();
-        btnLabel.text = "1"; btnLabel.fontSize = 48; btnLabel.fontStyle = FontStyles.Bold;
+        btnLabel.text      = "1";
+        btnLabel.fontSize  = 60;
+        btnLabel.fontStyle = FontStyles.Bold;
         btnLabel.alignment = TextAlignmentOptions.Center;
-        btnLabel.color = new Color(0.92f, 0.92f, 0.95f, 1f);
+        btnLabel.color     = ColorText;
 
-        // ---- Sequence display ----
-        GameObject seqGO = new GameObject("SequenceDisplayText",
-            typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
-        seqGO.layer = uiLayer;
-        seqGO.transform.SetParent(panelGO.transform, false);
+        // ── Divisor inferior ──────────────────────────────────────────────
+        MakeDivider("DividerBottom", innerGO.transform, uiLayer, ColorDividerSoft, 1);
+
+        // ── Sequence display ──────────────────────────────────────────────
+        GameObject seqGO = New("SequenceDisplayText", innerGO.transform, uiLayer, typeof(TextMeshProUGUI), typeof(LayoutElement));
         LayoutElement seqLE = seqGO.GetComponent<LayoutElement>();
-        seqLE.minHeight = 40; seqLE.preferredHeight = 40;
+        seqLE.minHeight = SeqDisplayHeight; seqLE.preferredHeight = SeqDisplayHeight; seqLE.flexibleHeight = 0f;
         TextMeshProUGUI seqText = seqGO.GetComponent<TextMeshProUGUI>();
-        seqText.text = "Ingresada: —";
-        seqText.fontSize = 22;
-        seqText.fontStyle = FontStyles.Bold;
-        seqText.alignment = TextAlignmentOptions.Center;
-        seqText.color = new Color(0.45f, 0.9f, 0.55f, 1f);
-        seqText.characterSpacing = 4f;
+        seqText.text            = "Ingresada: —";
+        seqText.fontSize        = 26;
+        seqText.fontStyle       = FontStyles.Bold;
+        seqText.alignment       = TextAlignmentOptions.Center;
+        seqText.color           = ColorSequenceOk;
+        seqText.characterSpacing = 6f;
 
-        // ---- View + refs ----
+        // ── View + refs ───────────────────────────────────────────────────
         SequencePanelView view = canvasGO.AddComponent<SequencePanelView>();
-        // canvasGroup vive en la base BaseScreenView (protected) → necesitamos buscar en la jerarquía.
-        SetPrivateField(view, "canvasGroup", cg);
-        SetPrivateField(view, "buttonsParent", gridRT);
-        SetPrivateField(view, "buttonPrefab", btnTemplateGO.GetComponent<Button>());
-        SetPrivateField(view, "titleText", titleText);
+        SetPrivateField(view, "canvasGroup",         cg);
+        SetPrivateField(view, "buttonsParent",       gridRT);
+        SetPrivateField(view, "buttonPrefab",        btnTemplateGO.GetComponent<Button>());
+        SetPrivateField(view, "titleText",           titleText);
         SetPrivateField(view, "sequenceDisplayText", seqText);
-        SetPrivateField(view, "statusText", statusText);
-        SetPrivateField(view, "closeButton", closeBtn);
+        SetPrivateField(view, "statusText",          statusText);
+        SetPrivateField(view, "closeButton",         closeBtn);
 
-        // ---- Controller GameObject ----
+        // ── Controller ────────────────────────────────────────────────────
         GameObject ctrlGO = new GameObject("SequencePanelUIController");
         SceneManager.MoveGameObjectToScene(ctrlGO, levelUI);
         SequencePanelUIController ctrl = ctrlGO.AddComponent<SequencePanelUIController>();
-        // view también vive en la base BaseScreenController.
         SetPrivateField(ctrl, "view", view);
 
         canvasGO.SetActive(false);
@@ -225,6 +257,36 @@ public static class SequencePanelUISetup
         EditorSceneManager.SaveScene(levelUI);
 
         Debug.Log("[SequencePanelUISetup] UI armada y guardada en LevelUI.");
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static GameObject New(string name, Transform parent, int layer, params Type[] components)
+    {
+        var list = new List<Type> { typeof(RectTransform) };
+        foreach (Type t in components)
+            if (t != typeof(RectTransform)) list.Add(t);
+
+        GameObject go = new GameObject(name, list.ToArray());
+        go.layer = layer;
+        if (parent != null) go.transform.SetParent(parent, false);
+        return go;
+    }
+
+    private static void Stretch(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    private static void MakeDivider(string name, Transform parent, int layer, Color color, float height)
+    {
+        GameObject divGO = New(name, parent, layer, typeof(Image), typeof(LayoutElement));
+        divGO.GetComponent<Image>().color = color;
+        LayoutElement le = divGO.GetComponent<LayoutElement>();
+        le.minHeight = height; le.preferredHeight = height; le.flexibleHeight = 0f;
     }
 
     private static void DestroyIfExists(string name)

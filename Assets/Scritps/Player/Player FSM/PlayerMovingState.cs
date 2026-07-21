@@ -50,6 +50,10 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
+        if (playerStateManager.IsDisabled)
+        {
+            NextState = PlayerStateManager.EPlayerState.Disabled;
+        }
         if (playerStateManager.IsInteracting)
         {
             NextState = PlayerStateManager.EPlayerState.Interacting;

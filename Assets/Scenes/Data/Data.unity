@@ -189,6 +189,7 @@ GameObject:
   m_Component:
   - component: {fileID: 201702926}
   - component: {fileID: 201702925}
+  - component: {fileID: 201702927}
   m_Layer: 0
   m_Name: AudioManager
   m_TagString: Untagged
@@ -208,9 +209,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bb4fa6de2072544da25b2c856f21a77, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
-  masterVolume: 1
-  musicVolume: 1
-  sfxVolume: 1
+  mixer: {fileID: 24100000, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  masterGroup: {fileID: 24300002, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  musicGroup: {fileID: -2219433998997485648, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  ambienceGroup: {fileID: -563977852298575556, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  sfxGroup: {fileID: 454002457957499964, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  playerGroup: {fileID: -7369055098823251660, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  nemesisGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  uiGroup: {fileID: -3323808777528936358, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  voiceGroup: {fileID: 6132113099376921698, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  initialPoolSize: 20
   sounds:
   - {fileID: 11400000, guid: 597ae0f2d9de8be47b6ea553baef2afd, type: 2}
 --- !u!4 &201702926
@@ -228,6 +236,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &201702927
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 201702924}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a5ca0bb2dc56d642a85a39f27598245, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioBackgroundApplier
 --- !u!1 &403327611
 GameObject:
   m_ObjectHideFlags: 0
@@ -272,7 +292,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6aef32b787a57bd4ebe1d32683fedfe1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryManager
-  initialItems: []
+  initialItems:
+  - {fileID: 11400000, guid: 7d5ddc9ea3140e942aa067aa150eda25, type: 2}
 --- !u!1 &595979347
 GameObject:
   m_ObjectHideFlags: 0
@@ -349,11 +370,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionManager
   config: {fileID: 11400000, guid: fcadfc5691e27104abfa01a2505ab2fd, type: 2}
-  requireCameraVisibility: 1
-  requireClearLineOfSight: 0
-  lineOfSightBlockingLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
 --- !u!4 &719942053
 Transform:
   m_ObjectHideFlags: 0
@@ -395,7 +411,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 865513625}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0b0f4d337e5145a4a9ccab64319e8c78, type: 3}
+  m_Script: {fileID: 11500000, guid: 727e44a3bedbce14e91721123cdd7dc1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIStateManager
   exitAction: {fileID: 7167028017520646086, guid: 052faaac586de48259a63d0c4782560b, type: 3}

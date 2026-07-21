@@ -27,6 +27,16 @@ public class PlayerCameraController : MonoBehaviour
         bool shouldEnable = !PauseManager.IsGameplayInputBlocked;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
+
+        // Cursor de gameplay: bloqueado + invisible mientras no haya UI modal ni pausa.
+        // Cuando SÍ hay UI abierta, el UIStateManager es el dueño del cursor (lo libera),
+        // por eso solo lo forzamos cuando el input de gameplay está activo. Hacerlo cada
+        // frame además recupera el lock si el SO lo soltó (alt-tab, click fuera de ventana).
+        if (shouldEnable)
+        {
+            if (Cursor.lockState != CursorLockMode.Locked) Cursor.lockState = CursorLockMode.Locked;
+            if (Cursor.visible) Cursor.visible = false;
+        }
     }
 
     void AplyConfig()
