@@ -1,7 +1,22 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class DocumentReaderController : BaseScreenController<DocumentReaderView, DocumentReaderModel>, IModalUI
+/// <summary>
+/// Controller del lector de documentos (notas, pizarras, cartas).
+///
+/// A diferencia de los otros controllers (Pause, Settings, SequencePanel, Inventory),
+/// el DocumentReader **NO se registra en el UIStateManager** y **NO pausa el juego**.
+/// Sigue el spec §5: "NO pausar el juego durante la inspeccion. El jugador puede moverse.
+/// Si el jugador sale del rango mientras lee: cerrar la UI automaticamente."
+///
+/// Consecuencias:
+///   - <c>Time.timeScale</c> queda en 1: el InteractionManager sigue raycasteando.
+///   - El player puede moverse y rotar la camara.
+///   - Si el target del raycast cambia (player se alejo o apunto a otra cosa), la UI cierra sola.
+///   - ESC abre la pausa por encima (queda visible el documento debajo, hasta despausar).
+///     El documento NO se cierra con ESC por diseño — solo con "salir del rango" o nuevo prompt.
+/// </summary>
+public class DocumentReaderController : BaseScreenController<DocumentReaderView, DocumentReaderModel>
 {
     public static DocumentReaderController Instance { get; private set; }
 
@@ -10,13 +25,6 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     private IInteractable openingTarget;
 
     public bool IsOpen => isOpen;
-
-    // ── IModalUI ─────────────────────────────────────────────────────────────
-    public string ModalId        => "DocumentReader";
-    public bool   ConsumesEscape => true;
-    public bool   BlocksPause    => false;
-    public bool   PausesGame     => false;
-    public void   RequestClose() => CloseSafe().Forget();
 
     private void Awake()
     {
@@ -58,14 +66,14 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     protected override void OnBeforeOpen()
     {
         isOpen = true;
-        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+        // Sin Push al UIStateManager — el juego sigue corriendo (timeScale=1) y el
+        // player puede moverse libremente (spec §5).
     }
 
     protected override void OnBeforeClose()
     {
         isOpen = false;
         openingTarget = null;
-        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
     // ── Auto-close por cambio de target ──────────────────────────────────────

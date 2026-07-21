@@ -9,10 +9,6 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     [Header("Data Reference")]
     [SerializeField] private SO_SceneList sceneDatabase;
-
-    [Header("Panels")]
-    [SerializeField] private SaveSlotsController _saveSlotsController;
-
     [Header("Temp")]
     [SerializeField] private string firstSceneLabel = "TestBlocking";
 
@@ -57,19 +53,14 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
         await UnloadBootstrapAsync();
 
-        GameResultManager.ResetSession();
         screenChannel.RaisePushScreen(firstSceneLabel);
     }
 
-    private UniTask HandleLoadGame()
+    private async UniTask HandleLoadGame()
     {
-        if (_saveSlotsController == null)
-        {
-            Debug.LogError("[MainMenuController] Falta asignar SaveSlotsController en el Inspector.");
-            return UniTask.CompletedTask;
-        }
-        _saveSlotsController.Show();
-        return UniTask.CompletedTask;
+        if (!ValidateSceneGroup("UI_SaveSlots")) return;
+        await Close();
+        screenChannel.RaisePushScreen("UI_SaveSlots");
     }
 
     private async UniTask HandleSettings()

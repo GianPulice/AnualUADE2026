@@ -1,25 +1,30 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Sistema de interaccion por raycast desde el centro de la camara.
-// La camara emite un rayo hacia adelante con la distancia configurada en SO_InteractionManager.
-// Si el rayo pega contra un Collider que cuelga de un IInteractable y este puede interactuarse,
-// se vuelve el "current" y la UI muestra el prompt. Tecla E ejecuta la interaccion.
 public class InteractionManager : Singleton<InteractionManager>
 {
     [Header("Config")]
-    [Tooltip("Distancia y layers para el raycast.")]
+    [Tooltip("Radios globales para todos los BaseRangeInteractable de la escena.")]
     [SerializeField] private SO_InteractionManager config;
+
+    [Header("Camera")]
+    [SerializeField] private bool requireCameraVisibility = true;
+
+    [Header("Vision Check")]
+    [SerializeField] private bool requireClearLineOfSight = false;
+    [SerializeField] private LayerMask lineOfSightBlockingLayers = ~0;
 
     public SO_InteractionManager Config => config;
 
     private Camera playerCamera;
+    private readonly List<IInteractable> nearbyInteractables = new();
 
     private IInteractable currentInteractable;
     private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
-    // Cooldown entre pulsaciones de E para evitar dobles activaciones.
+    // Cooldown entre pulsaciones de E (spec: 0.2s para evitar activaciones dobles).
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
 
@@ -34,7 +39,8 @@ public class InteractionManager : Singleton<InteractionManager>
     {
         RefreshCamera();
 
-        // Si hay UI modal abierta o el juego esta en pausa, no procesamos interacciones.
+        // Si hay UI modal abierta o el juego esta en pausa, no detectamos ni procesamos
+        // interactuables. Esto evita el bug "el player interactua con la pausa abierta".
         if (PauseManager.IsGameplayInputBlocked)
         {
             if (currentInteractable != null)
@@ -68,46 +74,113 @@ public class InteractionManager : Singleton<InteractionManager>
         }
     }
 
+    public void RegisterInteractable(IInteractable interactable)
+    {
+        if (interactable == null) return;
+
+        if (!nearbyInteractables.Contains(interactable))
+        {
+            nearbyInteractables.Add(interactable);
+        }
+    }
+
+    public void UnregisterInteractable(IInteractable interactable)
+    {
+        if (interactable == null) return;
+
+        nearbyInteractables.Remove(interactable);
+
+        if (currentInteractable == interactable)
+        {
+            currentInteractable = null;
+        }
+    }
+
     private void UpdateCurrentInteractable()
     {
-        IInteractable detected = RaycastForInteractable();
+        IInteractable detectedInteractable = null;
 
-        if (detected != lastInteractable)
+        if (nearbyInteractables.Count > 0)
         {
-            lastInteractable = detected;
-            currentInteractable = detected;
+            for (int i = nearbyInteractables.Count - 1; i >= 0; i--)
+            {
+                IInteractable interactable = nearbyInteractables[i];
 
+                if (interactable == null)
+                {
+                    nearbyInteractables.RemoveAt(i);
+                    continue;
+                }
+
+                if (!interactable.CanInteract()) continue;
+
+                MonoBehaviour interactableBehaviour = interactable as MonoBehaviour;
+
+                if (interactableBehaviour == null) continue;
+
+                if (requireCameraVisibility && !IsVisibleByCamera(interactableBehaviour.transform))
+                    continue;
+
+                if (requireClearLineOfSight && !HasClearLineOfSight(interactableBehaviour.transform))
+                    continue;
+
+                // Si pasamos todas las validaciones, este es el objeto v�lido
+                detectedInteractable = interactable;
+                break;
+            }
+        }
+
+        // Comprobamos si el objeto interactuable es diferente al del frame anterior
+        // Esto tambi�n maneja el caso donde dejamos de mirar un objeto (detectedInteractable es null)
+        if (detectedInteractable != lastInteractable)
+        {
+            lastInteractable = detectedInteractable;
+            currentInteractable = detectedInteractable;
+
+            if (currentInteractable != null)
+                Debug.Log($"[Manager] �Detect� un objeto! Disparando evento para: {currentInteractable.GetInteractText()}");
+            else
+                Debug.Log($"[Manager] Dej� de mirar el objeto. Disparando evento para ocultar UI.");
+
+            // Disparamos el evento para que la UI reaccione y haga el Fade In/Out
             InteractionEvents.TargetChanged(currentInteractable);
         }
     }
 
-    private IInteractable RaycastForInteractable()
+    private bool IsVisibleByCamera(Transform target)
     {
-        if (playerCamera == null) return null;
-        if (config == null) return null;
+        if (playerCamera == null) return false;
 
-        float distance = config.InteractionDistance;
-        LayerMask combinedMask = config.InteractableLayers | config.BlockingLayers;
+        Vector3 viewportPoint = playerCamera.WorldToViewportPoint(target.position);
+
+        bool isInFrontOfCamera = viewportPoint.z > 0f;
+        bool isInsideCameraView =
+            viewportPoint.x >= 0f &&
+            viewportPoint.x <= 1f &&
+            viewportPoint.y >= 0f &&
+            viewportPoint.y <= 1f;
+
+        return isInFrontOfCamera && isInsideCameraView;
+    }
+
+    private bool HasClearLineOfSight(Transform target)
+    {
+        if (playerCamera == null) return false;
 
         Vector3 origin = playerCamera.transform.position;
-        Vector3 direction = playerCamera.transform.forward;
+        Vector3 direction = target.position - origin;
+        float distance = direction.magnitude;
 
-        // SphereCast: rayo "grueso" con un radio chico. Hace que apuntar a items
-        // chicos (pickups en el piso, valvulas) sea mas permisivo sin perder direccionalidad.
-        const float sphereRadius = 0.1f;
+        if (Physics.Raycast(origin, direction.normalized, out RaycastHit hit, distance, lineOfSightBlockingLayers))
+        {
+            IInteractable hitInteractable =
+                hit.collider.GetComponent<IInteractable>() ??
+                hit.collider.GetComponentInParent<IInteractable>();
 
-        if (!Physics.SphereCast(origin, sphereRadius, direction, out RaycastHit hit, distance, combinedMask, QueryTriggerInteraction.Ignore))
-            return null;
+            return hitInteractable == currentInteractable;
+        }
 
-        // Buscamos IInteractable en el propio collider o en sus padres.
-        // Si lo encontramos, es valido (un hijo del prefab no esta en layer Interactable
-        // pero su raiz si lo es, igual debe poder activarse).
-        // Si no lo encontramos, el primer hit es una pared / objeto bloqueante.
-        IInteractable interactable =
-            hit.collider.GetComponent<IInteractable>() ??
-            hit.collider.GetComponentInParent<IInteractable>();
-
-        return interactable;
+        return true;
     }
 
     private void Interact()
@@ -120,15 +193,16 @@ public class InteractionManager : Singleton<InteractionManager>
         lastInteractTime = Time.unscaledTime;
 
         IInteractable interactableToUse = currentInteractable;
+
         bool wasRepeatable = interactableToUse.IsRepeatable();
 
         interactableToUse.Interact();
 
+        currentInteractable = null;
+
         if (!wasRepeatable)
         {
-            currentInteractable = null;
-            lastInteractable = null;
-            InteractionEvents.TargetChanged(null);
+            UnregisterInteractable(interactableToUse);
         }
     }
 }
