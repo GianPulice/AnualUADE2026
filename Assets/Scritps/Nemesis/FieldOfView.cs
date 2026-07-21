@@ -15,6 +15,7 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private LayerMask obstacleMask;
 
     private List<GameObject> visibleTargets;
+    private GameObject lastKnownTarget;
     private float currentTimer = 0;
     private bool hasVisualTarget = false;
     private Vector3 lastKnownPosition;
@@ -51,7 +52,11 @@ public class FieldOfView : MonoBehaviour
                 {
                     if (!Physics.Raycast(viewTransform.position, dirToTarget, distToTarget, obstacleMask))
                     {
-                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) visibleTargets.Add(targetsInViewRadius[i].gameObject);
+                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) 
+                        {
+                            visibleTargets.Add(targetsInViewRadius[i].gameObject);
+                            lastKnownTarget = targetsInViewRadius[i].gameObject;
+                        }
                     }
                 }
             }
@@ -65,6 +70,6 @@ public class FieldOfView : MonoBehaviour
     }
     public PlayerStateManager GetCurrentTarget() 
     {
-        return visibleTargets[0].GetComponent<PlayerStateManager>();
+        return lastKnownTarget.GetComponent<PlayerStateManager>();
     }
 }
