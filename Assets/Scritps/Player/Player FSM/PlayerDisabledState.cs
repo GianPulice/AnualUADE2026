@@ -1,10 +1,15 @@
 using UnityEngine;
 
+/// <summary>
+/// El jugador quedo inmovilizado (hoy: capturado por el Nemesis).
+///
+/// Solo mantiene la pose. El fin de partida NO se dispara desde aca: lo hace
+/// NemesisCatchState, que es quien conoce el timing de la animacion de captura.
+/// </summary>
 public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 {
     private PlayerStateManager playerStateManager;
-    private float cooldonwnTimer = 0f;
-    private float currentCooldownTime = 0f;
+
     public PlayerDisabledState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -21,7 +26,6 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
         Debug.Log("Exit Disabled State");
         NextState = StateKey;
         playerStateManager.AnimController.SetBool("isTrapped", false);
-        currentCooldownTime = 0;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -47,10 +51,6 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        if(currentCooldownTime >= cooldonwnTimer) 
-        {
-            // trigger UI de derrota o Reload
-        }
-        else currentCooldownTime += cooldonwnTimer;
+        // Estado terminal: no hay nada que actualizar mientras dura la captura.
     }
 }

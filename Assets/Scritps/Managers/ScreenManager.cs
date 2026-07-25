@@ -11,6 +11,42 @@ public class ScreenManager : Singleton<ScreenManager>
 
     private Stack<string> activeScreens = new Stack<string>();
 
+    /// <summary>Label del grupo de escenas activo, o null si no hay ninguno cargado.</summary>
+    public string CurrentGroupLabel => activeScreens.Count > 0 ? activeScreens.Peek() : null;
+
+    /// <summary>
+    /// Descarga y vuelve a cargar el grupo activo. Lo usa el Retry de la pantalla de derrota.
+    ///
+    /// No se puede armar con Pop + Push desde el canal de eventos: los dos handlers son
+    /// UniTask fire-and-forget, asi que la carga arrancaria antes de que termine la descarga.
+    /// Tampoco alcanza con un Push solo, porque HandlePushScreenAsync corta temprano cuando
+    /// el label ya es la pantalla activa.
+    /// </summary>
+    public async UniTask ReloadCurrentGroup()
+    {
+        if (activeScreens.Count == 0)
+        {
+            Debug.LogWarning("[ScreenManager] ReloadCurrentGroup sin ningun grupo activo.");
+            return;
+        }
+
+        string label = activeScreens.Pop();
+
+        var groupEntry = sceneDatabase.GetGroup(label);
+        if (groupEntry == null || groupEntry.sceneNames.Count == 0)
+        {
+            Debug.LogError($"[ScreenManager] No se encontró el grupo '{label}' en el SO_SceneList.");
+            return;
+        }
+
+        await UnloadGroupAsync(label);
+
+        activeScreens.Push(label);
+        await LoadGroupAsync(groupEntry);
+
+        Debug.Log($"<color=green>[ScreenManager] Grupo '{label}' recargado.</color>");
+    }
+
     private void Awake()
     {
         CreateSingleton(true);

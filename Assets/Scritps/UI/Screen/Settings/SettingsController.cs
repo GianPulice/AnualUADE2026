@@ -129,11 +129,6 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnMasterChanged      += model.SetMasterVolume;
         view.OnMusicChanged       += model.SetMusicVolume;
         view.OnSFXChanged         += model.SetSFXVolume;
-        view.OnVoiceChanged       += model.SetVoiceVolume;
-        view.OnAmbienceChanged    += model.SetAmbienceVolume;
-        view.OnPlayerChanged      += model.SetPlayerVolume;
-        view.OnNemesisChanged     += model.SetNemesisVolume;
-        view.OnUIChanged          += model.SetUIVolume;
         view.OnSensitivityChanged += model.SetSensitivity;
 
         // Todos estos SÍ afectan al juego vía appliers que escuchan SettingsModel.OnSettingsApplied
@@ -163,11 +158,6 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnMasterChanged      -= model.SetMasterVolume;
         view.OnMusicChanged       -= model.SetMusicVolume;
         view.OnSFXChanged         -= model.SetSFXVolume;
-        view.OnVoiceChanged       -= model.SetVoiceVolume;
-        view.OnAmbienceChanged    -= model.SetAmbienceVolume;
-        view.OnPlayerChanged      -= model.SetPlayerVolume;
-        view.OnNemesisChanged     -= model.SetNemesisVolume;
-        view.OnUIChanged          -= model.SetUIVolume;
         view.OnSensitivityChanged -= model.SetSensitivity;
 
         view.OnInvertYChanged    -= model.SetInvertYAxis;

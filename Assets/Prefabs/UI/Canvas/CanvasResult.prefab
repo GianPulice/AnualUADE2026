@@ -986,7 +986,7 @@ GameObject:
   - component: {fileID: 6936739420111863895}
   - component: {fileID: 2973032742874045454}
   m_Layer: 5
-  m_Name: CanvasLose
+  m_Name: CanvasResult
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1098,13 +1098,25 @@ MonoBehaviour:
   m_GameObject: {fileID: 4709029339952726109}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c14a098d092eee848a15afabadf478fe, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LoseController
+  m_Script: {fileID: 11500000, guid: a7c3f1e02b8d4e94ab15c6d7e8f90123, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ResultScreenController
   view: {fileID: 2973032742874045454}
   _screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
-  _currentLevelGroup: Level1_Group
   _mainMenuGroup: Menu
+  _presentations:
+  - _state: 1
+    _title: YOU DIED
+    _titleColor: {r: 1, g: 1, b: 1, a: 1}
+    _vignetteColor: {r: 0, g: 0, b: 0, a: 0.8784314}
+    _showRetry: 1
+    _showStats: 0
+  - _state: 2
+    _title: GAME OVER
+    _titleColor: {r: 0.8, g: 0.101960786, b: 0.101960786, a: 1}
+    _vignetteColor: {r: 0.050980393, g: 0, b: 0, a: 0.94}
+    _showRetry: 0
+    _showStats: 1
 --- !u!114 &2973032742874045454
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1114,15 +1126,19 @@ MonoBehaviour:
   m_GameObject: {fileID: 4709029339952726109}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 715a1dff082b15149baee68cfff57a9c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LoseView
+  m_Script: {fileID: 11500000, guid: b8d4e2f13c9e5fa5bc26d7e8f9012345, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ResultView
   canvasGroup: {fileID: 5777520890614585411}
   fadeDuration: 0.3
   _btnRetry: {fileID: 848034176517661206}
   _btnMainMenu: {fileID: 4341359398883929596}
   _btnNextLevel: {fileID: 167617397132968645}
   _btnExit: {fileID: 0}
+  _titleText: {fileID: 2803530870595234126}
+  _statsText: {fileID: 0}
+  _vignetteImage: {fileID: 5605537360880227665}
+  _totalModules: 3
 --- !u!1 &5747861125851972403
 GameObject:
   m_ObjectHideFlags: 0

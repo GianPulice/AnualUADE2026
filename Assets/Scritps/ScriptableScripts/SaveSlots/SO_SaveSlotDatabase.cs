@@ -20,6 +20,34 @@ public class SO_SaveSlotDatabase : ScriptableObject
 
     public IReadOnlyList<SO_SaveSlotData> Slots => slots;
 
+    /// <summary>
+    /// True si al menos un slot tiene partida. Lo consulta el MainMenu para deshabilitar
+    /// "Load Game" cuando no hay nada que cargar.
+    /// </summary>
+    public bool HasAnySave
+    {
+        get
+        {
+            foreach (SO_SaveSlotData slot in slots)
+                if (slot != null && !slot.IsEmpty) return true;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Deja los 6 slots vacíos. Es la forma segura de sacar la mock data del asset
+    /// (editar el YAML a mano es frágil). Correr una vez desde el Inspector y commitear.
+    /// </summary>
+    [ContextMenu("Clear All Slots")]
+    private void ClearAllSlotsMenu()
+    {
+#if UNITY_EDITOR
+        ClearAllSlots();
+#else
+        Debug.LogWarning("[SO_SaveSlotDatabase] Clear All Slots solo funciona en el editor.");
+#endif
+    }
+
     [ContextMenu("Generate Mock Data")]
     private void GenerateMockDataMenu()
     {
@@ -31,6 +59,37 @@ public class SO_SaveSlotDatabase : ScriptableObject
     }
 
 #if UNITY_EDITOR
+    private void ClearAllSlots()
+    {
+        int cleared = 0;
+
+        foreach (SO_SaveSlotData slot in slots)
+        {
+            if (slot == null) continue;
+
+            SerializedObject so = new SerializedObject(slot);
+            so.FindProperty("isEmpty").boolValue           = true;
+            so.FindProperty("zoneName").stringValue        = string.Empty;
+            so.FindProperty("playTimeSeconds").floatValue  = 0f;
+            so.FindProperty("lastSavedIso").stringValue    = string.Empty;
+            so.FindProperty("modules").arraySize           = 0;
+            so.FindProperty("currentZoneId").stringValue   = string.Empty;
+            so.FindProperty("collectedItemIds").arraySize  = 0;
+            so.FindProperty("completedPuzzleIds").arraySize = 0;
+            so.FindProperty("insertedSocketIds").arraySize = 0;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorUtility.SetDirty(slot);
+            cleared++;
+        }
+
+        EditorUtility.SetDirty(this);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        Debug.Log($"<color=cyan>[SO_SaveSlotDatabase] {cleared} slots vaciados.</color>");
+    }
+
     private void GenerateMockData()
     {
         // 1. Limpiar sub-assets anteriores (los SO_SaveSlotData ya guardados como hijos).

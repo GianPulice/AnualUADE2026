@@ -9,11 +9,13 @@ public class FieldOfView : MonoBehaviour
     [Range(0, 360)]
     [SerializeField] private float viewAngle;
     [SerializeField] private float viewDelay = 0.1f;
+    [SerializeField] private float minDistance = 1f;
     [SerializeField] private Transform viewTransform;
     [SerializeField] private LayerMask targetMask;
     [SerializeField] private LayerMask obstacleMask;
 
     private List<GameObject> visibleTargets;
+    private GameObject lastKnownTarget;
     private float currentTimer = 0;
     private bool hasVisualTarget = false;
     private Vector3 lastKnownPosition;
@@ -46,12 +48,15 @@ public class FieldOfView : MonoBehaviour
                 Vector3 targetPoint = targetsInViewRadius[i].bounds.center + new Vector3(0f, j * targetsInViewRadius[i].bounds.extents.y * 0.9f, 0f);
                 float distToTarget = Vector3.Distance(viewTransform.position, targetPoint);
                 Vector3 dirToTarget = (targetPoint - viewTransform.position).normalized;
-                if (Vector3.Angle(viewTransform.forward, dirToTarget) < viewAngle / 2)
+                if (Vector3.Angle(viewTransform.forward, dirToTarget) < viewAngle / 2 || distToTarget <= minDistance)
                 {
-
                     if (!Physics.Raycast(viewTransform.position, dirToTarget, distToTarget, obstacleMask))
                     {
-                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) visibleTargets.Add(targetsInViewRadius[i].gameObject);
+                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) 
+                        {
+                            visibleTargets.Add(targetsInViewRadius[i].gameObject);
+                            lastKnownTarget = targetsInViewRadius[i].gameObject;
+                        }
                     }
                 }
             }
@@ -63,8 +68,14 @@ public class FieldOfView : MonoBehaviour
         }
         else hasVisualTarget = false;
     }
-    public PlayerStateManager GetCurrentTarget() 
+    /// <summary>
+    /// Ultimo objetivo visto, o null si todavia no vio a nadie / el objeto se destruyo.
+    /// Devuelve null en vez de tirar: el estado de captura lo llama y no puede asumir
+    /// que siempre haya target.
+    /// </summary>
+    public PlayerStateManager GetCurrentTarget()
     {
-        return visibleTargets[0].GetComponent<PlayerStateManager>();
+        if (lastKnownTarget == null) return null;
+        return lastKnownTarget.GetComponent<PlayerStateManager>();
     }
 }

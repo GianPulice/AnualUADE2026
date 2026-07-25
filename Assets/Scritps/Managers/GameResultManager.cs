@@ -3,7 +3,8 @@ using System;
 public static class GameResultManager
 {
     ///<summary>
-    ///Fired when the game ends or wins. WinController and LoseController subscribe to this event to show the corresponding screen.
+    ///Fired when the game ends or wins. ResultScreenController (Lose/GameOver) y WinController
+    ///se suscriben a este evento y cada uno filtra por el GameState que le corresponde.
     ///</summary>
     
     //--Event ----------------------

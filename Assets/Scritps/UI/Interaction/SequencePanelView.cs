@@ -19,19 +19,35 @@ public class SequencePanelView : BaseScreenView
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private TextMeshProUGUI sequenceDisplayText;
     [SerializeField] private TextMeshProUGUI statusText;
+    [Tooltip("LED de estado al lado del texto. Opcional.")]
+    [SerializeField] private Image statusLed;
     [SerializeField] private Button closeButton;
 
-    [Header("Feedback")]
-    [SerializeField] private Color buttonDefaultColor = new Color(0.07f, 0.07f, 0.07f, 1f);
-    [SerializeField] private Color buttonActiveColor  = new Color(0.1f, 0.4f, 0.16f, 1f);
-    [SerializeField] private Color buttonWrongColor   = new Color(0.4f, 0.1f, 0.1f, 1f);
+    [Header("Feedback — teclas")]
+    // Paleta de teclado de seguridad: metal oscuro en reposo, ambar al acertar,
+    // rojo al fallar. Ojo: estos colores GANAN sobre los del SequencePanelUISetup,
+    // porque Populate() repinta todas las teclas al abrir.
+    [SerializeField] private Color buttonDefaultColor = new Color(0.18f, 0.18f, 0.19f, 1f);
+    [SerializeField] private Color buttonActiveColor  = new Color(1f,    0.65f, 0.10f, 1f);
+    [SerializeField] private Color buttonWrongColor   = new Color(0.55f, 0.10f, 0.08f, 1f);
     [SerializeField] private float wrongFlashDuration = 0.6f;
 
+    [Header("Feedback — LED de estado")]
+    [SerializeField] private Color ledIdleColor  = new Color(0.55f, 0.33f, 0.05f, 1f);
+    [SerializeField] private Color ledWrongColor = new Color(0.95f, 0.20f, 0.15f, 1f);
+    [SerializeField] private Color ledOkColor    = new Color(0.30f, 0.95f, 0.40f, 1f);
+
     [Header("Strings")]
-    [SerializeField] private string titleString       = "Panel Electrico";
-    [SerializeField] private string statusIdleString  = "Ingrese la secuencia";
-    [SerializeField] private string statusWrongString = "Secuencia incorrecta. Reiniciando...";
-    [SerializeField] private string statusOkString    = "Secuencia correcta!";
+    [SerializeField] private string titleString       = "PANEL ELECTRICO";
+    [SerializeField] private string statusIdleString  = "INGRESE LA SECUENCIA";
+    [SerializeField] private string statusWrongString = "SECUENCIA INCORRECTA";
+    [SerializeField] private string statusOkString    = "ACCESO CONCEDIDO";
+
+    [Header("Display LCD")]
+    [Tooltip("Prefijo del display, estilo terminal.")]
+    [SerializeField] private string displayPrefix = "> ";
+    [Tooltip("Caracter de cursor al final de lo ingresado.")]
+    [SerializeField] private string displayCursor = "_";
 
     /// <summary>Se dispara cuando el usuario clickea uno de los botones del grid.</summary>
     public event Action<int> OnButtonClicked;
@@ -65,7 +81,7 @@ public class SequencePanelView : BaseScreenView
         {
             isFlashingWrong = false;
             ResetButtonColors();
-            UpdateStatus(statusIdleString);
+            UpdateStatus(statusIdleString, ledIdleColor);
         }
     }
 
@@ -81,23 +97,30 @@ public class SequencePanelView : BaseScreenView
         wrongFlashTimer = 0f;
 
         if (titleText != null) titleText.text = titleString;
-        UpdateStatus(statusIdleString);
+        UpdateStatus(statusIdleString, ledIdleColor);
 
         BuildButtons(model != null ? model.ButtonCount : 0);
         RefreshSequenceDisplay(model != null ? model.EnteredSequence : null);
     }
 
+    /// <summary>
+    /// Pinta el display LCD estilo terminal: <c>&gt; 3 7 1 _</c>.
+    ///
+    /// Solo muestra lo ingresado + el cursor. No dibuja slots vacios porque el modelo
+    /// no expone el largo de la secuencia correcta — y mostrarlo seria filtrarle al
+    /// jugador cuantos digitos tiene el codigo.
+    /// </summary>
     public void RefreshSequenceDisplay(IReadOnlyList<int> entered)
     {
         if (sequenceDisplayText == null) return;
 
         if (entered == null || entered.Count == 0)
         {
-            sequenceDisplayText.text = "Ingresada: —";
+            sequenceDisplayText.text = displayPrefix + displayCursor;
             return;
         }
 
-        sequenceDisplayText.text = "Ingresada: " + string.Join(" — ", entered);
+        sequenceDisplayText.text = displayPrefix + string.Join(" ", entered) + " " + displayCursor;
     }
 
     /// <summary>Marca botón individual como recién presionado (verde).</summary>
@@ -110,7 +133,7 @@ public class SequencePanelView : BaseScreenView
 
     public void ShowFailFlash()
     {
-        UpdateStatus(statusWrongString);
+        UpdateStatus(statusWrongString, ledWrongColor);
         foreach (Button b in spawnedButtons) SetButtonColor(b, buttonWrongColor);
         isFlashingWrong = true;
         wrongFlashTimer = wrongFlashDuration;
@@ -118,7 +141,7 @@ public class SequencePanelView : BaseScreenView
 
     public void ShowCompleted()
     {
-        UpdateStatus(statusOkString);
+        UpdateStatus(statusOkString, ledOkColor);
         foreach (Button b in spawnedButtons) SetButtonColor(b, buttonActiveColor);
     }
 
@@ -175,20 +198,23 @@ public class SequencePanelView : BaseScreenView
 
     private void HandleCloseClicked() => OnCloseClicked?.Invoke();
 
-    private void UpdateStatus(string text)
+    private void UpdateStatus(string text, Color ledColor)
     {
         if (statusText != null) statusText.text = text;
+        if (statusLed != null)  statusLed.color = ledColor;
     }
 
+    /// <summary>
+    /// Repinta una tecla. Toca SOLO el color de la Image, nunca el ColorBlock:
+    /// el ColorBlock es un multiplicador sobre la Image, asi que escribir el color en
+    /// los dos lados lo elevaba al cuadrado y las teclas oscuras se iban a negro.
+    /// Dejando el normalColor en blanco, el tinte de hover/pressed sigue funcionando
+    /// relativo a cualquier color de feedback que tenga la tecla en ese momento.
+    /// </summary>
     private void SetButtonColor(Button btn, Color color)
     {
         if (btn == null) return;
         Image img = btn.GetComponent<Image>();
         if (img != null) img.color = color;
-
-        ColorBlock cb = btn.colors;
-        cb.normalColor   = color;
-        cb.selectedColor = color;
-        btn.colors = cb;
     }
 }

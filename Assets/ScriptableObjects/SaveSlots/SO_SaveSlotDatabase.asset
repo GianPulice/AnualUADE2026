@@ -13,23 +13,11 @@ MonoBehaviour:
   m_Name: SaveSlot_03
   m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
   slotIndex: 3
-  isEmpty: 0
-  zoneName: Hub Central
-  playTimeSeconds: 1320
-  lastSavedIso: 2026-05-23T12:44:17.6494792Z
-  modules:
-  - moduleId: M1_Energetico
-    status: 1
-    timeRemaining: 90
-    timerDuration: 300
-  - moduleId: M2_Mecanico
-    status: 0
-    timeRemaining: 0
-    timerDuration: 300
-  - moduleId: M3_Presion
-    status: 0
-    timeRemaining: 0
-    timerDuration: 300
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
   currentZoneId: 
   collectedItemIds: []
   completedPuzzleIds: []
@@ -88,23 +76,11 @@ MonoBehaviour:
   m_Name: SaveSlot_01
   m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
   slotIndex: 1
-  isEmpty: 0
-  zoneName: Zona Restringida
-  playTimeSeconds: 9240
-  lastSavedIso: 2026-05-30T12:32:17.6422087Z
-  modules:
-  - moduleId: M1_Energetico
-    status: 2
-    timeRemaining: 0
-    timerDuration: 300
-  - moduleId: M2_Mecanico
-    status: 2
-    timeRemaining: 0
-    timerDuration: 300
-  - moduleId: M3_Presion
-    status: 1
-    timeRemaining: 180
-    timerDuration: 300
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
   currentZoneId: 
   collectedItemIds: []
   completedPuzzleIds: []
@@ -144,23 +120,11 @@ MonoBehaviour:
   m_Name: SaveSlot_02
   m_EditorClassIdentifier: Assembly-CSharp::SO_SaveSlotData
   slotIndex: 2
-  isEmpty: 0
-  zoneName: "Piso 2 \u2014 Tecnico"
-  playTimeSeconds: 4080
-  lastSavedIso: 2026-05-28T12:44:17.6484799Z
-  modules:
-  - moduleId: M1_Energetico
-    status: 2
-    timeRemaining: 0
-    timerDuration: 300
-  - moduleId: M2_Mecanico
-    status: 1
-    timeRemaining: 240
-    timerDuration: 300
-  - moduleId: M3_Presion
-    status: 0
-    timeRemaining: 0
-    timerDuration: 300
+  isEmpty: 1
+  zoneName: 
+  playTimeSeconds: 0
+  lastSavedIso: 
+  modules: []
   currentZoneId: 
   collectedItemIds: []
   completedPuzzleIds: []

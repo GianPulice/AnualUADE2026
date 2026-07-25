@@ -108,6 +108,9 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
     private void HandleExit()
     {
+        // El flag frena a HandlePauseStateChanged: los RequestUnpause de abajo dispararian
+        // un CloseSafe() que compite con el CloseAll(). Se libera al final del metodo, una
+        // vez que esos eventos ya pasaron — dejarlo en true colgaba la pausa para siempre.
         _isTransitioning = true;
 
         // Cerramos cualquier modal residual (panel de secuencia, etc.) antes de salir.
@@ -120,6 +123,8 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
             screenChannel.RaisePushScreen("Menu");
         else
             Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel.");
+
+        _isTransitioning = false;
     }
 
 }

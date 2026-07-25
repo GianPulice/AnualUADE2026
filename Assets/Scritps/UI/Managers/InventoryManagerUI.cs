@@ -368,9 +368,17 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (modules.Count == 0) return;
         if (GetExplodedCount() < modules.Count) return;
 
-        int resolved = modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
-        GameResultManager.ReportGameOver(_sessionTime, resolved);
+        GameResultManager.ReportGameOver(_sessionTime, GetResolvedCount());
     }
+
+    /// <summary>
+    /// Reporta derrota con las stats de la sesion en curso. Lo usa el Nemesis al capturarte,
+    /// para que la pantalla muestre el mismo tiempo y modulos que el game over por timers.
+    /// </summary>
+    public void ReportLoss() => GameResultManager.ReportLoss(_sessionTime, GetResolvedCount());
+
+    private int GetResolvedCount() =>
+        modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
 
     public void ResetSessionTime() => _sessionTime = 0f;
 

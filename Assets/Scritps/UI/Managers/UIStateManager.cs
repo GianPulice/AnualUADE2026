@@ -193,6 +193,23 @@ public class UIStateManager : Singleton<UIStateManager>
         RestoreSnapshot();
     }
 
+    /// <summary>
+    /// Libera el cursor y descarta el snapshot pendiente.
+    ///
+    /// Existe para el cambio de contexto gameplay -> menu: el snapshot que toma
+    /// TakeSnapshot() durante gameplay guarda Locked + invisible, y RestoreSnapshot()
+    /// lo reaplica al vaciarse el stack. Como el PlayerCameraController (el unico que
+    /// libera el cursor en gameplay) se destruye con el nivel, nadie lo vuelve a soltar
+    /// y el menu queda sin mouse. Descartar el snapshot evita que un Pop/CloseAll
+    /// posterior lo pise de nuevo.
+    /// </summary>
+    public void SetCursorFree()
+    {
+        snapshotTaken = false;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
     // -- Environment (Time/Cursor) ----------------------------------------
 
     private void TakeSnapshot()

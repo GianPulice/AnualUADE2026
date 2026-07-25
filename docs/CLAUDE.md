@@ -52,7 +52,7 @@ Both the player and the Nemesis AI use the same generic FSM base:
 - **`StateManager<EState>`** (`Scritps/FSM/StateManager.cs`) — `MonoBehaviour` that owns a `Dictionary<EState, BaseState<EState>>`, drives `Update`/`TransitionToState`, and forwards `OnTriggerEnter/Stay/Exit` to the active state.
 - **`BaseState<EState>`** (`Scritps/FSM/BaseState.cs`) — abstract class with `EnterState`, `ExitState`, `UpdateState`, `GetNextState`, and trigger callbacks.
 
-**Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching` (managed by `NemesisStateManager`). Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.2s). State transitions fire `NemesisEvents.OnChaseStarted/Ended` and `NemesisEvents.OnProximityChanged`, which drive `VignetteChaseView` and `VignetteProximityView` in the HUD.
+**Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus the terminal `Catch` (managed by `NemesisStateManager`). Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.2s). `NemesisStateManager.Update` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set, and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
 
 **Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`).
 

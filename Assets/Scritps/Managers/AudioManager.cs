@@ -23,7 +23,11 @@ using UnityEngine.Audio;
 ///                              el clip + grupo correctos para que reproduzca en loop.
 ///   Play(id [, pos])        — Generico: deduce el grupo desde la categoria del SO.
 ///
-/// API legacy (se mantiene para no romper PickupInteractable y el SettingsModel actual):
+/// Volumen: el jugador solo controla 3 sliders (Master, Music, SFX). El de SFX mueve en
+/// bloque todos los buses de gameplay via SetGameplaySfxBundle(). Los setters por bus
+/// siguen publicos para mezclar desde codigo, pero Settings ya no los usa.
+///
+/// API legacy (se mantiene para no romper PickupInteractable):
 ///   PlaySFX(id), PlayMusic(id), StopMusic(), StopAllSFX(), MasterVolume, MusicVolume,
 ///   SFXVolume, VoiceVolume, SetMasterVolume, SetMusicVolume, SetSFXVolume, SetVoiceVolume.
 /// </summary>
@@ -72,14 +76,10 @@ public class AudioManager : Singleton<AudioManager>
     private AudioSource musicSource;
 
     // Mismas keys que SettingsModel para que el AudioManager arranque ya sincronizado.
-    private const string KEY_MASTER   = "Settings_MasterVolume";
-    private const string KEY_MUSIC    = "Settings_MusicVolume";
-    private const string KEY_SFX      = "Settings_SFXVolume";
-    private const string KEY_VOICE    = "Settings_VoiceVolume";
-    private const string KEY_AMBIENCE = "Settings_AmbienceVolume";
-    private const string KEY_PLAYER   = "Settings_PlayerVolume";
-    private const string KEY_NEMESIS  = "Settings_NemesisVolume";
-    private const string KEY_UI       = "Settings_UIVolume";
+    // Solo 3: el resto de los buses se derivan del SFX (ver SetGameplaySfxBundle).
+    private const string KEY_MASTER = "Settings_MasterVolume";
+    private const string KEY_MUSIC  = "Settings_MusicVolume";
+    private const string KEY_SFX    = "Settings_SFXVolume";
 
     private void Awake()
     {
@@ -97,14 +97,12 @@ public class AudioManager : Singleton<AudioManager>
 
     private void LoadVolumesFromPrefs()
     {
-        masterVolume   = PlayerPrefs.GetFloat(KEY_MASTER,   masterVolume);
-        musicVolume    = PlayerPrefs.GetFloat(KEY_MUSIC,    musicVolume);
-        sfxVolume      = PlayerPrefs.GetFloat(KEY_SFX,      sfxVolume);
-        voiceVolume    = PlayerPrefs.GetFloat(KEY_VOICE,    voiceVolume);
-        ambienceVolume = PlayerPrefs.GetFloat(KEY_AMBIENCE, ambienceVolume);
-        playerVolume   = PlayerPrefs.GetFloat(KEY_PLAYER, playerVolume);
-        nemesisVolume  = PlayerPrefs.GetFloat(KEY_NEMESIS, nemesisVolume);
-        uiVolume       = PlayerPrefs.GetFloat(KEY_UI, uiVolume);
+        masterVolume = PlayerPrefs.GetFloat(KEY_MASTER, masterVolume);
+        musicVolume  = PlayerPrefs.GetFloat(KEY_MUSIC,  musicVolume);
+        sfxVolume    = PlayerPrefs.GetFloat(KEY_SFX,    sfxVolume);
+
+        // Settings solo persiste 3 keys; los demas buses cuelgan del slider de SFX.
+        ambienceVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = sfxVolume;
     }
 
     private void InitMusicSource()
@@ -281,24 +279,27 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     /// <summary>
-    /// Alias explicito de <see cref="SetSFXVolume"/>. Existe para que el SettingsModel
-    /// pueda distinguir entre "slider SFX afecta solo SFX" (modo nuevo, recomendado)
-    /// y un futuro "slider SFX agrupa varios buses" sin cambiar la firma.
-    /// </summary>
-    public void SetSFXVolumeOnly(float v) => SetSFXVolume(v);
-
-    /// <summary>
-    /// Modo agrupado (legacy): mueve SFX, Ambience, Player y Nemesis en bloque.
-    /// Util si el panel de Settings expone un unico slider "SFX" en lugar de uno
-    /// por cada bus de gameplay.
+    /// Modo agrupado: mueve en bloque todos los buses que NO son musica
+    /// (SFX, Ambience, Player, Nemesis, UI y Voice).
+    ///
+    /// Es el modo que usa el juego: el panel de Settings expone un unico slider "SFX"
+    /// en lugar de uno por bus. Se incluyen UI y Voice a proposito — si quedaran afuera,
+    /// serian los unicos dos buses sin ningun control del jugador, fijos en su default.
+    /// Para volver a dejarlos fijos, sacar sus dos lineas de aca.
+    ///
+    /// Los buses siguen existiendo por separado en el mixer para poder mezclarlos entre si
+    /// (el ruteo lo decide SO_SoundData.SoundCategory); esto solo unifica lo que el
+    /// jugador puede tocar.
     /// </summary>
     public void SetGameplaySfxBundle(float v)
     {
-        sfxVolume = ambienceVolume = playerVolume = nemesisVolume = Mathf.Clamp01(v);
+        sfxVolume = ambienceVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = Mathf.Clamp01(v);
         ApplyVolume(EXP_SFX,      sfxVolume);
         ApplyVolume(EXP_AMBIENCE, ambienceVolume);
         ApplyVolume(EXP_PLAYER,   playerVolume);
         ApplyVolume(EXP_NEMESIS,  nemesisVolume);
+        ApplyVolume(EXP_UI,       uiVolume);
+        ApplyVolume(EXP_VOICE,    voiceVolume);
     }
 
     public void SetAmbienceVolume(float v)

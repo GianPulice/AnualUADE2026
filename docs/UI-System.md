@@ -409,10 +409,10 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | Evento | Dispara | Escuchan |
 |---|---|---|
 | `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI |
-| `GameResultManager.OnGameResult` | ReportWin/ReportLoss | WinController, LoseController |
+| `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver | WinController, ResultScreenController |
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | CameraSensitivityApplier |
-| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de Chasing | VignetteChaseView |
-| `NemesisEvents.OnProximityChanged` | distancia al player cambia | VignetteProximityView |
+| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
 | `InventoryEvents.OnModuleTimerTick/StateChanged/Exploded` | timers de módulos | ModuleHUDView |

@@ -10,15 +10,11 @@ public class SettingsModel : BaseScreenModel
     public static event Action OnSettingsApplied;
 
     // ── Keys de PlayerPrefs ──────────────────────────────────────────────────
-    // Conectados al AudioManager:
+    // Conectados al AudioManager. Solo 3 buses son visibles para el jugador: el slider
+    // de SFX agrupa Ambience/Player/Nemesis/UI/Voice (ver AudioManager.SetGameplaySfxBundle).
     private const string KEY_MASTER       = "Settings_MasterVolume";
     private const string KEY_MUSIC        = "Settings_MusicVolume";
     private const string KEY_SFX          = "Settings_SFXVolume";
-    private const string KEY_VOICE        = "Settings_VoiceVolume";
-    private const string KEY_AMBIENCE     = "Settings_AmbienceVolume";
-    private const string KEY_PLAYER       = "Settings_PlayerVolume";
-    private const string KEY_NEMESIS      = "Settings_NemesisVolume";
-    private const string KEY_UI           = "Settings_UIVolume";
     private const string KEY_SENSITIVITY  = "Settings_Sensitivity";
     // Aplicados al juego por appliers que leen estas keys al dispararse OnSettingsApplied
     // (InvertY→CameraSensitivityApplier, Brightness/Contrast/Gamma→PostProcessSettingsApplier,
@@ -38,7 +34,6 @@ public class SettingsModel : BaseScreenModel
 
     // ── Defaults ─────────────────────────────────────────────────────────────
     private const float  DEFAULT_SENSITIVITY = 1f;
-    private const float  DEFAULT_VOICE       = 1f;
     private const float  DEFAULT_BRIGHTNESS  = 0.7f;
     private const float  DEFAULT_CONTRAST    = 0.55f;
     private const float  DEFAULT_GAMMA       = 0.5f;
@@ -52,15 +47,10 @@ public class SettingsModel : BaseScreenModel
     private const bool   DEFAULT_AUDIO_BG    = false;
 
     // ── Estado conectado al AudioManager ─────────────────────────────────────
-    public float MasterVolume   { get; private set; }
-    public float MusicVolume    { get; private set; }
-    public float SFXVolume      { get; private set; }
-    public float VoiceVolume    { get; private set; }
-    public float AmbienceVolume { get; private set; }
-    public float PlayerVolume   { get; private set; }
-    public float NemesisVolume  { get; private set; }
-    public float UIVolume       { get; private set; }
-    public float Sensitivity    { get; private set; }
+    public float MasterVolume { get; private set; }
+    public float MusicVolume  { get; private set; }
+    public float SFXVolume    { get; private set; }
+    public float Sensitivity  { get; private set; }
 
     // ── Estado de video/controles (leído por los *Applier.cs al hacer Apply) ─
     public bool  InvertYAxis      { get; private set; }
@@ -76,31 +66,21 @@ public class SettingsModel : BaseScreenModel
     public bool  AudioInBackground { get; private set; }
 
     // ── Snapshot para revert ─────────────────────────────────────────────────
-    private float _snapMaster, _snapMusic, _snapSFX, _snapVoice, _snapAmbience, _snapPlayer, _snapNemesis, _snapUI, _snapSensitivity;
+    private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity;
     private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg;
     private float _snapBrightness, _snapContrast, _snapGamma;
     private int   _snapResolution, _snapWindowMode, _snapFPSLimit;
 
     public override void Initialize()
     {
-        float defMaster   = AudioManager.Exists ? AudioManager.Instance.MasterVolume   : 1f;
-        float defMusic    = AudioManager.Exists ? AudioManager.Instance.MusicVolume    : 1f;
-        float defSFX      = AudioManager.Exists ? AudioManager.Instance.SFXVolume      : 1f;
-        float defVoice    = AudioManager.Exists ? AudioManager.Instance.VoiceVolume    : DEFAULT_VOICE;
-        float defAmbience = AudioManager.Exists ? AudioManager.Instance.AmbienceVolume : defSFX;
-        float defPlayer   = AudioManager.Exists ? AudioManager.Instance.PlayerVolume   : defSFX;
-        float defNemesis  = AudioManager.Exists ? AudioManager.Instance.NemesisVolume  : defSFX;
-        float defUI       = AudioManager.Exists ? AudioManager.Instance.UIVolume       : 1f;
+        float defMaster = AudioManager.Exists ? AudioManager.Instance.MasterVolume : 1f;
+        float defMusic  = AudioManager.Exists ? AudioManager.Instance.MusicVolume  : 1f;
+        float defSFX    = AudioManager.Exists ? AudioManager.Instance.SFXVolume    : 1f;
 
-        MasterVolume   = PlayerPrefs.GetFloat(KEY_MASTER,      defMaster);
-        MusicVolume    = PlayerPrefs.GetFloat(KEY_MUSIC,       defMusic);
-        SFXVolume      = PlayerPrefs.GetFloat(KEY_SFX,         defSFX);
-        VoiceVolume    = PlayerPrefs.GetFloat(KEY_VOICE,       defVoice);
-        AmbienceVolume = PlayerPrefs.GetFloat(KEY_AMBIENCE,    defAmbience);
-        PlayerVolume   = PlayerPrefs.GetFloat(KEY_PLAYER,      defPlayer);
-        NemesisVolume  = PlayerPrefs.GetFloat(KEY_NEMESIS,     defNemesis);
-        UIVolume       = PlayerPrefs.GetFloat(KEY_UI,          defUI);
-        Sensitivity    = PlayerPrefs.GetFloat(KEY_SENSITIVITY, DEFAULT_SENSITIVITY);
+        MasterVolume = PlayerPrefs.GetFloat(KEY_MASTER,      defMaster);
+        MusicVolume  = PlayerPrefs.GetFloat(KEY_MUSIC,       defMusic);
+        SFXVolume    = PlayerPrefs.GetFloat(KEY_SFX,         defSFX);
+        Sensitivity  = PlayerPrefs.GetFloat(KEY_SENSITIVITY, DEFAULT_SENSITIVITY);
 
         InvertYAxis       = GetPrefBool(KEY_INVERT_Y,             DEFAULT_INVERT_Y);
         Brightness        = PlayerPrefs.GetFloat(KEY_BRIGHTNESS,  DEFAULT_BRIGHTNESS);
@@ -141,40 +121,14 @@ public class SettingsModel : BaseScreenModel
         if (AudioManager.Exists) AudioManager.Instance.SetMusicVolume(MusicVolume);
         NotifyDataChanged();
     }
+    /// <summary>
+    /// Un unico slider para todo lo que no es musica: mueve SFX, Ambience, Player,
+    /// Nemesis, UI y Voice en bloque.
+    /// </summary>
     public void SetSFXVolume(float v)
     {
         SFXVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetSFXVolumeOnly(SFXVolume);
-        NotifyDataChanged();
-    }
-    public void SetVoiceVolume(float v)
-    {
-        VoiceVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetVoiceVolume(VoiceVolume);
-        NotifyDataChanged();
-    }
-    public void SetAmbienceVolume(float v)
-    {
-        AmbienceVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetAmbienceVolume(AmbienceVolume);
-        NotifyDataChanged();
-    }
-    public void SetPlayerVolume(float v)
-    {
-        PlayerVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetPlayerVolume(PlayerVolume);
-        NotifyDataChanged();
-    }
-    public void SetNemesisVolume(float v)
-    {
-        NemesisVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetNemesisVolume(NemesisVolume);
-        NotifyDataChanged();
-    }
-    public void SetUIVolume(float v)
-    {
-        UIVolume = Mathf.Clamp01(v);
-        if (AudioManager.Exists) AudioManager.Instance.SetUIVolume(UIVolume);
+        if (AudioManager.Exists) AudioManager.Instance.SetGameplaySfxBundle(SFXVolume);
         NotifyDataChanged();
     }
     public void SetSensitivity(float v)  { Sensitivity  = Mathf.Max(0.01f, v); NotifyDataChanged(); }
@@ -200,11 +154,6 @@ public class SettingsModel : BaseScreenModel
         PlayerPrefs.SetFloat(KEY_MASTER,      MasterVolume);
         PlayerPrefs.SetFloat(KEY_MUSIC,       MusicVolume);
         PlayerPrefs.SetFloat(KEY_SFX,         SFXVolume);
-        PlayerPrefs.SetFloat(KEY_VOICE,       VoiceVolume);
-        PlayerPrefs.SetFloat(KEY_AMBIENCE,    AmbienceVolume);
-        PlayerPrefs.SetFloat(KEY_PLAYER,      PlayerVolume);
-        PlayerPrefs.SetFloat(KEY_NEMESIS,     NemesisVolume);
-        PlayerPrefs.SetFloat(KEY_UI,          UIVolume);
         PlayerPrefs.SetFloat(KEY_SENSITIVITY, Sensitivity);
 
         SetPrefBool(KEY_INVERT_Y,            InvertYAxis);
@@ -232,15 +181,10 @@ public class SettingsModel : BaseScreenModel
     /// <summary>Restaura defaults en memoria. NO persiste hasta que se llame Apply.</summary>
     public void ResetToDefaults()
     {
-        MasterVolume   = 1f;
-        MusicVolume    = 1f;
-        SFXVolume      = 1f;
-        VoiceVolume    = DEFAULT_VOICE;
-        AmbienceVolume = 1f;
-        PlayerVolume   = 1f;
-        NemesisVolume  = 1f;
-        UIVolume       = 1f;
-        Sensitivity    = DEFAULT_SENSITIVITY;
+        MasterVolume = 1f;
+        MusicVolume  = 1f;
+        SFXVolume    = 1f;
+        Sensitivity  = DEFAULT_SENSITIVITY;
 
         InvertYAxis       = DEFAULT_INVERT_Y;
         Brightness        = DEFAULT_BRIGHTNESS;
@@ -260,15 +204,10 @@ public class SettingsModel : BaseScreenModel
 
     public void Revert()
     {
-        MasterVolume   = _snapMaster;
-        MusicVolume    = _snapMusic;
-        SFXVolume      = _snapSFX;
-        VoiceVolume    = _snapVoice;
-        AmbienceVolume = _snapAmbience;
-        PlayerVolume   = _snapPlayer;
-        NemesisVolume  = _snapNemesis;
-        UIVolume       = _snapUI;
-        Sensitivity    = _snapSensitivity;
+        MasterVolume = _snapMaster;
+        MusicVolume  = _snapMusic;
+        SFXVolume    = _snapSFX;
+        Sensitivity  = _snapSensitivity;
 
         InvertYAxis       = _snapInvertY;
         Brightness        = _snapBrightness;
@@ -293,11 +232,6 @@ public class SettingsModel : BaseScreenModel
         _snapMaster      = MasterVolume;
         _snapMusic       = MusicVolume;
         _snapSFX         = SFXVolume;
-        _snapVoice       = VoiceVolume;
-        _snapAmbience    = AmbienceVolume;
-        _snapPlayer      = PlayerVolume;
-        _snapNemesis     = NemesisVolume;
-        _snapUI          = UIVolume;
         _snapSensitivity = Sensitivity;
         _snapInvertY     = InvertYAxis;
         _snapBrightness  = Brightness;
@@ -318,12 +252,7 @@ public class SettingsModel : BaseScreenModel
         var am = AudioManager.Instance;
         am.SetMasterVolume(MasterVolume);
         am.SetMusicVolume(MusicVolume);
-        am.SetSFXVolumeOnly(SFXVolume);
-        am.SetVoiceVolume(VoiceVolume);
-        am.SetAmbienceVolume(AmbienceVolume);
-        am.SetPlayerVolume(PlayerVolume);
-        am.SetNemesisVolume(NemesisVolume);
-        am.SetUIVolume(UIVolume);
+        am.SetGameplaySfxBundle(SFXVolume);
     }
 
     // ── Helpers PlayerPrefs (no soporta bool nativamente) ────────────────────

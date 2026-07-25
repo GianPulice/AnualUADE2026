@@ -14,6 +14,9 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
 
     public event Action<int> OnSlotSelected;
 
+    /// <summary>True si hay al menos una partida guardada. Lo consulta el MainMenu.</summary>
+    public bool HasAnySave => _database != null && _database.HasAnySave;
+
     private void Awake()
     {
         if (view == null)
