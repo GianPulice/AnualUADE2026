@@ -61,6 +61,19 @@ public class MainMenuView : BaseScreenView
                 loadGameCanvasGroup = loadGameBtn.gameObject.AddComponent<CanvasGroup>();
         }
 
+        // El ButtonGeneric trae un disabledColor rojizo (pensado para otro uso) que
+        // Unity aplica solo con interactable=false, sin pasar por el CanvasGroup ni por
+        // el hover: por eso el botón se veía "seleccionado" en rojo en vez de gris.
+        // Lo neutralizamos para que el único efecto visual de deshabilitado sea el
+        // dimming del CanvasGroup de arriba.
+        if (loadGameBtn != null)
+        {
+            ColorBlock colors = loadGameBtn.colors;
+            Color normal = colors.normalColor;
+            colors.disabledColor = new Color(normal.r, normal.g, normal.b, 0f);
+            loadGameBtn.colors = colors;
+        }
+
         newGameBtn.onClick.AddListener(() => OnNewGameClicked?.Invoke());
         loadGameBtn.onClick.AddListener(() => OnLoadGameClicked?.Invoke());
         settingsBtn.onClick.AddListener(() => OnSettingsClicked?.Invoke());
