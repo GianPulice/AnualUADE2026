@@ -4,23 +4,23 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Stack centralizado de UIs modales. Fuente unica de verdad sobre:
-///   - Quien tiene foco de UI (Peek del stack).
-///   - Si el gameplay esta bloqueado (IsAnyModalOpen).
-///   - Time.timeScale (0 cuando hay >= 1 modal) y cursor (libre + visible cuando hay modal).
+/// Centralized stack of modal UIs. Single source of truth for:
+///   - Who has UI focus (Peek of the stack).
+///   - Whether gameplay is blocked (IsAnyModalOpen).
+///   - Time.timeScale (0 when there is >= 1 modal) and the cursor (free + visible with a modal).
 ///
-/// Como agregar una UI modal nueva sin romper nada:
-///   1) Implementar IModalUI en tu controller (declarar ConsumesEscape y BlocksPause).
-///   2) Llamar UIStateManager.Instance.Push(this) al abrir y Pop(this) al cerrar.
-///   3) Quitar de tu controller cualquier manipulacion de Time.timeScale y Cursor:
-///      las gobierna este manager.
-///   4) (Opcional, Ola 2) Declarar el ActionMap name de tu UI en tu IModalUI para que
-///      el manager habilite/deshabilite maps del Input System automaticamente.
+/// How to add a new modal UI without breaking anything:
+///   1) Implement IModalUI on your controller (declare ConsumesEscape and BlocksPause).
+///   2) Call UIStateManager.Instance.Push(this) on open and Pop(this) on close.
+///   3) Remove any Time.timeScale and Cursor manipulation from your controller:
+///      this manager governs them.
+///   4) (Optional, Wave 2) Declare your UI's ActionMap name in your IModalUI so the
+///      manager enables/disables Input System maps automatically.
 ///
-/// El resto del juego consulta:
-///   - UIStateManager.IsAnyModalOpen  -> bloquear interaccion, movimiento, camara.
-///   - UIStateManager.IsBlockingPause -> el PauseManager pregunta antes de pausar.
-///   - UIStateManager.TopConsumesEscape -> ESC se lo come la modal o sube al PauseManager.
+/// The rest of the game queries:
+///   - UIStateManager.IsAnyModalOpen  -> block interaction, movement, camera.
+///   - UIStateManager.IsBlockingPause -> the PauseManager asks before pausing.
+///   - UIStateManager.TopConsumesEscape -> ESC is eaten by the modal or goes up to the PauseManager.
 /// </summary>
 public class UIStateManager : Singleton<UIStateManager>
 {
@@ -28,13 +28,13 @@ public class UIStateManager : Singleton<UIStateManager>
     public static event Action<IModalUI> OnModalPopped;
 
     [Header("Input")]
-    [Tooltip("Action UI/Exit del InputSystem_Actions. Dispara RequestClose() sobre la modal del top que ConsumesEscape.")]
+    [Tooltip("UI/Exit action of InputSystem_Actions. Fires RequestClose() on the top modal that ConsumesEscape.")]
     [SerializeField] private InputActionReference exitAction;
 
     private Action<InputAction.CallbackContext> exitHandler;
 
     private readonly Stack<IModalUI> stack = new Stack<IModalUI>();
-    private int topPushedFrame = -1;   // frame en el que se pusheo el actual top
+    private int topPushedFrame = -1;   // frame in which the current top was pushed
 
     private CursorLockMode previousCursorLock;
     private bool previousCursorVisible;
@@ -66,13 +66,13 @@ public class UIStateManager : Singleton<UIStateManager>
     }
 
     /// <summary>
-    /// El usuario presiono UI/Exit (ESC por defecto). Si la modal del top declara que
-    /// consume ESC, le pedimos que se cierre. Si no, no hacemos nada (el PauseManager
-    /// escucha la misma tecla con Player/Pause y abrira la pausa por encima).
+    /// The user pressed UI/Exit (ESC by default). If the top modal declares that it consumes
+    /// ESC, we ask it to close. If not, we do nothing (the PauseManager listens to the same
+    /// key with Player/Pause and will open the pause menu on top).
     ///
-    /// Importante: si la modal del top fue pusheada en este MISMO frame, ignoramos el
-    /// evento. Esto evita el race condition cuando Player/Pause y UI/Exit comparten
-    /// la misma tecla y disparan en el mismo frame al abrir la pausa.
+    /// Important: if the top modal was pushed in this SAME frame, we ignore the event. This
+    /// avoids the race condition when Player/Pause and UI/Exit share the same key and both
+    /// fire in the same frame when opening the pause menu.
     /// </summary>
     private void OnExitPressed()
     {
@@ -89,7 +89,7 @@ public class UIStateManager : Singleton<UIStateManager>
     public bool IsAnyModalOpen => stack.Count > 0;
     public int ModalCount => stack.Count;
 
-    /// <summary>True si la modal del top declara que bloquea la apertura de la pausa.</summary>
+    /// <summary>True if the top modal declares that it blocks the pause menu from opening.</summary>
     public bool IsBlockingPause
     {
         get
@@ -103,7 +103,7 @@ public class UIStateManager : Singleton<UIStateManager>
         }
     }
 
-    /// <summary>True si la modal del top quiere comerse el ESC. False -> el ESC pasa al PauseManager.</summary>
+    /// <summary>True if the top modal wants to eat the ESC. False -> the ESC goes to the PauseManager.</summary>
     public bool TopConsumesEscape
     {
         get
@@ -129,15 +129,15 @@ public class UIStateManager : Singleton<UIStateManager>
     // -- API ---------------------------------------------------------------
 
     /// <summary>
-    /// Registra la modal como activa. Si es la primera, congela Time.timeScale y libera el cursor.
-    /// Idempotente: doble Push de la misma modal no hace nada.
+    /// Registers the modal as active. If it is the first one, freezes Time.timeScale and frees the cursor.
+    /// Idempotent: pushing the same modal twice does nothing.
     /// </summary>
     public void Push(IModalUI modal)
     {
         if (modal == null) return;
         if (Contains(modal))
         {
-            Debug.LogWarning($"[UIStateManager] Push duplicado ignorado: {modal.ModalId}");
+            Debug.LogWarning($"[UIStateManager] Duplicate Push ignored: {modal.ModalId}");
             return;
         }
 
@@ -150,8 +150,8 @@ public class UIStateManager : Singleton<UIStateManager>
     }
 
     /// <summary>
-    /// Quita la modal. Solo restaura Time.timeScale y cursor cuando la pila queda vacia.
-    /// Si la modal no esta en el top, igualmente se remueve (caso de cierres fuera de orden).
+    /// Removes the modal. Only restores Time.timeScale and the cursor when the stack becomes empty.
+    /// If the modal is not on top, it is removed anyway (out-of-order close case).
     /// </summary>
     public void Pop(IModalUI modal)
     {
@@ -163,7 +163,7 @@ public class UIStateManager : Singleton<UIStateManager>
         }
         else
         {
-            // Cierre fuera de orden: reconstruimos sin el elemento.
+            // Out-of-order close: we rebuild the stack without that element.
             Stack<IModalUI> tmp = new Stack<IModalUI>(stack.Count);
             bool removed = false;
             while (stack.Count > 0)
@@ -182,7 +182,7 @@ public class UIStateManager : Singleton<UIStateManager>
         OnModalPopped?.Invoke(modal);
     }
 
-    /// <summary>Cierra todas las modales (por ejemplo al cambiar de escena o al perder).</summary>
+    /// <summary>Closes every modal (for example on a scene change or on losing).</summary>
     public void CloseAll()
     {
         while (stack.Count > 0)
@@ -194,14 +194,14 @@ public class UIStateManager : Singleton<UIStateManager>
     }
 
     /// <summary>
-    /// Libera el cursor y descarta el snapshot pendiente.
+    /// Frees the cursor and discards the pending snapshot.
     ///
-    /// Existe para el cambio de contexto gameplay -> menu: el snapshot que toma
-    /// TakeSnapshot() durante gameplay guarda Locked + invisible, y RestoreSnapshot()
-    /// lo reaplica al vaciarse el stack. Como el PlayerCameraController (el unico que
-    /// libera el cursor en gameplay) se destruye con el nivel, nadie lo vuelve a soltar
-    /// y el menu queda sin mouse. Descartar el snapshot evita que un Pop/CloseAll
-    /// posterior lo pise de nuevo.
+    /// This exists for the gameplay -> menu context switch: the snapshot TakeSnapshot() takes
+    /// during gameplay stores Locked + invisible, and RestoreSnapshot() reapplies it when the
+    /// last modal closes. Since the PlayerCameraController (the only thing that frees the
+    /// cursor during gameplay) is destroyed along with the level, without this the menu is
+    /// left with no mouse. Discarding the snapshot prevents a later Pop/CloseAll from
+    /// overwriting it again.
     /// </summary>
     public void SetCursorFree()
     {
@@ -237,11 +237,11 @@ public class UIStateManager : Singleton<UIStateManager>
     private void RestoreSnapshot()
     {
         if (!snapshotTaken) return;
-        // Restaurar EXACTAMENTE el estado previo. Sin reinterpretar:
-        // - En gameplay: cursor estaba Locked + invisible -> queda asi.
-        // - En main menu: cursor estaba None + visible -> queda asi.
-        // - Time.timeScale: usualmente 1 en main menu y en gameplay, asi que tambien
-        //   restauramos el valor exacto guardado.
+        // Restore EXACTLY the previous state. Without reinterpreting:
+        // - In gameplay: the cursor was Locked + invisible -> it stays that way.
+        // - In the main menu: the cursor was None + visible -> it stays that way.
+        // - Time.timeScale: usually 1 in both the main menu and gameplay, so we also
+        //   restore the exact saved value.
         Time.timeScale = previousTimeScale;
         Cursor.lockState = previousCursorLock;
         Cursor.visible = previousCursorVisible;

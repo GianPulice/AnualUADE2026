@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 public class MainMenuView : BaseScreenView
 {
-    /// <summary>Alpha del label de "Load Game" cuando no hay partidas guardadas.</summary>
+    /// <summary>Alpha of the "Load Game" label when there are no saved games.</summary>
     private const float DISABLED_ALPHA = 0.35f;
 
     [SerializeField] private Button newGameBtn;
@@ -13,9 +13,9 @@ public class MainMenuView : BaseScreenView
     [SerializeField] private Button settingsBtn;
     [SerializeField] private Button exitBtn;
 
-    [Header("Estado deshabilitado")]
-    [Tooltip("Opcional. CanvasGroup del botón Load Game para atenuarlo cuando no hay saves. " +
-             "Si no se asigna, se agrega uno automáticamente en Awake.")]
+    [Header("Disabled state")]
+    [Tooltip("Optional. CanvasGroup of the Load Game button used to dim it when there are no saves. " +
+             "If not assigned, one is added automatically in Awake.")]
     [SerializeField] private CanvasGroup loadGameCanvasGroup;
 
     public event Action OnNewGameClicked;
@@ -24,8 +24,8 @@ public class MainMenuView : BaseScreenView
     public event Action OnExitClicked;
 
     /// <summary>
-    /// Habilita o deshabilita "Load Game". Sin partidas guardadas el botón no debe abrir
-    /// el panel de slots: entrarías a una partida inventada.
+    /// Enables or disables "Load Game". With no saved games the button must not open the
+    /// slots panel: you would enter a made-up run.
     /// </summary>
     public void SetLoadGameInteractable(bool value)
     {
@@ -34,14 +34,14 @@ public class MainMenuView : BaseScreenView
         if (loadGameCanvasGroup != null)
         {
             loadGameCanvasGroup.alpha = value ? 1f : DISABLED_ALPHA;
-            // Sin esto, el botón deshabilitado sigue recibiendo hover/selección del
-            // EventSystem y el ButtonHoverSweepEffect (IPointerEnter/ISelect) deja la
-            // barra de sweep pegada como si estuviera seleccionado.
+            // Without this, the disabled button still receives hover/selection from the
+            // EventSystem and ButtonHoverSweepEffect (IPointerEnter/ISelect) leaves the
+            // sweep bar stuck as if it were selected.
             loadGameCanvasGroup.blocksRaycasts = value;
         }
 
-        // Si quedó seleccionado (foco de teclado/gamepad) al deshabilitarlo, forzar el
-        // deselect para que el sweep effect vuelva a su estado oculto.
+        // If it was left selected (keyboard/gamepad focus) when disabled, force the
+        // deselect so the sweep effect returns to its hidden state.
         if (!value && loadGameBtn != null && EventSystem.current != null &&
             EventSystem.current.currentSelectedGameObject == loadGameBtn.gameObject)
         {
@@ -51,9 +51,9 @@ public class MainMenuView : BaseScreenView
 
     private void Awake()
     {
-        // El fondo del botón es transparente en estado normal y el texto TMP no
-        // reacciona al Color Tint del Button, así que interactable=false solo no
-        // lo pone gris. Un CanvasGroup atenuando todo el botón (fondo + texto) sí.
+        // The button's background is transparent in the normal state and TMP text does not
+        // react to the Button's Color Tint, so interactable=false alone does not grey it
+        // out. A CanvasGroup dimming the whole button (background + text) does.
         if (loadGameCanvasGroup == null && loadGameBtn != null)
         {
             loadGameCanvasGroup = loadGameBtn.GetComponent<CanvasGroup>();
@@ -61,11 +61,10 @@ public class MainMenuView : BaseScreenView
                 loadGameCanvasGroup = loadGameBtn.gameObject.AddComponent<CanvasGroup>();
         }
 
-        // El ButtonGeneric trae un disabledColor rojizo (pensado para otro uso) que
-        // Unity aplica solo con interactable=false, sin pasar por el CanvasGroup ni por
-        // el hover: por eso el botón se veía "seleccionado" en rojo en vez de gris.
-        // Lo neutralizamos para que el único efecto visual de deshabilitado sea el
-        // dimming del CanvasGroup de arriba.
+        // ButtonGeneric ships with a reddish disabledColor (meant for another use) that
+        // Unity applies only with interactable=false, bypassing the CanvasGroup and the
+        // hover: that is why the button looked "selected" in red instead of grey.
+        // We neutralize it so the only visual disabled effect is the CanvasGroup dimming above.
         if (loadGameBtn != null)
         {
             ColorBlock colors = loadGameBtn.colors;

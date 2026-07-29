@@ -5,9 +5,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// View individual de una card del Save Slots screen.
-/// Lee la nueva estructura del <see cref="SO_SaveSlotData"/> con lista de
-/// <see cref="ModuleSaveEntry"/> (primeros 3 → pips) y timestamp relativo runtime.
+/// Individual view of a card on the Save Slots screen.
+/// Reads the new <see cref="SO_SaveSlotData"/> structure with its list of
+/// <see cref="ModuleSaveEntry"/> (first 3 -> pips) and a runtime relative timestamp.
 /// </summary>
 public class SaveSlotCardView : MonoBehaviour
 {
@@ -19,7 +19,7 @@ public class SaveSlotCardView : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _modulesLabel;
     [SerializeField] private TextMeshProUGUI _actionButtonLabel;
 
-    [Header("Pips (los primeros 3 módulos)")]
+    [Header("Pips (the first 3 modules)")]
     [SerializeField] private Image _pip1;
     [SerializeField] private Image _pip2;
     [SerializeField] private Image _pip3;
@@ -31,8 +31,8 @@ public class SaveSlotCardView : MonoBehaviour
 
     [Header("Action")]
     [SerializeField] private Button _actionButton;
-    [SerializeField] private string _loadText = "[ cargar partida ]";
-    [SerializeField] private string _newText  = "[ nueva partida ]";
+    [SerializeField] private string _loadText = "[ load game ]";
+    [SerializeField] private string _newText  = "[ new game ]";
 
     public event Action<int> OnSlotClicked;
 
@@ -66,9 +66,9 @@ public class SaveSlotCardView : MonoBehaviour
         }
 
         if (_zoneLabel != null)         _zoneLabel.text         = data.ZoneName;
-        if (_playTimeLabel != null)     _playTimeLabel.text     = $"Tiempo jugado  {FormatPlayTime(data.PlayTimeSeconds)}";
-        if (_lastSavedLabel != null)    _lastSavedLabel.text    = $"Guardado  {data.GetRelativeSavedDescription()}";
-        if (_modulesLabel != null)      _modulesLabel.text      = $"Modulos  {data.ResolvedModulesCount} / 3 resueltos";
+        if (_playTimeLabel != null)     _playTimeLabel.text     = $"Play time  {FormatPlayTime(data.PlayTimeSeconds)}";
+        if (_lastSavedLabel != null)    _lastSavedLabel.text    = $"Saved  {data.GetRelativeSavedDescription()}";
+        if (_modulesLabel != null)      _modulesLabel.text      = $"Modules  {data.ResolvedModulesCount} / 3 resolved";
         if (_actionButtonLabel != null) _actionButtonLabel.text = _loadText;
 
         IReadOnlyList<ModuleSaveEntry> modules = data.Modules;
@@ -79,10 +79,10 @@ public class SaveSlotCardView : MonoBehaviour
 
     private void SetEmptyState()
     {
-        if (_zoneLabel != null)         _zoneLabel.text         = "— vacio —";
-        if (_playTimeLabel != null)     _playTimeLabel.text     = "Tiempo jugado  —";
-        if (_lastSavedLabel != null)    _lastSavedLabel.text    = "Guardado  —";
-        if (_modulesLabel != null)      _modulesLabel.text      = "Modulos  —";
+        if (_zoneLabel != null)         _zoneLabel.text         = "— empty —";
+        if (_playTimeLabel != null)     _playTimeLabel.text     = "Play time  —";
+        if (_lastSavedLabel != null)    _lastSavedLabel.text    = "Saved  —";
+        if (_modulesLabel != null)      _modulesLabel.text      = "Modules  —";
         if (_actionButtonLabel != null) _actionButtonLabel.text = _newText;
 
         SetPip(_pip1, ModuleSlotStatus.Inactive);

@@ -1,34 +1,34 @@
 using UnityEngine;
 
 /// <summary>
-/// Como se ve la pantalla de resultado para un <see cref="GameState"/> dado.
+/// How the result screen looks for a given <see cref="GameState"/>.
 ///
-/// Lose y GameOver comparten el 90% del comportamiento (congelar el tiempo, mostrar
-/// stats, volver al menu); lo unico que los distingue es presentacion — titulo, color,
-/// que botones se ven — y eso son datos, no dos clases distintas. Un preset por estado
-/// en el Inspector de <see cref="ResultScreenController"/>.
+/// Lose and GameOver share 90% of the behaviour (freeze time, show stats, go back to the
+/// menu); the only thing that distinguishes them is presentation — title, color, which
+/// buttons are visible — and that is data, not two separate classes. One preset per state
+/// in the <see cref="ResultScreenController"/> Inspector.
 ///
-/// Para sumar Win a esta pantalla mas adelante: agregar un preset con State = Win y
-/// borrar WinController/WinView.
+/// To bring Win into this screen later: add a preset with State = Win and delete
+/// WinController/WinView.
 /// </summary>
 [System.Serializable]
 public class ResultPresentation
 {
-    [Tooltip("Resultado que dispara esta presentacion. Los estados sin preset los ignora la pantalla.")]
+    [Tooltip("Result that triggers this presentation. States without a preset are ignored by the screen.")]
     [SerializeField] private GameState _state = GameState.Lose;
 
-    [Tooltip("Titulo grande. Vacio = sin titulo (el GameObject se apaga).")]
+    [Tooltip("Large title. Empty = no title (the GameObject is switched off).")]
     [SerializeField] private string _title = string.Empty;
 
     [SerializeField] private Color _titleColor = Color.white;
 
-    [Tooltip("Tinte del overlay de fondo. Alpha 0 = fondo negro puro sin tinte.")]
+    [Tooltip("Tint of the background overlay. Alpha 0 = pure black background with no tint.")]
     [SerializeField] private Color _vignetteColor = new Color(0f, 0f, 0f, 0f);
 
-    [Tooltip("Mostrar el boton de reintentar. Apagalo cuando no haya partida a la que volver.")]
+    [Tooltip("Show the retry button. Switch it off when there is no run to go back to.")]
     [SerializeField] private bool _showRetry = true;
 
-    [Tooltip("Mostrar tiempo y modulos resueltos.")]
+    [Tooltip("Show time and resolved modules.")]
     [SerializeField] private bool _showStats;
 
     public GameState State       => _state;

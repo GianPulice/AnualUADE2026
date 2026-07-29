@@ -15,7 +15,7 @@ public class WinController : BaseScreenController<WinView, GameResultModel>
     {
         if (view == null)
         {
-            Debug.LogError($"[{nameof(WinController)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(WinController)}] view not assigned in the Inspector.");
             return;
         }
 

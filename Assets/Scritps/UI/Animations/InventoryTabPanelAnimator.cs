@@ -3,37 +3,37 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// Animador de apertura/cierre de un panel estilo "pestaña de navegador" (Chrome tab):
-/// el panel crece en un eje (ancho por defecto) desde 0 hasta su tamaño final, anclado al
-/// punto donde "nace" la pestaña, mientras el contenido interno hace fade-in para no verse
-/// deformado durante el crecimiento. Al cerrar, la animación es inversa (fade-out + colapso)
-/// y desactiva el GameObject al terminar.
+/// Open/close animator for a "browser tab" style panel (Chrome tab):
+/// the panel grows on one axis (width by default) from 0 to its final size, anchored to the
+/// point where the tab "is born", while the inner content fades in so it does not look
+/// deformed while growing. On close the animation is reversed (fade-out + collapse) and the
+/// GameObject is deactivated at the end.
 ///
-/// Genérico y reutilizable: se agrega al RectTransform del panel que crece. Pensado para
-/// engancharse desde el Controller/Model de inventario (InventoryManagerUI), pero NO lo
-/// conoce: solo expone Open()/Close() + callbacks. Ver nota de integración al final.
+/// Generic and reusable: add it to the RectTransform of the panel that grows. Meant to be
+/// hooked from the inventory Controller/Model (InventoryManagerUI), but it does NOT know
+/// about it: it only exposes Open()/Close() + callbacks. See the integration note at the end.
 ///
-/// ── Sobre el origen del crecimiento (de dónde "nace" la pestaña) ─────────────────────────
-/// El eje se controla con <see cref="growAxis"/>; el borde de anclaje lo da el PIVOT del
-/// RectTransform:
-///   - pivot.x = 0   → crece hacia la derecha (nace del borde izquierdo)
-///   - pivot.x = 1   → crece hacia la izquierda
-///   - pivot.x = 0.5 → crece hacia ambos lados
-/// (análogo con pivot.y para crecimiento vertical). El pivot es el origen tanto en modo Scale
-/// como en modo SizeDelta.
+/// ── About the growth origin (where the tab "is born") ────────────────────────────────────
+/// The axis is controlled with <see cref="growAxis"/>; the anchoring edge comes from the
+/// RectTransform's PIVOT:
+///   - pivot.x = 0   -> grows to the right (born from the left edge)
+///   - pivot.x = 1   -> grows to the left
+///   - pivot.x = 0.5 -> grows in both directions
+/// (analogous with pivot.y for vertical growth). The pivot is the origin in both Scale
+/// and SizeDelta mode.
 ///
-/// Dato útil: en un rect con anchors en stretch y sizeDelta (0,0) —como el panel LAYOUT del
-/// inventario— cambiar el pivot NO altera el layout (sigue llenando al padre); solo mueve el
-/// origen del escalado. Es seguro tocarlo para elegir de dónde nace la pestaña.
+/// Useful note: on a rect with stretch anchors and sizeDelta (0,0) — like the inventory's
+/// LAYOUT panel — changing the pivot does NOT alter the layout (it still fills the parent);
+/// it only moves the scaling origin. It is safe to touch it to choose where the tab is born.
 ///
-/// Ver <see cref="GrowMode"/>: con anchors en stretch hay que usar Scale, porque sizeDelta ahí
-/// es un offset contra los bordes del padre y no el ancho real.
+/// See <see cref="GrowMode"/>: with stretch anchors you must use Scale, because sizeDelta
+/// there is an offset against the parent's edges and not the real width.
 ///
-/// ── Adaptar a un "flip" tipo página de libreta (RE2 Remake) ──────────────────────────────
-/// En vez de animar sizeDelta, reemplazar ApplyGrow() por una rotación en Y sobre un pivot
-/// lateral: LeanTween.value(host, 90f, 0f, dur).setOnUpdate(a => panelRect.localEulerAngles =
-/// new Vector3(0, a, 0)) combinado con el fade. El resto de la estructura (reentrancia,
-/// ignoreTimeScale, callbacks) se reutiliza igual.
+/// ── Adapting it to a notebook-page "flip" (RE2 Remake) ───────────────────────────────────
+/// Instead of animating sizeDelta, replace ApplyGrow() with a Y rotation around a side pivot:
+/// LeanTween.value(host, 90f, 0f, dur).setOnUpdate(a => panelRect.localEulerAngles =
+/// new Vector3(0, a, 0)) combined with the fade. The rest of the structure (reentrancy,
+/// ignoreTimeScale, callbacks) is reused as is.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 [AddComponentMenu("WIRED/UI Animations/Inventory Tab Panel Animator")]
@@ -42,27 +42,27 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     public enum GrowAxis { Horizontal, Vertical, Both }
 
     /// <summary>
-    /// Cómo crece el panel:
-    ///   Scale     — anima localScale. Funciona SIEMPRE, incluso con anchors en stretch.
-    ///               El contenido se comprime mientras crece (lo tapa el fade). Default seguro.
-    ///   SizeDelta — anima sizeDelta (ancho real). Da el "tab" más fiel (el contenido no se
-    ///               deforma), pero EXIGE anchors NO-stretch en el eje que crece.
+    /// How the panel grows:
+    ///   Scale     — animates localScale. ALWAYS works, even with stretch anchors.
+    ///               The content is squeezed while growing (the fade covers it). Safe default.
+    ///   SizeDelta — animates sizeDelta (real width). Gives a more faithful "tab" (the content
+    ///               is not deformed), but REQUIRES non-stretch anchors on the growing axis.
     /// </summary>
     public enum GrowMode { Scale, SizeDelta }
 
-    [Header("Referencias")]
-    [Tooltip("Panel que crece. Si se deja vacío, usa el RectTransform de este GameObject.")]
+    [Header("References")]
+    [Tooltip("Panel that grows. If left empty, this GameObject's RectTransform is used.")]
     [SerializeField] private RectTransform panelRect;
-    [Tooltip("CanvasGroup del CONTENIDO interno (no del panel), para fade-in/out mientras crece.")]
+    [Tooltip("CanvasGroup of the inner CONTENT (not the panel), for fade-in/out while growing.")]
     [SerializeField] private CanvasGroup contentGroup;
 
-    [Header("Crecimiento")]
-    [Tooltip("Scale = seguro con anchors stretch. SizeDelta = ancho real, requiere anchors no-stretch.")]
+    [Header("Growth")]
+    [Tooltip("Scale = safe with stretch anchors. SizeDelta = real width, requires non-stretch anchors.")]
     [SerializeField] private GrowMode growMode = GrowMode.Scale;
     [SerializeField] private GrowAxis growAxis = GrowAxis.Horizontal;
-    [Tooltip("Escala mínima al estar colapsado (modo Scale). 0 = pestaña totalmente cerrada.")]
+    [Tooltip("Minimum scale while collapsed (Scale mode). 0 = fully closed tab.")]
     [SerializeField] private float collapsedScale = 0f;
-    [Tooltip("Tamaño mínimo del eje al estar colapsado (modo SizeDelta).")]
+    [Tooltip("Minimum axis size while collapsed (SizeDelta mode).")]
     [SerializeField] private float collapsedSize = 0f;
 
     [Header("Timing / Ease")]
@@ -72,41 +72,41 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     [SerializeField] private LeanTweenType openEase  = UITweenDefaults.PanelOpenEase;
     [SerializeField] private LeanTweenType closeEase = UITweenDefaults.PanelCloseEase;
 
-    [Header("Opciones")]
-    [Tooltip("El inventario abre con Time.timeScale = 0, así que normalmente debe estar en true.")]
+    [Header("Options")]
+    [Tooltip("The inventory opens with Time.timeScale = 0, so this should normally be true.")]
     [SerializeField] private bool ignoreTimeScale = true;
-    [Tooltip("Colapsar y ocultar (SetActive false) el panel en Awake para que arranque cerrado.")]
+    [Tooltip("Collapse and hide (SetActive false) the panel in Awake so it starts closed.")]
     [SerializeField] private bool startHidden = true;
-    [Tooltip("Override global opcional. Si se asigna, pisa duraciones/eases locales en Awake.")]
+    [Tooltip("Optional global override. If assigned, it overrides local durations/eases in Awake.")]
     [SerializeField] private UIAnimationSettingsSO settings;
 
-    [Header("Eventos (para el Controller: bloquear input, etc.)")]
+    [Header("Events (for the Controller: block input, etc.)")]
     public UnityEvent onOpenStarted;
     public UnityEvent onOpened;
     public UnityEvent onCloseStarted;
     public UnityEvent onClosed;
 
-    /// <summary>Callbacks en código para el Controller (además de los UnityEvent del Inspector).</summary>
+    /// <summary>Code callbacks for the Controller (in addition to the Inspector UnityEvents).</summary>
     public event Action OnOpened;
     public event Action OnClosed;
 
-    /// <summary>true entre el inicio de Open() y el fin de Close() (incluye la animación).</summary>
+    /// <summary>true between the start of Open() and the end of Close() (animation included).</summary>
     public bool IsOpen { get; private set; }
-    /// <summary>true mientras una animación de apertura o cierre está corriendo.</summary>
+    /// <summary>true while an open or close animation is running.</summary>
     public bool IsAnimating { get; private set; }
 
-    private Vector2 expandedSize; // sizeDelta final autoral, capturado en Awake (modo SizeDelta)
-    private Vector3 baseScale;    // localScale final autoral, capturado en Awake (modo Scale)
-    private float growT;          // progreso actual del crecimiento (0 = colapsado, 1 = full)
+    private Vector2 expandedSize; // authored final sizeDelta, captured in Awake (SizeDelta mode)
+    private Vector3 baseScale;    // authored final localScale, captured in Awake (Scale mode)
+    private float growT;          // current growth progress (0 = collapsed, 1 = full)
     private bool initialized;
 
     private void Awake() => EnsureInitialized();
 
     /// <summary>
-    /// Captura el tamaño final autoral y, si startHidden, deja el panel colapsado (invisible).
-    /// Idempotente. NO desactiva el GameObject a propósito: si el panel arranca inactivo en la
-    /// escena, Awake corre recién en el SetActive(true) de Open(); desactivar acá cortaría el
-    /// tween en pleno vuelo. El panel debe estar autorado a tamaño COMPLETO en el prefab/escena.
+    /// Captures the authored final size and, if startHidden, leaves the panel collapsed (invisible).
+    /// Idempotent. It deliberately does NOT deactivate the GameObject: if the panel starts inactive
+    /// in the scene, Awake only runs on Open()'s SetActive(true); deactivating here would cut the
+    /// tween mid-flight. The panel must be authored at FULL size in the prefab/scene.
     /// </summary>
     private void EnsureInitialized()
     {
@@ -143,28 +143,28 @@ public class InventoryTabPanelAnimator : MonoBehaviour
         closeEase     = settings.panelCloseEase;
     }
 
-    // ── API pública ─────────────────────────────────────────────────────────────
+    // ── Public API ──────────────────────────────────────────────────────────────
 
-    /// <summary>Abre la pestaña: crece el ancho desde el estado actual + fade-in del contenido.</summary>
+    /// <summary>Opens the tab: grows the width from the current state + content fade-in.</summary>
     public void Open()
     {
-        gameObject.SetActive(true); // por si venía desactivado (startHidden o cierre previo)
+        gameObject.SetActive(true); // in case it was deactivated (startHidden or a previous close)
         EnsureInitialized();
         KillTweens();
 
         IsOpen = true;
         IsAnimating = true;
-        SetContentInteractable(false); // input bloqueado durante la animación
+        SetContentInteractable(false); // input blocked during the animation
         onOpenStarted?.Invoke();
 
-        // Crecimiento desde el progreso actual (reentrancia: si estaba cerrando, arranca de ahí).
+        // Growth from the current progress (reentrancy: if it was closing, it starts from there).
         LeanTween.value(panelRect.gameObject, growT, 1f, openDuration)
             .setOnUpdate(ApplyGrow)
             .setEase(openEase)
             .setIgnoreTimeScale(ignoreTimeScale)
             .setOnComplete(HandleOpenComplete);
 
-        // Fade-in del contenido (más corto: aparece ya con algo de ancho, sin deformarse).
+        // Content fade-in (shorter: it appears once there is already some width, without deforming).
         if (contentGroup != null)
         {
             LeanTween.alphaCanvas(contentGroup, 1f, fadeDuration)
@@ -172,26 +172,26 @@ public class InventoryTabPanelAnimator : MonoBehaviour
         }
     }
 
-    /// <summary>Cierra la pestaña: fade-out del contenido + colapso del ancho, luego desactiva.</summary>
+    /// <summary>Closes the tab: content fade-out + width collapse, then deactivates.</summary>
     public void Close()
     {
-        if (!gameObject.activeSelf) return; // ya cerrado
+        if (!gameObject.activeSelf) return; // already closed
         KillTweens();
 
         IsAnimating = true;
         SetContentInteractable(false);
         onCloseStarted?.Invoke();
 
-        // Fade-out del contenido (lidera: el ancho colapsa en paralelo pero el contenido se va antes).
+        // Content fade-out (leads: the width collapses in parallel but the content leaves first).
         if (contentGroup != null)
         {
             LeanTween.alphaCanvas(contentGroup, 0f, fadeDuration)
                 .setIgnoreTimeScale(ignoreTimeScale);
         }
 
-        // Colapso del ancho desde el progreso actual.
-        // NOTA: para "fade-out PRIMERO y después colapsar" (más secuencial), agregar
-        //       .setDelay(fadeDuration) a este tween.
+        // Width collapse from the current progress.
+        // NOTE: for "fade-out FIRST and then collapse" (more sequential), add
+        //       .setDelay(fadeDuration) to this tween.
         LeanTween.value(panelRect.gameObject, growT, 0f, closeDuration)
             .setOnUpdate(ApplyGrow)
             .setEase(closeEase)
@@ -199,7 +199,7 @@ public class InventoryTabPanelAnimator : MonoBehaviour
             .setOnComplete(HandleCloseComplete);
     }
 
-    // ── Callbacks de completado ──────────────────────────────────────────────────
+    // ── Completion callbacks ─────────────────────────────────────────────────────
 
     private void HandleOpenComplete()
     {
@@ -218,7 +218,7 @@ public class InventoryTabPanelAnimator : MonoBehaviour
         OnClosed?.Invoke();
     }
 
-    // ── Núcleo ────────────────────────────────────────────────────────────────────
+    // ── Core ──────────────────────────────────────────────────────────────────────
 
     private void ApplyGrow(float t)
     {
@@ -245,9 +245,10 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     }
 
     /// <summary>
-    /// En modo SizeDelta con anchors en stretch, sizeDelta NO es el ancho sino un offset contra
-    /// los bordes del padre: el panel quedaría con "tamaño final 0" y la animación no se vería.
-    /// Este aviso existe porque es exactamente el caso del panel LAYOUT del inventario.
+    /// In SizeDelta mode with stretch anchors, sizeDelta is NOT the width but an offset against
+    /// the parent's edges: the panel would end up with a "final size of 0" and the animation
+    /// would not be visible. This warning exists because that is exactly the case of the
+    /// inventory's LAYOUT panel.
     /// </summary>
     private void WarnIfStretchedWithSizeDelta()
     {
@@ -262,9 +263,10 @@ public class InventoryTabPanelAnimator : MonoBehaviour
         if (conflict)
         {
             Debug.LogWarning(
-                $"[InventoryTabPanelAnimator] '{name}': growMode = SizeDelta pero los anchors están " +
-                $"en stretch sobre el eje {growAxis}. sizeDelta no representa el tamaño real y la " +
-                $"animación no se va a ver. Usá growMode = Scale, o sacá el stretch de ese eje.", this);
+                $"[InventoryTabPanelAnimator] '{name}': growMode = SizeDelta but the anchors are " +
+                $"set to stretch on the {growAxis} axis. sizeDelta does not represent the real size " +
+                $"and the animation will not be visible. Use growMode = Scale, or remove the stretch " +
+                $"from that axis.", this);
         }
     }
 

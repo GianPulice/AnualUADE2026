@@ -4,17 +4,17 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Panel de Volume del Settings. Tres sliders: Master, Music y SFX.
+/// Volume panel of the Settings screen. Three sliders: Master, Music and SFX.
 ///
-/// SFX no es el bus SFX a secas — agrupa todo lo que no es musica (SFX, Ambience,
-/// Player, Nemesis, UI y Voice). Ver AudioManager.SetGameplaySfxBundle.
+/// SFX is not the plain SFX bus — it groups everything that is not music (SFX, Ambience,
+/// Player, Nemesis, UI and Voice). See AudioManager.SetGameplaySfxBundle.
 ///
-/// Los sliders son opcionales — si el prefab solo asigna un subconjunto, el resto
-/// queda inactivo sin warnings.
+/// The sliders are optional — if the prefab only assigns a subset, the rest stays inactive
+/// with no warnings.
 ///
-/// Los sliders trabajan en rango 0..100 (configurar en el Inspector:
-/// Min Value = 0, Max Value = 100, Whole Numbers = true). El modelo y el
-/// AudioManager siguen usando 0..1; la conversión se hace acá, en el borde.
+/// The sliders work in a 0..100 range (configure in the Inspector:
+/// Min Value = 0, Max Value = 100, Whole Numbers = true). The model and the AudioManager
+/// still use 0..1; the conversion happens here, at the boundary.
 /// </summary>
 public class SettingsPanelVolumeView : MonoBehaviour
 {
@@ -28,7 +28,7 @@ public class SettingsPanelVolumeView : MonoBehaviour
     [SerializeField] private Slider _sliderMusic;
     [SerializeField] private TextMeshProUGUI _labelMusic;
 
-    [Header("SFX (agrupa Ambience, Player, Nemesis, UI y Voice)")]
+    [Header("SFX (groups Ambience, Player, Nemesis, UI and Voice)")]
     [SerializeField] private Slider _sliderSFX;
     [SerializeField] private TextMeshProUGUI _labelSFX;
 
@@ -63,7 +63,7 @@ public class SettingsPanelVolumeView : MonoBehaviour
         SetLabel(_labelSFX,    model.SFXVolume);
     }
 
-    // El slider trabaja 0..100; al modelo se reenvía normalizado a 0..1.
+    // The slider works in 0..100; the value forwarded to the model is normalized to 0..1.
     private static void Wire(Slider slider, TextMeshProUGUI label, Action<float> forward01)
     {
         if (slider == null) return;

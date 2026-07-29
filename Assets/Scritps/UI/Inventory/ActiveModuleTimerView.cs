@@ -3,22 +3,22 @@ using UnityEngine.UI;
 using TMPro;
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ActiveModuleTimerView — bloque izquierdo del HUD (timer en grande)
+//  ActiveModuleTimerView — left block of the HUD (large timer)
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// VIEW del bloque izquierdo del HUD del dispositivo.
-/// Muestra el timer MM:SS del módulo activo en rojo parpadeante (spec §3.1).
-/// Si no hay módulo activo, muestra "--:--" en gris.
+/// VIEW of the left block of the device HUD.
+/// Shows the MM:SS timer of the active module in blinking red (spec §3.1).
+/// If there is no active module, it shows "--:--" in grey.
 /// </summary>
 public class ActiveModuleTimerView : MonoBehaviour
 {
-    [Header("Textos")]
-    [SerializeField] private TextMeshProUGUI timerText;      // 22px, rojo #cc1a1a con blink
-    [SerializeField] private TextMeshProUGUI moduleIdText;   // "// modulo activo"
+    [Header("Texts")]
+    [SerializeField] private TextMeshProUGUI timerText;      // 22px, red #cc1a1a with blink
+    [SerializeField] private TextMeshProUGUI moduleIdText;   // "// active module"
 
-    [Header("Blink del timer")]
-    [SerializeField] private float blinkSpeed = 2f;  // ciclos por segundo
+    [Header("Timer blink")]
+    [SerializeField] private float blinkSpeed = 2f;  // cycles per second
 
     private static readonly Color ActiveTimerColor   = new Color(0.80f, 0.10f, 0.10f); // #cc1a1a
     private static readonly Color InactiveTimerColor = new Color(0.35f, 0.35f, 0.35f);
@@ -30,7 +30,7 @@ public class ActiveModuleTimerView : MonoBehaviour
     {
         if (!isActive || timerText == null) return;
 
-        // Blink: opacidad oscila entre 1.0 y 0.4 continuamente (spec §3.1)
+        // Blink: opacity oscillates continuously between 1.0 and 0.4 (spec §3.1)
         blinkTime += Time.unscaledDeltaTime * blinkSpeed;
         float alpha = Mathf.Lerp(0.4f, 1.0f, (Mathf.Sin(blinkTime * Mathf.PI * 2f) + 1f) * 0.5f);
 
@@ -39,7 +39,7 @@ public class ActiveModuleTimerView : MonoBehaviour
         timerText.color = c;
     }
 
-    /// <summary>Actualiza el display del timer. Pasar null si no hay módulo activo.</summary>
+    /// <summary>Updates the timer display. Pass null if there is no active module.</summary>
     public void UpdateTimer(ModuleData module)
     {
         isActive = module != null && module.Status == ModuleStatus.Active;
@@ -51,7 +51,7 @@ public class ActiveModuleTimerView : MonoBehaviour
             timerText.text  = "--:--";
             timerText.color = InactiveTimerColor;
 
-            if (moduleIdText != null) moduleIdText.text = "sin módulo";
+            if (moduleIdText != null) moduleIdText.text = "no module";
             return;
         }
 

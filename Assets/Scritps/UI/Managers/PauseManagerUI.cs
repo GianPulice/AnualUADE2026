@@ -1,18 +1,18 @@
-﻿using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>, IModalUI
 {
-    [Header("Arquitectura (MVC)")]
-    [Tooltip("Necesitamos el canal de eventos para salir correctamente al Menú Principal")]
+    [Header("Architecture (MVC)")]
+    [Tooltip("We need the event channel to exit correctly to the Main Menu")]
     [SerializeField] private ScreenEventChannel screenChannel;
 
     private bool _isTransitioning;
 
     // -- IModalUI --
     public string ModalId => "Pause";
-    public bool ConsumesEscape => true;   // ESC cierra la pausa.
-    public bool BlocksPause   => false;   // ES la pausa: no se bloquea a si misma.
+    public bool ConsumesEscape => true;   // ESC closes the pause menu.
+    public bool BlocksPause   => false;   // It IS the pause menu: it does not block itself.
     public bool PausesGame    => true;
     public void RequestClose() => PauseManager.RequestUnpause();
 
@@ -20,11 +20,11 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
     {
         if (view == null)
         {
-            Debug.LogError($"[{nameof(PauseManagerUI)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(PauseManagerUI)}] view not assigned in the Inspector.");
             return;
         }
 
-        view.gameObject.SetActive(false); // Nos aseguramos de que arranque apagado
+        view.gameObject.SetActive(false); // Make sure it starts switched off
 
         if (model == null)
         {
@@ -61,7 +61,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
     protected override void OnBeforeOpen()
     {
-        // Time.timeScale y cursor los gobierna UIStateManager.
+        // Time.timeScale and the cursor are governed by UIStateManager.
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
     }
 
@@ -85,13 +85,13 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
         _isTransitioning = false;
     }
 
-    // ── Reacción a los Botones de la UI ───────────────────────
+    // ── Reaction to the UI buttons ───────────────────────────
 
     private void HandleContinue()
     {
-        // "Continuar" solo despausa. Si habia una modal abierta debajo (ej: SequencePanel),
-        // el jugador vuelve a esa modal — NO la cerramos. Para salir limpio al gameplay
-        // tiene que cerrar la modal manualmente o usar "Exit al menu".
+        // "Continue" only unpauses. If there was a modal open underneath (e.g. SequencePanel),
+        // the player goes back to that modal — we do NOT close it. To get cleanly back to
+        // gameplay they have to close the modal manually or use "Exit to menu".
         PauseManager.RequestUnpause();
     }
 
@@ -99,8 +99,8 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
     {
         if (SettingsController.Instance == null)
         {
-            Debug.LogError("[PauseManagerUI] SettingsController.Instance es null. " +
-                           "¿Está la escena UI_Settings cargada en el bootstrap?");
+            Debug.LogError("[PauseManagerUI] SettingsController.Instance is null. " +
+                           "Is the UI_Settings scene loaded in the bootstrap?");
             return;
         }
         SettingsController.Instance.OpenScreen();
@@ -108,12 +108,12 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
     private void HandleExit()
     {
-        // El flag frena a HandlePauseStateChanged: los RequestUnpause de abajo dispararian
-        // un CloseSafe() que compite con el CloseAll(). Se libera al final del metodo, una
-        // vez que esos eventos ya pasaron — dejarlo en true colgaba la pausa para siempre.
+        // The flag stops HandlePauseStateChanged: the RequestUnpause calls below would fire a
+        // CloseSafe() that competes with CloseAll(). It is released at the end of the method,
+        // once those events have already gone through — leaving it true hung the pause forever.
         _isTransitioning = true;
 
-        // Cerramos cualquier modal residual (panel de secuencia, etc.) antes de salir.
+        // Close any leftover modal (sequence panel, etc.) before exiting.
         if (UIStateManager.Exists) UIStateManager.Instance.CloseAll();
         Time.timeScale = 1f;
 
@@ -122,7 +122,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
         if (screenChannel != null)
             screenChannel.RaisePushScreen("Menu");
         else
-            Debug.LogError("[PauseManagerUI] Falta asignar el ScreenEventChannel.");
+            Debug.LogError("[PauseManagerUI] The ScreenEventChannel is not assigned.");
 
         _isTransitioning = false;
     }

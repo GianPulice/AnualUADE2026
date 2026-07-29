@@ -3,15 +3,15 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// View raíz del Settings. Delega cada tab en su propio sub-view y re-emite los eventos
-/// como un único conjunto para que el Controller no tenga que conocer la estructura interna.
+/// Root view of the Settings screen. Delegates each tab to its own sub-view and re-raises the
+/// events as a single set so the Controller does not have to know the internal structure.
 /// </summary>
 public class SettingsView : BaseScreenView
 {
     [Header("Tabs")]
     [SerializeField] private SettingsTabSelector _tabSelector;
 
-    [Header("Sub-views (asignar el GameObject que tiene cada componente)")]
+    [Header("Sub-views (assign the GameObject holding each component)")]
     [SerializeField] private SettingsPanelVolumeView     _volumePanel;
     [SerializeField] private SettingsPanelControlsView   _controlsPanel;
     [SerializeField] private SettingsPanelBrightnessView _brightnessPanel;
@@ -22,18 +22,18 @@ public class SettingsView : BaseScreenView
     [SerializeField] private Button _btnReset;
     [SerializeField] private Button _btnBack;
 
-    // ── Eventos hacia el Controller ──────────────────────────────────────────
+    // ── Events towards the Controller ────────────────────────────────────────
     public event Action OnApplyClicked;
     public event Action OnResetClicked;
     public event Action OnBackClicked;
 
-    // Conectados (SFX agrupa Ambience/Player/Nemesis/UI/Voice):
+    // Connected (SFX groups Ambience/Player/Nemesis/UI/Voice):
     public event Action<float> OnMasterChanged;
     public event Action<float> OnMusicChanged;
     public event Action<float> OnSFXChanged;
     public event Action<float> OnSensitivityChanged;
 
-    // Aplicados al juego por sus appliers (ver *Applier.cs) al hacer Apply:
+    // Applied to the game by their appliers (see *Applier.cs) on Apply:
     public event Action<bool>  OnInvertYChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;

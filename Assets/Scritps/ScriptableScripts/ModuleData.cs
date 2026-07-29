@@ -15,12 +15,12 @@ public class ModuleData : ScriptableObject
     public float TimeRemaining;
     public bool IsTimerRunning;
 
-    [Header("Ceguera")]
+    [Header("Blindness")]
     public bool causesBlindness = false;
-    [Tooltip("Segundos de oscuridad total cuando este módulo explota.")]
+    [Tooltip("Seconds of total darkness when this module explodes.")]
     public float blindnessDuration = 3f;
 
-    // Solo lectura para la UI
+    // Read-only for the UI
     public float TimerProgress => TimerDuration > 0f
           ? Mathf.Clamp01(TimeRemaining / TimerDuration)
           : 0f;
@@ -45,9 +45,9 @@ public class ModuleData : ScriptableObject
 
             return TimerProgress switch
             {
-                > 0.50f => new Color(0.80f, 0.10f, 0.10f), // #cc1a1a rojo
-                > 0.25f => new Color(0.67f, 0.27f, 0.00f), // #aa4400 naranja
-                _ => new Color(0.53f, 0.13f, 0.00f)  // #882200 rojo oscuro
+                > 0.50f => new Color(0.80f, 0.10f, 0.10f), // #cc1a1a red
+                > 0.25f => new Color(0.67f, 0.27f, 0.00f), // #aa4400 orange
+                _ => new Color(0.53f, 0.13f, 0.00f)  // #882200 dark red
             };
         }
     }
@@ -56,17 +56,17 @@ public class ModuleData : ScriptableObject
     {
         return Status switch
         {
-            ModuleStatus.Resolved => new Color(0.10f, 0.42f, 0.10f), // #1a6a1a verde
-            ModuleStatus.Exploded => new Color(0.35f, 0.16f, 0.00f), // #5a2a00 marr�n
-            ModuleStatus.Inactive => new Color(0.13f, 0.13f, 0.13f), // #222 gris
+            ModuleStatus.Resolved => new Color(0.10f, 0.42f, 0.10f), // #1a6a1a green
+            ModuleStatus.Exploded => new Color(0.35f, 0.16f, 0.00f), // #5a2a00 brown
+            ModuleStatus.Inactive => new Color(0.13f, 0.13f, 0.13f), // #222 grey
             _ => new Color(0.13f, 0.13f, 0.13f)
         };
     }
 }
 public enum ModuleStatus
 {
-    Inactive,   // No iniciado � barra gris
-    Active,     // Corriendo � barra roja, timer vivo
-    Resolved,   // Completado correctamente � barra verde, 100% fijo
-    Exploded    // Timer lleg� a cero � barra marr�n, 0%
+    Inactive,   // Not started — grey bar
+    Active,     // Running — red bar, timer alive
+    Resolved,   // Completed correctly — green bar, fixed at 100%
+    Exploded    // Timer reached zero — brown bar, 0%
 }

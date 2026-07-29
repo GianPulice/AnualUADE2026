@@ -1,29 +1,29 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 // ══════════════════════════════════════════════════════════════════════════════
-//  FailuresPipsView — bloque derecho del HUD (pips de fallos)
+//  FailuresPipsView — right block of the HUD (failure pips)
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// VIEW del bloque derecho del HUD del dispositivo.
-/// Muestra N pips: los usados en rojo, los restantes en oscuro.
+/// VIEW of the right block of the device HUD.
+/// Shows N pips: the used ones in red, the remaining ones dark.
 /// </summary>
 public class FailuresPipsView : MonoBehaviour
 {
-    [Header("Pips (asignar en Inspector, orden: 0=primero)")]
-    [SerializeField] private Image[] pips;  // 3 Images circulares
+    [Header("Pips (assign in the Inspector, order: 0=first)")]
+    [SerializeField] private Image[] pips;  // 3 circular Images
 
-    [Header("Contador de texto")]
+    [Header("Text counter")]
     [SerializeField] private TextMeshProUGUI counterText;  // "X / 3"
 
     private static readonly Color PipUsedColor = new Color(0.80f, 0.10f, 0.10f); // #cc1a1a
     private static readonly Color PipRemainColor = new Color(0.067f, 0.067f, 0.067f); // #111
 
     /// <summary>
-    /// Actualiza los pips según la cantidad de módulos explotados.
-    /// explodedCount: módulos explotados (pips rojos).
-    /// totalModules: total de módulos (pips a mostrar).
+    /// Updates the pips based on the number of exploded modules.
+    /// explodedCount: exploded modules (red pips).
+    /// totalModules: total modules (pips to display).
     /// </summary>
     public void SetFailures(int explodedCount, int totalModules)
     {

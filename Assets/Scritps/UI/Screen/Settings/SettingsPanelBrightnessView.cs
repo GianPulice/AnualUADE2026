@@ -4,10 +4,10 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Panel de Brightness. Los controles se guardan en el modelo y SÍ afectan al juego:
-/// Brightness/Contrast/Gamma los aplica PostProcessSettingsApplier (Global Volume) y
-/// CRTScanlines/PSXDithering los aplica PS1EffectApplier, ambos al dispararse
-/// SettingsModel.OnSettingsApplied. Requisito: cada applier colocado en su GameObject.
+/// Brightness panel. The controls are stored in the model and DO affect the game:
+/// Brightness/Contrast/Gamma are applied by PostProcessSettingsApplier (Global Volume) and
+/// CRTScanlines/PSXDithering by PS1EffectApplier, both when
+/// SettingsModel.OnSettingsApplied fires. Requirement: each applier placed on its GameObject.
 /// </summary>
 public class SettingsPanelBrightnessView : MonoBehaviour
 {

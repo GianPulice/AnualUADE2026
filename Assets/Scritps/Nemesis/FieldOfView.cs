@@ -30,7 +30,7 @@ public class FieldOfView : MonoBehaviour
     private void Update()
     {
         if (currentTimer < viewDelay) currentTimer += Time.deltaTime;
-        else 
+        else
         {
             currentTimer = 0;
             FindVisibleTargets();
@@ -52,7 +52,7 @@ public class FieldOfView : MonoBehaviour
                 {
                     if (!Physics.Raycast(viewTransform.position, dirToTarget, distToTarget, obstacleMask))
                     {
-                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject)) 
+                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject))
                         {
                             visibleTargets.Add(targetsInViewRadius[i].gameObject);
                             lastKnownTarget = targetsInViewRadius[i].gameObject;
@@ -61,17 +61,17 @@ public class FieldOfView : MonoBehaviour
                 }
             }
         }
-        if (visibleTargets.Count > 0) 
-        { 
+        if (visibleTargets.Count > 0)
+        {
             hasVisualTarget = true;
             lastKnownPosition = visibleTargets[0].transform.position;
         }
         else hasVisualTarget = false;
     }
     /// <summary>
-    /// Ultimo objetivo visto, o null si todavia no vio a nadie / el objeto se destruyo.
-    /// Devuelve null en vez de tirar: el estado de captura lo llama y no puede asumir
-    /// que siempre haya target.
+    /// Last target seen, or null if nobody has been seen yet / the object was destroyed.
+    /// Returns null instead of throwing: the catch state calls this and cannot assume
+    /// there is always a target.
     /// </summary>
     public PlayerStateManager GetCurrentTarget()
     {

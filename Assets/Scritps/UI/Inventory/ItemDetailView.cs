@@ -4,44 +4,44 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// VIEW del panel derecho de detalles del ítem seleccionado.
-/// 
-/// Responsabilidades:
-///   - Mostrar estado vacío hasta que se selecciona algo
-///   - Poblar encabezado, descripción, metadata y contenido según el ítem
-///   - Mostrar doc panel para ítems de tipo Texto (manejado por el Controller via ESC stack)
-///   - Exponer el botón de descarte
-///   - Notificar el descarte al Controller
-///   
-/// Notas:
-///   - Audio WIP: estructura preparada, lógica desactivada con enableAudioFeatures.
-///   - docPanel es una capa separada manejada por ShowDoc/HideDoc.
-///     El Controller decide cuándo abrirla/cerrarla (no ShowEmpty ni ShowDetail).
+/// VIEW of the right-hand detail panel for the selected item.
+///
+/// Responsibilities:
+///   - Show the empty state until something is selected
+///   - Populate header, description, metadata and content from the item
+///   - Show the doc panel for Text-type items (handled by the Controller via the ESC stack)
+///   - Expose the discard button
+///   - Notify the Controller of the discard
+///
+/// Notes:
+///   - Audio WIP: structure ready, logic disabled with enableAudioFeatures.
+///   - docPanel is a separate layer handled by ShowDoc/HideDoc.
+///     The Controller decides when to open/close it (not ShowEmpty nor ShowDetail).
 /// </summary>
 public class ItemDetailView : MonoBehaviour
 {
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
 
-    // ── Paneles raíz ──────────────────────────────────────────────────────────
+    // ── Root panels ───────────────────────────────────────────────────────────
 
-    [Header("Estado vacío (sin selección)")]
-    [Tooltip("Selecciona un item / para ver el detalle")]
+    [Header("Empty state (no selection)")]
+    [Tooltip("Select an item / to see the detail")]
     [SerializeField] private GameObject emptyStatePanel;
-    [Tooltip("Todo el contenido real")]
+    [Tooltip("All the real content")]
     [SerializeField] private GameObject detailContentPanel;
 
     // ── Header ────────────────────────────────────────────────────────────────
 
-    [Header("Header del ítem")]
+    [Header("Item header")]
     [SerializeField] private Image iconImage;
     [SerializeField] private Image iconBackground;
     [SerializeField] private TextMeshProUGUI itemNameText;
     [SerializeField] private TextMeshProUGUI categoryTagText;
     [SerializeField] private Image categoryTagBackground;
 
-    // ── Descripción ───────────────────────────────────────────────────────────
+    // ── Description ───────────────────────────────────────────────────────────
 
-    [Header("Descripción")]
+    [Header("Description")]
     [SerializeField] private TextMeshProUGUI descriptionText;
 
     // ── Metadata ──────────────────────────────────────────────────────────────
@@ -53,21 +53,21 @@ public class ItemDetailView : MonoBehaviour
 
     // ── Doc panel ─────────────────────────────────────────────────────────────
 
-    [Header("Doc Panel (ítems tipo Text)")]
-    [Tooltip("Panel separado que se abre encima del detalle. Cerrable con ESC sin deseleccionar el ítem.")]
+    [Header("Doc Panel (Text-type items)")]
+    [Tooltip("Separate panel that opens on top of the detail. Closable with ESC without deselecting the item.")]
     [SerializeField] private GameObject docPanel;
     [SerializeField] private TextMeshProUGUI docPanelText;
     [SerializeField] private ScrollRect docScrollRect;
     [SerializeField] private RectTransform docViewport;
-    [SerializeField] private Button openDocButton;  // "leer documento" dentro del detalle
+    [SerializeField] private Button openDocButton;  // "read document" inside the detail
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
 
     [Header("Debug / WIP")]
-    [Tooltip("Activa para habilitar la lógica y UI del reproductor de audio.")]
+    [Tooltip("Enable to turn on the audio player logic and UI.")]
     [SerializeField] private bool enableAudioFeatures = false;
 
-    [Header("Reproductor de audio (WIP)")]
+    [Header("Audio player (WIP)")]
     [SerializeField] private GameObject audioPlayerBox;
     [SerializeField] private Button playButton;
     [SerializeField] private Button stopButton;
@@ -75,24 +75,24 @@ public class ItemDetailView : MonoBehaviour
     [SerializeField] private TextMeshProUGUI audioTimeText;
     [SerializeField] private AudioSource audioSource;
 
-    // ── Descarte ──────────────────────────────────────────────────────────────
+    // ── Discard ───────────────────────────────────────────────────────────────
 
-    [Header("Botón de descarte")]
+    [Header("Discard button")]
     [SerializeField] private Button discardButton;
     [SerializeField] private TextMeshProUGUI discardButtonText;
 
-    // ── Colores ───────────────────────────────────────────────────────────────
+    // ── Colors ────────────────────────────────────────────────────────────────
 
     private static readonly Color MetallicYesColor = new Color(0.53f, 0.13f, 0.13f);
     private static readonly Color MetallicNoColor = new Color(0.40f, 0.40f, 0.40f);
 
-    // ── Estado interno ────────────────────────────────────────────────────────
+    // ── Internal state ────────────────────────────────────────────────────────
 
     private SO_InventoryItem currentItem;
 
     /// <summary>
-    /// El Controller consulta esto para saber si ESC debe cerrar el doc
-    /// antes de cerrar el inventario.
+    /// The Controller queries this to know whether ESC should close the doc
+    /// before closing the inventory.
     /// </summary>
     public bool IsDocOpen { get; private set; }
 
@@ -110,7 +110,7 @@ public class ItemDetailView : MonoBehaviour
             if (audioSource != null) audioSource.ignoreListenerPause = true;
         }
 
-        // Estado inicial limpio
+        // Clean initial state
         docPanel?.SetActive(false);
         IsDocOpen = false;
     }
@@ -132,11 +132,11 @@ public class ItemDetailView : MonoBehaviour
         }
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Sin selección. Solo alterna paneles raíz.
-    /// NO toca docPanel — el Controller lo cierra antes via HideDoc() si estaba abierto.
+    /// No selection. It only toggles the root panels.
+    /// It does NOT touch docPanel — the Controller closes it first via HideDoc() if it was open.
     /// </summary>
     public void ShowEmpty()
     {
@@ -149,15 +149,15 @@ public class ItemDetailView : MonoBehaviour
     }
 
     /// <summary>
-    /// Puebla y muestra el detalle del ítem.
-    /// Si había un doc abierto de un ítem anterior, lo cierra primero.
-    /// El ítem anterior se reemplaza — nunca hay estado mixto.
+    /// Populates and shows the item's detail.
+    /// If a doc from a previous item was open, it closes it first.
+    /// The previous item is replaced — there is never a mixed state.
     /// </summary>
     public void ShowDetail(SO_InventoryItem item)
     {
         if (item == null) { ShowEmpty(); return; }
 
-        // Cambio de ítem con doc abierto → cerrar el doc del anterior
+        // Item change with the doc open -> close the previous item's doc
         if (IsDocOpen) HideDoc();
 
         currentItem = item;
@@ -175,9 +175,9 @@ public class ItemDetailView : MonoBehaviour
     }
 
     /// <summary>
-    /// Abre el doc panel encima del detalle.
-    /// Llamado por el Controller cuando el jugador presiona "leer documento".
-    /// El ítem sigue seleccionado — solo se agrega una capa visual.
+    /// Opens the doc panel on top of the detail.
+    /// Called by the Controller when the player presses "read document".
+    /// The item stays selected — only a visual layer is added.
     /// </summary>
     public void ShowDoc()
     {
@@ -186,16 +186,16 @@ public class ItemDetailView : MonoBehaviour
         IsDocOpen = true;
         docPanel.SetActive(true);
 
-        // Resetear scroll al inicio cada vez que se abre
+        // Reset the scroll to the top every time it opens
         if (docScrollRect != null)
             docScrollRect.verticalNormalizedPosition = 1f;
         CheckDocScrollNeeded().Forget();
     }
 
     /// <summary>
-    /// Cierra el doc panel.
-    /// Llamado por el Controller via ESC stack.
-    /// NO deselecciona el ítem ni toca detailContentPanel.
+    /// Closes the doc panel.
+    /// Called by the Controller via the ESC stack.
+    /// It does NOT deselect the item nor touch detailContentPanel.
     /// </summary>
     public void HideDoc()
     {
@@ -248,7 +248,7 @@ public class ItemDetailView : MonoBehaviour
 
     private void PopulateContent(SO_InventoryItem item)
     {
-        // Ocultar botón de doc por defecto
+        // Hide the doc button by default
         openDocButton?.gameObject.SetActive(false);
 
         if (enableAudioFeatures)
@@ -257,7 +257,7 @@ public class ItemDetailView : MonoBehaviour
         switch (item.ContentType)
         {
             case ItemContentType.Text:
-                // Cargar el texto en el panel (sin abrirlo — el jugador lo abre con el botón)
+                // Load the text into the panel (without opening it — the player opens it with the button)
                 if (docPanelText != null)
                     docPanelText.text = item.TextContent;
 
@@ -289,7 +289,7 @@ public class ItemDetailView : MonoBehaviour
 
     private void OnOpenDocClicked()
     {
-        // La View notifica al Controller, el Controller registra la capa y llama ShowDoc()
+        // The View notifies the Controller, the Controller registers the layer and calls ShowDoc()
         InventoryManagerUI.Instance.OpenDocument();
     }
 

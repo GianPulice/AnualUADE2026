@@ -2,19 +2,19 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Pantalla unica de fin de partida. Reemplaza a LoseController y GameOverController,
-/// que eran el mismo codigo salvo por que botones se veian y si habia titulo y stats.
+/// Single end-of-run screen. Replaces LoseController and GameOverController, which were the
+/// same code except for which buttons were visible and whether there was a title and stats.
 ///
-/// Escucha <see cref="GameResultManager.OnGameResult"/> y se abre solo si el estado
-/// recibido tiene un <see cref="ResultPresentation"/> configurado. Los estados sin preset
-/// los ignora, asi que WinController puede seguir viviendo en paralelo.
+/// Listens to <see cref="GameResultManager.OnGameResult"/> and only opens if the received
+/// state has a <see cref="ResultPresentation"/> configured. States without a preset are
+/// ignored, so WinController can keep living alongside it.
 ///
-/// NO implementa IModalUI: es una pantalla final, no un overlay modal. Por eso maneja
-/// Time.timeScale a mano en vez de delegarlo en UIStateManager.
+/// It does NOT implement IModalUI: it is a final screen, not a modal overlay. That is why it
+/// handles Time.timeScale by hand instead of delegating to the UIStateManager.
 ///
-/// Presets esperados en el Inspector:
-///   - Lose     -> sin titulo, sin stats, con Retry.
-///   - GameOver -> "GAME OVER" rojo, con stats, sin Retry (el save ya fue borrado).
+/// Presets expected in the Inspector:
+///   - Lose     -> no title, no stats, with Retry.
+///   - GameOver -> "GAME OVER" in red, with stats, no Retry (the save is already deleted).
 /// </summary>
 public class ResultScreenController : BaseScreenController<ResultView, GameResultModel>
 {
@@ -24,8 +24,8 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     [Header("Navigation")]
     [SerializeField] private string _mainMenuGroup = "Menu";
 
-    [Header("Presentación por resultado")]
-    [Tooltip("Un preset por GameState que esta pantalla deba mostrar. Sin preset = no se abre.")]
+    [Header("Presentation per result")]
+    [Tooltip("One preset per GameState this screen should show. No preset = it does not open.")]
     [SerializeField] private ResultPresentation[] _presentations;
 
     private bool _isTransitioning;
@@ -34,7 +34,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     {
         if (view == null)
         {
-            Debug.LogError($"[{nameof(ResultScreenController)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(ResultScreenController)}] view not assigned in the Inspector.");
             return;
         }
 
@@ -76,7 +76,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
         if (_isTransitioning) return;
 
         ResultPresentation preset = FindPresentation(incoming.GameState);
-        if (preset == null) return;   // Estado que esta pantalla no maneja (ej: Win).
+        if (preset == null) return;   // A state this screen does not handle (e.g. Win).
 
         InjectDependencies(incoming);
         view.ApplyPresentation(preset);
@@ -100,14 +100,14 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
         _isTransitioning = false;
     }
 
-    // ── Botones ──────────────────────────────────────────────────
+    // ── Buttons ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Reintentar = recargar el grupo de escenas actual.
+    /// Retry = reload the current scene group.
     ///
-    /// El label sale de ScreenManager y no de un campo serializado: antes estaba
-    /// hardcodeado como "Level1_Group", que no existe en el SO_SceneList, asi que el
-    /// Retry solo logueaba un error. Leyendolo del manager funciona con cualquier nivel.
+    /// The label comes from the ScreenManager and not from a serialized field: it used to be
+    /// hardcoded as "Level1_Group", which does not exist in the SO_SceneList, so Retry only
+    /// logged an error. Reading it from the manager works with any level.
     /// </summary>
     private void HandleRetry()
     {
@@ -115,12 +115,12 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
 
         if (!ScreenManager.Exists)
         {
-            Debug.LogError($"[{nameof(ResultScreenController)}] No hay ScreenManager para recargar el nivel.");
+            Debug.LogError($"[{nameof(ResultScreenController)}] There is no ScreenManager to reload the level.");
             return;
         }
 
-        // Sin esto el guard _resultReported de GameResultManager sigue en true y la
-        // siguiente muerte no volveria a abrir ninguna pantalla.
+        // Without this, GameResultManager's _resultReported guard stays true and the next
+        // death would not open any screen.
         GameResultManager.ResetSession();
 
         ScreenManager.Instance.ReloadCurrentGroup().Forget();
@@ -132,7 +132,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
 
         if (_screenChannel == null)
         {
-            Debug.LogError($"[{nameof(ResultScreenController)}] Falta asignar el ScreenEventChannel.");
+            Debug.LogError($"[{nameof(ResultScreenController)}] The ScreenEventChannel is not assigned.");
             return;
         }
 

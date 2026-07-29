@@ -4,10 +4,10 @@ using UnityEngine;
 
 public class InventoryManager : Singleton<InventoryManager>
 {
-    [Header("Datos iniciales (opcional, para testing)")]
+    [Header("Initial data (optional, for testing)")]
     [SerializeField] private List<SO_InventoryItem> initialItems = new List<SO_InventoryItem>();
 
-    // La lista interna. Privada — el exterior solo lee a través de GetAllItems().
+    // The internal list. Private â€” the outside world only reads through GetAllItems().
     private List<SO_InventoryItem> items = new List<SO_InventoryItem>();
 
     // -- Unity --------------------
@@ -15,14 +15,14 @@ public class InventoryManager : Singleton<InventoryManager>
     {
         CreateSingleton(true);
 
-        // Solo para testing
+        // Testing only
         foreach (SO_InventoryItem item in initialItems)
         {
             if (item != null) items.Add(item);
         }
     }
 
-    // -- Solo lectura ----------
+    // -- Read only ----------
     public IReadOnlyList<SO_InventoryItem> GetAllItems() => items.AsReadOnly();
 
     public IEnumerable<SO_InventoryItem> GetItemsByCategory(ItemCategory category) =>
@@ -35,17 +35,17 @@ public class InventoryManager : Singleton<InventoryManager>
     public List<string> GetItemIDs() =>
         items.Select(i => i.ItemID).ToList();
 
-    // -- Modificación (solo a través de estos métodos) ----------
+    // -- Mutation (only through these methods) ----------
     public void AddItem(SO_InventoryItem item)
     {
         if (item == null)
         {
-            Debug.LogWarning("[InventoryManager] AddItem: item es null.");
+            Debug.LogWarning("[InventoryManager] AddItem: item is null.");
             return;
         }
 
         items.Add(item);
-        Debug.Log($"[Inventario] + {item.ItemName}");
+        Debug.Log($"[Inventory] + {item.ItemName}");
         InventoryEvents.ItemAdded(item);
     }
 
@@ -54,7 +54,7 @@ public class InventoryManager : Singleton<InventoryManager>
         if (!ValidateItemExists(item, "DiscardItem")) return;
 
         items.Remove(item);
-        Debug.Log($"[Inventario] Descartado: {item.ItemName}");
+        Debug.Log($"[Inventory] Discarded: {item.ItemName}");
         InventoryEvents.ItemRemoved(item);
     }
 
@@ -64,19 +64,19 @@ public class InventoryManager : Singleton<InventoryManager>
 
         if (!item.IsConsumable)
         {
-            Debug.LogWarning($"[InventoryManager] ConsumeItem: {item.ItemName} no es consumible.");
+            Debug.LogWarning($"[InventoryManager] ConsumeItem: {item.ItemName} is not consumable.");
             return;
         }
 
         items.Remove(item);
-        Debug.Log($"[Inventario] Consumido: {item.ItemName}");
+        Debug.Log($"[Inventory] Consumed: {item.ItemName}");
         InventoryEvents.ItemConsumed(item);
         InventoryEvents.ItemRemoved(item);
     }
 
     /// <summary>
-    /// Restaura la lista desde un save. Llamado por el sistema de guardado.
-    /// items: todos los SO_InventoryItem del proyecto, para buscar por ID.
+    /// Restores the list from a save. Called by the save system.
+    /// items: every SO_InventoryItem in the project, used to look them up by ID.
     /// </summary>
     public void RestoreFromIDs(List<string> savedIDs, List<SO_InventoryItem> allPossibleItems)
     {
@@ -86,7 +86,7 @@ public class InventoryManager : Singleton<InventoryManager>
         {
             SO_InventoryItem found = allPossibleItems.Find(i => i.ItemID == id);
             if (found != null) items.Add(found);
-            else Debug.LogWarning($"[InventoryManager] RestoreFromIDs: no se encontró ítem con ID '{id}'.");
+            else Debug.LogWarning($"[InventoryManager] RestoreFromIDs: no item found with ID '{id}'.");
         }
     }
     // -- IsValidCheck --------------
@@ -94,13 +94,13 @@ public class InventoryManager : Singleton<InventoryManager>
     {
         if (item == null)
         {
-            Debug.LogWarning($"[InventoryManager] {callerName}: item es null.");
+            Debug.LogWarning($"[InventoryManager] {callerName}: item is null.");
             return false;
         }
 
         if (!items.Contains(item))
         {
-            Debug.LogWarning($"[InventoryManager] {callerName}: '{item.ItemName}' no está en el inventario.");
+            Debug.LogWarning($"[InventoryManager] {callerName}: '{item.ItemName}' is not in the inventory.");
             return false;
         }
 

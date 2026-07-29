@@ -1,10 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// El jugador quedo inmovilizado (hoy: capturado por el Nemesis).
+/// The player has been immobilized (today: captured by the Nemesis).
 ///
-/// Solo mantiene la pose. El fin de partida NO se dispara desde aca: lo hace
-/// NemesisCatchState, que es quien conoce el timing de la animacion de captura.
+/// It only holds the pose. The end of the run is NOT triggered from here: that is done by
+/// NemesisCatchState, which is the one that knows the timing of the capture animation.
 /// </summary>
 public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 {
@@ -36,21 +36,21 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void OnTriggerEnter(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        
+
     }
 
     public override void UpdateState()
     {
-        // Estado terminal: no hay nada que actualizar mientras dura la captura.
+        // Terminal state: there is nothing to update while the capture lasts.
     }
 }

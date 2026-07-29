@@ -6,27 +6,27 @@ using Cysharp.Threading.Tasks;
 public class SceneLoader : MonoBehaviour
 {
     /// <summary>
-    /// Carga una escena de forma aditiva y reporta el progreso.
+    /// Loads a scene additively and reports progress.
     /// </summary>
-    /// <param name="sceneName">Nombre de la escena a cargar.</param>
-    /// <param name="progress">Objeto que escuchará el progreso (0.0f a 1.0f). Puede ser null.</param>
+    /// <param name="sceneName">Name of the scene to load.</param>
+    /// <param name="progress">Object that will listen to the progress (0.0f to 1.0f). Can be null.</param>
     public async UniTask LoadSceneAdditiveAsync(string sceneName, IProgress<float> progress = null)
     {
-        // Iniciamos la carga asíncrona de Unity
+        // Start Unity's async load
         AsyncOperation asyncOperation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
 
         if (asyncOperation == null)
         {
-            Debug.LogError($"[SceneLoader] No se pudo cargar la escena '{sceneName}'. ¿Está en los Build Settings?");
+            Debug.LogError($"[SceneLoader] Could not load scene '{sceneName}'. Is it in the Build Settings?");
             return;
         }
 
-        // Magia de UniTask: Convierte el AsyncOperation en una Task y le pasamos el reporte de progreso
+        // UniTask magic: converts the AsyncOperation into a Task and forwards the progress report
         await asyncOperation.ToUniTask(progress: progress);
     }
 
     /// <summary>
-    /// Descarga una escena aditiva de la memoria.
+    /// Unloads an additive scene from memory.
     /// </summary>
     public async UniTask UnloadSceneAsync(string sceneName)
     {

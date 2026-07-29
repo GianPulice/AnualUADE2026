@@ -8,8 +8,8 @@ public class LoadingView : BaseScreenView
 
     public void UpdateProgress(float progress)
     {
-        // progress viene de 0.0 a 1.0. Lo mostramos en la UI.
+        // progress comes in from 0.0 to 1.0. We show it in the UI.
         progressSlider.value = progress;
-        progressText.text = $"Cargando... {Mathf.RoundToInt(progress * 100)}%";
+        progressText.text = $"Loading... {Mathf.RoundToInt(progress * 100)}%";
     }
 }

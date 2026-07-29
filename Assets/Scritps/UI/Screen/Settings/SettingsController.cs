@@ -4,8 +4,8 @@ using UnityEngine;
 public class SettingsController : BaseScreenController<SettingsView, SettingsModel>, IModalUI
 {
     /// <summary>
-    /// Accessor global. La escena UI_Settings es persistente (cargada en el bootstrap),
-    /// así que vive una sola instancia durante toda la sesión.
+    /// Global accessor. The UI_Settings scene is persistent (loaded in the bootstrap),
+    /// so a single instance lives for the whole session.
     /// </summary>
     public static SettingsController Instance { get; private set; }
 
@@ -19,8 +19,8 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
 
     // -- IModalUI --
     public string ModalId => "Settings";
-    public bool ConsumesEscape => true;   // ESC cierra Settings (vuelve a pausa o menu).
-    public bool BlocksPause   => true;    // Estando en Settings no debe abrirse otra pausa.
+    public bool ConsumesEscape => true;   // ESC closes Settings (back to pause or menu).
+    public bool BlocksPause   => true;    // While in Settings no other pause should open.
     public bool PausesGame    => true;
     public void RequestClose() => HandleBack();
 
@@ -30,7 +30,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
 
         if (view == null)
         {
-            Debug.LogError($"[{nameof(SettingsController)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(SettingsController)}] view not assigned in the Inspector.");
             return;
         }
 
@@ -48,7 +48,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         UnwireViewEvents();
     }
 
-    // El cierre por ESC ahora lo gobierna UIStateManager via UI/Exit -> RequestClose -> HandleBack.
+    // Closing with ESC is now governed by UIStateManager via UI/Exit -> RequestClose -> HandleBack.
 
     protected override void OnBeforeOpen()
     {
@@ -65,8 +65,8 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     }
 
     /// <summary>
-    /// Punto de entrada público para abrir Settings desde cualquier escena
-    /// (Pausa, MainMenu). Encapsula el guard contra transiciones simultáneas.
+    /// Public entry point to open Settings from any scene (Pause, MainMenu).
+    /// Encapsulates the guard against simultaneous transitions.
     /// </summary>
     public void OpenScreen()
     {
@@ -81,7 +81,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         _isTransitioning = false;
     }
 
-    // ── Botones ──────────────────────────────────────────────────
+    // ── Buttons ──────────────────────────────────────────────────
 
     private void HandleApply()
     {
@@ -90,12 +90,12 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     }
 
     /// <summary>
-    /// "Reset values" del wireframe: revierte los cambios pendientes a los valores que
-    /// había al abrir Settings (o al último Apply). No cierra la pantalla — solo deshace
-    /// los cambios sin tocados de los sliders/toggles.
+    /// The wireframe's "Reset values": reverts the pending changes to the values that were
+    /// there when Settings was opened (or at the last Apply). It does not close the screen —
+    /// it only undoes the untouched slider/toggle changes.
     ///
-    /// Si en el futuro hace falta "Reset to factory defaults" (volver a los valores fábrica
-    /// del juego), agregar un botón separado y llamar a <c>model.ResetToDefaults()</c>.
+    /// If "Reset to factory defaults" (back to the game's factory values) is ever needed,
+    /// add a separate button and call <c>model.ResetToDefaults()</c>.
     /// </summary>
     private void HandleReset()
     {
@@ -125,18 +125,18 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnResetClicked += HandleReset;
         view.OnBackClicked  += HandleBack;
 
-        // Conectados al AudioManager (preview en vivo + persistencia en Apply)
+        // Connected to the AudioManager (live preview + persistence on Apply)
         view.OnMasterChanged      += model.SetMasterVolume;
         view.OnMusicChanged       += model.SetMusicVolume;
         view.OnSFXChanged         += model.SetSFXVolume;
         view.OnSensitivityChanged += model.SetSensitivity;
 
-        // Todos estos SÍ afectan al juego vía appliers que escuchan SettingsModel.OnSettingsApplied
-        // (cada applier debe estar colocado en su GameObject en la escena):
-        //   InvertY                     → CameraSensitivityApplier (rig de cámara)
-        //   Brightness/Contrast/Gamma   → PostProcessSettingsApplier (Global Volume)
-        //   CRT / Dither                → PS1EffectApplier (persistente, con PS1Effect.mat)
-        //   Resolution/Window/FPS/VSync → ScreenSettingsApplier (persistente)
+        // All of these DO affect the game via appliers listening to SettingsModel.OnSettingsApplied
+        // (each applier must be placed on its GameObject in the scene):
+        //   InvertY                     -> CameraSensitivityApplier (camera rig)
+        //   Brightness/Contrast/Gamma   -> PostProcessSettingsApplier (Global Volume)
+        //   CRT / Dither                -> PS1EffectApplier (persistent, holds PS1Effect.mat)
+        //   Resolution/Window/FPS/VSync -> ScreenSettingsApplier (persistent)
         view.OnInvertYChanged    += model.SetInvertYAxis;
         view.OnBrightnessChanged += model.SetBrightness;
         view.OnContrastChanged   += model.SetContrast;

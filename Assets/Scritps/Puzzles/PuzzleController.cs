@@ -14,7 +14,7 @@ public class PuzzleController : MonoBehaviour
     {
         if (puzzleData == null)
         {
-            Debug.LogError($"PuzzleController sin SO_PuzzleData en {gameObject.name}");
+            Debug.LogError($"PuzzleController without SO_PuzzleData on {gameObject.name}");
             return;
         }
 
@@ -44,6 +44,6 @@ public class PuzzleController : MonoBehaviour
         if (puzzleData.RewardItem != null)
             InventoryManager.Instance.AddItem(puzzleData.RewardItem);
 
-        Debug.Log($"Puzzle completado: {puzzleData.PuzzleId}");
+        Debug.Log($"Puzzle completed: {puzzleData.PuzzleId}");
     }
 }

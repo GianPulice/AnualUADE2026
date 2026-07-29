@@ -34,7 +34,7 @@ public class SkillCheckModel : BaseScreenModel
         IsInitialized = true;
     }
 
-    // Devuelve true si el ángulo de la aguja está dentro de la zona de éxito.
+    // Returns true if the needle angle is inside the success zone.
     public bool TryInput(float needleAngle)
     {
         if (IsComplete) return false;
@@ -67,7 +67,7 @@ public class SkillCheckModel : BaseScreenModel
         float end   = (start + SuccessZoneWidth) % 360f;
         if (start <= end)
             return angle >= start && angle <= end;
-        // zona cruza los 0°
+        // the zone crosses 0°
         return angle >= start || angle <= end;
     }
 }

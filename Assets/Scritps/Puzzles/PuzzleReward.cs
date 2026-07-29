@@ -9,6 +9,6 @@ public class PuzzleReward : MonoBehaviour
         if (rewardItem == null) return;
 
         InventoryManager.Instance.AddItem(rewardItem);
-        Debug.Log($"Recompensa obtenida: {rewardItem.ItemName}");
+        Debug.Log($"Reward obtained: {rewardItem.ItemName}");
     }
 }

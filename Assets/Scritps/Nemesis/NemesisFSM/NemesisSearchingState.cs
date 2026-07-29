@@ -55,7 +55,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
         }
-        else 
+        else
         {
             if (currentTime < timeOut)
             {
@@ -76,9 +76,9 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             }
         }
     }
-    private Vector3 GetRandomPointInNavMesh() 
+    private Vector3 GetRandomPointInNavMesh()
     {
-        // Radio de busqueda
+        // Search radius
         float range = 5f;
         Vector3 randomPoint = Vector3.zero;
         do
@@ -86,7 +86,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             randomPoint = nemesisStateManager.NavAgent.destination + (Random.onUnitSphere + nemesisStateManager.transform.forward ) * range;
         }
         while (!NavMesh.SamplePosition(randomPoint,out NavMeshHit hit,1f,NavMesh.AllAreas));
-        Debug.Log("Punto Random Encontrado");
+        Debug.Log("Random point found");
         return randomPoint;
     }
 }

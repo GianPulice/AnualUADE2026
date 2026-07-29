@@ -3,18 +3,18 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Panel de secuencia (puzzle SP1). Hereda de BaseRangeInteractable para usar el mismo
-/// flujo de deteccion por collider que el resto de interactuables.
-/// Al interactuar, abre la UI del SequencePanelUIController. La logica del puzzle vive aca;
-/// la UI es solo vista + input.
+/// Sequence panel (puzzle SP1). Inherits from BaseRangeInteractable to use the same
+/// collider-based detection flow as the rest of the interactables.
+/// On interact, it opens the SequencePanelUIController UI. The puzzle logic lives here;
+/// the UI is only view + input.
 /// </summary>
 public class SequencePanelInteractable : BaseRangeInteractable
 {
-    [Header("Datos del puzzle")]
+    [Header("Puzzle data")]
     [SerializeField] private SO_SequencePuzzleData sequenceData;
 
-    [Header("Configuracion del panel")]
-    [Tooltip("Cantidad de botones que muestra la UI. Los IDs van de 1 a buttonCount.")]
+    [Header("Panel configuration")]
+    [Tooltip("Number of buttons the UI shows. IDs run from 1 to buttonCount.")]
     [SerializeField, Min(1)] private int buttonCount = 8;
 
     private readonly List<int> currentSequence = new List<int>();
@@ -27,11 +27,11 @@ public class SequencePanelInteractable : BaseRangeInteractable
     public IReadOnlyList<int> EnteredSequence => currentSequence;
     public bool IsCompleted => isCompleted;
 
-    /// <summary>Disparado cuando el jugador ingresa un boton (correcto o incorrecto).</summary>
+    /// <summary>Raised when the player enters a button (correct or incorrect).</summary>
     public event Action<int> OnButtonPressed;
-    /// <summary>Disparado cuando la secuencia ingresada es incorrecta (resetea el input).</summary>
+    /// <summary>Raised when the entered sequence is incorrect (resets the input).</summary>
     public event Action OnSequenceFailed;
-    /// <summary>Disparado cuando la secuencia se completa correctamente.</summary>
+    /// <summary>Raised when the sequence is completed correctly.</summary>
     public event Action OnSequenceCompleted;
 
     protected override void Awake()
@@ -40,7 +40,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
 
         if (sequenceData == null)
         {
-            Debug.LogError($"SequencePanelInteractable sin SO_SequencePuzzleData en {gameObject.name}");
+            Debug.LogError($"SequencePanelInteractable without SO_SequencePuzzleData on {gameObject.name}");
             return;
         }
 
@@ -53,7 +53,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (sequenceData == null) return "Panel sin configurar";
+        if (sequenceData == null) return "Unconfigured panel";
         if (isCompleted) return string.Empty;
         return sequenceData.PromptText;
     }
@@ -64,7 +64,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
         if (!string.IsNullOrWhiteSpace(sequenceData.RequiredSocketId) &&
             (PuzzleStateManager.Instance == null ||
              !PuzzleStateManager.Instance.IsSocketInserted(sequenceData.RequiredSocketId)))
-            return "Falta insertar el fusible";
+            return "The fuse still needs to be inserted";
         return string.Empty;
     }
 
@@ -87,7 +87,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
     {
         if (SequencePanelUIController.Instance == null)
         {
-            Debug.LogError("[SequencePanelInteractable] No hay SequencePanelUIController en escena (LevelUI).");
+            Debug.LogError("[SequencePanelInteractable] There is no SequencePanelUIController in the scene (LevelUI).");
             return;
         }
 
@@ -100,8 +100,8 @@ public class SequencePanelInteractable : BaseRangeInteractable
     }
 
     /// <summary>
-    /// Llamado desde la UI cuando el jugador presiona un boton del panel.
-    /// Devuelve true si el boton es correcto en la posicion actual.
+    /// Called from the UI when the player presses a button on the panel.
+    /// Returns true if the button is correct at the current position.
     /// </summary>
     public bool TryPressButton(int buttonId)
     {
@@ -150,6 +150,6 @@ public class SequencePanelInteractable : BaseRangeInteractable
 
         OnSequenceCompleted?.Invoke();
 
-        Debug.Log($"[SequencePanel] Puzzle completado: {sequenceData.PuzzleId}");
+        Debug.Log($"[SequencePanel] Puzzle completed: {sequenceData.PuzzleId}");
     }
 }

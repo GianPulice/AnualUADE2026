@@ -5,11 +5,11 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// View del panel de secuencia. Solo presenta — NO conoce al
-/// <see cref="SequencePanelInteractable"/>. Emite eventos cuando el usuario
-/// interactúa, y expone métodos públicos para que el controller refresque la UI.
+/// View of the sequence panel. It only presents — it does NOT know about the
+/// <see cref="SequencePanelInteractable"/>. It raises events when the user interacts,
+/// and exposes public methods so the controller can refresh the UI.
 ///
-/// El <c>canvasGroup</c> se hereda de <see cref="BaseScreenView"/>.
+/// The <c>canvasGroup</c> is inherited from <see cref="BaseScreenView"/>.
 /// </summary>
 public class SequencePanelView : BaseScreenView
 {
@@ -19,40 +19,40 @@ public class SequencePanelView : BaseScreenView
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private TextMeshProUGUI sequenceDisplayText;
     [SerializeField] private TextMeshProUGUI statusText;
-    [Tooltip("LED de estado al lado del texto. Opcional.")]
+    [Tooltip("Status LED next to the text. Optional.")]
     [SerializeField] private Image statusLed;
     [SerializeField] private Button closeButton;
 
-    [Header("Feedback — teclas")]
-    // Paleta de teclado de seguridad: metal oscuro en reposo, ambar al acertar,
-    // rojo al fallar. Ojo: estos colores GANAN sobre los del SequencePanelUISetup,
-    // porque Populate() repinta todas las teclas al abrir.
+    [Header("Feedback — keys")]
+    // Security keypad palette: dark metal at rest, amber on a correct press,
+    // red on a wrong one. Note: these colors WIN over those in SequencePanelUISetup,
+    // because Populate() repaints every key on open.
     [SerializeField] private Color buttonDefaultColor = new Color(0.18f, 0.18f, 0.19f, 1f);
     [SerializeField] private Color buttonActiveColor  = new Color(1f,    0.65f, 0.10f, 1f);
     [SerializeField] private Color buttonWrongColor   = new Color(0.55f, 0.10f, 0.08f, 1f);
     [SerializeField] private float wrongFlashDuration = 0.6f;
 
-    [Header("Feedback — LED de estado")]
+    [Header("Feedback — status LED")]
     [SerializeField] private Color ledIdleColor  = new Color(0.55f, 0.33f, 0.05f, 1f);
     [SerializeField] private Color ledWrongColor = new Color(0.95f, 0.20f, 0.15f, 1f);
     [SerializeField] private Color ledOkColor    = new Color(0.30f, 0.95f, 0.40f, 1f);
 
     [Header("Strings")]
-    [SerializeField] private string titleString       = "PANEL ELECTRICO";
-    [SerializeField] private string statusIdleString  = "INGRESE LA SECUENCIA";
-    [SerializeField] private string statusWrongString = "SECUENCIA INCORRECTA";
-    [SerializeField] private string statusOkString    = "ACCESO CONCEDIDO";
+    [SerializeField] private string titleString       = "ELECTRICAL PANEL";
+    [SerializeField] private string statusIdleString  = "ENTER THE SEQUENCE";
+    [SerializeField] private string statusWrongString = "INCORRECT SEQUENCE";
+    [SerializeField] private string statusOkString    = "ACCESS GRANTED";
 
-    [Header("Display LCD")]
-    [Tooltip("Prefijo del display, estilo terminal.")]
+    [Header("LCD display")]
+    [Tooltip("Display prefix, terminal style.")]
     [SerializeField] private string displayPrefix = "> ";
-    [Tooltip("Caracter de cursor al final de lo ingresado.")]
+    [Tooltip("Cursor character at the end of the entered input.")]
     [SerializeField] private string displayCursor = "_";
 
-    /// <summary>Se dispara cuando el usuario clickea uno de los botones del grid.</summary>
+    /// <summary>Raised when the user clicks one of the grid buttons.</summary>
     public event Action<int> OnButtonClicked;
 
-    /// <summary>Se dispara cuando el usuario clickea el botón de cerrar de la UI.</summary>
+    /// <summary>Raised when the user clicks the UI's close button.</summary>
     public event Action OnCloseClicked;
 
     private readonly List<Button> spawnedButtons = new List<Button>();
@@ -85,11 +85,11 @@ public class SequencePanelView : BaseScreenView
         }
     }
 
-    // ── API pública (la llama el controller) ────────────────────────────────
+    // ── Public API (called by the controller) ───────────────────────────────
 
     /// <summary>
-    /// Refresca toda la UI según el modelo. Construye los botones, setea título
-    /// y status idle, limpia la secuencia mostrada.
+    /// Refreshes the whole UI from the model. Builds the buttons, sets the title
+    /// and idle status, and clears the displayed sequence.
     /// </summary>
     public void Populate(SequencePanelModel model)
     {
@@ -104,11 +104,11 @@ public class SequencePanelView : BaseScreenView
     }
 
     /// <summary>
-    /// Pinta el display LCD estilo terminal: <c>&gt; 3 7 1 _</c>.
+    /// Paints the terminal-style LCD display: <c>&gt; 3 7 1 _</c>.
     ///
-    /// Solo muestra lo ingresado + el cursor. No dibuja slots vacios porque el modelo
-    /// no expone el largo de la secuencia correcta — y mostrarlo seria filtrarle al
-    /// jugador cuantos digitos tiene el codigo.
+    /// It only shows what has been entered + the cursor. It does not draw empty slots because
+    /// the model does not expose the length of the correct sequence — and showing it would
+    /// leak to the player how many digits the code has.
     /// </summary>
     public void RefreshSequenceDisplay(IReadOnlyList<int> entered)
     {
@@ -123,7 +123,7 @@ public class SequencePanelView : BaseScreenView
         sequenceDisplayText.text = displayPrefix + string.Join(" ", entered) + " " + displayCursor;
     }
 
-    /// <summary>Marca botón individual como recién presionado (verde).</summary>
+    /// <summary>Marks an individual button as just pressed (green).</summary>
     public void HighlightPressedButton(int buttonId)
     {
         int idx = buttonId - 1;
@@ -150,13 +150,13 @@ public class SequencePanelView : BaseScreenView
         foreach (Button b in spawnedButtons) SetButtonColor(b, buttonDefaultColor);
     }
 
-    // ── Internos ────────────────────────────────────────────────────────────
+    // ── Internals ───────────────────────────────────────────────────────────
 
     private void BuildButtons(int count)
     {
         if (buttonPrefab == null || buttonsParent == null)
         {
-            Debug.LogError("[SequencePanelView] Falta buttonPrefab o buttonsParent.");
+            Debug.LogError("[SequencePanelView] buttonPrefab or buttonsParent is missing.");
             return;
         }
 
@@ -205,11 +205,11 @@ public class SequencePanelView : BaseScreenView
     }
 
     /// <summary>
-    /// Repinta una tecla. Toca SOLO el color de la Image, nunca el ColorBlock:
-    /// el ColorBlock es un multiplicador sobre la Image, asi que escribir el color en
-    /// los dos lados lo elevaba al cuadrado y las teclas oscuras se iban a negro.
-    /// Dejando el normalColor en blanco, el tinte de hover/pressed sigue funcionando
-    /// relativo a cualquier color de feedback que tenga la tecla en ese momento.
+    /// Repaints a key. It touches ONLY the Image color, never the ColorBlock:
+    /// the ColorBlock is a multiplier over the Image, so writing the color on both sides
+    /// squared it and dark keys went to black.
+    /// Leaving normalColor white keeps the hover/pressed tint working relative to whatever
+    /// feedback color the key currently has.
     /// </summary>
     private void SetButtonColor(Button btn, Color color)
     {

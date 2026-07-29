@@ -15,7 +15,7 @@ public abstract class BaseScreenView : MonoBehaviour
         gameObject.SetActive(true);
 
         canvasGroup.alpha = 0f;
-        canvasGroup.interactable = false;    
+        canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
         float time = 0;
@@ -67,10 +67,10 @@ public abstract class BaseScreenView : MonoBehaviour
             elapsed += Time.deltaTime;
             float percent = elapsed / duration;
 
-            // Interpolación lineal entre el alpha actual y el objetivo
+            // Linear interpolation between the current alpha and the target
             canvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, percent);
 
-            // Esperar al siguiente frame (respetando la cancelación)
+            // Wait for the next frame (respecting cancellation)
             await UniTask.Yield(PlayerLoopTiming.Update, fadeCts.Token);
         }
 

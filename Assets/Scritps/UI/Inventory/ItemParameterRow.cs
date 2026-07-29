@@ -1,11 +1,11 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ItemParameterRow — una fila de parámetro en el panel de detalles
+//  ItemParameterRow — one parameter row in the details panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// <summary>VIEW de una fila de parámetro del ítem (ej: "Item Parameters  YES/NO").</summary>
+/// <summary>VIEW of an item parameter row (e.g. "Item Parameters  YES/NO").</summary>
 public class ItemParameterRow : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI parameterNameText;

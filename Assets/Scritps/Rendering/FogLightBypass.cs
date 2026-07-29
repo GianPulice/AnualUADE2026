@@ -1,22 +1,22 @@
 using UnityEngine;
 
 /// <summary>
-/// Marca una zona esférica del mundo donde la luz "atraviesa" la niebla del
-/// <see cref="VisionRangeController"/> — pensado para farolas, hogueras,
-/// bengalas, señales narrativas de "acá hay algo importante", etc.
+/// Marks a spherical world area where light "cuts through" the fog of the
+/// <see cref="VisionRangeController"/> — meant for street lamps, bonfires,
+/// flares, narrative "there is something important here" signals, etc.
 ///
-/// A diferencia de <see cref="FogLightSource"/> (que sigue al player), estas
-/// zonas están ancladas al mundo. El controller lee todas las bypass zones
-/// activas cada frame y las pushea al shader como un array (máx.
+/// Unlike <see cref="FogLightSource"/> (which follows the player), these zones
+/// are anchored to the world. The controller reads every active bypass zone
+/// each frame and pushes them to the shader as an array (max.
 /// <see cref="VisionRangeController.MaxBypassZones"/>).
 ///
-/// El shader las combina con MAX (no se acumulan cuadraticamente) — dos
-/// bypasses solapados no explotan la escena en blanco, se tratan como una sola.
+/// The shader combines them with MAX (they do not accumulate quadratically) — two
+/// overlapping bypasses do not blow the scene out to white, they are treated as one.
 /// </summary>
 [DisallowMultipleComponent]
 public class FogLightBypass : MonoBehaviour
 {
-    [Tooltip("Radio (metros) donde la niebla se disuelve. Con 0 el componente no hace nada.")]
+    [Tooltip("Radius (metres) where the fog dissolves. With 0 the component does nothing.")]
     [Min(0f)] public float radius = 3f;
 
     private void OnEnable()  => VisionRangeController.RegisterBypass(this);

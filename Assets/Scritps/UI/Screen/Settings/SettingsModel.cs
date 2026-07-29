@@ -4,19 +4,19 @@ using UnityEngine;
 public class SettingsModel : BaseScreenModel
 {
     /// <summary>
-    /// Disparado cuando <see cref="Apply"/> persiste los cambios.
-    /// Suscriptores típicos: <c>CameraSensitivityApplier</c>, sistemas de post-process futuros.
+    /// Raised when <see cref="Apply"/> persists the changes.
+    /// Typical subscribers: <c>CameraSensitivityApplier</c>, future post-process systems.
     /// </summary>
     public static event Action OnSettingsApplied;
 
-    // ── Keys de PlayerPrefs ──────────────────────────────────────────────────
-    // Conectados al AudioManager. Solo 3 buses son visibles para el jugador: el slider
-    // de SFX agrupa Ambience/Player/Nemesis/UI/Voice (ver AudioManager.SetGameplaySfxBundle).
+    // ── PlayerPrefs keys ─────────────────────────────────────────────────────
+    // Connected to the AudioManager. Only 3 buses are visible to the player: the SFX slider
+    // groups Ambience/Player/Nemesis/UI/Voice (see AudioManager.SetGameplaySfxBundle).
     private const string KEY_MASTER       = "Settings_MasterVolume";
     private const string KEY_MUSIC        = "Settings_MusicVolume";
     private const string KEY_SFX          = "Settings_SFXVolume";
     private const string KEY_SENSITIVITY  = "Settings_Sensitivity";
-    // Aplicados al juego por appliers que leen estas keys al dispararse OnSettingsApplied
+    // Applied to the game by the appliers that read these keys when OnSettingsApplied fires
     // (InvertY→CameraSensitivityApplier, Brightness/Contrast/Gamma→PostProcessSettingsApplier,
     //  CRT/Dither→PS1EffectApplier, Resolution/Window/FPS/VSync→ScreenSettingsApplier,
     //  AudioBG→AudioBackgroundApplier):
@@ -46,13 +46,13 @@ public class SettingsModel : BaseScreenModel
     private const bool   DEFAULT_VSYNC       = true;
     private const bool   DEFAULT_AUDIO_BG    = false;
 
-    // ── Estado conectado al AudioManager ─────────────────────────────────────
+    // ── State connected to the AudioManager ──────────────────────────────────
     public float MasterVolume { get; private set; }
     public float MusicVolume  { get; private set; }
     public float SFXVolume    { get; private set; }
     public float Sensitivity  { get; private set; }
 
-    // ── Estado de video/controles (leído por los *Applier.cs al hacer Apply) ─
+    // ── Video/controls state (read by the *Applier.cs on Apply) ──────────────
     public bool  InvertYAxis      { get; private set; }
     public float Brightness       { get; private set; }
     public float Contrast         { get; private set; }
@@ -65,7 +65,7 @@ public class SettingsModel : BaseScreenModel
     public bool  VSync            { get; private set; }
     public bool  AudioInBackground { get; private set; }
 
-    // ── Snapshot para revert ─────────────────────────────────────────────────
+    // ── Snapshot for revert ──────────────────────────────────────────────────
     private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity;
     private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg;
     private float _snapBrightness, _snapContrast, _snapGamma;
@@ -97,17 +97,17 @@ public class SettingsModel : BaseScreenModel
         IsInitialized = true;
         TakeSnapshot();
 
-        // Sincronizo el AudioManager con lo que acabamos de leer de PlayerPrefs
-        // (por si el AudioManager arrancó antes de que SettingsModel se inicialice).
+        // Sync the AudioManager with what we just read from PlayerPrefs
+        // (in case the AudioManager started before SettingsModel was initialized).
         PushVolumesToAudioManager();
     }
 
-    // ── Setters (Volumen + Sensibilidad: aplican en vivo al mixer) ──────────
+    // ── Setters (Volume + Sensitivity: applied live to the mixer) ───────────
     //
-    // Cada setter cambia el state en memoria, notifica a la View y, si el
-    // AudioManager existe, escribe el dB correspondiente en el mixer al toque.
-    // Esto da preview en vivo: mover el slider se escucha sin necesidad de Apply.
-    // Apply() persiste a PlayerPrefs; Revert() restablece y vuelve a empujar al mixer.
+    // Each setter changes the in-memory state, notifies the View and, if the
+    // AudioManager exists, writes the corresponding dB to the mixer straight away.
+    // This gives a live preview: moving the slider is audible without needing Apply.
+    // Apply() persists to PlayerPrefs; Revert() restores and pushes to the mixer again.
 
     public void SetMasterVolume(float v)
     {
@@ -122,8 +122,8 @@ public class SettingsModel : BaseScreenModel
         NotifyDataChanged();
     }
     /// <summary>
-    /// Un unico slider para todo lo que no es musica: mueve SFX, Ambience, Player,
-    /// Nemesis, UI y Voice en bloque.
+    /// A single slider for everything that is not music: moves SFX, Ambience, Player,
+    /// Nemesis, UI and Voice as a block.
     /// </summary>
     public void SetSFXVolume(float v)
     {
@@ -133,7 +133,7 @@ public class SettingsModel : BaseScreenModel
     }
     public void SetSensitivity(float v)  { Sensitivity  = Mathf.Max(0.01f, v); NotifyDataChanged(); }
 
-    // ── Setters de video/controles (aplicados por los *Applier.cs en Apply) ──
+    // ── Video/controls setters (applied by the *Applier.cs on Apply) ─────────
 
     public void SetInvertYAxis(bool v)      { InvertYAxis = v;                NotifyDataChanged(); }
     public void SetBrightness(float v)      { Brightness = Mathf.Clamp01(v);  NotifyDataChanged(); }
@@ -147,7 +147,7 @@ public class SettingsModel : BaseScreenModel
     public void SetVSync(bool v)            { VSync = v;                      NotifyDataChanged(); }
     public void SetAudioInBackground(bool v){ AudioInBackground = v;          NotifyDataChanged(); }
 
-    // ── Persistencia ─────────────────────────────────────────────────────────
+    // ── Persistence ──────────────────────────────────────────────────────────
 
     public void Apply()
     {
@@ -170,15 +170,15 @@ public class SettingsModel : BaseScreenModel
 
         PlayerPrefs.Save();
 
-        // Re-empuja al mixer (los setters en vivo ya lo hicieron, pero esto es
-        // defensivo por si en algun caso el AudioManager se hubiera reseteado).
+        // Push to the mixer again (the live setters already did, but this is
+        // defensive in case the AudioManager was reset at some point).
         PushVolumesToAudioManager();
 
         TakeSnapshot();
         OnSettingsApplied?.Invoke();
     }
 
-    /// <summary>Restaura defaults en memoria. NO persiste hasta que se llame Apply.</summary>
+    /// <summary>Restores defaults in memory. Does NOT persist until Apply is called.</summary>
     public void ResetToDefaults()
     {
         MasterVolume = 1f;
@@ -221,8 +221,8 @@ public class SettingsModel : BaseScreenModel
         VSync             = _snapVSync;
         AudioInBackground = _snapAudioBg;
 
-        // El mixer fue cambiando en vivo mientras el usuario movia los sliders;
-        // al revertir hay que volver a empujar los valores del snapshot al mixer.
+        // The mixer was changing live while the user moved the sliders;
+        // on revert we have to push the snapshot values back to the mixer.
         PushVolumesToAudioManager();
         NotifyDataChanged();
     }
@@ -255,7 +255,7 @@ public class SettingsModel : BaseScreenModel
         am.SetGameplaySfxBundle(SFXVolume);
     }
 
-    // ── Helpers PlayerPrefs (no soporta bool nativamente) ────────────────────
+    // ── PlayerPrefs helpers (it does not support bool natively) ──────────────
 
     private static bool GetPrefBool(string key, bool def) => PlayerPrefs.GetInt(key, def ? 1 : 0) != 0;
     private static void SetPrefBool(string key, bool value) => PlayerPrefs.SetInt(key, value ? 1 : 0);

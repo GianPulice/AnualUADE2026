@@ -3,41 +3,41 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Vista unica de las pantallas de fin de partida (Lose y GameOver).
+/// Single view for the end-of-run screens (Lose and GameOver).
 ///
-/// Su cara la decide el <see cref="ResultPresentation"/> que le pasa el controller
-/// justo antes de abrir, asi que el mismo prefab sirve para los dos resultados.
+/// Its face is decided by the <see cref="ResultPresentation"/> the controller passes right
+/// before opening, so the same prefab serves both results.
 ///
-/// Usa los botones Retry y MainMenu del base. Exit y NextLevel quedan apagados: en el
-/// prefab el boton "EXIT" esta cableado al slot _btnMainMenu (y _btnExit quedo vacio),
-/// asi que MainMenu es el que realmente lleva al menu.
+/// It uses the base's Retry and MainMenu buttons. Exit and NextLevel are switched off: in
+/// the prefab the "EXIT" button is wired to the _btnMainMenu slot (and _btnExit was left
+/// empty), so MainMenu is the one that actually goes back to the menu.
 /// </summary>
 public class ResultView : BaseResultView
 {
     [Header("Result")]
-    [Tooltip("Titulo grande. Se apaga si la presentacion no trae texto.")]
+    [Tooltip("Large title. Switched off if the presentation carries no text.")]
     [SerializeField] private TextMeshProUGUI _titleText;
 
-    [Tooltip("Tiempo y modulos resueltos. Se apaga si la presentacion no pide stats.")]
+    [Tooltip("Time and resolved modules. Switched off if the presentation does not ask for stats.")]
     [SerializeField] private TextMeshProUGUI _statsText;
 
-    [Tooltip("Overlay de fondo a tintar. Opcional.")]
+    [Tooltip("Background overlay to tint. Optional.")]
     [SerializeField] private Image _vignetteImage;
 
-    [Tooltip("Total de modulos del nivel; solo afecta al texto 'N / total'.")]
+    [Tooltip("Total modules in the level; only affects the 'N / total' text.")]
     [SerializeField] private int _totalModules = 3;
 
     protected override void Awake()
     {
         base.Awake();
 
-        // Esta pantalla trabaja con Retry + MainMenu. NextLevel (que en el prefab es el
-        // boton "OPTIONS", mal cableado ahi) y Exit no se usan.
+        // This screen works with Retry + MainMenu. NextLevel (which in the prefab is the
+        // "OPTIONS" button, miswired there) and Exit are unused.
         HideNextLevelButton();
         SetExitVisible(false);
     }
 
-    /// <summary>Aplica titulo, color, vignette y visibilidad de botones. Llamar antes de Open().</summary>
+    /// <summary>Applies title, color, vignette and button visibility. Call before Open().</summary>
     public void ApplyPresentation(ResultPresentation presentation)
     {
         if (presentation == null) return;
@@ -66,7 +66,7 @@ public class ResultView : BaseResultView
         int minutes = Mathf.FloorToInt(model.Time / 60f);
         int seconds = Mathf.FloorToInt(model.Time % 60f);
         _statsText.text =
-            $"Tiempo: {minutes:00}:{seconds:00}\n" +
-            $"Módulos resueltos: {model.CompletedModules} / {_totalModules}";
+            $"Time: {minutes:00}:{seconds:00}\n" +
+            $"Modules resolved: {model.CompletedModules} / {_totalModules}";
     }
 }

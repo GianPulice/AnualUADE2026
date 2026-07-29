@@ -58,7 +58,7 @@ public class GrabbableBall : MonoBehaviour
 
         if (foundHoldPoint == null)
         {
-            Debug.LogWarning("No se encontró ningún HoldPoint dentro del player.");
+            Debug.LogWarning("No HoldPoint was found inside the player.");
             return;
         }
 

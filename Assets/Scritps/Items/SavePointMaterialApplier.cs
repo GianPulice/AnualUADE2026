@@ -1,17 +1,17 @@
 using UnityEngine;
 
-// LED verde constante del save point. §4.7 Color Spec / A8.
-// Color base: #1A5C1A. Pulso lento de ±0.05 en intensity para dar vida al LED.
-// Usa MaterialPropertyBlock para no romper SRP Batcher.
-// Shader: cualquier URP con _EmissionColor expuesto (ej. URP/Lit con Emission habilitado).
+// Constant green LED of the save point. §4.7 Color Spec / A8.
+// Base color: #1A5C1A. Slow ±0.05 intensity pulse to give the LED some life.
+// Uses MaterialPropertyBlock so the SRP Batcher is not broken.
+// Shader: any URP one with _EmissionColor exposed (e.g. URP/Lit with Emission enabled).
 [RequireComponent(typeof(Renderer))]
 public class SavePointMaterialApplier : MonoBehaviour
 {
-    [Header("Emisión")]
+    [Header("Emission")]
     [SerializeField] private Color emissionColor = new Color(0.102f, 0.361f, 0.102f); // #1A5C1A
 
-    [Header("Pulso")]
-    [Tooltip("Si true, la emisión pulsa lentamente para dar vida al LED.")]
+    [Header("Pulse")]
+    [Tooltip("If true, the emission pulses slowly to give the LED some life.")]
     [SerializeField] private bool pulse = true;
     [SerializeField] private float pulseSpeed  = 1.2f;
     [SerializeField] private float pulseAmount = 0.05f;

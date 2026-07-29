@@ -2,11 +2,11 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Estado terminal: el Nemesis alcanzo al jugador.
+/// Terminal state: the Nemesis reached the player.
 ///
-/// Deshabilita al jugador, encara a los dos y arranca la cuenta regresiva que termina
-/// en la pantalla de derrota. No transiciona a ningun otro estado — la partida termina
-/// aca y la escena se recarga desde la UI.
+/// Disables the player, makes both face each other and starts the countdown that ends in
+/// the defeat screen. It does not transition to any other state — the run ends here and
+/// the scene is reloaded from the UI.
 /// </summary>
 public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -24,7 +24,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         player = nemesisStateManager.FieldOfView.GetCurrentTarget();
         if (player == null)
         {
-            Debug.LogWarning("[NemesisCatchState] Se entro a Catch sin target — no hay a quien capturar.");
+            Debug.LogWarning("[NemesisCatchState] Entered Catch without a target — there is nobody to capture.");
             return;
         }
 
@@ -32,14 +32,14 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         FaceEachOther();
         nemesisStateManager.AnimController.SetBool("isCatching", true);
 
-        // Espera la animacion y despues abre la pantalla de derrota.
+        // Waits for the animation and then opens the defeat screen.
         nemesisStateManager.ReportCaptureLoss().Forget();
     }
 
     /// <summary>
-    /// Encara al Nemesis y al jugador entre si, solo en yaw.
-    /// Transform.LookAt rota en los 3 ejes, asi que con desnivel entre los dos los
-    /// inclinaba hacia adelante o atras.
+    /// Makes the Nemesis and the player face each other, yaw only.
+    /// Transform.LookAt rotates on all 3 axes, so with a height difference between the two
+    /// it tilted them forwards or backwards.
     /// </summary>
     private void FaceEachOther()
     {
@@ -49,7 +49,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         Vector3 toPlayer = playerTransform.position - nemesis.position;
         toPlayer.y = 0f;
 
-        if (toPlayer.sqrMagnitude <= 0.0001f) return;   // Uno encima del otro: no hay direccion util.
+        if (toPlayer.sqrMagnitude <= 0.0001f) return;   // One on top of the other: no usable direction.
 
         nemesis.rotation         = Quaternion.LookRotation(toPlayer);
         playerTransform.rotation = Quaternion.LookRotation(-toPlayer);
@@ -68,21 +68,21 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void OnTriggerEnter(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        
+
     }
 
     public override void UpdateState()
     {
-        
+
     }
 }

@@ -5,12 +5,12 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// VIEW de una fila de ítem en la lista del inventario.
-/// 
-/// Responsabilidades:
-///   - Mostrar icono, nombre y dot de color según categoría
-///   - Mostrar borde izquierdo rojo cuando está seleccionado
-///   - Notificar el click al Controller a través de un callback
+/// VIEW of a single item row in the inventory list.
+///
+/// Responsibilities:
+///   - Show the icon, name and color dot for the category
+///   - Show the red left border when selected
+///   - Notify the Controller of the click through a callback
 /// </summary>
 public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHandler
 {
@@ -31,7 +31,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     [Header("Colors")]
     [SerializeField] private Color idleFillColor = Color.clear;
     [SerializeField] private Color selectedFillColor = Color.white;
-    // ── Estado ────────────────────────────────────────────────────────────────
+    // ── State ─────────────────────────────────────────────────────────────────
 
     private Action<SO_InventoryItem> onClicked;
 
@@ -71,11 +71,11 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
         TickVisuals();
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Configura el slot con un ítem y registra el callback de click.
-    /// Llamado por InventoryView al refrescar la lista.
+    /// Configures the slot with an item and registers the click callback.
+    /// Called by InventoryView when refreshing the list.
     /// </summary>
     public void Setup(SO_InventoryItem item, Action<SO_InventoryItem> clickCallback)
     {
@@ -181,7 +181,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
         targetFill = isSelected ? 1f : 0f;
     }
 
-    // ── Privados ──────────────────────────────────────────────────────────────
+    // ── Private ───────────────────────────────────────────────────────────────
 
     private void TickVisuals()
     {

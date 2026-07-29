@@ -26,7 +26,7 @@ public class ValveInteractable : BaseRangeInteractable
 
         if (valveData == null)
         {
-            Debug.LogError($"ValveInteractable sin SO_ValveData en {gameObject.name}");
+            Debug.LogError($"ValveInteractable without SO_ValveData on {gameObject.name}");
             return;
         }
 
@@ -45,7 +45,7 @@ public class ValveInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (valveData == null) return "Válvula sin configurar";
+        if (valveData == null) return "Unconfigured valve";
         return valveData.PromptText;
     }
 
@@ -84,7 +84,7 @@ public class ValveInteractable : BaseRangeInteractable
             }
         }
 
-        Debug.Log($"Válvula {valveData.ValveId} en posición {nextPosition}");
+        Debug.Log($"Valve {valveData.ValveId} at position {nextPosition}");
     }
 
     public override bool IsRepeatable()

@@ -35,7 +35,7 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         InteractionEvents.OnTargetChanged -= HandleTargetChanged;
     }
 
-    // ── API pública ──────────────────────────────────────────────────────────
+    // ── Public API ───────────────────────────────────────────────────────────
 
     public void Open(SO_DocumentData data)
     {
@@ -44,8 +44,8 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         model.SetDocument(data);
         view.Populate(data);
 
-        // Guardamos qué interactable abrió este documento para que el auto-close
-        // sepa cuándo realmente "salimos" de su rango.
+        // We store which interactable opened this document so the auto-close knows
+        // when we have really "left" its range.
         openingTarget = InteractionManager.Exists
             ? InteractionManager.Instance.CurrentInteractable
             : null;
@@ -53,7 +53,7 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         OpenSafe().Forget();
     }
 
-    // ── Hooks BaseScreenController ───────────────────────────────────────────
+    // ── BaseScreenController hooks ───────────────────────────────────────────
 
     protected override void OnBeforeOpen()
     {
@@ -68,19 +68,20 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
-    // ── Auto-close por cambio de target ──────────────────────────────────────
+    // ── Auto-close on target change ──────────────────────────────────────────
 
     private void HandleTargetChanged(IInteractable newTarget)
     {
         if (!isOpen) return;
 
-        // Si el InteractionManager dejo de apuntar al note que abrió este documento,
-        // (sea porque el player se alejó, sea porque ahora mira otra cosa), cerramos.
+        // If the InteractionManager stopped pointing at the note that opened this document
+        // (either because the player walked away, or because they are now looking at
+        // something else), we close it.
         if (!ReferenceEquals(newTarget, openingTarget))
             CloseSafe().Forget();
     }
 
-    // ── Helpers async ────────────────────────────────────────────────────────
+    // ── Async helpers ────────────────────────────────────────────────────────
 
     private async UniTaskVoid OpenSafe()
     {

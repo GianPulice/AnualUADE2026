@@ -26,6 +26,6 @@ public class ValvePuzzleController : MonoBehaviour
         if (valvePuzzleData.RewardItem != null)
             InventoryManager.Instance.AddItem(valvePuzzleData.RewardItem);
 
-        Debug.Log($"Puzzle de válvulas completado: {valvePuzzleData.PuzzleId}");
+        Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
     }
 }

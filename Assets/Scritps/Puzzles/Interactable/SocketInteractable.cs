@@ -13,7 +13,7 @@ public class SocketInteractable : BaseRangeInteractable
     public override string GetInteractText()
     {
         if (socketData == null || socketData.RequiredItem == null) return string.Empty;
-        if (IsInserted) return $"{socketData.RequiredItem.ItemName} insertado";
+        if (IsInserted) return $"{socketData.RequiredItem.ItemName} inserted";
         return socketData.GetPromptText();
     }
 
@@ -22,7 +22,7 @@ public class SocketInteractable : BaseRangeInteractable
         if (socketData == null || socketData.RequiredItem == null) return string.Empty;
         if (IsInserted) return string.Empty;
         if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
-            return $"Necesitas {socketData.RequiredItem.ItemName}";
+            return $"You need {socketData.RequiredItem.ItemName}";
         return string.Empty;
     }
 
@@ -44,7 +44,7 @@ public class SocketInteractable : BaseRangeInteractable
 
         NotifyLinkedPuzzle();
 
-        Debug.Log($"Socket insertado: {socketData.SocketId}");
+        Debug.Log($"Socket inserted: {socketData.SocketId}");
     }
 
     private void NotifyLinkedPuzzle()

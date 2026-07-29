@@ -25,13 +25,13 @@ public class FieldOfListenig : MonoBehaviour
     void Update()
     {
         if (currentTimer < listenDelay) currentTimer += Time.deltaTime;
-        else 
+        else
         {
             currentTimer = 0;
             ListenTargets();
         }
     }
-    private void ListenTargets() 
+    private void ListenTargets()
     {
         listenedTargets.Clear();
         Collider[] targetsInListenRadius = Physics.OverlapSphere(transform.position, listenRange, listenMask);
@@ -39,7 +39,7 @@ public class FieldOfListenig : MonoBehaviour
         {
             if (!listenedTargets.Contains(targetsInListenRadius[i].gameObject)) listenedTargets.Add(targetsInListenRadius[i].gameObject);
         }
-        if(listenedTargets.Count > 0) 
+        if(listenedTargets.Count > 0)
         {
             hasAudioTarget = true;
             lastKnownPosition = listenedTargets[0].transform.position;

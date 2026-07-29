@@ -6,6 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **WIRED** — a Unity 6 (6000.x LTS) first-person survival horror game with a PSX aesthetic. Render pipeline: **URP 17.4.0**, Compatibility mode. All game scripts live under `Assets/Scritps/` (note the typo in the folder name — this is intentional and consistent throughout the project).
 
+## Language rule (hard requirement)
+
+**All code is written in English.** This covers, without exception:
+
+- Comments — inline `//`, block `/* */`, and XML doc comments (`/// <summary>`).
+- String literals — `Debug.Log`/`LogWarning`/`LogError` messages, `[Header]` and `[Tooltip]`
+  attributes, `[CreateAssetMenu]` and `[ContextMenu]` labels, and **player-facing text**
+  (interaction prompts, UI labels, save-slot descriptions).
+- Identifiers — class, method, field and local names.
+
+The whole of `Assets/Scritps/` was migrated to English. Do not reintroduce Spanish in code,
+including in new files. Team-facing documentation under `docs/` stays in Spanish (except this
+file) — the rule applies to code, not to docs.
+
+Files must be saved as **UTF-8**. A previous non-UTF-8 save corrupted accented characters
+across the codebase (`V�lvula`, `M�dulos`); the English migration removed those, but check
+your editor's encoding before committing.
+
 ## Development
 
 This is a Unity project. There are no CLI build commands. All compilation, scene editing, and testing happen inside the **Unity Editor**. Open the project by launching Unity Hub and selecting the repo root. The Editor auto-compiles on file save.
@@ -69,7 +87,7 @@ Communication between systems in different scenes uses **static C# events**. Key
 | Event | Dispatcher | Consumers |
 |---|---|---|
 | `PauseManager.OnPauseStateChanged` | PauseManager | PauseManagerUI |
-| `GameResultManager.OnGameResult` | GameResultManager | WinController, LoseController |
+| `GameResultManager.OnGameResult` | GameResultManager | WinController, ResultScreenController |
 | `SettingsModel.OnSettingsApplied` | SettingsModel | CameraSensitivityApplier |
 | `NemesisEvents.OnChaseStarted/Ended` | NemesisStateManager | VignetteChaseView |
 | `NemesisEvents.OnProximityChanged` | NemesisStateManager | VignetteProximityView |
@@ -90,7 +108,13 @@ if (PauseManager.IsGameplayInputBlocked) return;
 
 ### Interactable System
 
-`IInteractable` (`Scritps/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetInteractText()`, `GetInfoText()`. `BaseRangeInteractable` implements trigger-based registration with `InteractionManager`. The manager detects the nearest visible interactable each frame and fires `InteractionEvents.TargetChanged(interactable)` when the target changes. Key `[E]` is processed in `InteractionManager.Interact()` with a 0.2s cooldown.
+`IInteractable` (`Scritps/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetInteractText()`, `GetInfoText()`.
+
+Detection is a **camera SphereCast**, not trigger registration: `InteractionManager.RaycastForInteractable()` casts from `Camera.main` forward with `SO_InteractionManager.InteractionDistance`, a 0.1 radius, against `InteractableLayers | BlockingLayers`. It resolves the `IInteractable` on the hit collider or its parents; if the first hit has none, it is a wall and nothing is targeted. `BaseRangeInteractable` no longer registers anything — it only describes *what* the interaction is. Each interactable needs a Collider on itself or on a child in the Interactable layer so the cast has something to hit.
+
+The manager fires `InteractionEvents.TargetChanged(interactable)` when the target changes. Key `[E]` is processed in `InteractionManager.Interact()` with a 0.2s cooldown.
+
+Selection is by **first hit along the ray**, with no dot-product priority when several interactables overlap — see `docs/TODO-UI.md` · Interaction Prompt.
 
 ### Visual Systems
 
@@ -124,4 +148,34 @@ Async operations (scene load/unload, UI transitions) use **UniTask** (`Cysharp.T
 
 **GameResultManager**: call `GameResultManager.ResetSession()` at the start of each gameplay session, otherwise a second Win/Lose cannot be reported (static `_resultReported` guard).
 
-**Settings placeholders**: `SettingsModel` has fields for Brightness, Contrast, Gamma, CRT scanlines, Resolution, VSync, and Invert Y already wired to PlayerPrefs, but no system reads them yet. Connect them without changing the model shape.
+**Settings appliers**: `SettingsModel` persists every field to PlayerPrefs and raises `OnSettingsApplied`. The appliers that consume those keys already exist and are wired:
+
+| Keys | Applier |
+|---|---|
+| `Settings_Sensitivity`, `Settings_InvertYAxis` | `CameraSensitivityApplier` (on the camera rig) |
+| `Settings_Brightness`, `Settings_Contrast`, `Settings_Gamma` | `PostProcessSettingsApplier` (on the URP global Volume) |
+| `Settings_CRTScanlines`, `Settings_PSXDithering` | `PS1EffectApplier` (holds `PS1Effect.mat`) |
+| `Settings_ResolutionIndex`, `Settings_WindowMode`, `Settings_FPSLimit`, `Settings_VSync` | `ScreenSettingsApplier` (persistent GameObject) |
+| `Settings_AudioInBackground` | `AudioBackgroundApplier` (persistent GameObject) |
+| `Settings_MasterVolume`, `Settings_MusicVolume`, `Settings_SFXVolume` | `AudioManager` (applied live by the setters, not on Apply) |
+
+Still unconnected: keybind rebinding (`SettingsPanelControlsView` shows static labels), and `Settings_VHSGlitch` (read by `GlitchController` but not exposed in the Options UI yet).
+
+## Current state — what is and is not wired
+
+The systems below are **implemented but not connected to anything**. Read this before assuming a feature works end to end.
+
+- **Module timers never start.** `InventoryManagerUI.StartModuleTimer()` and `ResolveModule()` have zero callers, so `ModuleData.Status` stays `Inactive` and `TickModuleTimers` is a no-op. Nothing downstream fires: no `ModuleExploded`, no `BlindnessOverlayView`, no `CheckGameOver` → `ReportGameOver`.
+- **There is no win condition.** `GameResultManager.ReportWin` is only called from `WinLoseTest.cs` (debug key `I`). The only reachable ending is the Nemesis catching you.
+- **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** Only `SequencePanelInteractable` (SP1) completes itself, writing straight to `PuzzleStateManager` and bypassing `PuzzleController`.
+- **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
+- **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
+- **Doors animate open but stay solid**: `DoorInteractable.DisableBlockingCollider()` is commented out in both call sites.
+- **Audio is silent.** `AudioManager` is fully built but the only sound played anywhere is `PlaySFX("PickUpInteractable")`. No footsteps, music, ambience, Nemesis or UI audio.
+- **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers; `PuzzleStateManager` has no serialization at all.
+- **Retry does not reset run state.** `InventoryManager` and `PuzzleStateManager` are `DontDestroyOnLoad` with no `Clear()`, and `GameResultManager.ResetSession()` only resets the result flag — a retry keeps every collected item and completed puzzle.
+- **`EPlayerState.InDanger`** is in the enum but never registered in the state dictionary; transitioning to it would throw `KeyNotFound`. `PlayerHiddenState` is inert (no collider/visibility change) and is toggled by debug keys `R`/`T`/`Y` still live in `PlayerStateManager.InputUpdate`.
+- **Nemesis `OnTrigger*` throws.** Patrol, Investigating and Searching states `throw new NotImplementedException()` in their trigger overrides, and `StateManager` forwards trigger callbacks to the active state.
+- **Most of `SO_NemesisMovement` is unused** — only `PatrolSpeed` and `ChaseSpeed` are ever assigned to the NavMeshAgent. `SO_NemesisData.InvestigationTimeOut` and `NoiseUpdateCooldown` are never read.
+- **Two parallel unfinished grab/push implementations**: `GrabbableBall` + `PushBoxTriggerLogic` (active) and `PushableBall` (its `FixedUpdate` is entirely commented out). `GrabbableBall` reads `KeyCode.E` with no `PauseManager.IsGameplayInputBlocked` guard.
+- **Debug scripts still ship in the game folder**: `WinLoseTest.cs`, `TestClick.cs`, `Editor/TestSceneBuilder.cs`.

@@ -1,12 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Aplica la preferencia "Audio in background" leyendo Settings_AudioInBackground.
-/// Maneja Application.runInBackground (juego sigue corriendo sin foco) y
-/// AudioListener.pause (audio audible sin foco). Los dos van juntos en Standalone;
-/// en Mobile, runInBackground no tiene efecto.
+/// Applies the "Audio in background" preference by reading Settings_AudioInBackground.
+/// Handles Application.runInBackground (the game keeps running without focus) and
+/// AudioListener.pause (audio stays audible without focus). Both go together on Standalone;
+/// on Mobile, runInBackground has no effect.
 ///
-/// Colocar este componente en un GameObject persistente (ej. el del AudioManager).
+/// Place this component on a persistent GameObject (e.g. the AudioManager's).
 /// </summary>
 public class AudioBackgroundApplier : MonoBehaviour
 {

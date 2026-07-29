@@ -5,14 +5,14 @@ public class DoorInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DoorData doorData;
 
-    [Header("Animacion de apertura (doble puerta)")]
-    [Tooltip("Panel izquierdo. Se desliza hacia -X (su izquierda local).")]
+    [Header("Opening animation (double door)")]
+    [Tooltip("Left panel. Slides towards -X (its local left).")]
     [SerializeField] private Transform leftPanel;
-    [Tooltip("Panel derecho. Se desliza hacia +X (su derecha local).")]
+    [Tooltip("Right panel. Slides towards +X (its local right).")]
     [SerializeField] private Transform rightPanel;
-    [Tooltip("Distancia que se desliza cada panel al abrirse, en unidades locales.")]
+    [Tooltip("Distance each panel slides when opening, in local units.")]
     [SerializeField, Min(0f)] private float slideDistance = 1f;
-    [Tooltip("Duracion total del deslizamiento, en segundos.")]
+    [Tooltip("Total duration of the slide, in seconds.")]
     [SerializeField, Min(0.01f)] private float slideDuration = 0.6f;
 
     private Vector3 leftClosedLocalPos;
@@ -26,7 +26,7 @@ public class DoorInteractable : BaseRangeInteractable
 
         if (doorData == null)
         {
-            Debug.LogError($"DoorInteractable sin SO_DoorData en {gameObject.name}");
+            Debug.LogError($"DoorInteractable without SO_DoorData on {gameObject.name}");
             return;
         }
 
@@ -40,12 +40,12 @@ public class DoorInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (doorData == null) return "Puerta sin configurar";
+        if (doorData == null) return "Unconfigured door";
 
         if (isOpen) return string.Empty;
 
         if (doorData.RequiredKey != null)
-            return $"Abrir con {doorData.RequiredKey.ItemName}";
+            return $"Open with {doorData.RequiredKey.ItemName}";
 
         return doorData.OpenPrompt;
     }
@@ -56,7 +56,7 @@ public class DoorInteractable : BaseRangeInteractable
 
         if (doorData.RequiredKey != null &&
             !InventoryManager.Instance.HasItem(doorData.RequiredKey))
-            return $"Necesitas {doorData.RequiredKey.ItemName}";
+            return $"You need {doorData.RequiredKey.ItemName}";
 
         if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
             !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
@@ -102,7 +102,7 @@ public class DoorInteractable : BaseRangeInteractable
 
         StartCoroutine(AnimateOpen());
 
-        Debug.Log($"Puerta abierta: {doorData.DoorId}");
+        Debug.Log($"Door opened: {doorData.DoorId}");
     }
 
     private IEnumerator AnimateOpen()

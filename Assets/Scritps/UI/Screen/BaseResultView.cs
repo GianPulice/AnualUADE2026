@@ -33,9 +33,9 @@ public abstract class BaseResultView : BaseScreenView
 
     public virtual void SetData(GameResultModel model) { }
 
-    // Visibilidad por boton. Los Set* permiten alternar en runtime (una misma pantalla
-    // que cambia de cara segun el resultado); los Hide* son el atajo de las pantallas
-    // que deciden su layout una sola vez en Awake.
+    // Per-button visibility. The Set* methods allow toggling at runtime (a single screen
+    // that changes its face depending on the result); the Hide* ones are the shortcut for
+    // screens that decide their layout once in Awake.
     protected void SetRetryVisible(bool visible)     => _btnRetry?.gameObject.SetActive(visible);
     protected void SetMainMenuVisible(bool visible)  => _btnMainMenu?.gameObject.SetActive(visible);
     protected void SetNextLevelVisible(bool visible) => _btnNextLevel?.gameObject.SetActive(visible);

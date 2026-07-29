@@ -9,10 +9,10 @@ public class SO_NemesisData : ScriptableObject
     [SerializeField] private float patrolWaypointWaitTime;
     [SerializeField] private float noiseUpdateCooldown;
 
-    [Header("Feedback al jugador")]
-    [Tooltip("Distancia a la que empieza a notarse la vignette de proximidad. Independiente " +
-             "del rango de vision: la tension tiene que subir aunque el Nemesis no te haya visto. " +
-             "Conviene un poco mas que el viewRange del FieldOfView (10 en el prefab).")]
+    [Header("Player feedback")]
+    [Tooltip("Distance at which the proximity vignette starts to show. Independent of the " +
+             "vision range: tension has to rise even if the Nemesis has never seen you. " +
+             "A bit larger than the FieldOfView's viewRange (10 in the prefab) works well.")]
     [SerializeField] private float proximityRadius = 12f;
 
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }

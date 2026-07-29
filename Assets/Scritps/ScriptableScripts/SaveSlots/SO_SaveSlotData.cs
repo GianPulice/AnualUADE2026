@@ -6,9 +6,9 @@ using UnityEngine;
 public enum ModuleSlotStatus { Inactive, Active, Resolved }
 
 /// <summary>
-/// Una entrada de módulo dentro del save. Refleja la estructura del ModuleManager real:
-/// el moduleId mapea con <c>ModuleData.ModuleID</c>, el timeRemaining permite reconstruir
-/// el countdown al cargar la partida.
+/// A module entry inside the save. Mirrors the structure of the real ModuleManager:
+/// moduleId maps to <c>ModuleData.ModuleID</c>, and timeRemaining allows the countdown
+/// to be rebuilt when loading the game.
 /// </summary>
 [System.Serializable]
 public struct ModuleSaveEntry
@@ -22,33 +22,33 @@ public struct ModuleSaveEntry
 [CreateAssetMenu(fileName = "SO_SaveSlot", menuName = "Scriptable Objects/SaveSlots/Save Slot Data")]
 public class SO_SaveSlotData : ScriptableObject
 {
-    [Header("Identidad")]
+    [Header("Identity")]
     [SerializeField] private int slotIndex = 1;
     [SerializeField] private bool isEmpty = true;
 
-    [Header("Display (lo que muestra la card)")]
-    [SerializeField] private string zoneName = "Zona Restringida";
+    [Header("Display (what the card shows)")]
+    [SerializeField] private string zoneName = "Restricted Area";
     [SerializeField] private float playTimeSeconds = 0f;
 
-    [Header("Timestamp del save")]
-    [Tooltip("ISO 8601 UTC. El cálculo de \"hace X min\" se hace en runtime. Vacío = nunca guardado.")]
+    [Header("Save timestamp")]
+    [Tooltip("ISO 8601 UTC. The \"X min ago\" calculation is done at runtime. Empty = never saved.")]
     [SerializeField] private string lastSavedIso = string.Empty;
 
-    [Header("Progresión (preparado para conectar con ModuleManager)")]
-    [Tooltip("Lista de módulos del piso. La card muestra los primeros 3 como pips.")]
+    [Header("Progression (ready to connect with the ModuleManager)")]
+    [Tooltip("List of modules on the floor. The card shows the first 3 as pips.")]
     [SerializeField] private List<ModuleSaveEntry> modules = new List<ModuleSaveEntry>();
 
-    [Header("Placeholders para save real futuro (sin uso visual hoy)")]
-    [Tooltip("ID de la zona/sala actual del player. Hoy sin uso.")]
+    [Header("Placeholders for the future real save (no visual use today)")]
+    [Tooltip("ID of the player's current zone/room. Unused today.")]
     [SerializeField] private string currentZoneId = string.Empty;
-    [Tooltip("Items recogidos. Hoy sin uso — la card no los muestra.")]
+    [Tooltip("Collected items. Unused today — the card does not show them.")]
     [SerializeField] private List<string> collectedItemIds = new List<string>();
-    [Tooltip("Puzzles completados (mapea con PuzzleStateManager). Hoy sin uso.")]
+    [Tooltip("Completed puzzles (maps to PuzzleStateManager). Unused today.")]
     [SerializeField] private List<string> completedPuzzleIds = new List<string>();
-    [Tooltip("Sockets con item insertado (mapea con PuzzleStateManager). Hoy sin uso.")]
+    [Tooltip("Sockets with an item inserted (maps to PuzzleStateManager). Unused today.")]
     [SerializeField] private List<string> insertedSocketIds = new List<string>();
 
-    // ── Getters públicos ───────────────────────────────────────────────────
+    // ── Public getters ─────────────────────────────────────────────────────
 
     public int SlotIndex => slotIndex;
     public bool IsEmpty => isEmpty;
@@ -73,8 +73,8 @@ public class SO_SaveSlotData : ScriptableObject
     }
 
     /// <summary>
-    /// "hace 12 min", "hace 2 días", etc., calculado a partir de <see cref="LastSavedIso"/>.
-    /// Si el ISO es inválido o vacío, retorna "—".
+    /// "12 min ago", "2 days ago", etc., computed from <see cref="LastSavedIso"/>.
+    /// If the ISO string is invalid or empty, returns "—".
     /// </summary>
     public string GetRelativeSavedDescription()
     {
@@ -84,10 +84,10 @@ public class SO_SaveSlotData : ScriptableObject
             return "—";
 
         TimeSpan elapsed = DateTime.UtcNow - savedUtc;
-        if (elapsed.TotalSeconds < 60) return "hace segundos";
-        if (elapsed.TotalMinutes < 60) return $"hace {(int)elapsed.TotalMinutes} min";
-        if (elapsed.TotalHours < 24)   return $"hace {(int)elapsed.TotalHours} h";
-        if (elapsed.TotalDays < 7)     return $"hace {(int)elapsed.TotalDays} días";
-        return $"hace {(int)(elapsed.TotalDays / 7)} semanas";
+        if (elapsed.TotalSeconds < 60) return "seconds ago";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes} min ago";
+        if (elapsed.TotalHours < 24)   return $"{(int)elapsed.TotalHours} h ago";
+        if (elapsed.TotalDays < 7)     return $"{(int)elapsed.TotalDays} days ago";
+        return $"{(int)(elapsed.TotalDays / 7)} weeks ago";
     }
 }

@@ -23,7 +23,7 @@ public class BasketTrigger : MonoBehaviour
 
         NotifyPuzzleController();
 
-        Debug.Log($"Canasto {basketId} detecto pelota {ball.BallId}");
+        Debug.Log($"Basket {basketId} detected ball {ball.BallId}");
     }
 
     private void OnTriggerExit(Collider other)
@@ -41,7 +41,7 @@ public class BasketTrigger : MonoBehaviour
 
         NotifyPuzzleController();
 
-        Debug.Log($"Pelota {ball.BallId} salio del canasto {basketId}");
+        Debug.Log($"Ball {ball.BallId} left basket {basketId}");
     }
 
     private void NotifyPuzzleController()

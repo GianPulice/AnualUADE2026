@@ -1,33 +1,34 @@
 using UnityEngine;
 
 /// <summary>
-/// Trigger volume que activa un <see cref="SO_VisionFogConfig"/> mientras el player
-/// está adentro. Cuando sale, el controller vuelve al config anterior (o al default
-/// del controller si no había anidamiento).
+/// Trigger volume that activates a <see cref="SO_VisionFogConfig"/> while the player is
+/// inside. When they leave, the controller falls back to the previous config (or to the
+/// controller's default if there was no nesting).
 ///
 /// Setup:
-///   1. GameObject vacío en la escena de gameplay.
-///   2. Agregar BoxCollider (u otro Collider) con <c>Is Trigger = true</c>.
-///   3. Agregar este componente.
-///   4. Asignar el <see cref="config"/> con el preset deseado para esta zona.
+///   1. Empty GameObject in the gameplay scene.
+///   2. Add a BoxCollider (or another Collider) with <c>Is Trigger = true</c>.
+///   3. Add this component.
+///   4. Assign <see cref="config"/> with the preset wanted for this area.
 ///
-/// Anidamiento: si una LightZone B está dentro de una LightZone A, el player entra a A,
-/// después entra a B. El controller mantiene un stack — mientras está en B, aplica B.
-/// Cuando sale de B, vuelve a A. Cuando sale de A, vuelve al default.
+/// Nesting: if LightZone B is inside LightZone A, the player enters A, then enters B.
+/// The controller keeps a stack — while in B, it applies B. When leaving B, it goes back
+/// to A. When leaving A, it goes back to the default.
 ///
-/// El controller se busca por <see cref="UnityEngine.Object.FindFirstObjectByType"/> al
-/// primer trigger. Si no existe en la escena, se loguea error y el trigger no hace nada.
+/// The controller is looked up with <see cref="UnityEngine.Object.FindFirstObjectByType"/>
+/// on the first trigger. If it does not exist in the scene, an error is logged and the
+/// trigger does nothing.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class LightZone : MonoBehaviour
 {
-    [Header("Config aplicada al entrar")]
-    [Tooltip("Preset del fog para esta zona. Por ejemplo: SafeRoom (visión amplia, " +
-             "color cálido), o BossArena (visión corta, atmósfera tensa).")]
+    [Header("Config applied on enter")]
+    [Tooltip("Fog preset for this area. For example: SafeRoom (wide vision, " +
+             "warm color), or BossArena (short vision, tense atmosphere).")]
     [SerializeField] private SO_VisionFogConfig config;
 
-    [Header("Detección")]
-    [Tooltip("Tag del GameObject que dispara el trigger. Default: Player.")]
+    [Header("Detection")]
+    [Tooltip("Tag of the GameObject that fires the trigger. Default: Player.")]
     [SerializeField] private string playerTag = "Player";
 
     private VisionRangeController _controller;
@@ -35,7 +36,7 @@ public class LightZone : MonoBehaviour
 
     private void Reset()
     {
-        // Cuando se agrega el componente al GameObject, asegurar que el Collider sea trigger.
+        // When the component is added to the GameObject, make sure the Collider is a trigger.
         Collider col = GetComponent<Collider>();
         if (col != null) col.isTrigger = true;
     }
@@ -47,7 +48,7 @@ public class LightZone : MonoBehaviour
 
     private void OnDisable()
     {
-        // Si el player estaba adentro y la zona se desactiva, pop manual para no dejar el config colgado.
+        // If the player was inside and the zone is disabled, pop manually so the config is not left hanging.
         if (_isPlayerInside && _controller != null)
         {
             _controller.PopConfig(config);
@@ -58,7 +59,7 @@ public class LightZone : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag(playerTag)) return;
-        if (_isPlayerInside) return; // protección contra triggers duplicados
+        if (_isPlayerInside) return; // guard against duplicate triggers
 
         if (_controller == null) AcquireController();
         if (_controller == null || config == null) return;
@@ -84,13 +85,13 @@ public class LightZone : MonoBehaviour
         _controller = FindFirstObjectByType<VisionRangeController>();
         if (_controller == null)
         {
-            Debug.LogWarning($"[{nameof(LightZone)}] No se encontró VisionRangeController en escena. " +
-                             $"La zona '{name}' no va a hacer nada.");
+            Debug.LogWarning($"[{nameof(LightZone)}] No VisionRangeController was found in the scene. " +
+                             $"Zone '{name}' will do nothing.");
         }
     }
 
 #if UNITY_EDITOR
-    // Visualización del trigger en Scene view, color según el fog color del config.
+    // Trigger visualization in the Scene view, colored from the config's fog color.
     private void OnDrawGizmos()
     {
         Collider col = GetComponent<Collider>();

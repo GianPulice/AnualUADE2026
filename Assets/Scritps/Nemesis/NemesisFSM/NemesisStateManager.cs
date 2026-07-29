@@ -15,16 +15,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private List<Transform> wayPoints = new List<Transform>();
     [SerializeField] private Animator animController;
 
-    [Header("Captura")]
-    [Tooltip("Segundos entre que el Nemesis te agarra y aparece la pantalla de derrota. " +
-             "Le da tiempo a la animacion de captura antes de cortar a la UI.")]
+    [Header("Capture")]
+    [Tooltip("Seconds between the Nemesis grabbing you and the defeat screen appearing. " +
+             "Gives the capture animation time to play before cutting to the UI.")]
     [SerializeField] private float captureDelay = 1.5f;
 
-    [Header("Feedback al jugador (vignettes del HUD)")]
-    [Tooltip("Tag del GameObject del player. Se busca en runtime porque vive en otra escena.")]
+    [Header("Player feedback (HUD vignettes)")]
+    [Tooltip("Tag of the player GameObject. Looked up at runtime because it lives in another scene.")]
     [SerializeField] private string playerTag = "Player";
 
-    [Tooltip("Cada cuántos frames re-buscar al player si todavía no apareció.")]
+    [Tooltip("How many frames between re-searching for the player while it has not shown up yet.")]
     [SerializeField, Min(1)] private int playerSearchEveryNFrames = 30;
 
     private bool hasVisualTarget = false;
@@ -45,7 +45,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
 
-    public enum ENemesisState 
+    public enum ENemesisState
     {
         Patrolling,
         Investigating,
@@ -77,25 +77,25 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private void OnDisable()
     {
-        // Si el Nemesis se apaga persiguiendo, la vignette roja se quedaria prendida
-        // encima del HUD para siempre.
+        // If the Nemesis is switched off while chasing, the red vignette would stay lit
+        // on top of the HUD forever.
         if (!wasBeingChased) return;
         wasBeingChased = false;
         NemesisEvents.ChaseEnded();
     }
 
-    // ── Feedback al jugador ──────────────────────────────────────────────────
+    // ── Player feedback ──────────────────────────────────────────────────────
     //
-    // Las dos vignettes del HUD (VignetteChaseView / VignetteProximityView) escuchan
-    // NemesisEvents. Se emite desde aca, y no desde cada estado, para tener la logica
-    // de "me estan persiguiendo" en un solo lugar.
+    // The two HUD vignettes (VignetteChaseView / VignetteProximityView) listen to
+    // NemesisEvents. They are raised from here, and not from each state, to keep the
+    // "I am being chased" logic in a single place.
 
     /// <summary>
-    /// Intensidad de la vignette de proximidad: 0 fuera de rango, 1 encima del jugador.
+    /// Intensity of the proximity vignette: 0 out of range, 1 right on top of the player.
     ///
-    /// Usa la posicion real del player y no FieldOfView.LastKnownPosition porque la
-    /// proximidad tiene que subir aunque el Nemesis no te haya visto nunca — es
-    /// justamente el aviso de que lo tenes cerca sin saberlo.
+    /// Uses the player's real position rather than FieldOfView.LastKnownPosition because
+    /// proximity has to rise even if the Nemesis has never seen you — that is exactly the
+    /// warning that it is close by without you knowing.
     /// </summary>
     private void EmitProximity()
     {
@@ -121,11 +121,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     }
 
     /// <summary>
-    /// Dispara ChaseStarted/ChaseEnded al entrar y salir del conjunto "te esta cazando".
+    /// Raises ChaseStarted/ChaseEnded when entering and leaving the "it is hunting you" set.
     ///
-    /// Catch entra en el conjunto a proposito: si se cortara al salir de Chasing, la
-    /// vignette roja se apagaria justo en el frame en que te agarra, que es cuando mas
-    /// tiene que estar.
+    /// Catch is part of the set on purpose: if it were cut when leaving Chasing, the red
+    /// vignette would switch off on the very frame it grabs you, which is when it needs to
+    /// be showing the most.
     /// </summary>
     private void EmitChaseTransitions()
     {
@@ -143,20 +143,20 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private void TryAcquirePlayer()
     {
-        // Escalonado: buscar por tag todos los frames mientras el player no exista es caro.
+        // Staggered: searching by tag every frame while the player does not exist is expensive.
         if (playerSearchCounter++ % playerSearchEveryNFrames != 0) return;
 
         GameObject go = GameObject.FindGameObjectWithTag(playerTag);
         if (go != null) playerTransform = go.transform;
     }
     /// <summary>
-    /// Espera <see cref="captureDelay"/> y reporta la derrota. Lo llama NemesisCatchState.
+    /// Waits <see cref="captureDelay"/> and reports the loss. Called by NemesisCatchState.
     ///
-    /// Vive aca y no en el estado porque los BaseState no son MonoBehaviour: hace falta
-    /// un token de cancelacion atado al ciclo de vida del objeto para que la espera no
-    /// siga corriendo si se descarga la escena en el medio.
+    /// It lives here and not in the state because BaseState is not a MonoBehaviour: a
+    /// cancellation token tied to the object's lifecycle is needed so the wait does not
+    /// keep running if the scene is unloaded midway.
     ///
-    /// La espera es unscaled a proposito: la pantalla de resultado pone timeScale en 0.
+    /// The wait is unscaled on purpose: the result screen sets timeScale to 0.
     /// </summary>
     public async UniTaskVoid ReportCaptureLoss()
     {
@@ -164,8 +164,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
                             DelayType.UnscaledDeltaTime,
                             cancellationToken: this.GetCancellationTokenOnDestroy());
 
-        // El InventoryManagerUI es el que lleva el tiempo de sesion y el conteo de modulos,
-        // asi que las stats salgan iguales que en el game over por timers.
+        // InventoryManagerUI is the one tracking session time and module count, so the
+        // stats come out the same as in the timer-driven game over.
         if (InventoryManagerUI.Exists) InventoryManagerUI.Instance.ReportLoss();
         else GameResultManager.ReportLoss(0f, 0);
     }

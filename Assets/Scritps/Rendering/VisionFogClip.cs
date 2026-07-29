@@ -4,8 +4,8 @@ using UnityEngine.Playables;
 using UnityEngine.Timeline;
 
 /// <summary>
-/// Behaviour que vive dentro de un clip de <see cref="VisionFogTrack"/>. Solo transporta
-/// la referencia al preset que representa ese clip — toda la mezcla/blend pasa por
+/// Behaviour that lives inside a <see cref="VisionFogTrack"/> clip. It only carries the
+/// reference to the preset that clip represents — all mixing/blending happens in
 /// <see cref="VisionFogMixerBehaviour"/>.
 /// </summary>
 public class VisionFogBehaviour : PlayableBehaviour
@@ -14,10 +14,10 @@ public class VisionFogBehaviour : PlayableBehaviour
 }
 
 /// <summary>
-/// Clip de Timeline que representa "la niebla se ve como este <see cref="SO_VisionFogConfig"/>
-/// durante este tramo". Pensado para tuning en editor: superponer dos clips en la pista
-/// produce un crossfade automático (Timeline maneja el blend de pesos vía ClipCaps.Blending,
-/// arrastrando las esquinas del clip) sin necesidad de escribir curvas propias.
+/// Timeline clip meaning "the fog looks like this <see cref="SO_VisionFogConfig"/>
+/// during this stretch". Meant for tuning in the editor: overlapping two clips on the track
+/// produces an automatic crossfade (Timeline handles the weight blend via ClipCaps.Blending,
+/// by dragging the clip corners) without having to write custom curves.
 /// </summary>
 [Serializable]
 public class VisionFogClip : PlayableAsset, ITimelineClipAsset

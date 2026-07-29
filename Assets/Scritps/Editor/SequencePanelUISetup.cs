@@ -9,24 +9,24 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Utilidad de editor: arma la UI del panel de secuencia en la escena LevelUI.
+/// Editor utility: builds the sequence panel UI in the LevelUI scene.
 /// Menu: Tools / Puzzle UI / Setup Sequence Panel UI
 ///
-/// Estetica: teclado de seguridad industrial — chasis metalico oscuro, display LCD
-/// ambar, teclas cuadradas con relieve y un LED de estado. Deliberadamente NO usa el
-/// barrido diagonal (ButtonHoverSweepEffect) del resto de la UI: ese es lenguaje de
-/// menu, no de teclado fisico.
+/// Look: industrial security keypad — dark metal chassis, amber LCD display, square
+/// keys with relief and a status LED. It deliberately does NOT use the diagonal sweep
+/// (ButtonHoverSweepEffect) of the rest of the UI: that is menu language, not physical
+/// keypad language.
 ///
-/// ── CUIDADO ──────────────────────────────────────────────────────────────────
-/// Este script es DESTRUCTIVO: borra el canvas existente y lo rehace de cero.
-/// Una vez que el panel esta convertido a prefab y retocado a mano, NO volver a
-/// correrlo o se pierde el trabajo. Sirve para regenerar la base, no para iterar.
+/// ── WARNING ──────────────────────────────────────────────────────────────────
+/// This script is DESTRUCTIVE: it deletes the existing canvas and rebuilds it from scratch.
+/// Once the panel has been turned into a prefab and hand-tweaked, do NOT run it again or
+/// that work is lost. It is meant to regenerate the base, not to iterate.
 /// </summary>
 public static class SequencePanelUISetup
 {
     private const string LevelUIScenePath = "Assets/Scenes/UI/LevelUI.unity";
 
-    // Las mismas dos fuentes que usa el resto de los canvases del juego.
+    // The same two fonts the rest of the game's canvases use.
     private const string FontMonoPath  = "Assets/Font/Share_Tech_Mono/ShareTechMono-Regular SDF.asset";
     private const string FontTitlePath = "Assets/Font/Oswald/static/Oswald-Regular SDF.asset";
 
@@ -115,7 +115,7 @@ public static class SequencePanelUISetup
         chassisRT.sizeDelta = new Vector2(PanelWidth, PanelHeight);
         chassisRT.anchoredPosition = Vector2.zero;
 
-        // Placa interior: el offset contra el chasis es lo que dibuja el bisel.
+        // Inner plate: the offset against the chassis is what draws the bevel.
         GameObject plateGO = New("Plate", chassisGO.transform, uiLayer, typeof(Image), typeof(VerticalLayoutGroup));
         plateGO.GetComponent<Image>().color = ColorPlate;
         RectTransform plateRT = plateGO.GetComponent<RectTransform>();
@@ -129,7 +129,7 @@ public static class SequencePanelUISetup
         vlg.childControlWidth     = true;  vlg.childControlHeight     = true;
         vlg.childForceExpandWidth = true;  vlg.childForceExpandHeight = false;
 
-        // ── Header: titulo + boton de cerrar ───────────────────────────────
+        // ── Header: title + close button ───────────────────────────────────
         GameObject headerGO = New("Header", plateGO.transform, uiLayer, typeof(LayoutElement));
         FixHeight(headerGO.GetComponent<LayoutElement>(), HeaderHeight);
 
@@ -192,8 +192,8 @@ public static class SequencePanelUISetup
         seqText.characterSpacing = 10f;
 
         // ── Teclado ────────────────────────────────────────────────────────
-        // El wrapper centra el grid horizontalmente y absorbe el alto sobrante, para
-        // que el panel tolere 6, 8, 9 o 12 teclas sin retocar constantes.
+        // The wrapper centres the grid horizontally and absorbs the leftover height, so the
+        // panel tolerates 6, 8, 9 or 12 keys without touching constants.
         GameObject gridWrapGO = New("GridWrapper", plateGO.transform, uiLayer,
             typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         LayoutElement wrapLE = gridWrapGO.GetComponent<LayoutElement>();
@@ -215,14 +215,14 @@ public static class SequencePanelUISetup
         grid.childAlignment  = TextAnchor.MiddleCenter;
         grid.constraint      = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = GridColumns;
-        // El fitter deja que el grid crezca solo con la cantidad de teclas que instancia
-        // la View en runtime (antes el tamaño estaba fijado a mano para 4x2).
+        // The fitter lets the grid grow on its own with however many keys the View
+        // instantiates at runtime (the size used to be hardcoded for 4x2).
         ContentSizeFitter fitter = gridGO.GetComponent<ContentSizeFitter>();
         fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
         fitter.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
         RectTransform gridRT = gridGO.GetComponent<RectTransform>();
 
-        // ── Fila de estado: LED + texto ────────────────────────────────────
+        // ── Status row: LED + text ─────────────────────────────────────────
         GameObject statusRowGO = New("StatusRow", plateGO.transform, uiLayer,
             typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         FixHeight(statusRowGO.GetComponent<LayoutElement>(), StatusHeight);
@@ -247,18 +247,18 @@ public static class SequencePanelUISetup
         statusLE.minHeight = StatusHeight; statusLE.preferredHeight = StatusHeight;
         TextMeshProUGUI statusText = statusGO.GetComponent<TextMeshProUGUI>();
         ApplyFont(statusText, fontMono);
-        statusText.text             = "INGRESE LA SECUENCIA";
+        statusText.text             = "ENTER THE SEQUENCE";
         statusText.fontSize         = 16;
         statusText.alignment        = TextAlignmentOptions.Left;
         statusText.color            = ColorTextMuted;
         statusText.characterSpacing = 4f;
 
-        // ── Tecla template (inactiva, fuera del layout) ────────────────────
+        // ── Key template (inactive, outside the layout) ────────────────────
         GameObject btnTemplateGO = New("ButtonTemplate", canvasGO.transform, uiLayer,
             typeof(Image), typeof(Button), typeof(Shadow));
         btnTemplateGO.SetActive(false);
         btnTemplateGO.GetComponent<Image>().color = ColorKeyFill;
-        // Sombra abajo-derecha: relieve de tecla fisica. Reemplaza al Outline azul.
+        // Bottom-right shadow: physical key relief. Replaces the blue Outline.
         Shadow keyBevel = btnTemplateGO.GetComponent<Shadow>();
         keyBevel.effectColor    = ColorKeyBevel;
         keyBevel.effectDistance = new Vector2(3, -3);
@@ -295,8 +295,8 @@ public static class SequencePanelUISetup
         EditorSceneManager.MarkSceneDirty(levelUI);
         EditorSceneManager.SaveScene(levelUI);
 
-        Debug.Log("[SequencePanelUISetup] Keypad armado y guardado en LevelUI. " +
-                  "Convertilo a prefab antes de retocarlo — volver a correr esto lo destruye.");
+        Debug.Log("[SequencePanelUISetup] Keypad built and saved in LevelUI. " +
+                  "Turn it into a prefab before tweaking it — running this again destroys it.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -305,8 +305,8 @@ public static class SequencePanelUISetup
     {
         TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
         if (font == null)
-            Debug.LogWarning($"[SequencePanelUISetup] No se encontró la fuente '{path}'. " +
-                             "El texto va a quedar con la default de TMP (LiberationSans).");
+            Debug.LogWarning($"[SequencePanelUISetup] Font '{path}' was not found. " +
+                             "The text will fall back to TMP's default (LiberationSans).");
         return font;
     }
 
@@ -315,7 +315,7 @@ public static class SequencePanelUISetup
         if (font != null) text.font = font;
     }
 
-    /// <summary>ColorBlock con normal en blanco: el tinte multiplica el color de la Image.</summary>
+    /// <summary>ColorBlock with a white normal: the tint multiplies the Image's color.</summary>
     private static void Tint(Button button, Color highlighted, Color pressed)
     {
         ColorBlock cb = button.colors;
@@ -366,9 +366,9 @@ public static class SequencePanelUISetup
     }
 
     /// <summary>
-    /// Asigna un campo privado/protegido por reflection, buscando también en clases base.
-    /// Necesario porque <c>canvasGroup</c> (en <c>BaseScreenView</c>) y <c>view</c>
-    /// (en <c>BaseScreenController</c>) son protected y declarados en la base.
+    /// Assigns a private/protected field by reflection, also searching in base classes.
+    /// Needed because <c>canvasGroup</c> (in <c>BaseScreenView</c>) and <c>view</c>
+    /// (in <c>BaseScreenController</c>) are protected and declared in the base.
     /// </summary>
     private static void SetPrivateField(object target, string fieldName, object value)
     {
@@ -382,7 +382,7 @@ public static class SequencePanelUISetup
 
         if (field == null)
         {
-            Debug.LogError($"[SequencePanelUISetup] No se encontró el campo '{fieldName}' en {target.GetType().Name} ni en sus bases.");
+            Debug.LogError($"[SequencePanelUISetup] Field '{fieldName}' was not found in {target.GetType().Name} nor in its bases.");
             return;
         }
 
