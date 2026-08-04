@@ -203,7 +203,7 @@ Material:
     m_Ints: []
     m_Floats:
     - GlobalBr: 2.5
-    - Wet_Smoothness: 0.9
+    - Wet_Smoothness: 0.25
     - _AORemapMax: 1
     - _AORemapMin: 0
     - _ATDistance: 1
@@ -345,9 +345,9 @@ Material:
     - _ZWrite: 1
     - basetile: 5
     - basetile2: 10
-    - contrast: 1
-    - maskbr: 0.863
-    - roughness: 1
+    - contrast: 0
+    - maskbr: 1.5
+    - roughness: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}

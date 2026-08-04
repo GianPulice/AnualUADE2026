@@ -27,6 +27,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     public string ModalId => "Inventory";
     public bool ConsumesEscape => true;   // ESC cierra capas del inventario si pausa NO esta arriba
     public bool BlocksPause   => false;   // La pausa es overlay global: puede abrirse encima del inventario
+    public bool PausesGame    => true;
     // RequestClose maneja TODAS las capas del inventario (discard dialog -> doc -> selection -> inventario).
     public void RequestClose() => HandleCancelInput();
 

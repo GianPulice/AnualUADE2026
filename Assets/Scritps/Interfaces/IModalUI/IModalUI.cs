@@ -24,6 +24,12 @@ public interface IModalUI
     /// </summary>
     bool BlocksPause { get; }
 
+    /// <summary>
+    /// true  -> al estar en el stack, UIStateManager pone Time.timeScale = 0.
+    /// false -> no toca el timeScale (el juego sigue corriendo mientras la modal esta abierta).
+    /// </summary>
+    bool PausesGame { get; }
+
     /// <summary>Solicitud de cierre externa (por ejemplo, desde el UIStateManager al desapilar).</summary>
     void RequestClose();
 }

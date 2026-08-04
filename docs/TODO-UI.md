@@ -134,6 +134,8 @@ Implementado en esta iteración:
 
 ## 🧹 Limpieza / refactor menor
 
-- [ ] **`PauseManager.OnEnable/OnDisable` con InputAction** — el `-=` con lambdas crea delegates distintos. Ya está solucionado con `pauseActionHandler` cached. Verificar que no haya regresiones similares.
+- [x] **`PauseManager.OnEnable/OnDisable` con InputAction** — resuelto con `pauseActionHandler` cached. Lambda ya no se pierde en `-=`.
 - [ ] **Editor setup `SequencePanelUISetup.cs`** — depende del refactor reciente del View (BaseScreenView). El `SetPrivateField` ya busca en jerarquía de bases. Si se vuelve a romper, considerar dropear el editor setup y construir el prefab manualmente.
-- [ ] **PausesGame / BlocksMovement en IModalUI** — actualmente `IModalUI` declara `BlocksPause` (si la pausa puede abrirse encima) y `ConsumesEscape` (si ESC va a la modal o a la pausa). Falta una tercera dimensión: "esta modal pausa o no pausa el juego". Sin eso, `DocumentReader` está fuera del sistema modal para no pausar. Cuando haya más casos de "UI no-pausante", evaluar agregar `PausesGame` a IModalUI y respetarlo en `UIStateManager.ApplyModalEnvironment`.
+- [x] **`PausesGame` en IModalUI** — propiedad agregada a la interfaz. `UIStateManager.ApplyModalEnvironment` solo pone `timeScale = 0` si alguna modal en el stack declara `PausesGame = true`. `DocumentReader` integrado al sistema con `PausesGame = false` (tiempo corre, input bloqueado).
+  - ⚠️ **Caveat abierto**: `DocumentReaderController` tiene `ConsumesEscape = true` + `BlocksPause = false`. ESC cierra el documento, pero el `PauseManager` puede disparar en el mismo frame (race condition). Si aparece en testing, cambiar a `BlocksPause = true`.
+- [x] **`GameResultManager.ResetSession()` en flujo real** — se llama ahora en `MainMenuController.HandleNewGame()`. Pendiente: agregar el mismo llamado en `SaveSlotsController` cuando se implemente Load Game.
