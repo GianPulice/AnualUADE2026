@@ -16,6 +16,5 @@ MonoBehaviour:
   acceleration: 8
   rotationSpeed: 8
   crouchSpeedMultiplier: 0.6
-  runNoiseRadius: 5
-  footstepNoiseRadius: 2
-  crouchNoiseRadius: 1
+  footstepNoiseRadius: 0
+  crouchNoiseRadius: 0

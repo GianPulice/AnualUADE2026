@@ -206,13 +206,7 @@ public class UIStateManager : Singleton<UIStateManager>
 
     private void ApplyModalEnvironment()
     {
-        bool anyPauses = false;
-        foreach (IModalUI m in stack)
-        {
-            if (m != null && m.PausesGame) { anyPauses = true; break; }
-        }
-        if (anyPauses) Time.timeScale = 0f;
-
+        Time.timeScale = 0f;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }

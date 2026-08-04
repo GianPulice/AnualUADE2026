@@ -3,7 +3,7 @@ using UnityEngine;
 public class PushableBall : MonoBehaviour
 {
     [SerializeField] private string playerTag = "Player";
-    [SerializeField] private float pushDistance = 1f;
+    [SerializeField] private float pushDistance = 1.3f;
     [SerializeField] private float moveSpeed = 8f;
 
     private Rigidbody rb;
@@ -29,7 +29,7 @@ public class PushableBall : MonoBehaviour
                 StopPushing();
         }
     }
-    /*
+
     private void FixedUpdate()
     {
         if (!isPushing || player == null) return;
@@ -44,7 +44,7 @@ public class PushableBall : MonoBehaviour
         );
 
         rb.MovePosition(newPosition);
-    }*/
+    }
 
     private void OnTriggerEnter(Collider other)
     {

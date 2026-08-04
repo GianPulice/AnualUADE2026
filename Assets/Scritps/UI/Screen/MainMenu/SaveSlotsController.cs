@@ -3,15 +3,26 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Controller del Save Slots canvas. Vive embebido en la escena MainMenuUI.
-/// El canvas empieza desactivado; llamar Show() para abrirlo y Hide() para cerrarlo.
-/// El click en un slot emite OnSlotSelected para que el save system real se conecte.
+/// Controller del Save Slots screen. **Solo visual** — el click en un slot no carga ninguna
+/// escena; emite un evento <see cref="OnSlotSelected"/> + log para que el sistema de save
+/// real se conecte en el futuro sin tocar esta UI.
+///
+/// El botón Back sí está conectado a <c>ScreenEventChannel.RaisePopScreen()</c> para volver
+/// al MainMenu durante testing.
 /// </summary>
 public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlotsModel>
 {
+    [Header("Event Channels")]
+    [SerializeField] private ScreenEventChannel _screenChannel;
+
     [Header("Data")]
     [SerializeField] private SO_SaveSlotDatabase _database;
 
+    /// <summary>
+    /// Disparado cuando el player clickea un slot (sea "cargar" o "nueva"). Hoy ningún
+    /// listener real está conectado — cuando se haga el save system, el GameLoader se
+    /// suscribe a este evento y decide qué hacer según <see cref="SO_SaveSlotData.IsEmpty"/>.
+    /// </summary>
     public event Action<int> OnSlotSelected;
 
     private void Awake()
@@ -30,8 +41,15 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
 
         model.SetDatabase(_database);
 
+        view.gameObject.SetActive(false);
+
         view.OnSlotClicked += HandleSlotClicked;
         view.OnBackClicked += HandleBackClicked;
+    }
+
+    private void Start()
+    {
+        Open().Forget();
     }
 
     private void OnDestroy()
@@ -41,16 +59,12 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
         view.OnBackClicked -= HandleBackClicked;
     }
 
-    public void Show()
+    protected override void OnBeforeOpen()
     {
         view.Populate(model.Slots);
-        Open().Forget();
     }
 
-    public void Hide()
-    {
-        Close().Forget();
-    }
+    // ── Handlers ──────────────────────────────────────────────────
 
     /// <summary>Devuelve el slot por su SlotIndex (1-based), o null si no existe.</summary>
     public SO_SaveSlotData GetSlot(int slotIndex)
@@ -67,5 +81,13 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
         OnSlotSelected?.Invoke(slotIndex);
     }
 
-    private void HandleBackClicked() => Hide();
+    private void HandleBackClicked()
+    {
+        if (_screenChannel == null)
+        {
+            Debug.LogError("[SaveSlotsController] Falta asignar el ScreenEventChannel.");
+            return;
+        }
+        _screenChannel.RaisePopScreen();
+    }
 }

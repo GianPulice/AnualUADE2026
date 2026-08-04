@@ -136,31 +136,32 @@ PauseManager.Update() detecta KeyCode.Escape
 
 Al apretar Continue (o ESC sin UI bloqueante), pasa lo inverso: `model.Unpause()` → evento → `Close()` → `OnBeforeClose()` (`Time.timeScale = 1`, cursor oculto).
 
-### 5.1 Guard de ESC — UIStateManager.IsBlockingPause
+### 5.1 IsBlockingUIOpen — el guard de ESC
 
-`PauseManager.TryToggleFromInput()` **no mantiene ninguna lista manual** de controllers. Delega completamente al `UIStateManager`:
+Hay varios sistemas que escuchan ESC. Para que no se pisen, `PauseManager.Update()` consulta primero si hay otra UI modal abierta:
 
 ```csharp
-private void TryToggleFromInput()
+private static bool IsBlockingUIOpen()
 {
-    if (IsPaused) return;
-    if (UIStateManager.Exists && UIStateManager.Instance.IsBlockingPause) return;
-    Pause();
+    if (SequencePanelUIController.Exists && SequencePanelUIController.Instance.IsOpen) return true;
+    if (InventoryManagerUI.Instance != null && InventoryManagerUI.Instance.IsInventoryOpen) return true;
+    if (DocumentReaderController.Instance != null && DocumentReaderController.Instance.IsOpen) return true;
+    if (SettingsController.Instance != null && SettingsController.Instance.IsOpen) return true;
+    return false;
 }
 ```
 
-`UIStateManager.IsBlockingPause` retorna `true` si alguna modal en el stack declara `BlocksPause = true`. **Cuando agregás una UI modal nueva**, solo necesitás implementar `IModalUI` correctamente y hacer Push/Pop en UIStateManager — no hay lista que mantener manualmente.
+**Cuando agregás una UI modal nueva**, agregala a esta lista. Sino el ESC va a pausar el juego cuando el usuario lo apreta para cerrar tu pantalla.
 
 ### 5.2 Bloqueo de inputs del player
 
 `PauseManager` expone:
 
 ```csharp
-public static bool IsGameplayInputBlocked
-    => (Exists && Instance.IsPaused) || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
+public static bool IsGameplayInputBlocked => Exists && Instance.IsPaused;
 ```
 
-`IsAnyModalOpen` es `true` cuando hay al menos una modal en el stack del `UIStateManager`, **sin importar si tiene `PausesGame = true` o false**. Eso significa que el player queda bloqueado aunque el tiempo no esté pausado (ej: leyendo un documento). Los scripts que lean `Input.*` directamente (movimiento, agarre de objetos, etc.) hacen early return:
+Los scripts que lean `Input.*` directamente (movimiento, agarre de objetos, etc.) hacen early return:
 
 ```csharp
 private void Update()
@@ -261,14 +262,20 @@ Checklist:
 
 1. ¿Vive en escena persistente o pushable? Si necesita ser invocada desde varios contextos, persistente.
 2. Si es persistente: `public static T Instance` + asignar en `Awake`.
-3. `public bool IsOpen` para consultas externas (guards en otros sistemas).
-4. **Implementar `IModalUI`** con las cuatro propiedades y `RequestClose()`:
-   - `ModalId` — string único, para logs y deduplicación.
-   - `ConsumesEscape` — si `true`, el `UIStateManager` llama `RequestClose()` al presionar ESC. Si `false`, ESC pasa al `PauseManager`.
-   - `BlocksPause` — si `true`, la pausa no puede abrirse encima.
-   - `PausesGame` — si `true`, el `UIStateManager` pone `Time.timeScale = 0`. Si `false`, el tiempo sigue corriendo pero el input del player igual queda bloqueado (porque `IsAnyModalOpen = true`).
-5. En `OnBeforeOpen`: `UIStateManager.Instance.Push(this)`. En `OnBeforeClose`: `UIStateManager.Instance.Pop(this)`. **No tocar `Time.timeScale` ni `Cursor` directamente** — el UIStateManager los gobierna.
-6. Si tu pantalla se abre **encima** de otra que ya pausó: no cambies nada de timeScale, el stack del UIStateManager lo resuelve solo.
+3. `public bool IsOpen` para que `PauseManager.IsBlockingUIOpen()` pueda chequear.
+4. **Agregar tu controller al método `IsBlockingUIOpen()` de `PauseManager`** — sino ESC pausa el juego cuando el usuario quería cerrar tu pantalla.
+5. ESC handler propio en `Update()` que cierra.
+6. Si abre con `Time.timeScale = 0`: en `OnBeforeClose`, chequear si hay otra UI que también pausa antes de restaurar a 1. Patrón:
+
+```csharp
+protected override void OnBeforeClose()
+{
+    if (PauseManager.Instance == null || !PauseManager.Instance.IsPaused)
+        Time.timeScale = 1f;
+}
+```
+
+7. Si tu pantalla se abre **encima** de otra que ya pausó (ej: Settings encima de Pausa): **NO toques timeScale** ni en open ni en close. Dejá que el sistema de abajo lo administre.
 
 ### 7.4 Time.timeScale = 0: qué se rompe
 
@@ -309,18 +316,11 @@ En `PauseManagerUI.cs`, agregar un botón nuevo en `PauseView` y handler:
 private void HandleStats() => StatsController.Instance?.OpenScreen();
 ```
 
-### Paso 4: Implementar IModalUI en StatsController
+### Paso 4: Agregar al IsBlockingUIOpen del PauseManager
 
 ```csharp
-public string ModalId        => "Stats";
-public bool   ConsumesEscape => true;   // ESC cierra Stats
-public bool   BlocksPause    => true;   // pausa no se abre encima
-public bool   PausesGame     => true;   // congela tiempo al abrir
-public void   RequestClose() => CloseSafe().Forget();
+if (StatsController.Instance != null && StatsController.Instance.IsOpen) return true;
 ```
-
-En `OnBeforeOpen`: `UIStateManager.Instance.Push(this)`. En `OnBeforeClose`: `UIStateManager.Instance.Pop(this)`.
-No hace falta ningún `Update()` con `GetKeyDown` — el `UIStateManager` maneja ESC vía `UI/Exit` y llama `RequestClose()` automáticamente.
 
 ### Paso 5: Setup en Unity
 
@@ -328,7 +328,7 @@ No hace falta ningún `Update()` con `GetKeyDown` — el `UIStateManager` maneja
 - En esa escena, GameObject raíz con `StatsController` + Canvas hijo con `StatsView`.
 - Asignar la view en el Inspector del controller.
 
-Listo. La pantalla se abre desde Pausa, ESC la cierra (gestionado por UIStateManager), y el timeScale y cursor quedan en manos del stack modal.
+Listo. La pantalla se abre desde Pausa, cierra con ESC (porque el `Update()` del `StatsController` escucha la tecla), y no rompe el flow de pausa subyacente.
 
 ---
 
@@ -340,7 +340,7 @@ Assets/Scritps/
 │   └─ BootingSceneLoader.cs              ← carga escenas iniciales
 ├─ Managers/
 │   ├─ ScreenManager.cs                   ← carga aditiva de grupos
-│   ├─ PauseManager.cs                    ← singleton de pausa, delega ESC guard a UIStateManager
+│   ├─ PauseManager.cs                    ← singleton de pausa, ESC handler, IsBlockingUIOpen
 │   ├─ AudioManager.cs                    ← SetMasterVolume/Music/SFX
 │   ├─ GameResultManager.cs               ← evento OnGameResult (Win/Lose)
 │   └─ InteractionManager.cs              ← raycast + KeyCode.E al IInteractable activo
@@ -391,16 +391,13 @@ Assets/Scritps/
 ## 10. Bugs conocidos y caveats
 
 ### 10.1 PauseManager.OnEnable/OnDisable con InputAction
-`pauseAction.action.performed += _ => Toggle();` crea un lambda nuevo cada vez. El `-=` correspondiente crea otro lambda distinto, así que el unsubscribe no funciona. Resuelto: `PauseManager` cachea el handler en `pauseActionHandler` y lo reutiliza en `OnEnable`/`OnDisable`. Verificar si hay otros lugares en el proyecto con el mismo patrón.
+`pauseAction.action.performed += _ => Toggle();` crea un lambda nuevo cada vez. El `-=` correspondiente crea otro lambda distinto, así que el unsubscribe no funciona. Como solo se usa el fallback `KeyCode.Escape`, no es notorio, pero hay que arreglarlo cuando se conecte el InputSystem completo.
 
 ### 10.2 Doble ESC durante fade de Settings
-Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ESC puede llegar al PauseManager porque `SettingsController.IsOpen` ya pasó a false al inicio del fade. Resultado: despausa el juego. Edge case chico, ignorable salvo que importe.
+Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ESC va al PauseManager porque `SettingsController.IsOpen` ya pasó a false al inicio del fade. Resultado: despausa el juego. Edge case chico, ignorable salvo que importe.
 
-### 10.3 ~~GameResultManager — estado estático persistente~~ ✅ Resuelto
-`GameResultManager.ResetSession()` se llama ahora en `MainMenuController.HandleNewGame()` antes de empujar el grupo de gameplay. **Pendiente**: cuando se implemente Load Game en `SaveSlotsController`, ese flujo también debe llamar `ResetSession()` antes de cargar la partida guardada.
-
-### 10.4 DocumentReader — race condition ESC con PauseManager
-`DocumentReaderController` tiene `ConsumesEscape = true` y `BlocksPause = false`. Cuando ESC se presiona con el documento abierto, el `UIStateManager` cierra el documento **y** el `PauseManager` puede disparar en el mismo frame (porque `IsBlockingPause` es `false`). Resultado posible: documento se cierra y el menú de pausa se abre en la misma pulsación. Si esto molesta en testing, cambiar a `BlocksPause = true` en `DocumentReaderController`.
+### 10.3 GameResultManager — estado estático persistente
+El `_model` es estático y `_resultReported` también. Hay que llamar `GameResultManager.ResetSession()` al cargar la escena de gameplay (hoy lo hace `WinLoseTest.cs` al abrir un test), sino después del primer Win/Lose no se puede reportar otro.
 
 ---
 
@@ -423,7 +420,7 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 
 Para entender un pattern específico, leer estos archivos como modelo:
 
-- **Controller persistente con static Instance + IModalUI no-pausante**: `DocumentReaderController.cs` — ejemplo de `PausesGame = false` (tiempo corre, input bloqueado).
+- **Controller persistente con static Instance**: `DocumentReaderController.cs` (~60 líneas, lo más simple).
 - **Controller con InjectDependencies + apertura por evento estático**: `WinController.cs`, `LoseController.cs`.
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
 - **View con sub-views y re-emisión de eventos**: `SettingsView.cs`.
