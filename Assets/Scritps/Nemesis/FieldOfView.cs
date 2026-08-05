@@ -29,6 +29,10 @@ public class FieldOfView : MonoBehaviour
     }
     private void Update()
     {
+        // Same guard as NemesisStateManager: this Update is its own, so without it the
+        // Nemesis kept seeing (and reacting) with the game paused.
+        if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+
         if (currentTimer < viewDelay) currentTimer += Time.deltaTime;
         else
         {

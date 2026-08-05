@@ -10,6 +10,10 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
+        // Without this the first entry inherits NextState = default(EPlayerState) = Idle,
+        // so GetNextState() bounces straight back out on the next frame.
+        NextState = StateKey;
+
         Debug.Log("Enter Hidden State");
     }
 

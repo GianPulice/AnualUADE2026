@@ -73,7 +73,13 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         Crouch,
         Interacting,
         Hidden,
+
+        // NOT IMPLEMENTED — there is no PlayerInDangerState and nothing transitions here.
+        // The spec (§8) mentions it ("the player goes to In Danger and regains control")
+        // but never defines it, so the behaviour cannot be written yet. StateManager guards
+        // against the transition, so leaving it declared is safe.
         InDanger,
+
         Disabled,
     }
     void Awake()

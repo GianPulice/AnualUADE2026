@@ -24,11 +24,22 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
             TransitionToState(nextStateKey);
         }
     }
-    public void TransitionToState(EState stateKey) 
+    public void TransitionToState(EState stateKey)
     {
+        // A value can exist in the enum without ever being registered in InitializeStates()
+        // (this already happened with Catch, and EPlayerState.InDanger is still in that spot).
+        // Indexing States[] directly would throw KeyNotFoundException every frame; better to
+        // report it once and stay put than to take the whole FSM down.
+        if (!States.TryGetValue(stateKey, out BaseState<EState> nextState))
+        {
+            Debug.LogError($"[{GetType().Name}] State '{stateKey}' is declared in the enum but was " +
+                           $"never registered in InitializeStates(). Staying in '{CurrentState.StateKey}'.");
+            return;
+        }
+
         IsTransitioningState = true;
         CurrentState.ExitState();
-        CurrentState = States[stateKey];
+        CurrentState = nextState;
         CurrentState.EnterState();
         IsTransitioningState = false;
     }

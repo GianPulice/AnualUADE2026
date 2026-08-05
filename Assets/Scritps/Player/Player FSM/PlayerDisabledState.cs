@@ -17,6 +17,10 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
+        // Without this the first entry inherits NextState = default(EPlayerState) = Idle,
+        // so GetNextState() bounces straight back out and the capture animation flickers.
+        NextState = StateKey;
+
         Debug.Log("Enter Disabled State");
         playerStateManager.AnimController.SetBool("isTrapped", true);
     }
