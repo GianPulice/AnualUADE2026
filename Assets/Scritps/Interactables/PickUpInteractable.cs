@@ -5,16 +5,16 @@ public class PickupInteractable : BaseRangeInteractable
     [Header("Item")]
     [SerializeField] private SO_InventoryItem itemToPick;
 
-    /// <summary>Item asignado a este pickup. Lo lee <see cref="ItemProximityHighlight"/>
-    /// para resolver la categoría automáticamente sin duplicar el dropdown a mano.</summary>
+    /// <summary>Item assigned to this pickup. Read by <see cref="ItemProximityHighlight"/>
+    /// to resolve the category automatically without duplicating the dropdown by hand.</summary>
     public SO_InventoryItem Item => itemToPick;
 
 
     public override string GetInteractText()
     {
         return itemToPick != null
-            ? $"Presione la tecla 'E' para agarrar {itemToPick.ItemName}"
-            : "Presione la tecla 'E' para agarrar";
+            ? $"Press 'E' to pick up {itemToPick.ItemName}"
+            : "Press 'E' to pick up";
     }
 
     protected override bool CanInteractInCloseRange()

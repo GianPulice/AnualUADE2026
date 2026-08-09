@@ -63,11 +63,11 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
         {
             NextState = PlayerStateManager.EPlayerState.Hidden;
         }
-        else if (playerStateManager.IsCrouch) 
+        else if (playerStateManager.IsCrouch)
         {
             NextState = PlayerStateManager.EPlayerState.Crouch;
         }
-        else if (!playerStateManager.IsGrounded) 
+        else if (!playerStateManager.IsGrounded)
         {
             NextState = PlayerStateManager.EPlayerState.Idle;
         }
@@ -75,14 +75,14 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
         {
             if (playerStateManager.InputDir != Vector3.zero)
             {
-                //Mecánica Correr
+                // Sprint mechanic
                 if (Input.GetButton("Sprint"))
                 {
                     playerStateManager.SpeedMultiplier = 1.5f;
                     playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;
                 }
-                else 
-                { 
+                else
+                {
                     playerStateManager.SpeedMultiplier = 1f;
                     playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.FootstepNoiseRadius;
                 }
@@ -92,9 +92,9 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
                 }
-                else 
-                { 
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier; 
+                else
+                {
+                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
                 }
                 playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
@@ -105,6 +105,6 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 NextState = PlayerStateManager.EPlayerState.Idle;
             }
         }
-    } 
+    }
 }
 

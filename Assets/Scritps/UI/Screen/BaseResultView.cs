@@ -33,7 +33,15 @@ public abstract class BaseResultView : BaseScreenView
 
     public virtual void SetData(GameResultModel model) { }
 
-    protected void HideRetryButton()    => _btnRetry?.gameObject.SetActive(false);
-    protected void HideMainMenuButton() => _btnMainMenu?.gameObject.SetActive(false);
-    protected void HideNextLevelButton() => _btnNextLevel?.gameObject.SetActive(false);
+    // Per-button visibility. The Set* methods allow toggling at runtime (a single screen
+    // that changes its face depending on the result); the Hide* ones are the shortcut for
+    // screens that decide their layout once in Awake.
+    protected void SetRetryVisible(bool visible)     => _btnRetry?.gameObject.SetActive(visible);
+    protected void SetMainMenuVisible(bool visible)  => _btnMainMenu?.gameObject.SetActive(visible);
+    protected void SetNextLevelVisible(bool visible) => _btnNextLevel?.gameObject.SetActive(visible);
+    protected void SetExitVisible(bool visible)      => _btnExit?.gameObject.SetActive(visible);
+
+    protected void HideRetryButton()     => SetRetryVisible(false);
+    protected void HideMainMenuButton()  => SetMainMenuVisible(false);
+    protected void HideNextLevelButton() => SetNextLevelVisible(false);
 }

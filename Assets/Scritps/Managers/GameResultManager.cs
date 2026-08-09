@@ -3,9 +3,10 @@ using System;
 public static class GameResultManager
 {
     ///<summary>
-    ///Fired when the game ends or wins. WinController and LoseController subscribe to this event to show the corresponding screen.
+    ///Fired when the game ends or wins. ResultScreenController (Lose/GameOver) and WinController
+    ///subscribe to this event and each one filters by the GameState it handles.
     ///</summary>
-    
+
     //--Event ----------------------
     public static event Action<GameResultModel> OnGameResult;
 
@@ -38,8 +39,8 @@ public static class GameResultManager
     }
 
     /// <summary>
-    /// Todos los módulos explotaron. Dispara antes de llamar a este método:
-    /// - OnSaveDeleteRequested para que SaveManager borre el slot activo.
+    /// Every module has exploded. Raised before calling this method:
+    /// - OnSaveDeleteRequested so the SaveManager deletes the active slot.
     /// </summary>
     public static event Action OnSaveDeleteRequested;
 
@@ -54,7 +55,7 @@ public static class GameResultManager
         OnGameResult?.Invoke(_model);
     }
 
-    /// <summary>Llamar al cargar la escena de gameplay para habilitar un nuevo reporte.</summary>
+    /// <summary>Call when loading the gameplay scene to allow a new result to be reported.</summary>
     public static void ResetSession()
     {
         _resultReported = false;

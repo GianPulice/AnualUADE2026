@@ -17,7 +17,7 @@ public class ContainerInteractable : BaseRangeInteractable
 
         if (containerData == null)
         {
-            Debug.LogError($"ContainerInteractable sin SO_ContainerData en {gameObject.name}");
+            Debug.LogError($"ContainerInteractable without SO_ContainerData on {gameObject.name}");
             return;
         }
 
@@ -32,7 +32,7 @@ public class ContainerInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (containerData == null) return "Contenedor sin configurar";
+        if (containerData == null) return "Unconfigured container";
         return containerData.PromptText;
     }
 
@@ -63,7 +63,7 @@ public class ContainerInteractable : BaseRangeInteractable
 
         NotifyPuzzleController();
 
-        Debug.Log($"Contenedor {containerData.ContainerId} movido a slot {possibleSlots[currentSlotIndex].SlotId}");
+        Debug.Log($"Container {containerData.ContainerId} moved to slot {possibleSlots[currentSlotIndex].SlotId}");
     }
 
     private int FindInitialSlotIndex()

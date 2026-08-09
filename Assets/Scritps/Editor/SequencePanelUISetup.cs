@@ -9,44 +9,60 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Utilidad de editor: arma la UI del panel de secuencia en la escena LevelUI.
-/// Idempotente — si ya existe, la borra y la rehace.
+/// Editor utility: builds the sequence panel UI in the LevelUI scene.
 /// Menu: Tools / Puzzle UI / Setup Sequence Panel UI
+///
+/// Look: industrial security keypad — dark metal chassis, amber LCD display, square
+/// keys with relief and a status LED. It deliberately does NOT use the diagonal sweep
+/// (ButtonHoverSweepEffect) of the rest of the UI: that is menu language, not physical
+/// keypad language.
+///
+/// ── WARNING ──────────────────────────────────────────────────────────────────
+/// This script is DESTRUCTIVE: it deletes the existing canvas and rebuilds it from scratch.
+/// Once the panel has been turned into a prefab and hand-tweaked, do NOT run it again or
+/// that work is lost. It is meant to regenerate the base, not to iterate.
 /// </summary>
 public static class SequencePanelUISetup
 {
     private const string LevelUIScenePath = "Assets/Scenes/UI/LevelUI.unity";
 
-    // ── Paleta ──────────────────────────────────────────────────────────────
-    private static readonly Color ColorBackdrop      = new Color(0f, 0f, 0f, 0.80f);
-    private static readonly Color ColorPanelBorder   = new Color(0.28f, 0.62f, 0.98f, 0.90f);
-    private static readonly Color ColorPanelFill     = new Color(0.07f, 0.09f, 0.14f, 0.98f);
-    private static readonly Color ColorAccent        = new Color(0.36f, 0.72f, 1f,    1f);
-    private static readonly Color ColorText          = new Color(0.94f, 0.96f, 1f,    1f);
-    private static readonly Color ColorTextMuted     = new Color(0.66f, 0.72f, 0.85f, 1f);
-    private static readonly Color ColorSequenceOk    = new Color(0.50f, 0.95f, 0.60f, 1f);
-    private static readonly Color ColorButtonFill    = new Color(0.11f, 0.14f, 0.22f, 1f);
-    private static readonly Color ColorButtonOutline = new Color(0.28f, 0.62f, 0.98f, 0.55f);
-    private static readonly Color ColorButtonHover   = new Color(0.75f, 0.85f, 1f,    1f);
-    private static readonly Color ColorButtonPressed = new Color(0.50f, 0.70f, 0.90f, 1f);
-    private static readonly Color ColorClose         = new Color(0.32f, 0.10f, 0.10f, 1f);
-    private static readonly Color ColorCloseHover    = new Color(0.55f, 0.18f, 0.18f, 1f);
-    private static readonly Color ColorDividerStrong = new Color(0.36f, 0.72f, 1f,    0.45f);
-    private static readonly Color ColorDividerSoft   = new Color(0.36f, 0.72f, 1f,    0.15f);
+    // The same two fonts the rest of the game's canvases use.
+    private const string FontMonoPath  = "Assets/Font/Share_Tech_Mono/ShareTechMono-Regular SDF.asset";
+    private const string FontTitlePath = "Assets/Font/Oswald/static/Oswald-Regular SDF.asset";
 
-    // ── Dimensiones (en el sistema de referencia 1920x1080) ─────────────────
-    private const float PanelWidth        = 900f;
-    private const float PanelHeight       = 820f;
-    private const int   PadX              = 56;
-    private const int   PadYTop           = 40;
-    private const int   PadYBottom        = 40;
-    private const int   VSpacing          = 22;
-    private const float HeaderHeight      = 64f;
-    private const float StatusHeight      = 40f;
-    private const float SeqDisplayHeight  = 52f;
-    private const float GridHeight        = 360f;
-    private const float ButtonCell        = 150f;
-    private const float ButtonSpacing     = 20f;
+    // ── Paleta: metal oscuro + ambar ────────────────────────────────────────
+    private static readonly Color ColorBackdrop      = new Color(0f,     0f,     0f,     0.85f);
+    private static readonly Color ColorChassis       = new Color(0.13f,  0.13f,  0.14f,  1f);     // bisel exterior
+    private static readonly Color ColorPlate         = new Color(0.085f, 0.085f, 0.095f, 0.99f);  // placa interior
+    private static readonly Color ColorAmber         = new Color(1f,     0.65f,  0.10f,  1f);
+    private static readonly Color ColorAmberDim      = new Color(0.55f,  0.33f,  0.05f,  1f);
+    private static readonly Color ColorText          = new Color(0.86f,  0.85f,  0.82f,  1f);
+    private static readonly Color ColorTextMuted     = new Color(0.50f,  0.49f,  0.46f,  1f);
+    private static readonly Color ColorLcdBackground = new Color(0.03f,  0.035f, 0.03f,  1f);
+    private static readonly Color ColorLcdText       = new Color(1f,     0.72f,  0.20f,  1f);
+    private static readonly Color ColorKeyFill       = new Color(0.18f,  0.18f,  0.19f,  1f);
+    private static readonly Color ColorKeyBevel      = new Color(0.03f,  0.03f,  0.04f,  0.9f);
+    private static readonly Color ColorKeyHoverTint  = new Color(1f,     0.88f,  0.65f,  1f);
+    private static readonly Color ColorKeyPressTint  = new Color(0.65f,  0.45f,  0.18f,  1f);
+    private static readonly Color ColorClose         = new Color(0.30f,  0.10f,  0.09f,  1f);
+    private static readonly Color ColorCloseHover    = new Color(0.62f,  0.22f,  0.20f,  1f);
+    private static readonly Color ColorDividerStrong = new Color(1f,     0.65f,  0.10f,  0.40f);
+
+    // ── Dimensiones (sistema de referencia 1920x1080) ───────────────────────
+    private const float PanelWidth       = 520f;
+    private const float PanelHeight      = 790f;
+    private const int   BevelThickness   = 3;
+    private const int   PadX             = 46;
+    private const int   PadYTop          = 34;
+    private const int   PadYBottom       = 34;
+    private const int   VSpacing         = 20;
+    private const float HeaderHeight     = 52f;
+    private const float LcdHeight        = 78f;
+    private const float StatusHeight     = 32f;
+    private const float LedSize          = 14f;
+    private const float ButtonCell       = 130f;
+    private const float ButtonSpacing    = 14f;
+    private const int   GridColumns      = 3;   // Un keypad es de 3 columnas, no de 4.
 
     [MenuItem("Tools/Puzzle UI/Setup Sequence Panel UI")]
     public static void Build()
@@ -62,6 +78,9 @@ public static class SequencePanelUISetup
         DestroyIfExists("SequencePanelUIController");
 
         int uiLayer = LayerMask.NameToLayer("UI");
+
+        TMP_FontAsset fontMono  = LoadFont(FontMonoPath);
+        TMP_FontAsset fontTitle = LoadFont(FontTitlePath);
 
         // ── Canvas root ────────────────────────────────────────────────────
         GameObject canvasGO = New("SequencePanelCanvas", null, uiLayer,
@@ -83,44 +102,47 @@ public static class SequencePanelUISetup
         Stretch(bgGO.GetComponent<RectTransform>());
         bgGO.GetComponent<Image>().color = ColorBackdrop;
 
-        // ── Panel (marco exterior) ─────────────────────────────────────────
-        GameObject panelGO = New("Panel", canvasGO.transform, uiLayer, typeof(Image));
-        panelGO.GetComponent<Image>().color = ColorPanelBorder;
-        RectTransform panelRT = panelGO.GetComponent<RectTransform>();
-        panelRT.anchorMin = new Vector2(0.5f, 0.5f);
-        panelRT.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRT.pivot     = new Vector2(0.5f, 0.5f);
-        panelRT.sizeDelta = new Vector2(PanelWidth, PanelHeight);
-        panelRT.anchoredPosition = Vector2.zero;
+        // ── Chasis (bisel exterior) ────────────────────────────────────────
+        GameObject chassisGO = New("Chassis", canvasGO.transform, uiLayer, typeof(Image), typeof(Shadow));
+        chassisGO.GetComponent<Image>().color = ColorChassis;
+        Shadow chassisShadow = chassisGO.GetComponent<Shadow>();
+        chassisShadow.effectColor    = new Color(0f, 0f, 0f, 0.65f);
+        chassisShadow.effectDistance = new Vector2(6, -6);
+        RectTransform chassisRT = chassisGO.GetComponent<RectTransform>();
+        chassisRT.anchorMin = new Vector2(0.5f, 0.5f);
+        chassisRT.anchorMax = new Vector2(0.5f, 0.5f);
+        chassisRT.pivot     = new Vector2(0.5f, 0.5f);
+        chassisRT.sizeDelta = new Vector2(PanelWidth, PanelHeight);
+        chassisRT.anchoredPosition = Vector2.zero;
 
-        // Panel interior (2px offset del marco → simula borde)
-        GameObject innerGO = New("PanelInner", panelGO.transform, uiLayer, typeof(Image), typeof(VerticalLayoutGroup));
-        innerGO.GetComponent<Image>().color = ColorPanelFill;
-        RectTransform innerRT = innerGO.GetComponent<RectTransform>();
-        innerRT.anchorMin = Vector2.zero; innerRT.anchorMax = Vector2.one;
-        innerRT.offsetMin = new Vector2(2, 2);
-        innerRT.offsetMax = new Vector2(-2, -2);
-        VerticalLayoutGroup vlg = innerGO.GetComponent<VerticalLayoutGroup>();
-        vlg.padding             = new RectOffset(PadX, PadX, PadYTop, PadYBottom);
-        vlg.spacing             = VSpacing;
-        vlg.childAlignment      = TextAnchor.UpperCenter;
-        vlg.childControlWidth   = true;  vlg.childControlHeight   = true;
-        vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+        // Inner plate: the offset against the chassis is what draws the bevel.
+        GameObject plateGO = New("Plate", chassisGO.transform, uiLayer, typeof(Image), typeof(VerticalLayoutGroup));
+        plateGO.GetComponent<Image>().color = ColorPlate;
+        RectTransform plateRT = plateGO.GetComponent<RectTransform>();
+        plateRT.anchorMin = Vector2.zero; plateRT.anchorMax = Vector2.one;
+        plateRT.offsetMin = new Vector2(BevelThickness, BevelThickness);
+        plateRT.offsetMax = new Vector2(-BevelThickness, -BevelThickness);
+        VerticalLayoutGroup vlg = plateGO.GetComponent<VerticalLayoutGroup>();
+        vlg.padding               = new RectOffset(PadX, PadX, PadYTop, PadYBottom);
+        vlg.spacing               = VSpacing;
+        vlg.childAlignment        = TextAnchor.UpperCenter;
+        vlg.childControlWidth     = true;  vlg.childControlHeight     = true;
+        vlg.childForceExpandWidth = true;  vlg.childForceExpandHeight = false;
 
-        // ── Header: Title + Close (anclado top-right) ──────────────────────
-        GameObject headerGO = New("Header", innerGO.transform, uiLayer, typeof(LayoutElement));
-        LayoutElement headerLE = headerGO.GetComponent<LayoutElement>();
-        headerLE.minHeight = HeaderHeight; headerLE.preferredHeight = HeaderHeight; headerLE.flexibleHeight = 0f;
+        // ── Header: title + close button ───────────────────────────────────
+        GameObject headerGO = New("Header", plateGO.transform, uiLayer, typeof(LayoutElement));
+        FixHeight(headerGO.GetComponent<LayoutElement>(), HeaderHeight);
 
         GameObject titleGO = New("TitleText", headerGO.transform, uiLayer, typeof(TextMeshProUGUI));
         Stretch(titleGO.GetComponent<RectTransform>());
         TextMeshProUGUI titleText = titleGO.GetComponent<TextMeshProUGUI>();
-        titleText.text            = "PANEL ELECTRICO";
-        titleText.fontSize        = 44;
-        titleText.fontStyle       = FontStyles.Bold;
-        titleText.alignment       = TextAlignmentOptions.Center;
-        titleText.color           = ColorText;
-        titleText.characterSpacing = 12f;
+        ApplyFont(titleText, fontTitle);
+        titleText.text             = "PANEL ELECTRICO";
+        titleText.fontSize         = 30;
+        titleText.fontStyle        = FontStyles.Bold;
+        titleText.alignment        = TextAlignmentOptions.Center;
+        titleText.color            = ColorText;
+        titleText.characterSpacing = 10f;
         titleText.textWrappingMode = TextWrappingModes.NoWrap;
         titleText.overflowMode     = TextOverflowModes.Ellipsis;
 
@@ -129,111 +151,127 @@ public static class SequencePanelUISetup
         closeRT.anchorMin = new Vector2(1f, 0.5f);
         closeRT.anchorMax = new Vector2(1f, 0.5f);
         closeRT.pivot     = new Vector2(1f, 0.5f);
-        closeRT.sizeDelta = new Vector2(44, 44);
-        closeRT.anchoredPosition = new Vector2(0, 0);
+        closeRT.sizeDelta = new Vector2(38, 38);
+        closeRT.anchoredPosition = Vector2.zero;
         closeGO.GetComponent<Image>().color = ColorClose;
         Button closeBtn = closeGO.GetComponent<Button>();
-        ColorBlock ccb = closeBtn.colors;
-        ccb.normalColor      = Color.white;
-        ccb.highlightedColor = ColorCloseHover;
-        ccb.pressedColor     = new Color(0.4f, 0.12f, 0.12f, 1f);
-        ccb.selectedColor    = Color.white;
-        closeBtn.colors = ccb;
+        Tint(closeBtn, ColorCloseHover, new Color(0.45f, 0.14f, 0.13f, 1f));
 
         GameObject closeLabelGO = New("Label", closeGO.transform, uiLayer, typeof(TextMeshProUGUI));
         Stretch(closeLabelGO.GetComponent<RectTransform>());
         TextMeshProUGUI closeLabel = closeLabelGO.GetComponent<TextMeshProUGUI>();
+        ApplyFont(closeLabel, fontMono);
         closeLabel.text      = "X";
-        closeLabel.fontSize  = 22;
+        closeLabel.fontSize  = 20;
         closeLabel.fontStyle = FontStyles.Bold;
         closeLabel.alignment = TextAlignmentOptions.Center;
-        closeLabel.color     = Color.white;
+        closeLabel.color     = ColorText;
 
-        // ── Divisor superior ───────────────────────────────────────────────
-        MakeDivider("DividerTop", innerGO.transform, uiLayer, ColorDividerStrong, 2);
+        MakeDivider("DividerTop", plateGO.transform, uiLayer, ColorDividerStrong, 2);
 
-        // ── Status ─────────────────────────────────────────────────────────
-        GameObject statusGO = New("StatusText", innerGO.transform, uiLayer, typeof(TextMeshProUGUI), typeof(LayoutElement));
-        LayoutElement statusLE = statusGO.GetComponent<LayoutElement>();
-        statusLE.minHeight = StatusHeight; statusLE.preferredHeight = StatusHeight; statusLE.flexibleHeight = 0f;
-        TextMeshProUGUI statusText = statusGO.GetComponent<TextMeshProUGUI>();
-        statusText.text      = "Ingrese la secuencia";
-        statusText.fontSize  = 22;
-        statusText.alignment = TextAlignmentOptions.Center;
-        statusText.color     = ColorTextMuted;
+        // ── Display LCD ────────────────────────────────────────────────────
+        GameObject lcdGO = New("Lcd", plateGO.transform, uiLayer, typeof(Image), typeof(LayoutElement));
+        lcdGO.GetComponent<Image>().color = ColorLcdBackground;
+        FixHeight(lcdGO.GetComponent<LayoutElement>(), LcdHeight);
 
-        // ── Grid (contenedor centrado) ─────────────────────────────────────
-        // Wrapper con HorizontalLayoutGroup para centrar el grid dentro del ancho total.
-        GameObject gridWrapGO = New("GridWrapper", innerGO.transform, uiLayer,
+        GameObject lcdBezelGO = New("LcdBezel", lcdGO.transform, uiLayer, typeof(Image));
+        RectTransform lcdBezelRT = lcdBezelGO.GetComponent<RectTransform>();
+        lcdBezelRT.anchorMin = Vector2.zero; lcdBezelRT.anchorMax = Vector2.one;
+        lcdBezelRT.offsetMin = new Vector2(6, 6);
+        lcdBezelRT.offsetMax = new Vector2(-6, -6);
+        lcdBezelGO.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+
+        GameObject seqGO = New("SequenceDisplayText", lcdGO.transform, uiLayer, typeof(TextMeshProUGUI));
+        Stretch(seqGO.GetComponent<RectTransform>());
+        TextMeshProUGUI seqText = seqGO.GetComponent<TextMeshProUGUI>();
+        ApplyFont(seqText, fontMono);
+        seqText.text             = "> _";
+        seqText.fontSize         = 40;
+        seqText.alignment        = TextAlignmentOptions.Center;
+        seqText.color            = ColorLcdText;
+        seqText.characterSpacing = 10f;
+
+        // ── Teclado ────────────────────────────────────────────────────────
+        // The wrapper centres the grid horizontally and absorbs the leftover height, so the
+        // panel tolerates 6, 8, 9 or 12 keys without touching constants.
+        GameObject gridWrapGO = New("GridWrapper", plateGO.transform, uiLayer,
             typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         LayoutElement wrapLE = gridWrapGO.GetComponent<LayoutElement>();
-        wrapLE.minHeight = GridHeight; wrapLE.preferredHeight = GridHeight; wrapLE.flexibleHeight = 0f;
+        wrapLE.minHeight = ButtonCell * 2 + ButtonSpacing;
+        wrapLE.flexibleHeight = 1f;
         HorizontalLayoutGroup hlg = gridWrapGO.GetComponent<HorizontalLayoutGroup>();
-        hlg.childAlignment       = TextAnchor.MiddleCenter;
-        hlg.padding              = new RectOffset(0, 0, 0, 0);
-        hlg.spacing              = 0;
-        hlg.childControlWidth    = false; hlg.childControlHeight = false;
+        hlg.childAlignment        = TextAnchor.MiddleCenter;
+        hlg.padding               = new RectOffset(0, 0, 0, 0);
+        hlg.spacing               = 0;
+        hlg.childControlWidth     = false; hlg.childControlHeight     = false;
         hlg.childForceExpandWidth = false; hlg.childForceExpandHeight = false;
 
-        float gridW = ButtonCell * 4 + ButtonSpacing * 3;
-        float gridH = ButtonCell * 2 + ButtonSpacing * 1;
-
         GameObject gridGO = New("ButtonsContainer", gridWrapGO.transform, uiLayer,
-            typeof(GridLayoutGroup), typeof(LayoutElement));
-        LayoutElement gridLE = gridGO.GetComponent<LayoutElement>();
-        gridLE.minWidth  = gridW; gridLE.preferredWidth  = gridW;
-        gridLE.minHeight = gridH; gridLE.preferredHeight = gridH;
-        gridLE.flexibleWidth = 0f; gridLE.flexibleHeight = 0f;
+            typeof(GridLayoutGroup), typeof(ContentSizeFitter));
         GridLayoutGroup grid = gridGO.GetComponent<GridLayoutGroup>();
         grid.cellSize        = new Vector2(ButtonCell, ButtonCell);
         grid.spacing         = new Vector2(ButtonSpacing, ButtonSpacing);
         grid.padding         = new RectOffset(0, 0, 0, 0);
         grid.childAlignment  = TextAnchor.MiddleCenter;
         grid.constraint      = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 4;
+        grid.constraintCount = GridColumns;
+        // The fitter lets the grid grow on its own with however many keys the View
+        // instantiates at runtime (the size used to be hardcoded for 4x2).
+        ContentSizeFitter fitter = gridGO.GetComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
         RectTransform gridRT = gridGO.GetComponent<RectTransform>();
-        gridRT.sizeDelta = new Vector2(gridW, gridH);
 
-        // ── Button Template (inactivo, fuera del layout) ──────────────────
-        GameObject btnTemplateGO = New("ButtonTemplate", canvasGO.transform, uiLayer, typeof(Image), typeof(Button), typeof(Outline));
+        // ── Status row: LED + text ─────────────────────────────────────────
+        GameObject statusRowGO = New("StatusRow", plateGO.transform, uiLayer,
+            typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        FixHeight(statusRowGO.GetComponent<LayoutElement>(), StatusHeight);
+        HorizontalLayoutGroup statusHlg = statusRowGO.GetComponent<HorizontalLayoutGroup>();
+        statusHlg.childAlignment        = TextAnchor.MiddleCenter;
+        statusHlg.spacing               = 12;
+        statusHlg.childControlWidth     = false; statusHlg.childControlHeight     = false;
+        statusHlg.childForceExpandWidth = false; statusHlg.childForceExpandHeight = false;
+
+        GameObject ledGO = New("StatusLed", statusRowGO.transform, uiLayer, typeof(Image), typeof(LayoutElement));
+        Image ledImage = ledGO.GetComponent<Image>();
+        ledImage.color = ColorAmberDim;
+        LayoutElement ledLE = ledGO.GetComponent<LayoutElement>();
+        ledLE.minWidth  = LedSize; ledLE.preferredWidth  = LedSize;
+        ledLE.minHeight = LedSize; ledLE.preferredHeight = LedSize;
+        ledGO.GetComponent<RectTransform>().sizeDelta = new Vector2(LedSize, LedSize);
+
+        GameObject statusGO = New("StatusText", statusRowGO.transform, uiLayer,
+            typeof(TextMeshProUGUI), typeof(LayoutElement));
+        LayoutElement statusLE = statusGO.GetComponent<LayoutElement>();
+        statusLE.minWidth = 320f; statusLE.preferredWidth = 320f;
+        statusLE.minHeight = StatusHeight; statusLE.preferredHeight = StatusHeight;
+        TextMeshProUGUI statusText = statusGO.GetComponent<TextMeshProUGUI>();
+        ApplyFont(statusText, fontMono);
+        statusText.text             = "ENTER THE SEQUENCE";
+        statusText.fontSize         = 16;
+        statusText.alignment        = TextAlignmentOptions.Left;
+        statusText.color            = ColorTextMuted;
+        statusText.characterSpacing = 4f;
+
+        // ── Key template (inactive, outside the layout) ────────────────────
+        GameObject btnTemplateGO = New("ButtonTemplate", canvasGO.transform, uiLayer,
+            typeof(Image), typeof(Button), typeof(Shadow));
         btnTemplateGO.SetActive(false);
-        Image btnImg = btnTemplateGO.GetComponent<Image>();
-        btnImg.color = ColorButtonFill;
-        Outline btnOutline = btnTemplateGO.GetComponent<Outline>();
-        btnOutline.effectColor    = ColorButtonOutline;
-        btnOutline.effectDistance = new Vector2(2, -2);
-        Button btnTemplate = btnTemplateGO.GetComponent<Button>();
-        ColorBlock bcb = btnTemplate.colors;
-        bcb.normalColor      = Color.white;
-        bcb.highlightedColor = ColorButtonHover;
-        bcb.pressedColor     = ColorButtonPressed;
-        bcb.selectedColor    = Color.white;
-        bcb.colorMultiplier  = 1f;
-        btnTemplate.colors = bcb;
+        btnTemplateGO.GetComponent<Image>().color = ColorKeyFill;
+        // Bottom-right shadow: physical key relief. Replaces the blue Outline.
+        Shadow keyBevel = btnTemplateGO.GetComponent<Shadow>();
+        keyBevel.effectColor    = ColorKeyBevel;
+        keyBevel.effectDistance = new Vector2(3, -3);
+        Tint(btnTemplateGO.GetComponent<Button>(), ColorKeyHoverTint, ColorKeyPressTint);
 
         GameObject btnLabelGO = New("Label", btnTemplateGO.transform, uiLayer, typeof(TextMeshProUGUI));
         Stretch(btnLabelGO.GetComponent<RectTransform>());
         TextMeshProUGUI btnLabel = btnLabelGO.GetComponent<TextMeshProUGUI>();
+        ApplyFont(btnLabel, fontMono);
         btnLabel.text      = "1";
-        btnLabel.fontSize  = 60;
-        btnLabel.fontStyle = FontStyles.Bold;
+        btnLabel.fontSize  = 54;
         btnLabel.alignment = TextAlignmentOptions.Center;
         btnLabel.color     = ColorText;
-
-        // ── Divisor inferior ──────────────────────────────────────────────
-        MakeDivider("DividerBottom", innerGO.transform, uiLayer, ColorDividerSoft, 1);
-
-        // ── Sequence display ──────────────────────────────────────────────
-        GameObject seqGO = New("SequenceDisplayText", innerGO.transform, uiLayer, typeof(TextMeshProUGUI), typeof(LayoutElement));
-        LayoutElement seqLE = seqGO.GetComponent<LayoutElement>();
-        seqLE.minHeight = SeqDisplayHeight; seqLE.preferredHeight = SeqDisplayHeight; seqLE.flexibleHeight = 0f;
-        TextMeshProUGUI seqText = seqGO.GetComponent<TextMeshProUGUI>();
-        seqText.text            = "Ingresada: —";
-        seqText.fontSize        = 26;
-        seqText.fontStyle       = FontStyles.Bold;
-        seqText.alignment       = TextAlignmentOptions.Center;
-        seqText.color           = ColorSequenceOk;
-        seqText.characterSpacing = 6f;
 
         // ── View + refs ───────────────────────────────────────────────────
         SequencePanelView view = canvasGO.AddComponent<SequencePanelView>();
@@ -243,6 +281,7 @@ public static class SequencePanelUISetup
         SetPrivateField(view, "titleText",           titleText);
         SetPrivateField(view, "sequenceDisplayText", seqText);
         SetPrivateField(view, "statusText",          statusText);
+        SetPrivateField(view, "statusLed",           ledImage);
         SetPrivateField(view, "closeButton",         closeBtn);
 
         // ── Controller ────────────────────────────────────────────────────
@@ -256,10 +295,42 @@ public static class SequencePanelUISetup
         EditorSceneManager.MarkSceneDirty(levelUI);
         EditorSceneManager.SaveScene(levelUI);
 
-        Debug.Log("[SequencePanelUISetup] UI armada y guardada en LevelUI.");
+        Debug.Log("[SequencePanelUISetup] Keypad built and saved in LevelUI. " +
+                  "Turn it into a prefab before tweaking it — running this again destroys it.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static TMP_FontAsset LoadFont(string path)
+    {
+        TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+        if (font == null)
+            Debug.LogWarning($"[SequencePanelUISetup] Font '{path}' was not found. " +
+                             "The text will fall back to TMP's default (LiberationSans).");
+        return font;
+    }
+
+    private static void ApplyFont(TextMeshProUGUI text, TMP_FontAsset font)
+    {
+        if (font != null) text.font = font;
+    }
+
+    /// <summary>ColorBlock with a white normal: the tint multiplies the Image's color.</summary>
+    private static void Tint(Button button, Color highlighted, Color pressed)
+    {
+        ColorBlock cb = button.colors;
+        cb.normalColor      = Color.white;
+        cb.highlightedColor = highlighted;
+        cb.pressedColor     = pressed;
+        cb.selectedColor    = Color.white;
+        cb.colorMultiplier  = 1f;
+        button.colors = cb;
+    }
+
+    private static void FixHeight(LayoutElement le, float height)
+    {
+        le.minHeight = height; le.preferredHeight = height; le.flexibleHeight = 0f;
+    }
 
     private static GameObject New(string name, Transform parent, int layer, params Type[] components)
     {
@@ -285,8 +356,7 @@ public static class SequencePanelUISetup
     {
         GameObject divGO = New(name, parent, layer, typeof(Image), typeof(LayoutElement));
         divGO.GetComponent<Image>().color = color;
-        LayoutElement le = divGO.GetComponent<LayoutElement>();
-        le.minHeight = height; le.preferredHeight = height; le.flexibleHeight = 0f;
+        FixHeight(divGO.GetComponent<LayoutElement>(), height);
     }
 
     private static void DestroyIfExists(string name)
@@ -296,9 +366,9 @@ public static class SequencePanelUISetup
     }
 
     /// <summary>
-    /// Asigna un campo privado/protegido por reflection, buscando también en clases base.
-    /// Necesario porque <c>canvasGroup</c> (en <c>BaseScreenView</c>) y <c>view</c>
-    /// (en <c>BaseScreenController</c>) son protected y declarados en la base.
+    /// Assigns a private/protected field by reflection, also searching in base classes.
+    /// Needed because <c>canvasGroup</c> (in <c>BaseScreenView</c>) and <c>view</c>
+    /// (in <c>BaseScreenController</c>) are protected and declared in the base.
     /// </summary>
     private static void SetPrivateField(object target, string fieldName, object value)
     {
@@ -312,7 +382,7 @@ public static class SequencePanelUISetup
 
         if (field == null)
         {
-            Debug.LogError($"[SequencePanelUISetup] No se encontró el campo '{fieldName}' en {target.GetType().Name} ni en sus bases.");
+            Debug.LogError($"[SequencePanelUISetup] Field '{fieldName}' was not found in {target.GetType().Name} nor in its bases.");
             return;
         }
 

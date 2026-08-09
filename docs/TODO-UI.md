@@ -4,6 +4,28 @@ Tareas que quedaron diferidas según las decisiones tomadas durante la migració
 arquitectura modal (`BaseScreenController` + `IModalUI` + `UIStateManager`) y el cruce con
 los specs de Inventario, Interacción y Puzzles.
 
+> ⚠️ **Nota de idioma**: todo el código de `Assets/Scritps/` está en inglés (comentarios,
+> strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` §
+> Language rule.
+
+---
+
+## 🔴 Bloqueantes del loop principal
+
+Esto no es "pendiente de UI" sino de cableado, pero condiciona todo lo de abajo: **hoy el
+loop de juego no corre**.
+
+- [ ] **Arrancar los timers de módulos.** `InventoryManagerUI.StartModuleTimer(moduleId)` y
+  `ResolveModule(moduleId)` no los llama nadie. Sin eso `ModuleData.Status` queda `Inactive`,
+  `TickModuleTimers()` no hace nada, y en cascada no disparan: `OnModuleExploded`,
+  `BlindnessOverlayView` (B5), ni `CheckGameOver()` → `ReportGameOver()` (B6). Todo lo marcado
+  como ✅ en "Screens de resultado" está implementado pero es **inalcanzable**.
+- [ ] **Condición de victoria.** `GameResultManager.ReportWin()` solo se llama desde
+  `WinLoseTest.cs` (tecla `I` de debug). No hay camino de gameplay que gane la partida.
+- [ ] **Resetear estado de run en Retry / New Game.** `InventoryManager` y `PuzzleStateManager`
+  son `DontDestroyOnLoad` sin `Clear()`. `GameResultManager.ResetSession()` solo resetea el flag
+  de resultado, así que al reintentar se conservan todos los ítems y puzzles ya completados.
+
 ---
 
 ## 📦 Inventario
@@ -45,15 +67,26 @@ Cuando se implemente la Variante B de interacción con puzzles, completar:
 ## 🧩 Puzzle UI (todo lo demás)
 
 El sistema de puzzles está parcialmente implementado:
-- ✅ Sub-Puzzle 1: panel eléctrico + caja de fusibles
-- ❌ Sub-Puzzle 2: contenedores (no implementado)
-- ❌ Sub-Puzzle 3: 3 válvulas (no implementado)
-- ✅ **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación): `SkillCheckController` + `SkillCheckView` + `SkillCheckModel` + `SO_SkillCheckData`. `IModalUI.PausesGame=false` (tiempo corre). Invocar: `SkillCheckController.Instance.Open(data)`. **Prefab y cableado de escena pendientes.**
-- ❌ Hub Central: 3 ranuras de inserción (no implementado, es el endgame del Piso 1)
+- ✅ Sub-Puzzle 1: panel eléctrico + caja de fusibles (`SequencePanelInteractable` + `SequencePanelUIController`). Es el único puzzle que se completa de punta a punta; escribe directo en `PuzzleStateManager` sin pasar por `PuzzleController`.
+- 🟡 Sub-Puzzle 2: contenedores — existen **dos implementaciones paralelas e incompletas** que hay que unificar antes de seguir:
+  - `ContainerInteractable` + `ContainerSlot` (teletransporta el contenedor entre slots al interactuar).
+  - `BallPuzzleItem` + `BasketTrigger` + `GrabbableBall` / `PushableBall` (pelota física que cae en un canasto).
+  Las dos escriben en `PuzzleStateManager.SetContainerSlot()` con semántica de clave distinta (`containerId` vs `ballId`), así que se pisan. **Decidir cuál se queda y borrar la otra.**
+- 🟡 Sub-Puzzle 3: 3 válvulas — la lógica existe (`ValveInteractable` + `ValvePuzzleController`) pero **no hay feedback visual**: la válvula no rota ni cambia de estado al interactuar. Además `InitializeValveState()` espera con un `WaitForSeconds(3)` hardcodeado para que exista el singleton (workaround de race condition, no fix).
+- 🟡 **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación): `SkillCheckController` + `SkillCheckView` + `SkillCheckModel` + `SO_SkillCheckData` están escritos, pero **`SkillCheckController.Instance.Open(data)` no lo llama nadie** y el check no tiene salida por fallo: `OnFailed` nunca se invoca, `HandleCheckSuccess`/`HandleCheckFailed` están vacíos y el modelo no cuenta fallos. Se puede errar indefinidamente, solo restando tiempo al módulo activo. **Prefab, cableado de escena y camino de fallo pendientes.**
+- ❌ Hub Central: 3 ranuras de inserción. `SocketInteractable` + `HubPuzzleController.CheckHubCompletion()` existen, pero al completarse solo setean el flag y loguean — la cinemática, el acceso al Piso 3 y el ascensor son un comentario `// TO DO HERE`. Es el endgame del Piso 1.
 - ❌ Cinemática post-Hub
 
 Cuando se hagan los sub-puzzles, cada uno necesita su UI propia. Se sugiere seguir el
 patrón del `SequencePanelUIController` con MVC + `IModalUI`.
+
+También pendiente en la capa de mundo (no es UI pero bloquea el testeo de puzzles):
+
+- [ ] **Puertas sólidas.** `DoorInteractable.DisableBlockingCollider()` está comentado en los
+  dos lugares donde se llamaba (`AnimateOpen` y `ApplyOpenStateImmediate`). Los paneles se
+  deslizan pero el collider sigue bloqueando: no se puede atravesar ninguna puerta.
+- [ ] **`PuzzleController.CompletePuzzle()` y `PuzzleReward.GiveReward()` no los llama nadie.**
+  `SocketInteractable` puede arrancar un puzzle genérico (`StartPuzzle()`) pero nada lo completa.
 
 ---
 
@@ -79,18 +112,23 @@ Detalles diferidos:
 
 ## ⚙️ Settings
 
-El sistema está estructurado con tabs (Brightness / Controls / Screen / Volume) pero solo
-Volume + Sensibilidad están conectados. El usuario indicó que el resto se completa más
-adelante. Tabs y campos placeholder ya están preparados en `SettingsModel`.
+El sistema está estructurado con tabs (Brightness / Controls / Screen / Volume). **Los appliers
+ya existen y están conectados** — esta sección estaba desactualizada:
 
-Pendiente cuando se quieran conectar:
+- [x] **Brightness / Contrast / Gamma** — `PostProcessSettingsApplier` (en el Volume global URP).
+- [x] **CRT scanlines / PSX dithering** — `PS1EffectApplier` (escribe `_EnableScanlines` / `_EnableDither` sobre `PS1Effect.mat`).
+- [x] **Resolución / Window Mode / FPS limit / VSync** — `ScreenSettingsApplier`.
+- [x] **Invertir eje Y** — `CameraSensitivityApplier` lo lee junto con la sensibilidad.
+- [x] **Audio en segundo plano** — `AudioBackgroundApplier`.
 
-- [ ] **Brightness / Contrast / Gamma** — requiere post-process URP volume.
-- [ ] **CRT scanlines / PSX dithering** — requiere shader o post-process volume.
-- [ ] **Resolución / Window Mode / FPS limit / VSync** — `Screen.SetResolution`, `Application.targetFrameRate`, `QualitySettings.vSyncCount`.
-- [ ] **Keybinds rebinding** — requiere InputSystem rebinding UI.
-- [ ] **Invertir eje Y** — leer desde `SettingsModel.InvertYAxis` en `CameraSensitivityApplier`.
-- [ ] **Audio en segundo plano** — `Application.runInBackground` + manejo de AudioListener.
+Todos se suscriben a `SettingsModel.OnSettingsApplied` y leen las keys de PlayerPrefs.
+Ver la tabla de mapeo key → applier en `docs/CLAUDE.md`.
+
+Lo que sigue pendiente:
+
+- [ ] **Keybinds rebinding** — requiere InputSystem rebinding UI. `SettingsPanelControlsView` muestra labels estáticos.
+- [ ] **Toggle de glitch VHS** — `GlitchController` ya lee `Settings_VHSGlitch` de PlayerPrefs, pero Options no expone el toggle. Basta agregar el control y escribir la key.
+- [ ] **Verificar en build standalone** — `Screen.SetResolution` es no-op en Play Mode del Editor.
 
 ---
 
@@ -99,11 +137,11 @@ Pendiente cuando se quieran conectar:
 Stub visual implementado. La estructura del `SO_SaveSlotData` ya está preparada para
 recibir datos del save real:
 
-- `modules` ← `ModuleManager.GetAllModules()` snapshot (con moduleId, status, timeRemaining, timerDuration).
+- `modules` ← snapshot de `InventoryManagerUI.GetAllModules()` (con moduleId, status, timeRemaining, timerDuration). **Ojo**: no existe ningún `ModuleManager`; los módulos viven hoy en `InventoryManagerUI`.
 - `currentZoneId` ← zona/sala donde el player guardó.
-- `collectedItemIds` ← `InventoryManager.GetAllItems()` → IDs.
-- `completedPuzzleIds` + `insertedSocketIds` ← `PuzzleStateManager.GetState()`.
-- `playTimeSeconds` ← tiempo acumulado desde el inicio de la partida.
+- `collectedItemIds` ← `InventoryManager.GetItemIDs()`. La restauración ya existe (`InventoryManager.RestoreFromIDs`) pero **no la llama nadie**.
+- `completedPuzzleIds` + `insertedSocketIds` ← **falta escribirlo**: `PuzzleStateManager` no tiene ningún método de serialización (`GetState()` no existe). Sus `HashSet`/`Dictionary` son privados y no hay export ni restore.
+- `playTimeSeconds` ← `InventoryManagerUI._sessionTime` (ya se trackea con `unscaledDeltaTime`).
 - `lastSavedIso` ← `DateTime.UtcNow.ToString("o")` al momento del save.
 
 Pendiente:
@@ -123,12 +161,20 @@ Pendiente:
 
 ## 💀 Screens de resultado (B5 / B6)
 
-Implementado en esta iteración:
+> ⚠️ **Desactualizado**: `GameOverController`, `GameOverView` y `LoseController` **ya no
+> existen**. Se unificaron en `ResultScreenController` + `ResultView` + `ResultPresentation`
+> (`UI/Screen/Result/`). Lose y GameOver compartían el 90% del comportamiento; ahora la
+> diferencia (título, color, qué botones se ven, si hay stats) son **datos**: un array de
+> presets `ResultPresentation[]` en el Inspector, uno por `GameState`. Los estados sin preset
+> los ignora, por eso `WinController` puede seguir viviendo en paralelo.
 
-- ✅ **B5 — Ceguera M3**: `BlindnessOverlayView.cs` (HUD, permanente). Añadidos `causesBlindness` + `blindnessDuration` a `ModuleData`. Evento `InventoryEvents.OnBlindnessTriggered`. Fire desde `InventoryManagerUI.TickModuleTimers`. **Cableado de escena: agregar GO con CanvasGroup negro + BlindnessOverlayView al Canvas HUD en la escena Level_UI.**
-- ✅ **B6 — Game Over por módulos**: `GameOverController` + `GameOverView` (en `UI/Screen/GameOver/`). `GameState.GameOver` añadido al enum. `GameResultManager.ReportGameOver()` con `OnSaveDeleteRequested`. **Prefab y escena pendientes: duplicar prefab Lose, cambiar título a "GAME OVER" rojo `#CC1A1A`, añadir vignette roja `#0D0000`, asignar `GameOverController`. `mainMenuGroup` debe coincidir con la label del ScreenManager.**
-- ✅ **LoseView neutralizada**: eliminado título "You lose!" y botón Options. Ahora Retry = "Cargar último guardado", Exit = "Ir al menú". **Actualizar labels de botones en el prefab Lose.**
-- ✅ **InventoryManagerUI**: añadido `_sessionTime` tracker, `CheckGameOver()` (fire cuando todos los módulos explotan), `GetActiveModule()` (para SkillCheck), `ResetSessionTime()`.
+Estado real:
+
+- ✅ **B5 — Ceguera M3**: `BlindnessOverlayView.cs` (HUD, permanente). `causesBlindness` + `blindnessDuration` en `ModuleData`. Evento `InventoryEvents.OnBlindnessTriggered`, disparado desde `InventoryManagerUI.TickModuleTimers`. **Cableado de escena pendiente: agregar GO con CanvasGroup negro + BlindnessOverlayView al Canvas HUD en Level_UI.** ⚠️ Inalcanzable hoy — ver "Bloqueantes del loop principal".
+- ✅ **B6 — Game Over por módulos**: `GameState.GameOver` en el enum, `GameResultManager.ReportGameOver()` con `OnSaveDeleteRequested`. **Pendiente**: configurar el preset `GameOver` en el array `_presentations` del `ResultScreenController` (título "GAME OVER" rojo `#CC1A1A`, vignette `#0D0000`, `ShowRetry = false`, `ShowStats = true`). `_mainMenuGroup` debe coincidir con la label del `SO_SceneList`. ⚠️ Inalcanzable hoy — los timers no arrancan.
+- ⚠️ **`OnSaveDeleteRequested` no tiene ningún suscriptor** — no hay save system que borre el slot.
+- ✅ **Preset Lose**: sin título, sin stats, con Retry. Retry usa `ScreenManager.ReloadCurrentGroup()` (antes tenía hardcodeado `"Level1_Group"`, que no existe en el `SO_SceneList`). **Actualizar labels de botones en el prefab.**
+- ✅ **InventoryManagerUI**: `_sessionTime` tracker, `CheckGameOver()` (dispara cuando todos los módulos explotan), `GetActiveModule()` (para SkillCheck), `ResetSessionTime()`. ⚠️ `ResetSessionTime()` no lo llama nadie.
 
 ---
 

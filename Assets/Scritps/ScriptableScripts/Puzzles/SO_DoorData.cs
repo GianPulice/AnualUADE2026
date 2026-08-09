@@ -7,8 +7,8 @@ public class SO_DoorData : ScriptableObject
     [SerializeField] private SO_InventoryItem requiredKey;
     [SerializeField] private bool consumeKey = true;
     [SerializeField] private string requiredCompletedPuzzleId;
-    [SerializeField] private string openPrompt = "Abrir puerta";
-    [SerializeField] private string lockedPrompt = "Puerta cerrada";
+    [SerializeField] private string openPrompt = "Open door";
+    [SerializeField] private string lockedPrompt = "Locked door";
 
     public string DoorId => doorId;
     public SO_InventoryItem RequiredKey => requiredKey;

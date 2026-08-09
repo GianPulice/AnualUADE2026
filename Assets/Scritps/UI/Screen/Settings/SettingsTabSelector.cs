@@ -6,9 +6,9 @@ using UnityEngine.UI;
 public enum SettingsTab { Brightness = 0, Controls = 1, Screen = 2, Volume = 3 }
 
 /// <summary>
-/// Selector de tabs del Settings. Asocia cada botón con un panel GameObject:
-/// al clickear un tab, activa su panel y desactiva los demás. Hace lo mismo
-/// con los visuales "active" de los botones (opcional, via _activeIndicators).
+/// Tab selector of the Settings screen. Associates each button with a panel GameObject:
+/// clicking a tab enables its panel and disables the others. It does the same with the
+/// buttons' "active" visuals (optional, via _activeIndicators).
 /// </summary>
 public class SettingsTabSelector : MonoBehaviour
 {
@@ -17,7 +17,7 @@ public class SettingsTabSelector : MonoBehaviour
     {
         public Button button;
         public GameObject panel;
-        [Tooltip("Opcional: GameObject que se activa solo cuando este tab está seleccionado (ej: la barra roja del wireframe).")]
+        [Tooltip("Optional: GameObject enabled only while this tab is selected (e.g. the wireframe's red bar).")]
         public GameObject activeIndicator;
     }
 

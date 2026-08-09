@@ -2,13 +2,13 @@ using Unity.Cinemachine;
 using UnityEngine;
 
 /// <summary>
-/// Deshabilita el <see cref="CinemachineInputAxisController"/> mientras haya una modal
-/// abierta en el <see cref="UIStateManager"/>. Esto evita que la cámara siga rotando con
-/// el mouse aunque <c>Time.timeScale = 0</c> (Cinemachine lee Input.GetAxis sin respetar
-/// timeScale).
+/// Disables the <see cref="CinemachineInputAxisController"/> while there is a modal open in
+/// the <see cref="UIStateManager"/>. This prevents the camera from still rotating with the
+/// mouse even though <c>Time.timeScale = 0</c> (Cinemachine reads Input.GetAxis without
+/// respecting timeScale).
 ///
-/// Colocar este componente en el mismo GameObject que tiene el InputAxisController
-/// (el rig de cámara del player).
+/// Place this component on the same GameObject that has the InputAxisController
+/// (the player's camera rig).
 /// </summary>
 [RequireComponent(typeof(CinemachineInputAxisController))]
 public class CameraInputBlocker : MonoBehaviour
@@ -25,8 +25,8 @@ public class CameraInputBlocker : MonoBehaviour
         UIStateManager.OnModalPushed += HandleModalPushed;
         UIStateManager.OnModalPopped += HandleModalPopped;
 
-        // Aplicar estado actual por si una modal ya está abierta cuando este componente
-        // se habilita (por ej. carga de escena con el inventario ya open).
+        // Apply the current state in case a modal is already open when this component
+        // is enabled (e.g. a scene load with the inventory already open).
         ApplyState();
     }
 

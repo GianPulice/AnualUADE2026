@@ -26,6 +26,6 @@ public class ContainerPuzzleController : MonoBehaviour
         if (containerPuzzleData.RewardItem != null)
             InventoryManager.Instance.AddItem(containerPuzzleData.RewardItem);
 
-        Debug.Log($"Puzzle de contenedores completado: {containerPuzzleData.PuzzleId}");
+        Debug.Log($"Container puzzle completed: {containerPuzzleData.PuzzleId}");
     }
 }

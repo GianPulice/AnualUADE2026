@@ -3,13 +3,13 @@ using UnityEngine.Playables;
 using UnityEngine.Timeline;
 
 /// <summary>
-/// Mezcla los <see cref="SO_VisionFogConfig"/> de los clips activos según el peso que
-/// les da Timeline (crossfade entre clips solapados) y empuja el resultado directo a
-/// los shader globals vía <see cref="VisionRangeController.ApplyPreviewBlend"/>.
+/// Blends the <see cref="SO_VisionFogConfig"/> of the active clips by the weight Timeline
+/// gives them (crossfade between overlapping clips) and pushes the result straight to the
+/// shader globals via <see cref="VisionRangeController.ApplyPreviewBlend"/>.
 ///
-/// Solo escribe cuando hay al menos un clip con peso > 0. Si el playhead está fuera de
-/// cualquier clip, no toca nada — así en Play mode el <see cref="VisionRangeController"/>
-/// sigue siendo dueño del estado fuera de los tramos con Timeline activo.
+/// It only writes when there is at least one clip with weight > 0. If the playhead is outside
+/// every clip, it touches nothing — so in Play mode the <see cref="VisionRangeController"/>
+/// stays the owner of the state outside the stretches with an active Timeline.
 /// </summary>
 public class VisionFogMixerBehaviour : PlayableBehaviour
 {
@@ -55,14 +55,14 @@ public class VisionFogMixerBehaviour : PlayableBehaviour
 }
 
 /// <summary>
-/// Pista de Timeline para autorear/scrubear transiciones de vision fog sin tocar código.
-/// Bindeala a un <see cref="VisionRangeController"/> en la escena de tuning; cada clip
-/// referencia un <see cref="SO_VisionFogConfig"/> y superponer clips da crossfade gratis.
+/// Timeline track for authoring/scrubbing vision fog transitions without touching code.
+/// Bind it to a <see cref="VisionRangeController"/> in the tuning scene; each clip
+/// references a <see cref="SO_VisionFogConfig"/> and overlapping clips give you a free crossfade.
 ///
-/// Pensada para preview en editor (arrastrar el playhead sin dar Play). Para disparar
-/// transiciones reales durante gameplay seguí usando LightZone + PushConfig/PopConfig —
-/// esta pista no negocia con el stack de configs del controller, así que si en algún
-/// momento se reproduce en simultáneo con una LightZone activa, van a pisarse.
+/// Meant for editor preview (dragging the playhead without pressing Play). To trigger real
+/// transitions during gameplay keep using LightZone + PushConfig/PopConfig — this track
+/// does not negotiate with the controller's config stack, so if it ever plays at the same
+/// time as an active LightZone, they will fight each other.
 /// </summary>
 [TrackClipType(typeof(VisionFogClip))]
 [TrackBindingType(typeof(VisionRangeController))]

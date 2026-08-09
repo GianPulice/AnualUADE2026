@@ -3,16 +3,16 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// VIEW del diálogo de confirmación de descarte (spec §6).
+/// VIEW of the discard confirmation dialog (spec §6).
 ///
-/// Responsabilidades (SRP):
-///   - Mostrar/ocultar el overlay de confirmación
-///   - Mostrar nombre del ítem a descartar
-///   - Notificar al Controller: confirmar o cancelar
-///   - NO elimina el ítem — eso es responsabilidad del Controller → Model
+/// Responsibilities (SRP):
+///   - Show/hide the confirmation overlay
+///   - Show the name of the item to discard
+///   - Notify the Controller: confirm or cancel
+///   - It does NOT remove the item — that is the Controller -> Model's responsibility
 ///
-/// ESC cierra este diálogo sin descartar.
-/// El Controller maneja la pila de capas (ESC primero cierra esto, luego el inventario).
+/// ESC closes this dialog without discarding.
+/// The Controller manages the layer stack (ESC first closes this, then the inventory).
 /// </summary>
 public class DiscardDialogView : MonoBehaviour
 {
@@ -21,15 +21,15 @@ public class DiscardDialogView : MonoBehaviour
     [Header("Overlay")]
     [SerializeField] private GameObject overlayPanel;  // position absolute, inset 0
 
-    [Header("Textos")]
-    [SerializeField] private TextMeshProUGUI titleText;    // "Descartar "{nombre}"?"
-    [SerializeField] private TextMeshProUGUI warningText;  // "Esta acción es permanente..."
+    [Header("Texts")]
+    [SerializeField] private TextMeshProUGUI titleText;    // "Discard "{name}"?"
+    [SerializeField] private TextMeshProUGUI warningText;  // "This action is permanent..."
 
-    [Header("Botones")]
-    [SerializeField] private Button cancelButton;   // Neutro / gris
-    [SerializeField] private Button confirmButton;  // Rojo destructivo
+    [Header("Buttons")]
+    [SerializeField] private Button cancelButton;   // Neutral / grey
+    [SerializeField] private Button confirmButton;  // Destructive red
 
-    // ── Estado ────────────────────────────────────────────────────────────────
+    // ── State ─────────────────────────────────────────────────────────────────
 
     private SO_InventoryItem pendingItem;
 
@@ -47,24 +47,24 @@ public class DiscardDialogView : MonoBehaviour
         confirmButton?.onClick.RemoveListener(OnConfirmClicked);
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Muestra el overlay con el nombre del ítem.
-    /// Llamado por el Controller al recibir OnDiscardRequested.
+    /// Shows the overlay with the item's name.
+    /// Called by the Controller when it receives OnDiscardRequested.
     /// </summary>
     public void Show(SO_InventoryItem item)
     {
         pendingItem = item;
 
         if (titleText != null)
-            titleText.text = $"Descartar \"{item.ItemName}\"?";
+            titleText.text = $"Discard \"{item.ItemName}\"?";
 
         overlayPanel?.SetActive(true);
     }
 
     /// <summary>
-    /// Oculta el overlay. Llamado por el Controller al confirmar o cancelar.
+    /// Hides the overlay. Called by the Controller on confirm or cancel.
     /// </summary>
     public void Hide()
     {
@@ -76,7 +76,7 @@ public class DiscardDialogView : MonoBehaviour
 
     private void OnConfirmClicked()
     {
-        // El Controller ejecuta InventoryManager.DiscardItem()
+        // The Controller runs InventoryManager.DiscardItem()
         InventoryManagerUI.Instance.ConfirmDiscard();
     }
 

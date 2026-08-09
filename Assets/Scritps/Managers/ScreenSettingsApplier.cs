@@ -1,16 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// Aplica resolución, modo de ventana, FPS limit y VSync desde PlayerPrefs al engine.
-/// Los índices mapean en el mismo orden que los arrays serializados en SettingsPanelScreenView:
-///   - Resolución: 1920x1080, 2560x1440, 3840x2160, 1366x768, 1280x720
-///   - Modo:       ExclusiveFullScreen, Windowed, FullScreenWindow
-///   - FPS:        -1 (sin limite), 30, 60, 120, 144
+/// Applies resolution, window mode, FPS limit and VSync from PlayerPrefs to the engine.
+/// The indices map in the same order as the serialized arrays in SettingsPanelScreenView:
+///   - Resolution: 1920x1080, 2560x1440, 3840x2160, 1366x768, 1280x720
+///   - Mode:       ExclusiveFullScreen, Windowed, FullScreenWindow
+///   - FPS:        -1 (no limit), 30, 60, 120, 144
 ///
-/// IMPORTANTE: Screen.SetResolution es no-op en Play Mode del Editor; testear en build standalone.
-/// VSync > 0 ignora targetFrameRate.
+/// IMPORTANT: Screen.SetResolution is a no-op in the Editor's Play Mode; test in a standalone build.
+/// VSync > 0 ignores targetFrameRate.
 ///
-/// Colocar este componente en un GameObject persistente (ej. el del AudioManager o un bootstrap).
+/// Place this component on a persistent GameObject (e.g. the AudioManager's, or a bootstrap one).
 /// </summary>
 public class ScreenSettingsApplier : MonoBehaviour
 {
@@ -55,7 +55,7 @@ public class ScreenSettingsApplier : MonoBehaviour
         var (w, h) = Resolutions[r];
         var mode = Modes[m];
 
-        // Guard anti-flicker: solo cambiar resolución/modo si difiere del estado actual.
+        // Anti-flicker guard: only change resolution/mode if it differs from the current state.
         if (Screen.width != w || Screen.height != h || Screen.fullScreenMode != mode)
             Screen.SetResolution(w, h, mode);
 

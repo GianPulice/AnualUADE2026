@@ -1,15 +1,15 @@
 using UnityEngine;
 
 /// <summary>
-/// Aplica CRT Scanlines y PSX Dithering al material PS1Effect.mat seteando floats.
-/// Requiere que el shader PS1_PostProcess.shadergraph exponga las propiedades
-/// _EnableScanlines y _EnableDither (ver S6a).
+/// Applies CRT Scanlines and PSX Dithering to the PS1Effect.mat material by setting floats.
+/// Requires the PS1_PostProcess.shadergraph shader to expose the _EnableScanlines and
+/// _EnableDither properties (see S6a).
 ///
-/// NOTA: SetFloat sobre un material-asset persiste al archivo en Play Mode del Editor
-/// (queda dirty en git). Aceptable porque PlayerPrefs siempre sobreescribe en Play.
-/// Si molesta, declarar las props como Global en el shader y usar Shader.SetGlobalFloat.
+/// NOTE: SetFloat on a material asset persists to the file in the Editor's Play Mode
+/// (it stays dirty in git). Acceptable because PlayerPrefs always overwrites it on Play.
+/// If it becomes a nuisance, declare the props as Global in the shader and use Shader.SetGlobalFloat.
 ///
-/// Colocar este componente en un GameObject persistente.
+/// Place this component on a persistent GameObject.
 /// </summary>
 public class PS1EffectApplier : MonoBehaviour
 {
@@ -19,7 +19,7 @@ public class PS1EffectApplier : MonoBehaviour
     private static readonly int PropScanlines = Shader.PropertyToID("_EnableScanlines");
     private static readonly int PropDither    = Shader.PropertyToID("_EnableDither");
 
-    [Tooltip("Material PS1Effect.mat (Assets/Materials/Post Process/PS1Effect.mat).")]
+    [Tooltip("PS1Effect.mat material (Assets/Materials/Post Process/PS1Effect.mat).")]
     [SerializeField] private Material _ps1Material;
 
     private void Awake()

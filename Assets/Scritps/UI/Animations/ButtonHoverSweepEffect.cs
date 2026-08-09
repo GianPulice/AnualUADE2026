@@ -2,37 +2,37 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// Efecto de "sweep" para hover de botones, estilo menú Resident Evil: una imagen hija
-/// (barra o ícono de selección) se desliza de izquierda a derecha hacia su posición de
-/// reposo al entrar el hover, y vuelve seca al salir.
+/// "Sweep" effect for button hover, Resident Evil menu style: a child image
+/// (selection bar or icon) slides from left to right towards its rest position when hover
+/// starts, and snaps back on exit.
 ///
-/// Genérico y reutilizable: se agrega a CUALQUIER GameObject de UI (típicamente el mismo que
-/// tiene el uGUI Button/Selectable) y solo necesita una referencia a la imagen que barre.
+/// Generic and reusable: add it to ANY UI GameObject (typically the same one that has the
+/// uGUI Button/Selectable) and it only needs a reference to the image that sweeps.
 ///
-/// Responde tanto a mouse (IPointerEnter/Exit) como a navegación por gamepad/teclado
-/// (ISelect/IDeselect), por lo que no depende de ningún sistema de Input concreto.
+/// It responds to both mouse (IPointerEnter/Exit) and gamepad/keyboard navigation
+/// (ISelect/IDeselect), so it does not depend on any specific Input system.
 ///
-/// Setup en Inspector:
-///   - sweepTarget: la imagen/barra hija que se desliza. Dejarla posicionada en el editor
-///     EN SU POSICIÓN FINAL (de reposo visible); Awake captura esa X como destino y arranca
-///     el objeto en la posición oculta.
-///   - Si la barra no está dentro de un RectMask2D/Mask, usar useExplicitHiddenX o un
-///     hiddenOffsetX grande para que nazca realmente fuera del botón.
+/// Inspector setup:
+///   - sweepTarget: the child image/bar that slides. Leave it positioned in the editor
+///     AT ITS FINAL (visible rest) POSITION; Awake captures that X as the target and starts
+///     the object at the hidden position.
+///   - If the bar is not inside a RectMask2D/Mask, use useExplicitHiddenX or a large
+///     hiddenOffsetX so it really starts outside the button.
 /// </summary>
 [AddComponentMenu("WIRED/UI Animations/Button Hover Sweep Effect")]
 public class ButtonHoverSweepEffect : MonoBehaviour,
     IPointerEnterHandler, IPointerExitHandler,
     ISelectHandler, IDeselectHandler
 {
-    [Header("Objetivo")]
-    [Tooltip("Imagen hija que hace el sweep (barra/ícono de selección). Requiere RectTransform.")]
+    [Header("Target")]
+    [Tooltip("Child image that performs the sweep (selection bar/icon). Requires a RectTransform.")]
     [SerializeField] private RectTransform sweepTarget;
 
-    [Header("Posición oculta (anchoredPosition.x)")]
-    [Tooltip("Si está activo, usa 'hiddenX' como valor absoluto. Si no, hidden = posición de reposo + hiddenOffsetX.")]
+    [Header("Hidden position (anchoredPosition.x)")]
+    [Tooltip("If enabled, uses 'hiddenX' as an absolute value. Otherwise, hidden = rest position + hiddenOffsetX.")]
     [SerializeField] private bool useExplicitHiddenX = false;
     [SerializeField] private float hiddenX = -60f;
-    [Tooltip("Offset relativo a la posición de reposo. Negativo = nace a la izquierda y barre hacia la derecha.")]
+    [Tooltip("Offset relative to the rest position. Negative = starts on the left and sweeps right.")]
     [SerializeField] private float hiddenOffsetX = -60f;
 
     [Header("Timing / Ease")]
@@ -41,21 +41,21 @@ public class ButtonHoverSweepEffect : MonoBehaviour,
     [SerializeField] private LeanTweenType inEase  = UITweenDefaults.HoverInEase;
     [SerializeField] private LeanTweenType outEase = UITweenDefaults.HoverOutEase;
 
-    [Header("Opciones")]
-    [Tooltip("Marcar si este botón vive en un menú que corre con Time.timeScale = 0 (pausa/inventario).")]
+    [Header("Options")]
+    [Tooltip("Tick if this button lives in a menu that runs with Time.timeScale = 0 (pause/inventory).")]
     [SerializeField] private bool ignoreTimeScale = true;
-    [Tooltip("Override global opcional. Si se asigna, pisa duraciones/eases locales en Awake.")]
+    [Tooltip("Optional global override. If assigned, it overrides local durations/eases in Awake.")]
     [SerializeField] private UIAnimationSettingsSO settings;
 
-    private float shownX;         // posición de reposo autoral, capturada en Awake
-    private float restingHiddenX; // posición oculta calculada
+    private float shownX;         // authored rest position, captured in Awake
+    private float restingHiddenX; // computed hidden position
     private bool initialized;
 
     private void Awake()
     {
         if (sweepTarget == null)
         {
-            Debug.LogWarning($"[ButtonHoverSweepEffect] '{name}': falta asignar sweepTarget.", this);
+            Debug.LogWarning($"[ButtonHoverSweepEffect] '{name}': sweepTarget is not assigned.", this);
             enabled = false;
             return;
         }
@@ -65,7 +65,7 @@ public class ButtonHoverSweepEffect : MonoBehaviour,
         shownX = sweepTarget.anchoredPosition.x;
         restingHiddenX = useExplicitHiddenX ? hiddenX : shownX + hiddenOffsetX;
 
-        SetX(restingHiddenX); // arranca oculto
+        SetX(restingHiddenX); // starts hidden
         initialized = true;
     }
 
@@ -78,27 +78,27 @@ public class ButtonHoverSweepEffect : MonoBehaviour,
         outEase     = settings.hoverOutEase;
     }
 
-    // ── Eventos de puntero y de navegación (gamepad/teclado) ──────────────────
+    // ── Pointer and navigation (gamepad/keyboard) events ──────────────────────
 
     public void OnPointerEnter(PointerEventData eventData) => PlaySweep(show: true);
     public void OnPointerExit(PointerEventData eventData)  => PlaySweep(show: false);
     public void OnSelect(BaseEventData eventData)          => PlaySweep(show: true);
     public void OnDeselect(BaseEventData eventData)        => PlaySweep(show: false);
 
-    // ── Núcleo ────────────────────────────────────────────────────────────────
+    // ── Core ──────────────────────────────────────────────────────────────────
 
     private void PlaySweep(bool show)
     {
         if (!initialized) return;
 
-        // Cancela cualquier sweep en curso: hover/unhover rápidos no acumulan tweens.
+        // Cancel any sweep in progress: fast hover/unhover does not stack tweens.
         LeanTween.cancel(sweepTarget.gameObject);
 
         float to           = show ? shownX : restingHiddenX;
         float dur          = show ? inDuration : outDuration;
         LeanTweenType ease = show ? inEase : outEase;
 
-        // Tween invertible sobre anchoredPosition.x (mismo tween, distinto destino).
+        // Reversible tween on anchoredPosition.x (same tween, different target).
         LeanTween.value(sweepTarget.gameObject, sweepTarget.anchoredPosition.x, to, dur)
             .setOnUpdate(SetX)
             .setEase(ease)
@@ -113,13 +113,13 @@ public class ButtonHoverSweepEffect : MonoBehaviour,
         sweepTarget.anchoredPosition = p;
     }
 
-    // ── Limpieza ──────────────────────────────────────────────────────────────
+    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     private void OnDisable()
     {
         if (sweepTarget == null) return;
         LeanTween.cancel(sweepTarget.gameObject);
-        if (initialized) SetX(restingHiddenX); // dejar en estado oculto consistente
+        if (initialized) SetX(restingHiddenX); // leave it in a consistent hidden state
     }
 
     private void OnDestroy()

@@ -4,7 +4,7 @@ public class SequenceButtonInteractable : MonoBehaviour, IInteractable
 {
     [SerializeField] private SequencePanelInteractable panel;
     [SerializeField] private int buttonId;
-    [SerializeField] private string promptText = "Presionar boton";
+    [SerializeField] private string promptText = "Press button";
 
 
     public string GetInfoText() => string.Empty;

@@ -5,8 +5,8 @@ public static class NemesisEvents
     public static event Action OnChaseStarted;
     public static event Action OnChaseEnded;
 
-    // Valor normalizado [0,1]: 0 = lejos/fuera de rango, 1 = distancia mínima.
-    // El Nemesis es responsable de calcular y disparar este evento cada frame.
+    // Normalized value [0,1]: 0 = far away / out of range, 1 = minimum distance.
+    // The Nemesis is responsible for computing and raising this event every frame.
     public static event Action<float> OnProximityChanged;
 
     public static void ChaseStarted()                    => OnChaseStarted?.Invoke();

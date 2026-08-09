@@ -73,7 +73,13 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         Crouch,
         Interacting,
         Hidden,
+
+        // NOT IMPLEMENTED â€” there is no PlayerInDangerState and nothing transitions here.
+        // The spec (Â§8) mentions it ("the player goes to In Danger and regains control")
+        // but never defines it, so the behaviour cannot be written yet. StateManager guards
+        // against the transition, so leaving it declared is safe.
         InDanger,
+
         Disabled,
     }
     void Awake()
@@ -105,14 +111,14 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     private void InputUpdate()
     {
-        // Conseguir forward en función de a donde mira la cámara
+        // Get the forward vector based on where the camera is looking
         orientation.forward = (transform.position - new Vector3(cameraTransform.position.x, transform.position.y, cameraTransform.position.z)).normalized;
 
-        // Conseguir vector dirección de movimiento segun los inputs
+        // Build the movement direction vector from the inputs
         inputDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
         inputDir.Normalize();
 
-        //Mecánica Agacharse
+        // Crouch mechanic
         if (Input.GetButtonDown("Crouch"))
         {
             if (!isCrouch)
@@ -125,21 +131,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             }
         }
 
-        //Testeo de estado Hidden
+        // Hidden state testing
         if (Input.GetKeyDown(KeyCode.R))
         {
             if (isHidden) isHidden = false;
             else isHidden = true;
         }
 
-        //Testeo de estado InDanger
+        // InDanger state testing
         if (Input.GetKeyDown(KeyCode.T))
         {
             if (isInDanger) isInDanger = false;
             else isInDanger = true;
         }
 
-        //Testeo de estado Disabled
+        // Disabled state testing
         if (Input.GetKeyDown(KeyCode.Y))
         {
             if (isDisabled) isDisabled = false;
@@ -166,7 +172,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                 rigBody.useGravity = true;
             }
         }
-        else 
+        else
         {
             isGrounded = false;
             rigBody.useGravity = true;
@@ -177,21 +183,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         nextPosition = new Vector3(newPosition.x, transform.position.y, newPosition.z);
         nextDirection = newForward;
     }
-    public void OnCaptured() 
+    public void OnCaptured()
     {
         if(!isDisabled) isDisabled = true;
     }
-    public void OnLegsModuleExplosion() 
+    public void OnLegsModuleExplosion()
     {
         legsModuleDamage = true;
         modulesDamagedCount++;
     }
-    public void OnChestModuleExplosion() 
+    public void OnChestModuleExplosion()
     {
         chestModuleDamage = true;
         modulesDamagedCount++;
     }
-    public void OnHeadModuleExplosion() 
+    public void OnHeadModuleExplosion()
     {
         headModuleDamage = true;
         modulesDamagedCount++;

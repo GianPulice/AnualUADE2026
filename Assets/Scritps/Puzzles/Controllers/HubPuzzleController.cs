@@ -22,11 +22,11 @@ public class HubPuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(hubData.PuzzleId);
 
-        Debug.Log($"Hub completado: {hubData.PuzzleId}");
+        Debug.Log($"Hub completed: {hubData.PuzzleId}");
 
-        // ACA DESPUES:
-        // - reproducir cinemática
-        // - abrir acceso Piso 3
-        // - activar ascensor / puerta final
+        // TO DO HERE:
+        // - play the cinematic
+        // - open access to Floor 3
+        // - activate the elevator / final door
     }
 }

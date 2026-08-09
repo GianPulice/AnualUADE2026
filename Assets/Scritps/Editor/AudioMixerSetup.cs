@@ -5,20 +5,20 @@ using UnityEngine;
 using UnityEngine.Audio;
 
 /// <summary>
-/// Crea el AudioMixer maestro con la jerarquia y los exposed parameters definidos
-/// en el Audio System Spec (Master > Music, Ambience, SFX, Player, Nemesis, UI, Voice).
+/// Creates the master AudioMixer with the hierarchy and exposed parameters defined
+/// in the Audio System Spec (Master > Music, Ambience, SFX, Player, Nemesis, UI, Voice).
 ///
-/// Idempotente: si el asset ya existe, no lo sobreescribe — solo asegura que los
-/// grupos hijos y los exposed parameters esten presentes y bien nombrados.
+/// Idempotent: if the asset already exists, it is not overwritten — it only makes sure the
+/// child groups and exposed parameters are present and correctly named.
 ///
-/// Ejecutar desde: Tools/Audio/Create or Update Master Mixer.
+/// Run from: Tools/Audio/Create or Update Master Mixer.
 /// </summary>
 public static class AudioMixerSetup
 {
     private const string MixerFolder = "Assets/ScriptableObjects/Audio";
     private const string MixerPath   = MixerFolder + "/MasterMixer.mixer";
 
-    // Hijos directos de Master (7). Total grupos = 8 contando Master.
+    // Direct children of Master (7). Total groups = 8 counting Master.
     private static readonly string[] ChildGroups =
     {
         "Music", "Ambience", "SFX", "Player", "Nemesis", "UI", "Voice"
@@ -37,15 +37,15 @@ public static class AudioMixerSetup
             mixerObj = CreateMixerAsset(MixerPath);
             if (mixerObj == null)
             {
-                Debug.LogError("[AudioMixerSetup] No se pudo crear el AudioMixer (la API interna cambio).");
+                Debug.LogError("[AudioMixerSetup] Could not create the AudioMixer (the internal API changed).");
                 return;
             }
-            Debug.Log($"[AudioMixerSetup] AudioMixer creado en {MixerPath}.");
+            Debug.Log($"[AudioMixerSetup] AudioMixer created at {MixerPath}.");
         }
         else
         {
             mixerObj = existing;
-            Debug.Log($"[AudioMixerSetup] AudioMixer existente reutilizado: {MixerPath}.");
+            Debug.Log($"[AudioMixerSetup] Reusing existing AudioMixer: {MixerPath}.");
         }
 
         var mixerType = mixerObj.GetType();
@@ -53,17 +53,17 @@ public static class AudioMixerSetup
                                    ?.GetValue(mixerObj);
         if (masterGroup == null)
         {
-            Debug.LogError("[AudioMixerSetup] No se pudo obtener masterGroup del controller.");
+            Debug.LogError("[AudioMixerSetup] Could not get masterGroup from the controller.");
             return;
         }
 
-        // 1) Asegurar hijos por nombre
+        // 1) Ensure the children exist by name
         foreach (var name in ChildGroups)
         {
             EnsureChildGroup(mixerObj, masterGroup, name);
         }
 
-        // 2) Exposed parameters para cada grupo + Master
+        // 2) Exposed parameters for each group + Master
         ExposeVolumeParameter(mixerObj, masterGroup, "MasterVolume");
         foreach (var name in ChildGroups)
         {
@@ -72,16 +72,16 @@ public static class AudioMixerSetup
                 ExposeVolumeParameter(mixerObj, child, name + "Volume");
         }
 
-        // 3) Forzar el rename de los params (la API interna no expone Rename:
-        //    al exponer, Unity asigna nombre por default tipo "MyExposedParam N").
-        //    Reescribimos el array exposedParameters con los nombres canonicos.
+        // 3) Force the rename of the params (the internal API does not expose Rename:
+        //    when exposing, Unity assigns a default name like "MyExposedParam N").
+        //    We rewrite the exposedParameters array with the canonical names.
         RewriteExposedParameterNames(mixerObj, masterGroup);
 
         EditorUtility.SetDirty(mixerObj);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log("[AudioMixerSetup] Mixer listo con 8 grupos y exposed params: MasterVolume, MusicVolume, AmbienceVolume, SFXVolume, PlayerVolume, NemesisVolume, UIVolume, VoiceVolume.");
+        Debug.Log("[AudioMixerSetup] Mixer ready with 8 groups and exposed params: MasterVolume, MusicVolume, AmbienceVolume, SFXVolume, PlayerVolume, NemesisVolume, UIVolume, VoiceVolume.");
     }
 
     private static void EnsureFolder(string folder)
@@ -100,19 +100,19 @@ public static class AudioMixerSetup
 
     private static Object CreateMixerAsset(string path)
     {
-        // La creacion programatica de AudioMixers vive en UnityEditor.Audio.AudioMixerController
-        // (clase internal). La API publica oficial no existe.
+        // Programmatic creation of AudioMixers lives in UnityEditor.Audio.AudioMixerController
+        // (an internal class). There is no official public API.
         var asm = typeof(AudioMixer).Assembly; // UnityEngine
-        // El tipo vive en el assembly UnityEditor.
+        // The type lives in the UnityEditor assembly.
         var editorAsm = typeof(EditorWindow).Assembly;
         var controllerType = editorAsm.GetType("UnityEditor.Audio.AudioMixerController");
         if (controllerType == null)
         {
-            Debug.LogError("[AudioMixerSetup] No se pudo encontrar UnityEditor.Audio.AudioMixerController.");
+            Debug.LogError("[AudioMixerSetup] Could not find UnityEditor.Audio.AudioMixerController.");
             return null;
         }
 
-        // Buscamos el metodo estatico de creacion.
+        // Look up the static creation method.
         var createMethod = controllerType.GetMethod(
             "CreateMixerControllerAtPath",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
@@ -125,11 +125,11 @@ public static class AudioMixerSetup
             return createMethod.Invoke(null, new object[] { path }) as Object;
         }
 
-        // Fallback: crear instancia con CreateInstance y guardar.
+        // Fallback: create the instance with CreateInstance and save it.
         var instance = ScriptableObject.CreateInstance(controllerType);
         if (instance == null) return null;
 
-        // Llamar a SetView/Initialize si existe (algunas versiones lo necesitan).
+        // Call SetView/Initialize if it exists (some versions need it).
         var initMethod = controllerType.GetMethod("ClearEventHandlers", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         initMethod?.Invoke(instance, null);
 
@@ -215,7 +215,7 @@ public static class AudioMixerSetup
 
         if (newGroup == null)
         {
-            Debug.LogError($"[AudioMixerSetup] No se pudo crear grupo '{name}': API CreateNewGroup ausente.");
+            Debug.LogError($"[AudioMixerSetup] Could not create group '{name}': the CreateNewGroup API is missing.");
             return;
         }
 
@@ -223,12 +223,12 @@ public static class AudioMixerSetup
         var addMethod = mixerType.GetMethod("AddChildToParent", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         addMethod?.Invoke(mixer, new[] { newGroup, parentGroup });
 
-        // Nota: omitido AddGroupToCurrentView — falla si el mixer todavia no tiene una
-        // view inicializada. Los grupos quedan accesibles igual; al abrir el mixer en el
-        // editor aparecen y se pueden arrastrar a la vista a mano si hace falta.
+        // Note: AddGroupToCurrentView is omitted — it fails if the mixer does not have an
+        // initialized view yet. The groups stay accessible anyway; when the mixer is opened in
+        // the editor they show up and can be dragged into the view by hand if needed.
 
-        // El controller ya marca al nuevo group como sub-asset propio dentro de CreateNewGroup,
-        // asi que NO hay que volver a llamar AddObjectToAsset (eso lanza UnityException).
+        // The controller already marks the new group as its own sub-asset inside CreateNewGroup,
+        // so AddObjectToAsset must NOT be called again (that throws a UnityException).
     }
 
     private static void ExposeVolumeParameter(Object mixer, object group, string exposedName)
@@ -237,16 +237,16 @@ public static class AudioMixerSetup
         var groupType = group.GetType();
         var editorAsm = typeof(EditorWindow).Assembly;
 
-        // El parametro de volumen del grupo es group.GetGUIDForVolume() (devuelve GUID).
+        // The group's volume parameter is group.GetGUIDForVolume() (returns a GUID).
         var guidMethod = groupType.GetMethod("GetGUIDForVolume", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         if (guidMethod == null)
         {
-            Debug.LogError($"[AudioMixerSetup] GetGUIDForVolume no encontrado para '{exposedName}'.");
+            Debug.LogError($"[AudioMixerSetup] GetGUIDForVolume not found for '{exposedName}'.");
             return;
         }
         var guid = guidMethod.Invoke(group, null);
 
-        // ContainsExposedParameter(GUID) — para idempotencia.
+        // ContainsExposedParameter(GUID) — for idempotency.
         var containsMethod = mixerType.GetMethod("ContainsExposedParameter", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         bool already = false;
         if (containsMethod != null)
@@ -258,18 +258,18 @@ public static class AudioMixerSetup
         if (!already)
         {
             // Unity 6: AddExposedParameter(AudioParameterPath path).
-            // Para grupos: AudioGroupParameterPath(AudioMixerGroupController group, GUID parameter).
+            // For groups: AudioGroupParameterPath(AudioMixerGroupController group, GUID parameter).
             var groupPathType = editorAsm.GetType("UnityEditor.Audio.AudioGroupParameterPath");
             if (groupPathType == null)
             {
-                Debug.LogError($"[AudioMixerSetup] AudioGroupParameterPath type no encontrado.");
+                Debug.LogError($"[AudioMixerSetup] AudioGroupParameterPath type not found.");
                 return;
             }
 
             var ctor = groupPathType.GetConstructor(new[] { groupType, guid.GetType() });
             if (ctor == null)
             {
-                Debug.LogError($"[AudioMixerSetup] AudioGroupParameterPath constructor no encontrado.");
+                Debug.LogError($"[AudioMixerSetup] AudioGroupParameterPath constructor not found.");
                 return;
             }
             var pathInstance = ctor.Invoke(new[] { group, guid });
@@ -288,17 +288,17 @@ public static class AudioMixerSetup
             if (addExposedMethod != null)
             {
                 addExposedMethod.Invoke(mixer, new[] { pathInstance });
-                // Renombrar a nuestra convencion (Unity por default usa el nombre interno del path).
+                // Rename to our convention (by default Unity uses the path's internal name).
                 var renameMethod = mixerType.GetMethod("RenameExposedParameter", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 renameMethod?.Invoke(mixer, new object[] { guid, exposedName });
                 return;
             }
 
-            Debug.LogError($"[AudioMixerSetup] AddExposedParameter no encontrado para '{exposedName}'.");
+            Debug.LogError($"[AudioMixerSetup] AddExposedParameter not found for '{exposedName}'.");
         }
         else
         {
-            // Si ya existe, renombrar a nuestra convencion (por si vino con otro nombre).
+            // If it already exists, rename to our convention (in case it came with another name).
             var exposedParamsProp = mixerType.GetProperty("exposedParameters", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             var exposedArr = exposedParamsProp?.GetValue(mixer) as System.Collections.IEnumerable;
             if (exposedArr != null)

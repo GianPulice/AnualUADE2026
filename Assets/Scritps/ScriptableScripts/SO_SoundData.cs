@@ -4,9 +4,9 @@ using UnityEngine;
 public class SO_SoundData : ScriptableObject
 {
     /// <summary>
-    /// Categorias alineadas con los AudioMixerGroups del Audio System Spec.
-    /// El orden de los primeros dos valores (SFX=0, Music=1) se mantiene para no
-    /// invalidar SOs ya serializados en el proyecto.
+    /// Categories aligned with the AudioMixerGroups of the Audio System Spec.
+    /// The order of the first two values (SFX=0, Music=1) is kept so already-serialized
+    /// SOs in the project are not invalidated.
     /// </summary>
     public enum SoundCategory
     {
@@ -24,8 +24,8 @@ public class SO_SoundData : ScriptableObject
     [SerializeField] private AudioClip clip;
     [SerializeField] private bool loop = false;
 
-    [Tooltip("Si esta activo, el sonido sigue sonando aunque el juego este pausado (Time.timeScale = 0 + AudioListener.pause). " +
-             "Usar en clicks de UI, tick de timers y todo lo que deba escucharse en pausa.")]
+    [Tooltip("If enabled, the sound keeps playing even while the game is paused (Time.timeScale = 0 + AudioListener.pause). " +
+             "Use on UI clicks, timer ticks and anything that must be audible during pause.")]
     [SerializeField] private bool ignoreListenerPause = false;
 
     public string Id => string.IsNullOrEmpty(id) ? name : id;

@@ -3,33 +3,37 @@ using UnityEngine;
 using UnityEngine.Audio;
 
 /// <summary>
-/// Singleton de audio del juego. Rutea cada sonido al AudioMixerGroup correcto
-/// segun la categoria del SO_SoundData y controla los volumenes via parametros
-/// expuestos del AudioMixer (escala dB con map logaritmico desde 0..1).
+/// Game audio singleton. Routes each sound to the correct AudioMixerGroup based on the
+/// SO_SoundData category and controls volumes through the AudioMixer's exposed parameters
+/// (dB scale with a logarithmic map from 0..1).
 ///
-/// Mapa Mixer (ver MasterMixer.mixer):
+/// Mixer map (see MasterMixer.mixer):
 ///   Master > Music, Ambience, SFX, Player, Nemesis, UI, Voice.
 ///
-/// API publica (en orden de uso esperado):
-///   PlaySFX(id [, pos])     — SFX general (rutea a grupo SFX).
-///   PlayMusic(id)           — Musica de fondo (un solo source dedicado).
-///   PlayAmbience(id)        — Ambientes/loops del entorno.
-///   PlayPlayer(id [, pos])  — Sonidos del jugador (pasos, respiracion, etc.).
-///   PlayNemesis(id [, pos]) — Sonidos del Nemesis.
-///   PlayUI(id)              — Clicks/hover del menu.
-///   PlayVoice(id)           — Voiceover (siempre 2D).
-///   PlayLoop(id, src)       — Toma una AudioSource ya existente (ej. en un GameObject
-///                              persistente como el dispositivo del jugador) y le carga
-///                              el clip + grupo correctos para que reproduzca en loop.
-///   Play(id [, pos])        — Generico: deduce el grupo desde la categoria del SO.
+/// Public API (in expected order of use):
+///   PlaySFX(id [, pos])     — General SFX (routes to the SFX group).
+///   PlayMusic(id)           — Background music (single dedicated source).
+///   PlayAmbience(id)        — Environment ambiences / loops.
+///   PlayPlayer(id [, pos])  — Player sounds (footsteps, breathing, etc.).
+///   PlayNemesis(id [, pos]) — Nemesis sounds.
+///   PlayUI(id)              — Menu clicks / hovers.
+///   PlayVoice(id)           — Voiceover (always 2D).
+///   PlayLoop(id, src)       — Takes an existing AudioSource (e.g. on a persistent GameObject
+///                              such as the player's device) and loads the correct clip + group
+///                              so it plays on loop.
+///   Play(id [, pos])        — Generic: infers the group from the SO's category.
 ///
-/// API legacy (se mantiene para no romper PickupInteractable y el SettingsModel actual):
+/// Volume: the player only controls 3 sliders (Master, Music, SFX). The SFX one moves every
+/// gameplay bus as a block via SetGameplaySfxBundle(). The per-bus setters remain public for
+/// mixing from code, but Settings no longer uses them.
+///
+/// Legacy API (kept so PickupInteractable does not break):
 ///   PlaySFX(id), PlayMusic(id), StopMusic(), StopAllSFX(), MasterVolume, MusicVolume,
 ///   SFXVolume, VoiceVolume, SetMasterVolume, SetMusicVolume, SetSFXVolume, SetVoiceVolume.
 /// </summary>
 public class AudioManager : Singleton<AudioManager>
 {
-    // ── Exposed parameter names (deben coincidir con MasterMixer.mixer) ──────
+    // ── Exposed parameter names (must match MasterMixer.mixer) ───────────────
     public const string EXP_MASTER   = "MasterVolume";
     public const string EXP_MUSIC    = "MusicVolume";
     public const string EXP_AMBIENCE = "AmbienceVolume";
@@ -39,7 +43,7 @@ public class AudioManager : Singleton<AudioManager>
     public const string EXP_UI       = "UIVolume";
     public const string EXP_VOICE    = "VoiceVolume";
 
-    [Header("Audio Mixer (arrastrar MasterMixer.mixer y sus 8 grupos)")]
+    [Header("Audio Mixer (drag in MasterMixer.mixer and its 8 groups)")]
     [SerializeField] private AudioMixer mixer;
     [SerializeField] private AudioMixerGroup masterGroup;
     [SerializeField] private AudioMixerGroup musicGroup;
@@ -50,7 +54,7 @@ public class AudioManager : Singleton<AudioManager>
     [SerializeField] private AudioMixerGroup uiGroup;
     [SerializeField] private AudioMixerGroup voiceGroup;
 
-    [Header("Volumenes 0..1 (defaults; al arrancar se pisa con PlayerPrefs)")]
+    [Header("Volumes 0..1 (defaults; overwritten from PlayerPrefs at startup)")]
     private float masterVolume   = 0.5f;
     private float musicVolume    = 0.5f;
     private float ambienceVolume = 0.5f;
@@ -60,26 +64,22 @@ public class AudioManager : Singleton<AudioManager>
     private float uiVolume       = 0.5f;
     private float voiceVolume    = 0.5f;
 
-    [Header("Pool de SFX")]
+    [Header("SFX pool")]
     [SerializeField] private int initialPoolSize = 20;
 
-    [Header("Sonidos")]
-    [Tooltip("Arrastra aca todos los SO_SoundData del proyecto. Pueden estar en cualquier carpeta (ej: Assets/ScriptableObjects/Audio/).")]
+    [Header("Sounds")]
+    [Tooltip("Drag every SO_SoundData in the project here. They can live in any folder (e.g. Assets/ScriptableObjects/Audio/).")]
     [SerializeField] private SO_SoundData[] sounds;
 
     private readonly Dictionary<string, SO_SoundData> byId = new();
     private readonly List<AudioSource> sfxPool = new();
     private AudioSource musicSource;
 
-    // Mismas keys que SettingsModel para que el AudioManager arranque ya sincronizado.
-    private const string KEY_MASTER   = "Settings_MasterVolume";
-    private const string KEY_MUSIC    = "Settings_MusicVolume";
-    private const string KEY_SFX      = "Settings_SFXVolume";
-    private const string KEY_VOICE    = "Settings_VoiceVolume";
-    private const string KEY_AMBIENCE = "Settings_AmbienceVolume";
-    private const string KEY_PLAYER   = "Settings_PlayerVolume";
-    private const string KEY_NEMESIS  = "Settings_NemesisVolume";
-    private const string KEY_UI       = "Settings_UIVolume";
+    // Same keys as SettingsModel so the AudioManager starts already in sync.
+    // Only 3: the rest of the buses are derived from SFX (see SetGameplaySfxBundle).
+    private const string KEY_MASTER = "Settings_MasterVolume";
+    private const string KEY_MUSIC  = "Settings_MusicVolume";
+    private const string KEY_SFX    = "Settings_SFXVolume";
 
     private void Awake()
     {
@@ -97,14 +97,12 @@ public class AudioManager : Singleton<AudioManager>
 
     private void LoadVolumesFromPrefs()
     {
-        masterVolume   = PlayerPrefs.GetFloat(KEY_MASTER,   masterVolume);
-        musicVolume    = PlayerPrefs.GetFloat(KEY_MUSIC,    musicVolume);
-        sfxVolume      = PlayerPrefs.GetFloat(KEY_SFX,      sfxVolume);
-        voiceVolume    = PlayerPrefs.GetFloat(KEY_VOICE,    voiceVolume);
-        ambienceVolume = PlayerPrefs.GetFloat(KEY_AMBIENCE, ambienceVolume);
-        playerVolume   = PlayerPrefs.GetFloat(KEY_PLAYER, playerVolume);
-        nemesisVolume  = PlayerPrefs.GetFloat(KEY_NEMESIS, nemesisVolume);
-        uiVolume       = PlayerPrefs.GetFloat(KEY_UI, uiVolume);
+        masterVolume = PlayerPrefs.GetFloat(KEY_MASTER, masterVolume);
+        musicVolume  = PlayerPrefs.GetFloat(KEY_MUSIC,  musicVolume);
+        sfxVolume    = PlayerPrefs.GetFloat(KEY_SFX,    sfxVolume);
+
+        // Settings only persists 3 keys; the other buses hang off the SFX slider.
+        ambienceVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = sfxVolume;
     }
 
     private void InitMusicSource()
@@ -113,7 +111,7 @@ public class AudioManager : Singleton<AudioManager>
         go.transform.SetParent(transform, false);
         musicSource = go.AddComponent<AudioSource>();
         musicSource.playOnAwake = false;
-        musicSource.spatialBlend = 0f; // Musica = 2D.
+        musicSource.spatialBlend = 0f; // Music = 2D.
         musicSource.outputAudioMixerGroup = musicGroup;
     }
 
@@ -139,37 +137,37 @@ public class AudioManager : Singleton<AudioManager>
         {
             if (s == null) continue;
             if (byId.ContainsKey(s.Id))
-                Debug.LogWarning($"[AudioManager] Sonido con id duplicado: '{s.Id}'. Se reemplaza el anterior.");
+                Debug.LogWarning($"[AudioManager] Duplicate sound id: '{s.Id}'. The previous one is replaced.");
             byId[s.Id] = s;
         }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // API publica
+    // Public API
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Reproduce el sonido en el grupo que indique su SoundCategory. 2D por defecto.</summary>
+    /// <summary>Plays the sound on the group its SoundCategory indicates. 2D by default.</summary>
     public void Play(string id)
     {
         if (!TryGet(id, out var data)) return;
         PlayInternal(data, GroupFor(data.Category), null);
     }
 
-    /// <summary>Reproduce el sonido en 3D en la posicion dada, ruteado por categoria.</summary>
+    /// <summary>Plays the sound in 3D at the given position, routed by category.</summary>
     public void Play(string id, Vector3 position)
     {
         if (!TryGet(id, out var data)) return;
         PlayInternal(data, GroupFor(data.Category), position);
     }
 
-    /// <summary>SFX general (compat con el codigo existente que usa PlaySFX(id)).</summary>
+    /// <summary>General SFX (compatible with existing code that uses PlaySFX(id)).</summary>
     public void PlaySFX(string id)
     {
         if (!TryGet(id, out var data)) return;
         PlayInternal(data, sfxGroup ?? GroupFor(data.Category), null);
     }
 
-    /// <summary>SFX general en una posicion del mundo (3D espacial).</summary>
+    /// <summary>General SFX at a world position (3D spatial).</summary>
     public void PlaySFX(string id, Vector3 position)
     {
         if (!TryGet(id, out var data)) return;
@@ -212,10 +210,10 @@ public class AudioManager : Singleton<AudioManager>
         PlayInternal(data, voiceGroup ?? GroupFor(data.Category), null, forceIgnorePause: true);
     }
 
-    /// <summary>Carga el clip + grupo de mixer en una AudioSource externa y la arranca en loop.</summary>
+    /// <summary>Loads the clip + mixer group into an external AudioSource and starts it on loop.</summary>
     public void PlayLoop(string id, AudioSource src)
     {
-        if (src == null) { Debug.LogWarning("[AudioManager] PlayLoop sin AudioSource."); return; }
+        if (src == null) { Debug.LogWarning("[AudioManager] PlayLoop without an AudioSource."); return; }
         if (!TryGet(id, out var data)) return;
 
         src.clip = data.Clip;
@@ -232,7 +230,7 @@ public class AudioManager : Singleton<AudioManager>
         musicSource.clip = data.Clip;
         musicSource.outputAudioMixerGroup = musicGroup;
         musicSource.loop = data.Loop;
-        musicSource.volume = 1f; // El volumen se gobierna por el mixer.
+        musicSource.volume = 1f; // Volume is governed by the mixer.
         musicSource.Play();
     }
 
@@ -245,7 +243,7 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Volumen — getters
+    // Volume — getters
     // ──────────────────────────────────────────────────────────────────────────
 
     public float MasterVolume   => masterVolume;
@@ -258,7 +256,7 @@ public class AudioManager : Singleton<AudioManager>
     public float VoiceVolume    => voiceVolume;
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Volumen — setters
+    // Volume — setters
     // ──────────────────────────────────────────────────────────────────────────
 
     public void SetMasterVolume(float v)
@@ -273,7 +271,7 @@ public class AudioManager : Singleton<AudioManager>
         ApplyVolume(EXP_MUSIC, musicVolume);
     }
 
-    /// <summary>Volumen del bus SFX (efectos de mundo).</summary>
+    /// <summary>Volume of the SFX bus (world effects).</summary>
     public void SetSFXVolume(float v)
     {
         sfxVolume = Mathf.Clamp01(v);
@@ -281,24 +279,27 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     /// <summary>
-    /// Alias explicito de <see cref="SetSFXVolume"/>. Existe para que el SettingsModel
-    /// pueda distinguir entre "slider SFX afecta solo SFX" (modo nuevo, recomendado)
-    /// y un futuro "slider SFX agrupa varios buses" sin cambiar la firma.
-    /// </summary>
-    public void SetSFXVolumeOnly(float v) => SetSFXVolume(v);
-
-    /// <summary>
-    /// Modo agrupado (legacy): mueve SFX, Ambience, Player y Nemesis en bloque.
-    /// Util si el panel de Settings expone un unico slider "SFX" en lugar de uno
-    /// por cada bus de gameplay.
+    /// Bundled mode: moves every non-music bus as a block
+    /// (SFX, Ambience, Player, Nemesis, UI and Voice).
+    ///
+    /// This is the mode the game uses: the Settings panel exposes a single "SFX" slider
+    /// instead of one per bus. UI and Voice are included on purpose — if they were left out,
+    /// they would be the only two buses with no player control at all, stuck at their default.
+    /// To pin them again, remove their two lines from here.
+    ///
+    /// The buses still exist separately in the mixer so they can be balanced against each other
+    /// (routing is decided by SO_SoundData.SoundCategory); this only unifies what the player
+    /// is allowed to touch.
     /// </summary>
     public void SetGameplaySfxBundle(float v)
     {
-        sfxVolume = ambienceVolume = playerVolume = nemesisVolume = Mathf.Clamp01(v);
+        sfxVolume = ambienceVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = Mathf.Clamp01(v);
         ApplyVolume(EXP_SFX,      sfxVolume);
         ApplyVolume(EXP_AMBIENCE, ambienceVolume);
         ApplyVolume(EXP_PLAYER,   playerVolume);
         ApplyVolume(EXP_NEMESIS,  nemesisVolume);
+        ApplyVolume(EXP_UI,       uiVolume);
+        ApplyVolume(EXP_VOICE,    voiceVolume);
     }
 
     public void SetAmbienceVolume(float v)
@@ -332,7 +333,7 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Internos
+    // Internals
     // ──────────────────────────────────────────────────────────────────────────
 
     private AudioMixerGroup GroupFor(SO_SoundData.SoundCategory cat)
@@ -357,7 +358,7 @@ public class AudioManager : Singleton<AudioManager>
         src.clip = data.Clip;
         src.outputAudioMixerGroup = group;
         src.loop = data.Loop;
-        src.volume = 1f; // El volumen final lo decide el mixer.
+        src.volume = 1f; // The final volume is decided by the mixer.
         src.ignoreListenerPause = forceIgnorePause || data.IgnoreListenerPause;
 
         if (position.HasValue)
@@ -387,8 +388,8 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     /// <summary>
-    /// Convierte 0..1 lineal a dB y lo escribe en el mixer. 0 mapea a -80dB
-    /// (silencio practico, evita -infinito por Log10(0)).
+    /// Converts linear 0..1 to dB and writes it to the mixer. 0 maps to -80dB
+    /// (practical silence, avoids -infinity from Log10(0)).
     /// </summary>
     private void ApplyVolume(string exposedParam, float linear01)
     {
@@ -400,7 +401,7 @@ public class AudioManager : Singleton<AudioManager>
     private bool TryGet(string id, out SO_SoundData data)
     {
         if (byId.TryGetValue(id, out data)) return true;
-        Debug.LogWarning($"[AudioManager] No existe sonido con id '{id}'.");
+        Debug.LogWarning($"[AudioManager] There is no sound with id '{id}'.");
         return false;
     }
 

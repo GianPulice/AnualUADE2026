@@ -2,9 +2,9 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-// Panel negro de ceguera (Módulo M3 o cualquier módulo con causesBlindness=true).
-// Permanece activo en escena: usa CanvasGroup.alpha, nunca SetActive.
-// Los ojos del Nemesis se renderizan sobre este panel (layer NemesisEyes, ver TA A6).
+// Black blindness panel (Module M3, or any module with causesBlindness=true).
+// It stays active in the scene: it uses CanvasGroup.alpha, never SetActive.
+// The Nemesis eyes are rendered on top of this panel (NemesisEyes layer, see TA A6).
 [RequireComponent(typeof(CanvasGroup))]
 public class BlindnessOverlayView : MonoBehaviour
 {

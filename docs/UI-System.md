@@ -4,6 +4,9 @@ Este documento explica cómo funciona la UI del juego: la arquitectura MVC, el c
 
 Está pensado para que alguien que se suma al proyecto pueda navegar el código y agregar pantallas nuevas sin romper lo existente.
 
+> ⚠️ **Nota de idioma**: el código de `Assets/Scritps/` está íntegramente en inglés (comentarios,
+> strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` § Language rule.
+
 ---
 
 ## 1. Visión general
@@ -86,7 +89,9 @@ Cada uno de estos controllers:
 2. Expone `public static SettingsController Instance { get; private set; }` (o el nombre que sea) y lo asigna en `Awake`.
 3. Expone `public bool IsOpen` para que otros sistemas (típicamente `PauseManager`) sepan si está activo.
 4. Tiene un método público `OpenScreen()` / `Open(data)` que cualquier código puede llamar.
-5. Maneja su propio ESC en `Update()` para cerrarse.
+5. **NO maneja su propio ESC.** El `UIStateManager` escucha la action `UI/Exit` y llama
+   `RequestClose()` sobre la modal del top que declare `ConsumesEscape = true`. Los controllers
+   no deben tener un `Update()` con `GetKeyDown(KeyCode.Escape)`.
 
 Ejemplos en el código:
 - `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable`.
@@ -117,7 +122,11 @@ Ejemplos en el código:
 Usuario aprieta ESC
       │
       ▼
-PauseManager.Update() detecta KeyCode.Escape
+InputAction Player/Pause → PauseManager.TryToggleFromInput()
+   (el KeyCode.Escape de Update() es solo fallback si no hay InputActionReference asignada)
+      │
+      ▼
+¿Ya está en pausa? → sí: return (el cierre va por UI/Exit → PauseManagerUI.RequestClose)
       │
       ▼
 ¿Hay una UI bloqueante abierta? (ver §5.1)
@@ -204,7 +213,7 @@ UI_Settings (escena persistente)
 Este patrón se repite en todo el proyecto:
 - `NemesisEvents.OnChaseStarted` → escuchado por `VignetteChaseView`.
 - `InventoryEvents.OnItemAdded` → escuchado por `InteractionPromptView`, `ModuleHUDView`.
-- `GameResultManager.OnGameResult` → escuchado por `WinController`, `LoseController`.
+- `GameResultManager.OnGameResult` → escuchado por `WinController`, `ResultScreenController`.
 
 ### Sub-views por tab
 
@@ -219,7 +228,16 @@ Este patrón se repite en todo el proyecto:
 
 ### Estado "placeholder"
 
-El modelo tiene 12 campos extra (Brightness, Contrast, Gamma, CRTScanlines, ResolutionIndex, etc.) que ya están serializados en PlayerPrefs pero **ningún sistema los lee aún**. Esto deja la estructura lista para que otro complete sin reformar el modelo.
+> ⚠️ **Desactualizado**: esta sección decía que ningún sistema leía los 12 campos extra
+> (Brightness, Contrast, Gamma, CRTScanlines, ResolutionIndex, etc.). **Ya no es cierto** —
+> existen `PostProcessSettingsApplier`, `PS1EffectApplier`, `ScreenSettingsApplier`,
+> `AudioBackgroundApplier` y `CameraSensitivityApplier`, todos suscritos a
+> `SettingsModel.OnSettingsApplied` y leyendo las keys de PlayerPrefs. Ver la tabla
+> key → applier en `docs/CLAUDE.md`.
+>
+> Lo único que sigue sin conectar es el rebinding de teclas (`SettingsPanelControlsView`
+> muestra labels estáticos) y el toggle de glitch VHS (`Settings_VHSGlitch` ya lo lee el
+> `GlitchController`, pero Options no lo expone).
 
 ---
 
@@ -343,7 +361,9 @@ Assets/Scritps/
 │   ├─ PauseManager.cs                    ← singleton de pausa, delega ESC guard a UIStateManager
 │   ├─ AudioManager.cs                    ← SetMasterVolume/Music/SFX
 │   ├─ GameResultManager.cs               ← evento OnGameResult (Win/Lose)
-│   └─ InteractionManager.cs              ← raycast + KeyCode.E al IInteractable activo
+│   ├─ InteractionManager.cs              ← SphereCast desde la cámara + KeyCode.E al IInteractable activo
+│   ├─ InventoryManager.cs                ← lista de ítems (lógica de negocio, no UI)
+│   └─ PuzzleStateManager.cs              ← flags de puzzles/sockets/puertas/válvulas (sin persistencia)
 ├─ ScriptableScripts/
 │   └─ Screens/
 │       ├─ SO_SceneList.cs                ← base de datos de grupos + persistentes
@@ -367,7 +387,9 @@ Assets/Scritps/
 │   │   │   └─ SettingsPanelScreenView.cs    (placeholder)
 │   │   ├─ Document/                      ← DocumentReader (notas)
 │   │   ├─ Win/                           ← WinController/View
-│   │   ├─ Derrota/                       ← LoseController/View
+│   │   ├─ Result/                        ← ResultScreenController/View + ResultPresentation
+│   │   │                                    (reemplazó a LoseController y GameOverController)
+│   │   ├─ Loading/                       ← LoadingController/View
 │   │   └─ MainMenu/                      ← MainMenu, SaveSlots
 │   ├─ Managers/
 │   │   ├─ PauseManagerUI.cs              ← controller del view de pausa
@@ -378,10 +400,11 @@ Assets/Scritps/
 │   └─ HUD/
 │       └─ Vignette/                      ← Vignettes de proximidad/chase
 ├─ Player/
-│   ├─ PlayerController.cs                ← movimiento, lee inputs
-│   ├─ PlayerCameraController.cs          ← Cinemachine config
-│   ├─ CameraSensitivityApplier.cs        ← aplica Settings_Sensitivity al rig
+│   ├─ PlayerCameraController.cs          ← Cinemachine config + lock del cursor
+│   ├─ CameraSensitivityApplier.cs        ← aplica Settings_Sensitivity + InvertY al rig
+│   ├─ CameraInputBlocker.cs              ← apaga el InputAxisController con modal abierta
 │   └─ Player FSM/                        ← state machine del player
+│       └─ PlayerStateManager.cs          ← movimiento, lee inputs (no existe PlayerController.cs)
 └─ Interactables/
     └─ ...                                ← items, doors, sockets (implementan IInteractable)
 ```
@@ -409,10 +432,10 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | Evento | Dispara | Escuchan |
 |---|---|---|
 | `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI |
-| `GameResultManager.OnGameResult` | ReportWin/ReportLoss | WinController, LoseController |
+| `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver | WinController, ResultScreenController |
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | CameraSensitivityApplier |
-| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de Chasing | VignetteChaseView |
-| `NemesisEvents.OnProximityChanged` | distancia al player cambia | VignetteProximityView |
+| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
 | `InventoryEvents.OnModuleTimerTick/StateChanged/Exploded` | timers de módulos | ModuleHUDView |
@@ -424,7 +447,8 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 Para entender un pattern específico, leer estos archivos como modelo:
 
 - **Controller persistente con static Instance + IModalUI no-pausante**: `DocumentReaderController.cs` — ejemplo de `PausesGame = false` (tiempo corre, input bloqueado).
-- **Controller con InjectDependencies + apertura por evento estático**: `WinController.cs`, `LoseController.cs`.
+- **Controller con InjectDependencies + apertura por evento estático**: `WinController.cs`, `ResultScreenController.cs`.
+- **Presentación por datos en vez de por subclase**: `ResultPresentation.cs` — un preset serializado por `GameState` en lugar de un controller por pantalla.
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
 - **View con sub-views y re-emisión de eventos**: `SettingsView.cs`.
 - **Vista permanentemente activa con CanvasGroup.alpha**: `InteractionPromptView.cs`.

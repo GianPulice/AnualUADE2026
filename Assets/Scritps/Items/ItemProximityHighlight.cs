@@ -2,68 +2,68 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Lerpea los parámetros <c>_TintIntensity</c> y <c>_EmissionIntensity</c> del shader
-/// ItemPSX cuando el player entra/sale del radio de interacción, según el spec
-/// "Color &amp; Visual Language" (sección 2.1).
+/// Lerps the <c>_TintIntensity</c> and <c>_EmissionIntensity</c> parameters of the ItemPSX
+/// shader when the player enters/leaves the interaction radius, following the
+/// "Color &amp; Visual Language" spec (section 2.1).
 ///
-/// Estado lejano (default): tinte 0.15, emisión 0.0.
-/// Estado próximo (player en radio): tinte 0.4, emisión 0.2.
-/// Transición: lerp de 0.3 segundos.
+/// Far state (default): tint 0.15, emission 0.0.
+/// Near state (player in range): tint 0.4, emission 0.2.
+/// Transition: 0.3 second lerp.
 ///
-/// Usa MaterialPropertyBlock — no instancia material, mantiene SRP Batcher.
+/// Uses MaterialPropertyBlock — does not instance the material, keeps the SRP Batcher.
 ///
 /// Setup:
-///   1. El Renderer del item debe usar un material con shader <c>Shader Graphs/ItemPSX</c>
-///      (o cualquier shader que exponga las dos properties <c>_TintIntensity</c> y
-///      <c>_EmissionIntensity</c>).
-///   2. Pegar este componente al GameObject del item (Renderer en el mismo objeto, o
-///      asignar a mano en <c>targetRenderer</c>).
-///   3. El enganche es automático: el componente escucha <see cref="InteractionEvents.OnTargetChanged"/>
-///      y cuando el raycast del <c>InteractionManager</c> apunta a este interactuable pasa a
-///      estado próximo (near), y al dejar de apuntarlo vuelve a lejano (far). No hay que
-///      cablear triggers a mano.
+///   1. The item's Renderer must use a material with the <c>Shader Graphs/ItemPSX</c> shader
+///      (or any shader exposing the two <c>_TintIntensity</c> and <c>_EmissionIntensity</c>
+///      properties).
+///   2. Attach this component to the item's GameObject (Renderer on the same object, or
+///      assign it manually in <c>targetRenderer</c>).
+///   3. Hook-up is automatic: the component listens to <see cref="InteractionEvents.OnTargetChanged"/>
+///      and when the <c>InteractionManager</c> raycast points at this interactable it moves to
+///      the near state, and back to far when it stops pointing at it. No triggers need to be
+///      wired by hand.
 ///
-/// Para puzzles e interactuables sin tinte de categoría (sec 6 del spec):
-/// setear <c>farTint = 0</c> y <c>nearTint = 0</c> — solo brilla la emisión al acercarse.
+/// For puzzles and interactables without a category tint (spec section 6):
+/// set <c>farTint = 0</c> and <c>nearTint = 0</c> — only the emission glows on approach.
 ///
-/// Categoría/color: si el GameObject tiene un <see cref="PickupInteractable"/>, la categoría
-/// (y por lo tanto el tinte/emisión) se resuelve sola desde su <c>SO_InventoryItem</c> —
-/// no hace falta volver a elegirla acá. Usar el dropdown manual (tildando
-/// <c>overrideCategory</c>) solo en interactuables sin ítem de inventario.
+/// Category/color: if the GameObject has a <see cref="PickupInteractable"/>, the category
+/// (and therefore the tint/emission) resolves itself from its <c>SO_InventoryItem</c> —
+/// there is no need to pick it again here. Use the manual dropdown (by ticking
+/// <c>overrideCategory</c>) only on interactables without an inventory item.
 /// </summary>
 [RequireComponent(typeof(Renderer))]
 public class ItemProximityHighlight : MonoBehaviour
 {
-    [Header("Estado lejano (default)")]
-    [Tooltip("Tinte de categoría apenas perceptible. Spec: 0.15.")]
+    [Header("Far state (default)")]
+    [Tooltip("Barely perceptible category tint. Spec: 0.15.")]
     [SerializeField, Range(0f, 1f)] private float farTint      = 0.15f;
 
-    [Tooltip("Emisión apagada en estado lejano. Spec: 0.0.")]
+    [Tooltip("Emission off in the far state. Spec: 0.0.")]
     [SerializeField, Range(0f, 1f)] private float farEmission  = 0.0f;
 
-    [Header("Estado próximo (player en radio)")]
-    [Tooltip("Tinte intensificado al acercarse. Spec: 0.4.")]
+    [Header("Near state (player in range)")]
+    [Tooltip("Intensified tint on approach. Spec: 0.4.")]
     [SerializeField, Range(0f, 1f)] private float nearTint     = 0.4f;
 
-    [Tooltip("Emisión sutil al acercarse. Spec: 0.2.")]
+    [Tooltip("Subtle emission on approach. Spec: 0.2.")]
     [SerializeField, Range(0f, 1f)] private float nearEmission = 0.2f;
 
-    [Header("Transición")]
-    [Tooltip("Duración del lerp en segundos. Spec: 0.3s.")]
+    [Header("Transition")]
+    [Tooltip("Lerp duration in seconds. Spec: 0.3s.")]
     [SerializeField, Min(0.01f)] private float lerpDuration = 0.3f;
 
-    [Header("Tinte de categoría (ItemPSX §4.4)")]
-    [Tooltip("Si hay un PickupInteractable en este mismo GameObject, la categoría se toma " +
-             "solo de su SO_InventoryItem — no hace falta duplicarla acá. Tildar esto para " +
-             "forzar la categoría manual de abajo (ej: puzzles/decorativos sin ítem de inventario).")]
+    [Header("Category tint (ItemPSX §4.4)")]
+    [Tooltip("If there is a PickupInteractable on this same GameObject, the category is taken " +
+             "only from its SO_InventoryItem — there is no need to duplicate it here. Tick this to " +
+             "force the manual category below (e.g. puzzles/props without an inventory item).")]
     [SerializeField] private bool overrideCategory = false;
-    [Tooltip("Categoría manual — solo se usa si 'Override Category' está tildado, o si no hay " +
-             "PickupInteractable con ítem asignado en este GameObject.")]
+    [Tooltip("Manual category — only used if 'Override Category' is ticked, or if there is no " +
+             "PickupInteractable with an assigned item on this GameObject.")]
     [SerializeField] private ItemCategory category;
-    [Tooltip("Config global de categorías. Asignar el asset SO_ItemCategoryConfig del proyecto.")]
+    [Tooltip("Global category config. Assign the project's SO_ItemCategoryConfig asset.")]
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
 
-    [Header("Renderer (opcional — autodetecta el del GameObject)")]
+    [Header("Renderer (optional — autodetects the GameObject's)")]
     [SerializeField] private Renderer targetRenderer;
 
     private static readonly int TintId       = Shader.PropertyToID("_TintIntensity");
@@ -74,10 +74,10 @@ public class ItemProximityHighlight : MonoBehaviour
     private Color _tintColor;
     private Color _emissionColor;
 
-    // Si no hay categoryConfig, el color language vive en el propio material
-    // (mat_item_keys, mat_item_clues, etc.): en ese caso NO pisamos _TintColor /
-    // _EmissionColor, solo animamos sus intensidades. Sin esto, el item se veía
-    // gris al Play porque el else de Awake forzaba grey/black sobre el material.
+    // If there is no categoryConfig, the color language lives in the material itself
+    // (mat_item_keys, mat_item_clues, etc.): in that case we do NOT overwrite _TintColor /
+    // _EmissionColor, we only animate their intensities. Without this, the item looked
+    // grey on Play because the else branch in Awake forced grey/black onto the material.
     private bool _overrideColors;
 
     private MaterialPropertyBlock _propBlock;
@@ -85,12 +85,12 @@ public class ItemProximityHighlight : MonoBehaviour
     private float _currentTint;
     private float _currentEmission;
 
-    // Interactuable de este item (PickupInteractable). Se compara contra el target
-    // del InteractionManager para saber si el player lo está mirando (estado near).
+    // This item's interactable (PickupInteractable). Compared against the InteractionManager's
+    // target to know whether the player is looking at it (near state).
     private IInteractable _selfInteractable;
 
-    // Estado actual de proximidad. Evita relanzar el lerp en todos los items del scene
-    // cada vez que el InteractionManager cambia de target (el evento es global).
+    // Current proximity state. Avoids restarting the lerp on every item in the scene each
+    // time the InteractionManager changes target (the event is global).
     private bool _isNear;
 
     private void Awake()
@@ -110,7 +110,7 @@ public class ItemProximityHighlight : MonoBehaviour
         }
         else
         {
-            // Sin config: respetamos los colores que trae el material.
+            // No config: we respect the colors that come with the material.
             _overrideColors = false;
         }
 
@@ -118,11 +118,11 @@ public class ItemProximityHighlight : MonoBehaviour
     }
 
     /// <summary>
-    /// Categoría efectiva del item. Por default la toma del <see cref="SO_InventoryItem"/>
-    /// asignado en el <see cref="PickupInteractable"/> del mismo GameObject, así el diseñador
-    /// solo la setea una vez (en el ítem de inventario) y no tiene que repetirla acá.
-    /// Cae al dropdown manual si está overrideada o si no hay pickup/ítem asignado
-    /// (ej: puzzles y decorativos interactuables sin SO_InventoryItem).
+    /// Effective category of the item. By default it is taken from the <see cref="SO_InventoryItem"/>
+    /// assigned in the <see cref="PickupInteractable"/> on the same GameObject, so the designer
+    /// only sets it once (on the inventory item) and does not have to repeat it here.
+    /// Falls back to the manual dropdown if overridden or if there is no pickup/item assigned
+    /// (e.g. puzzles and interactable props without an SO_InventoryItem).
     /// </summary>
     private ItemCategory ResolveCategory()
     {
@@ -138,8 +138,8 @@ public class ItemProximityHighlight : MonoBehaviour
     private void OnDisable() => InteractionEvents.OnTargetChanged -= HandleTargetChanged;
 
     /// <summary>
-    /// Reacciona al cambio de target del <c>InteractionManager</c>: si el raycast del player
-    /// pasa a apuntar a este item, lerpea a estado próximo (near); si deja de apuntarlo, a lejano.
+    /// Reacts to the <c>InteractionManager</c> target change: if the player's raycast starts
+    /// pointing at this item, lerp to the near state; if it stops pointing at it, to far.
     /// </summary>
     private void HandleTargetChanged(IInteractable target)
     {
@@ -151,13 +151,13 @@ public class ItemProximityHighlight : MonoBehaviour
         else            OnPlayerExitedRange();
     }
 
-    /// <summary>Llamar cuando el player entra al radio de interacción del item.</summary>
+    /// <summary>Call when the player enters the item's interaction radius.</summary>
     public void OnPlayerEnteredRange() => TransitionTo(nearTint, nearEmission);
 
-    /// <summary>Llamar cuando el player sale del radio de interacción del item.</summary>
+    /// <summary>Call when the player leaves the item's interaction radius.</summary>
     public void OnPlayerExitedRange() => TransitionTo(farTint, farEmission);
 
-    /// <summary>Forzar estado lejano sin animación (ej: al ocultar el item).</summary>
+    /// <summary>Force the far state without animating (e.g. when hiding the item).</summary>
     public void SnapToFar()
     {
         if (_activeLerp != null) StopCoroutine(_activeLerp);
@@ -185,7 +185,7 @@ public class ItemProximityHighlight : MonoBehaviour
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / lerpDuration);
-            // SmoothStep para que el "respirar" no se sienta lineal/mecánico.
+            // SmoothStep so the "breathing" does not feel linear/mechanical.
             float eased = t * t * (3f - 2f * t);
             _currentTint     = Mathf.Lerp(startTint,     targetTint,     eased);
             _currentEmission = Mathf.Lerp(startEmission, targetEmission, eased);

@@ -1,16 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// Pulsa suavemente el emission de un material PBR (URP/Lit) para simular el flicker
-/// de una pantalla de monitor. flickerSpeed en Hz (0.2 = un ciclo cada 5 segundos).
+/// Softly pulses the emission of a PBR material (URP/Lit) to simulate the flicker of a
+/// monitor screen. flickerSpeed is in Hz (0.2 = one cycle every 5 seconds).
 ///
 /// Setup:
-///   1. Aplicar `mat_monitor_pantalla` al Renderer del monitor.
-///   2. Asignar el Renderer al campo `_renderer` (o dejar vacío para autodetectar).
-///   3. Ajustar baseEmission al color HDR deseado para la pantalla.
+///   1. Apply `mat_monitor_pantalla` to the monitor's Renderer.
+///   2. Assign the Renderer to the `_renderer` field (or leave it empty to autodetect).
+///   3. Tune baseEmission to the desired HDR color for the screen.
 ///
-/// Usa MaterialPropertyBlock → no instancia materials, no rompe batching.
-/// Time.time (escalado por timeScale) → el flicker se congela cuando el juego está en pausa.
+/// Uses MaterialPropertyBlock → does not instance materials, does not break batching.
+/// Time.time (scaled by timeScale) → the flicker freezes when the game is paused.
 /// </summary>
 [RequireComponent(typeof(Renderer))]
 public class MonitorFlicker : MonoBehaviour
@@ -19,17 +19,17 @@ public class MonitorFlicker : MonoBehaviour
     [ColorUsage(showAlpha: true, hdr: true)]
     [SerializeField] private Color baseEmission = Color.white;
 
-    [Header("Pulso")]
-    [Tooltip("Intensidad mínima del pulso (multiplica el baseEmission).")]
+    [Header("Pulse")]
+    [Tooltip("Minimum pulse intensity (multiplies baseEmission).")]
     [SerializeField] private float minIntensity = 0.9f;
 
-    [Tooltip("Intensidad máxima del pulso (multiplica el baseEmission).")]
+    [Tooltip("Maximum pulse intensity (multiplies baseEmission).")]
     [SerializeField] private float maxIntensity = 1.0f;
 
-    [Tooltip("Frecuencia del flicker en Hz. 0.2 = un ciclo completo cada 5 segundos.")]
+    [Tooltip("Flicker frequency in Hz. 0.2 = one full cycle every 5 seconds.")]
     [SerializeField] private float flickerSpeed = 0.2f;
 
-    [Tooltip("Desfase determinista por instancia (en segundos). Permite que varios monitores estén desincronizados.")]
+    [Tooltip("Deterministic per-instance offset (in seconds). Lets several monitors be desynchronized.")]
     [SerializeField] private float flickerOffset = 0f;
 
     [Header("Target")]
@@ -47,7 +47,7 @@ public class MonitorFlicker : MonoBehaviour
 
     private void Update()
     {
-        // sin01 ∈ [0,1], suave, frecuencia flickerSpeed Hz.
+        // sin01 ∈ [0,1], smooth, at flickerSpeed Hz.
         float phase = (Time.time + flickerOffset) * flickerSpeed * 2f * Mathf.PI;
         float sin01 = (Mathf.Sin(phase) + 1f) * 0.5f;
 

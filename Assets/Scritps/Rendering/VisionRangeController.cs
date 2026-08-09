@@ -2,19 +2,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Drive del shader fullscreen <c>Fullscreen_VisionFog</c>. Setea las globals que
-/// el shader lee y maneja transiciones suaves entre presets de niebla.
+/// Driver of the <c>Fullscreen_VisionFog</c> shader. Sets the globals the shader reads and
+/// handles smooth transitions between fog presets.
 ///
-/// Modelo de configuración:
-///   - <see cref="defaultConfig"/>: el preset que usa el fog cuando el player no está
-///     en ninguna LightZone (default = pasillos oscuros).
-///   - <see cref="PushConfig"/> / <see cref="PopConfig"/>: API pública para LightZone
-///     triggers. Maneja un stack — la zona más interna gana.
+/// Configuration model:
+///   - <see cref="defaultConfig"/>: the preset the fog uses when the player is not inside
+///     any LightZone (default = dark corridors).
+///   - <see cref="PushConfig"/> / <see cref="PopConfig"/>: public API for LightZone
+///     triggers. Keeps a stack — the innermost zone wins.
 ///
-/// El player vive en otra escena (gameplay aditivo), así que se busca por tag en runtime.
-/// Mientras no hay player, setea <c>_VisionEnd = 0</c> → el shader hace early-out → no fog.
+/// The player lives in another scene (additive gameplay), so it is looked up by tag at runtime.
+/// While there is no player, it sets <c>_VisionEnd = 0</c> → the shader early-outs → no fog.
 ///
-/// Globals seteadas:
+/// Globals set:
 ///   _PlayerPos, _VisionStart, _VisionEnd, _FogColor, _LightPreservation, _FogDensityPower,
 ///   _PlayerLightPosition, _PlayerLightRange, _PlayerLightIntensity, _PlayerLightColor,
 ///   _VisionFogBlurStrength, _FogLightBypassData[8], _FogLightBypassCount
@@ -25,34 +25,34 @@ public class VisionRangeController : MonoBehaviour
     public const int MaxBypassZones = 8;
 
     [Header("Default config")]
-    [Tooltip("Preset que se aplica cuando el player no está en ninguna LightZone. " +
-             "Suele ser una zona 'oscura' / opresiva — los LightZones modulan hacia arriba.")]
+    [Tooltip("Preset applied when the player is not inside any LightZone. " +
+             "Usually a 'dark' / oppressive area — LightZones modulate upwards from it.")]
     [SerializeField] private SO_VisionFogConfig defaultConfig;
 
     [Header("Player")]
-    [Tooltip("Tag del GameObject del player. Se busca en runtime porque vive en otra escena.")]
+    [Tooltip("Tag of the player GameObject. Looked up at runtime because it lives in another scene.")]
     [SerializeField] private string playerTag = "Player";
 
-    [Tooltip("Asignación manual opcional. Si está vacío, se busca por tag.")]
+    [Tooltip("Optional manual assignment. If empty, the player is looked up by tag.")]
     [SerializeField] private Transform playerOverride;
 
-    [Tooltip("Cada cuántos frames re-buscar al player si todavía no apareció.")]
+    [Tooltip("How many frames between re-searching for the player while it has not shown up yet.")]
     [SerializeField, Min(1)] private int searchEveryNFrames = 30;
 
-    // ── Estado ──────────────────────────────────────────────────────────────
+    // ── State ───────────────────────────────────────────────────────────────
     private Transform _player;
 
-    // Stack de configs activas: la última pusheada gana. El bottom es siempre defaultConfig.
+    // Stack of active configs: the last one pushed wins. The bottom is always defaultConfig.
     private readonly List<SO_VisionFogConfig> _configStack = new List<SO_VisionFogConfig>();
 
-    // Fuente de luz del player (opcional) y bypass zones registradas por sus componentes.
+    // Player light source (optional) and bypass zones registered by their components.
     private FogLightSource _playerLight;
     private static readonly List<FogLightBypass> s_bypassZones = new List<FogLightBypass>(MaxBypassZones);
 
-    // Buffer reutilizable para el push del array al shader.
+    // Reusable buffer for pushing the array to the shader.
     private readonly Vector4[] _bypassBuffer = new Vector4[MaxBypassZones];
 
-    // Valores actuales del fog (interpolados frame a frame).
+    // Current fog values (interpolated frame by frame).
     private float _currentVisionStart;
     private float _currentVisionEnd;
     private Color _currentFogColor;
@@ -63,7 +63,7 @@ public class VisionRangeController : MonoBehaviour
     private Color _currentPlayerLightColor = Color.black;
     private float _currentBlurStrength;
 
-    // Targets (los del config activo del top del stack).
+    // Targets (those of the active config at the top of the stack).
     private float _targetVisionStart;
     private float _targetVisionEnd;
     private Color _targetFogColor;
@@ -74,7 +74,7 @@ public class VisionRangeController : MonoBehaviour
     private Color _targetPlayerLightColor = Color.black;
     private float _targetBlurStrength;
 
-    // Velocidad de transición actual (en unidades por segundo, derivada del transitionDuration).
+    // Current transition speed (in units per second, derived from transitionDuration).
     private float _lerpRate = 4f;
 
     private static readonly int PlayerPosId       = Shader.PropertyToID("_PlayerPos");
@@ -98,7 +98,7 @@ public class VisionRangeController : MonoBehaviour
         if (defaultConfig != null)
         {
             ApplyTargetsFromConfig(defaultConfig);
-            // Inicializar valores actuales al target para evitar lerp desde 0 al arrancar.
+            // Initialize the current values to the target to avoid lerping from 0 at startup.
             _currentVisionStart         = _targetVisionStart;
             _currentVisionEnd           = _targetVisionEnd;
             _currentFogColor            = _targetFogColor;
@@ -120,20 +120,20 @@ public class VisionRangeController : MonoBehaviour
             if (Time.frameCount % searchEveryNFrames == 0)
                 TryAcquirePlayer();
 
-            Shader.SetGlobalFloat(VEndId, 0f); // early-out del shader
+            Shader.SetGlobalFloat(VEndId, 0f); // shader early-out
             Shader.SetGlobalFloat(PlayerLightRngId, 0f);
             Shader.SetGlobalInt(BypassCountId, 0);
             return;
         }
 
-        // Releer el config activo cada frame — así tocar sliders del SO en el Inspector
-        // mientras estás en Play se ve al toque, sin necesitar un nuevo Push/Pop.
+        // Re-read the active config every frame — that way tweaking the SO's sliders in the
+        // Inspector while in Play is visible immediately, without needing a new Push/Pop.
         SO_VisionFogConfig activeConfig = _configStack.Count > 0
             ? _configStack[_configStack.Count - 1]
             : defaultConfig;
         if (activeConfig != null) ApplyTargetsFromConfig(activeConfig);
 
-        // Interpolar valores actuales hacia los targets.
+        // Interpolate the current values towards the targets.
         float t = Time.deltaTime * _lerpRate;
         _currentVisionStart         = Mathf.Lerp(_currentVisionStart,         _targetVisionStart,         t);
         _currentVisionEnd           = Mathf.Lerp(_currentVisionEnd,           _targetVisionEnd,           t);
@@ -153,11 +153,11 @@ public class VisionRangeController : MonoBehaviour
         Shader.SetGlobalFloat(DensityPowerId,   _currentDensityPower);
         Shader.SetGlobalFloat(BlurStrengthId,   _currentBlurStrength);
 
-        // Linterna del player — si hay un FogLightSource asignado tomamos su transform
-        // en tiempo real; si no, usamos la posición del player como fallback.
-        // Si el FogLightSource está en modo "leer del Light component" (default), sus
-        // range/color/intensity ganan sobre los del SO — así la degradación futura
-        // de módulos (§2.5.1) baja el fogClearRadius automáticamente.
+        // Player flashlight — if there is a FogLightSource assigned we take its transform in
+        // real time; otherwise we fall back to the player's position.
+        // If the FogLightSource is in "read from the Light component" mode (default), its
+        // range/color/intensity win over those of the SO — that way the future module
+        // degradation (§2.5.1) lowers the fogClearRadius automatically.
         Vector3 lightPos = _playerLight != null ? _playerLight.transform.position : _player.position;
         Shader.SetGlobalVector(PlayerLightPosId, lightPos);
 
@@ -174,7 +174,7 @@ public class VisionRangeController : MonoBehaviour
             Shader.SetGlobalColor(PlayerLightColId, _currentPlayerLightColor);
         }
 
-        // Bypass zones activas — compacto los primeros N en el buffer y pusheo el array.
+        // Active bypass zones — compact the first N into the buffer and push the array.
         int count = 0;
         for (int i = 0; i < s_bypassZones.Count && count < MaxBypassZones; i++)
         {
@@ -183,18 +183,18 @@ public class VisionRangeController : MonoBehaviour
             Vector3 p = b.transform.position;
             _bypassBuffer[count++] = new Vector4(p.x, p.y, p.z, b.radius);
         }
-        // Limpia el resto para no leer basura de frames anteriores.
+        // Clear the rest so no garbage from previous frames is read.
         for (int i = count; i < MaxBypassZones; i++) _bypassBuffer[i] = Vector4.zero;
 
         Shader.SetGlobalVectorArray(BypassDataId, _bypassBuffer);
         Shader.SetGlobalInt(BypassCountId, count);
     }
 
-    // ── API pública para LightZones ─────────────────────────────────────────
+    // ── Public API for LightZones ───────────────────────────────────────────
 
     /// <summary>
-    /// Push de un config al stack. Lo llaman los LightZones cuando el player entra.
-    /// Maneja anidamiento — la zona más interna (última pusheada) es la que se aplica.
+    /// Pushes a config onto the stack. Called by LightZones when the player enters.
+    /// Handles nesting — the innermost zone (last pushed) is the one applied.
     /// </summary>
     public void PushConfig(SO_VisionFogConfig config)
     {
@@ -204,9 +204,9 @@ public class VisionRangeController : MonoBehaviour
     }
 
     /// <summary>
-    /// Pop de un config específico del stack. Lo llaman los LightZones al salir.
-    /// Si la zona que sale no estaba en el top (anidamiento raro), igual se remueve
-    /// pero el target no cambia hasta que se pop el verdadero top.
+    /// Pops a specific config from the stack. Called by LightZones on exit.
+    /// If the zone leaving was not on top (odd nesting), it is still removed but the
+    /// target does not change until the actual top is popped.
     /// </summary>
     public void PopConfig(SO_VisionFogConfig config)
     {
@@ -227,18 +227,18 @@ public class VisionRangeController : MonoBehaviour
         }
     }
 
-    /// <summary>Cambiar el default config en runtime (ej: cambio de nivel).</summary>
+    /// <summary>Change the default config at runtime (e.g. on a level change).</summary>
     public void SetDefaultConfig(SO_VisionFogConfig newDefault)
     {
         defaultConfig = newDefault;
-        // Si no hay zonas activas, aplicar el nuevo default.
+        // If there are no active zones, apply the new default.
         if (_configStack.Count == 0 && newDefault != null)
             ApplyTargetsFromConfig(newDefault);
     }
 
-    // ── API para FogLightSource / FogLightBypass ────────────────────────────
+    // ── API for FogLightSource / FogLightBypass ─────────────────────────────
 
-    /// <summary>Setear (o limpiar con null) la linterna del player que se lee cada frame.</summary>
+    /// <summary>Set (or clear with null) the player flashlight that is read every frame.</summary>
     public void SetPlayerLightSource(FogLightSource source) => _playerLight = source;
 
     public static void RegisterBypass(FogLightBypass zone)
@@ -253,12 +253,12 @@ public class VisionRangeController : MonoBehaviour
         s_bypassZones.Remove(zone);
     }
 
-    // ── API para VisionFogTrack (Timeline) ──────────────────────────────────
+    // ── API for VisionFogTrack (Timeline) ───────────────────────────────────
 
     /// <summary>
-    /// Escribe los globals directo, sin pasar por el stack ni el lerp de LateUpdate.
-    /// La llama <c>VisionFogMixerBehaviour</c> con el resultado ya mezclado de los
-    /// clips activos en la pista — pensado para scrub-preview en el editor sin dar Play.
+    /// Writes the globals directly, bypassing the stack and the LateUpdate lerp.
+    /// Called by <c>VisionFogMixerBehaviour</c> with the already-blended result of the
+    /// clips active on the track — meant for scrub-preview in the editor without pressing Play.
     /// </summary>
     public void ApplyPreviewBlend(float visionStart, float visionEnd, Color fogColor,
         float lightPreservation, float densityPower,
@@ -294,12 +294,12 @@ public class VisionRangeController : MonoBehaviour
         _targetPlayerLightColor     = config.playerLightColor;
         _targetBlurStrength         = config.blurStrength;
 
-        // Convertir transitionDuration (segundos) en lerp rate (1/s).
-        // Aproximación: si querés llegar al 99% en `transitionDuration` segundos, el rate
-        // exponencial es ~4.6 / duration. Usamos 4 para una curva un poco menos abrupta.
+        // Convert transitionDuration (seconds) into a lerp rate (1/s).
+        // Approximation: to reach 99% in `transitionDuration` seconds, the exponential rate
+        // is ~4.6 / duration. We use 4 for a slightly less abrupt curve.
         _lerpRate = config.transitionDuration > 0.01f
             ? 4f / config.transitionDuration
-            : 1000f; // efectivamente instantáneo
+            : 1000f; // effectively instant
     }
 
     private void TryAcquirePlayer()

@@ -1,37 +1,37 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Controlador principal del sistema de inventario UI
+/// Main controller of the inventory UI system.
 ///
-/// Responsabilidades :
-///   - Manejar input (Tab abre, ESC/Tab cierra, pila de capas)
-///   - Controlar Time.timeScale al abrir/cerrar
-///   - Activar/desactivar el cursor del mouse
-///   - Orquestar comunicación entre Model y Views mediante InventoryEvents
-///   - Gestionar timers de módulos con unscaledDeltaTime
-///   - Mantener la pila de capas activas (inventario → diálogo → ESC)
+/// Responsibilities:
+///   - Handle input (Tab opens, ESC/Tab closes, layer stack)
+///   - Control Time.timeScale on open/close
+///   - Enable/disable the mouse cursor
+///   - Orchestrate communication between Model and Views through InventoryEvents
+///   - Manage module timers with unscaledDeltaTime
+///   - Keep the stack of active layers (inventory -> dialog -> ESC)
 ///
-/// NO manipula UI directamente.
-/// NO contiene lógica de negocio (eso es InventoryManager).
+/// It does NOT manipulate UI directly.
+/// It does NOT contain business logic (that is InventoryManager).
 /// </summary>
 
 public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 {
-    // -- Configuración -------------------
+    // -- Configuration -------------------
 
     [Header("Input")]
     [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
 
     // -- IModalUI -------------------
     public string ModalId => "Inventory";
-    public bool ConsumesEscape => true;   // ESC cierra capas del inventario si pausa NO esta arriba
-    public bool BlocksPause   => false;   // La pausa es overlay global: puede abrirse encima del inventario
+    public bool ConsumesEscape => true;   // ESC closes inventory layers if pause is NOT on top
+    public bool BlocksPause   => false;   // Pause is a global overlay: it can open on top of the inventory
     public bool PausesGame    => true;
-    // RequestClose maneja TODAS las capas del inventario (discard dialog -> doc -> selection -> inventario).
+    // RequestClose handles ALL inventory layers (discard dialog -> doc -> selection -> inventory).
     public void RequestClose() => HandleCancelInput();
 
-    [Header("Módulos del dispositivo")]
+    [Header("Device modules")]
     [SerializeField] private List<ModuleData> modules = new List<ModuleData>();
 
     [Header("Views")]
@@ -41,7 +41,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     [SerializeField] private DiscardDialogView discardDialogView;
     [SerializeField] private InventoryTabPanelAnimator panelAnimator;
 
-    // -- Estado interno -------------------
+    // -- Internal state -------------------
 
     private bool isInventoryOpen = false;
     private bool isDiscardOpen = false;
@@ -76,7 +76,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         UnsubscribeFromEvents();
     }
 
-    // ------------------ Inicialización ------------------
+    // ------------------ Initialization ------------------
 
     private void InitializeViews()
     {
@@ -106,18 +106,18 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.OnDiscardCancelled -= HandleDiscardCancelled;
     }
 
-    // ------------------ Input ------------------ Despues se quita cuando se integre con el sistema de input
+    // ------------------ Input ------------------ To be removed once the Input System is integrated
 
     private void HandleInput()
     {
-        // El cierre por ESC lo gobierna UIStateManager (UI/Exit action -> RequestClose).
-        // Aca solo manejamos Tab para abrir/cerrar el inventario.
+        // Closing with ESC is governed by UIStateManager (UI/Exit action -> RequestClose).
+        // Here we only handle Tab to open/close the inventory.
 
         if (!Input.GetKeyDown(toggleKey) || isDiscardOpen) return;
 
         if (isInventoryOpen)
         {
-            // Solo cerramos por Tab si el inventario es el top del stack.
+            // We only close with Tab if the inventory is the top of the stack.
             if (UIStateManager.Exists && !ReferenceEquals(UIStateManager.Instance.Peek(), this)) return;
 
             if (itemDetailView != null && itemDetailView.IsDocOpen)
@@ -129,20 +129,20 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         }
         else
         {
-            // Solo abre si NO hay ninguna otra modal encima (pausa, panel, doc...).
+            // Only opens if there is no other modal on top (pause, panel, doc...).
             if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
             OpenInventory();
         }
     }
 
-    // -- Apertura / Cierre --------------------
+    // -- Open / Close --------------------
 
     /// <summary>
-    /// Abre el inventario:
-    ///   - Time.timeScale = 0 (pausa el gameplay)
-    ///   - Cursor habilitado y visible
-    ///   - Lista refresheada
-    ///   - Primer ítem seleccionado automáticamente si hay ítems
+    /// Opens the inventory:
+    ///   - Time.timeScale = 0 (pauses gameplay)
+    ///   - Cursor enabled and visible
+    ///   - List refreshed
+    ///   - First item auto-selected if there are any
     /// </summary>
     public void OpenInventory()
     {
@@ -150,10 +150,10 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         isInventoryOpen = true;
 
-        // El UIStateManager se encarga de Time.timeScale y del cursor.
+        // The UIStateManager takes care of Time.timeScale and the cursor.
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
 
-        // Mostrar y poblar la vista
+        // Show and populate the view
         if (panelAnimator != null) panelAnimator.Open();
         else inventoryView?.SetVisible(true);
         RefreshItemList();
@@ -164,10 +164,10 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     }
 
     /// <summary>
-    /// Cierra el inventario:
-    ///   - Time.timeScale = 1 (reanuda gameplay)
-    ///   - Cursor deshabilitado (vuelve al estado de juego)
-    ///   - Detener audio de grabación si estaba reproduciéndose
+    /// Closes the inventory:
+    ///   - Time.timeScale = 1 (resumes gameplay)
+    ///   - Cursor disabled (back to the gameplay state)
+    ///   - Stop the recording audio if it was playing
     /// </summary>
     public void CloseInventory()
     {
@@ -176,25 +176,25 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         isInventoryOpen = false;
         selectedItem = null;
 
-        // El UIStateManager restaura Time.timeScale y cursor cuando el stack queda vacio.
+        // The UIStateManager restores Time.timeScale and the cursor when the stack becomes empty.
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
         if (panelAnimator != null) panelAnimator.Close();
         else inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
 
-        // Detener audio de grabación
+        // Stop the recording audio
         //  itemDetailView?.StopAudio();
 
         InventoryEvents.InventoryToggled(false);
     }
     public void OpenDocument() => itemDetailView?.ShowDoc();
     public void CloseDocument() => itemDetailView?.HideDoc();
-    // ── Selección de ítem ─────────────────────────────────────────────────────
+    // ── Item selection ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Llamado por ItemSlotView cuando el jugador clickea un ítem.
-    /// Notifica a las Views a través del evento.
+    /// Called by ItemSlotView when the player clicks an item.
+    /// Notifies the Views through the event.
     /// </summary>
     public void SelectItem(SO_InventoryItem item)
     {
@@ -214,16 +214,16 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         }
         else
         {
-            // Lista vacía: mostrar estado vacío en el panel de detalle
+            // Empty list: show the empty state in the detail panel
             itemDetailView?.ShowEmpty();
         }
     }
 
-    // ── Descarte ──────────────────────────────────────────────────────────────
+    // ── Discard ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Llamado por ItemDetailView al presionar el botón de descarte.
-    /// NO elimina el ítem — solo solicita la confirmación.
+    /// Called by ItemDetailView when the discard button is pressed.
+    /// It does NOT remove the item — it only asks for confirmation.
     /// </summary>
     public void RequestDiscard(SO_InventoryItem item)
     {
@@ -235,7 +235,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.DiscardRequested(item);
     }
 
-    /// <summary>Llamado por DiscardDialogView al confirmar.</summary>
+    /// <summary>Called by DiscardDialogView on confirm.</summary>
     public void ConfirmDiscard()
     {
         if (pendingDiscard == null) return;
@@ -248,7 +248,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.DiscardConfirmed(toDiscard);
     }
 
-    /// <summary>Llamado por DiscardDialogView al cancelar o por ESC.</summary>
+    /// <summary>Called by DiscardDialogView on cancel, or by ESC.</summary>
     public void CancelDiscard()
     {
         pendingDiscard = null;
@@ -256,7 +256,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.DiscardCancelled();
     }
 
-    // -- Handlers de eventos --------------------
+    // -- Event handlers --------------------
 
     private void HandleItemAdded(SO_InventoryItem item)
     {
@@ -267,7 +267,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     {
         RefreshItemList();
 
-        // Si el ítem removido era el seleccionado, limpiar el panel de detalle
+        // If the removed item was the selected one, clear the detail panel
         if (selectedItem == item)
         {
             selectedItem = null;
@@ -328,11 +328,11 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         inventoryView.HighlightItem(null);
     }
 
-    // -- Módulos (unscaledDeltaTime) --------------------
+    // -- Modules (unscaledDeltaTime) --------------------
 
         /// <summary>
-        /// Actualiza los timers de módulos con unscaledDeltaTime.
-        /// Esto asegura que el countdown siga corriendo aunque Time.timeScale == 0.
+        /// Updates the module timers with unscaledDeltaTime.
+        /// This makes sure the countdown keeps running even when Time.timeScale == 0.
         /// </summary>
     private void TickModuleTimers()
     {
@@ -368,20 +368,28 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (modules.Count == 0) return;
         if (GetExplodedCount() < modules.Count) return;
 
-        int resolved = modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
-        GameResultManager.ReportGameOver(_sessionTime, resolved);
+        GameResultManager.ReportGameOver(_sessionTime, GetResolvedCount());
     }
+
+    /// <summary>
+    /// Reports a loss with the stats of the current session. Used by the Nemesis when it catches
+    /// you, so the screen shows the same time and modules as the timer-driven game over.
+    /// </summary>
+    public void ReportLoss() => GameResultManager.ReportLoss(_sessionTime, GetResolvedCount());
+
+    private int GetResolvedCount() =>
+        modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
 
     public void ResetSessionTime() => _sessionTime = 0f;
 
-    // -- API pública de módulos --------------------
+    // -- Public module API --------------------
 
-    // Zona rara, despues hay que chequear cuando el desarrollo de los modulos este mas avanzado.
-    // Por ahora se deja esta API pública para facilitar la integración con el sistema de módulos, pero
-    // idealmente el InventoryManagerUI no debería exponer métodos específicos de módulos,
-    // sino solo manejar su estado interno y comunicarlo a través de eventos.
+    // Odd area, to be revisited once the module system is further along.
+    // For now this public API is kept to make integration with the module system easier, but
+    // ideally InventoryManagerUI should not expose module-specific methods — it should only
+    // manage its internal state and communicate it through events.
 
-    /// <summary>Inicia o reinicia el timer de un módulo.</summary>
+    /// <summary>Starts or restarts a module's timer.</summary>
     public void StartModuleTimer(string moduleId)
     {
         ModuleData module = GetModule(moduleId);
@@ -394,7 +402,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.ModuleStateChanged(module);
     }
 
-    /// <summary>Marca un módulo como resuelto (puzzle completado).</summary>
+    /// <summary>Marks a module as resolved (puzzle completed).</summary>
     public void ResolveModule(string moduleId)
     {
         ModuleData module = GetModule(moduleId);
@@ -425,7 +433,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         inventoryView?.RefreshList(InventoryManager.Instance);
     }
 
-    // -- Accessors de estado --------------------
+    // -- State accessors --------------------
 
     public bool IsInventoryOpen => isInventoryOpen;
     public SO_InventoryItem SelectedItem => selectedItem;

@@ -4,22 +4,22 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Vista del Skill-Check (Puzzle Central 2).
-// Requiere en jerarquía:
-//   - NeedleTransform  : Transform que rota (hijo del círculo)
-//   - SuccessZoneImage : Image (Filled, Radial360) que marca la zona válida
-//   - CounterText      : TextMeshProUGUI con "X / Y"
-//   - FlashImage       : Image semitransparente de pantalla completa (alpha 0 por defecto)
+// View of the Skill-Check (Central Puzzle 2).
+// Requires in the hierarchy:
+//   - NeedleTransform  : Transform that rotates (child of the circle)
+//   - SuccessZoneImage : Image (Filled, Radial360) marking the valid zone
+//   - CounterText      : TextMeshProUGUI with "X / Y"
+//   - FlashImage       : semi-transparent fullscreen Image (alpha 0 by default)
 public class SkillCheckView : BaseScreenView
 {
-    [Header("Aguja")]
+    [Header("Needle")]
     [SerializeField] private Transform needleTransform;
 
-    [Header("Zona de éxito")]
+    [Header("Success zone")]
     [SerializeField] private RectTransform successZoneRoot;
     [SerializeField] private Image successZoneImage;
 
-    [Header("Contador")]
+    [Header("Counter")]
     [SerializeField] private TextMeshProUGUI counterText;
 
     [Header("Flash")]
@@ -51,7 +51,7 @@ public class SkillCheckView : BaseScreenView
         }
     }
 
-    // Llamado cada frame por el controller mientras el check corre.
+    // Called every frame by the controller while the check is running.
     public void Tick(float speed)
     {
         _needleAngle = (_needleAngle + speed * Time.deltaTime) % 360f;
@@ -65,8 +65,8 @@ public class SkillCheckView : BaseScreenView
             counterText.text = $"{current} / {total}";
     }
 
-    // zoneStartAngle: donde empieza la zona (rotación del root).
-    // zoneWidth: arco en grados → fillAmount = width/360.
+    // zoneStartAngle: where the zone starts (rotation of the root).
+    // zoneWidth: arc in degrees -> fillAmount = width/360.
     public void UpdateSuccessZone(float zoneStartAngle, float zoneWidth)
     {
         if (successZoneRoot != null)

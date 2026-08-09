@@ -17,7 +17,8 @@ public abstract class Singleton<T> : MonoBehaviour where T : MonoBehaviour
     }
     public static bool Exists => instance != null;
     /// <summary>
-    /// El parametro decide si se crea un singleton que no se destruye, es decir que vive durante toda la ejecucion o si se crea uno que se destruye al pasar entre escenas
+    /// The parameter decides whether to create a singleton that is never destroyed — i.e. one that
+    /// lives for the whole run — or one that is destroyed when moving between scenes.
     /// </summary>
     protected virtual void CreateSingleton(bool dontDestroyOnLoad)
     {

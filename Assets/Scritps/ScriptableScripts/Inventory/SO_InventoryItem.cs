@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 [CreateAssetMenu(fileName = "SO_InventoryItem", menuName = "Scriptable Objects/SO_InventoryItem")]
 public class SO_InventoryItem : ScriptableObject
@@ -15,46 +15,46 @@ public class SO_InventoryItem : ScriptableObject
     private string itemDescription;
     [SerializeField] private Sprite itemIcon;
 
-    // ── Flags de comportamiento ───────────────────────────────────────────────
+    // ── Behaviour flags ───────────────────────────────────────────────────────
 
-    [Header("Comportamiento")]
+    [Header("Behaviour")]
     [SerializeField]
-    [Tooltip("True si activa la puerta magnética. Usado por HasMetallicItem().")]
+    [Tooltip("True if it triggers the magnetic door. Used by HasMetallicItem().")]
     private bool isMetallic;
 
     [SerializeField]
-    [Tooltip("True si el ítem desaparece del inventario al usarse en el mundo.")]
+    [Tooltip("True if the item disappears from the inventory when used in the world.")]
     private bool isConsumable;
 
     [SerializeField]
-    [Tooltip("Descripción de cuándo/cómo se consume. Mostrado en metadata del detalle.")]
+    [Tooltip("Description of when/how it is consumed. Shown in the detail metadata.")]
     private string consumeDescription;
 
     [SerializeField]
-    [Tooltip("True si solo puede existir una instancia en el inventario.")]
+    [Tooltip("True if only one instance can exist in the inventory.")]
     private bool isUnique = true;
 
-    // ── Contenido del panel de detalle ────────────────────────────────────────
+    // ── Detail panel content ──────────────────────────────────────────────────
 
-    [Header("Contenido (panel de detalle)")]
+    [Header("Content (detail panel)")]
     [SerializeField]
-    [Tooltip("None = solo descripción y metadata. Text = doc-box. Audio = reproductor.")]
+    [Tooltip("None = description and metadata only. Text = doc-box. Audio = player.")]
     private ItemContentType contentType;
 
     [SerializeField]
-    [Tooltip("Texto del documento. Solo se usa si ContentType == Text.")]
+    [Tooltip("Document text. Only used if ContentType == Text.")]
     [TextArea(4, 10)]
     private string textContent;
 
     [SerializeField]
-    [Tooltip("Clip de audio. Solo se usa si ContentType == Audio.")]
+    [Tooltip("Audio clip. Only used if ContentType == Audio.")]
     private AudioClip audioClip;
 
-    // ── Interacción con el mundo ──────────────────────────────────────────────
+    // ── World interaction ─────────────────────────────────────────────────────
 
     [SerializeField]
-    [Header("Interacción con el mundo")]
-    [Tooltip("ID del objeto del mundo con el que se usa este ítem (puerta, ranura, etc.).")]
+    [Header("World interaction")]
+    [Tooltip("ID of the world object this item is used with (door, socket, etc.).")]
     private string targetID;
 
 
@@ -66,18 +66,18 @@ public class SO_InventoryItem : ScriptableObject
     public Sprite ItemIconInventory { get => itemIcon; }
     public ItemCategory Category { get => category; }
 
-    // -- Comportamiento ───────────────────────────────────────────────────────────────    
+    // -- Behaviour ───────────────────────────────────────────────────────────────
     public bool IsMetallic { get => isMetallic; }
     public bool IsConsumable { get => isConsumable; }
     public string ConsumeDescription { get => consumeDescription; }
     public bool IsUnique { get => isUnique; }
 
-    // -- Interfaz de visualización ───────────────────────────────────────────────────────────────
+    // -- Display interface ───────────────────────────────────────────────────────────────
     public string DisplayName => itemName;
     public string Description => itemDescription;
     public Sprite ItemIcon => itemIcon;
 
-    // -- Contenido del panel de detalle ───────────────────────────────────────────────────────────────
+    // -- Detail panel content ───────────────────────────────────────────────────────────────
     public ItemContentType ContentType => contentType;
     public string TextContent => contentType == ItemContentType.Text ? textContent : null;
     public AudioClip AudioClip => contentType == ItemContentType.Audio ? audioClip : null;
@@ -86,7 +86,7 @@ public class SO_InventoryItem : ScriptableObject
 }
 public enum ItemContentType
 {
-    None,   // Solo descripción y metadata
-    Text,   // Doc-box scrolleable con textContent
-    Audio   // Reproductor con audioClip
+    None,   // Description and metadata only
+    Text,   // Scrollable doc-box with textContent
+    Audio   // Player with audioClip
 }

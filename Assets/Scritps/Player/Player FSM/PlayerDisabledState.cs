@@ -1,10 +1,15 @@
 using UnityEngine;
 
+/// <summary>
+/// The player has been immobilized (today: captured by the Nemesis).
+///
+/// It only holds the pose. The end of the run is NOT triggered from here: that is done by
+/// NemesisCatchState, which is the one that knows the timing of the capture animation.
+/// </summary>
 public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 {
     private PlayerStateManager playerStateManager;
-    private float cooldonwnTimer = 0f;
-    private float currentCooldownTime = 0f;
+
     public PlayerDisabledState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -12,6 +17,10 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
+        // Without this the first entry inherits NextState = default(EPlayerState) = Idle,
+        // so GetNextState() bounces straight back out and the capture animation flickers.
+        NextState = StateKey;
+
         Debug.Log("Enter Disabled State");
         playerStateManager.AnimController.SetBool("isTrapped", true);
     }
@@ -21,7 +30,6 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
         Debug.Log("Exit Disabled State");
         NextState = StateKey;
         playerStateManager.AnimController.SetBool("isTrapped", false);
-        currentCooldownTime = 0;
     }
 
     public override PlayerStateManager.EPlayerState GetNextState()
@@ -32,25 +40,21 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void OnTriggerEnter(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        
+
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        
+
     }
 
     public override void UpdateState()
     {
-        if(currentCooldownTime >= cooldonwnTimer) 
-        {
-            // trigger UI de derrota o Reload
-        }
-        else currentCooldownTime += cooldonwnTimer;
+        // Terminal state: there is nothing to update while the capture lasts.
     }
 }

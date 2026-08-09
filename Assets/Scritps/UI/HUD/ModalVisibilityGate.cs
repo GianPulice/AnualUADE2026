@@ -1,13 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Oculta este CanvasGroup al instante mientras haya cualquier modal abierta (inventario,
-/// pausa, settings, sequence panel, document reader...) y lo restaura cuando se cierra la
-/// última. Pensado para HUD que vive en un Canvas de sorting order muy alto (crosshair,
-/// vignettes) que si no, queda dibujado ENCIMA de los menús.
+/// Instantly hides this CanvasGroup while any modal is open (inventory, pause, settings,
+/// sequence panel, document reader...) and restores it when the last one closes. Meant for
+/// HUD that lives on a Canvas with a very high sorting order (crosshair, vignettes) which
+/// would otherwise be drawn ON TOP of the menus.
 ///
-/// Genérico y reutilizable: cualquier GameObject con CanvasGroup puede usarlo, no hardcodea
-/// qué elemento de HUD es. Mismo patrón que ya usa InteractionPromptView.
+/// Generic and reusable: any GameObject with a CanvasGroup can use it, it does not hardcode
+/// which HUD element it is. Same pattern InteractionPromptView already uses.
 /// </summary>
 [RequireComponent(typeof(CanvasGroup))]
 public class ModalVisibilityGate : MonoBehaviour

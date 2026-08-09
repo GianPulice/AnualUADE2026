@@ -9,7 +9,7 @@ public class SaveSlotsView : BaseScreenView
     [SerializeField] private Transform _gridContainer;
     [SerializeField] private SaveSlotCardView _cardPrefab;
 
-    [Header("Navegación")]
+    [Header("Navigation")]
     [SerializeField] private Button _backButton;
 
     public event Action<int> OnSlotClicked;

@@ -2,33 +2,33 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// VIEW del HUD del dispositivo dentro del inventario (spec §3).
+/// VIEW of the device HUD inside the inventory (spec §3).
 ///
-/// Responsabilidades (SRP):
-///   - Mostrar el timer del módulo activo (bloque izquierdo)
-///   - Mostrar las barras de estado de M1/M2/M3 (bloque central)
-///   - Mostrar los pips de fallos restantes (bloque derecho)
-///   - Suscribirse a eventos de módulo para actualizarse en tiempo real
-///   - NO manipula lógica de negocio ni de módulos
+/// Responsibilities (SRP):
+///   - Show the active module's timer (left block)
+///   - Show the status bars of M1/M2/M3 (centre block)
+///   - Show the remaining-failure pips (right block)
+///   - Subscribe to module events to update in real time
+///   - It does NOT manipulate business or module logic
 ///
-/// Los timers usan unscaledDeltaTime en el Controller, por lo que
-/// los eventos de tick llegan correctamente aunque Time.timeScale == 0.
+/// The timers use unscaledDeltaTime in the Controller, so the tick events arrive correctly
+/// even when Time.timeScale == 0.
 /// </summary>
 public class ModuleHUDView : MonoBehaviour
 {
     // ── Sub-views ─────────────────────────────────────────────────────────────
 
-    [Header("Bloque izquierdo — Timer del módulo activo")]
+    [Header("Left block — Active module timer")]
     [SerializeField] private ActiveModuleTimerView activeTimerView;
 
-    [Header("Bloque central — Estado de módulos")]
+    [Header("Centre block — Module status")]
     [SerializeField] private Transform moduleRowContainer;
     [SerializeField] private ModuleRowView moduleRowPrefab;
 
-    [Header("Bloque derecho — Fallos restantes")]
+    [Header("Right block — Remaining failures")]
     [SerializeField] private FailuresPipsView failuresPipsView;
 
-    // ── Estado ────────────────────────────────────────────────────────────────
+    // ── State ─────────────────────────────────────────────────────────────────
 
     private Dictionary<string, ModuleRowView> rowMap = new Dictionary<string, ModuleRowView>();
 
@@ -48,9 +48,9 @@ public class ModuleHUDView : MonoBehaviour
         InventoryEvents.OnModuleExploded -= HandleModuleExploded;
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
-    /// <summary>Inicializa las filas de módulo. Llamado por el Controller en Start.</summary>
+    /// <summary>Initializes the module rows. Called by the Controller in Start.</summary>
     public void Initialize(List<ModuleData> modules)
     {
         rowMap.Clear();
@@ -62,20 +62,20 @@ public class ModuleHUDView : MonoBehaviour
             rowMap[module.ModuleID] = row;
         }
 
-        // Estado inicial del timer y los pips
+        // Initial state of the timer and the pips
         RefreshActiveTimer(modules);
         RefreshFailuresPips(modules);
     }
 
-    // ── Handlers de eventos ───────────────────────────────────────────────────
+    // ── Event handlers ────────────────────────────────────────────────────────
 
     private void HandleTimerTick(ModuleData module)
     {
-        // Actualizar fila de este módulo
+        // Update this module's row
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateProgress(module);
 
-        // Si es el módulo activo, actualizar el bloque izquierdo también
+        // If it is the active module, update the left block too
         if (module.Status == ModuleStatus.Active)
             activeTimerView?.UpdateTimer(module);
     }
@@ -87,7 +87,7 @@ public class ModuleHUDView : MonoBehaviour
 
         RefreshFailuresPips(InventoryManagerUI.Instance.GetAllModules());
 
-        // Si cambia el módulo activo, actualizar el bloque de timer
+        // If the active module changed, update the timer block
         RefreshActiveTimer(InventoryManagerUI.Instance.GetAllModules());
     }
 
@@ -104,7 +104,7 @@ public class ModuleHUDView : MonoBehaviour
     private void RefreshActiveTimer(List<ModuleData> modules)
     {
         ModuleData active = InventoryManagerUI.Instance.GetActiveModule();
-        activeTimerView?.UpdateTimer(active); // null = sin módulo activo → muestra "--:--"
+        activeTimerView?.UpdateTimer(active); // null = no active module -> shows "--:--"
     }
 
     private void RefreshFailuresPips(List<ModuleData> modules)
