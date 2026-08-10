@@ -72,7 +72,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: aca499dee1b7a584c880fb935b80dead, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FieldOfListenig
+  m_EditorClassIdentifier: Assembly-CSharp::FieldOfListening
   listenRange: 10
   listenDelay: 0.1
   listenMask:

@@ -86,6 +86,16 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         rigBody = GetComponent<Rigidbody>();
         InitializeStates();
+
+        // Registered in Awake and not in OnEnable so that consumers waking up in their own
+        // Awake/Start already find the player. The registry is a static class precisely so
+        // this cannot depend on another object's initialisation order.
+        PlayerRegistry.Register(this);
+    }
+
+    private void OnDestroy()
+    {
+        PlayerRegistry.Unregister(this);
     }
     public override void Start()
     {
@@ -183,9 +193,49 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         nextPosition = new Vector3(newPosition.x, transform.position.y, newPosition.z);
         nextDirection = newForward;
     }
+    /// <summary>
+    /// Hard-moves the player and cancels any physics momentum.
+    ///
+    /// Not the same as <see cref="SetPlayerPositionAndDirection"/>, which only queues a target
+    /// for the interpolated approach that PlayerBoxInteractingState drives. A checkpoint respawn
+    /// has to land instantly and drop the velocity, otherwise the player keeps sliding at the
+    /// speed it was running at when the Nemesis grabbed it.
+    /// </summary>
+    public void TeleportTo(Vector3 position, Quaternion rotation)
+    {
+        if (rigBody != null)
+        {
+            rigBody.linearVelocity = Vector3.zero;
+            rigBody.angularVelocity = Vector3.zero;
+        }
+
+        transform.SetPositionAndRotation(position, rotation);
+
+        Vector3 forward = rotation * Vector3.forward;
+        if (playerBody != null) playerBody.forward = forward;
+
+        // The queued target is overwritten too: a state caught mid-interpolation would otherwise
+        // drag the player straight back to where it was captured.
+        nextPosition = position;
+        nextDirection = forward;
+
+        // The colliders still sit at the old position until the next physics step. Without this
+        // the ground check on the respawn frame reads the geometry the player came from.
+        Physics.SyncTransforms();
+    }
+
+    /// <summary>
+    /// The Nemesis grabbed the player. Per spec this is the ONLY thing the Nemesis is allowed to
+    /// call directly — it must not reach into save/UI itself. Everything that happens next
+    /// (checkpoint respawn, or the hard defeat fallback) reacts to PlayerEvents.OnPlayerCaptured
+    /// instead of being invoked from here.
+    /// </summary>
     public void OnCaptured()
     {
-        if(!isDisabled) isDisabled = true;
+        if (isDisabled) return;
+
+        isDisabled = true;
+        PlayerEvents.PlayerCaptured(this);
     }
     public void OnLegsModuleExplosion()
     {

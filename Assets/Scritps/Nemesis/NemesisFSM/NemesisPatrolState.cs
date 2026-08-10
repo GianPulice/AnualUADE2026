@@ -5,7 +5,6 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
     private NemesisStateManager nemesisStateManager;
     private float timeToNextWP = 0f;
     private float currentTime = 0f;
-    private int wayPointIndex = 0;
 
     public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
@@ -17,7 +16,12 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
     {
         //Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
+        currentTime = 0f;
         nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.PatrolSpeed;
+
+        // Picks the active route (weighted, among the unlocked ones) and rolls this cycle's
+        // reverse/skip variation. Tier 3.1: see NemesisController.BeginPatrolCycle.
+        nemesisStateManager.NemesisController?.BeginPatrolCycle();
     }
 
     public override void ExitState()
@@ -53,21 +57,28 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
         }
-        else if (nemesisStateManager.HasAudioTarget) 
+        else if (nemesisStateManager.HasAudioTarget)
         {
             NextState = NemesisStateManager.ENemesisState.Investigating;
         }
-        else if (nemesisStateManager.WayPoints.Count > 0) 
+        else
         {
-            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.WayPoints[wayPointIndex].position);
-            if(tempDistance > nemesisStateManager.NavAgent.stoppingDistance) 
+            NemesisController controller = nemesisStateManager.NemesisController;
+            Transform target = controller != null ? controller.CurrentWaypoint : null;
+
+            // No usable route yet (nothing unlocked, or none configured at all): stand by
+            // instead of throwing, same as the old "WayPoints.Count > 0" guard did.
+            if (target == null) return;
+
+            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, target.position);
+            if (tempDistance > nemesisStateManager.NavAgent.stoppingDistance)
             {
-                nemesisStateManager.NavAgent.destination = nemesisStateManager.WayPoints[wayPointIndex].position;
+                nemesisStateManager.NavAgent.destination = target.position;
                 nemesisStateManager.AnimController.SetBool("isWalking", true);
             }
-            else 
+            else
             {
-                if (currentTime < timeToNextWP) 
+                if (currentTime < timeToNextWP)
                 {
                     currentTime += Time.deltaTime;
                     nemesisStateManager.AnimController.SetBool("isWalking", false);
@@ -75,8 +86,7 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
                 else
                 {
                     currentTime = 0;
-                    if (wayPointIndex < nemesisStateManager.WayPoints.Count - 1) wayPointIndex++;
-                    else wayPointIndex = 0;
+                    controller.AdvanceToNextWaypoint();
                 }
             }
         }

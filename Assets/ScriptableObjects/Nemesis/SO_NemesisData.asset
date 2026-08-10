@@ -17,3 +17,11 @@ MonoBehaviour:
   visionLossGracePeriod: 2
   patrolWaypointWaitTime: 1.5
   noiseUpdateCooldown: 0.5
+  viewRange: 10
+  viewAngle: 90
+  proximityDetectionRange: 3
+  crouchVisionMultiplier: 0.6
+  listenRange: 10
+  wallOcclusionEnabled: 1
+  wallOcclusionMultiplier: 0.6
+  proximityRadius: 12

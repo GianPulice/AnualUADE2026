@@ -11,7 +11,8 @@ using UnityEngine;
 ///   - <see cref="PushConfig"/> / <see cref="PopConfig"/>: public API for LightZone
 ///     triggers. Keeps a stack — the innermost zone wins.
 ///
-/// The player lives in another scene (additive gameplay), so it is looked up by tag at runtime.
+/// The player lives in another scene (additive gameplay), so it comes from
+/// <see cref="PlayerRegistry"/> rather than being searched for by tag.
 /// While there is no player, it sets <c>_VisionEnd = 0</c> → the shader early-outs → no fog.
 ///
 /// Globals set:
@@ -30,14 +31,9 @@ public class VisionRangeController : MonoBehaviour
     [SerializeField] private SO_VisionFogConfig defaultConfig;
 
     [Header("Player")]
-    [Tooltip("Tag of the player GameObject. Looked up at runtime because it lives in another scene.")]
-    [SerializeField] private string playerTag = "Player";
-
-    [Tooltip("Optional manual assignment. If empty, the player is looked up by tag.")]
+    [Tooltip("Optional manual assignment, mainly for Timeline preview. If empty, the player " +
+             "comes from PlayerRegistry.")]
     [SerializeField] private Transform playerOverride;
-
-    [Tooltip("How many frames between re-searching for the player while it has not shown up yet.")]
-    [SerializeField, Min(1)] private int searchEveryNFrames = 30;
 
     // ── State ───────────────────────────────────────────────────────────────
     private Transform _player;
@@ -93,6 +89,33 @@ public class VisionRangeController : MonoBehaviour
 
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
+    private void OnEnable()
+    {
+        // Catch-up subscription: this controller usually wakes up before the additive gameplay
+        // scene brings the player in, but not always. SubscribeAndCatchUp covers both orders.
+        PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
+        PlayerRegistry.OnPlayerUnregistered += HandlePlayerUnregistered;
+    }
+
+    private void OnDisable()
+    {
+        PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
+        PlayerRegistry.OnPlayerUnregistered -= HandlePlayerUnregistered;
+    }
+
+    private void HandlePlayerRegistered(PlayerStateManager player)
+    {
+        // playerOverride wins: it is the manual hook used for Timeline scrub preview.
+        if (playerOverride != null) return;
+        _player = player.transform;
+    }
+
+    private void HandlePlayerUnregistered(PlayerStateManager player)
+    {
+        if (playerOverride != null) return;
+        _player = null;
+    }
+
     private void Start()
     {
         if (defaultConfig != null)
@@ -110,16 +133,13 @@ public class VisionRangeController : MonoBehaviour
             _currentBlurStrength        = _targetBlurStrength;
         }
 
-        TryAcquirePlayer();
+        if (playerOverride != null) _player = playerOverride;
     }
 
     private void LateUpdate()
     {
         if (_player == null)
         {
-            if (Time.frameCount % searchEveryNFrames == 0)
-                TryAcquirePlayer();
-
             Shader.SetGlobalFloat(VEndId, 0f); // shader early-out
             Shader.SetGlobalFloat(PlayerLightRngId, 0f);
             Shader.SetGlobalInt(BypassCountId, 0);
@@ -300,17 +320,5 @@ public class VisionRangeController : MonoBehaviour
         _lerpRate = config.transitionDuration > 0.01f
             ? 4f / config.transitionDuration
             : 1000f; // effectively instant
-    }
-
-    private void TryAcquirePlayer()
-    {
-        if (playerOverride != null)
-        {
-            _player = playerOverride;
-            return;
-        }
-
-        GameObject go = GameObject.FindGameObjectWithTag(playerTag);
-        if (go != null) _player = go.transform;
     }
 }

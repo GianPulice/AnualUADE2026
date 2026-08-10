@@ -255,6 +255,12 @@ public class AudioManager : Singleton<AudioManager>
     public float UIVolume       => uiVolume;
     public float VoiceVolume    => voiceVolume;
 
+    /// <summary>
+    /// The Nemesis bus. Exposed so components that own their own looping AudioSources
+    /// (NemesisAudio) can route through the mixer without the group being dragged in twice.
+    /// </summary>
+    public AudioMixerGroup NemesisGroup => nemesisGroup;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — setters
     // ──────────────────────────────────────────────────────────────────────────

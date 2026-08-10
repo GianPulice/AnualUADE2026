@@ -1,17 +1,33 @@
-using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Terminal state: the Nemesis reached the player.
+/// The Nemesis reached the player.
 ///
-/// Disables the player, makes both face each other and starts the countdown that ends in
-/// the defeat screen. It does not transition to any other state — the run ends here and
-/// the scene is reloaded from the UI.
+/// Per spec, this state's job stops at calling player.OnCaptured() — it does not decide when
+/// the checkpoint loads or when the run ends. CheckpointManager (standing in for the spec's
+/// "Sistema de Guardado") reacts to that call on its own and, once it is done, notifies the
+/// Nemesis back through NemesisStateManager.HasReceivedRespawnNotification. Only then does this
+/// state start counting down the post-checkpoint grace period before warping to a random
+/// waypoint and returning to Patrolling.
+///
+/// If there is nowhere to respawn to, CheckpointManager falls back to the old defeat screen on
+/// its own and no notification ever arrives — this state simply stays parked, which is correct
+/// since the run is over and the scene is about to reload from the UI.
 /// </summary>
 public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 {
+    private enum ECatchPhase
+    {
+        WaitingForCheckpoint,
+        Grace,
+    }
+
     private NemesisStateManager nemesisStateManager;
     private PlayerStateManager player;
+
+    private ECatchPhase phase;
+    private float graceTimer;
+
     public NemesisCatchState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
@@ -20,20 +36,26 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     public override void EnterState()
     {
         NextState = StateKey;
+        phase = ECatchPhase.WaitingForCheckpoint;
+        graceTimer = 0f;
+        nemesisStateManager.BeginCapture();
 
         player = nemesisStateManager.FieldOfView.GetCurrentTarget();
         if (player == null)
         {
-            Debug.LogWarning("[NemesisCatchState] Entered Catch without a target — there is nobody to capture.");
+            // Used to return here leaving NextState == Catch, with an empty UpdateState and no
+            // transition out: the Nemesis stayed frozen in Catch for the rest of the run.
+            // Searching is the honest resolution — it thought it had someone and it does not.
+            Debug.LogWarning("[NemesisCatchState] Entered Catch without a target — nobody to " +
+                             "capture. Falling back to Searching.");
+            NextState = NemesisStateManager.ENemesisState.Searching;
             return;
         }
 
+        // The one call the spec allows: from here on the Nemesis waits, it does not act.
         player.OnCaptured();
         FaceEachOther();
         nemesisStateManager.AnimController.SetBool("isCatching", true);
-
-        // Waits for the animation and then opens the defeat screen.
-        nemesisStateManager.ReportCaptureLoss().Forget();
     }
 
     /// <summary>
@@ -58,6 +80,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     public override void ExitState()
     {
         nemesisStateManager.AnimController.SetBool("isCatching", false);
+        player = null;
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -83,6 +106,25 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
+        switch (phase)
+        {
+            case ECatchPhase.WaitingForCheckpoint:
+                // Passive: CheckpointManager is off doing its own thing on its own timing
+                // (cutscene delay, then respawn-or-defeat). This state does not poll it, it
+                // just waits for the explicit notification.
+                if (!nemesisStateManager.HasReceivedRespawnNotification) return;
 
+                graceTimer = 0f;
+                phase = ECatchPhase.Grace;
+                break;
+
+            case ECatchPhase.Grace:
+                graceTimer += Time.deltaTime;
+                if (graceTimer < nemesisStateManager.CaptureGracePeriod) return;
+
+                nemesisStateManager.RepositionAtRandomWayPoint();
+                NextState = NemesisStateManager.ENemesisState.Patrolling;
+                break;
+        }
     }
 }

@@ -342,24 +342,54 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
             module.TimeRemaining -= Time.unscaledDeltaTime;
 
-            if (module.TimeRemaining <= 0f)
-            {
-                module.TimeRemaining = 0f;
-                module.IsTimerRunning = false;
-                module.Status = ModuleStatus.Exploded;
+            if (module.TimeRemaining <= 0f) ExplodeModule(module);
+            else InventoryEvents.ModuleTimerTick(module);
+        }
+    }
 
-                InventoryEvents.ModuleExploded(module);
-                InventoryEvents.ModuleStateChanged(module);
+    /// <summary>
+    /// Drives a module to zero and fires the explosion. Extracted from the tick loop because the
+    /// capture penalty can also push a timer past zero and must go through the exact same path —
+    /// otherwise a module could reach 0 without ever raising blindness or checking game over.
+    /// </summary>
+    private void ExplodeModule(ModuleData module)
+    {
+        module.TimeRemaining = 0f;
+        module.IsTimerRunning = false;
+        module.Status = ModuleStatus.Exploded;
 
-                if (module.causesBlindness)
-                    InventoryEvents.BlindnessTriggered(module.blindnessDuration);
+        InventoryEvents.ModuleExploded(module);
+        InventoryEvents.ModuleStateChanged(module);
 
-                CheckGameOver();
-            }
-            else
-            {
-                InventoryEvents.ModuleTimerTick(module);
-            }
+        if (module.causesBlindness)
+            InventoryEvents.BlindnessTriggered(module.blindnessDuration);
+
+        CheckGameOver();
+    }
+
+    /// <summary>
+    /// The cost of being caught by the Nemesis: takes a fixed number of seconds off every
+    /// running module timer. Called by CheckpointManager on respawn, with the amount configured
+    /// in the player's SO_Movement asset.
+    ///
+    /// The session time is deliberately left alone — a respawn is not a new run.
+    /// </summary>
+    public void ApplyCaptureTimePenalty(float seconds)
+    {
+        if (seconds <= 0f) return;
+
+        // Iterated over a copy: ExplodeModule raises events, and a listener reacting by starting
+        // or resolving a module would otherwise mutate the list mid-iteration.
+        ModuleData[] currentModules = modules.ToArray();
+
+        foreach (ModuleData module in currentModules)
+        {
+            if (module.Status != ModuleStatus.Active || !module.IsTimerRunning) continue;
+
+            module.TimeRemaining -= seconds;
+
+            if (module.TimeRemaining <= 0f) ExplodeModule(module);
+            else InventoryEvents.ModuleTimerTick(module);
         }
     }
 

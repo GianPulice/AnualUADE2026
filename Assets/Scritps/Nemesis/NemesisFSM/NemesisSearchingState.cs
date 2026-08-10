@@ -63,7 +63,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
                 currentTime += Time.deltaTime;
                 if (nemesisStateManager.HasAudioTarget)
                 {
-                    nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListenig.LastKnownPosition;
+                    nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListening.LastKnownPosition;
                 }
                 float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
                 if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)

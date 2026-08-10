@@ -62,7 +62,7 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             // Fresh noise renews its interest: the timeout only measures how long it has
             // been going with nothing to follow.
             currentTime = 0;
-            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListenig.LastKnownPosition;
+            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListening.LastKnownPosition;
             return;
         }
 
