@@ -9,11 +9,12 @@ using UnityEngine;
 ///   - Control Time.timeScale on open/close
 ///   - Enable/disable the mouse cursor
 ///   - Orchestrate communication between Model and Views through InventoryEvents
-///   - Manage module timers with unscaledDeltaTime
 ///   - Keep the stack of active layers (inventory -> dialog -> ESC)
 ///
 /// It does NOT manipulate UI directly.
 /// It does NOT contain business logic (that is InventoryManager).
+/// It does NOT own module state — that lives in ModuleManager. The device HUD subscribes to
+/// ModuleEvents on its own.
 /// </summary>
 
 public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
@@ -31,13 +32,9 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     // RequestClose handles ALL inventory layers (discard dialog -> doc -> selection -> inventory).
     public void RequestClose() => HandleCancelInput();
 
-    [Header("Device modules")]
-    [SerializeField] private List<ModuleData> modules = new List<ModuleData>();
-
     [Header("Views")]
     [SerializeField] private InventoryView inventoryView;
     [SerializeField] private ItemDetailView itemDetailView;
-    [SerializeField] private ModuleHUDView moduleHUDView;
     [SerializeField] private DiscardDialogView discardDialogView;
     [SerializeField] private InventoryTabPanelAnimator panelAnimator;
 
@@ -45,7 +42,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     private bool isInventoryOpen = false;
     private bool isDiscardOpen = false;
-    private float _sessionTime = 0f;
 
     private SO_InventoryItem selectedItem = null;
     private SO_InventoryItem pendingDiscard = null;
@@ -66,9 +62,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     void Update()
     {
-        _sessionTime += Time.unscaledDeltaTime;
         HandleInput();
-        TickModuleTimers();
     }
 
     void OnDestroy()
@@ -83,7 +77,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
         discardDialogView?.Hide();
-        moduleHUDView?.Initialize(modules);
     }
 
     private void SubscribeToEvents()
@@ -327,103 +320,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         inventoryView.HighlightItem(null);
     }
-
-    // -- Modules (unscaledDeltaTime) --------------------
-
-        /// <summary>
-        /// Updates the module timers with unscaledDeltaTime.
-        /// This makes sure the countdown keeps running even when Time.timeScale == 0.
-        /// </summary>
-    private void TickModuleTimers()
-    {
-        foreach (ModuleData module in modules)
-        {
-            if (module.Status != ModuleStatus.Active || !module.IsTimerRunning) continue;
-
-            module.TimeRemaining -= Time.unscaledDeltaTime;
-
-            if (module.TimeRemaining <= 0f)
-            {
-                module.TimeRemaining = 0f;
-                module.IsTimerRunning = false;
-                module.Status = ModuleStatus.Exploded;
-
-                InventoryEvents.ModuleExploded(module);
-                InventoryEvents.ModuleStateChanged(module);
-
-                if (module.causesBlindness)
-                    InventoryEvents.BlindnessTriggered(module.blindnessDuration);
-
-                CheckGameOver();
-            }
-            else
-            {
-                InventoryEvents.ModuleTimerTick(module);
-            }
-        }
-    }
-
-    private void CheckGameOver()
-    {
-        if (modules.Count == 0) return;
-        if (GetExplodedCount() < modules.Count) return;
-
-        GameResultManager.ReportGameOver(_sessionTime, GetResolvedCount());
-    }
-
-    /// <summary>
-    /// Reports a loss with the stats of the current session. Used by the Nemesis when it catches
-    /// you, so the screen shows the same time and modules as the timer-driven game over.
-    /// </summary>
-    public void ReportLoss() => GameResultManager.ReportLoss(_sessionTime, GetResolvedCount());
-
-    private int GetResolvedCount() =>
-        modules.FindAll(m => m.Status == ModuleStatus.Resolved).Count;
-
-    public void ResetSessionTime() => _sessionTime = 0f;
-
-    // -- Public module API --------------------
-
-    // Odd area, to be revisited once the module system is further along.
-    // For now this public API is kept to make integration with the module system easier, but
-    // ideally InventoryManagerUI should not expose module-specific methods — it should only
-    // manage its internal state and communicate it through events.
-
-    /// <summary>Starts or restarts a module's timer.</summary>
-    public void StartModuleTimer(string moduleId)
-    {
-        ModuleData module = GetModule(moduleId);
-        if (module == null) return;
-
-        module.TimeRemaining = module.TimerDuration;
-        module.IsTimerRunning = true;
-        module.Status = ModuleStatus.Active;
-
-        InventoryEvents.ModuleStateChanged(module);
-    }
-
-    /// <summary>Marks a module as resolved (puzzle completed).</summary>
-    public void ResolveModule(string moduleId)
-    {
-        ModuleData module = GetModule(moduleId);
-        if (module == null) return;
-
-        module.IsTimerRunning = false;
-        module.Status = ModuleStatus.Resolved;
-
-        InventoryEvents.ModuleStateChanged(module);
-    }
-
-    public ModuleData GetModule(string moduleId) =>
-        modules.Find(m => m.ModuleID == moduleId);
-
-    public List<ModuleData> GetAllModules() => modules;
-
-    public int GetExplodedCount() =>
-        modules.FindAll(m => m.Status == ModuleStatus.Exploded).Count;
-
-    public ModuleData GetActiveModule() =>
-        modules.Find(m => m.Status == ModuleStatus.Active && m.IsTimerRunning);
 
     // -- Helpers --------------------
 

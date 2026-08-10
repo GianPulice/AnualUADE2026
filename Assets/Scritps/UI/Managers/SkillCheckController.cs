@@ -114,10 +114,8 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
 
     private void ApplyTimerPenalty()
     {
-        if (InventoryManagerUI.Instance == null) return;
-        ModuleData active = InventoryManagerUI.Instance.GetActiveModule();
-        if (active == null || !active.IsTimerRunning) return;
-        active.TimeRemaining = Mathf.Max(0f, active.TimeRemaining - _activeData.failTimePenalty);
+        if (ModuleManager.Instance == null) return;
+        ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
     }
 
     private void HandleCheckSuccess() { }

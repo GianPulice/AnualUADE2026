@@ -164,9 +164,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
                             DelayType.UnscaledDeltaTime,
                             cancellationToken: this.GetCancellationTokenOnDestroy());
 
-        // InventoryManagerUI is the one tracking session time and module count, so the
-        // stats come out the same as in the timer-driven game over.
-        if (InventoryManagerUI.Exists) InventoryManagerUI.Instance.ReportLoss();
+        // ModuleManager is the one tracking session time and module count, so the stats come
+        // out the same as in the timer-driven game over.
+        if (ModuleManager.Exists) ModuleManager.Instance.ReportLoss();
         else GameResultManager.ReportLoss(0f, 0);
     }
 

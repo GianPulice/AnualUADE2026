@@ -56,15 +56,30 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
 
-    // Player Module Booleans
-    private bool legsModuleDamage = false;
-    private bool chestModuleDamage = false;
-    private bool headModuleDamage = false;
-    private int modulesDamagedCount = 0;
+    // ── Module penalties ────────────────────────────────────────────────────────
+    //
+    // These factors are multiplied into the movement calculations in Moving/Crouch. They stay at
+    // 1 while the corresponding module has not exploded, so the player moves normally. When a
+    // module explodes, the ModuleManager fires ModuleEvents.OnExploded and ApplyPenalty routes
+    // the effect into the correct factor. Effects are permanent for the rest of the run — there
+    // is no method to clear them by design (spec §1.1).
+    //
+    // Legs (M1): MoveSpeedPenaltyFactor drops to cojeraMultiplier (e.g. 0.6 → 40% slower).
+    // Chest (M2): SprintPenaltyFactor drops by sprintReduction (e.g. 0.25 → sprint 25% weaker).
+    // Head (M3): sets IsBlindnessActive true; the actual BlindnessLoop overlay is not implemented
+    //            yet (no UI/audio) and lives as a TODO in ApplyPenalty.
 
-    public bool LegsModuleDamage { get => legsModuleDamage; set => legsModuleDamage = value; }
-    public bool ChestModuleDamage { get => chestModuleDamage; set => chestModuleDamage = value; }
-    public bool HeadModuleDamage { get => headModuleDamage; set => headModuleDamage = value; }
+    public float MoveSpeedPenaltyFactor { get; private set; } = 1f;
+    public float SprintPenaltyFactor { get; private set; } = 1f;
+    public bool IsBlindnessActive { get; private set; } = false;
+
+    public bool LegsPenaltyActive => MoveSpeedPenaltyFactor < 1f;
+    public bool ChestPenaltyActive => SprintPenaltyFactor < 1f;
+    public bool HeadPenaltyActive => IsBlindnessActive;
+
+    /// <summary>Base move speed after applying the legs penalty. States multiply by their own
+    /// SpeedMultiplier on top (1 walk, 1.5 sprint, crouchSpeedMultiplier crouch).</summary>
+    public float EffectiveMoveSpeed => movement != null ? movement.MoveSpeed * MoveSpeedPenaltyFactor : 0f;
 
     public enum EPlayerState
     {
@@ -86,6 +101,49 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         rigBody = GetComponent<Rigidbody>();
         InitializeStates();
+        ModuleEvents.OnExploded += HandleModuleExploded;
+    }
+
+    private void OnDestroy()
+    {
+        ModuleEvents.OnExploded -= HandleModuleExploded;
+    }
+
+    private void HandleModuleExploded(ModuleRuntime runtime)
+    {
+        if (runtime == null || runtime.Data == null) return;
+        ApplyPenalty(runtime.Data.Penalty, runtime.Data);
+    }
+
+    /// <summary>
+    /// Applies the given module's penalty to the player. Idempotent per penalty type — calling
+    /// twice with the same Legs data leaves the factor unchanged. Public so debug tools (or a
+    /// future save-load) can restore penalty state without going through the module lifecycle.
+    /// </summary>
+    public void ApplyPenalty(PenaltyType type, ModuleData data)
+    {
+        if (data == null) return;
+
+        switch (type)
+        {
+            case PenaltyType.Legs:
+                MoveSpeedPenaltyFactor = Mathf.Clamp01(data.CojeraMultiplier);
+                // TODO(anim): swap the AnimatorController to the 'Limping' clip when we have it.
+                break;
+
+            case PenaltyType.Chest:
+                SprintPenaltyFactor = Mathf.Clamp01(1f - data.SprintReduction);
+                // TODO(camera): start continuous camera shake (Perlin) using data.ShakeAmplitude /
+                // data.ShakeFrequency when the CameraController exposes a shake API.
+                break;
+
+            case PenaltyType.Head:
+                IsBlindnessActive = true;
+                // TODO(ui): start the BlindnessLoop overlay (fade-in/hold/fade-out) using
+                // data.BlindnessInterval / data.BlindnessDuration / data.BlindnessFadeIn/Out
+                // when the UI overlay is in place.
+                break;
+        }
     }
     public override void Start()
     {
@@ -186,20 +244,5 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public void OnCaptured()
     {
         if(!isDisabled) isDisabled = true;
-    }
-    public void OnLegsModuleExplosion()
-    {
-        legsModuleDamage = true;
-        modulesDamagedCount++;
-    }
-    public void OnChestModuleExplosion()
-    {
-        chestModuleDamage = true;
-        modulesDamagedCount++;
-    }
-    public void OnHeadModuleExplosion()
-    {
-        headModuleDamage = true;
-        modulesDamagedCount++;
     }
 }

@@ -20,7 +20,7 @@ public class ActiveModuleDisplay : MonoBehaviour
     [Header("Circular image / radial fill")]
     [SerializeField] private Image radialFill;               // Image with FillMethod = Radial360
 
-    public void UpdateDisplay(ModuleData module)
+    public void UpdateDisplay(ModuleRuntime module)
     {
         if (timerText != null)
             timerText.text = module.FormattedTime;

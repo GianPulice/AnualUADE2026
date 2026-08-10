@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 public class PuzzleStateManager : Singleton<PuzzleStateManager>
@@ -8,6 +9,12 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     private readonly Dictionary<string, int> valvePositions = new Dictionary<string, int>();
     private readonly Dictionary<string, string> containerSlots = new Dictionary<string, string>();
 
+    /// <summary>
+    /// Fired the first time a puzzle transitions to completed. Central hook so subsystems (e.g.
+    /// ModuleManager, achievements, audio stingers) can react without every puzzle controller
+    /// knowing about them. Only raised on the first completion; a repeat call is a no-op.
+    /// </summary>
+    public static event Action<string> OnPuzzleCompleted;
 
     void Awake()
     {
@@ -18,7 +25,8 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     public void SetPuzzleCompleted(string puzzleId)
     {
         if (string.IsNullOrWhiteSpace(puzzleId)) return;
-        completedPuzzles.Add(puzzleId);
+        if (!completedPuzzles.Add(puzzleId)) return; // Already completed — do not re-raise.
+        OnPuzzleCompleted?.Invoke(puzzleId);
     }
 
     public bool IsPuzzleCompleted(string puzzleId)
