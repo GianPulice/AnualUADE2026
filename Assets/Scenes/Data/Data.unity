@@ -369,7 +369,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 138fbd2faf4c8244198d06d2ada691bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModuleManager
-  config: {fileID: 0}
+  config: {fileID: 11400000, guid: 924026ff0bcc96e4c9f217138ac0f4bb, type: 2}
   debugLog: 1
 --- !u!4 &649174280
 Transform:

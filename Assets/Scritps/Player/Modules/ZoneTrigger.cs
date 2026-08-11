@@ -15,10 +15,7 @@ public class ZoneTrigger : MonoBehaviour
     [Tooltip("Which module this zone activates. Drag the M1/M2/M3 ModuleData asset here.")]
     [SerializeField] private ModuleData moduleToActivate;
 
-    [Header("Behaviour")]
-    [Tooltip("Disable this trigger after firing once so it never re-fires (safer than relying on " +
-             "the manager's idempotency alone if the player leaves and returns).")]
-    [SerializeField] private bool disableAfterActivation = true;
+    private bool disableAfterActivation = true;
 
     private bool hasFired;
 

@@ -9,6 +9,8 @@ using UnityEngine;
 ///   - Show the status bars of M1/M2/M3 (centre block)
 ///   - Show the remaining-failure pips (right block)
 ///   - Subscribe to <see cref="ModuleEvents"/> to update in real time
+///   - Re-sync with <see cref="ModuleManager"/> every time it becomes visible so events that
+///     fired while the panel was hidden do not leave the display stale
 ///   - It does NOT manipulate business or module logic
 ///
 /// The timers use unscaledDeltaTime in the ModuleManager, so the tick events arrive correctly
@@ -31,7 +33,7 @@ public class ModuleHUDView : MonoBehaviour
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly Dictionary<string, ModuleRowView> rowMap = new Dictionary<string, ModuleRowView>();
-    private bool initialized;
+    private bool rowsBuilt;
 
     // ── Unity ─────────────────────────────────────────────────────────────────
 
@@ -40,6 +42,11 @@ public class ModuleHUDView : MonoBehaviour
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnStateChanged += HandleStateChanged;
         ModuleEvents.OnExploded += HandleModuleExploded;
+
+        // Whenever the panel becomes visible again, resync with the manager. Events fired while
+        // the HUD was disabled (inventory closed during an explosion or a resolution) never
+        // reached us; without this refresh the display keeps showing pre-close state.
+        RefreshAll();
     }
 
     void OnDisable()
@@ -51,41 +58,50 @@ public class ModuleHUDView : MonoBehaviour
 
     void Start()
     {
-        // The ModuleManager lives in a persistent scene and initializes in Awake, so by the time
-        // any inventory Start runs it is ready.
-        TryInitialize();
+        // ModuleManager may not exist yet when OnEnable first runs (script execution order).
+        // Retry from Start when the persistent scene is guaranteed to be up.
+        RefreshAll();
     }
 
-    // ── Initialization ────────────────────────────────────────────────────────
+    // ── Refresh ──────────────────────────────────────────────────────────────
 
-    private void TryInitialize()
+    private void RefreshAll()
     {
-        if (initialized) return;
         if (ModuleManager.Instance == null) return;
 
-        IReadOnlyList<ModuleRuntime> modules = ModuleManager.Instance.GetAllModules();
+        if (!rowsBuilt) BuildRows();
 
+        // Pull the current state from the manager and push it to every row, regardless of
+        // whether an event was raised for it. This is what fixes the "stale HUD after events
+        // fired while closed" bug.
+        foreach (ModuleRuntime module in ModuleManager.Instance.GetAllModules())
+        {
+            if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
+                row.UpdateStatus(module);
+        }
+
+        RefreshActiveTimer();
+        RefreshFailuresPips();
+    }
+
+    private void BuildRows()
+    {
         rowMap.Clear();
         foreach (Transform child in moduleRowContainer) Destroy(child.gameObject);
 
-        foreach (ModuleRuntime module in modules)
+        foreach (ModuleRuntime module in ModuleManager.Instance.GetAllModules())
         {
             ModuleRowView row = Instantiate(moduleRowPrefab, moduleRowContainer);
             row.Setup(module);
             rowMap[module.ModuleID] = row;
         }
-
-        RefreshActiveTimer();
-        RefreshFailuresPips();
-        initialized = true;
+        rowsBuilt = true;
     }
 
     // ── Event handlers ────────────────────────────────────────────────────────
 
     private void HandleTimerTick(ModuleRuntime module)
     {
-        if (!initialized) TryInitialize();
-
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateProgress(module);
 
@@ -95,19 +111,15 @@ public class ModuleHUDView : MonoBehaviour
 
     private void HandleStateChanged(ModuleRuntime module)
     {
-        if (!initialized) TryInitialize();
-
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateStatus(module);
 
-        RefreshFailuresPips();
         RefreshActiveTimer();
+        RefreshFailuresPips();
     }
 
     private void HandleModuleExploded(ModuleRuntime module)
     {
-        if (!initialized) TryInitialize();
-
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateStatus(module);
 

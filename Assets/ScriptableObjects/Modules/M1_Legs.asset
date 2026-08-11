@@ -16,7 +16,7 @@ MonoBehaviour:
   moduleLogLabel: M1
   penalty: 0
   associatedPuzzleId: puzzle_central_piso1
-  timerDuration: 180
+  timerDuration: 210
   cojeraMultiplier: 0.6
   sprintReduction: 0.25
   shakeAmplitude: 0.03

@@ -40,11 +40,21 @@ public class ModuleManager : Singleton<ModuleManager>
         CreateSingleton(true);
         BuildRuntimes();
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
     }
 
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PauseManager.OnPauseStateChanged -= HandlePauseStateChanged;
+    }
+
+    /// <summary>Pause the timer while the pause menu is open — spec §7: the timer must not tick
+    /// while the player has no control over the character.</summary>
+    private void HandlePauseStateChanged(PauseState state)
+    {
+        if (state == PauseState.Paused) PauseTicking();
+        else ResumeTicking();
     }
 
     /// <summary>Resolve the module that declares this puzzle as its associated puzzle, if any.</summary>

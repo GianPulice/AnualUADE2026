@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8225556114889735791}
   - component: {fileID: 4414410453933369517}
   m_Layer: 0
-  m_Name: ZoneTrigger
+  m_Name: ZoneTriggerM1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -66,5 +66,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a9df4a2f85e580e40b5b1862987a8e11, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ZoneTrigger
-  moduleToActivate: {fileID: 0}
+  moduleToActivate: {fileID: 11400000, guid: ebe3d6a27c9860946b3db79d50da63d9, type: 2}
   disableAfterActivation: 1
