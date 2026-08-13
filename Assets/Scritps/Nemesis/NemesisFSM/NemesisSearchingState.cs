@@ -65,10 +65,15 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
                 {
                     nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListening.LastKnownPosition;
                 }
-                float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
-                if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+
+                // remainingDistance follows the actual path (stairs, detours); a straight-line
+                // check here made the sweep stall on any point placed at a different height —
+                // see NemesisPatrolState for the full explanation of the same fix.
+                NavMeshAgent agent = nemesisStateManager.NavAgent;
+                bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+                if (hasArrived)
                 {
-                   nemesisStateManager.NavAgent.destination = GetRandomPointInNavMesh();
+                   agent.destination = GetRandomPointInNavMesh();
                 }
             }
             else

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -70,10 +71,20 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
             // instead of throwing, same as the old "WayPoints.Count > 0" guard did.
             if (target == null) return;
 
-            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, target.position);
-            if (tempDistance > nemesisStateManager.NavAgent.stoppingDistance)
+            NavMeshAgent agent = nemesisStateManager.NavAgent;
+            agent.destination = target.position;
+
+            // NavMeshAgent.remainingDistance measures distance along the actual path, not a
+            // straight line through the air. Vector3.Distance was used here before and it never
+            // accounted for height: a waypoint one floor up read as "close" the moment the agent
+            // was nearly underneath it, long before it had climbed the stairs, and a waypoint
+            // marker sitting even slightly above floor height (common — markers tend to get
+            // placed at eye level) added a permanent Y gap that could keep this from ever
+            // reading as arrived, freezing patrol there for good.
+            bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+
+            if (!hasArrived)
             {
-                nemesisStateManager.NavAgent.destination = target.position;
                 nemesisStateManager.AnimController.SetBool("isWalking", true);
             }
             else

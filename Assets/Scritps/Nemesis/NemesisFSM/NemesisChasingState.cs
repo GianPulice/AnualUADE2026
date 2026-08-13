@@ -1,5 +1,6 @@
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -52,14 +53,21 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasVisualTarget) 
+        NavMeshAgent agent = nemesisStateManager.NavAgent;
+
+        if (nemesisStateManager.HasVisualTarget)
         {
-            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfView.LastKnownPosition; 
-            float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
-            if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+            agent.destination = nemesisStateManager.FieldOfView.LastKnownPosition;
+
+            // remainingDistance (actual path length) instead of a straight-line check — the
+            // capture trigger cannot afford to fire through a floor slab just because the
+            // player is a couple of meters straight up/down, nor stay permanently unreachable
+            // because the last known position sits slightly above the walkable surface.
+            bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+            if (hasArrived)
             {
-                nemesisStateManager.NavAgent.ResetPath();
-                nemesisStateManager.NavAgent.velocity = Vector3.zero;
+                agent.ResetPath();
+                agent.velocity = Vector3.zero;
                 nemesisStateManager.AnimController.SetBool("isRunning", false);
                 NextState = NemesisStateManager.ENemesisState.Catch;
             }
@@ -69,14 +77,14 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
         {
             if (currentTime < timeToExit)
             {
-                float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
-                if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+                bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+                if (hasArrived)
                 {
                     NextState = NemesisStateManager.ENemesisState.Searching;
                 }
                 currentTime += Time.deltaTime;
             }
-            else 
+            else
             {
                 NextState = NemesisStateManager.ENemesisState.Searching;
             }

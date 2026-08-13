@@ -129,6 +129,12 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         }
         else
         {
+            // Not while captured: opening a menu here sets Time.timeScale = 0, which used to
+            // freeze the Nemesis mid-capture (it could not finish its grace period and go back
+            // to Patrolling) for as long as the player kept the inventory open. The capture
+            // sequence has to run uninterrupted.
+            if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsDisabled) return;
+
             // Only opens if there is no other modal on top (pause, panel, doc...).
             if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
             OpenInventory();

@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6366883338896328337}
   - component: {fileID: 7262208103517849607}
   - component: {fileID: 5684726728193510827}
+  - component: {fileID: 6741178838092600376}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -54,13 +55,12 @@ MonoBehaviour:
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
   nemesisMovement: {fileID: 11400000, guid: a3c36718f82fd9d4aad8c4758fe45368, type: 2}
   navAgent: {fileID: 5684726728193510827}
-  wayPoints:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  nemesisController: {fileID: 6741178838092600376}
   animController: {fileID: 1288472604488426125}
+  captureGracePeriod: 8
+  repositionMinPlayerDistance: 15
+  stuckCheckInterval: 3
+  stuckMinDistance: 0.5
 --- !u!114 &6366883338896328337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -73,11 +73,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aca499dee1b7a584c880fb935b80dead, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfListening
-  listenRange: 10
   listenDelay: 0.1
   listenMask:
     serializedVersion: 2
     m_Bits: 256
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 2049
+  nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!114 &7262208103517849607
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -90,9 +93,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7df536896b110e44d893a10d525245ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FieldOfView
-  viewRange: 10
-  viewAngle: 90
   viewDelay: 0.1
+  minDistance: 1
   viewTransform: {fileID: 6977403083150097782}
   targetMask:
     serializedVersion: 2
@@ -100,6 +102,7 @@ MonoBehaviour:
   obstacleMask:
     serializedVersion: 2
     m_Bits: 1
+  nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!195 &5684726728193510827
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -122,6 +125,26 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
+--- !u!114 &6741178838092600376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 49fe3a2815afa3340babededb032c22e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisController
+  routes:
+  - {fileID: 0}
+  spawnPoints:
+  - {fileID: 0}
+  onAllSpawnPointsVisible:
+    m_PersistentCalls:
+      m_Calls: []
+  stateManager: {fileID: 5253595690117749195}
 --- !u!1001 &3545068104417019934
 PrefabInstance:
   m_ObjectHideFlags: 0

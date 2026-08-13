@@ -9,14 +9,18 @@ using UnityEngine;
 /// state has a <see cref="ResultPresentation"/> configured. States without a preset are
 /// ignored, so WinController can keep living alongside it.
 ///
-/// It does NOT implement IModalUI: it is a final screen, not a modal overlay. That is why it
-/// handles Time.timeScale by hand instead of delegating to the UIStateManager.
+/// Implements IModalUI only to get the cursor and camera-input handling UIStateManager already
+/// does for every other modal — PlayerCameraController re-locks and hides the cursor every
+/// frame unless a modal is on the stack, so without this the result screen showed with the
+/// cursor still hidden/locked and its buttons were unclickable. Time.timeScale stays hand-managed
+/// (PausesGame is false): this screen is terminal, never "restored to what came before" the way
+/// a real overlay would be.
 ///
 /// Presets expected in the Inspector:
 ///   - Lose     -> no title, no stats, with Retry.
 ///   - GameOver -> "GAME OVER" in red, with stats, no Retry (the save is already deleted).
 /// </summary>
-public class ResultScreenController : BaseScreenController<ResultView, GameResultModel>
+public class ResultScreenController : BaseScreenController<ResultView, GameResultModel>, IModalUI
 {
     [Header("Event Channels")]
     [SerializeField] private ScreenEventChannel _screenChannel;
@@ -29,6 +33,15 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     [SerializeField] private ResultPresentation[] _presentations;
 
     private bool _isTransitioning;
+
+    // -- IModalUI -------------------
+    // Only for the cursor/camera-input handling UIStateManager already does for every modal —
+    // see the class doc comment. Time.timeScale stays hand-managed, so PausesGame is false.
+    public string ModalId => "Result";
+    public bool ConsumesEscape => false;
+    public bool BlocksPause   => true;
+    public bool PausesGame    => false;
+    public void RequestClose() { }
 
     private void Awake()
     {
@@ -63,12 +76,18 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     protected override void OnBeforeOpen()
     {
         Time.timeScale = 0f;
+
+        // Frees the cursor and stops PlayerCameraController from re-locking it every frame — it
+        // only holds off while UIStateManager reports a modal open.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+
         view.SetData(model);
     }
 
     protected override void OnBeforeClose()
     {
         Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
     private void HandleGameResult(GameResultModel incoming)
@@ -112,6 +131,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     private void HandleRetry()
     {
         Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
         if (!ScreenManager.Exists)
         {
@@ -129,6 +149,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     private void HandleMenu()
     {
         Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
         if (_screenChannel == null)
         {

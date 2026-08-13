@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -70,8 +71,13 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
 
         // Two independent ways out: it arrived and found nothing, or it ran out of patience.
         // Without the timeout an unreachable destination left it stuck here forever.
-        float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
-        if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance || currentTime >= timeOut)
+        //
+        // remainingDistance (path length) instead of Vector3.Distance (straight line): a noise
+        // heard from a different floor used to read as "arrived" or "unreachable" based on raw
+        // 3D distance rather than whether the agent had actually walked there.
+        NavMeshAgent agent = nemesisStateManager.NavAgent;
+        bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        if (hasArrived || currentTime >= timeOut)
         {
             NextState = NemesisStateManager.ENemesisState.Patrolling;
         }

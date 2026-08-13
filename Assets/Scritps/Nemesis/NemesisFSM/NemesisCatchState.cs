@@ -119,7 +119,10 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
                 break;
 
             case ECatchPhase.Grace:
-                graceTimer += Time.deltaTime;
+                // Unscaled: a menu opened during the grace window (pause, inventory) sets
+                // Time.timeScale = 0, and this countdown must not be held hostage by that — it
+                // is a real-world "you have X seconds" window, not a gameplay-paced one.
+                graceTimer += Time.unscaledDeltaTime;
                 if (graceTimer < nemesisStateManager.CaptureGracePeriod) return;
 
                 nemesisStateManager.RepositionAtRandomWayPoint();
