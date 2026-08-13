@@ -717,7 +717,7 @@ MonoBehaviour:
     SplineCurvature: 0.5
   RecenteringTarget: 3
   HorizontalAxis:
-    Value: -102.441
+    Value: 0
     Center: 0
     Range: {x: -180, y: 180}
     Wrap: 1
@@ -727,7 +727,7 @@ MonoBehaviour:
       Time: 2
     Restrictions: 0
   VerticalAxis:
-    Value: 60.220455
+    Value: 17.5
     Center: 17.5
     Range: {x: -80, y: 80}
     Wrap: 0
