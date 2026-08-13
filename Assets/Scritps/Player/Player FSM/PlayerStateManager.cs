@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -82,15 +83,117 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         Disabled,
     }
+    /// <summary>Name of the bare Transform used as the camera-relative input pivot.</summary>
+    private const string ORIENTATION_CHILD_NAME = "Placeholder forward direction";
+
     void Awake()
     {
-        rigBody = GetComponent<Rigidbody>();
+        ResolveHierarchyReferences();
+        if (!ValidateReferences())
+        {
+            // Disabled rather than left running: every reference below is dereferenced either by
+            // InputUpdate/CheckGround each frame or by the states themselves, so carrying on would
+            // bury the real cause under a NullReferenceException per frame. A disabled component
+            // also never gets Start(), so the FSM cannot enter a state with half its wiring.
+            enabled = false;
+            return;
+        }
+
         InitializeStates();
 
         // Registered in Awake and not in OnEnable so that consumers waking up in their own
         // Awake/Start already find the player. The registry is a static class precisely so
         // this cannot depend on another object's initialisation order.
         PlayerRegistry.Register(this);
+    }
+
+    /// <summary>
+    /// Fills in any reference the prefab left empty by looking it up in the player's own
+    /// hierarchy.
+    ///
+    /// This is what makes the character model swappable: dropping a new rig in and deleting the
+    /// old one leaves playerBody, animController and boxColl pointing at a destroyed object, and
+    /// they get picked up again from here instead of having to be re-dragged by hand.
+    ///
+    /// Runs from Awake and not Start on purpose — StateManager.Start() immediately calls
+    /// EnterState(), and PlayerIdleState.EnterState() already dereferences AudioEmitingZone, so
+    /// resolving in Start would be one step too late.
+    /// </summary>
+    private void ResolveHierarchyReferences()
+    {
+        // Explicit '== null' and not '??=': a field pointing at a destroyed object is only null
+        // through UnityEngine.Object's overloaded operator, which '??=' does not use — it would
+        // happily keep the dead reference, which is the exact case this method exists for.
+        // includeInactive is on because the noise emitter is toggled off by the idle/crouch states
+        // and would otherwise be invisible to the lookup.
+        if (rigBody == null)          rigBody          = GetComponent<Rigidbody>();
+        if (capsuleColl == null)      capsuleColl      = GetComponent<CapsuleCollider>();
+        if (boxColl == null)          boxColl          = GetComponentInChildren<BoxCollider>(true);
+        if (audioEmitingZone == null) audioEmitingZone = GetComponentInChildren<SphereCollider>(true);
+        if (animController == null)   animController   = GetComponentInChildren<Animator>(true);
+
+        // The Animator sits on the model root, which is the same object playerBody points at, so
+        // the two resolve together and swapping a model only has to get the Animator right.
+        if (playerBody == null && animController != null) playerBody = animController.transform;
+
+        // cameraTransform is the Cinemachine rig, not the rendering Camera — that one lives in
+        // another scene entirely and would not be found from here.
+        if (cameraTransform == null)
+        {
+            CinemachineCamera vcam = GetComponentInChildren<CinemachineCamera>(true);
+            if (vcam != null) cameraTransform = vcam.transform;
+        }
+
+        // Nothing identifies the orientation pivot but its name: it is a bare Transform used as
+        // scratch space for the camera-relative input basis, with no component to search for.
+        if (orientation == null) orientation = FindChildByName(ORIENTATION_CHILD_NAME);
+    }
+
+    private Transform FindChildByName(string childName)
+    {
+        Transform[] candidates = GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            if (candidates[i].name == childName) return candidates[i];
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Reports everything still unresolved in one message instead of letting each one surface as
+    /// its own NullReferenceException later. Returns false if the player cannot run.
+    /// </summary>
+    private bool ValidateReferences()
+    {
+        List<string> missing = new List<string>();
+
+        // movement is an asset and not part of the hierarchy, so it can only ever be reported.
+        if (movement == null)         missing.Add(nameof(movement));
+        if (rigBody == null)          missing.Add(nameof(rigBody));
+        if (capsuleColl == null)      missing.Add(nameof(capsuleColl));
+        if (boxColl == null)          missing.Add(nameof(boxColl));
+        if (audioEmitingZone == null) missing.Add(nameof(audioEmitingZone));
+        if (cameraTransform == null)  missing.Add(nameof(cameraTransform));
+        if (orientation == null)      missing.Add(nameof(orientation));
+        if (playerBody == null)       missing.Add(nameof(playerBody));
+        if (animController == null)   missing.Add(nameof(animController));
+
+        // Not fatal, but a mask of Nothing makes CheckGround fail every frame and the player
+        // silently never becomes grounded, which reads as "movement is broken" and not as a
+        // configuration mistake.
+        if (groundLeyerMask.value == 0)
+        {
+            Debug.LogWarning($"[{nameof(PlayerStateManager)}] '{name}' has an empty " +
+                             $"{nameof(groundLeyerMask)}. The player will never be grounded.", this);
+        }
+
+        if (missing.Count == 0) return true;
+
+        Debug.LogError($"[{nameof(PlayerStateManager)}] '{name}' could not resolve " +
+                       $"{missing.Count} reference(s) from its own hierarchy: " +
+                       $"{string.Join(", ", missing)}. The player has been disabled — assign them " +
+                       $"in the inspector, or add the missing objects under the player.", this);
+        return false;
     }
 
     private void OnDestroy()
