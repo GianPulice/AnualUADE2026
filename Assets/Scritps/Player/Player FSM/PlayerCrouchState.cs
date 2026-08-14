@@ -77,13 +77,14 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
             {
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
-                if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                float targetSpeed = playerStateManager.EffectiveMoveSpeed * playerStateManager.SpeedMultiplier;
+                if (playerStateManager.CurrentVelocity < targetSpeed)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
                 }
                 else
                 {
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                    playerStateManager.CurrentVelocity = targetSpeed;
                 }
             }
             else

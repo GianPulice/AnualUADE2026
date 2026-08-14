@@ -75,10 +75,10 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
         {
             if (playerStateManager.InputDir != Vector3.zero)
             {
-                // Sprint mechanic
+                // Sprint mechanic (chest penalty reduces the sprint multiplier — 1 while healthy)
                 if (Input.GetButton("Sprint"))
                 {
-                    playerStateManager.SpeedMultiplier = 1.5f;
+                    playerStateManager.SpeedMultiplier = 1.5f * playerStateManager.SprintPenaltyFactor;
                     playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;
                 }
                 else
@@ -88,13 +88,14 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                 }
 
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
-                if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                float targetSpeed = playerStateManager.EffectiveMoveSpeed * playerStateManager.SpeedMultiplier;
+                if (playerStateManager.CurrentVelocity < targetSpeed)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
                 }
                 else
                 {
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                    playerStateManager.CurrentVelocity = targetSpeed;
                 }
                 playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);

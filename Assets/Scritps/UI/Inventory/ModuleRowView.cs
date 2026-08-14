@@ -21,14 +21,14 @@ public class ModuleRowView : MonoBehaviour
     private static readonly Color LabelInactiveColor = new Color(0.16f, 0.16f, 0.16f); // #2a2a2a
     private static readonly Color LabelExplodedColor = new Color(0.35f, 0.16f, 0.00f); // #5a2a00
 
-    public void Setup(ModuleData module)
+    public void Setup(ModuleRuntime module)
     {
         if (moduleLabel != null) moduleLabel.text = module.ModuleLogLabel;
         UpdateProgress(module);
         UpdateStatus(module);
     }
 
-    public void UpdateProgress(ModuleData module)
+    public void UpdateProgress(ModuleRuntime module)
     {
         if (progressFill != null)
         {
@@ -43,7 +43,7 @@ public class ModuleRowView : MonoBehaviour
         }
     }
 
-    public void UpdateStatus(ModuleData module)
+    public void UpdateStatus(ModuleRuntime module)
     {
         // Module label
         if (moduleLabel != null)

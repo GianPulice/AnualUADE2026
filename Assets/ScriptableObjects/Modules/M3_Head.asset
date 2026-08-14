@@ -10,11 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 387f80ced2fc9cc4ea2ef1792d966386, type: 3}
-  m_Name: ModuleExample
+  m_Name: M3_Head
   m_EditorClassIdentifier: Assembly-CSharp::ModuleData
-  ModuleID: 0
-  ModuleLogLabel: MX_Example
-  Status: 1
-  TimerDuration: 54
-  TimeRemaining: 0
-  IsTimerRunning: 0
+  moduleID: M3_Head
+  moduleLogLabel: M3
+  penalty: 2
+  associatedPuzzleId: 
+  timerDuration: 180
+  cojeraMultiplier: 0.6
+  sprintReduction: 0.25
+  shakeAmplitude: 0.03
+  shakeFrequency: 1.2
+  blindnessInterval: 15
+  blindnessDuration: 3
+  blindnessFadeIn: 0.2
+  blindnessFadeOut: 0.3

@@ -40,7 +40,7 @@ public class ActiveModuleTimerView : MonoBehaviour
     }
 
     /// <summary>Updates the timer display. Pass null if there is no active module.</summary>
-    public void UpdateTimer(ModuleData module)
+    public void UpdateTimer(ModuleRuntime module)
     {
         isActive = module != null && module.Status == ModuleStatus.Active;
 

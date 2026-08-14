@@ -26,23 +26,9 @@ public class InventoryEvents : MonoBehaviour
     /// <summary>The player cancelled the discard (ESC or the cancel button).</summary>
     public static event Action OnDiscardCancelled;
 
-    //------------------ Modules ------------------
-
-    /// <summary>A module's status changed (Inactive, Active, Resolved, Exploded).</summary>
-    public static event Action<ModuleData> OnModuleStateChanged;
-
-    /// <summary>Tick of the active module's timer. Raised every frame while it runs.</summary>
-    public static event Action<ModuleData> OnModuleTimerTick;
-
-    /// <summary>A module reached zero and exploded. Apply the penalty.</summary>
-    public static event Action<ModuleData> OnModuleExploded;
-
     // ------------------ UI ------------------
 
     public static event Action<bool> OnInventoryToggled;
-
-    /// <summary>A module with causesBlindness exploded. Duration in seconds.</summary>
-    public static event Action<float> OnBlindnessTriggered;
 
     // ------------------ Invokers ------------------
 
@@ -55,10 +41,7 @@ public class InventoryEvents : MonoBehaviour
     public static void DiscardConfirmed(SO_InventoryItem item) => OnDiscardConfirmed?.Invoke(item);
     public static void DiscardCancelled() => OnDiscardCancelled?.Invoke();
 
-    public static void ModuleStateChanged(ModuleData data) => OnModuleStateChanged?.Invoke(data);
-    public static void ModuleTimerTick(ModuleData data) => OnModuleTimerTick?.Invoke(data);
-    public static void ModuleExploded(ModuleData data) => OnModuleExploded?.Invoke(data);
-
     public static void InventoryToggled(bool isOpen) => OnInventoryToggled?.Invoke(isOpen);
-    public static void BlindnessTriggered(float duration) => OnBlindnessTriggered?.Invoke(duration);
 }
+// Module lifecycle events moved to ModuleEvents. Blindness overlay listens directly to
+// ModuleEvents.OnExploded and filters by PenaltyType.Head.
