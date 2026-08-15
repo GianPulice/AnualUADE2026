@@ -5730,7 +5730,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -8194,8 +8194,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisRoute
   weight: 1
-  startUnlocked: 1
-  unlockedByPuzzleId: 
+  startUnlocked: 0
+  unlockedByPuzzleId: 2
 --- !u!1 &487325719
 GameObject:
   m_ObjectHideFlags: 0
@@ -10640,6 +10640,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2194072135750840596, guid: 2b897a90bd6b77146848930aa96a0206, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3074815137586415785, guid: 2b897a90bd6b77146848930aa96a0206, type: 3}
+      propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4725603760684168004, guid: 2b897a90bd6b77146848930aa96a0206, type: 3}
