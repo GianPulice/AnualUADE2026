@@ -114,7 +114,9 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
 
     private void ApplyTimerPenalty()
     {
-        if (ModuleManager.Instance == null) return;
+        // Exists rather than 'Instance == null': the property logs a warning of its own every time
+        // it is read while null.
+        if (!ModuleManager.Exists) return;
         ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
     }
 

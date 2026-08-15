@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: SO_FusibleNuevo
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: fusible_nuevo
-  itemName: Fusible Nuevo
+  itemName: New Fuse
   category: 1
-  itemDescription: Fusible necesario para activar la caja de fusibles del SP1.
+  itemDescription: Fuse needed to power up the SP1 fuse box.
   itemIcon: {fileID: 0}
   isMetallic: 1
   isConsumable: 1
-  consumeDescription: Se consume al insertarlo en la caja de fusibles.
+  consumeDescription: Consumed when inserted into the fuse box.
   isUnique: 1
   contentType: 0
   textContent: 

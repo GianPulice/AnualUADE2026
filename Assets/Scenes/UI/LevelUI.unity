@@ -232,7 +232,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 7012229958043064661, guid: 935a7c5347ee4c949a6c973d0574cf6c, type: 3}
   m_PrefabInstance: {fileID: 188233392}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 188233393}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 260ce09582dee7248a7e94a9fb07cee6, type: 3}
@@ -407,6 +407,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 935a7c5347ee4c949a6c973d0574cf6c, type: 3}
+--- !u!1 &188233393 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8268444740590819703, guid: 935a7c5347ee4c949a6c973d0574cf6c, type: 3}
+  m_PrefabInstance: {fileID: 188233392}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &328716456
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1181,17 +1186,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2714d9e3986ac9248b01605bb5016052, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DiscardDialogView
---- !u!114 &1324929678 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 2846599202863239357, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
+--- !u!1 &1324929678 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2811414775119278927, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
   m_PrefabInstance: {fileID: 1324929676}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d01e8a56c90a570499d0f82f67784ae5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ModuleHUDView
 --- !u!114 &1324929679 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8432705517255397452, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
@@ -1208,7 +1207,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 4212701657678655343, guid: ae2d6f035f66d0b4e9f094e40993be23, type: 3}
   m_PrefabInstance: {fileID: 1324929676}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1324929678}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dee8b91fa4beb6f48b400fcbe5fb3f53, type: 3}
@@ -1325,6 +1324,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 314246042334806867, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: m_IgnoreParentGroups
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 2130415924735008251, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_Alpha
       value: 1
@@ -1413,6 +1416,38 @@ PrefabInstance:
       propertyPath: m_Name
       value: HUDCanvas
       objectReference: {fileID: 0}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: overlaysHiddenDuringCapture.Array.size
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[0]'
+      value: 
+      objectReference: {fileID: 1480766627}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[1]'
+      value: 
+      objectReference: {fileID: 1480766626}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[2]'
+      value: 
+      objectReference: {fileID: 1324929678}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[3]'
+      value: 
+      objectReference: {fileID: 1621887915}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[4]'
+      value: 
+      objectReference: {fileID: 188233393}
+    - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: 'overlaysHiddenDuringCapture.Array.data[5]'
+      value: 
+      objectReference: {fileID: 1480766628}
+    - target: {fileID: 5142220138748541702, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 5313044491713433176, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_SortingOrder
       value: 1
@@ -1434,6 +1469,21 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+--- !u!1 &1480766626 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5834331884743655312, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+  m_PrefabInstance: {fileID: 1480766625}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1480766627 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7611070534032540431, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+  m_PrefabInstance: {fileID: 1480766625}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1480766628 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 978140415937290304, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+  m_PrefabInstance: {fileID: 1480766625}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1593416012
 GameObject:
   m_ObjectHideFlags: 0
@@ -1464,11 +1514,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryManagerUI
   toggleKey: 9
-  modules:
-  - {fileID: 11400000, guid: 4f497c356e83db64e8a9c59fbf190590, type: 2}
   inventoryView: {fileID: 1324929680}
   itemDetailView: {fileID: 1324929679}
-  moduleHUDView: {fileID: 1324929678}
   discardDialogView: {fileID: 1324929677}
   panelAnimator: {fileID: 1324929681}
 --- !u!4 &1593416014
@@ -1595,6 +1642,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f1de0c90ca3ecdd4492ecdc96a9e1490, type: 3}
+--- !u!1 &1621887915 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7541991012675058394, guid: f1de0c90ca3ecdd4492ecdc96a9e1490, type: 3}
+  m_PrefabInstance: {fileID: 1621887914}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1635792907
 GameObject:
   m_ObjectHideFlags: 0

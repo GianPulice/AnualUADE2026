@@ -24,7 +24,17 @@ public class PickupInteractable : BaseRangeInteractable
 
     protected override void OnInteract()
     {
-        AudioManager.Instance.PlaySFX("PickUpInteractable");
+        // Checked before anything else: this method destroys the pickup, so handing the item to a
+        // manager that is not there would delete it from the level for good.
+        if (!InventoryManager.Exists)
+        {
+            Debug.LogWarning($"[{nameof(PickupInteractable)}] No InventoryManager — leaving " +
+                             $"'{itemToPick.ItemName}' in the level rather than destroying it.", this);
+            return;
+        }
+
+        if (AudioManager.Exists) AudioManager.Instance.PlaySFX("PickUpInteractable");
+
         InventoryManager.Instance.AddItem(itemToPick);
         Destroy(gameObject);
     }

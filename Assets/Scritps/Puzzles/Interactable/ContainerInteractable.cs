@@ -24,6 +24,25 @@ public class ContainerInteractable : BaseRangeInteractable
         currentSlotIndex = FindInitialSlotIndex();
         ApplySlotPosition();
 
+        RecordCurrentSlot();
+    }
+
+    /// <summary>
+    /// Publishes where this container is sitting. Shared by Awake and OnInteract, which used to
+    /// carry the same unguarded call each.
+    /// </summary>
+    private void RecordCurrentSlot()
+    {
+        if (possibleSlots == null || possibleSlots.Length == 0) return;
+        if (possibleSlots[currentSlotIndex] == null) return;
+
+        if (!PuzzleStateManager.Exists)
+        {
+            Debug.LogWarning($"[{nameof(ContainerInteractable)}] No PuzzleStateManager — the slot " +
+                             $"of container '{containerData.ContainerId}' was not recorded.", this);
+            return;
+        }
+
         PuzzleStateManager.Instance.SetContainerSlot(
             containerData.ContainerId,
             possibleSlots[currentSlotIndex].SlotId
@@ -41,6 +60,7 @@ public class ContainerInteractable : BaseRangeInteractable
         if (containerData == null) return false;
 
         if (!string.IsNullOrWhiteSpace(containerData.LinkedPuzzleId) &&
+            PuzzleStateManager.Exists &&
             PuzzleStateManager.Instance.IsPuzzleCompleted(containerData.LinkedPuzzleId))
             return false;
 
@@ -56,10 +76,7 @@ public class ContainerInteractable : BaseRangeInteractable
 
         ApplySlotPosition();
 
-        PuzzleStateManager.Instance.SetContainerSlot(
-            containerData.ContainerId,
-            possibleSlots[currentSlotIndex].SlotId
-        );
+        RecordCurrentSlot();
 
         NotifyPuzzleController();
 

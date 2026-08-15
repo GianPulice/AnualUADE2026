@@ -19,7 +19,11 @@ public class BasketTrigger : MonoBehaviour
 
         currentBall = ball;
 
-        PuzzleStateManager.Instance.SetContainerSlot(ball.BallId, basketId);
+        if (PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.SetContainerSlot(ball.BallId, basketId);
+        else
+            Debug.LogWarning($"[{nameof(BasketTrigger)}] No PuzzleStateManager — ball " +
+                             $"'{ball.BallId}' landing in basket '{basketId}' was not recorded.", this);
 
         NotifyPuzzleController();
 
@@ -35,7 +39,11 @@ public class BasketTrigger : MonoBehaviour
         if (ball == null) return;
         if (ball != currentBall) return;
 
-        PuzzleStateManager.Instance.ClearContainerSlot(ball.BallId);
+        if (PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.ClearContainerSlot(ball.BallId);
+        else
+            Debug.LogWarning($"[{nameof(BasketTrigger)}] No PuzzleStateManager — ball " +
+                             $"'{ball.BallId}' leaving basket '{basketId}' was not recorded.", this);
 
         currentBall = null;
 

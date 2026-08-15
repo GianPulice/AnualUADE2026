@@ -16,4 +16,4 @@ MonoBehaviour:
   linkedPuzzleId: 
   requiredItem: {fileID: 11400000, guid: 8489d61e6c4458045ba525d91adc4cc1, type: 2}
   consumeItem: 1
-  promptTextOverride: Insertar fusible
+  promptTextOverride: Insert fuse

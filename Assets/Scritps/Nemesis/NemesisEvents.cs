@@ -1,7 +1,26 @@
 using System;
+using UnityEngine;
 
 public static class NemesisEvents
 {
+    /// <summary>
+    /// Static event state survives leaving Play mode when domain reload is disabled, which would
+    /// leave listeners from the previous run hooked to destroyed CanvasGroups. The first one to
+    /// throw stops the rest of the invocation list, so a stale vignette from the last session is
+    /// enough to keep the live one from ever being updated.
+    ///
+    /// Same guard PlayerRegistry, PuzzleStateManager and CheckpointManager already carry — this
+    /// class was the only static event hub in the project without it.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        OnChaseStarted = null;
+        OnChaseEnded = null;
+        OnProximityChanged = null;
+        OnStateChanged = null;
+    }
+
     public static event Action OnChaseStarted;
     public static event Action OnChaseEnded;
 

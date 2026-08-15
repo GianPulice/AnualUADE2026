@@ -36,7 +36,9 @@ public class ZoneTrigger : MonoBehaviour
             return;
         }
 
-        if (ModuleManager.Instance == null)
+        // Exists rather than 'Instance == null': the property logs a warning of its own every time
+        // it is read while null, so the guard would double up on the message below.
+        if (!ModuleManager.Exists)
         {
             Debug.LogWarning($"[ZoneTrigger] '{name}' fired but ModuleManager is not in the scene.", this);
             return;

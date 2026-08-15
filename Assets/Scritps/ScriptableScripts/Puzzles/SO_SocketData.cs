@@ -19,6 +19,6 @@ public class SO_SocketData : ScriptableObject
         if (!string.IsNullOrWhiteSpace(promptTextOverride))
             return promptTextOverride;
 
-        return requiredItem != null ? $"Insertar {requiredItem.ItemName}" : "Insertar item";
+        return requiredItem != null ? $"Insert {requiredItem.ItemName}" : "Insert item";
     }
 }

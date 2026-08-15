@@ -30,6 +30,15 @@ public class NemesisController : MonoBehaviour
              "by weight among the currently unlocked routes each time Patrolling starts.")]
     [SerializeField] private List<NemesisRoute> routes = new List<NemesisRoute>();
 
+    [Header("Activation")]
+    [Tooltip("Puzzle that wakes the Nemesis up. Until it is solved the Nemesis is dormant: " +
+             "invisible, no navigation, no senses. On completion it picks a spawn point and " +
+             "starts patrolling.\n\n" +
+             "Must match the PuzzleId on the puzzle's SO_PuzzleData / SO_ValvePuzzleData / etc. " +
+             "Leave empty to have the Nemesis active from the moment you hit Play (the old " +
+             "behaviour, where it starts wherever it happens to be placed in the scene).")]
+    [SerializeField] private string activatedByPuzzleId;
+
     [Header("Spawn points")]
     [Tooltip("Candidate points for ChooseSpawnPoint(). The farthest one outside the player's " +
              "line of sight is picked.")]
@@ -86,6 +95,10 @@ public class NemesisController : MonoBehaviour
     }
 
     public UnityEvent OnAllSpawnPointsVisible => onAllSpawnPointsVisible;
+
+    /// <summary>Puzzle that wakes the Nemesis up, or empty/null when it starts active.
+    /// Read by <see cref="NemesisStateManager"/>, which owns the dormant/awake gate.</summary>
+    public string ActivatedByPuzzleId => activatedByPuzzleId;
 
     private void Awake()
     {

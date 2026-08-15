@@ -154,4 +154,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SequencePanelInteractable
   sequenceData: {fileID: 11400000, guid: 17b0225065e681a42ab3c61334022026, type: 2}
-  buttonCount: 8
+  buttonCount: 9

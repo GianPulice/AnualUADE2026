@@ -119,11 +119,12 @@ public class SequencePanelUIController
         view.RefreshSequenceDisplay(model.EnteredSequence);
     }
 
-    private void HandleModelSequenceFailed()
-    {
-        view.ShowFailFlash();
-        view.RefreshSequenceDisplay(model.EnteredSequence);
-    }
+    /// <summary>
+    /// The model has already cleared the attempt at this point, but the display is left alone:
+    /// the view keeps the wrong digits on screen for as long as the red flash lasts and wipes
+    /// them itself when it ends. Refreshing here would blank the LCD before the player reads it.
+    /// </summary>
+    private void HandleModelSequenceFailed() => view.ShowFailFlash();
 
     private void HandleModelSequenceCompleted()
     {

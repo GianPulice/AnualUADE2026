@@ -26,11 +26,20 @@ public class NemesisRoute : MonoBehaviour
 
     [Tooltip("Whether this route/zone is selectable from the start of the level. Leave off for " +
              "routes that should stay closed until NemesisController.UnlockRoute() is called " +
-             "(e.g. gated behind puzzle progress).")]
+             "(e.g. gated behind puzzle progress).\n\n" +
+             "Ignored when 'Unlocked By Puzzle Id' is filled in — the puzzle owns the gate then.")]
     [SerializeField] private bool startUnlocked = true;
+
+    [Tooltip("Puzzle that opens this route/zone. Must match the PuzzleId on the puzzle's " +
+             "SO_PuzzleData / SO_ValvePuzzleData / etc.\n\n" +
+             "Filling this in is the whole setup: the route wires itself to the puzzle and no " +
+             "one has to call UnlockRoute() by hand. Leave empty to fall back to 'Start Unlocked'.")]
+    [SerializeField] private string unlockedByPuzzleId;
 
     private readonly List<Transform> waypoints = new List<Transform>();
     private bool isUnlocked;
+
+    private bool IsPuzzleGated => !string.IsNullOrWhiteSpace(unlockedByPuzzleId);
 
     public float Weight => weight;
     public bool IsUnlocked => isUnlocked;
@@ -40,8 +49,45 @@ public class NemesisRoute : MonoBehaviour
 
     private void Awake()
     {
-        isUnlocked = startUnlocked;
+        // A puzzle id wins over startUnlocked: the route starts closed and the puzzle opens it.
+        // Otherwise a designer who fills in the id but forgets to untick the checkbox gets a
+        // route that was never gated at all — and it fails silently, which is the worst kind.
+        isUnlocked = !IsPuzzleGated && startUnlocked;
         CollectWaypoints();
+    }
+
+    // ── Puzzle gating ───────────────────────────────────────────────────────
+    //
+    // Same shape as Checkpoint's own puzzle hook (subscribe + catch-up in Start), on purpose:
+    // one pattern for "this thing turns on when a puzzle is solved" across the project, so
+    // setting up a gated route is the same job as setting up a gated checkpoint.
+
+    private void OnEnable()
+    {
+        if (!IsPuzzleGated) return;
+        PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+    }
+
+    private void OnDisable()
+    {
+        if (!IsPuzzleGated) return;
+        PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+    }
+
+    private void Start()
+    {
+        // Catch-up: the puzzle may already be solved by the time this route loads (the level
+        // comes in additively, or a snapshot was restored). The event only fires on the
+        // transition, so without this the route would stay closed for the rest of the run.
+        if (!IsPuzzleGated || !PuzzleStateManager.Exists) return;
+
+        if (PuzzleStateManager.Instance.IsPuzzleCompleted(unlockedByPuzzleId)) Unlock();
+    }
+
+    private void HandlePuzzleCompleted(string completedId)
+    {
+        if (completedId != unlockedByPuzzleId) return;
+        Unlock();
     }
 
     private void CollectWaypoints()
@@ -61,7 +107,14 @@ public class NemesisRoute : MonoBehaviour
                              "it will never be picked as a usable patrol route.", this);
     }
 
-    /// <summary>Opens this route up for selection. Called by NemesisController.UnlockRoute().</summary>
+    /// <summary>
+    /// Opens this route up for selection. Called by NemesisController.UnlockRoute(), and by this
+    /// component itself when <see cref="unlockedByPuzzleId"/> is solved. Idempotent.
+    ///
+    /// Note the route stays open after a capture rolls puzzle progress back: RestoreSnapshot
+    /// deliberately raises no events, and re-closing a zone mid-run would read as a bug to the
+    /// player, not as a consequence.
+    /// </summary>
     public void Unlock() => isUnlocked = true;
 
     /// <summary>
@@ -74,10 +127,16 @@ public class NemesisRoute : MonoBehaviour
     /// Visualizes the route in the Scene view so the hand-built waypoint hierarchy can be
     /// checked without entering Play mode. Scans children directly instead of using the cached
     /// <see cref="waypoints"/> list, which is only populated at runtime.
+    ///
+    /// Colour tells the gate apart at a glance: cyan = open, amber = closed. Out of Play mode
+    /// that reads the configured intent (a puzzle-gated route draws amber because that is how
+    /// it will start), in Play mode it reads the live state.
     /// </summary>
     private void OnDrawGizmos()
     {
-        Gizmos.color = new Color(0.2f, 0.8f, 1f);
+        bool openNow = Application.isPlaying ? isUnlocked : (!IsPuzzleGated && startUnlocked);
+
+        Gizmos.color = openNow ? new Color(0.2f, 0.8f, 1f) : new Color(1f, 0.65f, 0.1f);
 
         Transform previous = null;
         for (int i = 0; i < transform.childCount; i++)

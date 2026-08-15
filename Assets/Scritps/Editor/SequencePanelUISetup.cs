@@ -30,10 +30,10 @@ public static class SequencePanelUISetup
     private const string FontMonoPath  = "Assets/Font/Share_Tech_Mono/ShareTechMono-Regular SDF.asset";
     private const string FontTitlePath = "Assets/Font/Oswald/static/Oswald-Regular SDF.asset";
 
-    // ── Paleta: metal oscuro + ambar ────────────────────────────────────────
+    // ── Palette: dark metal + amber ─────────────────────────────────────────
     private static readonly Color ColorBackdrop      = new Color(0f,     0f,     0f,     0.85f);
-    private static readonly Color ColorChassis       = new Color(0.13f,  0.13f,  0.14f,  1f);     // bisel exterior
-    private static readonly Color ColorPlate         = new Color(0.085f, 0.085f, 0.095f, 0.99f);  // placa interior
+    private static readonly Color ColorChassis       = new Color(0.13f,  0.13f,  0.14f,  1f);     // outer bezel
+    private static readonly Color ColorPlate         = new Color(0.085f, 0.085f, 0.095f, 0.99f);  // inner plate
     private static readonly Color ColorAmber         = new Color(1f,     0.65f,  0.10f,  1f);
     private static readonly Color ColorAmberDim      = new Color(0.55f,  0.33f,  0.05f,  1f);
     private static readonly Color ColorText          = new Color(0.86f,  0.85f,  0.82f,  1f);
@@ -48,9 +48,9 @@ public static class SequencePanelUISetup
     private static readonly Color ColorCloseHover    = new Color(0.62f,  0.22f,  0.20f,  1f);
     private static readonly Color ColorDividerStrong = new Color(1f,     0.65f,  0.10f,  0.40f);
 
-    // ── Dimensiones (sistema de referencia 1920x1080) ───────────────────────
+    // ── Dimensions (1920x1080 reference system) ─────────────────────────────
     private const float PanelWidth       = 520f;
-    private const float PanelHeight      = 790f;
+    private const float PanelHeight      = 850f;
     private const int   BevelThickness   = 3;
     private const int   PadX             = 46;
     private const int   PadYTop          = 34;
@@ -60,9 +60,10 @@ public static class SequencePanelUISetup
     private const float LcdHeight        = 78f;
     private const float StatusHeight     = 32f;
     private const float LedSize          = 14f;
-    private const float ButtonCell       = 130f;
+    private const float ButtonCell       = 120f;
     private const float ButtonSpacing    = 14f;
-    private const int   GridColumns      = 3;   // Un keypad es de 3 columnas, no de 4.
+    private const int   GridColumns      = 3;   // A keypad is 3 columns wide, not 4.
+    private const int   KeypadRows       = 4;   // 1-9 in a square + the row holding the 0.
 
     [MenuItem("Tools/Puzzle UI/Setup Sequence Panel UI")]
     public static void Build()
@@ -102,7 +103,7 @@ public static class SequencePanelUISetup
         Stretch(bgGO.GetComponent<RectTransform>());
         bgGO.GetComponent<Image>().color = ColorBackdrop;
 
-        // ── Chasis (bisel exterior) ────────────────────────────────────────
+        // ── Chassis (outer bezel) ──────────────────────────────────────────
         GameObject chassisGO = New("Chassis", canvasGO.transform, uiLayer, typeof(Image), typeof(Shadow));
         chassisGO.GetComponent<Image>().color = ColorChassis;
         Shadow chassisShadow = chassisGO.GetComponent<Shadow>();
@@ -137,7 +138,7 @@ public static class SequencePanelUISetup
         Stretch(titleGO.GetComponent<RectTransform>());
         TextMeshProUGUI titleText = titleGO.GetComponent<TextMeshProUGUI>();
         ApplyFont(titleText, fontTitle);
-        titleText.text             = "PANEL ELECTRICO";
+        titleText.text             = "ELECTRICAL PANEL";
         titleText.fontSize         = 30;
         titleText.fontStyle        = FontStyles.Bold;
         titleText.alignment        = TextAlignmentOptions.Center;
@@ -191,13 +192,14 @@ public static class SequencePanelUISetup
         seqText.color            = ColorLcdText;
         seqText.characterSpacing = 10f;
 
-        // ── Teclado ────────────────────────────────────────────────────────
+        // ── Keypad ─────────────────────────────────────────────────────────
         // The wrapper centres the grid horizontally and absorbs the leftover height, so the
-        // panel tolerates 6, 8, 9 or 12 keys without touching constants.
+        // panel tolerates 6, 8, 9 or 12 keys without touching constants. The reserved height is
+        // that of the keypad proper: 1-9 in a square plus the row where the 0 sits alone.
         GameObject gridWrapGO = New("GridWrapper", plateGO.transform, uiLayer,
             typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         LayoutElement wrapLE = gridWrapGO.GetComponent<LayoutElement>();
-        wrapLE.minHeight = ButtonCell * 2 + ButtonSpacing;
+        wrapLE.minHeight = ButtonCell * KeypadRows + ButtonSpacing * (KeypadRows - 1);
         wrapLE.flexibleHeight = 1f;
         HorizontalLayoutGroup hlg = gridWrapGO.GetComponent<HorizontalLayoutGroup>();
         hlg.childAlignment        = TextAnchor.MiddleCenter;

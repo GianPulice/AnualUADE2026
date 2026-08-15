@@ -57,15 +57,30 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
 
-    // Player Module Booleans
-    private bool legsModuleDamage = false;
-    private bool chestModuleDamage = false;
-    private bool headModuleDamage = false;
-    private int modulesDamagedCount = 0;
+    // ── Module penalties ────────────────────────────────────────────────────────
+    //
+    // These factors are multiplied into the movement calculations in Moving/Crouch. They stay at
+    // 1 while the corresponding module has not exploded, so the player moves normally. When a
+    // module explodes, the ModuleManager fires ModuleEvents.OnExploded and ApplyPenalty routes
+    // the effect into the correct factor. Effects are permanent for the rest of the run — there
+    // is no method to clear them by design (spec §1.1).
+    //
+    // Legs (M1): MoveSpeedPenaltyFactor drops to cojeraMultiplier (e.g. 0.6 → 40% slower).
+    // Chest (M2): SprintPenaltyFactor drops by sprintReduction (e.g. 0.25 → sprint 25% weaker).
+    // Head (M3): sets IsBlindnessActive true; the overlay itself is driven by
+    //            BlindnessOverlayView, which listens to ModuleEvents.OnExploded on its own.
 
-    public bool LegsModuleDamage { get => legsModuleDamage; set => legsModuleDamage = value; }
-    public bool ChestModuleDamage { get => chestModuleDamage; set => chestModuleDamage = value; }
-    public bool HeadModuleDamage { get => headModuleDamage; set => headModuleDamage = value; }
+    public float MoveSpeedPenaltyFactor { get; private set; } = 1f;
+    public float SprintPenaltyFactor { get; private set; } = 1f;
+    public bool IsBlindnessActive { get; private set; } = false;
+
+    public bool LegsPenaltyActive => MoveSpeedPenaltyFactor < 1f;
+    public bool ChestPenaltyActive => SprintPenaltyFactor < 1f;
+    public bool HeadPenaltyActive => IsBlindnessActive;
+
+    /// <summary>Base move speed after applying the legs penalty. States multiply by their own
+    /// SpeedMultiplier on top (1 walk, 1.5 sprint, crouchSpeedMultiplier crouch).</summary>
+    public float EffectiveMoveSpeed => movement != null ? movement.MoveSpeed * MoveSpeedPenaltyFactor : 0f;
 
     public enum EPlayerState
     {
@@ -105,6 +120,12 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // Awake/Start already find the player. The registry is a static class precisely so
         // this cannot depend on another object's initialisation order.
         PlayerRegistry.Register(this);
+
+        // Awake/OnDestroy and not OnEnable/OnDisable: the validation failure above sets
+        // enabled = false, and Unity then never calls OnEnable — the subscription would be
+        // skipped while OnDisable still ran the '-=', which is the classic asymmetric-handler
+        // bug. OnDestroy always runs, so this pair cannot come apart.
+        ModuleEvents.OnExploded += HandleModuleExploded;
     }
 
     /// <summary>
@@ -199,6 +220,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private void OnDestroy()
     {
         PlayerRegistry.Unregister(this);
+
+        // Safe even when Awake bailed out at ValidateReferences and never subscribed: '-=' on a
+        // handler that was never added is a no-op.
+        ModuleEvents.OnExploded -= HandleModuleExploded;
     }
     public override void Start()
     {
@@ -340,19 +365,39 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         isDisabled = true;
         PlayerEvents.PlayerCaptured(this);
     }
-    public void OnLegsModuleExplosion()
+    private void HandleModuleExploded(ModuleRuntime runtime)
     {
-        legsModuleDamage = true;
-        modulesDamagedCount++;
+        if (runtime == null || runtime.Data == null) return;
+        ApplyPenalty(runtime.Data.Penalty, runtime.Data);
     }
-    public void OnChestModuleExplosion()
+
+    /// <summary>
+    /// Applies the given module's penalty to the player. Idempotent per penalty type — calling
+    /// twice with the same Legs data leaves the factor unchanged. Public so debug tools (or a
+    /// future save-load) can restore penalty state without going through the module lifecycle.
+    /// </summary>
+    public void ApplyPenalty(PenaltyType type, ModuleData data)
     {
-        chestModuleDamage = true;
-        modulesDamagedCount++;
-    }
-    public void OnHeadModuleExplosion()
-    {
-        headModuleDamage = true;
-        modulesDamagedCount++;
+        if (data == null) return;
+
+        switch (type)
+        {
+            case PenaltyType.Legs:
+                MoveSpeedPenaltyFactor = Mathf.Clamp01(data.CojeraMultiplier);
+                // TODO(anim): swap the AnimatorController to the 'Limping' clip when we have it.
+                break;
+
+            case PenaltyType.Chest:
+                SprintPenaltyFactor = Mathf.Clamp01(1f - data.SprintReduction);
+                // TODO(camera): start continuous camera shake (Perlin) using data.ShakeAmplitude /
+                // data.ShakeFrequency when the CameraController exposes a shake API.
+                break;
+
+            case PenaltyType.Head:
+                IsBlindnessActive = true;
+                // The overlay itself is BlindnessOverlayView's job — it subscribes to
+                // ModuleEvents.OnExploded directly and filters by PenaltyType.Head.
+                break;
+        }
     }
 }

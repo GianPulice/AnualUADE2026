@@ -193,7 +193,7 @@ MonoBehaviour:
   animController: {fileID: 1405255475796580707}
   groundLeyerMask:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   groundAngleLimit: 45
   isInteracting: 0
 --- !u!54 &8279488126507840101
@@ -633,8 +633,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.28236496, y: -0.71276397, z: 0.40202823, w: 0.5006106}
-  m_LocalPosition: {x: 1.2873224, y: 3.4847183, z: 0.2840023}
+  m_LocalRotation: {x: 0.29178333, y: 0, z: 0, w: 0.95648444}
+  m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -664,7 +664,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 70
+    FieldOfView: 70.05909
     OrthographicSize: 10
     NearClipPlane: 0.01
     FarClipPlane: 300
@@ -768,7 +768,7 @@ MonoBehaviour:
       Size: {x: 0.8, y: 0.8}
       Offset: {x: 0, y: 0}
   CenterOnActivate: 1
-  TargetOffset: {x: 0.5, y: 0.5, z: 0}
+  TargetOffset: {x: 0, y: 0, z: 0}
   Damping: {x: 0, y: 0}
   Lookahead:
     Enabled: 0

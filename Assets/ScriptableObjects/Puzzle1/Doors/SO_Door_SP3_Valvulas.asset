@@ -16,5 +16,5 @@ MonoBehaviour:
   requiredKey: {fileID: 11400000, guid: e4973c235b5600e4caf8011e6943f16b, type: 2}
   consumeKey: 1
   requiredCompletedPuzzleId: 
-  openPrompt: Abrir puerta de valvulas
-  lockedPrompt: Necesitas la llave de ingenieria
+  openPrompt: Open valve room door
+  lockedPrompt: You need the engineering key

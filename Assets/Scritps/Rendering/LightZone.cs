@@ -15,7 +15,7 @@ using UnityEngine;
 /// The controller keeps a stack — while in B, it applies B. When leaving B, it goes back
 /// to A. When leaving A, it goes back to the default.
 ///
-/// The controller is looked up with <see cref="UnityEngine.Object.FindFirstObjectByType"/>
+/// The controller is looked up with <see cref="UnityEngine.Object.FindAnyObjectByType"/>
 /// on the first trigger. If it does not exist in the scene, an error is logged and the
 /// trigger does nothing.
 /// </summary>
@@ -82,7 +82,10 @@ public class LightZone : MonoBehaviour
     private void AcquireController()
     {
         if (_controller != null) return;
-        _controller = FindFirstObjectByType<VisionRangeController>();
+        // FindAnyObjectByType and not FindFirstObjectByType: the latter is deprecated because it
+        // orders by instance ID, and that ordering is worth nothing here — the controller drives
+        // global shader uniforms, so a scene only ever has one and "any" is "the one".
+        _controller = FindAnyObjectByType<VisionRangeController>();
         if (_controller == null)
         {
             Debug.LogWarning($"[{nameof(LightZone)}] No VisionRangeController was found in the scene. " +

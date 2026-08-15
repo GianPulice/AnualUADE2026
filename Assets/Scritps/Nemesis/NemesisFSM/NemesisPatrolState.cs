@@ -3,9 +3,17 @@ using UnityEngine.AI;
 
 public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 {
+    /// <summary>
+    /// How long the active waypoint has to stay unreachable before it is skipped. pathStatus can
+    /// read PathInvalid for a frame or two right after a destination is issued, and reacting to
+    /// that would walk the whole route in well under a second.
+    /// </summary>
+    private const float UnreachableGraceTime = 0.5f;
+
     private NemesisStateManager nemesisStateManager;
     private float timeToNextWP = 0f;
     private float currentTime = 0f;
+    private float unreachableTime = 0f;
 
     public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
@@ -18,6 +26,7 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
         //Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
         currentTime = 0f;
+        unreachableTime = 0f;
         nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.PatrolSpeed;
 
         // Picks the active route (weighted, among the unlocked ones) and rolls this cycle's
@@ -65,14 +74,56 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
         else
         {
             NemesisController controller = nemesisStateManager.NemesisController;
-            Transform target = controller != null ? controller.CurrentWaypoint : null;
+            if (controller == null) return;
 
-            // No usable route yet (nothing unlocked, or none configured at all): stand by
-            // instead of throwing, same as the old "WayPoints.Count > 0" guard did.
-            if (target == null) return;
+            Transform target = controller.CurrentWaypoint;
+
+            if (target == null)
+            {
+                // No usable route right now. Re-roll instead of standing by forever: routes open
+                // up from puzzle progress, and BeginPatrolCycle only runs on entering this state,
+                // so a route that unlocks afterwards would otherwise never be picked up. This
+                // also covers the load-order case, where a route's catch-up unlock in its own
+                // Start() can land after the Nemesis has already begun its first cycle.
+                controller.BeginPatrolCycle();
+                target = controller.CurrentWaypoint;
+
+                // Still nothing unlocked (or no routes configured at all): stand by, same as the
+                // old "WayPoints.Count > 0" guard did.
+                if (target == null) return;
+            }
 
             NavMeshAgent agent = nemesisStateManager.NavAgent;
-            agent.destination = target.position;
+
+            // Only re-issued when the target actually moves on. Assigning destination every frame
+            // restarts the path request, which kept pathPending true often enough to blur both the
+            // arrival test below and the reachability test right after this. The isOnNavMesh guard
+            // is what keeps a Warp that failed to land from spamming "SetDestination can only be
+            // called on an active agent that has been placed on a NavMesh" — the state manager's
+            // stuck-escape is what actually resolves that case.
+            if (agent.isOnNavMesh && agent.destination != target.position)
+                agent.destination = target.position;
+
+            // A waypoint the agent cannot path to — placed off the mesh, or in a room sealed off
+            // from here — used to leave the Nemesis walking on the spot forever: remainingDistance
+            // reads Infinity, so it never counted as arrived and the route never advanced. Skip
+            // the bad marker instead and keep the rest of the route usable.
+            if (!agent.pathPending && agent.pathStatus == NavMeshPathStatus.PathInvalid)
+            {
+                unreachableTime += Time.deltaTime;
+                if (unreachableTime < UnreachableGraceTime) return;
+
+                unreachableTime = 0f;
+                Debug.LogWarning($"[NemesisPatrolState] No path to waypoint '{target.name}' — " +
+                                 "skipping it. Check that it sits on the NavMesh and that its " +
+                                 "area is reachable from here.", target);
+
+                nemesisStateManager.AnimController.SetBool("isWalking", false);
+                controller.AdvanceToNextWaypoint();
+                return;
+            }
+
+            unreachableTime = 0f;
 
             // NavMeshAgent.remainingDistance measures distance along the actual path, not a
             // straight line through the air. Vector3.Distance was used here before and it never

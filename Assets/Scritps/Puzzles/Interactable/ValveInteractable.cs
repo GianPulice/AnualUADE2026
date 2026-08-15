@@ -13,6 +13,11 @@ public class ValveInteractable : BaseRangeInteractable
         get
         {
             if (valveData == null) return 0;
+
+            // No manager: fall back to the configured starting position, which is the same answer
+            // it would give for a valve nobody has turned yet.
+            if (!PuzzleStateManager.Exists) return valveData.InitialPosition;
+
             return PuzzleStateManager.Instance.GetValvePosition(
                 valveData.ValveId,
                 valveData.InitialPosition
@@ -37,6 +42,13 @@ public class ValveInteractable : BaseRangeInteractable
     {
         yield return new WaitForSeconds(3);
 
+        if (!PuzzleStateManager.Exists)
+        {
+            Debug.LogWarning($"[{nameof(ValveInteractable)}] No PuzzleStateManager — the starting " +
+                             $"position of valve '{valveData.ValveId}' was not published.", this);
+            yield break;
+        }
+
         PuzzleStateManager.Instance.SetValvePosition(
             valveData.ValveId,
             CurrentPosition
@@ -54,6 +66,7 @@ public class ValveInteractable : BaseRangeInteractable
         if (valveData == null) return false;
 
         if (!string.IsNullOrWhiteSpace(valveData.LinkedPuzzleId) &&
+            PuzzleStateManager.Exists &&
             PuzzleStateManager.Instance.IsPuzzleCompleted(valveData.LinkedPuzzleId))
             return false;
 
@@ -66,6 +79,16 @@ public class ValveInteractable : BaseRangeInteractable
 
         if (nextPosition >= valveData.MaxPositions)
             nextPosition = 0;
+
+        if (!PuzzleStateManager.Exists)
+        {
+            // Turning the valve is the whole interaction, so there is nothing left to do without
+            // somewhere to store it — notifying the puzzle controller below would read the old
+            // position back and never complete.
+            Debug.LogWarning($"[{nameof(ValveInteractable)}] No PuzzleStateManager — turning " +
+                             $"valve '{valveData.ValveId}' had no effect.", this);
+            return;
+        }
 
         PuzzleStateManager.Instance.SetValvePosition(
             valveData.ValveId,

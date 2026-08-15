@@ -16,4 +16,4 @@ MonoBehaviour:
   linkedPuzzleId: sp3_valvulas
   maxPositions: 4
   initialPosition: 0
-  promptText: Girar valvula 1
+  promptText: Turn valve 1

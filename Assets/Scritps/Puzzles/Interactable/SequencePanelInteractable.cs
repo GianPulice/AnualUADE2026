@@ -14,8 +14,9 @@ public class SequencePanelInteractable : BaseRangeInteractable
     [SerializeField] private SO_SequencePuzzleData sequenceData;
 
     [Header("Panel configuration")]
-    [Tooltip("Number of buttons the UI shows. IDs run from 1 to buttonCount.")]
-    [SerializeField, Min(1)] private int buttonCount = 8;
+    [Tooltip("Number of numbered keys the UI shows: IDs run from 1 to buttonCount. " +
+             "The keypad always adds the 0 in its own row below, so 9 gives the usual layout.")]
+    [SerializeField, Min(1)] private int buttonCount = 9;
 
     private readonly List<int> currentSequence = new List<int>();
     private bool isCompleted;
@@ -44,7 +45,10 @@ public class SequencePanelInteractable : BaseRangeInteractable
             return;
         }
 
-        if (PuzzleStateManager.Instance != null &&
+        // Exists rather than 'Instance != null': the property logs a warning of its own every time
+        // it is read while null, so testing it as a null check spams the console on the very setup
+        // it is meant to tolerate. Same swap in the three places below.
+        if (PuzzleStateManager.Exists &&
             PuzzleStateManager.Instance.IsPuzzleCompleted(sequenceData.PuzzleId))
         {
             isCompleted = true;
@@ -62,7 +66,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
     {
         if (sequenceData == null || isCompleted) return string.Empty;
         if (!string.IsNullOrWhiteSpace(sequenceData.RequiredSocketId) &&
-            (PuzzleStateManager.Instance == null ||
+            (!PuzzleStateManager.Exists ||
              !PuzzleStateManager.Instance.IsSocketInserted(sequenceData.RequiredSocketId)))
             return "The fuse still needs to be inserted";
         return string.Empty;
@@ -74,7 +78,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
         if (isCompleted) return false;
 
         if (!string.IsNullOrWhiteSpace(sequenceData.RequiredSocketId) &&
-            (PuzzleStateManager.Instance == null ||
+            (!PuzzleStateManager.Exists ||
              !PuzzleStateManager.Instance.IsSocketInserted(sequenceData.RequiredSocketId)))
         {
             return false;
@@ -100,8 +104,15 @@ public class SequencePanelInteractable : BaseRangeInteractable
     }
 
     /// <summary>
-    /// Called from the UI when the player presses a button on the panel.
-    /// Returns true if the button is correct at the current position.
+    /// Called from the UI when the player presses a button on the panel. Every key is accepted:
+    /// the attempt is only judged once it is as long as the correct sequence.
+    ///
+    /// Validating key by key was giving the code away — a wrong key failed on the spot, so the
+    /// player could try 1, 2, 3… until one of them did not fail and brute force the panel one
+    /// digit at a time. Judging the complete attempt means a failure says nothing about
+    /// *which* key was wrong.
+    ///
+    /// Returns false only when the completed attempt was incorrect.
     /// </summary>
     public bool TryPressButton(int buttonId)
     {
@@ -109,25 +120,32 @@ public class SequencePanelInteractable : BaseRangeInteractable
         if (sequenceData == null) return false;
 
         IReadOnlyList<int> correct = sequenceData.CorrectSequence;
-        int step = currentSequence.Count;
-
-        if (step >= correct.Count) return false;
-
-        if (correct[step] != buttonId)
-        {
-            currentSequence.Clear();
-            OnButtonPressed?.Invoke(buttonId);
-            OnSequenceFailed?.Invoke();
-            return false;
-        }
+        if (correct.Count == 0) return false;   // Unconfigured puzzle: nothing to match.
 
         currentSequence.Add(buttonId);
         OnButtonPressed?.Invoke(buttonId);
 
-        if (currentSequence.Count == correct.Count)
+        // Attempt still in progress: no feedback beyond the key lighting up.
+        if (currentSequence.Count < correct.Count) return true;
+
+        if (MatchesCorrectSequence())
         {
             CompleteSequence();
+            return true;
         }
+
+        currentSequence.Clear();
+        OnSequenceFailed?.Invoke();
+        return false;
+    }
+
+    private bool MatchesCorrectSequence()
+    {
+        IReadOnlyList<int> correct = sequenceData.CorrectSequence;
+        if (currentSequence.Count != correct.Count) return false;
+
+        for (int i = 0; i < correct.Count; i++)
+            if (currentSequence[i] != correct[i]) return false;
 
         return true;
     }
@@ -142,11 +160,20 @@ public class SequencePanelInteractable : BaseRangeInteractable
     {
         isCompleted = true;
 
-        if (PuzzleStateManager.Instance != null)
+        if (PuzzleStateManager.Exists)
             PuzzleStateManager.Instance.SetPuzzleCompleted(sequenceData.PuzzleId);
+        else
+            Debug.LogWarning($"[{nameof(SequencePanelInteractable)}] No PuzzleStateManager — " +
+                             $"completing '{sequenceData.PuzzleId}' was not recorded, so nothing " +
+                             $"gated behind it will open.", this);
 
-        if (sequenceData.RewardItem != null && InventoryManager.Instance != null)
-            InventoryManager.Instance.AddItem(sequenceData.RewardItem);
+        if (sequenceData.RewardItem != null)
+        {
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(sequenceData.RewardItem);
+            else Debug.LogWarning($"[{nameof(SequencePanelInteractable)}] No InventoryManager — " +
+                                  $"the reward '{sequenceData.RewardItem.name}' for " +
+                                  $"'{sequenceData.PuzzleId}' was not granted.", this);
+        }
 
         OnSequenceCompleted?.Invoke();
 

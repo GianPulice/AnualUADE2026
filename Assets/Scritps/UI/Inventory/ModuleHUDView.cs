@@ -67,7 +67,9 @@ public class ModuleHUDView : MonoBehaviour
 
     private void RefreshAll()
     {
-        if (ModuleManager.Instance == null) return;
+        // Exists rather than 'Instance == null': the property logs a warning every time it is read
+        // while null, and this refresh runs often enough to fill the console on its own.
+        if (!ModuleManager.Exists) return;
 
         if (!rowsBuilt) BuildRows();
 
@@ -130,13 +132,13 @@ public class ModuleHUDView : MonoBehaviour
 
     private void RefreshActiveTimer()
     {
-        if (ModuleManager.Instance == null) { activeTimerView?.UpdateTimer(null); return; }
+        if (!ModuleManager.Exists) { activeTimerView?.UpdateTimer(null); return; }
         activeTimerView?.UpdateTimer(ModuleManager.Instance.GetActiveModule());
     }
 
     private void RefreshFailuresPips()
     {
-        if (ModuleManager.Instance == null || failuresPipsView == null) return;
+        if (!ModuleManager.Exists || failuresPipsView == null) return;
         failuresPipsView.SetFailures(
             ModuleManager.Instance.GetExplodedCount(),
             ModuleManager.Instance.TotalModules);

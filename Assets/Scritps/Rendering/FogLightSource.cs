@@ -59,16 +59,31 @@ public class FogLightSource : MonoBehaviour
     {
         AcquireController();
         if (_controller != null) _controller.SetPlayerLightSource(this);
+
+        // Nothing found: the controller's scene has not loaded yet. Deliberately no retry loop
+        // here — VisionRangeController.OnEnable picks this component up from its own side, so
+        // the pairing happens either way round without either of them polling.
     }
 
     private void OnDisable()
     {
-        if (_controller != null) _controller.SetPlayerLightSource(null);
+        // Re-resolved instead of trusting the cached reference: when the controller came up after
+        // this component, OnEnable found nothing and the controller registered us from its side,
+        // leaving _controller null here. Without this the controller would keep pointing at a
+        // disabled light and go on opening the fog around it.
+        AcquireController();
+        if (_controller == null) return;
+
+        // Only clear ourselves. Another FogLightSource may have taken over in the meantime (a
+        // swapped player rig), and blanking it would put the fog back to the config values.
+        if (_controller.PlayerLightSource == this) _controller.SetPlayerLightSource(null);
     }
 
     private void AcquireController()
     {
         if (_controller != null) return;
-        _controller = FindFirstObjectByType<VisionRangeController>();
+        // Same reasoning as LightZone: FindFirstObjectByType is deprecated for relying on
+        // instance ID ordering, and there is only ever one controller per scene anyway.
+        _controller = FindAnyObjectByType<VisionRangeController>();
     }
 }

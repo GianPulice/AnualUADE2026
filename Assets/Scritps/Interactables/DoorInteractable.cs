@@ -32,7 +32,10 @@ public class DoorInteractable : BaseRangeInteractable
 
         CacheClosedPositions();
 
-        isOpen = PuzzleStateManager.Instance != null &&
+        // Exists rather than 'Instance != null': the property logs a warning of its own every time
+        // it is read while null, so testing it as a null check spams the console on the very setup
+        // it is meant to tolerate.
+        isOpen = PuzzleStateManager.Exists &&
                  PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
 
         if (isOpen) ApplyOpenStateImmediate();
@@ -54,11 +57,12 @@ public class DoorInteractable : BaseRangeInteractable
     {
         if (doorData == null || isOpen) return string.Empty;
 
-        if (doorData.RequiredKey != null &&
+        if (doorData.RequiredKey != null && InventoryManager.Exists &&
             !InventoryManager.Instance.HasItem(doorData.RequiredKey))
             return $"You need {doorData.RequiredKey.ItemName}";
 
         if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
+            PuzzleStateManager.Exists &&
             !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
             return doorData.LockedPrompt;
 
@@ -70,14 +74,18 @@ public class DoorInteractable : BaseRangeInteractable
         if (doorData == null) return false;
         if (isOpen || isAnimating) return false;
 
+        // Without a manager the requirement cannot be confirmed either way. Staying locked is the
+        // safe reading: a door that opens because progress could not be checked would let the
+        // player walk past a puzzle entirely.
         if (doorData.RequiredKey != null &&
-            !InventoryManager.Instance.HasItem(doorData.RequiredKey))
+            (!InventoryManager.Exists || !InventoryManager.Instance.HasItem(doorData.RequiredKey)))
         {
             return false;
         }
 
         if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
-            !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
+            (!PuzzleStateManager.Exists ||
+             !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId)))
         {
             return false;
         }
@@ -95,10 +103,16 @@ public class DoorInteractable : BaseRangeInteractable
         if (doorData == null) return;
         if (isOpen || isAnimating) return;
 
-        if (doorData.ConsumeKey && doorData.RequiredKey != null)
+        if (doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists)
             InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
 
-        PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+        // The door still opens without a manager — the animation below runs either way — but it
+        // will be shut again next time the scene loads, so say so.
+        if (PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+        else
+            Debug.LogWarning($"[{nameof(DoorInteractable)}] No PuzzleStateManager — door " +
+                             $"'{doorData.DoorId}' opened but will not stay open.", this);
 
         StartCoroutine(AnimateOpen());
 

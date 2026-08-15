@@ -41,6 +41,18 @@ public class FieldOfView : MonoBehaviour
     {
         visibleTargets = new List<GameObject>();
 
+        // Every sweep below reads viewTransform, so an unassigned one is a NullReferenceException
+        // per sweep. This component's own transform is a reasonable stand-in — hence a fallback
+        // and not a hard failure — but it is worth a warning: the marker is normally placed at eye
+        // height, and dropping to the object's pivot silently narrows what the cone can see.
+        if (viewTransform == null)
+        {
+            viewTransform = transform;
+            Debug.LogWarning($"[{nameof(FieldOfView)}] No {nameof(viewTransform)} assigned — " +
+                             $"falling back to this object's own transform. Vision will be cast " +
+                             $"from the pivot instead of from eye height.", this);
+        }
+
         if (nemesisData != null) return;
 
         NemesisStateManager manager = GetComponentInParent<NemesisStateManager>();

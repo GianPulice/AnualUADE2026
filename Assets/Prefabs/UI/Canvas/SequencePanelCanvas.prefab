@@ -1231,7 +1231,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: INGRESE LA SECUENCIA
+  m_text: ENTER THE SEQUENCE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
   m_sharedMaterial: {fileID: 8440886963500490541, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
@@ -1388,7 +1388,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: PANEL ELECTRICO
+  m_text: ELECTRICAL PANEL
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ae5a8652657594c4eb1ee2a7eaaa16b9, type: 2}
   m_sharedMaterial: {fileID: 5110642550151567424, guid: ae5a8652657594c4eb1ee2a7eaaa16b9, type: 2}
@@ -1613,7 +1613,7 @@ MonoBehaviour:
   m_ChildAlignment: 4
   m_StartCorner: 0
   m_StartAxis: 0
-  m_CellSize: {x: 130, y: 130}
+  m_CellSize: {x: 120, y: 120}
   m_Spacing: {x: 14, y: 14}
   m_Constraint: 1
   m_ConstraintCount: 3
@@ -1668,7 +1668,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 520, y: 790}
+  m_SizeDelta: {x: 520, y: 850}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3233010239987645592
 CanvasRenderer:
@@ -1968,10 +1968,10 @@ MonoBehaviour:
   ledIdleColor: {r: 0.55, g: 0.33, b: 0.05, a: 1}
   ledWrongColor: {r: 0.95, g: 0.2, b: 0.15, a: 1}
   ledOkColor: {r: 0.3, g: 0.95, b: 0.4, a: 1}
-  titleString: PANEL ELECTRICO
-  statusIdleString: INGRESE LA SECUENCIA
-  statusWrongString: SECUENCIA INCORRECTA
-  statusOkString: ACCESO CONCEDIDO
+  titleString: ELECTRICAL PANEL
+  statusIdleString: ENTER THE SEQUENCE
+  statusWrongString: INCORRECT SEQUENCE
+  statusOkString: ACCESS GRANTED
   displayPrefix: '> '
   displayCursor: _
 --- !u!1 &8444343613336674131
@@ -2052,7 +2052,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.LayoutElement
   m_IgnoreLayout: 0
   m_MinWidth: -1
-  m_MinHeight: 274
+  m_MinHeight: 522
   m_PreferredWidth: -1
   m_PreferredHeight: -1
   m_FlexibleWidth: -1

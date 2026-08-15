@@ -11,6 +11,9 @@ public class HubPuzzleController : MonoBehaviour
     {
         if (hubData == null) return;
 
+        // One guard for the three call sites below, completion write included.
+        if (!PuzzleStateManager.Exists) return;
+
         if (PuzzleStateManager.Instance.IsPuzzleCompleted(hubData.PuzzleId))
             return;
 

@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SequencePuzzleData
   puzzleId: sp1_panel_electrico
   requiredSocketId: socket_fusible_sp1
-  promptText: Interactuar con panel electrico
+  promptText: Interact with electrical panel
   rewardItem: {fileID: 11400000, guid: 85c61301028d4d64ba4dd8f9a552dcf6, type: 2}
   correctSequence: 03000000010000000400000002000000

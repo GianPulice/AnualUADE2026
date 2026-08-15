@@ -16,4 +16,4 @@ MonoBehaviour:
   linkedPuzzleId: puzzle_central_piso1
   requiredItem: {fileID: 11400000, guid: d3906647a151b8340a108eb835d9e2a4, type: 2}
   consumeItem: 1
-  promptTextOverride: "Insertar Regulador de Presi\xF3n"
+  promptTextOverride: Insert pressure regulator

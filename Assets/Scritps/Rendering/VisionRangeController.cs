@@ -95,6 +95,12 @@ public class VisionRangeController : MonoBehaviour
         // scene brings the player in, but not always. SubscribeAndCatchUp covers both orders.
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
         PlayerRegistry.OnPlayerUnregistered += HandlePlayerUnregistered;
+
+        // Same catch-up idea for the flashlight, in the other direction. FogLightSource pushes
+        // itself from its own OnEnable, which covers "controller first". The opposite order —
+        // the light already enabled in the gameplay scene before this controller's scene loads —
+        // left it pushing into nothing, with no retry, and the fog never opened around the player.
+        if (_playerLight == null) _playerLight = FindAnyObjectByType<FogLightSource>();
     }
 
     private void OnDisable()
@@ -260,6 +266,10 @@ public class VisionRangeController : MonoBehaviour
 
     /// <summary>Set (or clear with null) the player flashlight that is read every frame.</summary>
     public void SetPlayerLightSource(FogLightSource source) => _playerLight = source;
+
+    /// <summary>The flashlight currently driving the fog opening, or null. Read by
+    /// <see cref="FogLightSource"/> so it only clears itself and never another source.</summary>
+    public FogLightSource PlayerLightSource => _playerLight;
 
     public static void RegisterBypass(FogLightBypass zone)
     {
