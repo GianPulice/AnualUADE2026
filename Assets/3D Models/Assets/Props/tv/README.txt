@@ -1,0 +1,17 @@
+3D Model Export
+===============
+
+Model: tv.fbx
+Format: FBX
+
+FBX Configuration:
+------------------
+- Textures: External (not embedded)
+- Format: Binary FBX
+
+Textures (4 files):
+-------------------------
+- textures/texture_0.png
+- textures/texture_1.png
+- textures/texture_2.png
+- textures/texture_3.png
