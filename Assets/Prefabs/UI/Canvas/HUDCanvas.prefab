@@ -280,8 +280,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a166b05d873327d4eb12d27197b08dd7, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 99ef4b1b6c988c54f992f3b96981549a, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -316,7 +316,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VignetteChaseView
   canvasGroup: {fileID: 3174253032316133016}
   fadeDuration: 0.3
-  maxAlpha: 0.7
+  minAlpha: 0.15
+  maxAlpha: 0.88
 --- !u!1 &7611070534032540431
 GameObject:
   m_ObjectHideFlags: 0
