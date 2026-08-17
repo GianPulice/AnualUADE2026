@@ -35,7 +35,7 @@ public class SO_VisionFogConfig : ScriptableObject
 
     [Tooltip("Density curve. 1 = linear (base behaviour). >1 accelerates the closing — reinforces " +
              "the sense of poor visibility without changing the range. <1 softens it.")]
-    [Range(0.25f, 4f)] public float densityPower = 1f;
+    [Range(0.01f, 1f)] public float densityPower = 1f;
 
     [Tooltip("Optical blur (not just darkening) towards visionEnd. 0 = no blur, " +
              "only the usual fade to fogColor. Typical values: 0.005–0.02.")]
