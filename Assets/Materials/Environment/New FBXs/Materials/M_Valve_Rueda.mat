@@ -21,7 +21,7 @@ Material:
   stringTagMap:
     RenderType: Opaque
   disabledShaderPasses: []
-  m_LockedProperties:
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -83,7 +83,7 @@ Material:
     - _RustScale: 12
     - _Surface: 0
     m_Colors:
-    - _BaseColor: {r: 0.45, g: 0.09, b: 0.07, a: 1}
+    - _BaseColor: {r: 0.9245283, g: 0.14278847, b: 0.100302614, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _RustColor: {r: 0.26, g: 0.11, b: 0.05, a: 1}
   m_BuildTextureStacks: []
