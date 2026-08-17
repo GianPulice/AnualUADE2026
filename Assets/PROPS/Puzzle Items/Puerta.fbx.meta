@@ -3,11 +3,31 @@ guid: a36f168ff688bc94da853219a0811ecb
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Madera puerta
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal dark
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d001, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal rust.001
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: plateado
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d002, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
   animations:
     legacyGenerateAnimations: 4

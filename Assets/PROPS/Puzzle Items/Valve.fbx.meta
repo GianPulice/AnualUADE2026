@@ -3,11 +3,31 @@ guid: f3b22fb275b3c9f48ab2f91255bb2915
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal clavo
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d011, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal dark
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d001, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal rust
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d010, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00f, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
   animations:
     legacyGenerateAnimations: 4

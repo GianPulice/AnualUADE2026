@@ -3,10 +3,85 @@ guid: f7e36e6c2def7d9408594fd1984f0683
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Luz amarilla
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal dark
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d001, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal rust
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d003, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal rust.001
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d004, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal.001
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d005, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Metal.002
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d005, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d007, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base.001
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d008, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base.003
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d009, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base.004
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rojo crema base.005
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d00b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: pip 3
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d006, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: pip2
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d006, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: pipe
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d006, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: plateado
+    second: {fileID: 2100000, guid: 7a1b0c2d3e4f5061728394a5b6c7d002, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
+    materialName: 1
     materialSearch: 2
     materialLocation: 1
   animations:
