@@ -359,14 +359,14 @@ PrefabInstance:
     - target: {fileID: 4968626413543492079, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: doorData
       value: 
-      objectReference: {fileID: 11400000, guid: eb9380199c6b8c544a4391f93ed2cb1c, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 5405741228895794217, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8438275548156035699, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: m_Name
-      value: Puerta_SP3
+      value: DoorDefault
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

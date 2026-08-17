@@ -22,21 +22,25 @@ public class InteractionPromptView : BaseScreenView
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        InteractionEvents.OnTargetChanged += HandleTargetChanged;
-        InventoryEvents.OnItemAdded       += HandleInventoryChanged;
-        InventoryEvents.OnItemRemoved     += HandleInventoryChanged;
-        UIStateManager.OnModalPushed      += HandleModalPushed;
-        UIStateManager.OnModalPopped      += HandleModalPopped;
+        InteractionEvents.OnTargetChanged        += HandleTargetChanged;
+        InteractionEvents.OnPromptRefreshRequested += HandlePromptRefreshRequested;
+        InventoryEvents.OnItemAdded              += HandleInventoryChanged;
+        InventoryEvents.OnItemRemoved            += HandleInventoryChanged;
+        UIStateManager.OnModalPushed             += HandleModalPushed;
+        UIStateManager.OnModalPopped             += HandleModalPopped;
     }
 
     private void OnDestroy()
     {
-        InteractionEvents.OnTargetChanged -= HandleTargetChanged;
-        InventoryEvents.OnItemAdded       -= HandleInventoryChanged;
-        InventoryEvents.OnItemRemoved     -= HandleInventoryChanged;
-        UIStateManager.OnModalPushed      -= HandleModalPushed;
-        UIStateManager.OnModalPopped      -= HandleModalPopped;
+        InteractionEvents.OnTargetChanged        -= HandleTargetChanged;
+        InteractionEvents.OnPromptRefreshRequested -= HandlePromptRefreshRequested;
+        InventoryEvents.OnItemAdded              -= HandleInventoryChanged;
+        InventoryEvents.OnItemRemoved            -= HandleInventoryChanged;
+        UIStateManager.OnModalPushed             -= HandleModalPushed;
+        UIStateManager.OnModalPopped             -= HandleModalPopped;
     }
+
+    private void HandlePromptRefreshRequested() => RefreshDisplay(animate: false);
 
     private void HandleTargetChanged(IInteractable target)
     {
