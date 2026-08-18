@@ -2,89 +2,90 @@ using System;
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>Desde qué borde entra / hacia qué borde sale un elemento de UI.</summary>
+/// <summary>Which edge a UI element slides in from / out towards.</summary>
 public enum SlideDirection { FromLeft, FromRight, FromTop, FromBottom }
 
 /// <summary>
-/// Transición de slide genérica y reutilizable para prompts de interacción, notificaciones de
-/// ítem recogido, subtítulos, tooltips, etc. Un mismo componente sirve para distintos casos
-/// según la <see cref="SlideDirection"/> que se le pase.
+/// Generic, reusable slide transition for interaction prompts, item pickup notifications,
+/// subtitles, tooltips, etc. A single component serves different cases depending on the
+/// <see cref="SlideDirection"/> passed to it.
 ///
 /// API:
 ///   void SlideIn(SlideDirection direction);
 ///   void SlideOut(SlideDirection direction);
 ///
-/// Estética RE:
-///   - Elementos "serios"/persistentes (prompt "Presioná E para..."): easeOutQuad, sin overshoot.
-///   - Feedback rápido (notificación de ítem): easeOutBack con overshoot bajo (feedbackStyle = true).
+/// RE look:
+///   - "Serious"/persistent elements (the "Press E to..." prompt): easeOutQuad, no overshoot.
+///   - Quick feedback (item notification): easeOutBack with low overshoot (feedbackStyle = true).
 ///
-/// El elemento se coloca en el editor EN SU POSICIÓN VISIBLE final; Awake la captura como reposo.
-/// La posición oculta se calcula por dirección: por defecto se auto-computa desde el tamaño del
-/// RectTransform para que salga completamente de cuadro (o fijar slideDistance a un valor > 0).
+/// The element is placed in the editor AT ITS FINAL VISIBLE POSITION; Awake captures that as
+/// its rest position. The hidden position is computed per direction: by default it is
+/// auto-computed from the RectTransform size so it goes fully off-screen (or set slideDistance
+/// to a value > 0).
 ///
-/// Input-agnóstico: se maneja por métodos públicos, no lee Input directamente.
+/// Input-agnostic: driven by public methods, it does not read Input directly.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 [AddComponentMenu("WIRED/UI Animations/UI Slide Transition")]
 public class UISlideTransition : MonoBehaviour
 {
-    [Header("Referencias")]
-    [Tooltip("CanvasGroup opcional para acompañar el slide con fade. Si es null, solo se mueve.")]
+    [Header("References")]
+    [Tooltip("Optional CanvasGroup to accompany the slide with a fade. If null, it only moves.")]
     [SerializeField] private CanvasGroup canvasGroup;
 
-    [Header("Distancia oculta")]
-    [Tooltip("Distancia en px hacia fuera de cuadro. Si es <= 0, se auto-calcula desde el tamaño del RectTransform.")]
+    [Header("Hidden distance")]
+    [Tooltip("Distance in px off-screen. If <= 0, it is auto-computed from the RectTransform size.")]
     [SerializeField] private float slideDistance = -1f;
 
-    [Header("Estilo")]
-    [Tooltip("true = feedback rápido con overshoot (notificaciones). false = serio sin overshoot (prompts).")]
+    [Header("Style")]
+    [Tooltip("true = quick feedback with overshoot (notifications). false = serious, no overshoot (prompts).")]
     [SerializeField] private bool feedbackStyle = false;
 
     [Header("Timing / Ease")]
     [SerializeField] private float inDuration  = UITweenDefaults.SlideInDuration;
     [SerializeField] private float outDuration = UITweenDefaults.SlideOutDuration;
-    [Tooltip("Ease de entrada para modo serio (sin overshoot).")]
+    [Tooltip("Entry ease for serious mode (no overshoot).")]
     [SerializeField] private LeanTweenType seriousInEase = UITweenDefaults.SlideSeriousEase;
-    [Tooltip("Ease de entrada para modo feedback (con overshoot).")]
+    [Tooltip("Entry ease for feedback mode (with overshoot).")]
     [SerializeField] private LeanTweenType feedbackInEase = UITweenDefaults.SlideFeedbackEase;
     [SerializeField] private float feedbackOvershoot = UITweenDefaults.FeedbackOvershoot;
-    [Tooltip("Ease de salida (retracción). Seco, sin overshoot.")]
+    [Tooltip("Exit ease (retraction). Sharp, no overshoot.")]
     [SerializeField] private LeanTweenType outEase = LeanTweenType.easeInQuad;
 
     [Header("Auto-hide")]
-    [Tooltip("Si está activo, tras SlideIn se retrae solo luego de 'visibleDuration' segundos.")]
+    [Tooltip("If enabled, after SlideIn it retracts on its own after 'visibleDuration' seconds.")]
     [SerializeField] private bool autoHide = false;
     [SerializeField] private float visibleDuration = UITweenDefaults.DefaultVisibleDuration;
 
-    [Header("Opciones")]
-    [Tooltip("Ocultar el elemento en Awake (fuera de cuadro + alpha 0) para que arranque invisible.")]
+    [Header("Options")]
+    [Tooltip("Hide the element in Awake (off-screen + alpha 0) so it starts invisible.")]
     [SerializeField] private bool startHidden = true;
-    [Tooltip("Dirección usada solo para el estado oculto INICIAL (antes del primer SlideIn).")]
+    [Tooltip("Direction used only for the INITIAL hidden state (before the first SlideIn).")]
     [SerializeField] private SlideDirection initialHiddenDirection = SlideDirection.FromBottom;
-    [Tooltip("Marcar si vive en un menú/HUD que puede correr con Time.timeScale = 0.")]
+    [Tooltip("Tick if it lives in a menu/HUD that can run with Time.timeScale = 0.")]
     [SerializeField] private bool ignoreTimeScale = true;
-    [Tooltip("Acompañar el slide con fade del CanvasGroup (requiere canvasGroup asignado).")]
+    [Tooltip("Accompany the slide with a CanvasGroup fade (requires canvasGroup assigned).")]
     [SerializeField] private bool fadeWithSlide = true;
-    [Tooltip("Desactivar el GameObject al terminar SlideOut.")]
+    [Tooltip("Deactivate the GameObject when SlideOut finishes.")]
     [SerializeField] private bool deactivateOnHidden = false;
-    [Tooltip("Override global opcional. Si se asigna, pisa duraciones/eases locales en Awake.")]
+    [Tooltip("Optional global override. If assigned, it overrides local durations/eases in Awake.")]
     [SerializeField] private UIAnimationSettingsSO settings;
 
-    [Header("Eventos")]
+    [Header("Events")]
     public UnityEvent onShown;
     public UnityEvent onHidden;
     public event Action OnShown;
     public event Action OnHidden;
 
     private RectTransform rect;
-    private Vector2 shownPos;              // posición visible autoral, capturada en Awake
-    private SlideDirection lastDirection;  // para que el auto-hide/SlideOut sin dirección retracte por donde entró
+    private Vector2 shownPos;              // authored visible position, captured in Awake
+    private SlideDirection lastDirection;  // so auto-hide/SlideOut without a direction retracts the way it came in
 
     private void Awake()
     {
         rect = GetComponent<RectTransform>();
         ApplySettings();
-        shownPos = rect.anchoredPosition; // el elemento se autora en su posición VISIBLE de reposo
+        shownPos = rect.anchoredPosition; // the element is authored at its VISIBLE rest position
         lastDirection = initialHiddenDirection;
 
         if (startHidden)
@@ -104,9 +105,9 @@ public class UISlideTransition : MonoBehaviour
         feedbackOvershoot = settings.feedbackOvershoot;
     }
 
-    // ── API pública ─────────────────────────────────────────────────────────────
+    // ── Public API ──────────────────────────────────────────────────────────────
 
-    /// <summary>Entra deslizándose desde el borde indicado hacia su posición de reposo.</summary>
+    /// <summary>Slides in from the given edge towards its rest position.</summary>
     public void SlideIn(SlideDirection direction)
     {
         gameObject.SetActive(true);
@@ -114,7 +115,7 @@ public class UISlideTransition : MonoBehaviour
 
         lastDirection = direction;
 
-        // Colocar en la posición oculta correspondiente y (opcional) partir de alpha 0.
+        // Place it at the corresponding hidden position and (optionally) start from alpha 0.
         rect.anchoredPosition = HiddenPositionFor(direction);
         if (fadeWithSlide && canvasGroup != null) canvasGroup.alpha = 0f;
 
@@ -126,7 +127,7 @@ public class UISlideTransition : MonoBehaviour
             .setIgnoreTimeScale(ignoreTimeScale)
             .setOnComplete(HandleShown);
 
-        // Overshoot solo tiene efecto real con eases *Back.
+        // Overshoot only has a real effect with *Back eases.
         if (feedbackStyle) move.setOvershoot(feedbackOvershoot);
 
         if (fadeWithSlide && canvasGroup != null)
@@ -137,7 +138,7 @@ public class UISlideTransition : MonoBehaviour
                 .setIgnoreTimeScale(ignoreTimeScale);
     }
 
-    /// <summary>Sale deslizándose hacia el borde indicado. Cancela cualquier auto-hide pendiente.</summary>
+    /// <summary>Slides out towards the given edge. Cancels any pending auto-hide.</summary>
     public void SlideOut(SlideDirection direction)
     {
         if (rect == null) return;
@@ -156,7 +157,7 @@ public class UISlideTransition : MonoBehaviour
             LeanTween.alphaCanvas(canvasGroup, 0f, outDuration).setIgnoreTimeScale(ignoreTimeScale);
     }
 
-    /// <summary>Retrae por donde entró (útil para cerrar sin recordar la dirección afuera).</summary>
+    /// <summary>Retracts the way it came in (handy for closing without tracking the direction outside).</summary>
     public void SlideOut() => SlideOut(lastDirection);
 
     // ── Callbacks ────────────────────────────────────────────────────────────────
@@ -174,11 +175,11 @@ public class UISlideTransition : MonoBehaviour
         OnHidden?.Invoke();
     }
 
-    // ── Núcleo ────────────────────────────────────────────────────────────────────
+    // ── Core ──────────────────────────────────────────────────────────────────────
 
     private Vector2 HiddenPositionFor(SlideDirection direction)
     {
-        // Distancia efectiva: auto desde el tamaño del rect si slideDistance <= 0.
+        // Effective distance: auto from the rect size if slideDistance <= 0.
         float horizontal = slideDistance > 0f ? slideDistance : rect.rect.width;
         float vertical   = slideDistance > 0f ? slideDistance : rect.rect.height;
 
@@ -194,7 +195,7 @@ public class UISlideTransition : MonoBehaviour
 
     private void KillTweens()
     {
-        if (rect != null) LeanTween.cancel(rect.gameObject); // cancela slide + auto-hide (mismo host)
+        if (rect != null) LeanTween.cancel(rect.gameObject); // cancels slide + auto-hide (same host)
     }
 
     private void OnDisable() => KillTweens();

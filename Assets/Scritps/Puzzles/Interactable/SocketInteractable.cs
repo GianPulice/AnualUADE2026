@@ -1,11 +1,18 @@
+using System.Collections;
 using UnityEngine;
 
 public class SocketInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_SocketData socketData;
 
+    [Header("Inserted Visual")]
+    [Tooltip("Optional GameObject shown once the item is inserted (leave empty on variants " +
+             "that do not have a 3D model yet). Should start inactive in the prefab.")]
+    [SerializeField] private GameObject insertedVisual;
+
     public bool IsInserted =>
-        socketData != null && PuzzleStateManager.Instance.IsSocketInserted(socketData.SocketId);
+        socketData != null && PuzzleStateManager.Exists &&
+        PuzzleStateManager.Instance.IsSocketInserted(socketData.SocketId);
 
     public string SocketId => socketData != null ? socketData.SocketId : string.Empty;
     public string LinkedPuzzleId => socketData != null ? socketData.LinkedPuzzleId : string.Empty;
@@ -13,7 +20,7 @@ public class SocketInteractable : BaseRangeInteractable
     public override string GetInteractText()
     {
         if (socketData == null || socketData.RequiredItem == null) return string.Empty;
-        if (IsInserted) return $"{socketData.RequiredItem.ItemName} insertado";
+        if (IsInserted) return $"{socketData.RequiredItem.ItemName} inserted";
         return socketData.GetPromptText();
     }
 
@@ -21,8 +28,9 @@ public class SocketInteractable : BaseRangeInteractable
     {
         if (socketData == null || socketData.RequiredItem == null) return string.Empty;
         if (IsInserted) return string.Empty;
+        if (!InventoryManager.Exists) return string.Empty;
         if (!InventoryManager.Instance.HasItem(socketData.RequiredItem))
-            return $"Necesitas {socketData.RequiredItem.ItemName}";
+            return $"You need {socketData.RequiredItem.ItemName}";
         return string.Empty;
     }
 
@@ -32,19 +40,31 @@ public class SocketInteractable : BaseRangeInteractable
         if (IsInserted) return false;
         if (socketData.RequiredItem == null) return false;
 
-        return InventoryManager.Instance.HasItem(socketData.RequiredItem);
+        return InventoryManager.Exists && InventoryManager.Instance.HasItem(socketData.RequiredItem);
     }
 
     protected override void OnInteract()
     {
-        if (socketData.ConsumeItem)
+        if (!PuzzleStateManager.Exists)
+        {
+            // Recording the insert is the point of the interaction — without it the item would be
+            // consumed for nothing and the linked puzzle would still read the socket as empty.
+            Debug.LogWarning($"[{nameof(SocketInteractable)}] No PuzzleStateManager — inserting " +
+                             $"into socket '{socketData.SocketId}' had no effect.", this);
+            return;
+        }
+
+        if (socketData.ConsumeItem && InventoryManager.Exists)
             InventoryManager.Instance.ConsumeItem(socketData.RequiredItem);
 
         PuzzleStateManager.Instance.SetSocketInserted(socketData.SocketId);
 
+        if (insertedVisual != null)
+            insertedVisual.SetActive(true);
+
         NotifyLinkedPuzzle();
 
-        Debug.Log($"Socket insertado: {socketData.SocketId}");
+        Debug.Log($"Socket inserted: {socketData.SocketId}");
     }
 
     private void NotifyLinkedPuzzle()
@@ -80,5 +100,20 @@ public class SocketInteractable : BaseRangeInteractable
     public override bool IsRepeatable()
     {
         return false;
+    }
+
+
+protected override void Awake()
+    {
+        base.Awake();
+        if (insertedVisual != null)
+            StartCoroutine(SyncInsertedVisual());
+    }
+
+    private IEnumerator SyncInsertedVisual()
+    {
+        yield return new WaitForSeconds(3);
+        if (insertedVisual != null)
+            insertedVisual.SetActive(IsInserted);
     }
 }

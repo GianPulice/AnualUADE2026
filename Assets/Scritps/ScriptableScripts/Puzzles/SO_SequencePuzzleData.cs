@@ -6,7 +6,7 @@ public class SO_SequencePuzzleData : ScriptableObject
 {
     [SerializeField] private string puzzleId;
     [SerializeField] private string requiredSocketId;
-    [SerializeField] private string promptText = "Interactuar con panel";
+    [SerializeField] private string promptText = "Interact with panel";
     [SerializeField] private SO_InventoryItem rewardItem;
     [SerializeField] private List<int> correctSequence = new List<int>();
 

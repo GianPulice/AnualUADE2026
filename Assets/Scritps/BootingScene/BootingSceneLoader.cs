@@ -14,7 +14,7 @@ public class BootingSceneLoader : MonoBehaviour
     [SerializeField] private SO_SceneList sceneDatabase;
 
     [Header("Settings")]
-    [Tooltip("El grupo que se cargará por defecto en una Build o si no se detecta escena previa.")]
+    [Tooltip("The group loaded by default in a Build, or when no previous scene is detected.")]
     [SerializeField] private string defaultStartGroup = "Menu";
 
 #if UNITY_EDITOR
@@ -23,13 +23,13 @@ public class BootingSceneLoader : MonoBehaviour
 
     private void Start()
     {
-        // Disparamos la secuencia de booteo asíncrona y la "olvidamos"
+        // Fire the async boot sequence and "forget" it
         BootGameSequenceAsync().Forget();
     }
 
     private async UniTask BootGameSequenceAsync()
     {
-        Debug.Log("<color=yellow>[Bootstrapper] 1. Iniciando motor y cargando Data...</color>");
+        Debug.Log("<color=yellow>[Bootstrapper] 1. Starting the engine and loading Data...</color>");
 
         List<UniTask> persistentLoads = new List<UniTask>();
         foreach (string sceneName in sceneDatabase.persistentSceneNames)
@@ -38,12 +38,12 @@ public class BootingSceneLoader : MonoBehaviour
         }
 
         await UniTask.WhenAll(persistentLoads);
-        Debug.Log("<color=green>[Bootstrapper] 2. Data cargada exitosamente.</color>");
+        Debug.Log("<color=green>[Bootstrapper] 2. Data loaded successfully.</color>");
 
-        // 2. Averiguar a qué pantalla tenemos que ir
+        // 2. Work out which screen we have to go to
         string nextGroupToLoad = GetNextGroupToLoad();
 
-        Debug.Log($"<color=orange>[Bootstrapper] 3. Delegando carga al ScreenManager. Grupo: {nextGroupToLoad}</color>");
+        Debug.Log($"<color=orange>[Bootstrapper] 3. Delegating the load to the ScreenManager. Group: {nextGroupToLoad}</color>");
         screenChannel.RaisePushScreen(nextGroupToLoad);
         await UniTask.Yield();
         await sceneLoader.UnloadSceneAsync("Bootstrap");
@@ -71,7 +71,7 @@ public class BootingSceneLoader : MonoBehaviour
                 }
             }
 
-            Debug.LogWarning($"[Bootstrapper] La escena '{sceneName}' no está en ningún grupo del SO. Yendo al menú.");
+            Debug.LogWarning($"[Bootstrapper] Scene '{sceneName}' is not in any group of the SO. Going to the menu.");
         }
 #endif
         return defaultStartGroup;

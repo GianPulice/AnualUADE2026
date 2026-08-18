@@ -2,9 +2,13 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-// Panel negro de ceguera (Módulo M3 o cualquier módulo con causesBlindness=true).
-// Permanece activo en escena: usa CanvasGroup.alpha, nunca SetActive.
-// Los ojos del Nemesis se renderizan sobre este panel (layer NemesisEyes, ver TA A6).
+// Black blindness panel driven by the head module (M3). It stays active in the scene: it uses
+// CanvasGroup.alpha, never SetActive.
+// The Nemesis eyes are rendered on top of this panel (NemesisEyes layer, see TA A6).
+//
+// Today it does a single fade-in/hold/fade-out when the head module explodes. The full spec
+// (§3, M3) calls for a periodic BlindnessLoop (every X seconds); when that loop is implemented
+// it can drive this overlay by calling PlayBlindness(duration) directly on each tick.
 [RequireComponent(typeof(CanvasGroup))]
 public class BlindnessOverlayView : MonoBehaviour
 {
@@ -22,18 +26,33 @@ public class BlindnessOverlayView : MonoBehaviour
         canvasGroup.alpha = 0f;
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
+    }
 
-        InventoryEvents.OnBlindnessTriggered += HandleBlindness;
+    private void OnEnable()
+    {
+        ModuleEvents.OnExploded += HandleModuleExploded;
+    }
+
+    private void OnDisable()
+    {
+        ModuleEvents.OnExploded -= HandleModuleExploded;
     }
 
     private void OnDestroy()
     {
-        InventoryEvents.OnBlindnessTriggered -= HandleBlindness;
         _cts?.Cancel();
         _cts?.Dispose();
     }
 
-    private void HandleBlindness(float duration)
+    private void HandleModuleExploded(ModuleRuntime module)
+    {
+        if (module == null || module.Data == null) return;
+        if (module.Data.Penalty != PenaltyType.Head) return;
+        PlayBlindness(module.Data.BlindnessDuration);
+    }
+
+    /// <summary>Public so the future BlindnessLoop can trigger episodes without going through events.</summary>
+    public void PlayBlindness(float duration)
     {
         _cts?.Cancel();
         _cts?.Dispose();

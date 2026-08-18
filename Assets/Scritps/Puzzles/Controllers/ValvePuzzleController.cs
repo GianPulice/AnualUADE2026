@@ -10,6 +10,9 @@ public class ValvePuzzleController : MonoBehaviour
     {
         if (valvePuzzleData == null) return;
 
+        // One guard for the reads in the loop and the completion write below.
+        if (!PuzzleStateManager.Exists) return;
+
         if (PuzzleStateManager.Instance.IsPuzzleCompleted(valvePuzzleData.PuzzleId))
             return;
 
@@ -24,8 +27,13 @@ public class ValvePuzzleController : MonoBehaviour
         PuzzleStateManager.Instance.SetPuzzleCompleted(valvePuzzleData.PuzzleId);
 
         if (valvePuzzleData.RewardItem != null)
-            InventoryManager.Instance.AddItem(valvePuzzleData.RewardItem);
+        {
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(valvePuzzleData.RewardItem);
+            else Debug.LogWarning($"[{nameof(ValvePuzzleController)}] No InventoryManager â€” the " +
+                                  $"reward '{valvePuzzleData.RewardItem.name}' for " +
+                                  $"'{valvePuzzleData.PuzzleId}' was not granted.", this);
+        }
 
-        Debug.Log($"Puzzle de válvulas completado: {valvePuzzleData.PuzzleId}");
+        Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
     }
 }

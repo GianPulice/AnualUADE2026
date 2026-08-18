@@ -1,41 +1,41 @@
 using UnityEngine;
 
 /// <summary>
-/// Controller del glitch VHS + chromatic aberration del filtro PS1.
+/// Controller of the VHS glitch + chromatic aberration of the PS1 filter.
 ///
-/// Spec §6.10 de <c>WIRED_Handoff_Code.docx</c>:
-///   - Intervalo entre glitches: 8–45 s (Random).
-///   - Duración del glitch: 0.1–0.4 s.
-///   - Sin trigger de gameplay — puramente estético.
-///   - No dispara durante: inventario abierto, skill check, examine.
-///   - Sí durante: gameplay, menús, pausa. En pausa el overlay se congela.
+/// Spec §6.10 of <c>WIRED_Handoff_Code.docx</c>:
+///   - Interval between glitches: 8–45 s (Random).
+///   - Glitch duration: 0.1–0.4 s.
+///   - No gameplay trigger — purely aesthetic.
+///   - Does not fire during: inventory open, skill check, examine.
+///   - Does fire during: gameplay, menus, pause. During pause the overlay freezes.
 ///
-/// Escribe <c>_ChromaticAberrationOffset</c> sobre <see cref="ps1Material"/> —
-/// no toca ninguna otra property (dither / scanlines los maneja <c>PS1EffectApplier</c>).
+/// Writes <c>_ChromaticAberrationOffset</c> on <see cref="ps1Material"/> —
+/// it touches no other property (dither / scanlines are handled by <c>PS1EffectApplier</c>).
 ///
-/// Accesibilidad: toggle desde Options → PlayerPrefs <c>Settings_VHSGlitch</c>.
-/// Si el jugador lo apaga, el controller no dispara.
+/// Accessibility: toggle from Options → PlayerPrefs <c>Settings_VHSGlitch</c>.
+/// If the player turns it off, the controller does not fire.
 /// </summary>
 public class GlitchController : MonoBehaviour
 {
     private const string KEY_GLITCH = "Settings_VHSGlitch";
     private static readonly int PropCAOffset = Shader.PropertyToID("_ChromaticAberrationOffset");
 
-    [Tooltip("Material PS1Effect.mat sobre el que se pulsa la CA. Mismo material que usa PS1EffectApplier.")]
+    [Tooltip("PS1Effect.mat material the CA is pulsed on. Same material PS1EffectApplier uses.")]
     [SerializeField] private Material ps1Material;
 
-    [Header("Timing (segundos)")]
+    [Header("Timing (seconds)")]
     [SerializeField] private Vector2 intervalRange  = new Vector2(8f, 45f);
     [SerializeField] private Vector2 durationRange  = new Vector2(0.1f, 0.4f);
 
     [Header("CA amount")]
-    [Tooltip("Offset máximo aplicado durante el glitch. Base del shader = 0.003, spec sugiere hasta 0.008 para un flash claro.")]
+    [Tooltip("Maximum offset applied during the glitch. Shader base = 0.003, the spec suggests up to 0.008 for a clear flash.")]
     [Range(0f, 0.02f)]
     [SerializeField] private float maxCAOffset = 0.008f;
 
     /// <summary>
-    /// Externo: subir a true para congelar la ejecución (durante inventario / skill check / examine).
-    /// El overlay actual queda visible pero el timer se pausa.
+    /// External: set to true to freeze execution (during inventory / skill check / examine).
+    /// The current overlay stays visible but the timer pauses.
     /// </summary>
     public static bool SuspendTriggering { get; set; }
 
@@ -61,7 +61,7 @@ public class GlitchController : MonoBehaviour
     {
         if (!_isEnabled || ps1Material == null) return;
 
-        // Time.unscaledTime para que corra también en pausa — §6.10 dice "sí durante menús, pausa".
+        // Time.unscaledTime so it also runs during pause — §6.10 says "yes during menus, pause".
         float now = Time.unscaledTime;
 
         if (_isGlitching)

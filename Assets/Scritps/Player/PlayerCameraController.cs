@@ -9,7 +9,7 @@ public class PlayerCameraController : MonoBehaviour
     private CinemachineOrbitalFollow cinemachineOrbitalFollow;
     private CinemachineRotationComposer cinemachineRotationComposer;
     private CinemachineInputAxisController cinemachineInputAxisController;
-    
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -22,16 +22,16 @@ public class PlayerCameraController : MonoBehaviour
 
     void Update()
     {
-        // Cuando hay UI modal abierta o el juego esta en pausa, no leemos input de camara.
+        // When a modal UI is open or the game is paused, we do not read camera input.
         if (cinemachineInputAxisController == null) return;
         bool shouldEnable = !PauseManager.IsGameplayInputBlocked;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
 
-        // Cursor de gameplay: bloqueado + invisible mientras no haya UI modal ni pausa.
-        // Cuando SÍ hay UI abierta, el UIStateManager es el dueño del cursor (lo libera),
-        // por eso solo lo forzamos cuando el input de gameplay está activo. Hacerlo cada
-        // frame además recupera el lock si el SO lo soltó (alt-tab, click fuera de ventana).
+        // Gameplay cursor: locked + invisible while there is no modal UI and no pause.
+        // When there IS a UI open, the UIStateManager owns the cursor (it releases it),
+        // which is why we only force it while gameplay input is active. Doing it every
+        // frame also recovers the lock if the OS dropped it (alt-tab, click outside window).
         if (shouldEnable)
         {
             if (Cursor.lockState != CursorLockMode.Locked) Cursor.lockState = CursorLockMode.Locked;

@@ -13,7 +13,17 @@ MonoBehaviour:
   m_Name: SO_NemesisData
   m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisData
   investigationTimeOut: 8
-  searchTimeOut: 12
+  searchTimeOut: 6
   visionLossGracePeriod: 2
   patrolWaypointWaitTime: 1.5
   noiseUpdateCooldown: 0.5
+  viewRange: 5
+  viewAngle: 120
+  proximityDetectionRange: 1.5
+  crouchVisionMultiplier: 0.418
+  listenRange: 10
+  wallOcclusionEnabled: 1
+  wallOcclusionMultiplier: 0.6
+  proximityRadius: 12
+  routeReverseChance: 0.15
+  routeSkipWaypointChance: 0.15

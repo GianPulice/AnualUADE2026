@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Modelo de la pantalla del SequencePanel. Es un adapter delgado entre el
-/// <see cref="SequencePanelInteractable"/> (que vive en el mundo y tiene la lógica
-/// del puzzle) y la View. No duplica lógica de validación — solo expone los datos
-/// y re-emite los eventos del Interactable para que la View no necesite conocerlo.
+/// Model of the SequencePanel screen. It is a thin adapter between the
+/// <see cref="SequencePanelInteractable"/> (which lives in the world and holds the puzzle
+/// logic) and the View. It does not duplicate validation logic — it only exposes the data
+/// and re-raises the Interactable's events so the View does not need to know about it.
 /// </summary>
 public class SequencePanelModel : BaseScreenModel
 {

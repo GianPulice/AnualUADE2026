@@ -11,9 +11,9 @@ public class InteractionPromptView : BaseScreenView
 
     private IInteractable currentTarget;
 
-    // Sobrevive al hide forzado por modal (HandleModalPushed no lo toca): permite reaparecer
-    // con el mismo target al cerrar el inventario/pausa, sin esperar a que el raycast lo
-    // vuelva a detectar.
+    // Survives the forced hide from a modal (HandleModalPushed does not touch it): lets the
+    // prompt reappear with the same target when the inventory/pause closes, without waiting
+    // for the raycast to detect it again.
     private IInteractable lastKnownTarget;
 
     private void Awake()
@@ -22,21 +22,25 @@ public class InteractionPromptView : BaseScreenView
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        InteractionEvents.OnTargetChanged += HandleTargetChanged;
-        InventoryEvents.OnItemAdded       += HandleInventoryChanged;
-        InventoryEvents.OnItemRemoved     += HandleInventoryChanged;
-        UIStateManager.OnModalPushed      += HandleModalPushed;
-        UIStateManager.OnModalPopped      += HandleModalPopped;
+        InteractionEvents.OnTargetChanged        += HandleTargetChanged;
+        InteractionEvents.OnPromptRefreshRequested += HandlePromptRefreshRequested;
+        InventoryEvents.OnItemAdded              += HandleInventoryChanged;
+        InventoryEvents.OnItemRemoved            += HandleInventoryChanged;
+        UIStateManager.OnModalPushed             += HandleModalPushed;
+        UIStateManager.OnModalPopped             += HandleModalPopped;
     }
 
     private void OnDestroy()
     {
-        InteractionEvents.OnTargetChanged -= HandleTargetChanged;
-        InventoryEvents.OnItemAdded       -= HandleInventoryChanged;
-        InventoryEvents.OnItemRemoved     -= HandleInventoryChanged;
-        UIStateManager.OnModalPushed      -= HandleModalPushed;
-        UIStateManager.OnModalPopped      -= HandleModalPopped;
+        InteractionEvents.OnTargetChanged        -= HandleTargetChanged;
+        InteractionEvents.OnPromptRefreshRequested -= HandlePromptRefreshRequested;
+        InventoryEvents.OnItemAdded              -= HandleInventoryChanged;
+        InventoryEvents.OnItemRemoved            -= HandleInventoryChanged;
+        UIStateManager.OnModalPushed             -= HandleModalPushed;
+        UIStateManager.OnModalPopped             -= HandleModalPopped;
     }
+
+    private void HandlePromptRefreshRequested() => RefreshDisplay(animate: false);
 
     private void HandleTargetChanged(IInteractable target)
     {
@@ -58,11 +62,11 @@ public class InteractionPromptView : BaseScreenView
     private void HandleInventoryChanged(SO_InventoryItem _) => RefreshDisplay(animate: false);
 
     /// <summary>
-    /// Cualquier modal (inventario, pausa, settings, sequence panel, document reader...) tapa
-    /// el prompt al instante. InteractionCanvas tiene sortingOrder 100 (el más alto del
-    /// proyecto), así que sin esto el prompt quedaría dibujado ENCIMA de cualquier modal.
-    /// Snap sin animación a propósito: si el fade corriera justo cuando Time.timeScale pasa a
-    /// 0, Fade() (que usa deltaTime, no unscaled) podría congelarse a mitad de camino.
+    /// Any modal (inventory, pause, settings, sequence panel, document reader...) covers the
+    /// prompt instantly. InteractionCanvas has sortingOrder 100 (the highest in the project),
+    /// so without this the prompt would be drawn ON TOP of any modal.
+    /// Snapping without animation on purpose: if the fade were running right when
+    /// Time.timeScale goes to 0, Fade() (which uses deltaTime, not unscaled) could freeze halfway.
     /// </summary>
     private void HandleModalPushed(IModalUI _)
     {
@@ -72,9 +76,9 @@ public class InteractionPromptView : BaseScreenView
     }
 
     /// <summary>
-    /// Solo restauramos cuando la pila de modales queda totalmente vacía (no con modales
-    /// apiladas, ej. DiscardDialog sobre Inventario). Reaparece con el último target válido
-    /// sin esperar a que el jugador vuelva a mirarlo.
+    /// We only restore when the modal stack is completely empty (not with stacked modals,
+    /// e.g. DiscardDialog over Inventory). It reappears with the last valid target without
+    /// waiting for the player to look at it again.
     /// </summary>
     private void HandleModalPopped(IModalUI _)
     {

@@ -3,17 +3,17 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Aplica Brightness / Contrast / Gamma desde PlayerPrefs a un URP Global Volume.
-/// El Volume debe tener overrides de Color Adjustments (postExposure + contrast) y
-/// Lift Gamma Gain (gamma). Activar las propiedades correspondientes en el profile.
+/// Applies Brightness / Contrast / Gamma from PlayerPrefs to a URP Global Volume.
+/// The Volume must have Color Adjustments (postExposure + contrast) and
+/// Lift Gamma Gain (gamma) overrides. Enable the corresponding properties in the profile.
 ///
-/// Mapeos:
+/// Mappings:
 ///   - Brightness 0..1 → postExposure -2..+2 EV
 ///   - Contrast   0..1 → contrast    -50..+50
 ///   - Gamma      0..1 → gamma.w     0.7..1.3
 ///
-/// Volume.profile devuelve una instancia runtime auto-instanciada (NO modifica el .asset).
-/// Colocar este componente en el mismo GameObject que el Volume global (S5a).
+/// Volume.profile returns an auto-instanced runtime instance (it does NOT modify the .asset).
+/// Place this component on the same GameObject as the global Volume (S5a).
 /// </summary>
 [RequireComponent(typeof(Volume))]
 public class PostProcessSettingsApplier : MonoBehaviour

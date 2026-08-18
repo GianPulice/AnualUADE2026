@@ -2,8 +2,8 @@ using TMPro;
 using UnityEngine;
 
 /// <summary>
-/// VIEW de la etiqueta de grupo en la lista
-/// Texto 8px, gris oscuro, letra espaciada. No es clickeable.
+/// VIEW of the group label in the list.
+/// 8px text, dark grey, letter-spaced. Not clickable.
 /// </summary>
 public class GroupLabelView : MonoBehaviour
 {

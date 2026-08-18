@@ -19,6 +19,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         Debug.Log("Nemesis Enter Searching State");
         NextState = StateKey;
         currentTime = 0;
+        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.SearchSpeed;
         nemesisStateManager.AnimController.SetBool("isRunning", true);
     }
 
@@ -36,17 +37,17 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
     public override void OnTriggerEnter(Collider other)
     {
-        throw new System.NotImplementedException();
+
     }
 
     public override void OnTriggerExit(Collider other)
     {
-        throw new System.NotImplementedException();
+
     }
 
     public override void OnTriggerStay(Collider other)
     {
-        throw new System.NotImplementedException();
+
     }
 
     public override void UpdateState()
@@ -55,19 +56,24 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;
         }
-        else 
+        else
         {
             if (currentTime < timeOut)
             {
                 currentTime += Time.deltaTime;
                 if (nemesisStateManager.HasAudioTarget)
                 {
-                    nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListenig.LastKnownPosition;
+                    nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListening.LastKnownPosition;
                 }
-                float tempDistance = Vector3.Distance(nemesisStateManager.transform.position, nemesisStateManager.NavAgent.destination);
-                if (tempDistance < nemesisStateManager.NavAgent.stoppingDistance)
+
+                // remainingDistance follows the actual path (stairs, detours); a straight-line
+                // check here made the sweep stall on any point placed at a different height —
+                // see NemesisPatrolState for the full explanation of the same fix.
+                NavMeshAgent agent = nemesisStateManager.NavAgent;
+                bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+                if (hasArrived)
                 {
-                   nemesisStateManager.NavAgent.destination = GetRandomPointInNavMesh();
+                   agent.destination = GetRandomPointInNavMesh();
                 }
             }
             else
@@ -76,17 +82,41 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             }
         }
     }
-    private Vector3 GetRandomPointInNavMesh() 
+    /// <summary>
+    /// A point on the NavMesh near the current destination, to keep sweeping the area.
+    ///
+    /// Returns the position snapped by SamplePosition and not the raw random point: the raw
+    /// one usually falls off the mesh, and setting it as a destination made the agent walk to
+    /// the nearest edge instead. The attempts are capped because the original do/while had no
+    /// way out — with the agent outside the NavMesh it span forever and hung Unity.
+    /// </summary>
+    private Vector3 GetRandomPointInNavMesh()
     {
-        // Radio de busqueda
-        float range = 5f;
-        Vector3 randomPoint = Vector3.zero;
-        do
+        const int maxAttempts = 30;
+        const float range = 5f;
+        const float sampleRadius = 1f;
+
+        Vector3 origin = nemesisStateManager.NavAgent.destination;
+
+        Vector3 forward = nemesisStateManager.transform.forward;
+        forward.y = 0f;
+        forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.zero;
+
+        for (int i = 0; i < maxAttempts; i++)
         {
-            randomPoint = nemesisStateManager.NavAgent.destination + (Random.onUnitSphere + nemesisStateManager.transform.forward ) * range;
+            // Horizontal only: onUnitSphere also varied Y and threw points above and below
+            // the floor. The forward bias is kept so it sweeps ahead of where it is looking.
+            Vector2 circle = Random.insideUnitCircle;
+            Vector3 randomDir = new Vector3(circle.x, 0f, circle.y) + forward;
+            Vector3 randomPoint = origin + randomDir * range;
+
+            if (NavMesh.SamplePosition(randomPoint, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
         }
-        while (!NavMesh.SamplePosition(randomPoint,out NavMeshHit hit,1f,NavMesh.AllAreas));
-        Debug.Log("Punto Random Encontrado");
-        return randomPoint;
+
+        // Nothing valid nearby: stay put rather than heading for an unreachable point.
+        return nemesisStateManager.transform.position;
     }
 }

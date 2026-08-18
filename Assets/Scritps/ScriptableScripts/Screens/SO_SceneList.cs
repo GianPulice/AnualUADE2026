@@ -8,16 +8,16 @@ using UnityEditor;
 public class SO_SceneList : ScriptableObject
 {
 #if UNITY_EDITOR
-    [Tooltip("Escenas que nunca se descargan (managers, inputs, data, etc.)")]
+    [Tooltip("Scenes that are never unloaded (managers, inputs, data, etc.)")]
     public List<SceneAsset> persistentSceneAssets = new List<SceneAsset>();
 #endif
     [HideInInspector] public List<string> persistentSceneNames = new List<string>();
 
-    [Tooltip("Lista de grupos de escenas a usar. Asegurarse de que estén agregadas en Build Settings.")]
+    [Tooltip("List of scene groups to use. Make sure they are added to the Build Settings.")]
     public List<SceneGroupEntry> sceneGroups = new List<SceneGroupEntry>();
 
     /// <summary>
-    /// Devuelve el grupo que coincide con el label dado. Null si no existe.
+    /// Returns the group matching the given label. Null if it does not exist.
     /// </summary>
     public SceneGroupEntry GetGroup(string label)
     {
@@ -25,7 +25,7 @@ public class SO_SceneList : ScriptableObject
     }
 
     /// <summary>
-    /// Devuelve true si existe un grupo con ese label.
+    /// Returns true if a group with that label exists.
     /// </summary>
     public bool ContainsGroup(string label)
     {
@@ -49,7 +49,7 @@ public class SO_SceneList : ScriptableObject
                 }
             }
 
-            // Si el label está vacío y hay al menos una escena, autocompletamos
+            // If the label is empty and there is at least one scene, autocomplete it
             if (string.IsNullOrEmpty(group.label) && group.sceneNames.Count > 0)
                 group.label = group.sceneNames[0] + "_Group";
         }
@@ -68,11 +68,11 @@ public class SO_SceneList : ScriptableObject
 [System.Serializable]
 public class SceneGroupEntry
 {
-    [Tooltip("Nombre identificador del grupo. Usado por el ScreenManager para cargarlo.")]
+    [Tooltip("Identifier name of the group. Used by the ScreenManager to load it.")]
     public string label;
 
 #if UNITY_EDITOR
-    [Tooltip("Arrastrá aquí todas las escenas que componen este grupo (Arte, Lógica, UI, etc.)")]
+    [Tooltip("Drag here every scene that makes up this group (Art, Logic, UI, etc.)")]
     public List<SceneAsset> sceneAssets = new List<SceneAsset>();
 #endif
 

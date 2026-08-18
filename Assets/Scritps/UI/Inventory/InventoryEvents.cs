@@ -3,46 +3,32 @@ using UnityEngine;
 
 public class InventoryEvents : MonoBehaviour
 {
-    /// <summary>Un �tem fue agregado al inventario (recogido del mundo).</summary>
+    /// <summary>An item was added to the inventory (picked up from the world).</summary>
     public static event Action<SO_InventoryItem> OnItemAdded;
 
-    /// <summary>Un �tem fue removido del inventario (por descarte o consumo).</summary>
+    /// <summary>An item was removed from the inventory (by discarding or consuming).</summary>
     public static event Action<SO_InventoryItem> OnItemRemoved;
 
-    /// <summary>El jugador seleccion� un �tem en la lista. Poblar el panel de detalle.</summary>
+    /// <summary>The player selected an item in the list. Populate the detail panel.</summary>
     public static event Action<SO_InventoryItem> OnItemSelected;
 
-    /// <summary>Un �tem consumible fue usado al interactuar con un objeto del mundo.</summary>
+    /// <summary>A consumable item was used by interacting with a world object.</summary>
     public static event Action<SO_InventoryItem> OnItemConsumed;
 
-    // ------------------ Descarte ------------------
+    // ------------------ Discard ------------------
 
-    /// <summary>El jugador presion� "descartar". Abrir el di�logo de confirmaci�n.</summary>
+    /// <summary>The player pressed "discard". Open the confirmation dialog.</summary>
     public static event Action<SO_InventoryItem> OnDiscardRequested;
 
-    /// <summary>El jugador confirm� el descarte. Eliminar el �tem definitivamente.</summary>
+    /// <summary>The player confirmed the discard. Remove the item for good.</summary>
     public static event Action<SO_InventoryItem> OnDiscardConfirmed;
 
-    /// <summary>El jugador cancel� el descarte (ESC o bot�n cancelar).</summary>
+    /// <summary>The player cancelled the discard (ESC or the cancel button).</summary>
     public static event Action OnDiscardCancelled;
-
-    //------------------ M�dulos ------------------
-
-    /// <summary>El estado de un m�dulo cambi� (Activo, Resuelto, Explotado, Inactivo).</summary>
-    public static event Action<ModuleData> OnModuleStateChanged;
-
-    /// <summary>Tick del timer del m�dulo activo. Disparado cada frame mientras corre.</summary>
-    public static event Action<ModuleData> OnModuleTimerTick;
-
-    /// <summary>Un m�dulo lleg� a cero y explot�. Aplicar penalizaci�n.</summary>
-    public static event Action<ModuleData> OnModuleExploded;
 
     // ------------------ UI ------------------
 
     public static event Action<bool> OnInventoryToggled;
-
-    /// <summary>Un módulo con causesBlindness explotó. Duración en segundos.</summary>
-    public static event Action<float> OnBlindnessTriggered;
 
     // ------------------ Invokers ------------------
 
@@ -55,10 +41,7 @@ public class InventoryEvents : MonoBehaviour
     public static void DiscardConfirmed(SO_InventoryItem item) => OnDiscardConfirmed?.Invoke(item);
     public static void DiscardCancelled() => OnDiscardCancelled?.Invoke();
 
-    public static void ModuleStateChanged(ModuleData data) => OnModuleStateChanged?.Invoke(data);
-    public static void ModuleTimerTick(ModuleData data) => OnModuleTimerTick?.Invoke(data);
-    public static void ModuleExploded(ModuleData data) => OnModuleExploded?.Invoke(data);
-
     public static void InventoryToggled(bool isOpen) => OnInventoryToggled?.Invoke(isOpen);
-    public static void BlindnessTriggered(float duration) => OnBlindnessTriggered?.Invoke(duration);
 }
+// Module lifecycle events moved to ModuleEvents. Blindness overlay listens directly to
+// ModuleEvents.OnExploded and filters by PenaltyType.Head.

@@ -3,12 +3,13 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 3
-  tags: []
+  tags:
+  - NemesisWaypoint
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ground
   - Water
   - UI
   - Interactable
@@ -16,7 +17,7 @@ TagManager:
   - DetectableAudio
   - 
   - Post Processing
-  - 
+  - Wall
   - 
   - 
   - 

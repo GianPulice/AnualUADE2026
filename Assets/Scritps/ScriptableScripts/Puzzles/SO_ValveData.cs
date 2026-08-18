@@ -7,7 +7,7 @@ public class SO_ValveData : ScriptableObject
     [SerializeField] private string linkedPuzzleId;
     [SerializeField] private int maxPositions = 4;
     [SerializeField] private int initialPosition = 0;
-    [SerializeField] private string promptText = "Girar válvula";
+    [SerializeField] private string promptText = "Turn valve";
 
     public string ValveId => valveId;
     public string LinkedPuzzleId => linkedPuzzleId;

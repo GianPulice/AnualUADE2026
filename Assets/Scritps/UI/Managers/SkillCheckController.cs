@@ -2,17 +2,17 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Controlador del Skill-Check (Puzzle Central 2 — Hub de Ventilación).
-// IModalUI: PausesGame=false → Time.timeScale=1 durante los checks.
-// El player no puede moverse (IsAnyModalOpen=true) pero el Nemesis sí.
-// Expone Open(SO_SkillCheckData) para que el puzzle lo invoque.
-// Expone OnCompleted/OnFailed para que el puzzle reaccione al resultado.
+// Controller of the Skill-Check (Central Puzzle 2 — Ventilation Hub).
+// IModalUI: PausesGame=false → Time.timeScale=1 during the checks.
+// The player cannot move (IsAnyModalOpen=true) but the Nemesis can.
+// Exposes Open(SO_SkillCheckData) so the puzzle can invoke it.
+// Exposes OnCompleted/OnFailed so the puzzle can react to the result.
 public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCheckModel>, IModalUI
 {
     public static SkillCheckController Instance { get; private set; }
     public bool IsOpen { get; private set; }
 
-    [Header("Configuración por defecto")]
+    [Header("Default configuration")]
     [SerializeField] private SO_SkillCheckData defaultData;
 
     // IModalUI
@@ -26,7 +26,7 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
     private bool _isRunning;
     private SO_SkillCheckData _activeData;
 
-    // El puzzle espera este callback para saber si el check fue completado.
+    // The puzzle waits on this callback to know whether the check was completed.
     public System.Action OnCompleted;
     public System.Action OnFailed;
 
@@ -44,14 +44,14 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
         UnsubscribeModel();
     }
 
-    // Llamado externamente por el puzzle controller.
+    // Called externally by the puzzle controller.
     public void Open(SO_SkillCheckData data = null)
     {
         if (IsOpen) return;
         _activeData = data != null ? data : defaultData;
         if (_activeData == null)
         {
-            Debug.LogError("[SkillCheckController] Sin SO_SkillCheckData asignado.");
+            Debug.LogError("[SkillCheckController] No SO_SkillCheckData assigned.");
             return;
         }
 
@@ -114,10 +114,10 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
 
     private void ApplyTimerPenalty()
     {
-        if (InventoryManagerUI.Instance == null) return;
-        ModuleData active = InventoryManagerUI.Instance.GetActiveModule();
-        if (active == null || !active.IsTimerRunning) return;
-        active.TimeRemaining = Mathf.Max(0f, active.TimeRemaining - _activeData.failTimePenalty);
+        // Exists rather than 'Instance == null': the property logs a warning of its own every time
+        // it is read while null.
+        if (!ModuleManager.Exists) return;
+        ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
     }
 
     private void HandleCheckSuccess() { }

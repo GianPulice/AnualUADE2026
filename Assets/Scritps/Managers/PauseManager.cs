@@ -50,16 +50,16 @@ public class PauseManager : Singleton<PauseManager>
     }
 
     /// <summary>
-    /// Llamado por la action Player/Pause. Responsabilidad UNICA: ABRIR la pausa.
-    /// El CIERRE de la pausa lo maneja UIStateManager via UI/Exit -> PauseManagerUI.RequestClose.
+    /// Called by the Player/Pause action. SINGLE responsibility: OPEN the pause menu.
+    /// CLOSING the pause menu is handled by UIStateManager via UI/Exit -> PauseManagerUI.RequestClose.
     ///
-    /// La pausa es un OVERLAY GLOBAL: se abre encima de cualquier modal (inventario, document,
-    /// SequencePanel...). Solo respeta BlocksPause (por si en el futuro alguna modal especifica
-    /// no quiere ser interrumpida; hoy ninguna gameplay-UI lo bloquea).
+    /// Pause is a GLOBAL OVERLAY: it opens on top of any modal (inventory, document,
+    /// SequencePanel...). It only respects BlocksPause (in case some specific modal in the
+    /// future does not want to be interrupted; today no gameplay UI blocks it).
     /// </summary>
     private void TryToggleFromInput()
     {
-        if (IsPaused) return;   // si ya esta en pausa, el cierre va por UI/Exit.
+        if (IsPaused) return;   // if already paused, closing goes through UI/Exit.
 
         if (UIStateManager.Exists && UIStateManager.Instance.IsBlockingPause) return;
 
@@ -70,8 +70,8 @@ public class PauseManager : Singleton<PauseManager>
     public bool IsPaused => model.IsPaused;
 
     /// <summary>
-    /// True cuando el gameplay debe ignorar inputs del player (movimiento, camara, interaccion).
-    /// Bloquea tanto en pausa como con cualquier UI modal abierta.
+    /// True when gameplay must ignore player input (movement, camera, interaction).
+    /// Blocks both while paused and while any modal UI is open.
     /// </summary>
     public static bool IsGameplayInputBlocked
         => (Exists && Instance.IsPaused) || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
@@ -91,7 +91,7 @@ public class PauseManager : Singleton<PauseManager>
         }
         else
         {
-            Debug.LogWarning("[PauseManager] La UI pidi� despausar, pero la Instancia de PauseManager no existe.");
+            Debug.LogWarning("[PauseManager] The UI requested an unpause, but the PauseManager instance does not exist.");
         }
     }
 }

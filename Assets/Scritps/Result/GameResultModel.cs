@@ -1,7 +1,7 @@
 using System;
 
 // GameResultModel.cs
-// Shared model between WinController and LoseController.
+// Shared model between WinController and ResultScreenController (Lose / GameOver).
 // Holds result data: score, time, etc.
 
 public enum GameState
@@ -30,7 +30,7 @@ public class GameResultModel : BaseScreenModel
 
     /// <summary>
     /// Call this from GameResultManager when the round ends.
-    /// Both WinController and LoseController will read from this.
+    /// Both WinController and ResultScreenController will read from this.
     /// </summary>
     public void SetResult(GameState result, float time, int completedModules)
     {

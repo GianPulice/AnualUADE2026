@@ -3,9 +3,9 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Controller del Save Slots canvas. Vive embebido en la escena MainMenuUI.
-/// El canvas empieza desactivado; llamar Show() para abrirlo y Hide() para cerrarlo.
-/// El click en un slot emite OnSlotSelected para que el save system real se conecte.
+/// Controller of the Save Slots canvas. Lives embedded in the MainMenuUI scene.
+/// The canvas starts disabled; call Show() to open it and Hide() to close it.
+/// Clicking a slot raises OnSlotSelected so the real save system can hook in.
 /// </summary>
 public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlotsModel>
 {
@@ -14,11 +14,14 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
 
     public event Action<int> OnSlotSelected;
 
+    /// <summary>True if there is at least one saved game. Queried by the MainMenu.</summary>
+    public bool HasAnySave => _database != null && _database.HasAnySave;
+
     private void Awake()
     {
         if (view == null)
         {
-            Debug.LogError($"[{nameof(SaveSlotsController)}] view no asignada en el Inspector.");
+            Debug.LogError($"[{nameof(SaveSlotsController)}] view not assigned in the Inspector.");
             return;
         }
 
@@ -52,7 +55,7 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
         Close().Forget();
     }
 
-    /// <summary>Devuelve el slot por su SlotIndex (1-based), o null si no existe.</summary>
+    /// <summary>Returns the slot by its SlotIndex (1-based), or null if it does not exist.</summary>
     public SO_SaveSlotData GetSlot(int slotIndex)
     {
         if (model?.Slots == null) return null;
@@ -63,7 +66,7 @@ public class SaveSlotsController : BaseScreenController<SaveSlotsView, SaveSlots
 
     private void HandleSlotClicked(int slotIndex)
     {
-        Debug.Log($"<color=cyan>[SaveSlotsController] Slot {slotIndex} clickeado (visual stub).</color>");
+        Debug.Log($"<color=cyan>[SaveSlotsController] Slot {slotIndex} clicked (visual stub).</color>");
         OnSlotSelected?.Invoke(slotIndex);
     }
 

@@ -4,12 +4,12 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Slot individual del <see cref="LateralInventoryView"/>. Diseño minimalista:
-/// solo icono y nombre, sin detalle expandido. Pensado para uso rápido durante
-/// la Variante B de interacción con puzzles.
+/// Individual slot of the <see cref="LateralInventoryView"/>. Minimal design:
+/// icon and name only, no expanded detail. Meant for quick use during
+/// puzzle interaction Variant B.
 ///
-/// ESQUELETO — el styling visual (colores por categoría, hover, selección) se
-/// completará cuando se implemente la Variante B.
+/// SKELETON — the visual styling (per-category colors, hover, selection) will be
+/// completed when Variant B is implemented.
 /// </summary>
 public class LateralInventorySlotView : MonoBehaviour
 {

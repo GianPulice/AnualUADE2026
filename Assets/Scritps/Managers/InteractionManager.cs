@@ -1,14 +1,14 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Sistema de interaccion por raycast desde el centro de la camara.
-// La camara emite un rayo hacia adelante con la distancia configurada en SO_InteractionManager.
-// Si el rayo pega contra un Collider que cuelga de un IInteractable y este puede interactuarse,
-// se vuelve el "current" y la UI muestra el prompt. Tecla E ejecuta la interaccion.
+// Interaction system based on a raycast from the centre of the camera.
+// The camera casts a ray forward with the distance configured in SO_InteractionManager.
+// If the ray hits a Collider hanging off an IInteractable and that one can be interacted with,
+// it becomes the "current" one and the UI shows the prompt. The E key runs the interaction.
 public class InteractionManager : Singleton<InteractionManager>
 {
     [Header("Config")]
-    [Tooltip("Distancia y layers para el raycast.")]
+    [Tooltip("Distance and layers for the raycast.")]
     [SerializeField] private SO_InteractionManager config;
 
     public SO_InteractionManager Config => config;
@@ -19,7 +19,7 @@ public class InteractionManager : Singleton<InteractionManager>
     private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
-    // Cooldown entre pulsaciones de E para evitar dobles activaciones.
+    // Cooldown between E presses to avoid double activations.
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
 
@@ -34,7 +34,7 @@ public class InteractionManager : Singleton<InteractionManager>
     {
         RefreshCamera();
 
-        // Si hay UI modal abierta o el juego esta en pausa, no procesamos interacciones.
+        // If a modal UI is open or the game is paused, we do not process interactions.
         if (PauseManager.IsGameplayInputBlocked)
         {
             if (currentInteractable != null)
@@ -92,17 +92,17 @@ public class InteractionManager : Singleton<InteractionManager>
         Vector3 origin = playerCamera.transform.position;
         Vector3 direction = playerCamera.transform.forward;
 
-        // SphereCast: rayo "grueso" con un radio chico. Hace que apuntar a items
-        // chicos (pickups en el piso, valvulas) sea mas permisivo sin perder direccionalidad.
+        // SphereCast: a "thick" ray with a small radius. Makes aiming at small items
+        // (pickups on the floor, valves) more forgiving without losing directionality.
         const float sphereRadius = 0.1f;
 
         if (!Physics.SphereCast(origin, sphereRadius, direction, out RaycastHit hit, distance, combinedMask, QueryTriggerInteraction.Ignore))
             return null;
 
-        // Buscamos IInteractable en el propio collider o en sus padres.
-        // Si lo encontramos, es valido (un hijo del prefab no esta en layer Interactable
-        // pero su raiz si lo es, igual debe poder activarse).
-        // Si no lo encontramos, el primer hit es una pared / objeto bloqueante.
+        // We look for an IInteractable on the collider itself or on its parents.
+        // If we find one, it is valid (a child of the prefab is not on the Interactable layer
+        // but its root is, and it must still be activatable).
+        // If we do not find one, the first hit is a wall / blocking object.
         IInteractable interactable =
             hit.collider.GetComponent<IInteractable>() ??
             hit.collider.GetComponentInParent<IInteractable>();

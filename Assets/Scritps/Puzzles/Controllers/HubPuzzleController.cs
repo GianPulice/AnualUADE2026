@@ -11,6 +11,9 @@ public class HubPuzzleController : MonoBehaviour
     {
         if (hubData == null) return;
 
+        // One guard for the three call sites below, completion write included.
+        if (!PuzzleStateManager.Exists) return;
+
         if (PuzzleStateManager.Instance.IsPuzzleCompleted(hubData.PuzzleId))
             return;
 
@@ -22,11 +25,11 @@ public class HubPuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(hubData.PuzzleId);
 
-        Debug.Log($"Hub completado: {hubData.PuzzleId}");
+        Debug.Log($"Hub completed: {hubData.PuzzleId}");
 
-        // ACA DESPUES:
-        // - reproducir cinemática
-        // - abrir acceso Piso 3
-        // - activar ascensor / puerta final
+        // TO DO HERE:
+        // - play the cinematic
+        // - open access to Floor 3
+        // - activate the elevator / final door
     }
 }

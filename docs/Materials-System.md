@@ -4,6 +4,9 @@ Explica qué hace cada material, shader y script que armamos para el lenguaje vi
 
 Stack: **URP 17.4.0**, Unity 6, Compatibility mode (Renderer Feature API tradicional).
 
+> ⚠️ **Nota de idioma**: el código de `Assets/Scritps/` está íntegramente en inglés (comentarios,
+> strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` § Language rule.
+
 ---
 
 ## 1. Visión general
@@ -239,22 +242,32 @@ MonoBehaviour que se pega al GameObject del item. Es la cabeza del sistema.
 - `SnapToFar()` opcional para forzar estado lejano sin animación (útil al ocultar el item o resetear estado).
 
 **Cómo se acopla al sistema de interactuables**:
-El componente es **standalone**. No se modificó `BaseRangeInteractable.cs`. El wiring lo hace el desarrollador del sistema de interactuables agregando:
+
+> ⚠️ **Desactualizado**: esta sección describía un wiring manual por triggers. **Ya no hace
+> falta.** El componente se engancha solo: en `OnEnable` se suscribe a
+> `InteractionEvents.OnTargetChanged` y compara el target contra su propio `IInteractable`
+> (resuelto en `Awake` con `GetComponent<IInteractable>() ?? GetComponentInParent<IInteractable>()`).
+> Cuando el SphereCast del `InteractionManager` apunta a este ítem pasa a estado *near*; cuando
+> deja de apuntarlo vuelve a *far*. No hay que cablear triggers ni tocar `BaseRangeInteractable`.
 
 ```csharp
-// En BaseRangeInteractable o similar:
-[SerializeField] private ItemProximityHighlight _highlight;
+// ItemProximityHighlight.cs — el enganche real:
+private void OnEnable()  => InteractionEvents.OnTargetChanged += HandleTargetChanged;
+private void OnDisable() => InteractionEvents.OnTargetChanged -= HandleTargetChanged;
 
-private void OnTriggerEnter(Collider other)
+private void HandleTargetChanged(IInteractable target)
 {
-    if (other.CompareTag("Player")) _highlight?.OnPlayerEnteredRange();
-}
+    bool isTargeted = _selfInteractable != null && ReferenceEquals(target, _selfInteractable);
+    if (isTargeted == _isNear) return;   // el evento es global: evita relanzar el lerp en todos los ítems
 
-private void OnTriggerExit(Collider other)
-{
-    if (other.CompareTag("Player")) _highlight?.OnPlayerExitedRange();
+    _isNear = isTargeted;
+    if (isTargeted) OnPlayerEnteredRange();
+    else            OnPlayerExitedRange();
 }
 ```
+
+`OnPlayerEnteredRange()` / `OnPlayerExitedRange()` siguen siendo públicos por si algún sistema
+necesita forzar el estado a mano.
 
 **Para puzzles e interactuables sin tinte de categoría** (palancas, paneles — spec sec 4.7): mismo shader, mismo script, pero `farTint = 0` y `nearTint = 0`. Solo brilla la emisión al acercarse, sin color de categoría. El prompt `[E]` lo diferencia visualmente del entorno, no el color.
 
@@ -480,7 +493,8 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 
 ## 10. Lo que falta / fases futuras
 
-- **Degradación de la luz del dispositivo por módulos explotados** (§2.5.1 del handoff). Con `FogLightSource.useLightComponent = true`, el fog ya se degrada solo al bajar `Light.range`/`intensity` — falta el sistema que dispare esa degradación (`ModuleManager.OnModuleStateChanged → LightManager.DegradeModuleLight`).
+- **Degradación de la luz del dispositivo por módulos explotados** (§2.5.1 del handoff). Con `FogLightSource.useLightComponent = true`, el fog ya se degrada solo al bajar `Light.range`/`intensity` — falta el sistema que dispare esa degradación. El evento a escuchar es `InventoryEvents.OnModuleExploded` / `OnModuleStateChanged` (no existe ningún `ModuleManager`: los módulos viven en `InventoryManagerUI`). ⚠️ **Bloqueado**: hoy los timers de módulos nunca arrancan (`StartModuleTimer()` no lo llama nadie), así que `OnModuleExploded` no dispara nunca. Ver `docs/TODO-UI.md` § Bloqueantes del loop principal.
+- **`GlitchController.SuspendTriggering` no lo setea nadie.** El spec §6.10 pide que el glitch VHS no dispare con inventario / skill check / examine abiertos. La property existe pero ningún controller la sube a `true`. Lo más limpio sería suscribirse a `UIStateManager.OnModalPushed/Popped`.
 - **VHS vertical shift** (`_VHSShift`) del §6.10 — el `GlitchController` pulsa la CA pero no el desplazamiento vertical de líneas. Agregar la property al shader PS1 y al controller.
 - **Ojos del Nemesis a través de la niebla** (§3.6) — billboards emisivos rojos en un layer que el fog excluye. Feature separada.
 - **Siluetas de interactuables a través de la niebla** (§3.7 / `silhouetteMode` del SO) — pendiente de GD. Nota: la técnica correcta es un mask en el fog pass, no el outline fresnel del material (que es rim always-visible, no silhouette-through-fog).

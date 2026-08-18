@@ -1,37 +1,37 @@
 using UnityEngine;
 
 /// <summary>
-/// Controla el flicker de un tubo fluorescente: anima la intensidad de un Light
-/// y la propiedad <c>_Intensity</c> del material (shader Custom/FlickerLight).
+/// Controls the flicker of a fluorescent tube: animates the intensity of a Light
+/// and the <c>_Intensity</c> property of the material (Custom/FlickerLight shader).
 ///
-/// Determinista por instancia: dado <c>Time.time + flickerOffset</c>, la evaluación
-/// de la curva siempre da el mismo valor → repetible para debug/replays.
+/// Deterministic per instance: given <c>Time.time + flickerOffset</c>, evaluating the
+/// curve always yields the same value → repeatable for debugging/replays.
 ///
 /// Setup:
-///   1. GameObject del tubo con Light child y MeshRenderer con `mat_fluorescent_tube`
-///      (instancia de Custom/FlickerLight).
-///   2. Agregar este componente al GameObject que tiene el Light.
-///   3. Asignar el MeshRenderer al campo `targetRenderer` para que parpadee el material.
-///   4. Ajustar la AnimationCurve (X: 0-1 dentro del ciclo, Y: factor 0-1 sobre maxIntensity).
-///   5. En instancias duplicadas, setear `flickerOffset` distinto a cada una para evitar sync.
+///   1. Tube GameObject with a child Light and a MeshRenderer using `mat_fluorescent_tube`
+///      (an instance of Custom/FlickerLight).
+///   2. Add this component to the GameObject that has the Light.
+///   3. Assign the MeshRenderer to the `targetRenderer` field so the material also flickers.
+///   4. Tune the AnimationCurve (X: 0-1 within the cycle, Y: 0-1 factor over maxIntensity).
+///   5. On duplicated instances, set a different `flickerOffset` on each to avoid syncing.
 /// </summary>
 [RequireComponent(typeof(Light))]
 public class FlickerLight : MonoBehaviour
 {
-    [Header("Curva (X: 0..1 dentro del ciclo, Y: factor 0..1)")]
+    [Header("Curve (X: 0..1 within the cycle, Y: 0..1 factor)")]
     [SerializeField] private AnimationCurve flickerCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
 
-    [Header("Parámetros")]
-    [Tooltip("Multiplicador final aplicado al valor de la curva.")]
+    [Header("Parameters")]
+    [Tooltip("Final multiplier applied to the curve value.")]
     [SerializeField] private float maxIntensity = 2f;
 
-    [Tooltip("Duración de un ciclo completo en segundos.")]
+    [Tooltip("Duration of a full cycle in seconds.")]
     [SerializeField] private float cycleDuration = 1f;
 
-    [Tooltip("Desfase temporal en segundos. Permite desincronizar instancias idénticas. Determinista.")]
+    [Tooltip("Time offset in seconds. Lets identical instances be desynchronized. Deterministic.")]
     [SerializeField] private float flickerOffset = 0f;
 
-    [Header("Material (opcional — para parpadear también el MeshRenderer del tubo)")]
+    [Header("Material (optional — to also flicker the tube's MeshRenderer)")]
     [SerializeField] private Renderer targetRenderer;
     [SerializeField] private string intensityPropertyName = "_Intensity";
 
@@ -48,7 +48,7 @@ public class FlickerLight : MonoBehaviour
 
     private void Update()
     {
-        // Phase ∈ [0, 1) dentro del ciclo. Determinista para mismo Time.time + offset.
+        // Phase ∈ [0, 1) within the cycle. Deterministic for the same Time.time + offset.
         float t = ((Time.time + flickerOffset) % cycleDuration) / cycleDuration;
         float v = flickerCurve.Evaluate(t) * maxIntensity;
 
@@ -65,7 +65,7 @@ public class FlickerLight : MonoBehaviour
 #if UNITY_EDITOR
     private void Reset()
     {
-        // Curva default: parpadeo rápido + estable. Editable en Inspector.
+        // Default curve: fast flicker + steady. Editable in the Inspector.
         flickerCurve = new AnimationCurve(
             new Keyframe(0f,   1f),
             new Keyframe(0.5f, 0.85f),

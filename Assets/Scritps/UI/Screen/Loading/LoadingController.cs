@@ -1,11 +1,11 @@
 using System;
 
 /// <summary>
-///     Llaman a loading controller desde el manager para mostrar la pantalla
-///     Obtiene el progreso
-///     le dice al sceneloader que empiece a trabajar
-///     Mientras trabaja envia datos al view
-///     Termina se llama al close desde el manager
+///     The manager calls the loading controller to show the screen
+///     It gets the progress
+///     It tells the SceneLoader to start working
+///     While it works it sends data to the view
+///     When it finishes, Close is called from the manager
 /// </summary>
 
 public class LoadingController : BaseScreenController<LoadingView,EmptyScreenModel>
@@ -28,7 +28,7 @@ public class LoadingController : BaseScreenController<LoadingView,EmptyScreenMod
 
     protected override void OnBeforeOpen()
     {
-        // Reseteamos la vista a 0 antes de mostrarla
+        // Reset the view to 0 before showing it
         view.UpdateProgress(0f);
     }
 }

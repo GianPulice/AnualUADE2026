@@ -3,27 +3,27 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "SO_SkillCheckData", menuName = "Scriptable Objects/Puzzles/Skill Check Data")]
 public class SO_SkillCheckData : ScriptableObject
 {
-    [Header("Aguja")]
-    [Tooltip("Grados por segundo que rota la aguja.")]
+    [Header("Needle")]
+    [Tooltip("Degrees per second the needle rotates.")]
     public float needleSpeed = 90f;
 
-    [Header("Zona de éxito")]
-    [Tooltip("Ángulo de inicio (0-360) de la zona de éxito en el círculo.")]
+    [Header("Success zone")]
+    [Tooltip("Start angle (0-360) of the success zone on the circle.")]
     public float successZoneStartAngle = 80f;
-    [Tooltip("Ancho inicial de la zona en grados. Crece con cada check acertado.")]
+    [Tooltip("Initial width of the zone in degrees. Grows with every successful check.")]
     public float initialSuccessZoneWidth = 40f;
-    [Tooltip("Grados que se suman a la zona por cada check superado (dificultad decreciente).")]
+    [Tooltip("Degrees added to the zone for each check passed (decreasing difficulty).")]
     public float successZoneWidthIncrement = 10f;
 
     [Header("Checks")]
-    [Tooltip("Número total de checks para completar el puzzle.")]
+    [Tooltip("Total number of checks needed to complete the puzzle.")]
     public int totalChecks = 4;
 
-    [Header("Penalización")]
-    [Tooltip("Segundos que se restan al timer del módulo activo al fallar un check.")]
+    [Header("Penalty")]
+    [Tooltip("Seconds subtracted from the active module's timer when a check is failed.")]
     public float failTimePenalty = 5f;
 
     [Header("Feedback")]
-    [Tooltip("Duración del flash de acierto/fallo en segundos.")]
+    [Tooltip("Duration of the success/fail flash in seconds.")]
     public float flashDuration = 0.1f;
 }

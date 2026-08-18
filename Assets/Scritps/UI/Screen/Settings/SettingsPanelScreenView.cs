@@ -4,14 +4,14 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Panel de Screen. Resolución / Modo / FPSLimit / VSync se guardan en el modelo y los
-/// aplica ScreenSettingsApplier al hacer Apply (<c>Screen.SetResolution</c> +
+/// Screen panel. Resolution / Mode / FPSLimit / VSync are stored in the model and applied by
+/// ScreenSettingsApplier on Apply (<c>Screen.SetResolution</c> +
 /// <c>Application.targetFrameRate</c> + <c>QualitySettings.vSyncCount</c>).
-/// Nota: <c>Screen.SetResolution</c> es no-op en Play Mode del Editor; probar en build.
+/// Note: <c>Screen.SetResolution</c> is a no-op in the Editor's Play Mode; test in a build.
 ///
-/// Los dropdowns se pueblan en <see cref="Awake"/> con las opciones serializadas
-/// (defaults del wireframe <c>options_menu_v2_wired.html</c>). Editar desde el Inspector
-/// si querés cambiar el orden o agregar resoluciones.
+/// The dropdowns are populated in <see cref="Awake"/> with the serialized options
+/// (defaults from the <c>options_menu_v2_wired.html</c> wireframe). Edit from the Inspector
+/// to change the order or add resolutions.
 /// </summary>
 public class SettingsPanelScreenView : MonoBehaviour
 {
@@ -23,9 +23,9 @@ public class SettingsPanelScreenView : MonoBehaviour
     [Header("Toggle")]
     [SerializeField] private Toggle _toggleVSync;
 
-    [Header("Opciones de los dropdowns")]
-    [Tooltip("Resoluciones disponibles. Los índices se persisten en SettingsModel.ResolutionIndex. " +
-             "Cambiar el orden invalida saves previos.")]
+    [Header("Dropdown options")]
+    [Tooltip("Available resolutions. The indices are persisted in SettingsModel.ResolutionIndex. " +
+             "Changing the order invalidates previous saves.")]
     [SerializeField]
     private string[] _resolutionOptions =
     {
@@ -36,23 +36,23 @@ public class SettingsPanelScreenView : MonoBehaviour
         "1280 x 720",
     };
 
-    [Tooltip("Modos de ventana. El índice mapea al enum FullScreenMode cuando se conecte. " +
-             "Orden actual: Pantalla completa = ExclusiveFullScreen, Ventana = Windowed, " +
-             "Sin bordes = FullScreenWindow.")]
+    [Tooltip("Window modes. The index maps to the FullScreenMode enum when connected. " +
+             "Current order: Fullscreen = ExclusiveFullScreen, Windowed = Windowed, " +
+             "Borderless = FullScreenWindow.")]
     [SerializeField]
     private string[] _windowModeOptions =
     {
-        "Pantalla completa",
-        "Ventana",
-        "Sin bordes",
+        "Fullscreen",
+        "Windowed",
+        "Borderless",
     };
 
-    [Tooltip("Límites de FPS. El índice 0 = sin límite (-1 en Application.targetFrameRate). " +
-             "El resto mapea directo al valor numérico.")]
+    [Tooltip("FPS limits. Index 0 = no limit (-1 in Application.targetFrameRate). " +
+             "The rest map directly to the numeric value.")]
     [SerializeField]
     private string[] _fpsLimitOptions =
     {
-        "Sin limite",
+        "No limit",
         "30",
         "60",
         "120",
@@ -66,7 +66,7 @@ public class SettingsPanelScreenView : MonoBehaviour
 
     private void Awake()
     {
-        // Poblar ANTES de suscribir listeners para evitar onValueChanged espurios al inicializar.
+        // Populate BEFORE subscribing listeners to avoid spurious onValueChanged on init.
         PopulateDropdown(_dropdownResolution, _resolutionOptions);
         PopulateDropdown(_dropdownWindowMode, _windowModeOptions);
         PopulateDropdown(_dropdownFPSLimit,   _fpsLimitOptions);

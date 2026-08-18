@@ -1,47 +1,47 @@
 using UnityEngine;
 
 /// <summary>
-/// Marca un GameObject como la fuente de luz del player que "perfora" la niebla
-/// del <see cref="VisionRangeController"/>. Se coloca típicamente en el hijo
-/// del player que tiene la Point Light ámbar del dispositivo (spec §2.5).
+/// Marks a GameObject as the player's light source that "punches through" the fog of the
+/// <see cref="VisionRangeController"/>. It typically goes on the player's child that has
+/// the device's amber Point Light (spec §2.5).
 ///
-/// Dos modos:
+/// Two modes:
 /// <list type="bullet">
-/// <item><b>useLightComponent = true</b> (default) — lee <c>light.range</c>,
-/// <c>light.color</c>, <c>light.intensity</c> del <see cref="Light"/> hermano
-/// y los pushea como override al fog shader. Ideal para acoplarse a la
-/// degradación futura de módulos (§2.5.1): al bajar la intensity de la Light,
-/// el fogClearRadius se reduce solo.</item>
-/// <item><b>useLightComponent = false</b> — el controller usa los valores del
-/// <see cref="SO_VisionFogConfig"/> activo. Útil si querés que la niebla se
-/// abra con un radio distinto al de la luz física real.</item>
+/// <item><b>useLightComponent = true</b> (default) — reads <c>light.range</c>,
+/// <c>light.color</c>, <c>light.intensity</c> from the sibling <see cref="Light"/>
+/// and pushes them as an override to the fog shader. Ideal for hooking into the
+/// future module degradation (§2.5.1): lowering the Light's intensity shrinks
+/// the fogClearRadius on its own.</item>
+/// <item><b>useLightComponent = false</b> — the controller uses the values of the active
+/// <see cref="SO_VisionFogConfig"/>. Useful if you want the fog to open with a radius
+/// different from the real physical light.</item>
 /// </list>
 ///
-/// El <see cref="rangeMultiplier"/> permite que el radio del fog sea mayor
-/// (o menor) que el <c>light.range</c> visible — típicamente 2× para que el
-/// player vea "más lejos" a través de la niebla que lo que la luz ilumina.
+/// <see cref="rangeMultiplier"/> lets the fog radius be larger (or smaller) than the
+/// visible <c>light.range</c> — typically 2× so the player sees "further" through the
+/// fog than the light actually illuminates.
 /// </summary>
 [DisallowMultipleComponent]
 public class FogLightSource : MonoBehaviour
 {
-    [Tooltip("Light referenciada. Si está vacía, se busca GetComponent<Light>() en Awake.")]
+    [Tooltip("Referenced Light. If empty, GetComponent<Light>() is used in Awake.")]
     [SerializeField] private Light lightComponent;
 
-    [Tooltip("Si true, el fog shader lee del componente Light (range, color, intensity). " +
-             "Si false, usa los valores del SO_VisionFogConfig activo.")]
+    [Tooltip("If true, the fog shader reads from the Light component (range, color, intensity). " +
+             "If false, it uses the values of the active SO_VisionFogConfig.")]
     [SerializeField] private bool useLightComponent = true;
 
-    [Tooltip("Multiplicador aplicado al Light.range para el fog. 2 = la niebla se abre al doble " +
-             "del radio de iluminación real. Deja al player ver más lejos que lo que la luz ilumina.")]
+    [Tooltip("Multiplier applied to Light.range for the fog. 2 = the fog opens at twice " +
+             "the real illumination radius. Lets the player see further than the light reaches.")]
     [Range(0.25f, 5f)]
     [SerializeField] private float rangeMultiplier = 2f;
 
-    [Tooltip("Multiplicador aplicado a la intensity para calcular el 'poder' de perforación de niebla. " +
-             "1 = igual que la luz física. >1 = la niebla se disuelve más agresivamente.")]
+    [Tooltip("Multiplier applied to intensity to compute the fog-piercing 'power'. " +
+             "1 = same as the physical light. >1 = the fog dissolves more aggressively.")]
     [Range(0f, 5f)]
     [SerializeField] private float intensityMultiplier = 1f;
 
-    /// <summary>True si esta fuente aporta valores propios que deben sobrescribir al SO.</summary>
+    /// <summary>True if this source provides its own values that should override the SO.</summary>
     public bool HasLightOverride => useLightComponent && lightComponent != null;
 
     public float OverrideRange     => lightComponent != null ? lightComponent.range * rangeMultiplier : 0f;
@@ -59,16 +59,31 @@ public class FogLightSource : MonoBehaviour
     {
         AcquireController();
         if (_controller != null) _controller.SetPlayerLightSource(this);
+
+        // Nothing found: the controller's scene has not loaded yet. Deliberately no retry loop
+        // here — VisionRangeController.OnEnable picks this component up from its own side, so
+        // the pairing happens either way round without either of them polling.
     }
 
     private void OnDisable()
     {
-        if (_controller != null) _controller.SetPlayerLightSource(null);
+        // Re-resolved instead of trusting the cached reference: when the controller came up after
+        // this component, OnEnable found nothing and the controller registered us from its side,
+        // leaving _controller null here. Without this the controller would keep pointing at a
+        // disabled light and go on opening the fog around it.
+        AcquireController();
+        if (_controller == null) return;
+
+        // Only clear ourselves. Another FogLightSource may have taken over in the meantime (a
+        // swapped player rig), and blanking it would put the fog back to the config values.
+        if (_controller.PlayerLightSource == this) _controller.SetPlayerLightSource(null);
     }
 
     private void AcquireController()
     {
         if (_controller != null) return;
-        _controller = FindFirstObjectByType<VisionRangeController>();
+        // Same reasoning as LightZone: FindFirstObjectByType is deprecated for relying on
+        // instance ID ordering, and there is only ever one controller per scene anyway.
+        _controller = FindAnyObjectByType<VisionRangeController>();
     }
 }

@@ -1,5 +1,8 @@
 using UnityEngine;
 
+// Debug-only harness: forces a Win/Lose result without playing through the game.
+// Not part of the shipping build — remove (or wrap in #if UNITY_EDITOR) before release.
+// NOTE: resetKey collides with PlayerStateManager's debug 'R' (Hidden state toggle).
 public class WinLoseTest : MonoBehaviour
 {
     public KeyCode winKey   = KeyCode.I;

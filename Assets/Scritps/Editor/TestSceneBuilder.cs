@@ -4,12 +4,12 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Utilidad de editor: arma una escena de blocking para testing adaptada al GDD de WIRED.
-/// Piso 1 (Y=0): Entrada, Hub Central, SP1 (Fusibles+Panel), SP2 (Contenedores),
-///              SP3 (Valvulas), Sala Pistas SP2, Sala Valvulas Final.
-/// Piso 2 (Y=0, al norte): Sala Ascensor, Llave, Fusible, Panel Electrico,
-///              Info Valvula 1, Info Valvulas 2, Sala Historia.
-/// Conexion entre pisos: un cubo amarillo "Ascensor" en cada piso (solo marker visual).
+/// Editor utility: builds a blocking scene for testing, adapted to WIRED's GDD.
+/// Floor 1 (Y=0): Entrance, Central Hub, SP1 (Fuses+Panel), SP2 (Containers),
+///              SP3 (Valves), SP2 Clues Room, Final Valves Room.
+/// Floor 2 (Y=0, to the north): Elevator Room, Key, Fuse, Electrical Panel,
+///              Valve Info 1, Valves Info 2, Story Room.
+/// Connection between floors: a yellow "Elevator" cube on each floor (visual marker only).
 /// Menu: Tools / Scenes / Build Testing Blockout
 /// </summary>
 public static class TestSceneBuilder
@@ -33,7 +33,7 @@ public static class TestSceneBuilder
 
         GameObject root = new GameObject("Blockout");
 
-        // ============ PISO 1 ============
+        // ============ FLOOR 1 ============
         Transform p1 = NewContainer(root.transform, "Piso1");
 
         BuildRoom(p1, "Room_01", new Vector2(0, -16), new Vector2(6, 4), floorMat, wallMat,
@@ -70,10 +70,10 @@ public static class TestSceneBuilder
 
         BuildElevatorMarker(p1, "Marker_01", new Vector3(4f, 1f, -3f));
 
-        // ============ PISO 2 ============
-        // Lo ponemos al norte del Piso 1 (separado), conectado conceptualmente por el ascensor.
+        // ============ FLOOR 2 ============
+        // We place it north of Floor 1 (separated), conceptually connected by the elevator.
         Transform p2 = NewContainer(root.transform, "Piso2");
-        float p2Y = 0f;     // mismo nivel de piso para simplicidad de testing
+        float p2Y = 0f;     // same floor level, to keep testing simple
         Vector2 p2Origin = new Vector2(0, 30);
 
         BuildRoom(p2, "Room_01", p2Origin + new Vector2(0, 0), new Vector2(6, 6), floorMat, hubMat,
@@ -125,9 +125,9 @@ public static class TestSceneBuilder
 
         // ============ Spawn point ============
         GameObject spawn = new GameObject("PlayerSpawnPoint");
-        spawn.transform.position = new Vector3(0f, 0.1f, -16f); // dentro de la Entrada
+        spawn.transform.position = new Vector3(0f, 0.1f, -16f); // inside the Entrance
 
-        // ============ Guardar ============
+        // ============ Save ============
         SaveMaterial(floorMat, "Assets/Scenes/TestScenes/Materials/Blockout_Floor.mat");
         SaveMaterial(wallMat, "Assets/Scenes/TestScenes/Materials/Blockout_Wall.mat");
         SaveMaterial(hubMat, "Assets/Scenes/TestScenes/Materials/Blockout_Hub.mat");
@@ -216,7 +216,7 @@ public static class TestSceneBuilder
         GameObject room = new GameObject(name);
         room.transform.SetParent(parent, false);
 
-        // Piso
+        // Floor
         GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "Floor";
         floor.transform.SetParent(room.transform, false);

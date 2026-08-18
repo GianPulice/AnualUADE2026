@@ -16,24 +16,24 @@ public class SceneEntryDrawer : PropertyDrawer
         float spacing = EditorGUIUtility.standardVerticalSpacing;
         float y = position.y;
 
-        // Fila 1: Label del grupo
+        // Row 1: group label
         EditorGUI.PropertyField(
             new Rect(position.x, y, position.width, lineH),
             labelProp,
-            new GUIContent("Label del grupo")
+            new GUIContent("Group label")
         );
         y += lineH + spacing;
 
-        // Fila 2+: Lista de SceneAssets
+        // Row 2+: list of SceneAssets
         EditorGUI.PropertyField(
             new Rect(position.x, y, position.width, EditorGUI.GetPropertyHeight(sceneAssetsProp, true)),
             sceneAssetsProp,
-            new GUIContent("Escenas del grupo"),
+            new GUIContent("Scenes in the group"),
             true
         );
         y += EditorGUI.GetPropertyHeight(sceneAssetsProp, true) + spacing;
 
-        // Warnings: escenas no presentes en Build Settings
+        // Warnings: scenes not present in the Build Settings
         for (int i = 0; i < sceneAssetsProp.arraySize; i++)
         {
             var assetProp = sceneAssetsProp.GetArrayElementAtIndex(i);
@@ -46,7 +46,7 @@ public class SceneEntryDrawer : PropertyDrawer
                 float warnH = lineH * 1.8f;
                 EditorGUI.HelpBox(
                     new Rect(position.x, y, position.width, warnH),
-                    $"⚠  '{asset.name}' no está en Build Settings.",
+                    $"⚠  '{asset.name}' is not in the Build Settings.",
                     MessageType.Warning
                 );
                 y += warnH + spacing;
@@ -63,11 +63,11 @@ public class SceneEntryDrawer : PropertyDrawer
         float lineH = EditorGUIUtility.singleLineHeight;
         float spacing = EditorGUIUtility.standardVerticalSpacing;
 
-        // Label + lista
+        // Label + list
         float height = lineH + spacing;
         height += EditorGUI.GetPropertyHeight(sceneAssetsProp, true) + spacing;
 
-        // Warning por cada escena fuera de Build Settings
+        // One warning per scene missing from the Build Settings
         for (int i = 0; i < sceneAssetsProp.arraySize; i++)
         {
             var assetProp = sceneAssetsProp.GetArrayElementAtIndex(i);

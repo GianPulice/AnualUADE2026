@@ -5,79 +5,90 @@ public class DoorInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DoorData doorData;
 
-    [Header("Animacion de apertura (doble puerta)")]
-    [Tooltip("Panel izquierdo. Se desliza hacia -X (su izquierda local).")]
-    [SerializeField] private Transform leftPanel;
-    [Tooltip("Panel derecho. Se desliza hacia +X (su derecha local).")]
-    [SerializeField] private Transform rightPanel;
-    [Tooltip("Distancia que se desliza cada panel al abrirse, en unidades locales.")]
-    [SerializeField, Min(0f)] private float slideDistance = 1f;
-    [Tooltip("Duracion total del deslizamiento, en segundos.")]
-    [SerializeField, Min(0.01f)] private float slideDuration = 0.6f;
+    [Header("Opening animation (hinged door)")]
+    [Tooltip("Pivot transform the door rotates around. Place it at the hinge edge so the mesh " +
+             "swings correctly. In variants, only change the mesh under the hinge — keep the " +
+             "hinge itself where it is.")]
+    [SerializeField] private Transform hinge;
+    [Tooltip("Degrees to rotate on the hinge local Y axis when opening. Use a negative value to " +
+             "swing the other way.")]
+    [SerializeField] private float openAngle = 90f;
+    [Tooltip("Total duration of the swing, in seconds.")]
+    [SerializeField, Min(0.01f)] private float openDuration = 0.6f;
 
-    private Vector3 leftClosedLocalPos;
-    private Vector3 rightClosedLocalPos;
+    private Quaternion hingeClosedLocalRot;
     private bool isOpen;
     private bool isAnimating;
+    private bool wasEverOpened;
 
-    protected override void Awake()
+protected override void Awake()
     {
         base.Awake();
 
-        if (doorData == null)
-        {
-            Debug.LogError($"DoorInteractable sin SO_DoorData en {gameObject.name}");
-            return;
-        }
+        CacheClosedRotation();
 
-        CacheClosedPositions();
+        wasEverOpened = doorData != null && PuzzleStateManager.Exists &&
+                        PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
 
-        isOpen = PuzzleStateManager.Instance != null &&
-                 PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
-
+        isOpen = wasEverOpened;
         if (isOpen) ApplyOpenStateImmediate();
     }
 
-    public override string GetInteractText()
+public override string GetInteractText()
     {
-        if (doorData == null) return "Puerta sin configurar";
+        if (isOpen) return "Close door";
 
-        if (isOpen) return string.Empty;
+        if (doorData == null) return "Open door";
 
-        if (doorData.RequiredKey != null)
-            return $"Abrir con {doorData.RequiredKey.ItemName}";
+        if (!wasEverOpened && doorData.RequiredKey != null)
+            return $"Open with {doorData.RequiredKey.ItemName}";
 
-        return doorData.OpenPrompt;
+        return string.IsNullOrWhiteSpace(doorData.OpenPrompt) ? "Open door" : doorData.OpenPrompt;
     }
 
-    public override string GetInfoText()
+public override string GetInfoText()
     {
-        if (doorData == null || isOpen) return string.Empty;
+        if (isOpen) return string.Empty;
+        if (doorData == null) return string.Empty;
+        if (wasEverOpened) return string.Empty;
 
-        if (doorData.RequiredKey != null &&
+        if (doorData.RequiredKey != null && InventoryManager.Exists &&
             !InventoryManager.Instance.HasItem(doorData.RequiredKey))
-            return $"Necesitas {doorData.RequiredKey.ItemName}";
+            return $"You need {doorData.RequiredKey.ItemName}";
 
         if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
+            PuzzleStateManager.Exists &&
             !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
             return doorData.LockedPrompt;
 
         return string.Empty;
     }
 
-    protected override bool CanInteractInCloseRange()
+protected override bool CanInteractInCloseRange()
     {
-        if (doorData == null) return false;
-        if (isOpen || isAnimating) return false;
+        if (isAnimating) return false;
 
+        // Free door: no data means no requirements ever.
+        if (doorData == null) return true;
+
+        // Closing is always allowed once the door is open.
+        if (isOpen) return true;
+
+        // Already unlocked at some point: re-opening does not re-check requirements.
+        if (wasEverOpened) return true;
+
+        // First open: enforce key + puzzle requirements. Without a manager the requirement cannot
+        // be confirmed either way, so stay locked — a door that opens because progress could not
+        // be checked would let the player walk past a puzzle entirely.
         if (doorData.RequiredKey != null &&
-            !InventoryManager.Instance.HasItem(doorData.RequiredKey))
+            (!InventoryManager.Exists || !InventoryManager.Instance.HasItem(doorData.RequiredKey)))
         {
             return false;
         }
 
         if (!string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId) &&
-            !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId))
+            (!PuzzleStateManager.Exists ||
+             !PuzzleStateManager.Instance.IsPuzzleCompleted(doorData.RequiredCompletedPuzzleId)))
         {
             return false;
         }
@@ -85,79 +96,104 @@ public class DoorInteractable : BaseRangeInteractable
         return true;
     }
 
-    protected override void OnInteract()
+protected override void OnInteract()
     {
-        OpenDoor();
+        if (isAnimating) return;
+        if (isOpen) CloseDoor();
+        else OpenDoor();
     }
 
-    public void OpenDoor()
+public void OpenDoor()
     {
-        if (doorData == null) return;
         if (isOpen || isAnimating) return;
 
-        if (doorData.ConsumeKey && doorData.RequiredKey != null)
+        // Flip the unlocked flag BEFORE mutating anything the UI listens to (inventory, etc.).
+        // Otherwise ConsumeItem below fires a prompt refresh while wasEverOpened is still false,
+        // and GetInfoText briefly advertises "You need X" — even though the door is opening.
+        bool firstUnlock = !wasEverOpened;
+        wasEverOpened = true;
+
+        // Consume the key only on the first ever unlock.
+        if (firstUnlock && doorData != null &&
+            doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists)
             InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
 
-        PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+        if (doorData != null)
+        {
+            if (PuzzleStateManager.Exists)
+                PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+            else
+                Debug.LogWarning($"[{nameof(DoorInteractable)}] No PuzzleStateManager — door " +
+                                 $"'{doorData.DoorId}' opened but will not stay unlocked.", this);
+        }
 
         StartCoroutine(AnimateOpen());
+        StartCoroutine(AnimateOpen());
 
-        Debug.Log($"Puerta abierta: {doorData.DoorId}");
+        string logId = doorData != null ? doorData.DoorId : gameObject.name;
+        Debug.Log($"Door opened: {logId}");
     }
 
-    private IEnumerator AnimateOpen()
+public void CloseDoor()
+    {
+        if (!isOpen || isAnimating) return;
+
+        StartCoroutine(AnimateClose());
+
+        string logId = doorData != null ? doorData.DoorId : gameObject.name;
+        Debug.Log($"Door closed: {logId}");
+    }
+
+
+private IEnumerator AnimateOpen()
+    {
+        yield return AnimateHinge(hingeClosedLocalRot,
+                                  hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f));
+        isOpen = true;
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+private IEnumerator AnimateClose()
+    {
+        yield return AnimateHinge(hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f),
+                                  hingeClosedLocalRot);
+        isOpen = false;
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    private IEnumerator AnimateHinge(Quaternion from, Quaternion to)
     {
         isAnimating = true;
 
-        Vector3 leftTarget = leftClosedLocalPos + Vector3.left * slideDistance;
-        Vector3 rightTarget = rightClosedLocalPos + Vector3.right * slideDistance;
-
         float t = 0f;
-        while (t < slideDuration)
+        while (t < openDuration)
         {
             t += Time.deltaTime;
-            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / slideDuration));
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / openDuration));
 
-            if (leftPanel != null)
-                leftPanel.localPosition = Vector3.Lerp(leftClosedLocalPos, leftTarget, k);
-            if (rightPanel != null)
-                rightPanel.localPosition = Vector3.Lerp(rightClosedLocalPos, rightTarget, k);
+            if (hinge != null)
+                hinge.localRotation = Quaternion.Slerp(from, to, k);
 
             yield return null;
         }
 
-        if (leftPanel != null) leftPanel.localPosition = leftTarget;
-        if (rightPanel != null) rightPanel.localPosition = rightTarget;
+        if (hinge != null) hinge.localRotation = to;
 
-        //DisableBlockingCollider();
-        isOpen = true;
         isAnimating = false;
     }
 
-    private void ApplyOpenStateImmediate()
-    {
-        if (leftPanel != null)
-            leftPanel.localPosition = leftClosedLocalPos + Vector3.left * slideDistance;
-        if (rightPanel != null)
-            rightPanel.localPosition = rightClosedLocalPos + Vector3.right * slideDistance;
 
-        //DisableBlockingCollider();
+private void ApplyOpenStateImmediate()
+    {
+        if (hinge != null)
+            hinge.localRotation = hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f);
     }
 
-    private void CacheClosedPositions()
+private void CacheClosedRotation()
     {
-        if (leftPanel != null) leftClosedLocalPos = leftPanel.localPosition;
-        if (rightPanel != null) rightClosedLocalPos = rightPanel.localPosition;
-    }
-
-    /*private void DisableBlockingCollider()
+        if (hinge != null) hingeClosedLocalRot = hinge.localRotation;
+    }    public override bool IsRepeatable()
     {
-        Collider col = GetComponent<Collider>();
-        if (col != null) col.enabled = false;
-    }*/
-
-    public override bool IsRepeatable()
-    {
-        return false;
+        return true;
     }
 }

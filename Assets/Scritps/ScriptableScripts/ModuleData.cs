@@ -1,72 +1,78 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "ModuleData", menuName = "Scriptable Objects/ModuleData")]
+/// <summary>
+/// Immutable definition of a device module. Designers create one asset per module (M1/M2/M3),
+/// tweak the values, and drop them into <see cref="SO_ModulesConfig"/>. The manager reads this
+/// asset and never writes to it — runtime state lives in <see cref="ModuleRuntime"/>.
+///
+/// Fields are grouped by which module type consumes them. A single asset can have irrelevant
+/// fields (e.g. a Legs module has no blindnessDuration); leaving them at zero has no effect
+/// because <see cref="PlayerStateManager.ApplyPenalty"/> routes by <see cref="Penalty"/>.
+/// </summary>
+[CreateAssetMenu(fileName = "ModuleData", menuName = "Scriptable Objects/Modules/Module Data")]
 public class ModuleData : ScriptableObject
 {
-    [Header("ID")]
-    public string ModuleID;
-    public string ModuleLogLabel;
+    [Header("Identity")]
+    [Tooltip("Stable id used by triggers, puzzles and the save system. E.g. 'M1_Legs'.")]
+    [SerializeField] private string moduleID;
 
-    [Header("State")]
-    public ModuleStatus Status = ModuleStatus.Inactive;
+    [Tooltip("Short label shown in the HUD row. E.g. 'M1'.")]
+    [SerializeField] private string moduleLogLabel;
+
+    [Tooltip("Which body part this module penalizes. Drives which handler runs when the module explodes.")]
+    [SerializeField] private PenaltyType penalty;
+
+    [Tooltip("Id of the puzzle whose completion resolves this module. Must match the PuzzleId on " +
+             "the puzzle's SO_PuzzleData / SO_ValvePuzzleData / etc. Leave empty if the module is " +
+             "resolved by other means (only for testing).")]
+    [SerializeField] private string associatedPuzzleId;
 
     [Header("Timer")]
-    public float TimerDuration;
-    public float TimeRemaining;
-    public bool IsTimerRunning;
+    [Tooltip("Seconds from activation to explosion.")]
+    [SerializeField] private float timerDuration = 60f;
 
-    [Header("Ceguera")]
-    public bool causesBlindness = false;
-    [Tooltip("Segundos de oscuridad total cuando este módulo explota.")]
-    public float blindnessDuration = 3f;
+    [Header("Legs penalty (only used when Penalty == Legs)")]
+    [Tooltip("MoveSpeed multiplier applied when the module explodes. 0.6 = 40% slower.")]
+    [SerializeField, Range(0.1f, 1f)] private float cojeraMultiplier = 0.6f;
 
-    // Solo lectura para la UI
-    public float TimerProgress => TimerDuration > 0f
-          ? Mathf.Clamp01(TimeRemaining / TimerDuration)
-          : 0f;
+    [Header("Chest penalty (only used when Penalty == Chest)")]
+    [Tooltip("Sprint speed reduction applied when the module explodes. 0.25 = -25%.")]
+    [SerializeField, Range(0f, 1f)] private float sprintReduction = 0.25f;
 
-    public string FormattedTime
-    {
-        get
-        {
-            if (!IsTimerRunning && Status != ModuleStatus.Active)
-                return "--:--";
+    [Tooltip("Continuous camera shake amplitude while this penalty is active. Hook for future CameraController.")]
+    [SerializeField] private float shakeAmplitude = 0.03f;
 
-            int minutes = Mathf.FloorToInt(TimeRemaining / 60f);
-            int seconds = Mathf.FloorToInt(TimeRemaining % 60f);
-            return $"{minutes:00}:{seconds:00}";
-        }
-    }
-    public Color BarColor
-    {
-        get
-        {
-            if (Status != ModuleStatus.Active) return GetStatusBarColor();
+    [Tooltip("Continuous camera shake frequency while this penalty is active. Hook for future CameraController.")]
+    [SerializeField] private float shakeFrequency = 1.2f;
 
-            return TimerProgress switch
-            {
-                > 0.50f => new Color(0.80f, 0.10f, 0.10f), // #cc1a1a rojo
-                > 0.25f => new Color(0.67f, 0.27f, 0.00f), // #aa4400 naranja
-                _ => new Color(0.53f, 0.13f, 0.00f)  // #882200 rojo oscuro
-            };
-        }
-    }
+    [Header("Head penalty (only used when Penalty == Head)")]
+    [Tooltip("Seconds between blindness episodes.")]
+    [SerializeField] private float blindnessInterval = 15f;
 
-    private Color GetStatusBarColor()
-    {
-        return Status switch
-        {
-            ModuleStatus.Resolved => new Color(0.10f, 0.42f, 0.10f), // #1a6a1a verde
-            ModuleStatus.Exploded => new Color(0.35f, 0.16f, 0.00f), // #5a2a00 marr�n
-            ModuleStatus.Inactive => new Color(0.13f, 0.13f, 0.13f), // #222 gris
-            _ => new Color(0.13f, 0.13f, 0.13f)
-        };
-    }
-}
-public enum ModuleStatus
-{
-    Inactive,   // No iniciado � barra gris
-    Active,     // Corriendo � barra roja, timer vivo
-    Resolved,   // Completado correctamente � barra verde, 100% fijo
-    Exploded    // Timer lleg� a cero � barra marr�n, 0%
+    [Tooltip("Seconds each blindness episode lasts.")]
+    [SerializeField] private float blindnessDuration = 3f;
+
+    [Tooltip("Fade-to-black duration at the start of each episode. Hook for future UI overlay.")]
+    [SerializeField] private float blindnessFadeIn = 0.2f;
+
+    [Tooltip("Fade-back duration at the end of each episode. Hook for future UI overlay.")]
+    [SerializeField] private float blindnessFadeOut = 0.3f;
+
+    // ── Getters ──────────────────────────────────────────────────────────────────
+    public string ModuleID => moduleID;
+    public string ModuleLogLabel => moduleLogLabel;
+    public PenaltyType Penalty => penalty;
+    public string AssociatedPuzzleId => associatedPuzzleId;
+    public float TimerDuration => timerDuration;
+
+    public float CojeraMultiplier => cojeraMultiplier;
+
+    public float SprintReduction => sprintReduction;
+    public float ShakeAmplitude => shakeAmplitude;
+    public float ShakeFrequency => shakeFrequency;
+
+    public float BlindnessInterval => blindnessInterval;
+    public float BlindnessDuration => blindnessDuration;
+    public float BlindnessFadeIn => blindnessFadeIn;
+    public float BlindnessFadeOut => blindnessFadeOut;
 }

@@ -3,15 +3,15 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// View raíz del Settings. Delega cada tab en su propio sub-view y re-emite los eventos
-/// como un único conjunto para que el Controller no tenga que conocer la estructura interna.
+/// Root view of the Settings screen. Delegates each tab to its own sub-view and re-raises the
+/// events as a single set so the Controller does not have to know the internal structure.
 /// </summary>
 public class SettingsView : BaseScreenView
 {
     [Header("Tabs")]
     [SerializeField] private SettingsTabSelector _tabSelector;
 
-    [Header("Sub-views (asignar el GameObject que tiene cada componente)")]
+    [Header("Sub-views (assign the GameObject holding each component)")]
     [SerializeField] private SettingsPanelVolumeView     _volumePanel;
     [SerializeField] private SettingsPanelControlsView   _controlsPanel;
     [SerializeField] private SettingsPanelBrightnessView _brightnessPanel;
@@ -22,23 +22,18 @@ public class SettingsView : BaseScreenView
     [SerializeField] private Button _btnReset;
     [SerializeField] private Button _btnBack;
 
-    // ── Eventos hacia el Controller ──────────────────────────────────────────
+    // ── Events towards the Controller ────────────────────────────────────────
     public event Action OnApplyClicked;
     public event Action OnResetClicked;
     public event Action OnBackClicked;
 
-    // Conectados:
+    // Connected (SFX groups Ambience/Player/Nemesis/UI/Voice):
     public event Action<float> OnMasterChanged;
     public event Action<float> OnMusicChanged;
     public event Action<float> OnSFXChanged;
-    public event Action<float> OnVoiceChanged;
-    public event Action<float> OnAmbienceChanged;
-    public event Action<float> OnPlayerChanged;
-    public event Action<float> OnNemesisChanged;
-    public event Action<float> OnUIChanged;
     public event Action<float> OnSensitivityChanged;
 
-    // Aplicados al juego por sus appliers (ver *Applier.cs) al hacer Apply:
+    // Applied to the game by their appliers (see *Applier.cs) on Apply:
     public event Action<bool>  OnInvertYChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;
@@ -87,35 +82,20 @@ public class SettingsView : BaseScreenView
     private void WireVolumePanel()
     {
         if (_volumePanel == null) return;
-        _volumePanel.OnMasterChanged   += ForwardMaster;
-        _volumePanel.OnMusicChanged    += ForwardMusic;
-        _volumePanel.OnSFXChanged      += ForwardSFX;
-        _volumePanel.OnVoiceChanged    += ForwardVoice;
-        _volumePanel.OnAmbienceChanged += ForwardAmbience;
-        _volumePanel.OnPlayerChanged   += ForwardPlayer;
-        _volumePanel.OnNemesisChanged  += ForwardNemesis;
-        _volumePanel.OnUIChanged       += ForwardUI;
+        _volumePanel.OnMasterChanged += ForwardMaster;
+        _volumePanel.OnMusicChanged  += ForwardMusic;
+        _volumePanel.OnSFXChanged    += ForwardSFX;
     }
     private void UnwireVolumePanel()
     {
         if (_volumePanel == null) return;
-        _volumePanel.OnMasterChanged   -= ForwardMaster;
-        _volumePanel.OnMusicChanged    -= ForwardMusic;
-        _volumePanel.OnSFXChanged      -= ForwardSFX;
-        _volumePanel.OnVoiceChanged    -= ForwardVoice;
-        _volumePanel.OnAmbienceChanged -= ForwardAmbience;
-        _volumePanel.OnPlayerChanged   -= ForwardPlayer;
-        _volumePanel.OnNemesisChanged  -= ForwardNemesis;
-        _volumePanel.OnUIChanged       -= ForwardUI;
+        _volumePanel.OnMasterChanged -= ForwardMaster;
+        _volumePanel.OnMusicChanged  -= ForwardMusic;
+        _volumePanel.OnSFXChanged    -= ForwardSFX;
     }
-    private void ForwardMaster(float v)   => OnMasterChanged?.Invoke(v);
-    private void ForwardMusic(float v)    => OnMusicChanged?.Invoke(v);
-    private void ForwardSFX(float v)      => OnSFXChanged?.Invoke(v);
-    private void ForwardVoice(float v)    => OnVoiceChanged?.Invoke(v);
-    private void ForwardAmbience(float v) => OnAmbienceChanged?.Invoke(v);
-    private void ForwardPlayer(float v)   => OnPlayerChanged?.Invoke(v);
-    private void ForwardNemesis(float v)  => OnNemesisChanged?.Invoke(v);
-    private void ForwardUI(float v)       => OnUIChanged?.Invoke(v);
+    private void ForwardMaster(float v) => OnMasterChanged?.Invoke(v);
+    private void ForwardMusic(float v)  => OnMusicChanged?.Invoke(v);
+    private void ForwardSFX(float v)    => OnSFXChanged?.Invoke(v);
 
     private void WireControlsPanel()
     {

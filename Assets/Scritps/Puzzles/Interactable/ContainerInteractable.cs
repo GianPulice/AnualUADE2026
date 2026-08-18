@@ -17,12 +17,31 @@ public class ContainerInteractable : BaseRangeInteractable
 
         if (containerData == null)
         {
-            Debug.LogError($"ContainerInteractable sin SO_ContainerData en {gameObject.name}");
+            Debug.LogError($"ContainerInteractable without SO_ContainerData on {gameObject.name}");
             return;
         }
 
         currentSlotIndex = FindInitialSlotIndex();
         ApplySlotPosition();
+
+        RecordCurrentSlot();
+    }
+
+    /// <summary>
+    /// Publishes where this container is sitting. Shared by Awake and OnInteract, which used to
+    /// carry the same unguarded call each.
+    /// </summary>
+    private void RecordCurrentSlot()
+    {
+        if (possibleSlots == null || possibleSlots.Length == 0) return;
+        if (possibleSlots[currentSlotIndex] == null) return;
+
+        if (!PuzzleStateManager.Exists)
+        {
+            Debug.LogWarning($"[{nameof(ContainerInteractable)}] No PuzzleStateManager — the slot " +
+                             $"of container '{containerData.ContainerId}' was not recorded.", this);
+            return;
+        }
 
         PuzzleStateManager.Instance.SetContainerSlot(
             containerData.ContainerId,
@@ -32,7 +51,7 @@ public class ContainerInteractable : BaseRangeInteractable
 
     public override string GetInteractText()
     {
-        if (containerData == null) return "Contenedor sin configurar";
+        if (containerData == null) return "Unconfigured container";
         return containerData.PromptText;
     }
 
@@ -41,6 +60,7 @@ public class ContainerInteractable : BaseRangeInteractable
         if (containerData == null) return false;
 
         if (!string.IsNullOrWhiteSpace(containerData.LinkedPuzzleId) &&
+            PuzzleStateManager.Exists &&
             PuzzleStateManager.Instance.IsPuzzleCompleted(containerData.LinkedPuzzleId))
             return false;
 
@@ -56,14 +76,11 @@ public class ContainerInteractable : BaseRangeInteractable
 
         ApplySlotPosition();
 
-        PuzzleStateManager.Instance.SetContainerSlot(
-            containerData.ContainerId,
-            possibleSlots[currentSlotIndex].SlotId
-        );
+        RecordCurrentSlot();
 
         NotifyPuzzleController();
 
-        Debug.Log($"Contenedor {containerData.ContainerId} movido a slot {possibleSlots[currentSlotIndex].SlotId}");
+        Debug.Log($"Container {containerData.ContainerId} moved to slot {possibleSlots[currentSlotIndex].SlotId}");
     }
 
     private int FindInitialSlotIndex()

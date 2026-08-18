@@ -3,9 +3,9 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Utilidad de editor: convierte el prefab Door (que es un cubo unico) en una doble puerta
-/// con dos paneles deslizables (LeftPanel, RightPanel). Asigna los refs al DoorInteractable.
-/// Idempotente — re-ejecutar reemplaza los paneles existentes.
+/// Editor utility: turns the Door prefab (which is a single cube) into a double door with two
+/// sliding panels (LeftPanel, RightPanel). Assigns the refs on the DoorInteractable.
+/// Idempotent — re-running it replaces the existing panels.
 /// Menu: Tools / Door / Setup Door Visual
 /// </summary>
 public static class DoorVisualSetup
@@ -18,25 +18,25 @@ public static class DoorVisualSetup
         GameObject prefabRoot = PrefabUtility.LoadPrefabContents(DoorPrefabPath);
         if (prefabRoot == null)
         {
-            Debug.LogError($"[DoorVisualSetup] No se pudo cargar el prefab en {DoorPrefabPath}");
+            Debug.LogError($"[DoorVisualSetup] Could not load the prefab at {DoorPrefabPath}");
             return;
         }
 
-        // Capturar el material del cubo original (para reutilizarlo en los paneles)
+        // Capture the original cube's material (to reuse it on the panels)
         Material doorMaterial = null;
         MeshRenderer rootMR = prefabRoot.GetComponent<MeshRenderer>();
         if (rootMR != null)
         {
             doorMaterial = rootMR.sharedMaterial;
-            rootMR.enabled = false; // ocultar el cubo original
+            rootMR.enabled = false; // hide the original cube
         }
 
-        // Limpiar paneles previos si ya existen
+        // Clean up previous panels if they already exist
         DestroyChildIfExists(prefabRoot, "LeftPanel");
         DestroyChildIfExists(prefabRoot, "RightPanel");
 
-        // Crear paneles: cada uno cubre la mitad del ancho de la puerta original.
-        // Posicion local relativa al centro del cubo padre (size 1x1x1 standard).
+        // Create the panels: each covers half the width of the original door.
+        // Local position relative to the centre of the parent cube (standard 1x1x1 size).
         GameObject leftPanel = CreatePanel(
             prefabRoot.transform, "LeftPanel",
             localPos: new Vector3(-0.25f, 0f, 0f),
@@ -49,7 +49,7 @@ public static class DoorVisualSetup
             localScale: new Vector3(0.5f, 1f, 1f),
             mat: doorMaterial);
 
-        // Asignar referencias en el componente DoorInteractable
+        // Assign the references on the DoorInteractable component
         DoorInteractable door = prefabRoot.GetComponent<DoorInteractable>();
         if (door != null)
         {
@@ -59,17 +59,17 @@ public static class DoorVisualSetup
         }
         else
         {
-            Debug.LogWarning("[DoorVisualSetup] El prefab Door no tiene DoorInteractable.");
+            Debug.LogWarning("[DoorVisualSetup] The Door prefab does not have a DoorInteractable.");
         }
 
-        // Guardar y descargar el prefab
+        // Save and unload the prefab
         PrefabUtility.SaveAsPrefabAsset(prefabRoot, DoorPrefabPath);
         PrefabUtility.UnloadPrefabContents(prefabRoot);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log($"[DoorVisualSetup] Door reconfigurada: dos paneles deslizables + refs asignadas.");
+        Debug.Log($"[DoorVisualSetup] Door reconfigured: two sliding panels + refs assigned.");
     }
 
     private static GameObject CreatePanel(Transform parent, string panelName,
@@ -82,8 +82,8 @@ public static class DoorVisualSetup
         panel.transform.localRotation = Quaternion.identity;
         panel.transform.localScale = localScale;
 
-        // El cube primitive trae un BoxCollider; lo quitamos porque el bloqueo de la puerta
-        // ya esta a cargo del BoxCollider del root.
+        // The cube primitive comes with a BoxCollider; we remove it because the door's blocking
+        // is already handled by the root's BoxCollider.
         Collider col = panel.GetComponent<Collider>();
         if (col != null) Object.DestroyImmediate(col);
 

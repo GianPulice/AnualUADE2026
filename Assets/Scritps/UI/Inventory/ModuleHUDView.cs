@@ -2,114 +2,145 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// VIEW del HUD del dispositivo dentro del inventario (spec §3).
+/// VIEW of the device HUD inside the inventory (spec §3).
 ///
-/// Responsabilidades (SRP):
-///   - Mostrar el timer del módulo activo (bloque izquierdo)
-///   - Mostrar las barras de estado de M1/M2/M3 (bloque central)
-///   - Mostrar los pips de fallos restantes (bloque derecho)
-///   - Suscribirse a eventos de módulo para actualizarse en tiempo real
-///   - NO manipula lógica de negocio ni de módulos
+/// Responsibilities (SRP):
+///   - Show the active module's timer (left block)
+///   - Show the status bars of M1/M2/M3 (centre block)
+///   - Show the remaining-failure pips (right block)
+///   - Subscribe to <see cref="ModuleEvents"/> to update in real time
+///   - Re-sync with <see cref="ModuleManager"/> every time it becomes visible so events that
+///     fired while the panel was hidden do not leave the display stale
+///   - It does NOT manipulate business or module logic
 ///
-/// Los timers usan unscaledDeltaTime en el Controller, por lo que
-/// los eventos de tick llegan correctamente aunque Time.timeScale == 0.
+/// The timers use unscaledDeltaTime in the ModuleManager, so the tick events arrive correctly
+/// even when Time.timeScale == 0.
 /// </summary>
 public class ModuleHUDView : MonoBehaviour
 {
     // ── Sub-views ─────────────────────────────────────────────────────────────
 
-    [Header("Bloque izquierdo — Timer del módulo activo")]
+    [Header("Left block — Active module timer")]
     [SerializeField] private ActiveModuleTimerView activeTimerView;
 
-    [Header("Bloque central — Estado de módulos")]
+    [Header("Centre block — Module status")]
     [SerializeField] private Transform moduleRowContainer;
     [SerializeField] private ModuleRowView moduleRowPrefab;
 
-    [Header("Bloque derecho — Fallos restantes")]
+    [Header("Right block — Remaining failures")]
     [SerializeField] private FailuresPipsView failuresPipsView;
 
-    // ── Estado ────────────────────────────────────────────────────────────────
+    // ── State ─────────────────────────────────────────────────────────────────
 
-    private Dictionary<string, ModuleRowView> rowMap = new Dictionary<string, ModuleRowView>();
+    private readonly Dictionary<string, ModuleRowView> rowMap = new Dictionary<string, ModuleRowView>();
+    private bool rowsBuilt;
 
     // ── Unity ─────────────────────────────────────────────────────────────────
 
-    void Awake()
+    void OnEnable()
     {
-        InventoryEvents.OnModuleTimerTick += HandleTimerTick;
-        InventoryEvents.OnModuleStateChanged += HandleStateChanged;
-        InventoryEvents.OnModuleExploded += HandleModuleExploded;
+        ModuleEvents.OnTimerTick += HandleTimerTick;
+        ModuleEvents.OnStateChanged += HandleStateChanged;
+        ModuleEvents.OnExploded += HandleModuleExploded;
+
+        // Whenever the panel becomes visible again, resync with the manager. Events fired while
+        // the HUD was disabled (inventory closed during an explosion or a resolution) never
+        // reached us; without this refresh the display keeps showing pre-close state.
+        RefreshAll();
     }
 
-    void OnDestroy()
+    void OnDisable()
     {
-        InventoryEvents.OnModuleTimerTick -= HandleTimerTick;
-        InventoryEvents.OnModuleStateChanged -= HandleStateChanged;
-        InventoryEvents.OnModuleExploded -= HandleModuleExploded;
+        ModuleEvents.OnTimerTick -= HandleTimerTick;
+        ModuleEvents.OnStateChanged -= HandleStateChanged;
+        ModuleEvents.OnExploded -= HandleModuleExploded;
     }
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    void Start()
+    {
+        // ModuleManager may not exist yet when OnEnable first runs (script execution order).
+        // Retry from Start when the persistent scene is guaranteed to be up.
+        RefreshAll();
+    }
 
-    /// <summary>Inicializa las filas de módulo. Llamado por el Controller en Start.</summary>
-    public void Initialize(List<ModuleData> modules)
+    // ── Refresh ──────────────────────────────────────────────────────────────
+
+    private void RefreshAll()
+    {
+        // Exists rather than 'Instance == null': the property logs a warning every time it is read
+        // while null, and this refresh runs often enough to fill the console on its own.
+        if (!ModuleManager.Exists) return;
+
+        if (!rowsBuilt) BuildRows();
+
+        // Pull the current state from the manager and push it to every row, regardless of
+        // whether an event was raised for it. This is what fixes the "stale HUD after events
+        // fired while closed" bug.
+        foreach (ModuleRuntime module in ModuleManager.Instance.GetAllModules())
+        {
+            if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
+                row.UpdateStatus(module);
+        }
+
+        RefreshActiveTimer();
+        RefreshFailuresPips();
+    }
+
+    private void BuildRows()
     {
         rowMap.Clear();
+        foreach (Transform child in moduleRowContainer) Destroy(child.gameObject);
 
-        foreach (ModuleData module in modules)
+        foreach (ModuleRuntime module in ModuleManager.Instance.GetAllModules())
         {
             ModuleRowView row = Instantiate(moduleRowPrefab, moduleRowContainer);
             row.Setup(module);
             rowMap[module.ModuleID] = row;
         }
-
-        // Estado inicial del timer y los pips
-        RefreshActiveTimer(modules);
-        RefreshFailuresPips(modules);
+        rowsBuilt = true;
     }
 
-    // ── Handlers de eventos ───────────────────────────────────────────────────
+    // ── Event handlers ────────────────────────────────────────────────────────
 
-    private void HandleTimerTick(ModuleData module)
+    private void HandleTimerTick(ModuleRuntime module)
     {
-        // Actualizar fila de este módulo
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateProgress(module);
 
-        // Si es el módulo activo, actualizar el bloque izquierdo también
         if (module.Status == ModuleStatus.Active)
             activeTimerView?.UpdateTimer(module);
     }
 
-    private void HandleStateChanged(ModuleData module)
+    private void HandleStateChanged(ModuleRuntime module)
     {
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateStatus(module);
 
-        RefreshFailuresPips(InventoryManagerUI.Instance.GetAllModules());
-
-        // Si cambia el módulo activo, actualizar el bloque de timer
-        RefreshActiveTimer(InventoryManagerUI.Instance.GetAllModules());
+        RefreshActiveTimer();
+        RefreshFailuresPips();
     }
 
-    private void HandleModuleExploded(ModuleData module)
+    private void HandleModuleExploded(ModuleRuntime module)
     {
         if (rowMap.TryGetValue(module.ModuleID, out ModuleRowView row))
             row.UpdateStatus(module);
 
-        RefreshFailuresPips(InventoryManagerUI.Instance.GetAllModules());
+        RefreshFailuresPips();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void RefreshActiveTimer(List<ModuleData> modules)
+    private void RefreshActiveTimer()
     {
-        ModuleData active = InventoryManagerUI.Instance.GetActiveModule();
-        activeTimerView?.UpdateTimer(active); // null = sin módulo activo → muestra "--:--"
+        if (!ModuleManager.Exists) { activeTimerView?.UpdateTimer(null); return; }
+        activeTimerView?.UpdateTimer(ModuleManager.Instance.GetActiveModule());
     }
 
-    private void RefreshFailuresPips(List<ModuleData> modules)
+    private void RefreshFailuresPips()
     {
-        int explodedCount = InventoryManagerUI.Instance.GetExplodedCount();
-        failuresPipsView?.SetFailures(explodedCount, modules.Count);
+        if (!ModuleManager.Exists || failuresPipsView == null) return;
+        failuresPipsView.SetFailures(
+            ModuleManager.Instance.GetExplodedCount(),
+            ModuleManager.Instance.TotalModules);
     }
 }

@@ -5,25 +5,25 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// VIEW principal del inventario.
-/// 
-/// Responsabilidades:
-///   - Mostrar/ocultar el panel
-///   - Instanciar GroupLabelUI + ItemSlotView por cada ítem
-///   - Usar object pooling para no instanciar en cada refresh
-///   - NO conoce lógica de negocio ni de módulos
+/// Main VIEW of the inventory.
 ///
-/// NOTA: El panel aparece/desaparece instantáneamente [Luego animacion]
-/// Recordar añadir una animacion mas adelante
-/// Las pools tambien son temporales, despues se van a añadir unas mas genericas
+/// Responsibilities:
+///   - Show/hide the panel
+///   - Instantiate a GroupLabelUI + ItemSlotView per item
+///   - Use object pooling so it does not instantiate on every refresh
+///   - It knows nothing about business or module logic
+///
+/// NOTE: the panel appears/disappears instantly [animation later]
+/// Remember to add an animation further down the line.
+/// The pools are also temporary; more generic ones will be added later.
 /// </summary>
 
 public class InventoryView : MonoBehaviour
 {
     // ── Serialized ───────────────────────────────────────────────────────────
 
-    [Header("Contenedor de la lista")]
-    [SerializeField] private Transform itemListContainer;   // ScrollRect Content 
+    [Header("List container")]
+    [SerializeField] private Transform itemListContainer;   // ScrollRect Content
     [SerializeField] private ScrollRect scrollRect;
     [SerializeField] private RectTransform viewport;
 
@@ -31,7 +31,7 @@ public class InventoryView : MonoBehaviour
     [SerializeField] private ItemSlotView itemSlotPrefab;
     [SerializeField] private GroupLabelView groupLabelPrefab;
 
-    [Header("Panel raíz")]
+    [Header("Root panel")]
     [SerializeField] private GameObject rootPanel;
 
     // ── Pools ─────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ public class InventoryView : MonoBehaviour
     private readonly List<ItemSlotView> activeSlots = new List<ItemSlotView>();
     private readonly List<GroupLabelView> activeGroupLabels = new List<GroupLabelView>();
 
-    // ── Orden de categorías en la lista ───────────────────────────
+    // ── Category order in the list ────────────────────────────────
 
     private static readonly ItemCategory[] CategoryOrder =
     {
@@ -52,9 +52,9 @@ public class InventoryView : MonoBehaviour
         ItemCategory.Special
     };
 
-    // ── API pública ──────────────────────────────────────────────────────────
+    // ── Public API ───────────────────────────────────────────────────────────
 
-    /// <summary>Muestra u oculta el panel de inventario.</summary>
+    /// <summary>Shows or hides the inventory panel.</summary>
     public void SetVisible(bool visible)
     {
         if (rootPanel != null)
@@ -62,8 +62,8 @@ public class InventoryView : MonoBehaviour
     }
 
     /// <summary>
-    /// Reconstruye la lista completa a partir del Model.
-    /// Agrupa ítems por categoría. Omite grupos vacíos (spec §4.2).
+    /// Rebuilds the whole list from the Model.
+    /// Groups items by category. Skips empty groups (spec §4.2).
     /// </summary>
     public void RefreshList(InventoryManager model)
     {
@@ -84,7 +84,7 @@ public class InventoryView : MonoBehaviour
             label.gameObject.SetActive(true);
             activeGroupLabels.Add(label);
 
-            // Ítems del grupo
+            // Items in the group
             foreach (SO_InventoryItem item in group)
             {
                 ItemSlotView slot = GetOrCreateSlot();
@@ -97,7 +97,7 @@ public class InventoryView : MonoBehaviour
         int siblingIndex = 0;
         for (int i = 0; i < activeGroupLabels.Count; i++)
         {
-            // Buscar los slots que pertenecen a este label por categoría
+            // Find the slots belonging to this label by category
             ItemCategory category = CategoryOrder.First(c =>
                 activeGroupLabels[i].Category == c);
 
@@ -124,16 +124,16 @@ public class InventoryView : MonoBehaviour
         await UniTask.WaitForEndOfFrame(this);
 
         RectTransform content = itemListContainer as RectTransform;
-        
+
         LayoutRebuilder.ForceRebuildLayoutImmediate(content);
 
-        // 3. Medir usando rect.height (tamaño real en píxeles) en lugar de sizeDelta
+        // 3. Measure using rect.height (real size in pixels) instead of sizeDelta
         float contentHeight = content.rect.height;
         float viewportHeight = viewport.rect.height;
 
         bool overflows = contentHeight > viewportHeight;
 
-        // Log informativo para debug
+        // Informational log for debugging
         Debug.Log($"[Scroll] Real Content Height: {contentHeight} | Viewport: {viewportHeight} | Overflows: {overflows}");
 
         scrollRect.vertical = true;

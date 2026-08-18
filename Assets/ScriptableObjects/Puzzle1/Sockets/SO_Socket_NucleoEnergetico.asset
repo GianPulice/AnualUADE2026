@@ -16,4 +16,4 @@ MonoBehaviour:
   linkedPuzzleId: puzzle_central_piso1
   requiredItem: {fileID: 11400000, guid: 85c61301028d4d64ba4dd8f9a552dcf6, type: 2}
   consumeItem: 1
-  promptTextOverride: Insertar nucleo energetico
+  promptTextOverride: Insert power core

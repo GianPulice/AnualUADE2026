@@ -1,29 +1,29 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 
 [CreateAssetMenu(fileName = "ItemCategoryConfig", menuName = "Scriptable Objects/SO_ItemCategoryConfig")]
 public class SO_ItemCategoryConfig : ScriptableObject
 {
-    [Header("Llaves de acceso")]
+    [Header("Access keys")]
     public CategoryVisuals Key;
 
-    [Header("Componentes de puzzle")]
+    [Header("Puzzle components")]
     public CategoryVisuals Component;
 
-    [Header("Pistas e información")]
+    [Header("Clues and information")]
     public CategoryVisuals Note;
 
-    [Header("Ítems especiales")]
+    [Header("Special items")]
     public CategoryVisuals Special;
 
-    [Header("Fallback (categoría desconocida)")]
+    [Header("Fallback (unknown category)")]
     public CategoryVisuals Default;
 
-    // ── API pública ───────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Retorna los visuales de la categoría solicitada.
-    /// Si la categoría no existe, retorna Default.
+    /// Returns the visuals of the requested category.
+    /// If the category does not exist, returns Default.
     /// </summary>
     public CategoryVisuals Get(ItemCategory category) => category switch
     {
@@ -34,14 +34,14 @@ public class SO_ItemCategoryConfig : ScriptableObject
         _ => Default
     };
 
-    // ── Valores por defecto (llamar desde el botón Reset del Inspector) ────────
+    // ── Default values (call from the Inspector's Reset button) ───────────────
 
     /// <summary>
-    /// Rellena todos los campos con los valores de diseño originales de WIRED.
-    /// Útil para resetear a los valores base si se rompe algo.
-    /// Llamar manualmente desde el Inspector con el botón Reset o via código en editor.
+    /// Fills every field with WIRED's original design values.
+    /// Useful for resetting back to the base values if something breaks.
+    /// Call manually from the Inspector with the Reset button or via editor code.
     /// </summary>
-    [ContextMenu("Resetear a valores de diseño WIRED")]
+    [ContextMenu("Reset to WIRED design values")]
     public void ResetToDesignDefaults()
     {
         Key = new CategoryVisuals
@@ -54,7 +54,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
             SelectedBGColor    = HexToColor("#A62222"),
             GroupLabel         = "— key",
             TagLabel           = "Key",
-            // §4.4 Color Spec — tinte 3D ItemPSX
+            // §4.4 Color Spec — ItemPSX 3D tint
             shaderTintColor    = HexToColor("#37474F"),
             shaderEmissionColor = Color.black,
         };
@@ -70,7 +70,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
             GroupLabel         = "— component",
             TagLabel           = "Puzzle Component",
             shaderTintColor    = HexToColor("#4E342E"),
-            shaderEmissionColor = HexToColor("#FFC850"), // ámbar tenue — visible solo con _EmissionIntensity > 0
+            shaderEmissionColor = HexToColor("#FFC850"), // faint amber — only visible with _EmissionIntensity > 0
         };
 
         Note = new CategoryVisuals
@@ -110,14 +110,14 @@ public class SO_ItemCategoryConfig : ScriptableObject
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#4D4D4D"),
             GroupLabel         = "— Others",
-            TagLabel           = "Ítem",
+            TagLabel           = "Item",
             shaderTintColor    = HexToColor("#37474F"),
             shaderEmissionColor = Color.black,
         };
 
 #if UNITY_EDITOR
         UnityEditor.EditorUtility.SetDirty(this);
-        Debug.Log("[SO_ItemCategoryConfig] Valores de diseño UI restaurados.");
+        Debug.Log("[SO_ItemCategoryConfig] UI design values restored.");
 #endif
     }
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -130,10 +130,10 @@ public class SO_ItemCategoryConfig : ScriptableObject
 }
     public enum ItemCategory
 {
-    Key,        // Llaves de acceso — rojo oscuro
-    Component,  // Componentes de puzzle — verde oscuro
-    Note,       // Pistas e información — azul oscuro
-    Special     // Ítems especiales — amarillo oscuro
+    Key,        // Access keys — dark red
+    Component,  // Puzzle components — dark green
+    Note,       // Clues and information — dark blue
+    Special     // Special items — dark yellow
 }
 [System.Serializable]
 public struct CategoryVisuals
@@ -149,9 +149,9 @@ public struct CategoryVisuals
     public string GroupLabel;
     public string TagLabel;
 
-    [Header("Shader 3D (ItemPSX) — §4.4 Color Spec")]
-    [Tooltip("Color del tinte en _TintColor del shader ItemPSX.")]
+    [Header("3D Shader (ItemPSX) — §4.4 Color Spec")]
+    [Tooltip("Tint color written to _TintColor of the ItemPSX shader.")]
     public Color shaderTintColor;
-    [Tooltip("Color de emisión en _EmissionColor. Negro = sin emisión (salvo Componentes: ámbar).")]
+    [Tooltip("Emission color written to _EmissionColor. Black = no emission (except Components: amber).")]
     public Color shaderEmissionColor;
 }

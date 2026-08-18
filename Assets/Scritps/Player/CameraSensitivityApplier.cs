@@ -2,11 +2,11 @@ using Unity.Cinemachine;
 using UnityEngine;
 
 /// <summary>
-/// Aplica la sensibilidad guardada en PlayerPrefs al CinemachineInputAxisController del rig
-/// de cámara. Multiplica los Gain base de cada axis y, si Invert Y está activo, niega el gain
-/// del axis vertical. Se actualiza cuando SettingsModel.Apply() dispara OnSettingsApplied.
+/// Applies the sensitivity saved in PlayerPrefs to the CinemachineInputAxisController of the
+/// camera rig. Multiplies each axis' base Gain and, if Invert Y is enabled, negates the gain
+/// of the vertical axis. Refreshed whenever SettingsModel.Apply() raises OnSettingsApplied.
 ///
-/// Colocar este componente en el mismo GameObject que tenga el CinemachineInputAxisController.
+/// Place this component on the same GameObject that has the CinemachineInputAxisController.
 /// </summary>
 [RequireComponent(typeof(CinemachineInputAxisController))]
 public class CameraSensitivityApplier : MonoBehaviour
@@ -15,8 +15,8 @@ public class CameraSensitivityApplier : MonoBehaviour
     private const string KEY_INVERT_Y    = "Settings_InvertYAxis";
     private const float  DEFAULT_SENSITIVITY = 1f;
 
-    [Tooltip("Si el heurístico por nombre no encuentra el axis vertical, usar este nombre exacto " +
-             "(ej. 'Look Orbit Y'). Dejar vacío para usar solo el heurístico.")]
+    [Tooltip("If the name-based heuristic fails to find the vertical axis, use this exact name " +
+             "(e.g. 'Look Orbit Y'). Leave empty to rely on the heuristic only.")]
     [SerializeField] private string _verticalAxisName = "";
 
     private CinemachineInputAxisController _inputController;

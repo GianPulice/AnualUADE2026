@@ -4,7 +4,7 @@ public class NoteInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DocumentData documentData;
 
-    public override string GetInteractText() => "Leer";
+    public override string GetInteractText() => "Read";
 
     protected override bool CanInteractInCloseRange() => documentData != null;
 
@@ -12,7 +12,7 @@ public class NoteInteractable : BaseRangeInteractable
     {
         if (DocumentReaderController.Instance == null)
         {
-            Debug.LogError("[NoteInteractable] No hay DocumentReaderController en escena (LevelUI).");
+            Debug.LogError("[NoteInteractable] There is no DocumentReaderController in the scene (LevelUI).");
             return;
         }
         DocumentReaderController.Instance.Open(documentData);

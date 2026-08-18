@@ -6,7 +6,7 @@ public class SO_ContainerData : ScriptableObject
     [SerializeField] private string containerId;
     [SerializeField] private string linkedPuzzleId;
     [SerializeField] private string initialSlotId;
-    [SerializeField] private string promptText = "Mover contenedor";
+    [SerializeField] private string promptText = "Move container";
 
     public string ContainerId => containerId;
     public string LinkedPuzzleId => linkedPuzzleId;

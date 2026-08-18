@@ -13,7 +13,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void EnterState()
     {
-        //Debug.Log("Enter Moving State");
+        //Debug.Log("Enter Crouch State");
         playerStateManager.AnimController.SetBool("isCrouch", true);
         playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
         playerStateManager.CapsuleColl.height = 0.9f;
@@ -24,7 +24,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void ExitState()
     {
-        //Debug.Log("Exit Moving State");
+        //Debug.Log("Exit Crouch State");
         playerStateManager.AnimController.SetBool("isCrouch", false);
         playerStateManager.SpeedMultiplier = 1;
         playerStateManager.CapsuleColl.height = 1.8f;
@@ -59,7 +59,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         {
             NextState = PlayerStateManager.EPlayerState.Disabled;
         }
-        if (!playerStateManager.IsCrouch) 
+        if (!playerStateManager.IsCrouch)
         {
             NextState = PlayerStateManager.EPlayerState.Idle;
         }
@@ -77,16 +77,17 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
             {
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);
-                if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                float targetSpeed = playerStateManager.EffectiveMoveSpeed * playerStateManager.SpeedMultiplier;
+                if (playerStateManager.CurrentVelocity < targetSpeed)
                 {
                     playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
                 }
                 else
                 {
-                    playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                    playerStateManager.CurrentVelocity = targetSpeed;
                 }
             }
-            else 
+            else
             {
                 playerStateManager.CurrentVelocity = 0;
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
@@ -94,6 +95,6 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
             playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
             playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
         }
-    } 
+    }
 }
 

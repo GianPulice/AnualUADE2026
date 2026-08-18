@@ -19,11 +19,15 @@ public class BasketTrigger : MonoBehaviour
 
         currentBall = ball;
 
-        PuzzleStateManager.Instance.SetContainerSlot(ball.BallId, basketId);
+        if (PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.SetContainerSlot(ball.BallId, basketId);
+        else
+            Debug.LogWarning($"[{nameof(BasketTrigger)}] No PuzzleStateManager — ball " +
+                             $"'{ball.BallId}' landing in basket '{basketId}' was not recorded.", this);
 
         NotifyPuzzleController();
 
-        Debug.Log($"Canasto {basketId} detecto pelota {ball.BallId}");
+        Debug.Log($"Basket {basketId} detected ball {ball.BallId}");
     }
 
     private void OnTriggerExit(Collider other)
@@ -35,13 +39,17 @@ public class BasketTrigger : MonoBehaviour
         if (ball == null) return;
         if (ball != currentBall) return;
 
-        PuzzleStateManager.Instance.ClearContainerSlot(ball.BallId);
+        if (PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.ClearContainerSlot(ball.BallId);
+        else
+            Debug.LogWarning($"[{nameof(BasketTrigger)}] No PuzzleStateManager — ball " +
+                             $"'{ball.BallId}' leaving basket '{basketId}' was not recorded.", this);
 
         currentBall = null;
 
         NotifyPuzzleController();
 
-        Debug.Log($"Pelota {ball.BallId} salio del canasto {basketId}");
+        Debug.Log($"Ball {ball.BallId} left basket {basketId}");
     }
 
     private void NotifyPuzzleController()

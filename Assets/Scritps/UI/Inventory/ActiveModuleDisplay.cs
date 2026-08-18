@@ -3,24 +3,24 @@ using UnityEngine.UI;
 using TMPro;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ActiveModuleDisplay — el panel circular izquierdo con timer principal
+//  ActiveModuleDisplay — the left circular panel with the main timer
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// VIEW del display circular del módulo activo (panel izquierdo superior).
-/// Muestra el timer formateado y el label "Active Module".
+/// VIEW of the active module's circular display (upper left panel).
+/// Shows the formatted timer and the "Active Module" label.
 /// </summary>
 public class ActiveModuleDisplay : MonoBehaviour
 {
-    [Header("Textos")]
-    [Tooltip("00:00")][SerializeField] private TextMeshProUGUI timerText;      
-    [Tooltip("Time Left")][SerializeField] private TextMeshProUGUI timeLabelText;  
-    [Tooltip("ID del módulo activo")][SerializeField] private TextMeshProUGUI moduleIdText;    
+    [Header("Texts")]
+    [Tooltip("00:00")][SerializeField] private TextMeshProUGUI timerText;
+    [Tooltip("Time Left")][SerializeField] private TextMeshProUGUI timeLabelText;
+    [Tooltip("ID of the active module")][SerializeField] private TextMeshProUGUI moduleIdText;
 
-    [Header("Imagen circular / radial fill")]
-    [SerializeField] private Image radialFill;               // Image con FillMethod = Radial360
+    [Header("Circular image / radial fill")]
+    [SerializeField] private Image radialFill;               // Image with FillMethod = Radial360
 
-    public void UpdateDisplay(ModuleData module)
+    public void UpdateDisplay(ModuleRuntime module)
     {
         if (timerText != null)
             timerText.text = module.FormattedTime;
@@ -32,9 +32,3 @@ public class ActiveModuleDisplay : MonoBehaviour
             radialFill.fillAmount = module.TimerProgress;
     }
 }
-
-
-
-
-
-

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -11,16 +11,52 @@ public class ScreenManager : Singleton<ScreenManager>
 
     private Stack<string> activeScreens = new Stack<string>();
 
+    /// <summary>Label of the active scene group, or null if none is loaded.</summary>
+    public string CurrentGroupLabel => activeScreens.Count > 0 ? activeScreens.Peek() : null;
+
+    /// <summary>
+    /// Unloads and reloads the active group. Used by the Retry button on the defeat screen.
+    ///
+    /// It cannot be built out of Pop + Push through the event channel: both handlers are
+    /// fire-and-forget UniTasks, so the load would start before the unload finished.
+    /// A Push alone is not enough either, because HandlePushScreenAsync bails out early when
+    /// the label is already the active screen.
+    /// </summary>
+    public async UniTask ReloadCurrentGroup()
+    {
+        if (activeScreens.Count == 0)
+        {
+            Debug.LogWarning("[ScreenManager] ReloadCurrentGroup with no active group.");
+            return;
+        }
+
+        string label = activeScreens.Pop();
+
+        var groupEntry = sceneDatabase.GetGroup(label);
+        if (groupEntry == null || groupEntry.sceneNames.Count == 0)
+        {
+            Debug.LogError($"[ScreenManager] Group '{label}' was not found in the SO_SceneList.");
+            return;
+        }
+
+        await UnloadGroupAsync(label);
+
+        activeScreens.Push(label);
+        await LoadGroupAsync(groupEntry);
+
+        Debug.Log($"<color=green>[ScreenManager] Group '{label}' reloaded.</color>");
+    }
+
     private void Awake()
     {
         CreateSingleton(true);
-        if (sceneDatabase == null) Debug.LogError("[ScreenManager] Faltan asignar el SO_SceneList!");
-        if (screenChannel == null) Debug.LogError("[ScreenManager] Faltan asignar el Event Channel!");
+        if (sceneDatabase == null) Debug.LogError("[ScreenManager] The SO_SceneList has not been assigned!");
+        if (screenChannel == null) Debug.LogError("[ScreenManager] The Event Channel has not been assigned!");
     }
 
     private void OnEnable()
     {
-        Debug.Log("<color=cyan>[ScreenManager] Habilitado y escuchando eventos</color>");
+        Debug.Log("<color=cyan>[ScreenManager] Enabled and listening for events</color>");
         if (screenChannel != null)
         {
             screenChannel.OnPushScreenRequested += OnPushScreenRequestedWrapper;
@@ -39,55 +75,55 @@ public class ScreenManager : Singleton<ScreenManager>
         }
     }
 
-    // ── Wrappers (Reciben los eventos de tu MainMenuController) ──
+    // ── Wrappers (receive the events from MainMenuController) ──
 
     private void OnPushScreenRequestedWrapper(string screenLabel)
     {
-        Debug.Log($"<color=cyan>[ScreenManager] PUSH recibido: {screenLabel}</color>");
+        Debug.Log($"<color=cyan>[ScreenManager] PUSH received: {screenLabel}</color>");
         HandlePushScreenAsync(screenLabel).Forget();
     }
 
     private void OnPopScreenRequestedWrapper()
     {
-        Debug.Log("<color=cyan>[ScreenManager] POP recibido</color>");
+        Debug.Log("<color=cyan>[ScreenManager] POP received</color>");
         HandlePopScreenAsync().Forget();
     }
 
     private void OnClearAllRequestedWrapper()
     {
-        Debug.Log("<color=cyan>[ScreenManager] CLEAR ALL recibido</color>");
+        Debug.Log("<color=cyan>[ScreenManager] CLEAR ALL received</color>");
         HandleClearAllAsync().Forget();
     }
 
-    // ── Handlers (Manejan la lógica de carga usando tu SceneLoader) ──
+    // ── Handlers (handle the load logic using the SceneLoader) ──
 
     private async UniTask HandlePushScreenAsync(string screenLabel)
     {
         if (activeScreens.Count > 0 && activeScreens.Peek() == screenLabel)
         {
-            Debug.LogWarning($"[ScreenManager] '{screenLabel}' ya es la pantalla activa.");
+            Debug.LogWarning($"[ScreenManager] '{screenLabel}' is already the active screen.");
             return;
         }
 
         var groupEntry = sceneDatabase.GetGroup(screenLabel);
         if (groupEntry == null || groupEntry.sceneNames.Count == 0)
         {
-            Debug.LogError($"[ScreenManager] No se encontró el grupo '{screenLabel}' en el SO_SceneList.");
+            Debug.LogError($"[ScreenManager] Group '{screenLabel}' was not found in the SO_SceneList.");
             return;
         }
 
-        // Descargamos la pantalla anterior
+        // Unload the previous screen
         if (activeScreens.Count > 0)
         {
             string previous = activeScreens.Pop();
             await UnloadGroupAsync(previous);
         }
 
-        // Cargamos el nuevo grupo de escenas
+        // Load the new scene group
         activeScreens.Push(screenLabel);
         await LoadGroupAsync(groupEntry);
 
-        Debug.Log($"<color=green>[ScreenManager] Grupo '{screenLabel}' cargado exitosamente.</color>");
+        Debug.Log($"<color=green>[ScreenManager] Group '{screenLabel}' loaded successfully.</color>");
     }
 
     private async UniTask HandlePopScreenAsync()
@@ -129,7 +165,7 @@ public class ScreenManager : Singleton<ScreenManager>
         List<UniTask> tasks = new List<UniTask>();
         foreach (string sceneName in group.sceneNames)
         {
-            // Protegemos las escenas persistentes (como Data) para que no se borren
+            // Protect the persistent scenes (such as Data) so they are not unloaded
             if (sceneDatabase.persistentSceneNames.Contains(sceneName)) continue;
 
             tasks.Add(sceneLoader.UnloadSceneAsync(sceneName));

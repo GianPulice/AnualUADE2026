@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: SO_ReguladorPresion
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: regulador_presion
-  itemName: Regulador de Presion
+  itemName: Pressure Regulator
   category: 1
-  itemDescription: Componente obtenido al resolver el Sub-Puzzle 3.
+  itemDescription: Component obtained by solving Sub-Puzzle 3.
   itemIcon: {fileID: 0}
   isMetallic: 1
   isConsumable: 1
-  consumeDescription: Se consume al insertarlo en el Hub Central.
+  consumeDescription: Consumed when inserted into the Central Hub.
   isUnique: 1
   contentType: 0
   textContent: 
