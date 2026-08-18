@@ -1,0 +1,184 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &840372325643228729
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3690414841512005980}
+  - component: {fileID: 2420833539128321043}
+  - component: {fileID: 2040052163257628550}
+  - component: {fileID: 2845116326145962553}
+  - component: {fileID: 2158103419449396063}
+  - component: {fileID: 4666868681621436301}
+  - component: {fileID: 8681807157017827711}
+  m_Layer: 0
+  m_Name: AmbienceController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3690414841512005980
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -8.33561, y: 0.97272, z: 22.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2420833539128321043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d15623aa52308e04c8ca6993d15ce5a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbienceBedLayer
+  bedSlots: 2
+  startupFadeSeconds: 4
+--- !u!114 &2040052163257628550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84904bfb32db8a545b1a60fd71c415ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbienceDriftLayer
+  driftTracks:
+  - label: Pink Noise
+    clip: {fileID: 8300000, guid: 16512a82ec5151248ba610878bedd57f, type: 3}
+    bus: 2
+    level: 0.08
+    relativeToBed: 1
+    driftMultiplierRange: {x: 0, y: 0}
+    driftIntervalRange: {x: 0, y: 0}
+    driftTravelRange: {x: 0, y: 0}
+    comfortGated: 0
+  - label: Sub 17Hz
+    clip: {fileID: 8300000, guid: 6b598d8b9347f6347892e9c56c825ea0, type: 3}
+    bus: 0
+    level: 0.5
+    relativeToBed: 0
+    driftMultiplierRange: {x: 0, y: 0}
+    driftIntervalRange: {x: 0, y: 0}
+    driftTravelRange: {x: 0, y: 0}
+    comfortGated: 1
+  - label: Sub 32Hz
+    clip: {fileID: 8300000, guid: b5321d0c5047d7044bff879d69213e38, type: 3}
+    bus: 0
+    level: 0.55
+    relativeToBed: 1
+    driftMultiplierRange: {x: 0, y: 0}
+    driftIntervalRange: {x: 0, y: 0}
+    driftTravelRange: {x: 0, y: 0}
+    comfortGated: 1
+  startupFadeSeconds: 6
+  comfortRampSeconds: 3
+--- !u!114 &2845116326145962553
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a236515d8dce5c40af8f8f9fb8bd762, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbienceEventScheduler
+  gapRange: {x: 8, y: 30}
+  longSilenceChance: 0.22
+  longSilenceExtra: {x: 40, y: 100}
+  skipChance: 0
+  entryGraceSeconds: 4
+  historyCapacity: 3
+  recentPenalty: 0.08
+  placementRetryRange: {x: 2, y: 5}
+  placementFailureWarnThreshold: 5
+  debugLogEvents: 1
+  logDerivedStatistics: 1
+  debugRapidFire: 1
+--- !u!114 &2158103419449396063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 297a861de29a74644a323d0cc4b96d02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbienceEventPool
+  poolSize: 6
+  volumeJitter: 0.13
+  pitchJitter: 0.04
+  occludedVolumeMultiplier: 0.6
+  occludedLowpassCutoff: 1400
+--- !u!114 &4666868681621436301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a88419e9c1b01f64581419b502ebd95d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbiencePlacementResolver
+  occluderMask:
+    serializedVersion: 2
+    m_Bits: 2048
+  solidMask:
+    serializedVersion: 2
+    m_Bits: 2056
+  anchorChance: 0.6
+  maxAttempts: 12
+  behindBias: 0.75
+  frontExclusionHalfAngle: 35
+  maxOccludedFraction: 0.4
+  preferClearAttempts: 6
+  wallPenetration: 0.3
+  solidCheckRadius: 0.5
+  navMeshSampleRadius: 2
+  drawGizmos: 1
+  gizmoHistory: 8
+--- !u!114 &8681807157017827711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840372325643228729}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44c35296f73954745bf0b62f5385b9bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AmbienceController
+  buses:
+    bed: {fileID: -6579736991082124368, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+    events: {fileID: -3038333838384829341, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+    texture: {fileID: 684298421159166399, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+    sub: {fileID: -6916312628040914887, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  defaultProfile: {fileID: 11400000, guid: 0b2a584544d56e148b6b13084c7b637e, type: 2}
+  logProfileChanges: 1

@@ -69,7 +69,15 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
                 agent.ResetPath();
                 agent.velocity = Vector3.zero;
                 nemesisStateManager.AnimController.SetBool("isRunning", false);
-                NextState = NemesisStateManager.ENemesisState.Catch;
+
+                // Gated on the cooldown NemesisCatchState opened when it last left Catch. While
+                // it is closed the Nemesis just stands over the player instead of transitioning:
+                // the alternative was bouncing straight back into Catch on the next frame, which
+                // is what turned the "no target to capture" fallback into a warning-per-frame
+                // loop. Nothing else is needed to resume — hasArrived stays true, so the frame
+                // the window closes this fires on its own.
+                if (nemesisStateManager.CanEnterCatch)
+                    NextState = NemesisStateManager.ENemesisState.Catch;
             }
             else nemesisStateManager.AnimController.SetBool("isRunning", true);
         }

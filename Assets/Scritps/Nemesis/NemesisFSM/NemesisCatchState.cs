@@ -7,8 +7,8 @@ using UnityEngine;
 /// the checkpoint loads or when the run ends. CheckpointManager (standing in for the spec's
 /// "Sistema de Guardado") reacts to that call on its own and, once it is done, notifies the
 /// Nemesis back through NemesisStateManager.HasReceivedRespawnNotification. Only then does this
-/// state start counting down the post-checkpoint grace period before warping to a random
-/// waypoint and returning to Patrolling.
+/// state start counting down the post-checkpoint grace period before warping to a random spawn
+/// point (or waypoint, if none are configured) and returning to Patrolling.
 ///
 /// If there is nowhere to respawn to, CheckpointManager falls back to the old defeat screen on
 /// its own and no notification ever arrives — this state simply stays parked, which is correct
@@ -81,6 +81,11 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     {
         nemesisStateManager.AnimController.SetBool("isCatching", false);
         player = null;
+
+        // Opens the no-re-entry window. Runs on every exit, the "nobody to capture" bail out
+        // included: without it that fallback goes Catch -> Searching -> Chasing -> Catch again on
+        // the next frame, because the Nemesis is still standing on top of the player.
+        nemesisStateManager.BeginCatchCooldown();
     }
 
     public override NemesisStateManager.ENemesisState GetNextState()
@@ -125,7 +130,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
                 graceTimer += Time.unscaledDeltaTime;
                 if (graceTimer < nemesisStateManager.CaptureGracePeriod) return;
 
-                nemesisStateManager.RepositionAtRandomWayPoint();
+                nemesisStateManager.RepositionAfterCapture();
                 NextState = NemesisStateManager.ENemesisState.Patrolling;
                 break;
         }

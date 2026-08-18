@@ -174,6 +174,17 @@ public class AudioManager : Singleton<AudioManager>
         PlayInternal(data, sfxGroup ?? GroupFor(data.Category), position);
     }
 
+    /// <summary>
+    /// Fire-and-forget 2D one-shot on the Ambience bus.
+    /// </summary>
+    /// <remarks>
+    /// NOT usable for ambient loops. It borrows a source from the shared SFX pool, so it returns
+    /// no handle (there is no StopAmbience), it can be cut mid-clip when the pool runs dry, and
+    /// PlayInternal hardcodes volume = 1f while never touching pitch, rolloffMode or
+    /// min/maxDistance. Looping and positioned ambience is owned by AmbienceController and its
+    /// layers, which create their own AudioSources and route them through
+    /// <see cref="AmbienceGroup"/>.
+    /// </remarks>
     public void PlayAmbience(string id)
     {
         if (!TryGet(id, out var data)) return;
@@ -260,6 +271,20 @@ public class AudioManager : Singleton<AudioManager>
     /// (NemesisAudio) can route through the mixer without the group being dragged in twice.
     /// </summary>
     public AudioMixerGroup NemesisGroup => nemesisGroup;
+
+    /// <summary>
+    /// The Ambience bus. Exposed for the same reason as <see cref="NemesisGroup"/>: the ambience
+    /// system (AmbienceController and its layers) owns its own looping and one-shot AudioSources
+    /// and routes them through the Ambience sub-groups.
+    ///
+    /// Nothing in that system ever calls mixer.SetFloat — see <see cref="SetGameplaySfxBundle"/>,
+    /// which rewrites AmbienceVolume the moment the player touches the SFX slider and would
+    /// destroy any per-layer mix ratio stored in an exposed parameter. Ratios between the ambient
+    /// layers live in the fixed faders of the Ambience sub-groups (child volumes are offsets that
+    /// sum in dB with the parent, so they survive every write to AmbienceVolume) and in
+    /// AudioSource.volume.
+    /// </summary>
+    public AudioMixerGroup AmbienceGroup => ambienceGroup;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — setters

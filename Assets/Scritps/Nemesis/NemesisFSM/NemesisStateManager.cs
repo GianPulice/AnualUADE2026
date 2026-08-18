@@ -23,6 +23,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "after a capture, so the Nemesis does not warp on top of the respawned player.")]
     [SerializeField] private float repositionMinPlayerDistance = 15f;
 
+    [Tooltip("Seconds after leaving Catch during which the Nemesis cannot enter it again.\n\n" +
+             "Two jobs: it stops the Nemesis from re-grabbing the player the instant a capture " +
+             "resolves, and it breaks the Chasing -> Catch -> Chasing loop for the case where " +
+             "Catch bails out because it had no target to capture.")]
+    [SerializeField] private float catchCooldown = 2f;
+
     [Header("Stuck detection")]
     [Tooltip("How long the Nemesis has to make no progress before it counts as stuck.")]
     [SerializeField] private float stuckCheckInterval = 3f;
@@ -40,6 +46,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     private bool wasBeingChased;
     private bool isCaptureResolved;
     private bool hasReceivedRespawnNotification;
+    private float catchCooldownTimer;
 
     private Vector3 lastStuckSamplePosition;
     private float stuckSampleTimer;
@@ -48,6 +55,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     public float CaptureGracePeriod { get => captureGracePeriod; }
     public bool HasReceivedRespawnNotification { get => hasReceivedRespawnNotification; }
+
+    /// <summary>False during the catchCooldown window that follows leaving Catch. Read by
+    /// <see cref="NemesisChasingState"/>, which is the only way into Catch.</summary>
+    public bool CanEnterCatch { get => catchCooldownTimer <= 0f; }
 
     /// <summary>False while the Nemesis is dormant waiting for its activation puzzle. The FSM
     /// has not entered any state yet in that window.</summary>
@@ -187,6 +198,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (!isActive) return;
 
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+
+        // Ticked before the FSM, so the frame it expires is already a frame Chasing can catch on.
+        if (catchCooldownTimer > 0f) catchCooldownTimer -= Time.deltaTime;
 
         hasVisualTarget = fieldOfView.HasVisualTarget;
         hasAudioTarget = fieldOfListening.HasAudioTarget;
@@ -426,45 +440,114 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     }
 
     /// <summary>
-    /// Warps the Nemesis to a random waypoint after a capture, preferring ones that are not on
-    /// top of the respawned player. Without this it would resume patrolling from the spot where
-    /// it caught you, which is right where you reappear if the checkpoint is close.
+    /// Opens the window during which Chasing will not hand back to Catch. Called by
+    /// NemesisCatchState on exit — including the exit it takes when it found nobody to capture,
+    /// which is the loop this exists to break.
     /// </summary>
-    public void RepositionAtRandomWayPoint()
+    public void BeginCatchCooldown() => catchCooldownTimer = catchCooldown;
+
+    /// <summary>
+    /// Warps the Nemesis away after a capture: to a random spawn point when the controller has
+    /// any configured, and to a random unlocked waypoint otherwise. Without this it would resume
+    /// patrolling from the spot where it caught you, which is right where you reappear when the
+    /// checkpoint is close.
+    ///
+    /// Spawn points first because that is exactly what they are: hand-placed "the Nemesis comes
+    /// back from here" markers, chosen to sit away from where the player is sent. Waypoints stay
+    /// as the fallback so a scene that never filled the spawn list in keeps working instead of
+    /// leaving the Nemesis parked on top of the checkpoint.
+    ///
+    /// Random and not <see cref="NemesisController.ChooseSpawnPoint"/>: that one deliberately
+    /// picks the farthest hidden point, which is right for the first arrival but would send the
+    /// Nemesis to the same corner after every single capture.
+    /// </summary>
+    public void RepositionAfterCapture()
     {
-        IReadOnlyList<Transform> allWaypoints = nemesisController != null
+        IReadOnlyList<Transform> spawns = nemesisController != null
+            ? nemesisController.SpawnPoints
+            : null;
+
+        if (TryWarpToRandom(spawns)) return;
+
+        IReadOnlyList<Transform> waypoints = nemesisController != null
             ? nemesisController.AllUnlockedWaypoints
             : null;
 
-        if (allWaypoints == null || allWaypoints.Count == 0)
+        if (TryWarpToRandom(waypoints)) return;
+
+        Debug.LogWarning("[NemesisStateManager] Nowhere to reposition to after a capture: no " +
+                         "spawn points configured on the NemesisController and no unlocked " +
+                         "waypoints either. The Nemesis stays where it caught the player.", this);
+    }
+
+    /// <summary>
+    /// Splits <paramref name="points"/> into the ones far enough from the respawned player and
+    /// the ones that are not, and warps to a random entry of the first group — falling through to
+    /// the second only if none of them worked. Standing on top of the player is bad, staying at
+    /// the capture point is worse.
+    /// </summary>
+    private bool TryWarpToRandom(IReadOnlyList<Transform> points)
+    {
+        if (points == null || points.Count == 0) return false;
+
+        List<Transform> far = new List<Transform>(points.Count);
+        List<Transform> near = new List<Transform>(points.Count);
+
+        for (int i = 0; i < points.Count; i++)
         {
-            Debug.LogWarning("[NemesisStateManager] No waypoints to reposition to after a capture.", this);
-            return;
+            Transform point = points[i];
+            if (point == null) continue;
+
+            bool tooClose = playerTransform != null &&
+                            Vector3.Distance(point.position, playerTransform.position) <
+                            repositionMinPlayerDistance;
+
+            if (tooClose) near.Add(point);
+            else          far.Add(point);
         }
 
-        List<Transform> candidates = new List<Transform>(allWaypoints.Count);
-        foreach (Transform wp in allWaypoints)
-        {
-            if (wp == null) continue;
-            if (playerTransform != null &&
-                Vector3.Distance(wp.position, playerTransform.position) < repositionMinPlayerDistance)
-                continue;
+        return TryWarpToAnyOf(far) || TryWarpToAnyOf(near);
+    }
 
-            candidates.Add(wp);
+    /// <summary>
+    /// Tries every entry, starting from a random one and wrapping, instead of picking one and
+    /// hoping. NavMeshAgent.Warp fails silently — it returns false and leaves the agent exactly
+    /// where it was — whenever the target does not land on the NavMesh, so a single marker nudged
+    /// off the mesh used to be enough to leave the Nemesis standing at the capture point, which
+    /// is the whole thing this is here to avoid.
+    /// </summary>
+    private bool TryWarpToAnyOf(List<Transform> points)
+    {
+        if (points.Count == 0) return false;
+
+        int start = Random.Range(0, points.Count);
+        for (int i = 0; i < points.Count; i++)
+        {
+            Transform target = points[(start + i) % points.Count];
+            if (!WarpTo(target.position)) continue;
+
+            // Or the next stuck check would measure progress from the pre-warp position.
+            lastStuckSamplePosition = target.position;
+            return true;
         }
 
-        // Every waypoint sits near the player (small level, or a checkpoint in the middle of the
-        // patrol route): fall back to any of them rather than not moving at all, since staying
-        // at the capture point is the worse outcome.
-        if (candidates.Count == 0) candidates.AddRange(allWaypoints);
+        return false;
+    }
 
-        Transform target = candidates[Random.Range(0, candidates.Count)];
-        if (target == null) return;
+    /// <summary>
+    /// Warp and not transform.position: a NavMeshAgent keeps its own internal position and would
+    /// drag the Nemesis straight back on the next agent update.
+    /// </summary>
+    /// <returns>false when the agent could not be placed there — the target is off the NavMesh.</returns>
+    private bool WarpTo(Vector3 position)
+    {
+        if (navAgent == null || !navAgent.isActiveAndEnabled)
+        {
+            transform.position = position;
+            return true;
+        }
 
-        // Warp and not transform.position: a NavMeshAgent keeps its own internal position and
-        // would drag the Nemesis straight back on the next agent update.
-        if (navAgent != null && navAgent.isActiveAndEnabled) navAgent.Warp(target.position);
-        else transform.position = target.position;
+        return navAgent.Warp(position);
     }
 
     // ── Stuck detection ─────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ To run the game from a fresh state, open the `Bootstrap` scene and press Play. D
 
 Additional documentation in `docs/`:
 - `docs/UI-System.md` — UI architecture, MVC pattern, scene lifecycle, pause system
+- `docs/Ambience-System.md` — ambient audio: the four layers, mixer setup, zone profiles, verification
 - `docs/Materials-System.md` — shaders, vision fog, item highlight, flicker scripts
 - `docs/TODO-UI.md` — deferred UI work (inventory, save slots, settings tabs, puzzles)
 - `docs/SaveSlots-Setup.md` — manual Unity Editor steps to wire up the SaveSlots screen
@@ -157,9 +158,23 @@ Async operations (scene load/unload, UI transitions) use **UniTask** (`Cysharp.T
 | `Settings_CRTScanlines`, `Settings_PSXDithering` | `PS1EffectApplier` (holds `PS1Effect.mat`) |
 | `Settings_ResolutionIndex`, `Settings_WindowMode`, `Settings_FPSLimit`, `Settings_VSync` | `ScreenSettingsApplier` (persistent GameObject) |
 | `Settings_AudioInBackground` | `AudioBackgroundApplier` (persistent GameObject) |
+| `Settings_LowFreqAmbience` | `AmbienceComfortApplier` (persistent GameObject) — no UI yet, see below |
 | `Settings_MasterVolume`, `Settings_MusicVolume`, `Settings_SFXVolume` | `AudioManager` (applied live by the setters, not on Apply) |
 
-Still unconnected: keybind rebinding (`SettingsPanelControlsView` shows static labels), and `Settings_VHSGlitch` (read by `GlitchController` but not exposed in the Options UI yet).
+Still unconnected: keybind rebinding (`SettingsPanelControlsView` shows static labels), `Settings_VHSGlitch` (read by `GlitchController` but not exposed in the Options UI yet), and `Settings_LowFreqAmbience` (persisted by `SettingsModel` and applied by `AmbienceComfortApplier`, but with no toggle in the Options panel — use the `Toggle Low-Freq Ambience` context menu on `AmbienceDriftLayer` meanwhile).
+
+### Ambience (`Scritps/Ambience/`)
+
+Four constant layers plus randomised 3D one-shots, driven by `AmbienceController` in the **gameplay** scene (not `Data` — same choice as `VisionRangeController`).
+
+- **`AmbienceController`** — owns a push/pop stack of `SO_AmbienceProfile`, resolves the mixer routing once and pushes it into each layer (the layers do nothing in their own `Start`). `AmbienceZone` trigger volumes push and pop profiles; innermost wins, exactly like `LightZone` + `VisionRangeController`.
+- **`AmbienceBedLayer`** — Layer 1, the factory bed. N crossfade slots so a profile can run **two loops of coprime length** (37 s + 53 s gives a composite period of ~33 min, which is what actually defeats loop detection).
+- **`AmbienceDriftLayer`** — Layers 3 and 4 collapsed into one data-driven component: pink noise plus the 17 Hz and 32 Hz drones, each slowly wandering to a new volume target. Never restarted on a zone change; profiles only retarget scales.
+- **`AmbienceEventScheduler` / `AmbienceEventPool` / `AmbiencePlacementResolver` / `AmbienceEmitter`** — Layer 2. Weighted tiers, a soft repetition penalty, and hybrid placement: LD-placed anchors preferred, validated random as fallback (`CheckSphere` + `NavMesh.SamplePosition` + `Linecast`, with occluded points snapped to the blocking surface).
+
+**Two rules this system depends on.** Never call `mixer.SetFloat` for anything under Ambience — `AudioManager.SetGameplaySfxBundle` rewrites `AmbienceVolume` whenever the player touches the SFX slider, so per-layer balance lives in the fixed faders of the `Ambience/{Bed,Events,Texture,Sub}` sub-groups and in `AudioSource.volume`. And **never put a limiter or compressor on `Master`**: the inaudible 17 Hz drone is still a large peak signal and would duck the entire mix at its LFO rate.
+
+Volume envelopes use `Time.unscaledDeltaTime` (a fade frozen mid-way by a modal is audible); the event timer uses scaled `Time.deltaTime` plus an `IsPaused` guard (a frozen timer is not). Run `Tools/Audio/Bake Ambience Texture Clips` to generate the noise, drones and placeholders — Layers 3 and 4 need no sourced audio at all.
 
 ## Current state — what is and is not wired
 
@@ -171,7 +186,7 @@ The systems below are **implemented but not connected to anything**. Read this b
 - **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Doors animate open but stay solid**: `DoorInteractable.DisableBlockingCollider()` is commented out in both call sites.
-- **Audio is silent.** `AudioManager` is fully built but the only sound played anywhere is `PlaySFX("PickUpInteractable")`. No footsteps, music, ambience, Nemesis or UI audio.
+- **Audio is nearly silent.** The only gameplay sound routed through `AudioManager` is `PlaySFX("PickUpInteractable")` — no footsteps, music, Nemesis or UI audio. The **ambience system is built** (`Scritps/Ambience/`, see below) but ships with placeholder clips and needs its scene wiring done.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers; `PuzzleStateManager` has no serialization at all.
 - **Retry does not reset run state.** `InventoryManager` and `PuzzleStateManager` are `DontDestroyOnLoad` with no `Clear()`, and `GameResultManager.ResetSession()` only resets the result flag — a retry keeps every collected item and completed puzzle.
 - **`EPlayerState.InDanger`** is in the enum but never registered in the state dictionary; transitioning to it would throw `KeyNotFound`. `PlayerHiddenState` is inert (no collider/visibility change) and is toggled by debug keys `R`/`T`/`Y` still live in `PlayerStateManager.InputUpdate`.

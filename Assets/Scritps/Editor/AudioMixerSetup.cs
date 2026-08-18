@@ -24,6 +24,33 @@ public static class AudioMixerSetup
         "Music", "Ambience", "SFX", "Player", "Nemesis", "UI", "Voice"
     };
 
+    // Grandchildren, keyed by the name of their parent in ChildGroups.
+    //
+    // The four Ambience sub-groups are what let the ambient layers keep a fixed balance against
+    // each other. A child group's volume is an OFFSET that sums in dB with its parent, so
+    // "Sub at -12 dB" survives every write to AmbienceVolume — and AudioManager.
+    // SetGameplaySfxBundle rewrites AmbienceVolume whenever the player touches the single SFX
+    // slider, which is why the ratios cannot live in an exposed parameter.
+    //
+    // Ambience/Sub also needs a Highpass + Lowpass pair, and per-source DSP only exists at the
+    // mixer-group level, so these groups are required rather than merely tidy.
+    //
+    // Deliberately NOT passed to ExposeVolumeParameter: their attenuation is a fixed design value
+    // that is never set from code. Not exposing them sidesteps the SetGameplaySfxBundle problem
+    // class entirely, and avoids RewriteExposedParameterNames, which only walks
+    // masterGroup.children at depth 1 and would silently skip grandchildren.
+    private static readonly (string parent, string[] children)[] SubGroups =
+    {
+        ("Ambience", new[] { "Bed", "Events", "Texture", "Sub" })
+    };
+
+    // WARNING — never put a limiter, compressor or Duck Volume on Master.
+    // The ambience system runs a 17 Hz and a 32 Hz drone on Ambience/Sub. An inaudible 17 Hz sine
+    // is still a large PEAK signal, so any dynamics processor on Master will duck the entire mix
+    // at the sub's LFO rate: the whole game breathes once every 20-60 seconds and the cause is
+    // almost impossible to find by ear. If loudness compliance ever demands a limiter, restructure
+    // to Master > { Gameplay, Sub } and put it on Gameplay.
+
     [MenuItem("Tools/Audio/Create or Update Master Mixer")]
     public static void CreateOrUpdateMasterMixer()
     {
@@ -63,6 +90,22 @@ public static class AudioMixerSetup
             EnsureChildGroup(mixerObj, masterGroup, name);
         }
 
+        // 1b) Ensure the grandchildren exist. EnsureChildGroup already takes an arbitrary parent,
+        //     so this needs no additional reflection.
+        foreach (var (parentName, children) in SubGroups)
+        {
+            var parent = FindChildGroupByName(mixerObj, masterGroup, parentName);
+            if (parent == null)
+            {
+                Debug.LogError($"[AudioMixerSetup] Parent group '{parentName}' not found; " +
+                               $"its sub-groups were skipped.");
+                continue;
+            }
+
+            foreach (var childName in children)
+                EnsureChildGroup(mixerObj, parent, childName);
+        }
+
         // 2) Exposed parameters for each group + Master
         ExposeVolumeParameter(mixerObj, masterGroup, "MasterVolume");
         foreach (var name in ChildGroups)
@@ -81,7 +124,14 @@ public static class AudioMixerSetup
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log("[AudioMixerSetup] Mixer ready with 8 groups and exposed params: MasterVolume, MusicVolume, AmbienceVolume, SFXVolume, PlayerVolume, NemesisVolume, UIVolume, VoiceVolume.");
+        Debug.Log("[AudioMixerSetup] Mixer ready with 8 groups and exposed params: MasterVolume, " +
+                  "MusicVolume, AmbienceVolume, SFXVolume, PlayerVolume, NemesisVolume, UIVolume, " +
+                  "VoiceVolume.\n" +
+                  "Plus 4 un-exposed Ambience sub-groups: Bed, Events, Texture, Sub.\n" +
+                  "MANUAL STEPS REMAINING (the internal API cannot set these):\n" +
+                  "  1. Set the sub-group faders: Bed 0 dB, Events -2 dB, Texture -3 dB, Sub -12 dB.\n" +
+                  "  2. On Ambience/Sub add a Highpass (cutoff 12 Hz) and a Lowpass (cutoff 120 Hz).\n" +
+                  "  3. Save the mixer asset.");
     }
 
     private static void EnsureFolder(string folder)

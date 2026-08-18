@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b808c9c06fa84834cb697932cb4ede98, type: 3}
+  m_Name: SO_AmbienceEventBank
+  m_EditorClassIdentifier: Assembly-CSharp::SO_AmbienceEventBank
+  commonEvents:
+  - label: Drip
+    clip: {fileID: 8300000, guid: 6759e140bbb4ec34687143ac9730ffd5, type: 3}
+    tags: 0
+    volume: 0
+    spread: 0
+    minDistance: 0
+    maxDistance: 0
+    distanceRange: {x: 0, y: 0}
+    verticalRange: {x: 0, y: 0}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Debris
+    clip: {fileID: 8300000, guid: 83102fb45199a1f47a4746efe9820943, type: 3}
+    tags: 0
+    volume: 0
+    spread: 0
+    minDistance: 0
+    maxDistance: 0
+    distanceRange: {x: 0, y: 0}
+    verticalRange: {x: 0, y: 0}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  uncommonEvents:
+  - label: Pipe Hit
+    clip: {fileID: 8300000, guid: a63627fe17049ad46a8cde14d5c41222, type: 3}
+    tags: 0
+    volume: 0
+    spread: 0
+    minDistance: 0
+    maxDistance: 0
+    distanceRange: {x: 0, y: 0}
+    verticalRange: {x: 0, y: 0}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Creak
+    clip: {fileID: 8300000, guid: 5383c2728681241419a93f4444086ea2, type: 3}
+    tags: 0
+    volume: 0
+    spread: 0
+    minDistance: 0
+    maxDistance: 0
+    distanceRange: {x: 0, y: 0}
+    verticalRange: {x: 0, y: 0}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  rareEvents:
+  - label: Distant Boom
+    clip: {fileID: 8300000, guid: 85ad050ce18eb7840aac5119900d7271, type: 3}
+    tags: 0
+    volume: 0
+    spread: 0
+    minDistance: 0
+    maxDistance: 0
+    distanceRange: {x: 0, y: 0}
+    verticalRange: {x: 0, y: 0}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
