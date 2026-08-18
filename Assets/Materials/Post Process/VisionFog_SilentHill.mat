@@ -37,7 +37,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _EnableVisionFog: 1
+    - _EnableVisionFog: 0
     - _FogNoiseIntensity: 0.4
     - _FogNoiseScale: 0.05
     - _FogScrollSpeed: 0.1
