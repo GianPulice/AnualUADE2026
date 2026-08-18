@@ -1,8 +1,14 @@
+using System.Collections;
 using UnityEngine;
 
 public class SocketInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_SocketData socketData;
+
+    [Header("Inserted Visual")]
+    [Tooltip("Optional GameObject shown once the item is inserted (leave empty on variants " +
+             "that do not have a 3D model yet). Should start inactive in the prefab.")]
+    [SerializeField] private GameObject insertedVisual;
 
     public bool IsInserted =>
         socketData != null && PuzzleStateManager.Exists &&
@@ -53,6 +59,9 @@ public class SocketInteractable : BaseRangeInteractable
 
         PuzzleStateManager.Instance.SetSocketInserted(socketData.SocketId);
 
+        if (insertedVisual != null)
+            insertedVisual.SetActive(true);
+
         NotifyLinkedPuzzle();
 
         Debug.Log($"Socket inserted: {socketData.SocketId}");
@@ -91,5 +100,20 @@ public class SocketInteractable : BaseRangeInteractable
     public override bool IsRepeatable()
     {
         return false;
+    }
+
+
+protected override void Awake()
+    {
+        base.Awake();
+        if (insertedVisual != null)
+            StartCoroutine(SyncInsertedVisual());
+    }
+
+    private IEnumerator SyncInsertedVisual()
+    {
+        yield return new WaitForSeconds(3);
+        if (insertedVisual != null)
+            insertedVisual.SetActive(IsInserted);
     }
 }
