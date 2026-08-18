@@ -62,6 +62,7 @@ public class NemesisController : MonoBehaviour
     // Reused across calls so AllUnlockedWaypoints does not allocate a new list every time the
     // Nemesis gets stuck or needs to reposition after a capture.
     private readonly List<Transform> flatWaypointsBuffer = new List<Transform>();
+    private readonly List<Transform> spawnPointsBuffer = new List<Transform>();
 
     /// <summary>The waypoint the Nemesis should currently be walking towards, or null if no
     /// route is active (nothing unlocked yet, or no routes configured at all).</summary>
@@ -91,6 +92,25 @@ public class NemesisController : MonoBehaviour
                 flatWaypointsBuffer.AddRange(route.Waypoints);
             }
             return flatWaypointsBuffer;
+        }
+    }
+
+    /// <summary>
+    /// Every configured spawn point, nulls filtered out (an inspector list almost always carries
+    /// a couple of empty slots). Used by the post-capture reposition, which wants any of them at
+    /// random — <see cref="ChooseSpawnPoint"/> picks the farthest hidden one instead, which is
+    /// right for the Nemesis's first arrival and wrong for every capture after it.
+    /// </summary>
+    public IReadOnlyList<Transform> SpawnPoints
+    {
+        get
+        {
+            spawnPointsBuffer.Clear();
+            for (int i = 0; i < spawnPoints.Count; i++)
+            {
+                if (spawnPoints[i] != null) spawnPointsBuffer.Add(spawnPoints[i]);
+            }
+            return spawnPointsBuffer;
         }
     }
 
@@ -301,7 +321,7 @@ public class NemesisController : MonoBehaviour
 
         // Warp and not transform.position: a NavMeshAgent keeps its own internal position and
         // would drag the Nemesis straight back on the next agent update (same reasoning as
-        // NemesisStateManager's RepositionAtRandomWayPoint/TeleportToStuckEscapeWayPoint).
+        // NemesisStateManager's RepositionAfterCapture/TeleportToStuckEscapeWayPoint).
         if (agent != null && agent.isActiveAndEnabled) agent.Warp(point.position);
         else transform.position = point.position;
     }

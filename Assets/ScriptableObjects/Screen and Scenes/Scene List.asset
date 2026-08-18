@@ -61,16 +61,6 @@ MonoBehaviour:
     - LevelUI
   - label: TestBlocking
     sceneAssets:
-    - {fileID: 102900000, guid: a0f71041ec58c8241bff773ecb9790d1, type: 3}
-    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
-    scenePaths:
-    - Assets/Scenes/TestScenes/TestLevel.unity
-    - Assets/Scenes/UI/LevelUI.unity
-    sceneNames:
-    - TestLevel
-    - LevelUI
-  - label: Blocking2
-    sceneAssets:
     - {fileID: 102900000, guid: 8cccb62fce69da94ca2cec142fd180ad, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:

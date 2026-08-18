@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d83b3fd4f3b51649a7fb918f784b770, type: 3}
+  m_Name: SO_AmbienceProfileMachine
+  m_EditorClassIdentifier: Assembly-CSharp::SO_AmbienceProfile
+  displayName: Amb_Machine
+  gizmoColor: {r: 0.3209643, g: 0.9019608, b: 0.29803923, a: 1}
+  bedTracks:
+  - {fileID: 8300000, guid: b939487d057760a4184d55506dcf54c5, type: 3}
+  - {fileID: 8300000, guid: b0b842c1a52fc7e46b974c366ac2f189, type: 3}
+  bedVolume: 0.4
+  bedTrackBalance: 0.7
+  transitionDuration: 2.5
+  textureScale: 1
+  subScale: 1
+  eventBank: {fileID: 11400000, guid: b21e5af83ac84d2469d71d52c0bb3684, type: 2}
+  commonWeight: 0.6
+  uncommonWeight: 0.3
+  rareWeight: 0.1
+  eventIntervalScale: 1

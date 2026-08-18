@@ -31,6 +31,7 @@ public class SettingsModel : BaseScreenModel
     private const string KEY_FPS_LIMIT    = "Settings_FPSLimit";
     private const string KEY_VSYNC        = "Settings_VSync";
     private const string KEY_AUDIO_BG     = "Settings_AudioInBackground";
+    private const string KEY_LOWFREQ      = "Settings_LowFreqAmbience";
 
     // ── Defaults ─────────────────────────────────────────────────────────────
     private const float  DEFAULT_SENSITIVITY = 1f;
@@ -45,6 +46,12 @@ public class SettingsModel : BaseScreenModel
     private const int    DEFAULT_FPS_LIMIT   = 0;
     private const bool   DEFAULT_VSYNC       = true;
     private const bool   DEFAULT_AUDIO_BG    = false;
+
+    // Ships ON: the low-frequency ambient layers are part of the intended experience, and a player
+    // who needs them off opts out. Sustained very-low-frequency content is a documented nausea and
+    // migraine trigger for a subset of players, and because the layers are inaudible by design they
+    // are exactly what someone cannot identify and disable for themselves.
+    private const bool   DEFAULT_LOWFREQ     = true;
 
     // ── State connected to the AudioManager ──────────────────────────────────
     public float MasterVolume { get; private set; }
@@ -64,10 +71,11 @@ public class SettingsModel : BaseScreenModel
     public int   FPSLimit         { get; private set; }
     public bool  VSync            { get; private set; }
     public bool  AudioInBackground { get; private set; }
+    public bool  LowFreqAmbience  { get; private set; }
 
     // ── Snapshot for revert ──────────────────────────────────────────────────
     private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity;
-    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg;
+    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg, _snapLowFreq;
     private float _snapBrightness, _snapContrast, _snapGamma;
     private int   _snapResolution, _snapWindowMode, _snapFPSLimit;
 
@@ -93,6 +101,7 @@ public class SettingsModel : BaseScreenModel
         FPSLimit          = PlayerPrefs.GetInt(KEY_FPS_LIMIT,     DEFAULT_FPS_LIMIT);
         VSync             = GetPrefBool(KEY_VSYNC,                DEFAULT_VSYNC);
         AudioInBackground = GetPrefBool(KEY_AUDIO_BG,             DEFAULT_AUDIO_BG);
+        LowFreqAmbience   = GetPrefBool(KEY_LOWFREQ,              DEFAULT_LOWFREQ);
 
         IsInitialized = true;
         TakeSnapshot();
@@ -146,6 +155,7 @@ public class SettingsModel : BaseScreenModel
     public void SetFPSLimit(int v)          { FPSLimit = v;                   NotifyDataChanged(); }
     public void SetVSync(bool v)            { VSync = v;                      NotifyDataChanged(); }
     public void SetAudioInBackground(bool v){ AudioInBackground = v;          NotifyDataChanged(); }
+    public void SetLowFreqAmbience(bool v)  { LowFreqAmbience = v;            NotifyDataChanged(); }
 
     // ── Persistence ──────────────────────────────────────────────────────────
 
@@ -167,6 +177,7 @@ public class SettingsModel : BaseScreenModel
         PlayerPrefs.SetInt(KEY_FPS_LIMIT,    FPSLimit);
         SetPrefBool(KEY_VSYNC,               VSync);
         SetPrefBool(KEY_AUDIO_BG,            AudioInBackground);
+        SetPrefBool(KEY_LOWFREQ,             LowFreqAmbience);
 
         PlayerPrefs.Save();
 
@@ -197,6 +208,7 @@ public class SettingsModel : BaseScreenModel
         FPSLimit          = DEFAULT_FPS_LIMIT;
         VSync             = DEFAULT_VSYNC;
         AudioInBackground = DEFAULT_AUDIO_BG;
+        LowFreqAmbience   = DEFAULT_LOWFREQ;
 
         PushVolumesToAudioManager();
         NotifyDataChanged();
@@ -220,6 +232,7 @@ public class SettingsModel : BaseScreenModel
         FPSLimit          = _snapFPSLimit;
         VSync             = _snapVSync;
         AudioInBackground = _snapAudioBg;
+        LowFreqAmbience   = _snapLowFreq;
 
         // The mixer was changing live while the user moved the sliders;
         // on revert we have to push the snapshot values back to the mixer.
@@ -244,6 +257,7 @@ public class SettingsModel : BaseScreenModel
         _snapFPSLimit    = FPSLimit;
         _snapVSync       = VSync;
         _snapAudioBg     = AudioInBackground;
+        _snapLowFreq     = LowFreqAmbience;
     }
 
     private void PushVolumesToAudioManager()

@@ -178,6 +178,14 @@ public class FieldOfView : MonoBehaviour
     public PlayerStateManager GetCurrentTarget()
     {
         if (lastKnownTarget == null) return null;
-        return lastKnownTarget.GetComponent<PlayerStateManager>();
+
+        // InParent and not GetComponent: lastKnownTarget is whichever collider FindVisibleTargets
+        // happened to land on, and the entire player hierarchy sits on the Player layer — the rig
+        // mesh and the AudioEmitingRange trigger match targetMask exactly as much as the root
+        // capsule does. Reading the component off the collider's own GameObject returned null
+        // whenever the sweep picked one of those, which dropped Catch into its "nobody to
+        // capture" fallback at random. CheckExtremeProximity never hit this because it stores the
+        // player root directly, which is why it only failed some of the time.
+        return lastKnownTarget.GetComponentInParent<PlayerStateManager>();
     }
 }
