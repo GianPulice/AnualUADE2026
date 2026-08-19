@@ -16,7 +16,6 @@ Material:
   - _CLAMPWARPEDGES_ON
   - _ENABLECHROMATICABERRATION_ON
   - _ENABLEDITHER_ON
-  - _ENABLEEFFECT_ON
   - _ENABLESCANLINES_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0

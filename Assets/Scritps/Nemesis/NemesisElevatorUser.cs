@@ -1,4 +1,5 @@
-using System.Collections;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -11,6 +12,14 @@ using UnityEngine.AI;
 /// not just elevators. Plain ones (jumps and drops, including those the NavMeshSurface generates
 /// itself with Generate Links) are resolved with a simple interpolation — which also looks better
 /// than the instant hop of the automatic mode.
+///
+/// Written on UniTask rather than coroutines, per the project's async convention, and here that is
+/// also the only safe option. A coroutine dies the moment its MonoBehaviour is disabled and Unity
+/// does not dispose the iterator, so the cleanup in the finally blocks below would simply never
+/// run — and this traversal switches the NavMeshAgent OFF while it rides. A capture, a scene
+/// transition or a dormant toggle landing mid-ride would leave the agent disabled permanently and
+/// the Nemesis dead for the rest of the run. UniTask runs on the PlayerLoop, so the continuation
+/// still arrives and the agent always comes back.
 ///
 /// SETUP: goes on the Nemesis root, next to the NemesisStateManager. It needs no references: it
 /// finds the elevator through the link the agent stepped onto.
@@ -75,11 +84,12 @@ public class NemesisElevatorUser : MonoBehaviour
             ? owner.GetComponent<NemesisElevatorLink>()
             : null;
 
+        CancellationToken token = this.GetCancellationTokenOnDestroy();
+
         // IsUsable and not just != null: a misconfigured elevator is crossed like a plain link
         // instead of blowing up on a null reference.
-        StartCoroutine(elevator != null && elevator.IsUsable
-            ? TraverseElevator(elevator, data)
-            : TraverseSimpleLink(data));
+        if (elevator != null && elevator.IsUsable) TraverseElevatorAsync(elevator, token).Forget();
+        else                                       TraverseSimpleLinkAsync(data, token).Forget();
     }
 
     // ── Plain links ─────────────────────────────────────────────────────────
@@ -88,7 +98,7 @@ public class NemesisElevatorUser : MonoBehaviour
     /// Crossing a plain link: interpolate end to end at constant speed and report completion.
     /// This replaces the automatic traversal switched off in Awake.
     /// </summary>
-    private IEnumerator TraverseSimpleLink(OffMeshLinkData data)
+    private async UniTaskVoid TraverseSimpleLinkAsync(OffMeshLinkData data, CancellationToken token)
     {
         isTraversing = true;
         stateManager.PushStuckSuppression();
@@ -98,13 +108,13 @@ public class NemesisElevatorUser : MonoBehaviour
             Vector3 start = transform.position;
             Vector3 end = data.endPos + Vector3.up * agent.baseOffset;
 
-            yield return MoveTransformTo(start, end, linkTraversalSpeed);
+            await MoveTransformToAsync(start, end, linkTraversalSpeed, token);
 
             if (agent.isActiveAndEnabled && agent.isOnOffMeshLink) agent.CompleteOffMeshLink();
         }
         finally
         {
-            stateManager.PopStuckSuppression();
+            if (stateManager != null) stateManager.PopStuckSuppression();
             isTraversing = false;
         }
     }
@@ -118,8 +128,11 @@ public class NemesisElevatorUser : MonoBehaviour
     /// not travel with the platform, so mid-ride the Nemesis is off the mesh, and a live
     /// NavMeshAgent in that situation drags it back down to the lower floor on the next update. On
     /// arrival it is re-enabled with a Warp onto the upper landing, which is baked.
+    ///
+    /// That switch-off is exactly why the finally block has to be guaranteed to run, and why this
+    /// is a UniTask and not a coroutine — see the class doc.
     /// </summary>
-    private IEnumerator TraverseElevator(NemesisElevatorLink elevator, OffMeshLinkData data)
+    private async UniTaskVoid TraverseElevatorAsync(NemesisElevatorLink elevator, CancellationToken token)
     {
         isTraversing = true;
         stateManager.PushStuckSuppression();
@@ -142,84 +155,84 @@ public class NemesisElevatorUser : MonoBehaviour
             //    that is the same as saying which side it is parked on right now.
             if (platform.GoingUp != wantsToGoUp)
             {
-                yield return CallPlatform(platform);
+                await CallPlatformAsync(platform, token);
 
-                if (platform.GoingUp != wantsToGoUp) yield break;   // Timed out: abandon the link.
+                if (platform.GoingUp != wantsToGoUp) return;   // Timed out: abandon the link.
             }
 
             // 2. Wait for it to be free (the player may be using it right now).
-            yield return WaitUntilIdle(platform);
-            if (!platform.IsIdle) yield break;
+            await WaitUntilIdleAsync(platform, token);
+            if (!platform.IsIdle) return;
 
             // 3. Board. The agent goes off first: with it alive, moving the Transform by hand does
             //    nothing because the agent snaps it back to its own internal position.
             agent.enabled = false;
             agentDisabled = true;
 
-            yield return MoveTransformTo(transform.position, elevator.RidePosition, boardingSpeed);
+            await MoveTransformToAsync(transform.position, elevator.RidePosition, boardingSpeed, token);
 
             // 4. Ride. The platform moves loose passengers in its own FixedUpdate.
             platform.AddPassenger(transform);
             platform.RequestRide();
 
-            yield return WaitUntilArrived(platform);
+            await WaitUntilArrivedAsync(platform, token);
 
             platform.RemovePassenger(transform);
             platform.ReleaseAfterRide();
 
             // 5. Step off onto the opposite landing, which is on the NavMesh.
-            yield return MoveTransformTo(transform.position, exit.position, boardingSpeed);
+            await MoveTransformToAsync(transform.position, exit.position, boardingSpeed, token);
         }
         finally
         {
-            platform.RemovePassenger(transform);
+            if (platform != null) platform.RemovePassenger(transform);
 
-            if (agentDisabled)
+            if (agentDisabled && agent != null)
             {
                 agent.enabled = true;
 
                 // Warp and not transform.position: the agent keeps its own internal position and
                 // would drag it straight back to where it boarded.
-                if (!agent.Warp(exit.position)) agent.Warp(transform.position);
+                if (exit != null && !agent.Warp(exit.position)) agent.Warp(transform.position);
 
                 if (hadPath && agent.isOnNavMesh) agent.SetDestination(savedDestination);
             }
 
-            stateManager.PopStuckSuppression();
+            if (stateManager != null) stateManager.PopStuckSuppression();
             isTraversing = false;
         }
     }
 
     /// <summary>Requests an empty trip to bring the platform to this floor, and releases it on
     /// arrival so the next trip leaves in the right direction.</summary>
-    private IEnumerator CallPlatform(MovingPlatform platform)
+    private async UniTask CallPlatformAsync(MovingPlatform platform, CancellationToken token)
     {
-        yield return WaitUntilIdle(platform);
-        if (!platform.IsIdle) yield break;
+        await WaitUntilIdleAsync(platform, token);
+        if (!platform.IsIdle) return;
 
         platform.RequestRide();
 
-        yield return WaitUntilArrived(platform);
+        await WaitUntilArrivedAsync(platform, token);
         platform.ReleaseAfterRide();
     }
 
-    private IEnumerator WaitUntilIdle(MovingPlatform platform)
+    private async UniTask WaitUntilIdleAsync(MovingPlatform platform, CancellationToken token)
     {
         float waited = 0f;
         while (!platform.IsIdle && waited < platformWaitTimeout)
         {
             waited += Time.deltaTime;
-            yield return null;
+            await UniTask.Yield(token);
         }
     }
 
-    private IEnumerator WaitUntilArrived(MovingPlatform platform)
+    private async UniTask WaitUntilArrivedAsync(MovingPlatform platform, CancellationToken token)
     {
         float waited = 0f;
         while (!platform.HasArrived && waited < platformWaitTimeout)
         {
             waited += Time.deltaTime;
-            yield return null;
+            await UniTask.Yield(token);
         }
     }
 
@@ -227,10 +240,10 @@ public class NemesisElevatorUser : MonoBehaviour
     /// Interpolates the Transform at constant speed. Used only for the short steps on and off the
     /// platform — the ride itself is driven by the platform, which moves its passengers directly.
     /// </summary>
-    private IEnumerator MoveTransformTo(Vector3 from, Vector3 to, float speed)
+    private async UniTask MoveTransformToAsync(Vector3 from, Vector3 to, float speed, CancellationToken token)
     {
         float distance = Vector3.Distance(from, to);
-        if (distance < 0.01f) yield break;
+        if (distance < 0.01f) return;
 
         float duration = distance / Mathf.Max(0.1f, speed);
         float elapsed = 0f;
@@ -239,7 +252,7 @@ public class NemesisElevatorUser : MonoBehaviour
         {
             elapsed += Time.deltaTime;
             transform.position = Vector3.Lerp(from, to, Mathf.Clamp01(elapsed / duration));
-            yield return null;
+            await UniTask.Yield(token);
         }
 
         transform.position = to;
