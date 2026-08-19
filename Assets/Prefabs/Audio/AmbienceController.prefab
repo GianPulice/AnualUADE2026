@@ -116,7 +116,7 @@ MonoBehaviour:
   placementFailureWarnThreshold: 5
   debugLogEvents: 1
   logDerivedStatistics: 1
-  debugRapidFire: 1
+  debugRapidFire: 0
 --- !u!114 &2158103419449396063
 MonoBehaviour:
   m_ObjectHideFlags: 0

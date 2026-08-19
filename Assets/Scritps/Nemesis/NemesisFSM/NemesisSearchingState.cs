@@ -52,6 +52,10 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
     public override void UpdateState()
     {
+        // Agent switched off (freight elevator ride): nothing to ask of it this frame. See
+        // NemesisStateManager.IsAgentReady.
+        if (!nemesisStateManager.IsAgentReady) return;
+
         if (nemesisStateManager.HasVisualTarget)
         {
             NextState = NemesisStateManager.ENemesisState.Chasing;

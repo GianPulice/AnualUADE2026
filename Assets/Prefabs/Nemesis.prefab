@@ -925,6 +925,8 @@ GameObject:
   - component: {fileID: 7262208103517849607}
   - component: {fileID: 5684726728193510827}
   - component: {fileID: 6741178838092600376}
+  - component: {fileID: 8379274647524242327}
+  - component: {fileID: 4677969932427935509}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -970,6 +972,7 @@ MonoBehaviour:
   animController: {fileID: 5201496269893057442}
   captureGracePeriod: 8
   repositionMinPlayerDistance: 15
+  catchCooldown: 2
   stuckCheckInterval: 3
   stuckMinDistance: 0.5
 --- !u!114 &6366883338896328337
@@ -990,7 +993,7 @@ MonoBehaviour:
     m_Bits: 256
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 2049
+    m_Bits: 2057
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!114 &7262208103517849607
 MonoBehaviour:
@@ -1012,7 +1015,7 @@ MonoBehaviour:
     m_Bits: 128
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 2057
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!195 &5684726728193510827
 NavMeshAgent:
@@ -1057,6 +1060,41 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   stateManager: {fileID: 5253595690117749195}
+--- !u!114 &8379274647524242327
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f65ec4219866d4d44b707d2b319aade3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisDoorUser
+  detectionDistance: 3
+  detectionRadius: 0.6
+  probeHeight: 1
+  doorMask:
+    serializedVersion: 2
+    m_Bits: 65
+  checkInterval: 0.2
+  crossingSafetyMargin: 0.15
+--- !u!114 &4677969932427935509
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1827478ed736b4f47aee891323657300, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisElevatorUser
+  linkTraversalSpeed: 2.5
+  boardingSpeed: 1.5
+  platformWaitTimeout: 20
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0

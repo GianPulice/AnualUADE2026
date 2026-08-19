@@ -51,6 +51,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     private Vector3 lastStuckSamplePosition;
     private float stuckSampleTimer;
 
+    // A counter and not a bool: the door and the freight elevator can both request suppression at
+    // the same time, and with a bool the first one to release it would re-arm the detection while
+    // the other is still busy.
+    private int stuckSuppressionCount;
+
+    private float proximityRecalcTimer;
+    private float proximityTarget;
+    private float proximityEmitted;
+
     private ENemesisState? lastReportedState;
 
     public float CaptureGracePeriod { get => captureGracePeriod; }
@@ -64,6 +73,30 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// has not entered any state yet in that window.</summary>
     public bool IsActive { get => isActive; }
 
+    /// <summary>
+    /// True while something is moving the Nemesis outside the NavMeshAgent: opening a door, or
+    /// riding the freight elevator. Stuck detection does not run in that window.
+    ///
+    /// Without this, an elevator ride longer than stuckCheckInterval reads as "made no progress in
+    /// 3 seconds while pathing" and the escape warps it out of the lift, mid-ascent.
+    /// </summary>
+    public bool IsStuckDetectionSuppressed => stuckSuppressionCount > 0;
+
+    /// <summary>Opens a window with no stuck detection. Every <see cref="PushStuckSuppression"/>
+    /// must have its <see cref="PopStuckSuppression"/>, even if the traversal is cancelled — use
+    /// try/finally in the coroutines.</summary>
+    public void PushStuckSuppression() => stuckSuppressionCount++;
+
+    public void PopStuckSuppression()
+    {
+        stuckSuppressionCount = Mathf.Max(0, stuckSuppressionCount - 1);
+
+        // Otherwise the first check after the traversal would measure progress from where it stood
+        // before boarding, and read it as ground it never actually covered on foot.
+        lastStuckSamplePosition = transform.position;
+        stuckSampleTimer = 0f;
+    }
+
     public Transform SelfTransform { get => selfTransform; set => selfTransform = value; }
     public FieldOfView FieldOfView { get => fieldOfView; }
     public FieldOfListening FieldOfListening {get => fieldOfListening; }
@@ -74,6 +107,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public Animator AnimController { get => animController; set => animController = value; }
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
+
+    /// <summary>
+    /// Whether the agent can be asked for anything without Unity logging an error.
+    ///
+    /// isActiveAndEnabled goes first and short-circuits the and: querying isOnNavMesh on a
+    /// disabled agent logs on its own. And disabled is a normal state here, not an anomaly —
+    /// NemesisElevatorUser switches it off for the whole freight elevator ride, because the
+    /// NavMesh does not travel with the platform.
+    /// </summary>
+    public bool IsAgentReady => navAgent != null && navAgent.isActiveAndEnabled && navAgent.isOnNavMesh;
 
     public enum ENemesisState
     {
@@ -382,24 +425,70 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// Uses the player's real position rather than FieldOfView.LastKnownPosition because
     /// proximity has to rise even if the Nemesis has never seen you — that is exactly the
     /// warning that it is close by without you knowing.
+    ///
+    /// The distance is measured over the NavMesh and not in a straight line. This was the "the
+    /// threat UI shows up when it is on another floor" bug: the Nemesis standing on floor 0 right
+    /// below the player is 4 metres away as the crow flies — vignette near maximum — and half a
+    /// storey away on foot. Path distance gives the real 40 metres and the vignette stays dark,
+    /// which is the honest reading.
     /// </summary>
     private void EmitProximity()
     {
-        if (playerTransform == null)
-        {
-            NemesisEvents.ProximityChanged(0f);
-            return;
-        }
-
         float radius = nemesisData != null ? nemesisData.ProximityRadius : 0f;
-        if (radius <= 0f)
+
+        if (playerTransform == null || radius <= 0f)
         {
+            proximityTarget = 0f;
+            proximityEmitted = 0f;
             NemesisEvents.ProximityChanged(0f);
             return;
         }
 
-        float distance = Vector3.Distance(transform.position, playerTransform.position);
-        NemesisEvents.ProximityChanged(1f - Mathf.Clamp01(distance / radius));
+        // Straight-line prefilter, which is free: no path can be shorter than the straight line,
+        // so outside the radius in a straight line it is already 0 with nothing computed. This is
+        // what avoids paying for a CalculatePath during the 95% of the run when it is far away.
+        float straightLine = Vector3.Distance(transform.position, playerTransform.position);
+        if (straightLine >= radius)
+        {
+            proximityRecalcTimer = 0f;
+            proximityTarget = 0f;
+        }
+        else if (nemesisData == null || !nemesisData.ProximityUsesPathDistance)
+        {
+            proximityTarget = 1f - Mathf.Clamp01(straightLine / radius);
+        }
+        else
+        {
+            RecalculatePathProximity(radius);
+        }
+
+        // Interpolated rather than written straight through: the measurement runs at ~5Hz and the
+        // vignette reads the value every frame, so without this it looks stepped when moving fast.
+        float interval = nemesisData != null ? Mathf.Max(0.05f, nemesisData.ProximityRecalcInterval) : 0.2f;
+        proximityEmitted = Mathf.MoveTowards(proximityEmitted, proximityTarget, Time.deltaTime / interval);
+
+        NemesisEvents.ProximityChanged(proximityEmitted);
+    }
+
+    /// <summary>
+    /// Refreshes <see cref="proximityTarget"/> with path distance, at most once every
+    /// ProximityRecalcInterval.
+    ///
+    /// With no complete path the result is 0, not "very far": if the player is on a NavMesh island
+    /// the Nemesis cannot reach, there is no threat to announce however much the straight line
+    /// insists they are two metres apart.
+    /// </summary>
+    private void RecalculatePathProximity(float radius)
+    {
+        proximityRecalcTimer -= Time.deltaTime;
+        if (proximityRecalcTimer > 0f) return;
+
+        proximityRecalcTimer = Mathf.Max(0.05f, nemesisData.ProximityRecalcInterval);
+
+        proximityTarget = NemesisNav.TryGetPathDistance(transform.position, playerTransform.position,
+                                                        out float pathDistance)
+            ? 1f - Mathf.Clamp01(pathDistance / radius)
+            : 0f;
     }
 
     /// <summary>
@@ -565,7 +654,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Only counts while it is actually trying to get somewhere. Waiting out
         // PatrolWaypointWaitTime at a waypoint is not being stuck, and testing the agent's path
         // covers that without having to special-case each state's idle timings.
-        if (!IsNavigatingState() || !IsTryingToMove())
+        //
+        // IsStuckDetectionSuppressed covers what the agent does not drive: opening a door and
+        // riding the freight elevator. In both the Nemesis makes little or no progress on purpose.
+        if (IsStuckDetectionSuppressed || !IsNavigatingState() || !IsTryingToMove())
         {
             stuckSampleTimer = 0f;
             lastStuckSamplePosition = transform.position;

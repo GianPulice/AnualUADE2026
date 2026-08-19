@@ -48,7 +48,7 @@ Material:
     - _DitherStrength: 0.05
     - _EnableChromaticAberration: 1
     - _EnableDither: 1
-    - _EnableEffect: 1
+    - _EnableEffect: 0
     - _EnableScanlines: 1
     - _JitterResolution: 100
     - _PixelSize: 256
