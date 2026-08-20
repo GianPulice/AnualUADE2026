@@ -14,8 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_Movement
   moveSpeed: 3.5
   acceleration: 8
-  rotationSpeed: 8
-  crouchSpeedMultiplier: 0.6
-  runNoiseRadius: 5
+  rotationSpeed: 10
+  crouchSpeedMultiplier: 0.45
+  runNoiseRadius: 6
   footstepNoiseRadius: 2
   crouchNoiseRadius: 1
+  captureModuleTimePenalty: 30
