@@ -1083,7 +1083,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3579805436572119801, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -1431,7 +1432,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_5
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -3304,7 +3306,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5328374688160515812, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -3371,7 +3374,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5328374688160515812, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -3884,7 +3888,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8300277297418484861, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -6842,8 +6847,82 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1731528770518690507, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 271532168}
+    - targetCorrespondingSourceObject: {fileID: 8043514734470806978, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 271532167}
   m_SourcePrefab: {fileID: 100100000, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+--- !u!1 &271532165 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8043514734470806978, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+  m_PrefabInstance: {fileID: 271532164}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &271532166 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1731528770518690507, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+  m_PrefabInstance: {fileID: 271532164}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &271532167
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 271532165}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
+--- !u!114 &271532168
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 271532166}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &271873528
 GameObject:
   m_ObjectHideFlags: 0
@@ -8853,7 +8932,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Columna_O
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3201463036242200568, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -10421,7 +10501,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Box_wide_wood_43
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2900915916412780148, guid: 556cf99eedd07df4d90c29ebbd5183c6, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -10745,7 +10826,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Liquid_reservoir_1_44
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 1409011335605842484, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -11224,7 +11306,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Barrel_3_39
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8662555349741370997, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -12586,7 +12669,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_2
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -13355,7 +13439,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_E_0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -14720,7 +14805,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_E_2
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -15130,7 +15216,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cargo_1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3150705815158325358, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -15192,7 +15279,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Barrel_1_35
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: -8661745192343719048, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -17626,7 +17714,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_3
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -18347,7 +18436,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -18466,7 +18556,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Edificio_E
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2345190876790801778, guid: a710767e3ce12f74282449d8aadf9574, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -19064,7 +19155,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5328374688160515812, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -19577,7 +19669,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5328374688160515812, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -19639,7 +19732,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_E_1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -20573,7 +20667,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3819719249739866442, guid: 44fe047f7b349774baa936d57114301d, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -20644,7 +20739,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3819719249739866442, guid: 44fe047f7b349774baa936d57114301d, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -22328,7 +22424,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -22822,7 +22919,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cargo_2
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3150705815158325358, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -24026,7 +24124,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Edificio_O
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4651062205444871883, guid: 903252c6191361e4bbaec425e2f12da7, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -25185,7 +25284,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_O_0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -25558,7 +25658,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3619225048483489848, guid: 911197cf8e80206469536e2584898988, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -27207,7 +27308,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Columna_E
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3201463036242200568, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -29185,7 +29287,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_O_2
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -29836,7 +29939,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Concrete_miniwall_long_47
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5413879699162665617, guid: b67c124c930f8ad4980cd6b0338d4602, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -30584,7 +30688,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4373116037470846201, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -31681,7 +31786,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cargo_1b
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 1735451160877894954, guid: fa2e3c477995c194f900cd13cb592f93, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -32548,7 +32654,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Palet_single_34
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2132332649157951698, guid: 672533171ed9e794fb8b7173435287e5, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -33065,7 +33172,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Box_wide_wood_42
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2900915916412780148, guid: 556cf99eedd07df4d90c29ebbd5183c6, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -34431,7 +34539,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Barrel_2_36
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: -7040183043361070318, guid: 784bf009c782d754abf55dbd96f95da2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -38088,7 +38197,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 891472120503406048, guid: effab61ec8f040240bc574b4eb921403, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -38262,7 +38372,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4373116037470846201, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -39443,7 +39554,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4373116037470846201, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -39921,7 +40033,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Barrel_2_38
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: -7040183043361070318, guid: 784bf009c782d754abf55dbd96f95da2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -40207,7 +40320,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_N_4
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -40336,7 +40450,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4966656912679455941, guid: ea6a7a7ff8cc2b244b2950160d38dc7b, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -41243,7 +41358,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cerco_O_1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 4189890949847391420, guid: aabb36bfcec97124bba4815b363f9de2, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -42895,7 +43011,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 6689924922068251688, guid: 746d8d7bb01299e43bb42cff569e19d7, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -42957,7 +43074,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Cargo_3
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 1735451160877894954, guid: fa2e3c477995c194f900cd13cb592f93, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -43882,7 +44000,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5328374688160515812, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -44180,7 +44299,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Barrel_3_37
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8662555349741370997, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -44565,7 +44685,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3579805436572119801, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -47651,7 +47772,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Pipes_out_2_49
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 6336056517913905945, guid: 2cc8e7ee6222f424796cac76ac015917, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -53426,7 +53548,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Patio_Edificio_Fondo
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8961920724390181432, guid: 083f080e240dd29418d7ac8b5098cb9a, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
