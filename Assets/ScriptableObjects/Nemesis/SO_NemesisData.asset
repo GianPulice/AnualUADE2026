@@ -27,3 +27,15 @@ MonoBehaviour:
   proximityRadius: 12
   routeReverseChance: 0.15
   routeSkipWaypointChance: 0.15
+  routeReplanInterval: 5
+  routePlayerBiasStrength: 10
+  routePlayerBiasFalloff: 200
+  biasUsesLastKnownPosition: 0
+  crossRouteTransferChance: 0.3
+  waypointBiasSampleCount: 8
+  catchMaxReach: 2
+  catchMaxVerticalOffset: 1.5
+  catchRequiresLineOfSight: 1
+  proximityDetectionRespectsWalls: 1
+  proximityUsesPathDistance: 1
+  proximityRecalcInterval: 0.2

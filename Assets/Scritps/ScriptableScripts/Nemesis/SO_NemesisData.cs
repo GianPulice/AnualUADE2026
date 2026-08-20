@@ -63,6 +63,80 @@ public class SO_NemesisData : ScriptableObject
              "one). Rolled independently from routeReverseChance, so both can land together.")]
     [SerializeField, Range(0f, 1f)] private float routeSkipWaypointChance = 0.15f;
 
+    [Header("Patrol routes — player bias")]
+    [Tooltip("How often, in seconds, the Nemesis re-picks its route without having left " +
+             "Patrolling. Without this the roll only runs once, on entering the state, and a long " +
+             "patrol feels dead: the bias was computed three minutes ago.\n\n" +
+             "0 disables periodic replanning (the old behaviour).")]
+    [SerializeField, Min(0f)] private float routeReplanInterval = 25f;
+
+    [Tooltip("How many times more likely a zone becomes when the player is on top of it. " +
+             "1 = no bias, the roll uses only the inspector weight.\n\n" +
+             "It stays a roll: never 'always the nearest zone', just more tickets in the draw. " +
+             "Distance is measured over the NavMesh and not in a straight line, so a zone one " +
+             "floor up counts as far even when it is 4 metres away.")]
+    [SerializeField, Min(1f)] private float routePlayerBiasStrength = 3f;
+
+    [Tooltip("Metres of path beyond which the player bias no longer applies. Smaller = the " +
+             "Nemesis only prioritises when it is genuinely close.")]
+    [SerializeField, Min(1f)] private float routePlayerBiasFalloff = 40f;
+
+    [Tooltip("Bias against the last known position (what the Nemesis saw or heard) instead of the " +
+             "player's real position.\n\n" +
+             "On is the fair option and what Mr. X does: it chases the memory, not the truth. Off " +
+             "makes it omniscient and stops the patrol feeling like a patrol — it starts feeling " +
+             "remote-controlled.")]
+    [SerializeField] private bool biasUsesLastKnownPosition = true;
+
+    [Header("Patrol routes — cross-route transfer")]
+    [Tooltip("Chance, on each waypoint arrival, of jumping to a waypoint on ANOTHER unlocked " +
+             "route instead of following the current route in order.\n\n" +
+             "This is what lets it change floor without waiting for the route roll to hand it the " +
+             "upper one: if another route has a reachable waypoint on level 1, it can borrow it " +
+             "and adopt that route from there. 0 locks it inside its own route, as before.")]
+    [SerializeField, Range(0f, 1f)] private float crossRouteTransferChance = 0.3f;
+
+    [Tooltip("How many candidate waypoints are evaluated with real path distance on each pick. " +
+             "The rest are discarded by a straight-line prefilter, which is free.\n\n" +
+             "Each candidate costs two path queries. 8 is generous for a level this size; raising " +
+             "it is only needed with a great many waypoints packed close together.")]
+    [SerializeField, Range(2, 24)] private int waypointBiasSampleCount = 8;
+
+    [Header("Capture")]
+    [Tooltip("Real horizontal distance at which the Nemesis can grab the player.\n\n" +
+             "Checked in addition to the agent's path because remainingDistance lies when the " +
+             "path is partial: with the player sealed off behind a wall, the agent reaches the " +
+             "closest point it can and remainingDistance drops to zero. Without this check that " +
+             "fires the capture through the wall.")]
+    [SerializeField, Min(0.5f)] private float catchMaxReach = 2f;
+
+    [Tooltip("Maximum height difference allowed for a grab. Prevents capture between floors when " +
+             "the player is directly above or below the Nemesis.")]
+    [SerializeField, Min(0.5f)] private float catchMaxVerticalOffset = 1.5f;
+
+    [Tooltip("Require a clear line of sight (no wall in between) to grab. Uses the " +
+             "FieldOfListening's obstacleMask, the same one that already filters sound.")]
+    [SerializeField] private bool catchRequiresLineOfSight = true;
+
+    [Header("Extreme proximity detection")]
+    [Tooltip("Whether hard proximity detection (proximityDetectionRange) also respects walls.\n\n" +
+             "Off, the Nemesis detects you through a thin wall just by standing on the other side, " +
+             "which is how it ends up grabbing you without ever having seen you. On, it still " +
+             "ignores the vision cone and still defeats Hidden — it only asks that there be no " +
+             "geometry in between.")]
+    [SerializeField] private bool proximityDetectionRespectsWalls = true;
+
+    [Header("Proximity vignette (HUD)")]
+    [Tooltip("Measure HUD proximity over the NavMesh instead of in a straight line.\n\n" +
+             "This is the fix for 'the threat UI shows up when it is on another floor': in a " +
+             "straight line the Nemesis one floor below is 4 metres away and lights the vignette " +
+             "up to maximum, when it is really half a storey of walking away.")]
+    [SerializeField] private bool proximityUsesPathDistance = true;
+
+    [Tooltip("How often that path distance is recomputed. It does not need to be per frame: the " +
+             "vignette interpolates between measurements.")]
+    [SerializeField, Min(0.05f)] private float proximityRecalcInterval = 0.2f;
+
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
@@ -78,4 +152,16 @@ public class SO_NemesisData : ScriptableObject
     public float ProximityRadius { get => proximityRadius; set => proximityRadius = value; }
     public float RouteReverseChance { get => routeReverseChance; set => routeReverseChance = value; }
     public float RouteSkipWaypointChance { get => routeSkipWaypointChance; set => routeSkipWaypointChance = value; }
+    public float RouteReplanInterval { get => routeReplanInterval; set => routeReplanInterval = value; }
+    public float RoutePlayerBiasStrength { get => routePlayerBiasStrength; set => routePlayerBiasStrength = value; }
+    public float RoutePlayerBiasFalloff { get => routePlayerBiasFalloff; set => routePlayerBiasFalloff = value; }
+    public bool BiasUsesLastKnownPosition { get => biasUsesLastKnownPosition; set => biasUsesLastKnownPosition = value; }
+    public float CrossRouteTransferChance { get => crossRouteTransferChance; set => crossRouteTransferChance = value; }
+    public int WaypointBiasSampleCount { get => waypointBiasSampleCount; set => waypointBiasSampleCount = value; }
+    public float CatchMaxReach { get => catchMaxReach; set => catchMaxReach = value; }
+    public float CatchMaxVerticalOffset { get => catchMaxVerticalOffset; set => catchMaxVerticalOffset = value; }
+    public bool CatchRequiresLineOfSight { get => catchRequiresLineOfSight; set => catchRequiresLineOfSight = value; }
+    public bool ProximityDetectionRespectsWalls { get => proximityDetectionRespectsWalls; set => proximityDetectionRespectsWalls = value; }
+    public bool ProximityUsesPathDistance { get => proximityUsesPathDistance; set => proximityUsesPathDistance = value; }
+    public float ProximityRecalcInterval { get => proximityRecalcInterval; set => proximityRecalcInterval = value; }
 }

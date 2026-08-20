@@ -76,6 +76,11 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
             NemesisController controller = nemesisStateManager.NemesisController;
             if (controller == null) return;
 
+            // Periodic replanning. BeginPatrolCycle only ran on ENTERING this state, so on a long
+            // uninterrupted patrol the player bias was computed once, at the start, and the
+            // feature felt dead.
+            controller.TickPatrol(Time.deltaTime);
+
             Transform target = controller.CurrentWaypoint;
 
             if (target == null)

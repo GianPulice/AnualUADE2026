@@ -33,9 +33,21 @@ public class FieldOfView : MonoBehaviour
     private float currentTimer = 0;
     private bool hasVisualTarget = false;
     private Vector3 lastKnownPosition;
+    private bool hasLastKnownPosition;
 
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
+
+    /// <summary>
+    /// Whether <see cref="LastKnownPosition"/> means anything yet. Starts false and never goes
+    /// back to false: it is a memory, not a state.
+    ///
+    /// It is needed because lastKnownPosition starts at Vector3.zero, which is a perfectly valid
+    /// level coordinate. Without this flag, anything reading the last known position before the
+    /// first detection believes the player is at the world origin — which is how the patrol bias
+    /// would end up sending the Nemesis to the same corner every time.
+    /// </summary>
+    public bool HasLastKnownPosition { get => hasLastKnownPosition; }
 
     private void Awake()
     {
@@ -95,9 +107,14 @@ public class FieldOfView : MonoBehaviour
 
     /// <summary>
     /// Hard detection: inside <c>proximityDetectionRange</c> the Nemesis notices the player no
-    /// matter what — no cone, no occlusion raycast, and hiding does not save you. Forcing
-    /// <see cref="HasVisualTarget"/> is enough to route the FSM into Chasing, since every state
-    /// already transitions on that flag.
+    /// matter what — no cone, no hiding. Forcing <see cref="HasVisualTarget"/> is enough to route
+    /// the FSM into Chasing, since every state already transitions on that flag.
+    ///
+    /// With <c>proximityDetectionRespectsWalls</c> on, the only thing it still requires is that
+    /// there be no geometry in between. Without that check the radius punches through the thin
+    /// blockout walls: standing on the other side of a partition is enough to be detected, chased
+    /// and grabbed — which is the reported "it can grab you through walls". The cone and Hidden
+    /// are still defeated, which is what this detection exists for.
     /// </summary>
     /// <returns>true if the player was detected by proximity this frame.</returns>
     private bool CheckExtremeProximity()
@@ -113,10 +130,30 @@ public class FieldOfView : MonoBehaviour
         Vector3 playerPosition = player.transform.position;
         if (Vector3.Distance(viewTransform.position, playerPosition) > range) return false;
 
+        if (nemesisData.ProximityDetectionRespectsWalls && IsOccluded(playerPosition)) return false;
+
         hasVisualTarget = true;
         lastKnownTarget = player.gameObject;
         lastKnownPosition = playerPosition;
+        hasLastKnownPosition = true;
         return true;
+    }
+
+    /// <summary>
+    /// Whether there is <see cref="obstacleMask"/> geometry between the eye and the point.
+    ///
+    /// Tested against the player's centre and not the three points FindVisibleTargets sweeps: here
+    /// the distance is a couple of metres and the question being answered is "is there a wall in
+    /// between", not "is a shoulder peeking out".
+    /// </summary>
+    private bool IsOccluded(Vector3 targetPosition)
+    {
+        Vector3 origin = viewTransform.position;
+        Vector3 toTarget = targetPosition - origin;
+        float distance = toTarget.magnitude;
+        if (distance <= 0.0001f) return false;
+
+        return Physics.Raycast(origin, toTarget / distance, distance, obstacleMask);
     }
 
     public void FindVisibleTargets()
@@ -167,6 +204,7 @@ public class FieldOfView : MonoBehaviour
         {
             hasVisualTarget = true;
             lastKnownPosition = visibleTargets[0].transform.position;
+            hasLastKnownPosition = true;
         }
         else hasVisualTarget = false;
     }

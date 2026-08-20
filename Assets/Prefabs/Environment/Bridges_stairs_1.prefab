@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8642581327495171018}
   - component: {fileID: 3288551685620859619}
   - component: {fileID: 6169223565783246087}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Bridges_stairs_1
   m_TagString: Untagged
   m_Icon: {fileID: 0}

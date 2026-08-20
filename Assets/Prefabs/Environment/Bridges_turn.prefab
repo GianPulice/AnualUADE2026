@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 5591837302973940626}
   - component: {fileID: 3846897631648165497}
   - component: {fileID: 388384939535182623}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Bridges_turn
   m_TagString: Untagged
   m_Icon: {fileID: 0}

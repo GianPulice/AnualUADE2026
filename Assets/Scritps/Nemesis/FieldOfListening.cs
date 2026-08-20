@@ -26,9 +26,15 @@ public class FieldOfListening : MonoBehaviour
     private float currentTimer = 0;
     private bool hasAudioTarget = false;
     private Vector3 lastKnownPosition;
+    private bool hasLastKnownPosition;
 
     public bool HasAudioTarget { get => hasAudioTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
+
+    /// <summary>Whether <see cref="LastKnownPosition"/> means anything yet. Same reason as
+    /// <see cref="FieldOfView.HasLastKnownPosition"/>: Vector3.zero is a valid level coordinate
+    /// and cannot stand in for "I have not heard anything yet".</summary>
+    public bool HasLastKnownPosition { get => hasLastKnownPosition; }
 
     private void Awake()
     {
@@ -95,6 +101,7 @@ public class FieldOfListening : MonoBehaviour
         {
             hasAudioTarget = true;
             lastKnownPosition = listenedTargets[0].transform.position;
+            hasLastKnownPosition = true;
         }
         else hasAudioTarget = false;
     }

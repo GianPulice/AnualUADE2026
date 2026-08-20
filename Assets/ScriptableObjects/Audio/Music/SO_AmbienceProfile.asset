@@ -26,4 +26,4 @@ MonoBehaviour:
   commonWeight: 0.6
   uncommonWeight: 0.3
   rareWeight: 0.1
-  eventIntervalScale: 1
+  eventIntervalScale: 1.43

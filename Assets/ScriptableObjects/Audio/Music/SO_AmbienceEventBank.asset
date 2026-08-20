@@ -13,8 +13,20 @@ MonoBehaviour:
   m_Name: SO_AmbienceEventBank
   m_EditorClassIdentifier: Assembly-CSharp::SO_AmbienceEventBank
   commonEvents:
-  - label: Drip
-    clip: {fileID: 8300000, guid: 6759e140bbb4ec34687143ac9730ffd5, type: 3}
+  - label: Fluorescent
+    clip: {fileID: 8300000, guid: 983597189ff3d8048861d43aa94d0ad8, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 44
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Low Metallic
+    clip: {fileID: 8300000, guid: 37f81b9e7958f2a43b7bd99cfe3ff6e8, type: 3}
     tags: 0
     volume: 0.8
     spread: 0
@@ -24,9 +36,9 @@ MonoBehaviour:
     verticalRange: {x: -1, y: 3}
     allowOccluderSnap: 0
     requireNavMeshNearby: 0
-    cooldown: 0
-  - label: Debris
-    clip: {fileID: 8300000, guid: 83102fb45199a1f47a4746efe9820943, type: 3}
+    cooldown: 8
+  - label: Metal Sheet
+    clip: {fileID: 8300000, guid: ca18a50d12d5a594ca03497e70031822, type: 3}
     tags: 0
     volume: 0.8
     spread: 0
@@ -36,10 +48,118 @@ MonoBehaviour:
     verticalRange: {x: -1, y: 3}
     allowOccluderSnap: 0
     requireNavMeshNearby: 0
-    cooldown: 0
+    cooldown: 8
+  - label: Cold
+    clip: {fileID: 8300000, guid: 3c11e98839b3a1b41ba33396aa7b2660, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Large Water
+    clip: {fileID: 8300000, guid: 274bf447280193644800e84994ff7887, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Tiny Concrete
+    clip: {fileID: 8300000, guid: 694b83e8134bbe440b0de0e86180d1a0, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Small Pieces Rust 1
+    clip: {fileID: 8300000, guid: 8519dfd0b2024ad46a19d6807bc27920, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Small Pieces Rust 2
+    clip: {fileID: 8300000, guid: bc2ed0e7f4376c44691b8728170a3bdc, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Irregular drops
+    clip: {fileID: 8300000, guid: 3764e3d138ef7d5428689b0940cfc5cd, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Wind Passing 1
+    clip: {fileID: 8300000, guid: 73b03d77aa5497c49802f223ddfe49a0, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Wind Passing 2
+    clip: {fileID: 8300000, guid: 067bdd48272a1d14caabf66c5a3fcdd4, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
+  - label: Wind Passing 3
+    clip: {fileID: 8300000, guid: b07d621e7e410424a8f4ed5ada391c24, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 8
   uncommonEvents:
-  - label: Pipe Hit
-    clip: {fileID: 8300000, guid: a63627fe17049ad46a8cde14d5c41222, type: 3}
+  - label: Old Heavy Metal
+    clip: {fileID: 8300000, guid: 6461da56c44caf54b8d9b888ce64e718, type: 3}
     tags: 0
     volume: 0.8
     spread: 0
@@ -50,8 +170,56 @@ MonoBehaviour:
     allowOccluderSnap: 0
     requireNavMeshNearby: 0
     cooldown: 0
-  - label: Creak
-    clip: {fileID: 8300000, guid: 5383c2728681241419a93f4444086ea2, type: 3}
+  - label: Old Industrial
+    clip: {fileID: 8300000, guid: f81ad0cd87d3325498a011071d313f8c, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Brief electrical
+    clip: {fileID: 8300000, guid: 7232fe202cc41c64888489718028f9c0, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Steel beam
+    clip: {fileID: 8300000, guid: 268e6143ac4c39043ba0137d11ec9b80, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: small fragments
+    clip: {fileID: 8300000, guid: 7fbbf9e25874b40438b6e41ced655674, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Ecoing Clang
+    clip: {fileID: 8300000, guid: 1a850c5d39c398a40939122e397e180e, type: 3}
     tags: 0
     volume: 0.8
     spread: 0
@@ -63,8 +231,32 @@ MonoBehaviour:
     requireNavMeshNearby: 0
     cooldown: 0
   rareEvents:
-  - label: Distant Boom
-    clip: {fileID: 8300000, guid: 85ad050ce18eb7840aac5119900d7271, type: 3}
+  - label: 'Distant loose '
+    clip: {fileID: 8300000, guid: 32ea15d1bb204a94ca4689246a55f6b6, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Short section
+    clip: {fileID: 8300000, guid: 7c06a15b2450ddc4cb80cdbd908c512f, type: 3}
+    tags: 0
+    volume: 0.8
+    spread: 0
+    minDistance: 6
+    maxDistance: 45
+    distanceRange: {x: 8, y: 30}
+    verticalRange: {x: -1, y: 3}
+    allowOccluderSnap: 0
+    requireNavMeshNearby: 0
+    cooldown: 0
+  - label: Single metal
+    clip: {fileID: 8300000, guid: a14f8b38e4468dd429f9d9229dc7695e, type: 3}
     tags: 0
     volume: 0.8
     spread: 0

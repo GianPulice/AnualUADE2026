@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bcae8a0f34cd2fa449a88aeecdaf4d85, type: 3}
+  m_Name: SO_PostProcessToggle
+  m_EditorClassIdentifier: Assembly-CSharp::SO_PostProcessToggle
+  ps1Material: {fileID: 2100000, guid: 0d31ae4c45afb6c48ba3ba314d6f30fe, type: 2}
+  ps1EnableProperty: _EnableEffect
+  visionFogMaterials:
+  - {fileID: 2100000, guid: 29ad6b434da5af649ae51a7e75bb0493, type: 2}
+  - {fileID: 2100000, guid: 8dc2b0696f8807b479d8bc90349d9467, type: 2}
+  visionFogEnableProperty: _EnableVisionFog
+  rendererFeatures:
+  - {fileID: 285766949494637414, guid: f288ae1f4751b564a96ac7587541f7a2, type: 2}
+  - {fileID: -2270395459139402818, guid: f288ae1f4751b564a96ac7587541f7a2, type: 2}
