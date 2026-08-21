@@ -16,8 +16,13 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         //Debug.Log("Enter Crouch State");
         playerStateManager.AnimController.SetBool("isCrouch", true);
         playerStateManager.SpeedMultiplier = playerStateManager.Movement.CrouchSpeedMultiplier;
-        playerStateManager.CapsuleColl.height = 0.9f;
-        playerStateManager.CapsuleColl.center = new Vector3(0, 0.45f, 0);
+        // Height and centre come from SO_Movement so the box that has to fit under the
+        // containers is authored in one place, next to the crouch speed and the crouch noise.
+        // The centre is always half the height: the capsule shrinks from the head down instead
+        // of sinking into the floor.
+        float crouchHeight = playerStateManager.Movement.CrouchHeight;
+        playerStateManager.CapsuleColl.height = crouchHeight;
+        playerStateManager.CapsuleColl.center = new Vector3(0, crouchHeight * 0.5f, 0);
         playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.CrouchNoiseRadius;
         NextState = StateKey;
     }
@@ -27,8 +32,9 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         //Debug.Log("Exit Crouch State");
         playerStateManager.AnimController.SetBool("isCrouch", false);
         playerStateManager.SpeedMultiplier = 1;
-        playerStateManager.CapsuleColl.height = 1.8f;
-        playerStateManager.CapsuleColl.center = new Vector3(0, 0.9f, 0);
+        float standingHeight = playerStateManager.Movement.StandingHeight;
+        playerStateManager.CapsuleColl.height = standingHeight;
+        playerStateManager.CapsuleColl.center = new Vector3(0, standingHeight * 0.5f, 0);
         playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
     }
 

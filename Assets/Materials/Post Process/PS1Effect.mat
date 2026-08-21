@@ -16,7 +16,6 @@ Material:
   - _CLAMPWARPEDGES_ON
   - _ENABLECHROMATICABERRATION_ON
   - _ENABLEDITHER_ON
-  - _ENABLEEFFECT_ON
   - _ENABLESCANLINES_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -48,7 +47,7 @@ Material:
     - _DitherStrength: 0.05
     - _EnableChromaticAberration: 1
     - _EnableDither: 1
-    - _EnableEffect: 0
+    - _EnableEffect: 1
     - _EnableScanlines: 1
     - _JitterResolution: 165
     - _PixelSize: 1028

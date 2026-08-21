@@ -41,15 +41,19 @@ public class SO_VisionFogConfig : ScriptableObject
              "only the usual fade to fogColor. Typical values: 0.005–0.02.")]
     [Range(0f, 0.05f)] public float blurStrength = 0f;
 
-    [Header("Player flashlight (punches through the fog)")]
-    [Tooltip("Radius (metres) where the player's flashlight dissolves the fog. 0 = feature off. " +
-             "Requires a FogLightSource component on the player's flashlight.")]
+    // Not a flashlight: these are the module LEDs stuck to the character's body (head, leg),
+    // so the opening is a sphere around the player rather than a cone he aims.
+    [Header("Player module lights (punch through the fog)")]
+    [Tooltip("Radius (metres) where the player's body lights dissolve the fog. 0 = feature off. " +
+             "Optionally driven by a FogLightSource component on the light itself.")]
     [Range(0f, 30f)] public float playerLightRange = 8f;
 
-    [Tooltip("How strong the 'hole' the flashlight makes in the fog is.")]
+    [Tooltip("How strong the 'hole' the body lights make in the fog is.")]
     [Range(0f, 3f)] public float playerLightIntensity = 1f;
 
-    [Tooltip("Tint the player's flashlight adds to the scene color in the lit area.")]
+    [Tooltip("Multiplies the scene color inside the lit radius. This is not just a tint: a " +
+             "saturated colour also DARKENS (red = luminance down to ~34%), and that is what " +
+             "keeps the environment dark inside the opening. Near-white washes the darkness out.")]
     [ColorUsage(showAlpha: false, hdr: true)]
     public Color playerLightColor = new Color(1f, 0.85f, 0.6f);
 

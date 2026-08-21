@@ -328,7 +328,9 @@ public static class NemesisSetupValidator
         return fixedCount;
     }
 
+    // Sin FindObjectsSortMode: el overload que lo recibe quedó obsoleto en Unity 6.4.
+    // El que toma sólo FindObjectsInactive ya no ordena, que es justo lo que se pedía acá.
     private static T[] FindAll<T>() where T : Object =>
-        Object.FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Object.FindObjectsByType<T>(FindObjectsInactive.Include);
 }
 #endif

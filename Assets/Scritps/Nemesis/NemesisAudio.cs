@@ -13,10 +13,9 @@ using UnityEngine.Audio;
 /// volume to <see cref="occludedVolumeMultiplier"/>, and that multiplier itself is eased so
 /// walking past a doorway does not click.
 ///
-/// KNOWN GAP (Tier 2.6 point 4): reactive music is not wired. AudioManager exposes PlayMusic(id)
-/// but has no per-state hooks and no crossfade on the music source, so driving it from here
-/// would mean rewriting the music path. Left for whoever owns the music system — the state
-/// signal it would need is already public as NemesisEvents.OnStateChanged.
+/// Reactive chase music lives separately, in <see cref="NemesisChaseMusic"/>: it owns the Music
+/// bus rather than this class's Nemesis bus, and reacts to NemesisEvents.OnChaseStarted/OnChaseEnded
+/// instead of every per-state loop here.
 /// </summary>
 public class NemesisAudio : MonoBehaviour
 {

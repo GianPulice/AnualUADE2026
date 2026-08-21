@@ -12,8 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2cbf16f82f5ab9747b6d0a4276a234bc, type: 3}
   m_Name: SO_PlayerCamera
   m_EditorClassIdentifier: Assembly-CSharp::SO_CameraConfig
-  cameraSensitivity: 2
   fov: 72
-  cameraSmoothing: 0.2
   shoulderOffset: {x: 0.2, y: 0.2, z: 0}
   maxVerticalAngle: 80
+  crouchPivotDrop: 0.6
+  crouchPivotDamping: 0.15
+  cameraSensitivity: 2
+  cameraSmoothing: 0.2
