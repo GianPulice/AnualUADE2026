@@ -1,7 +1,20 @@
 using System;
+using UnityEngine;
 
 public static class GameResultManager
 {
+    /// <summary>
+    /// Wire the static reset into <see cref="GameSession.BeginNewSession"/> so a New Game / Retry
+    /// clears the reported flag alongside every instance manager. Runs on each Play so the hook
+    /// survives domain-reload-disabled enters into Play mode.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void HookSessionReset()
+    {
+        GameSession.OnNewSessionStarting -= ResetSession;
+        GameSession.OnNewSessionStarting += ResetSession;
+    }
+
     ///<summary>
     ///Fired when the game ends or wins. ResultScreenController (Lose/GameOver) and WinController
     ///subscribe to this event and each one filters by the GameState it handles.

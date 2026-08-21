@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class InventoryManager : Singleton<InventoryManager>
+public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
 {
     [Header("Initial data (optional, for testing)")]
     [SerializeField] private List<SO_InventoryItem> initialItems = new List<SO_InventoryItem>();
@@ -14,7 +14,17 @@ public class InventoryManager : Singleton<InventoryManager>
     void Awake()
     {
         CreateSingleton(true);
+        SeedInitialItems();
+        GameSession.Register(this);
+    }
 
+    void OnDestroy()
+    {
+        GameSession.Unregister(this);
+    }
+
+    private void SeedInitialItems()
+    {
         // Testing only
         foreach (SO_InventoryItem item in initialItems)
         {
@@ -72,6 +82,17 @@ public class InventoryManager : Singleton<InventoryManager>
         Debug.Log($"[Inventory] Consumed: {item.ItemName}");
         InventoryEvents.ItemConsumed(item);
         InventoryEvents.ItemRemoved(item);
+    }
+
+    /// <summary>
+    /// <see cref="ISessionResettable"/> — dispatched by <see cref="GameSession.BeginNewSession"/>.
+    /// Drops every picked-up item and re-seeds the testing list so the next run starts fresh.
+    /// Runs while the gameplay scene is unloaded, so no UI events are raised.
+    /// </summary>
+    public void ResetForNewSession()
+    {
+        items.Clear();
+        SeedInitialItems();
     }
 
     /// <summary>
