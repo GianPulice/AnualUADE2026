@@ -17,7 +17,7 @@ using UnityEngine;
 /// and PuzzleStateManager. Designers control everything through <see cref="SO_ModulesConfig"/> —
 /// no inspector or code edits are needed to add/reorder modules or tweak timers.
 /// </summary>
-public class ModuleManager : Singleton<ModuleManager>
+public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 {
     [Header("Config")]
     [Tooltip("Ordered list of modules for this run. Designers edit this asset — the manager only reads it.")]
@@ -41,12 +41,14 @@ public class ModuleManager : Singleton<ModuleManager>
         BuildRuntimes();
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
         PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
+        GameSession.Register(this);
     }
 
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
         PauseManager.OnPauseStateChanged -= HandlePauseStateChanged;
+        GameSession.Unregister(this);
     }
 
     /// <summary>Pause the timer while the pause menu is open — spec §7: the timer must not tick
@@ -225,6 +227,9 @@ public class ModuleManager : Singleton<ModuleManager>
         pauseRequestCount = 0;
         Log("Session reset.");
     }
+
+    /// <summary><see cref="ISessionResettable"/> — dispatched by <see cref="GameSession.BeginNewSession"/>.</summary>
+    public void ResetForNewSession() => ResetSession();
 
     // ── Queries ─────────────────────────────────────────────────────────────────
 

@@ -137,7 +137,9 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
         await UnloadBootstrapAsync();
 
-        GameResultManager.ResetSession();
+        // Clears every persistent manager (modules, inventory, puzzles, result). New managers
+        // opt in by implementing ISessionResettable — see GameSession.
+        GameSession.BeginNewSession();
         screenChannel.RaisePushScreen(sceneLabel);
     }
 
