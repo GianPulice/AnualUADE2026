@@ -19,8 +19,7 @@ public class SO_Movement : ScriptableObject
     [Tooltip("How fast the body turns to face the input direction. Higher = turns on the spot.")]
     [SerializeField, Min(0f)] private float rotationSpeed = 10f;
 
-    [Tooltip("Speed while sprinting, as a multiple of Move Speed. 1.5 = 50% faster than " .
-             "walking. The chest module penalty (M2) eats into this at runtime. Below ~1.05 the " .
+    [Tooltip("Speed while sprinting, as a multiple of Move Speed. 1.5 = 50% faster than " + "walking. The chest module penalty (M2) eats into this at runtime. Below ~1.05 the " +
              "camera sprint pull-back stops triggering, which is why the slider stops there.")]
     [SerializeField, Range(1.05f, 3f)] private float sprintSpeedMultiplier = 1.5f;
 
