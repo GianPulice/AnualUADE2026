@@ -64,7 +64,9 @@ public abstract class BaseScreenView : MonoBehaviour
 
         while (elapsed < duration)
         {
-            elapsed += Time.deltaTime;
+            // unscaled so UI fades keep running when a modal sets Time.timeScale to 0
+            // (previously the InteractionPrompt fade froze mid-transition during Pause).
+            elapsed += Time.unscaledDeltaTime;
             float percent = elapsed / duration;
 
             // Linear interpolation between the current alpha and the target
