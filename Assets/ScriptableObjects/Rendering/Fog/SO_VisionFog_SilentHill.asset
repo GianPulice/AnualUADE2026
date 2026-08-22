@@ -12,14 +12,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9610cc42620bd3b4eafa9fc758329e80, type: 3}
   m_Name: SO_VisionFog_SilentHill
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
+  dataVersion: 2
   visionStart: 8
   visionEnd: 10
+  fogDensity: 4.6
+  fogFalloffPower: 1
+  darkness: 1
+  extinctionTint: {r: 1, g: 1, b: 1, a: 1}
   fogColor: {r: 0.1975792, g: 0.33370763, b: 0.3773585, a: 1}
+  fogColorIntensity: 1
+  inscatterStrength: 1
   lightPreservation: 0.5
-  densityPower: 1
+  lightThreshold: 0.45
+  lightKnee: 0.3
+  maxLightPreservation: 0.5
+  lightDistanceFalloff: 0.04
   blurStrength: 0
   playerLightRange: 8
-  playerLightIntensity: 1
+  playerLightClear: 1
+  playerLightFalloff: 2
   playerLightColor: {r: 1, g: 0.85, b: 0.6, a: 1}
+  playerLightTint: 1
+  playerLightInjection: 0
+  bypassFalloff: 2
+  bypassDefaultColor: {r: 1, g: 0.85, b: 0.6, a: 1}
+  bypassDefaultIntensity: 1
+  bypassDefaultClear: 1
   transitionDuration: 5
   silhouetteMode: 0
+  densityPower: 1
+  playerLightIntensity: 1

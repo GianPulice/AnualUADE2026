@@ -30,9 +30,8 @@ public class SO_VisionFogConfigEditor : Editor
     private static readonly Color ApplyColor   = new Color(0.3f, 0.75f, 0.45f);
     private static readonly Color PreviewColor = new Color(0.45f, 0.6f, 0.85f);
 
-    private static readonly int VEndId           = Shader.PropertyToID("_VisionEnd");
-    private static readonly int PlayerLightRngId = Shader.PropertyToID("_PlayerLightRange");
-    private static readonly int BypassCountId    = Shader.PropertyToID("_FogLightBypassCount");
+    // IDs taken from VisionFogState.Ids rather than re-declared: two copies of the same string
+    // is how a rename in the shader ends up half-applied.
 
     private readonly List<VisionRangeController> controllerBuffer = new List<VisionRangeController>();
 
@@ -41,6 +40,12 @@ public class SO_VisionFogConfigEditor : Editor
         DrawDefaultInspector();
 
         SO_VisionFogConfig config = (SO_VisionFogConfig)target;
+
+        // Before the controller check on purpose: the preview is pure maths on the preset, so it
+        // works with no scene loaded at all. That is the case where it earns the most — tuning a
+        // preset from the Project window without opening the level.
+        EditorGUILayout.Space(12);
+        VisionFogPreviewDrawer.Draw(config);
 
         CollectControllers();
 
@@ -140,11 +145,38 @@ public class SO_VisionFogConfigEditor : Editor
                 "Subí visionEnd por encima de visionStart.",
                 MessageType.Warning);
         }
+        else if (config.darkness <= 0.001f && config.inscatterStrength <= 0.001f)
+        {
+            // The two halves of the model are both off, so the pass runs and returns the scene
+            // untouched. Easy to hit while tuning, and indistinguishable from "the shader broke".
+            EditorGUILayout.HelpBox(
+                "darkness = 0 e inscatterStrength = 0: las dos mitades del modelo están " +
+                "apagadas, así que el pass corre y devuelve la escena tal cual. Subí darkness " +
+                "para oscurecer, o inscatterStrength para que se vea el fogColor.",
+                MessageType.Warning);
+        }
+        else if (config.fogColor.maxColorComponent > 0.01f && config.inscatterStrength <= 0.001f)
+        {
+            // The v1 mental model ("fogColor is what the screen becomes") survives the migration
+            // and this is where it bites: the colour is set, and nothing shows it.
+            EditorGUILayout.HelpBox(
+                "fogColor tiene color pero inscatterStrength = 0, así que no se ve: la " +
+                "extinción sola va al negro. Para \"oscuridad con un dejo de color\" subí " +
+                "inscatterStrength de a poco (0.03–0.1); 1 es niebla estilo Silent Hill.",
+                MessageType.Info);
+        }
+        else if (config.lightPreservation > 0.001f && config.maxLightPreservation <= 0.001f)
+        {
+            EditorGUILayout.HelpBox(
+                "lightPreservation > 0 pero maxLightPreservation = 0: el techo anula el efecto " +
+                "entero y ninguna luz perfora la niebla.",
+                MessageType.Warning);
+        }
         else if (config.playerLightRange <= 0f)
         {
             EditorGUILayout.HelpBox(
-                "playerLightRange = 0: la linterna del player no perfora la niebla, así que " +
-                "playerLightColor tampoco tiñe nada.",
+                "playerLightRange = 0: las luces del módulo no perforan la niebla, así que " +
+                "playerLightColor no tiñe ni inyecta nada.",
                 MessageType.Info);
         }
     }
@@ -197,11 +229,7 @@ public class SO_VisionFogConfigEditor : Editor
             VisionRangeController controller = controllerBuffer[i];
             if (controller == null) continue;
 
-            controller.ApplyPreviewBlend(
-                config.visionStart, config.visionEnd, config.fogColor,
-                config.lightPreservation, config.densityPower,
-                config.playerLightRange, config.playerLightIntensity, config.playerLightColor,
-                config.blurStrength);
+            controller.ApplyPreviewBlend(VisionFogState.FromConfig(config));
         }
 
         SceneView.RepaintAll();
@@ -214,9 +242,9 @@ public class SO_VisionFogConfigEditor : Editor
     /// </summary>
     private static void ClearPreview()
     {
-        Shader.SetGlobalFloat(VEndId, 0f);
-        Shader.SetGlobalFloat(PlayerLightRngId, 0f);
-        Shader.SetGlobalInt(BypassCountId, 0);
+        Shader.SetGlobalFloat(VisionFogState.Ids.VisionEnd, 0f);
+        Shader.SetGlobalFloat(VisionFogState.Ids.PlayerLightRange, 0f);
+        Shader.SetGlobalInt(VisionFogState.Ids.BypassCount, 0);
         SceneView.RepaintAll();
     }
 

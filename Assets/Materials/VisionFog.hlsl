@@ -1,3 +1,19 @@
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ LEGACY — YA NO SE USA. Lo reemplaza:                                    │
+// │   Materials/Post Process/VisionFog_HLSL.shader                          │
+// │                                                                         │
+// │ VisionFog.mat y VisionFog_SilentHill.mat apuntan al shader nuevo, asi   │
+// │ que ni este archivo ni Fullscreen_VisionFog.shadergraph se compilan en  │
+// │ el frame. Quedan como rollback: si el shader nuevo hay que revertirlo,  │
+// │ se vuelven a apuntar los dos materiales al grafo y esto revive tal      │
+// │ cual estaba.                                                            │
+// │                                                                         │
+// │ NO editar aca. Las tres correcciones (color space, preservacion de luz  │
+// │ en HDR, extincion vs in-scattering) viven en el shader nuevo y este     │
+// │ archivo no las tiene. Si ya lo diste por bueno, se pueden borrar los    │
+// │ dos junto con Fullscreen_VisionFog.shadergraph.                         │
+// └─────────────────────────────────────────────────────────────────────────┘
+
 // VisionFog.hlsl
 // Custom Functions para usar desde un Fullscreen Shader Graph URP.
 //

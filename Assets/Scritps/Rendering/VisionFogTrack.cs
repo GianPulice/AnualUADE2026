@@ -20,11 +20,11 @@ public class VisionFogMixerBehaviour : PlayableBehaviour
 
         int inputCount = playable.GetInputCount();
 
+        // Accumulate weighted, then divide once. The per-field arithmetic lives on
+        // VisionFogState so that adding a fog parameter does not mean editing this loop —
+        // which is exactly how the old version drifted out of sync with the config.
+        var blended = VisionFogState.Disabled;
         float totalWeight = 0f;
-        float visionStart = 0f, visionEnd = 0f, lightPreservation = 0f, densityPower = 0f;
-        float playerLightRange = 0f, playerLightIntensity = 0f, blurStrength = 0f;
-        Color fogColor = Color.clear;
-        Color playerLightColor = Color.clear;
 
         for (int i = 0; i < inputCount; i++)
         {
@@ -35,22 +35,14 @@ public class VisionFogMixerBehaviour : PlayableBehaviour
             SO_VisionFogConfig config = inputPlayable.GetBehaviour().config;
             if (config == null) continue;
 
-            totalWeight          += weight;
-            visionStart           += config.visionStart * weight;
-            visionEnd              += config.visionEnd * weight;
-            lightPreservation      += config.lightPreservation * weight;
-            densityPower            += config.densityPower * weight;
-            playerLightRange        += config.playerLightRange * weight;
-            playerLightIntensity    += config.playerLightIntensity * weight;
-            blurStrength             += config.blurStrength * weight;
-            fogColor               += config.fogColor * weight;
-            playerLightColor        += config.playerLightColor * weight;
+            totalWeight += weight;
+            blended.AddWeighted(VisionFogState.FromConfig(config), weight);
         }
 
         if (totalWeight <= 0.0001f) return;
 
-        controller.ApplyPreviewBlend(visionStart, visionEnd, fogColor, lightPreservation,
-            densityPower, playerLightRange, playerLightIntensity, playerLightColor, blurStrength);
+        blended.Normalise(totalWeight);
+        controller.ApplyPreviewBlend(blended);
     }
 }
 
