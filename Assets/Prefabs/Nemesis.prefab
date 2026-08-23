@@ -927,6 +927,10 @@ GameObject:
   - component: {fileID: 6741178838092600376}
   - component: {fileID: 8379274647524242327}
   - component: {fileID: 4677969932427935509}
+  - component: {fileID: 811812959422482655}
+  - component: {fileID: 4238794743462556567}
+  - component: {fileID: 151019658099850401}
+  - component: {fileID: 1161570539962797983}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -970,11 +974,12 @@ MonoBehaviour:
   navAgent: {fileID: 5684726728193510827}
   nemesisController: {fileID: 6741178838092600376}
   animController: {fileID: 5201496269893057442}
+  pathOracle: {fileID: 811812959422482655}
+  telemetry: {fileID: 4238794743462556567}
+  stuckEscape: {fileID: 151019658099850401}
+  lifecycle: {fileID: 1161570539962797983}
   captureGracePeriod: 8
-  repositionMinPlayerDistance: 15
   catchCooldown: 2
-  stuckCheckInterval: 3
-  stuckMinDistance: 0.5
 --- !u!114 &6366883338896328337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -994,6 +999,12 @@ MonoBehaviour:
   obstacleMask:
     serializedVersion: 2
     m_Bits: 2057
+  soundBlockerMask:
+    serializedVersion: 2
+    m_Bits: 0
+  floorMask:
+    serializedVersion: 2
+    m_Bits: 8
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!114 &7262208103517849607
 MonoBehaviour:
@@ -1053,8 +1064,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NemesisController
   routes:
   - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   activatedByPuzzleId: 
   spawnPoints:
+  - {fileID: 0}
+  - {fileID: 0}
   - {fileID: 0}
   onAllSpawnPointsVisible:
     m_PersistentCalls:
@@ -1092,9 +1108,55 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1827478ed736b4f47aee891323657300, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisElevatorUser
-  linkTraversalSpeed: 2.5
-  boardingSpeed: 1.5
-  platformWaitTimeout: 20
+--- !u!114 &811812959422482655
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 975b803bf56f4424c820ea2dcc3f3766, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisPathOracle
+  nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
+--- !u!114 &4238794743462556567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9de46d45592884e4f830c91c307b1162, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisTelemetry
+--- !u!114 &151019658099850401
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e532b430bfd163c4f99a5d39c8a88320, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisStuckEscape
+--- !u!114 &1161570539962797983
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad2f428cd55df074293960d12042cd26, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisLifecycle
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0

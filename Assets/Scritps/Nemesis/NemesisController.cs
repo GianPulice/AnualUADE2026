@@ -320,6 +320,14 @@ public class NemesisController : MonoBehaviour
         float biasStrength = data != null ? Mathf.Max(1f, data.RoutePlayerBiasStrength) : 1f;
         float falloff = data != null ? Mathf.Max(1f, data.RoutePlayerBiasFalloff) : 1f;
 
+        // How much the belief is still worth. Without this the bias is memoryless in the worst
+        // sense: a sighting from ten minutes ago pulls the patrol exactly as hard as one from two
+        // seconds ago, so the Nemesis keeps circling a room the player left long ago and the
+        // pursuit never lets go of a stale idea. Decayed, a fresh sighting dominates the roll and
+        // an old one fades back into the designer's route weights, which is where a patrol should
+        // end up when it genuinely does not know.
+        biasStrength = Mathf.Lerp(1f, biasStrength, BeliefFreshness());
+
         weightBuffer.Clear();
         float total = 0f;
 
@@ -350,6 +358,35 @@ public class NemesisController : MonoBehaviour
         }
 
         return sampledBuffer[sampledBuffer.Count - 1];
+    }
+
+    /// <summary>
+    /// How much the current belief about the player is still worth: 1 the instant they are sensed,
+    /// falling to 0 once it is <see cref="SO_NemesisData.BeliefMemoryTime"/> seconds old.
+    ///
+    /// Only applies to the remembered belief. When BiasUsesLastKnownPosition is off the bias reads
+    /// the player's live transform, which is never stale by definition — and is worth knowing
+    /// about, because in that mode the patrol is quietly steered by where the player actually is
+    /// rather than by anything the Nemesis observed.
+    /// </summary>
+    private float BeliefFreshness()
+    {
+        SO_NemesisData data = Data;
+        if (data == null || !data.BiasUsesLastKnownPosition) return 1f;
+
+        float memory = Mathf.Max(0.01f, data.BeliefMemoryTime);
+
+        float age = float.PositiveInfinity;
+
+        FieldOfView view = stateManager != null ? stateManager.FieldOfView : null;
+        if (view != null) age = Mathf.Min(age, view.TimeSinceLastSighting);
+
+        FieldOfListening listening = stateManager != null ? stateManager.FieldOfListening : null;
+        if (listening != null) age = Mathf.Min(age, listening.TimeSinceLastNoise);
+
+        if (float.IsPositiveInfinity(age)) return 0f;
+
+        return 1f - Mathf.Clamp01(age / memory);
     }
 
     /// <summary>

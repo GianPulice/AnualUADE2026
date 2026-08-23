@@ -16,7 +16,6 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
 
     public override void EnterState()
     {
-        Debug.Log("Nemesis Enter Investigating State");
         NextState = StateKey;
         currentTime = 0;
         nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.InvestigationSpeed;
@@ -25,7 +24,6 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
 
     public override void ExitState()
     {
-        Debug.Log("Nemesis Exit Investigating State");
         nemesisStateManager.AnimController.SetBool("isWalking", false);
     }
 

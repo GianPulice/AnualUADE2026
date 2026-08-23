@@ -35,8 +35,25 @@ public class FieldOfView : MonoBehaviour
     private Vector3 lastKnownPosition;
     private bool hasLastKnownPosition;
 
+    private Vector3 lastKnownVelocity;
+    private float lastSightingTime;
+
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
+
+    /// <summary>
+    /// How fast and in what direction the target appeared to be moving when it was last seen, in
+    /// units per second.
+    ///
+    /// Derived from consecutive sightings rather than read off the player's own movement code,
+    /// which the Nemesis could trivially reach. That is the difference between predicting and
+    /// cheating: this only ever knows what the sensor actually observed, so a player who breaks
+    /// line of sight and immediately changes direction gets away with it — which is the whole
+    /// point of breaking line of sight.
+    ///
+    /// Zero until two sightings have landed close enough together to measure between.
+    /// </summary>
+    public Vector3 LastKnownVelocity { get => lastKnownVelocity; }
 
     /// <summary>
     /// Whether <see cref="LastKnownPosition"/> means anything yet. Starts false and never goes
@@ -48,6 +65,17 @@ public class FieldOfView : MonoBehaviour
     /// would end up sending the Nemesis to the same corner every time.
     /// </summary>
     public bool HasLastKnownPosition { get => hasLastKnownPosition; }
+
+    /// <summary>
+    /// Seconds since the target was last seen, or infinity if it never has been.
+    ///
+    /// <see cref="HasLastKnownPosition"/> says the memory exists; this says how much it is still
+    /// worth. They are different questions and only the first one was answerable before — which
+    /// is why a sighting from ten minutes ago steered the patrol exactly as hard as one from two
+    /// seconds ago.
+    /// </summary>
+    public float TimeSinceLastSighting =>
+        hasLastKnownPosition ? Time.time - lastSightingTime : float.PositiveInfinity;
 
     private void Awake()
     {
@@ -134,9 +162,36 @@ public class FieldOfView : MonoBehaviour
 
         hasVisualTarget = true;
         lastKnownTarget = player.gameObject;
-        lastKnownPosition = playerPosition;
-        hasLastKnownPosition = true;
+        RecordSighting(playerPosition);
         return true;
+    }
+
+    /// <summary>
+    /// Stores where the target was seen and how fast it seemed to be going.
+    ///
+    /// Both sighting paths funnel through here — the proximity check above and the cone sweep
+    /// below — so the velocity estimate cannot go stale just because the detection that frame
+    /// came from the other one.
+    ///
+    /// The gap between sightings is capped before it is divided by: a target re-acquired after
+    /// twenty seconds on the far side of the level is not a target moving slowly, and dividing a
+    /// hundred metres by twenty seconds to get "5 m/s in that direction" would be a fabricated
+    /// reading, not a measured one. Past the cap the estimate is dropped instead.
+    /// </summary>
+    private void RecordSighting(Vector3 position)
+    {
+        const float MaxGapForVelocity = 0.5f;
+
+        float gap = Time.time - lastSightingTime;
+
+        if (hasLastKnownPosition && gap > 0.0001f && gap <= MaxGapForVelocity)
+            lastKnownVelocity = (position - lastKnownPosition) / gap;
+        else
+            lastKnownVelocity = Vector3.zero;
+
+        lastKnownPosition = position;
+        hasLastKnownPosition = true;
+        lastSightingTime = Time.time;
     }
 
     /// <summary>
@@ -203,8 +258,7 @@ public class FieldOfView : MonoBehaviour
         if (visibleTargets.Count > 0)
         {
             hasVisualTarget = true;
-            lastKnownPosition = visibleTargets[0].transform.position;
-            hasLastKnownPosition = true;
+            RecordSighting(visibleTargets[0].transform.position);
         }
         else hasVisualTarget = false;
     }

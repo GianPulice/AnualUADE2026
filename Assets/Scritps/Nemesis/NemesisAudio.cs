@@ -76,6 +76,8 @@ public class NemesisAudio : MonoBehaviour
             if (manager != null) fieldOfListening = manager.FieldOfListening;
         }
 
+        NemesisEvents.OnStateChanged += HandleStateChanged;
+
         sourceA = CreateSource("NemesisLoopA");
         sourceB = CreateSource("NemesisLoopB");
         activeSource = sourceA;
@@ -91,8 +93,12 @@ public class NemesisAudio : MonoBehaviour
         sourceB.outputAudioMixerGroup = outputGroup;
     }
 
-    private void OnEnable()  => NemesisEvents.OnStateChanged += HandleStateChanged;
-    private void OnDisable() => NemesisEvents.OnStateChanged -= HandleStateChanged;
+    // Awake/OnDestroy and not OnEnable/OnDisable, per docs/CLAUDE.md: a static delegate outlives
+    // the GameObject's enabled state, so scoping the subscription to it produces a listener that
+    // quietly stops listening. Here that would mean missing the state change that happened while
+    // this was off and coming back playing the wrong loop, because OnStateChanged only fires on
+    // the transition and there is no catch-up.
+    private void OnDestroy() => NemesisEvents.OnStateChanged -= HandleStateChanged;
 
     private AudioSource CreateSource(string sourceName)
     {
@@ -113,15 +119,18 @@ public class NemesisAudio : MonoBehaviour
 
     private void HandleStateChanged(NemesisStateManager.ENemesisState state)
     {
-        AudioClip clip = null;
-        float volume = 0f;
-
-        foreach (StateLoop loop in stateLoops)
+        if (!TryGetLoop(state, out AudioClip clip, out float volume))
         {
-            if (loop == null || loop.state != state) continue;
-            clip = loop.clip;
-            volume = loop.volume;
-            break;
+            // No entry authored for this state. Silence is a legitimate authoring choice for a
+            // state a designer deliberately left blank — but it is the wrong answer for
+            // Traversing, which did not exist when these arrays were filled in. Every prefab in
+            // the project therefore has a hole exactly there, and the Nemesis would go quiet for
+            // the whole elevator ride: the one stretch of a pursuit where the player cannot see
+            // it and the loop is all they have to go on.
+            //
+            // Traversing IS the chase continuing by other means, so it borrows the chase loop.
+            if (state == NemesisStateManager.ENemesisState.Traversing)
+                TryGetLoop(NemesisStateManager.ENemesisState.Chasing, out clip, out volume);
         }
 
         // Same clip already playing (e.g. Chasing -> Catch sharing a loop): let it run rather
@@ -133,6 +142,24 @@ public class NemesisAudio : MonoBehaviour
         }
 
         StartCrossfade(clip, volume);
+    }
+
+    /// <summary>The loop authored for a state, if any.</summary>
+    private bool TryGetLoop(NemesisStateManager.ENemesisState state, out AudioClip clip, out float volume)
+    {
+        clip = null;
+        volume = 0f;
+
+        foreach (StateLoop loop in stateLoops)
+        {
+            if (loop == null || loop.state != state) continue;
+
+            clip = loop.clip;
+            volume = loop.volume;
+            return clip != null;
+        }
+
+        return false;
     }
 
     private void StartCrossfade(AudioClip clip, float volume)

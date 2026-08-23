@@ -57,6 +57,19 @@ public class NemesisChaseMusic : MonoBehaviour
     private void Awake()
     {
         source = CreateSource();
+
+        // Awake/OnDestroy and not OnEnable/OnDisable, per docs/CLAUDE.md: a static delegate
+        // outlives the GameObject's enabled state. OnChaseStarted/Ended are a PAIR with no
+        // catch-up, so an enabled-scoped subscription can miss one half and leave this stuck
+        // playing chase music through a walk, or silent through a chase.
+        NemesisEvents.OnChaseStarted += HandleChaseStarted;
+        NemesisEvents.OnChaseEnded += HandleChaseEnded;
+    }
+
+    private void OnDestroy()
+    {
+        NemesisEvents.OnChaseStarted -= HandleChaseStarted;
+        NemesisEvents.OnChaseEnded -= HandleChaseEnded;
     }
 
     private void Start()
@@ -66,18 +79,9 @@ public class NemesisChaseMusic : MonoBehaviour
         source.outputAudioMixerGroup = outputGroup;
     }
 
-    private void OnEnable()
-    {
-        AcquireAmbienceController();
-        NemesisEvents.OnChaseStarted += HandleChaseStarted;
-        NemesisEvents.OnChaseEnded += HandleChaseEnded;
-    }
-
-    private void OnDisable()
-    {
-        NemesisEvents.OnChaseStarted -= HandleChaseStarted;
-        NemesisEvents.OnChaseEnded -= HandleChaseEnded;
-    }
+    // Stays enabled-scoped: this is a scene lookup, not a subscription, and re-running it on
+    // re-enable is how it recovers a controller that was unloaded with its scene.
+    private void OnEnable() => AcquireAmbienceController();
 
     private AudioSource CreateSource()
     {
