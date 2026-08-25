@@ -139,9 +139,9 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
             return;
         }
 
-        // Without this, GameResultManager's _resultReported guard stays true and the next
-        // death would not open any screen.
-        GameResultManager.ResetSession();
+        // Clears every persistent manager (modules, inventory, puzzles, result) so Retry starts
+        // a genuinely fresh run instead of reloading with leftover state. See GameSession.
+        GameSession.BeginNewSession();
 
         ScreenManager.Instance.ReloadCurrentGroup().Forget();
     }

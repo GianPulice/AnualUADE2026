@@ -1,3 +1,19 @@
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ LEGACY — YA NO SE USA. Lo reemplaza:                                    │
+// │   Materials/Post Process/VisionFog_HLSL.shader                          │
+// │                                                                         │
+// │ VisionFog.mat y VisionFog_SilentHill.mat apuntan al shader nuevo, asi   │
+// │ que ni este archivo ni Fullscreen_VisionFog.shadergraph se compilan en  │
+// │ el frame. Quedan como rollback: si el shader nuevo hay que revertirlo,  │
+// │ se vuelven a apuntar los dos materiales al grafo y esto revive tal      │
+// │ cual estaba.                                                            │
+// │                                                                         │
+// │ NO editar aca. Las tres correcciones (color space, preservacion de luz  │
+// │ en HDR, extincion vs in-scattering) viven en el shader nuevo y este     │
+// │ archivo no las tiene. Si ya lo diste por bueno, se pueden borrar los    │
+// │ dos junto con Fullscreen_VisionFog.shadergraph.                         │
+// └─────────────────────────────────────────────────────────────────────────┘
+
 // VisionFog.hlsl
 // Custom Functions para usar desde un Fullscreen Shader Graph URP.
 //
@@ -16,7 +32,7 @@
 //   _PlayerLightPosition   (float3)  origen de la linterna del player en world-space
 //   _PlayerLightRange      (float)   radio efectivo (metros) — si <= 0, la luz del player está apagada
 //   _PlayerLightIntensity  (float)   fuerza del "hueco" que la linterna hace en la niebla (0..1+)
-//   _PlayerLightColor      (float3)  reservado (no se usa para tintar — ver nota en VisionFog_float)
+//   _PlayerLightColor      (float3)  multiplica la escena revelada — tiñe Y oscurece (ver VisionFog_float)
 //   _FogLightBypassCount   (int)     cantidad efectiva de bypass zones (0..8)
 //   _FogLightBypassData    (float4[])  xyz = world pos, w = radius (metros). Las luces adentro perforan.
 //
@@ -176,6 +192,19 @@ void VisionFog_float(
     float playerLight = vfPlayerLightMask(worldPos);
     fogFactor *= 1.0 - saturate(playerLight);
 
+    // Multiplica la escena revelada por el color de las luces de módulo.
+    //
+    // El multiply hace dos cosas, y la segunda es la importante: además de
+    // teñir, OSCURECE, porque un color saturado aplasta los canales que no son
+    // el suyo (rojo puro deja la luminancia en ~34%). Eso es lo que mantiene
+    // oscuro el entorno dentro del radio — sin esto el agujero revela la escena
+    // a brillo pleno y se pierde el efecto de oscuridad. Un color cercano al
+    // blanco lo desactiva de hecho.
+    //
+    // La luz real de Unity no puede reemplazarlo: suma, no multiplica.
+    // Se apaga con el mismo falloff que abre el agujero en la niebla.
+    sceneColor = lerp(sceneColor, sceneColor * _PlayerLightColor, saturate(playerLight));
+
     // ── Noise animado estilo Silent Hill ──────────────────────────────────
     // Dos capas de FBM en world-space scrolleando en direcciones distintas
     // → da sensación de "nubes" moviéndose dentro de la niebla.
@@ -200,12 +229,11 @@ void VisionFog_float(
     float3 baseColor = lerp(sceneColor, blurredSceneColor, fogFactor);
     float3 blended = lerp(baseColor, fogColor, fogFactor);
 
-    // NO sumamos tinte extra acá. La iluminación real (personaje, paredes, etc.)
-    // ya viene de la Light de Unity que FogLightSource está leyendo — este shader
-    // solo "perfora" la niebla (baja fogFactor) para revelar esa escena ya
-    // iluminada. Sumar _PlayerLightColor encima duplicaba la luz (Light real +
-    // tinte aditivo del post-fx) y sobre-exponía todo lo que quedaba dentro del
-    // radio, sobre todo superficies claras como el personaje.
+    // El tinte de _PlayerLightColor ya se aplicó arriba (multiply sobre
+    // sceneColor), así que viaja con fogFactor como cualquier otro color de
+    // escena. Se hace por multiply en vez de sumarlo acá porque sumarlo
+    // duplicaba la luz (Light real + tinte aditivo del post-fx) y sobre-
+    // exponía todo lo que quedaba dentro del radio.
     result = blended;
 }
 

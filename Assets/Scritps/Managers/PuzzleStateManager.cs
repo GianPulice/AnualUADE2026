@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PuzzleStateManager : Singleton<PuzzleStateManager>
+public class PuzzleStateManager : Singleton<PuzzleStateManager>, ISessionResettable
 {
     private readonly HashSet<string> completedPuzzles = new HashSet<string>();
     private readonly HashSet<string> insertedSockets = new HashSet<string>();
@@ -29,6 +29,26 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>
     void Awake()
     {
         CreateSingleton(true);
+        GameSession.Register(this);
+    }
+
+    void OnDestroy()
+    {
+        GameSession.Unregister(this);
+    }
+
+    /// <summary>
+    /// <see cref="ISessionResettable"/> — dispatched by <see cref="GameSession.BeginNewSession"/>.
+    /// Clears every collection so the next run starts with no puzzles completed, no sockets
+    /// inserted, no doors opened, and every valve / container back at its default.
+    /// </summary>
+    public void ResetForNewSession()
+    {
+        completedPuzzles.Clear();
+        insertedSockets.Clear();
+        openedDoors.Clear();
+        valvePositions.Clear();
+        containerSlots.Clear();
     }
 
 

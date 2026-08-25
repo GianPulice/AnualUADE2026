@@ -33,9 +33,12 @@ using UnityEngine.Audio;
 ///      layers will be wrong.
 ///   4. Assign defaultProfile — the ambience for anywhere not covered by an AmbienceZone.
 ///
-/// KNOWN GAP: the enemy-reactive layer is not wired. The signals it needs are already public as
-/// NemesisEvents.OnProximityChanged and OnStateChanged, and the hooks it would drive are
-/// SetTensionScalars and FadeOutAll below, which currently have no callers.
+/// FadeOutAll/FadeInAll now have a caller: NemesisChaseMusic ducks this layer for its chase-music
+/// takeover, driven by NemesisEvents.OnChaseStarted/OnChaseEnded.
+///
+/// KNOWN GAP: the continuous proximity-reactive layer is still not wired. The signal it needs is
+/// already public as NemesisEvents.OnProximityChanged, and the hook it would drive is
+/// SetTensionScalars below, which currently has no caller.
 /// </summary>
 [RequireComponent(typeof(AmbienceBedLayer), typeof(AmbienceDriftLayer), typeof(AmbienceEventScheduler))]
 [RequireComponent(typeof(AmbienceEventPool), typeof(AmbiencePlacementResolver))]

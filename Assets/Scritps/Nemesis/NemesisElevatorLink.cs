@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
@@ -12,13 +13,28 @@ using UnityEngine.AI;
 /// to the other floor here, and it costs this much" — and then something has to actually perform
 /// that crossing, which is <see cref="NemesisElevatorUser"/>'s job.
 ///
-/// SCENE SETUP:
-///   1. Put this component on the freight elevator (or on an empty object next to it).
-///   2. Assign the platform and both landings: bottomLanding where the Nemesis stands to go up,
-///      topLanding where it ends up on arrival. Both must land on the NavMesh.
-///   3. ridePoint is where it stands during the trip. Make it a CHILD of the platform so it
-///      follows the movement without anyone having to recompute it.
-///   4. The NavMeshLink is created and configured in Awake — no need to add it by hand.
+/// SCENE SETUP — the hierarchy is not a matter of taste, it is the whole thing:
+///
+///   ElevatorRoot          &lt;- THIS component + NavMeshLink. Static. Never moves.
+///   |-- Cabin             &lt;- MovingPlatform. The only object that travels.
+///   |   \-- RidePoint     &lt;- child of the cabin, so it follows for free
+///   |-- BottomLanding     &lt;- sibling of the cabin, on the lower floor's NavMesh
+///   \-- TopLanding        &lt;- sibling of the cabin, on the upper floor's NavMesh
+///
+///   1. This component and its NavMeshLink go on the STATIC root, never on the cabin. The link
+///      registers itself relative to its own GameObject's transform, so mounting it on the cabin
+///      makes Unity tear the link down and rebuild it every frame of the ride — and it can
+///      vanish from under an agent that is halfway across it.
+///   2. bottomLanding and topLanding must NOT be children of the cabin. Parented to it they ride
+///      along, the link's two ends leave the floor with the platform, and the crossing the agent
+///      was promised stops existing the moment the lift moves. This is the single most common way
+///      to get a "the Nemesis ignores the elevator" bug.
+///   3. ridePoint IS a child of the cabin — that is what makes it follow the ride for free. Put
+///      it on the cabin's top surface, not at its centre, or the Nemesis travels sunk into it.
+///   4. Keep the root at scale 1 and scale the cabin instead. A scaled root multiplies every
+///      landing's local offset and makes the numbers in the inspector unreadable.
+///   5. The NavMeshLink is configured in Awake — no need to set its ends by hand. Anything wired
+///      into its startTransform/endTransform in the scene is overwritten from the landings above.
 /// </summary>
 [RequireComponent(typeof(NavMeshLink))]
 public class NemesisElevatorLink : MonoBehaviour
@@ -52,6 +68,23 @@ public class NemesisElevatorLink : MonoBehaviour
 
     private NavMeshLink link;
     private bool isUsable;
+
+    /// <summary>
+    /// Every usable elevator currently in the scene.
+    ///
+    /// It exists because <see cref="NemesisNav.TryGetRoute"/> has to answer "did this path go
+    /// through a lift?", and NavMeshPath gives it nothing but corner positions — no way to ask
+    /// which corner was a link. Matching those corners against the landings is the only route to
+    /// the answer, and that needs the landings to be findable without walking the scene graph
+    /// every query.
+    ///
+    /// Registered from OnEnable and not Awake so a misconfigured elevator never enters the list:
+    /// Awake disables this component when validation fails, and a component disabled during Awake
+    /// never gets its OnEnable.
+    /// </summary>
+    private static readonly List<NemesisElevatorLink> active = new List<NemesisElevatorLink>();
+
+    public static IReadOnlyList<NemesisElevatorLink> Active => active;
 
     public MovingPlatform Platform => platform;
     public Transform BottomLanding => bottomLanding;
@@ -88,7 +121,50 @@ public class NemesisElevatorLink : MonoBehaviour
         }
 
         ConfigureLink();
+        CalibrateRideDistance();
     }
+
+    /// <summary>
+    /// Tells the platform how far this shaft actually is, measured from the two landings.
+    ///
+    /// The travel distance used to come from SO_MovingPlatform, which is a ScriptableObject and
+    /// therefore shared by every platform in the project — so a single number had to be right for
+    /// every lift at once, and it was not: the asset says 8 while the two shafts in this project
+    /// span 4.95 and 6.63. The failure is quiet and nasty. The cabin still moves, still arrives,
+    /// still reports HasArrived; it just stops a metre or two off the floor, and the Nemesis is
+    /// then walked from the ride point to a landing that is no longer level with it — stepping
+    /// out through the air, or into the slab.
+    ///
+    /// Measured rather than authored because the answer is already in the scene. The gap between
+    /// the landings IS the distance the cabin has to cover: park it flush with the lower one and
+    /// it ends up flush with the upper one. That also means moving a landing in the editor
+    /// re-tunes the lift by itself, with no second number to remember to update.
+    /// </summary>
+    private void CalibrateRideDistance()
+    {
+        float shaftHeight = Mathf.Abs(topLanding.position.y - bottomLanding.position.y);
+
+        if (shaftHeight < 0.01f)
+        {
+            // Both landings at the same height is not a lift. Left alone, the platform would use
+            // the config's distance and travel somewhere neither landing is.
+            Debug.LogWarning($"[{nameof(NemesisElevatorLink)}] '{name}': bottomLanding and " +
+                             $"topLanding are at the same height, so there is no shaft to " +
+                             "measure. Falling back to the shared config distance, which is " +
+                             "almost certainly wrong for this lift.", this);
+            return;
+        }
+
+        platform.SetRideDistance(shaftHeight);
+    }
+
+    private void OnEnable()
+    {
+        if (!isUsable || active.Contains(this)) return;
+        active.Add(this);
+    }
+
+    private void OnDisable() => active.Remove(this);
 
     private bool ValidateSetup()
     {

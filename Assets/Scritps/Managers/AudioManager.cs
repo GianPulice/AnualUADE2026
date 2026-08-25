@@ -286,6 +286,13 @@ public class AudioManager : Singleton<AudioManager>
     /// </summary>
     public AudioMixerGroup AmbienceGroup => ambienceGroup;
 
+    /// <summary>
+    /// The Music bus. Exposed for the same reason as <see cref="NemesisGroup"/>: NemesisChaseMusic
+    /// owns its own looping AudioSource for the chase-music layer and routes it here rather than
+    /// through <see cref="PlayMusic"/>, which owns the single main music source.
+    /// </summary>
+    public AudioMixerGroup MusicGroup => musicGroup;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — setters
     // ──────────────────────────────────────────────────────────────────────────

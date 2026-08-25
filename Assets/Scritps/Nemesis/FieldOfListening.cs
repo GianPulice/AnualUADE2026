@@ -16,7 +16,27 @@ public class FieldOfListening : MonoBehaviour
     [SerializeField] private float listenDelay = 0.1f;
 
     [SerializeField] private LayerMask listenMask;
+
+    [Tooltip("Geometric line of sight. Used by IsOccludedByWall, which despite living on the " +
+             "hearing sensor answers a VISION question for four other systems: whether the " +
+             "capture has a wall in the way, whether a spawn point is in view of the player, " +
+             "whether a stuck-escape warp would be seen, and whether the Nemesis's own audio is " +
+             "muffled. Floors belong in here. Changing it changes all four.")]
     [SerializeField] private LayerMask obstacleMask;
+
+    [Tooltip("What actually stops SOUND. Walls, not floors.\n\n" +
+             "Separate from obstacleMask because the two questions have different answers: the " +
+             "Nemesis must never SEE through a slab, but it does HEAR through one — that is the " +
+             "only channel it has to the storey above, and without it a player upstairs simply " +
+             "does not exist to it.\n\n" +
+             "Left empty it is derived from obstacleMask minus floorMask, which reproduces the " +
+             "intended behaviour without anyone having to fill it in.")]
+    [SerializeField] private LayerMask soundBlockerMask;
+
+    [Tooltip("Floor and ceiling slabs. Attenuate sound by SO_NemesisData.FloorOcclusionMultiplier " +
+             "instead of blocking it.\n\n" +
+             "Left empty it defaults to the Ground layer.")]
+    [SerializeField] private LayerMask floorMask;
 
     [Header("Data")]
     [Tooltip("Optional. If empty it is taken from the NemesisStateManager in the parents.")]
@@ -28,6 +48,14 @@ public class FieldOfListening : MonoBehaviour
     private Vector3 lastKnownPosition;
     private bool hasLastKnownPosition;
 
+    private float lastNoiseTime;
+
+    // Path-distance cache. A deadline on the Time.time clock rather than a countdown, so a paused
+    // game freezes it — nothing it measures can move while paused.
+    private float nextPathQueryTime;
+    private float cachedPathDistance;
+    private bool cachedPathValid;
+
     public bool HasAudioTarget { get => hasAudioTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
 
@@ -36,9 +64,17 @@ public class FieldOfListening : MonoBehaviour
     /// and cannot stand in for "I have not heard anything yet".</summary>
     public bool HasLastKnownPosition { get => hasLastKnownPosition; }
 
+    /// <summary>Seconds since the last noise was heard, or infinity if none ever was. Same
+    /// purpose as <see cref="FieldOfView.TimeSinceLastSighting"/>: how much the memory is still
+    /// worth, as opposed to whether it exists.</summary>
+    public float TimeSinceLastNoise =>
+        hasLastKnownPosition ? Time.time - lastNoiseTime : float.PositiveInfinity;
+
     private void Awake()
     {
         listenedTargets = new List<GameObject>();
+
+        ResolveAcousticMasks();
 
         if (nemesisData != null) return;
 
@@ -48,6 +84,35 @@ public class FieldOfListening : MonoBehaviour
         if (nemesisData == null)
             Debug.LogError($"[{nameof(FieldOfListening)}] No SO_NemesisData assigned and none " +
                            $"found in the parents — the Nemesis will not hear anything.", this);
+    }
+
+    /// <summary>
+    /// Fills in the two acoustic masks when the scene left them empty.
+    ///
+    /// Derived rather than reported missing, because these fields were added to a component that
+    /// already ships on prefabs, and an empty LayerMask is not a neutral default here — it is the
+    /// most dangerous possible value. A soundBlockerMask of Nothing means no geometry ever
+    /// attenuates anything, so the Nemesis would hear the player through the entire level. That
+    /// regression would land on every existing Nemesis the moment this file compiled, and it
+    /// fails silently: nothing errors, the monster simply becomes omniscient.
+    ///
+    /// The derivation reproduces exactly the behaviour that was there before — obstacleMask
+    /// blocked sound, floors included — minus the floors, which is the whole point of the change.
+    /// Anything set explicitly in the inspector wins.
+    /// </summary>
+    private void ResolveAcousticMasks()
+    {
+        if (floorMask == 0)
+        {
+            int ground = LayerMask.GetMask("Ground");
+
+            // A project with no Ground layer is not an error here: it means floors are on Default
+            // along with everything else, and no mask can tell them apart. Sound then attenuates
+            // through them like a wall, which is where this started.
+            if (ground != 0) floorMask = ground;
+        }
+
+        if (soundBlockerMask == 0) soundBlockerMask = obstacleMask & ~floorMask;
     }
 
     /// <summary>
@@ -87,13 +152,7 @@ public class FieldOfListening : MonoBehaviour
             GameObject target = targetsInListenRadius[i].gameObject;
             if (listenedTargets.Contains(target)) continue;
 
-            if (nemesisData.WallOcclusionEnabled && IsOccludedByWall(target.transform.position))
-            {
-                // A wall doesn't block sound outright, it attenuates it: only heard within
-                // the reduced range. OverlapSphere already guarantees distance <= listenRange.
-                float distance = Vector3.Distance(transform.position, target.transform.position);
-                if (distance > listenRange * nemesisData.WallOcclusionMultiplier) continue;
-            }
+            if (!CanHear(target.transform.position, listenRange)) continue;
 
             listenedTargets.Add(target);
         }
@@ -102,8 +161,84 @@ public class FieldOfListening : MonoBehaviour
             hasAudioTarget = true;
             lastKnownPosition = listenedTargets[0].transform.position;
             hasLastKnownPosition = true;
+            lastNoiseTime = Time.time;
         }
         else hasAudioTarget = false;
+    }
+
+    /// <summary>
+    /// Whether a noise at this point is audible from here.
+    ///
+    /// Neither a wall nor a floor blocks sound outright — both attenuate it, and the model for
+    /// that is a shrunken effective range. What differs is by how much, and that difference is
+    /// the point of the whole change: a wall is a detour the Nemesis could walk around, so it
+    /// muffles hard; a slab is the one surface vision can never cross, so hearing has to stay
+    /// usable through it or the storey above may as well not exist.
+    ///
+    /// They multiply when both apply. A player crouching upstairs and behind a wall should be
+    /// close to inaudible, not merely as muffled as either one alone.
+    ///
+    /// An unoccluded noise is always heard: the OverlapSphere that produced this candidate
+    /// already applied listenRange, and the player's own emitter radius (crouch 1 / walk 2 /
+    /// run 6) is what widens or narrows it. That is pre-existing behaviour and is left alone.
+    /// </summary>
+    private bool CanHear(Vector3 source, float listenRange)
+    {
+        if (!nemesisData.WallOcclusionEnabled) return true;
+
+        float multiplier = 1f;
+
+        if (IsBlockedBy(source, soundBlockerMask)) multiplier *= nemesisData.WallOcclusionMultiplier;
+        if (IsBlockedBy(source, floorMask))        multiplier *= nemesisData.FloorOcclusionMultiplier;
+
+        if (multiplier >= 1f) return true;
+
+        return MeasuredDistanceTo(source) <= listenRange * multiplier;
+    }
+
+    /// <summary>
+    /// How far the noise really is: along the NavMesh when it can be measured, in a straight line
+    /// otherwise.
+    ///
+    /// The distinction is the entire reason a player one floor up used to be treated as though
+    /// they were beside the Nemesis — five metres of slab is five metres in a straight line and
+    /// twelve on foot, and every decision downstream of hearing was reading the first number.
+    ///
+    /// Throttled on NoiseUpdateCooldown, a field that has existed on SO_NemesisData since it was
+    /// written with no reader anywhere in the project. This is what it was for. One cached figure
+    /// rather than one per target is enough: the only thing that emits noise is the player.
+    ///
+    /// Falls back to the straight line when no path exists. Sound is not navigation — an
+    /// unreachable player is still audible — and the states that act on a noise already have
+    /// their own timeouts for a destination they cannot get to.
+    /// </summary>
+    private float MeasuredDistanceTo(Vector3 source)
+    {
+        float straightLine = Vector3.Distance(transform.position, source);
+        if (!nemesisData.HearingUsesPathDistance) return straightLine;
+
+        if (Time.time >= nextPathQueryTime)
+        {
+            nextPathQueryTime = Time.time + Mathf.Max(0.05f, nemesisData.NoiseUpdateCooldown);
+            cachedPathValid = NemesisNav.TryGetPathDistance(transform.position, source,
+                                                            out cachedPathDistance);
+        }
+
+        return cachedPathValid ? cachedPathDistance : straightLine;
+    }
+
+    /// <summary>Whether geometry on the given mask stands between this sensor and the point. An
+    /// empty mask matches nothing, which is how a project with no Ground layer ends up with no
+    /// floor attenuation rather than with an exception.</summary>
+    private bool IsBlockedBy(Vector3 targetPosition, LayerMask mask)
+    {
+        if (mask == 0) return false;
+
+        Vector3 toTarget = targetPosition - transform.position;
+        float distance = toTarget.magnitude;
+        if (distance <= 0.0001f) return false;
+
+        return Physics.Raycast(transform.position, toTarget / distance, distance, mask);
     }
 
     /// <summary>

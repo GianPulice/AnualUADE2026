@@ -24,29 +24,50 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class FogLightSource : MonoBehaviour
 {
-    [Tooltip("Referenced Light. If empty, GetComponent<Light>() is used in Awake.")]
+    // Tooltips in Spanish, same reasoning as SO_VisionFogConfig and FogLightBypass: whoever
+    // opens this component is tuning how the fog feels, not reading the code.
+    [Tooltip("La Light del módulo. Si lo dejás vacío se toma el Light de este mismo GameObject " +
+             "en Awake.")]
     [SerializeField] private Light lightComponent;
 
-    [Tooltip("If true, the fog shader reads from the Light component (range, color, intensity). " +
-             "If false, it uses the values of the active SO_VisionFogConfig.")]
+    [Tooltip("Prendido = la niebla lee range, color e intensity de la Light real, así que " +
+             "bajarle la intensidad al módulo achica el agujero en la niebla solo (sirve para " +
+             "la degradación del módulo, §2.5.1).\n\n" +
+             "Apagado = se usan los valores 'playerLight...' del SO_VisionFogConfig activo.")]
     [SerializeField] private bool useLightComponent = true;
 
-    [Tooltip("Multiplier applied to Light.range for the fog. 2 = the fog opens at twice " +
-             "the real illumination radius. Lets the player see further than the light reaches.")]
+    [Tooltip("Multiplica al range de la Light para calcular el radio de niebla.\n\n" +
+             "2 = la niebla se abre al doble del radio que la luz ilumina de verdad, así el " +
+             "jugador VE más lejos de lo que la lámpara alcanza a iluminar. Bajarlo a 1 los " +
+             "iguala y se siente mucho más cerrado.")]
     [Range(0.25f, 5f)]
     [SerializeField] private float rangeMultiplier = 2f;
 
-    [Tooltip("Multiplier applied to intensity to compute the fog-piercing 'power'. " +
-             "1 = same as the physical light. >1 = the fog dissolves more aggressively.")]
+    [Tooltip("Multiplica al intensity de la Light para calcular cuánta niebla disuelve.\n\n" +
+             "El resultado se recorta a 0..1, así que con una Light en intensity 1 cualquier " +
+             "valor de 1 para arriba ya significa \"limpia del todo en el centro\". Bajalo si " +
+             "querés que quede algo de niebla adentro del radio, que suele ser lo que un área " +
+             "oscura pide.")]
     [Range(0f, 5f)]
     [SerializeField] private float intensityMultiplier = 1f;
 
     /// <summary>True if this source provides its own values that should override the SO.</summary>
     public bool HasLightOverride => useLightComponent && lightComponent != null;
 
-    public float OverrideRange     => lightComponent != null ? lightComponent.range * rangeMultiplier : 0f;
-    public Color OverrideColor     => lightComponent != null ? lightComponent.color : Color.black;
-    public float OverrideIntensity => lightComponent != null ? lightComponent.intensity * intensityMultiplier : 0f;
+    public float OverrideRange => lightComponent != null ? lightComponent.range * rangeMultiplier : 0f;
+    public Color OverrideColor => lightComponent != null ? lightComponent.color : Color.black;
+
+    /// <summary>
+    /// How much fog the light dissolves at the centre of its radius, as a fraction.
+    ///
+    /// Clamped, unlike the v1 <c>OverrideIntensity</c> it replaces. The shader term used to be an
+    /// unbounded multiplier fed into a <c>saturate()</c>, so a Light at intensity 3 already meant
+    /// "fully clear" and every value above 1 collapsed to the same result — the slider looked like
+    /// it had range it did not have. Now the clamp is explicit and visible here.
+    /// </summary>
+    public float OverrideClear => lightComponent != null
+        ? Mathf.Clamp01(lightComponent.intensity * intensityMultiplier)
+        : 0f;
 
     private VisionRangeController _controller;
 

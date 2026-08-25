@@ -6,8 +6,8 @@ public class ValveInteractable : BaseRangeInteractable
     [SerializeField] private SO_ValveData valveData;
 
     [Header("Rotation Feedback")]
-    [SerializeField] private Transform rotator;
-    [SerializeField] private float rotationDuration = 0.25f;
+    private Transform rotator;
+    private float rotationDuration = 1.5f;
 
     private Coroutine rotationRoutine;
     private float rotatorBaseX;

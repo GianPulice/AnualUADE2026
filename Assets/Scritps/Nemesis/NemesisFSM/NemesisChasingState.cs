@@ -66,7 +66,24 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
         if (nemesisStateManager.HasVisualTarget)
         {
-            agent.destination = nemesisStateManager.FieldOfView.LastKnownPosition;
+            Vector3 target = nemesisStateManager.FieldOfView.LastKnownPosition;
+            agent.destination = target;
+
+            // Reaching the player means changing floor by freight elevator: hand over to the
+            // state that will see that trip through.
+            //
+            // Tested before the arrival logic below, not after it, because the two answer
+            // different questions and the order matters. Chasing measures whether it has run out
+            // of path; for a target upstairs it always has, and reading that as "lost him" is
+            // what used to bounce it into Searching, out again on the next frame because the
+            // player was still in plain sight, and back — the loop that left the Nemesis
+            // shuddering in place directly below the player.
+            if (nemesisStateManager.TryGetThrottledRoute(target, out NemesisNav.NavRoute route) &&
+                nemesisStateManager.IsRouteAcrossFloors(route))
+            {
+                NextState = NemesisStateManager.ENemesisState.Traversing;
+                return;
+            }
 
             // remainingDistance (actual path length) instead of a straight-line check — the
             // capture trigger cannot afford to fire through a floor slab just because the

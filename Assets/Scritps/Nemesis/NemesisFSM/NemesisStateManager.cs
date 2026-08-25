@@ -2,6 +2,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// Owns the Nemesis finite state machine and the references its states need.
+///
+/// It is deliberately a FACADE over four sibling components rather than the implementation of
+/// everything they do. It used to be the implementation, all 880 lines of it, carrying twelve
+/// separate jobs — telemetry, capture, warping, stuck detection, dormancy, route caching — none of
+/// which is "run a state machine". The states still call the one object they hold a reference to;
+/// what changed is that the work now lives where its name says it does:
+///
+///   NemesisPathOracle    route queries, throttled
+///   NemesisTelemetry     the HUD vignettes and the audio's state events
+///   NemesisStuckEscape   the no-progress watchdog and its warp out
+///   NemesisLifecycle     dormancy, agent tuning, and every teleport
+///
+/// A facade is not a god object: the problem was never that everything could be reached from here,
+/// it was that everything was implemented here. All four are added automatically when missing, so
+/// no existing Nemesis prefab has to be opened and re-saved.
+/// </summary>
 public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisState>
 {
     [SerializeField] private Transform selfTransform;
@@ -13,15 +31,17 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private NemesisController nemesisController;
     [SerializeField] private Animator animController;
 
+    [Header("Sibling components (auto-added when missing)")]
+    [SerializeField] private NemesisPathOracle pathOracle;
+    [SerializeField] private NemesisTelemetry telemetry;
+    [SerializeField] private NemesisStuckEscape stuckEscape;
+    [SerializeField] private NemesisLifecycle lifecycle;
+
     [Header("Capture")]
     [Tooltip("Seconds the Nemesis stays inert in Catch after the player has respawned, before " +
              "warping to a random waypoint and going back to Patrolling. This is the player's " +
              "window to get away from the checkpoint.")]
     [SerializeField] private float captureGracePeriod = 8f;
-
-    [Tooltip("Waypoints closer than this to the player are not eligible when repositioning " +
-             "after a capture, so the Nemesis does not warp on top of the respawned player.")]
-    [SerializeField] private float repositionMinPlayerDistance = 15f;
 
     [Tooltip("Seconds after leaving Catch during which the Nemesis cannot enter it again.\n\n" +
              "Two jobs: it stops the Nemesis from re-grabbing the player the instant a capture " +
@@ -29,38 +49,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "Catch bails out because it had no target to capture.")]
     [SerializeField] private float catchCooldown = 2f;
 
-    [Header("Stuck detection")]
-    [Tooltip("How long the Nemesis has to make no progress before it counts as stuck.")]
-    [SerializeField] private float stuckCheckInterval = 3f;
-
-    [Tooltip("Distance it has to cover within the interval to count as making progress.")]
-    [SerializeField] private float stuckMinDistance = 0.5f;
-
     private bool hasVisualTarget = false;
     private bool hasAudioTarget = false;
 
     private bool isActive;
-    private List<Renderer> hiddenWhileDormant;
 
     private Transform playerTransform;
-    private bool wasBeingChased;
     private bool isCaptureResolved;
     private bool hasReceivedRespawnNotification;
     private float catchCooldownTimer;
-
-    private Vector3 lastStuckSamplePosition;
-    private float stuckSampleTimer;
-
-    // A counter and not a bool: the door and the freight elevator can both request suppression at
-    // the same time, and with a bool the first one to release it would re-arm the detection while
-    // the other is still busy.
-    private int stuckSuppressionCount;
-
-    private float proximityRecalcTimer;
-    private float proximityTarget;
-    private float proximityEmitted;
-
-    private ENemesisState? lastReportedState;
 
     public float CaptureGracePeriod { get => captureGracePeriod; }
     public bool HasReceivedRespawnNotification { get => hasReceivedRespawnNotification; }
@@ -73,30 +70,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// has not entered any state yet in that window.</summary>
     public bool IsActive { get => isActive; }
 
-    /// <summary>
-    /// True while something is moving the Nemesis outside the NavMeshAgent: opening a door, or
-    /// riding the freight elevator. Stuck detection does not run in that window.
-    ///
-    /// Without this, an elevator ride longer than stuckCheckInterval reads as "made no progress in
-    /// 3 seconds while pathing" and the escape warps it out of the lift, mid-ascent.
-    /// </summary>
-    public bool IsStuckDetectionSuppressed => stuckSuppressionCount > 0;
-
-    /// <summary>Opens a window with no stuck detection. Every <see cref="PushStuckSuppression"/>
-    /// must have its <see cref="PopStuckSuppression"/>, even if the traversal is cancelled — use
-    /// try/finally in the coroutines.</summary>
-    public void PushStuckSuppression() => stuckSuppressionCount++;
-
-    public void PopStuckSuppression()
-    {
-        stuckSuppressionCount = Mathf.Max(0, stuckSuppressionCount - 1);
-
-        // Otherwise the first check after the traversal would measure progress from where it stood
-        // before boarding, and read it as ground it never actually covered on foot.
-        lastStuckSamplePosition = transform.position;
-        stuckSampleTimer = 0f;
-    }
-
     public Transform SelfTransform { get => selfTransform; set => selfTransform = value; }
     public FieldOfView FieldOfView { get => fieldOfView; }
     public FieldOfListening FieldOfListening {get => fieldOfListening; }
@@ -107,6 +80,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public Animator AnimController { get => animController; set => animController = value; }
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
+
+    /// <summary>The player, or null when none is registered. Read by the sibling components, which
+    /// all need it and none of which should be subscribing to PlayerRegistry separately.</summary>
+    public Transform PlayerTransform => playerTransform;
+
+    /// <summary>The state the FSM is in, or null before it has started. Nullable so a caller
+    /// cannot mistake "not started yet" for Patrolling, which is enum value 0.</summary>
+    public ENemesisState? CurrentStateKey => CurrentState != null ? CurrentState.StateKey : (ENemesisState?)null;
 
     /// <summary>
     /// Whether the agent can be asked for anything without Unity logging an error.
@@ -125,6 +106,96 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Chasing,
         Searching,
         Catch,
+        Traversing,
+    }
+
+    // ── Facade: route verdict (NemesisPathOracle) ───────────────────────────
+
+    /// <summary>The route from here to a point, throttled. See <see cref="NemesisPathOracle"/>.
+    /// </summary>
+    /// <returns>false when the oracle is missing, or when the query could not run at all (an end
+    /// off the NavMesh). A partial path returns true with
+    /// <see cref="NemesisNav.NavRoute.IsComplete"/> false.</returns>
+    public bool TryGetThrottledRoute(Vector3 target, out NemesisNav.NavRoute route)
+    {
+        if (pathOracle != null) return pathOracle.TryGetRoute(target, out route);
+
+        route = default;
+        return false;
+    }
+
+    /// <summary>Whether that route means changing floor by lift. See
+    /// <see cref="NemesisPathOracle.IsAcrossFloors"/>.</summary>
+    public bool IsRouteAcrossFloors(in NemesisNav.NavRoute route) =>
+        pathOracle != null && pathOracle.IsAcrossFloors(route);
+
+    /// <summary>Drops the cached verdict so the next query recomputes. Called when entering a
+    /// state that is about to act on the answer, and after every teleport.</summary>
+    public void InvalidateRouteVerdict()
+    {
+        if (pathOracle != null) pathOracle.Invalidate();
+    }
+
+    // ── Facade: stuck detection (NemesisStuckEscape) ────────────────────────
+
+    /// <summary>See <see cref="NemesisStuckEscape.IsSuppressed"/>.</summary>
+    public bool IsStuckDetectionSuppressed => stuckEscape != null && stuckEscape.IsSuppressed;
+
+    /// <summary>Opens a window with no stuck detection. Every <see cref="PushStuckSuppression"/>
+    /// must have its <see cref="PopStuckSuppression"/>, even if the traversal is cancelled — use
+    /// try/finally. Called by NemesisDoorUser and NemesisElevatorUser.</summary>
+    public void PushStuckSuppression()
+    {
+        if (stuckEscape != null) stuckEscape.Push();
+    }
+
+    public void PopStuckSuppression()
+    {
+        if (stuckEscape != null) stuckEscape.Pop();
+    }
+
+    // ── Facade: repositioning (NemesisLifecycle) ────────────────────────────
+
+    /// <summary>Warps the Nemesis away after a capture. Called by NemesisCatchState. See
+    /// <see cref="NemesisLifecycle.RepositionAfterCapture"/>.</summary>
+    public void RepositionAfterCapture()
+    {
+        if (lifecycle != null) lifecycle.RepositionAfterCapture();
+    }
+
+    /// <summary>
+    /// Moves the Nemesis, keeping everything that depends on its position in step.
+    ///
+    /// Public because <see cref="NemesisStuckEscape"/> and <see cref="NemesisLifecycle"/> both
+    /// teleport, and neither should be re-deriving the two pieces of bookkeeping below — a warp
+    /// that skips either leaves the FSM steering from the floor it just left, or the watchdog
+    /// reading the jump as ground covered on foot and never firing again.
+    /// </summary>
+    /// <returns>false when the agent could not be placed there — the target is off the NavMesh.
+    /// </returns>
+    public bool WarpTo(Vector3 position)
+    {
+        // Warp and not transform.position: a NavMeshAgent keeps its own internal position and
+        // would drag the Nemesis straight back on the next agent update.
+        bool moved;
+
+        if (navAgent == null || !navAgent.isActiveAndEnabled)
+        {
+            transform.position = position;
+            moved = true;
+        }
+        else
+        {
+            moved = navAgent.Warp(position);
+        }
+
+        if (!moved) return false;
+
+        // Any warp moves further in one frame than either of these was meant to absorb.
+        InvalidateRouteVerdict();
+        if (stuckEscape != null) stuckEscape.ResetSample();
+
+        return true;
     }
 
     void Awake()
@@ -135,10 +206,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         {
             // Disabled rather than left running, same as PlayerStateManager. Every reference below
             // is dereferenced either by this Update each frame or by the states themselves, and
-            // InitializeStates() is the worst of them: the four state constructors read
-            // NemesisData, so a missing asset throws mid-construction and leaves the States
-            // dictionary half filled — after which CurrentState = States[Patrolling] throws
-            // KeyNotFoundException and the real cause is nowhere in the log.
+            // InitializeStates() is the worst of them: the state constructors read NemesisData, so
+            // a missing asset throws mid-construction and leaves the States dictionary half filled
+            // — after which CurrentState = States[Patrolling] throws KeyNotFoundException and the
+            // real cause is nowhere in the log.
             //
             // Note this leaves the Nemesis visible but inert rather than dormant: SetDormant(true)
             // lives in Start(), which Unity never calls on a component disabled during Awake. That
@@ -148,7 +219,27 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
             return;
         }
 
+        telemetry.Initialize(this);
+        stuckEscape.Initialize(this);
+        lifecycle.Initialize(this);
+
         InitializeStates();
+
+        // Deliberately the last thing Awake does, and deliberately not in OnEnable.
+        //
+        // Not in OnEnable because docs/CLAUDE.md is explicit that static events are subscribed in
+        // Awake and released in OnDestroy — a static delegate outlives the GameObject's enabled
+        // state, so an enabled-scoped subscription is a listener that silently stops listening.
+        // Here that was not cosmetic: PuzzleStateManager.OnPuzzleCompleted is this Nemesis's
+        // ACTIVATION gate, and the catch-up for an already-solved puzzle only runs in Start(). A
+        // Nemesis disabled for so much as a frame around its puzzle would never wake up again,
+        // with nothing in the log to say why.
+        //
+        // Last, and after the early return above, so a Nemesis whose references failed validation
+        // stays deaf: it is disabled and cannot service an Activate() call. OnDestroy still
+        // unsubscribes unconditionally, which is safe — releasing a delegate that was never added
+        // is a no-op.
+        SubscribeToEvents();
     }
 
     /// <summary>
@@ -169,6 +260,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (nemesisController == null) nemesisController = GetComponent<NemesisController>();
         if (navAgent == null)         navAgent         = GetComponent<NavMeshAgent>();
 
+        // Added rather than reported missing, and deliberately so: none of the four carries scene
+        // wiring a designer could get wrong — they read what they need off this object. Requiring
+        // every existing Nemesis prefab to be opened and re-saved to gain components with nothing
+        // to configure would be friction for its own sake. AddComponent runs each Awake
+        // synchronously, so they are constructed before the line after this one.
+        pathOracle  = ResolveSibling(pathOracle);
+        telemetry   = ResolveSibling(telemetry);
+        stuckEscape = ResolveSibling(stuckEscape);
+        lifecycle   = ResolveSibling(lifecycle);
+
         // includeInactive: the sensors are switched off while the Nemesis is dormant, and the
         // Animator sits on the model root, which a prefab may ship disabled.
         if (fieldOfView == null)      fieldOfView      = GetComponentInChildren<FieldOfView>(true);
@@ -176,13 +277,24 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (animController == null)   animController   = GetComponentInChildren<Animator>(true);
     }
 
+    private T ResolveSibling<T>(T current) where T : Component
+    {
+        if (current != null) return current;
+
+        T found = GetComponent<T>();
+        return found != null ? found : gameObject.AddComponent<T>();
+    }
+
     /// <summary>
     /// Reports everything still unresolved in one message instead of letting each one surface as
     /// its own NullReferenceException later. Returns false if the Nemesis cannot run.
     ///
-    /// This is what lets the four states dereference NemesisData/NemesisMovement/AnimController/
+    /// This is what lets the states dereference NemesisData/NemesisMovement/AnimController/
     /// NavAgent without guarding — the contract is established here, before InitializeStates()
     /// constructs any of them.
+    ///
+    /// The four sibling components are not checked: ResolveHierarchyReferences adds them when
+    /// missing, so they cannot be null by the time this runs.
     /// </summary>
     private bool ValidateReferences()
     {
@@ -205,6 +317,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
                        $"them in the inspector, or add the missing objects under it.", this);
         return false;
     }
+
     /// <summary>
     /// Deliberately does NOT call base.Start(): that is what runs CurrentState.EnterState() and
     /// starts the FSM, and a puzzle-gated Nemesis must not start until its puzzle is solved.
@@ -212,7 +325,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// </summary>
     public override void Start()
     {
-        lastStuckSamplePosition = transform.position;
+        stuckEscape.ResetSample();
 
         string gate = nemesisController != null ? nemesisController.ActivatedByPuzzleId : null;
 
@@ -231,8 +344,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (PuzzleStateManager.Exists && PuzzleStateManager.Instance.IsPuzzleCompleted(gate))
             Activate();
         else
-            SetDormant(true);
+            lifecycle.SetDormant(true);
     }
+
     public override void Update()
     {
         // Dormant: no senses, no navigation, no proximity vignette. Checked before the pause
@@ -248,22 +362,18 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         hasVisualTarget = fieldOfView.HasVisualTarget;
         hasAudioTarget = fieldOfListening.HasAudioTarget;
 
-        // Emitted before the FSM tick and not after it. Proximity is pure distance and owes
-        // nothing to the current state, but it used to sit below base.Update() — so anything a
-        // state threw (an unassigned Animator, an agent knocked off the NavMesh by a Warp that
-        // did not land) took every line after it down too, every frame. The first thing anyone
-        // noticed was the proximity vignette silently never lighting up, which pointed at the UI
-        // instead of at the state that was actually failing.
-        EmitProximity();
+        // Before the FSM tick, not after: proximity owes nothing to the current state, and below
+        // base.Update() anything a state threw took it down too, every frame. See
+        // NemesisTelemetry.TickProximity.
+        telemetry.TickProximity();
 
         base.Update();
 
-        EmitChaseTransitions();
-        EmitStateTransitions();
-        CheckStuck();
+        telemetry.TickStateEvents(isCaptureResolved);
+        stuckEscape.Tick(IsNavigatingState());
     }
 
-    private void OnEnable()
+    private void SubscribeToEvents()
     {
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
         PlayerRegistry.OnPlayerUnregistered += HandlePlayerUnregistered;
@@ -271,38 +381,24 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         PuzzleStateManager.OnPuzzleCompleted += HandleActivationPuzzleCompleted;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
-        // Unsubscribing goes before the wasBeingChased early-out below, otherwise disabling the
-        // Nemesis while it was not chasing would leave the listeners hooked.
         PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
         PlayerRegistry.OnPlayerUnregistered -= HandlePlayerUnregistered;
         CheckpointManager.OnRespawned -= HandleCheckpointRespawned;
         PuzzleStateManager.OnPuzzleCompleted -= HandleActivationPuzzleCompleted;
-
-        // If the Nemesis is switched off while chasing, the red vignette would stay lit
-        // on top of the HUD forever.
-        if (!wasBeingChased) return;
-        wasBeingChased = false;
-        NemesisEvents.ChaseEnded();
     }
 
     /// <summary>
-    /// Raises <see cref="NemesisEvents.StateChanged"/> once per FSM transition.
-    ///
-    /// Detected here by comparing against the last reported key, the same way
-    /// <see cref="EmitChaseTransitions"/> does, rather than by editing the five states'
-    /// EnterState methods: one place instead of five, and no change to the shared FSM base.
+    /// Only the HUD cleanup stays enabled-scoped, and it belongs here rather than in OnDestroy:
+    /// the red chase vignette is driven by a start/end pair, so a Nemesis switched off mid-chase
+    /// leaves it lit over the HUD with nothing left alive to turn it off. Being disabled and being
+    /// destroyed both have to close that pair, and OnDisable covers both — Unity raises it on the
+    /// way to OnDestroy too.
     /// </summary>
-    private void EmitStateTransitions()
+    private void OnDisable()
     {
-        if (CurrentState == null) return;
-
-        ENemesisState key = CurrentState.StateKey;
-        if (lastReportedState.HasValue && lastReportedState.Value == key) return;
-
-        lastReportedState = key;
-        NemesisEvents.StateChanged(key);
+        if (telemetry != null) telemetry.CloseChase();
     }
 
     private void HandlePlayerRegistered(PlayerStateManager player) => playerTransform = player.transform;
@@ -326,13 +422,18 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <summary>
     /// Wakes the Nemesis up: warps it to a spawn point away from the player and starts the FSM.
     /// Idempotent, so re-completing the activation puzzle never re-spawns it mid-run.
+    ///
+    /// Entering the first state is the one part that cannot move to NemesisLifecycle: it touches
+    /// the protected State dictionary of the shared FSM base, and reaching into that from a
+    /// sibling component would give the machine a second owner.
     /// </summary>
     public void Activate()
     {
         if (isActive) return;
         isActive = true;
 
-        SetDormant(false);
+        lifecycle.SetDormant(false);
+        lifecycle.ApplyMovementTuning();
 
         // Picks the farthest point outside the player's line of sight and warps there. Done
         // before entering Patrolling so the first patrol cycle starts from the spawn point and
@@ -341,69 +442,20 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
         // After the warp, or the first stuck sample would be the pre-spawn position and the
         // Nemesis would read as having teleported "without progress" on the next check.
-        lastStuckSamplePosition = transform.position;
+        stuckEscape.ResetSample();
 
         CurrentState = States[ENemesisState.Patrolling];
         CurrentState.EnterState();
     }
 
     /// <summary>
-    /// Turns off everything that would make a dormant Nemesis visible or reactive.
+    /// The save system finished loading the checkpoint. This is the notification the spec requires
+    /// ("el Sistema de Guardado debe notificar al NemesisController") — the Nemesis never calls
+    /// into CheckpointManager itself, it only reacts to this.
     ///
-    /// The GameObject itself deliberately stays active: a deactivated one gets no OnEnable, so it
-    /// could not listen for its own activation puzzle and would never wake up.
-    /// </summary>
-    private void SetDormant(bool dormant)
-    {
-        if (navAgent != null) navAgent.enabled = !dormant;
-        if (fieldOfView != null) fieldOfView.enabled = !dormant;
-        if (fieldOfListening != null) fieldOfListening.enabled = !dormant;
-
-        if (dormant) HideRenderers();
-        else         RestoreRenderers();
-    }
-
-    /// <summary>
-    /// Switches off only the renderers that were actually on, and remembers exactly those.
-    /// Blanket-enabling every renderer on wake-up would light up anything the prefab left
-    /// disabled on purpose (spare meshes, effect emitters, debug visuals).
-    /// </summary>
-    private void HideRenderers()
-    {
-        Renderer[] all = GetComponentsInChildren<Renderer>(true);
-        List<Renderer> hidden = new List<Renderer>(all.Length);
-
-        for (int i = 0; i < all.Length; i++)
-        {
-            if (all[i] == null || !all[i].enabled) continue;
-
-            all[i].enabled = false;
-            hidden.Add(all[i]);
-        }
-
-        hiddenWhileDormant = hidden;
-    }
-
-    private void RestoreRenderers()
-    {
-        if (hiddenWhileDormant == null) return;
-
-        for (int i = 0; i < hiddenWhileDormant.Count; i++)
-        {
-            if (hiddenWhileDormant[i] != null) hiddenWhileDormant[i].enabled = true;
-        }
-
-        hiddenWhileDormant = null;
-    }
-
-    /// <summary>
-    /// The save system finished loading the checkpoint. This is the notification the spec
-    /// requires ("el Sistema de Guardado debe notificar al NemesisController") — the Nemesis
-    /// never calls into CheckpointManager itself, it only reacts to this.
-    ///
-    /// Guarded to Catch: CheckpointManager.OnRespawned fires for any respawn, and this is the
-    /// only Nemesis listening today, but nothing ties the event to "this specific capture" —
-    /// the guard is what makes that safe.
+    /// Guarded to Catch: CheckpointManager.OnRespawned fires for any respawn, and this is the only
+    /// Nemesis listening today, but nothing ties the event to "this specific capture" — the guard
+    /// is what makes that safe.
     /// </summary>
     private void HandleCheckpointRespawned(Checkpoint checkpoint)
     {
@@ -411,108 +463,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
         isCaptureResolved = true;
         hasReceivedRespawnNotification = true;
-    }
-
-    // ── Player feedback ──────────────────────────────────────────────────────
-    //
-    // The two HUD vignettes (VignetteChaseView / VignetteProximityView) listen to
-    // NemesisEvents. They are raised from here, and not from each state, to keep the
-    // "I am being chased" logic in a single place.
-
-    /// <summary>
-    /// Intensity of the proximity vignette: 0 out of range, 1 right on top of the player.
-    ///
-    /// Uses the player's real position rather than FieldOfView.LastKnownPosition because
-    /// proximity has to rise even if the Nemesis has never seen you — that is exactly the
-    /// warning that it is close by without you knowing.
-    ///
-    /// The distance is measured over the NavMesh and not in a straight line. This was the "the
-    /// threat UI shows up when it is on another floor" bug: the Nemesis standing on floor 0 right
-    /// below the player is 4 metres away as the crow flies — vignette near maximum — and half a
-    /// storey away on foot. Path distance gives the real 40 metres and the vignette stays dark,
-    /// which is the honest reading.
-    /// </summary>
-    private void EmitProximity()
-    {
-        float radius = nemesisData != null ? nemesisData.ProximityRadius : 0f;
-
-        if (playerTransform == null || radius <= 0f)
-        {
-            proximityTarget = 0f;
-            proximityEmitted = 0f;
-            NemesisEvents.ProximityChanged(0f);
-            return;
-        }
-
-        // Straight-line prefilter, which is free: no path can be shorter than the straight line,
-        // so outside the radius in a straight line it is already 0 with nothing computed. This is
-        // what avoids paying for a CalculatePath during the 95% of the run when it is far away.
-        float straightLine = Vector3.Distance(transform.position, playerTransform.position);
-        if (straightLine >= radius)
-        {
-            proximityRecalcTimer = 0f;
-            proximityTarget = 0f;
-        }
-        else if (nemesisData == null || !nemesisData.ProximityUsesPathDistance)
-        {
-            proximityTarget = 1f - Mathf.Clamp01(straightLine / radius);
-        }
-        else
-        {
-            RecalculatePathProximity(radius);
-        }
-
-        // Interpolated rather than written straight through: the measurement runs at ~5Hz and the
-        // vignette reads the value every frame, so without this it looks stepped when moving fast.
-        float interval = nemesisData != null ? Mathf.Max(0.05f, nemesisData.ProximityRecalcInterval) : 0.2f;
-        proximityEmitted = Mathf.MoveTowards(proximityEmitted, proximityTarget, Time.deltaTime / interval);
-
-        NemesisEvents.ProximityChanged(proximityEmitted);
-    }
-
-    /// <summary>
-    /// Refreshes <see cref="proximityTarget"/> with path distance, at most once every
-    /// ProximityRecalcInterval.
-    ///
-    /// With no complete path the result is 0, not "very far": if the player is on a NavMesh island
-    /// the Nemesis cannot reach, there is no threat to announce however much the straight line
-    /// insists they are two metres apart.
-    /// </summary>
-    private void RecalculatePathProximity(float radius)
-    {
-        proximityRecalcTimer -= Time.deltaTime;
-        if (proximityRecalcTimer > 0f) return;
-
-        proximityRecalcTimer = Mathf.Max(0.05f, nemesisData.ProximityRecalcInterval);
-
-        proximityTarget = NemesisNav.TryGetPathDistance(transform.position, playerTransform.position,
-                                                        out float pathDistance)
-            ? 1f - Mathf.Clamp01(pathDistance / radius)
-            : 0f;
-    }
-
-    /// <summary>
-    /// Raises ChaseStarted/ChaseEnded when entering and leaving the "it is hunting you" set.
-    ///
-    /// Catch is part of the set on purpose: if it were cut when leaving Chasing, the red
-    /// vignette would switch off on the very frame it grabs you, which is when it needs to
-    /// be showing the most.
-    /// </summary>
-    private void EmitChaseTransitions()
-    {
-        // Catch only counts while the capture is unresolved. Once the player has respawned at a
-        // checkpoint it is free again, and leaving the red vignette lit for the whole grace
-        // period would tell it it is still being hunted when it is not.
-        bool isBeingChased = CurrentState != null &&
-                             (CurrentState.StateKey == ENemesisState.Chasing ||
-                              (CurrentState.StateKey == ENemesisState.Catch && !isCaptureResolved));
-
-        if (isBeingChased == wasBeingChased) return;
-
-        wasBeingChased = isBeingChased;
-
-        if (isBeingChased) NemesisEvents.ChaseStarted();
-        else               NemesisEvents.ChaseEnded();
     }
 
     // ── Capture ─────────────────────────────────────────────────────────────
@@ -536,150 +486,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public void BeginCatchCooldown() => catchCooldownTimer = catchCooldown;
 
     /// <summary>
-    /// Warps the Nemesis away after a capture: to a random spawn point when the controller has
-    /// any configured, and to a random unlocked waypoint otherwise. Without this it would resume
-    /// patrolling from the spot where it caught you, which is right where you reappear when the
-    /// checkpoint is close.
+    /// Whether the FSM is in a state that is supposed to be getting somewhere. Handed to
+    /// <see cref="NemesisStuckEscape"/> so it never has to know the state enum.
     ///
-    /// Spawn points first because that is exactly what they are: hand-placed "the Nemesis comes
-    /// back from here" markers, chosen to sit away from where the player is sent. Waypoints stay
-    /// as the fallback so a scene that never filled the spawn list in keeps working instead of
-    /// leaving the Nemesis parked on top of the checkpoint.
-    ///
-    /// Random and not <see cref="NemesisController.ChooseSpawnPoint"/>: that one deliberately
-    /// picks the farthest hidden point, which is right for the first arrival but would send the
-    /// Nemesis to the same corner after every single capture.
+    /// Catch is excluded on purpose: standing still is the whole point of that state.
     /// </summary>
-    public void RepositionAfterCapture()
-    {
-        IReadOnlyList<Transform> spawns = nemesisController != null
-            ? nemesisController.SpawnPoints
-            : null;
-
-        if (TryWarpToRandom(spawns)) return;
-
-        IReadOnlyList<Transform> waypoints = nemesisController != null
-            ? nemesisController.AllUnlockedWaypoints
-            : null;
-
-        if (TryWarpToRandom(waypoints)) return;
-
-        Debug.LogWarning("[NemesisStateManager] Nowhere to reposition to after a capture: no " +
-                         "spawn points configured on the NemesisController and no unlocked " +
-                         "waypoints either. The Nemesis stays where it caught the player.", this);
-    }
-
-    /// <summary>
-    /// Splits <paramref name="points"/> into the ones far enough from the respawned player and
-    /// the ones that are not, and warps to a random entry of the first group — falling through to
-    /// the second only if none of them worked. Standing on top of the player is bad, staying at
-    /// the capture point is worse.
-    /// </summary>
-    private bool TryWarpToRandom(IReadOnlyList<Transform> points)
-    {
-        if (points == null || points.Count == 0) return false;
-
-        List<Transform> far = new List<Transform>(points.Count);
-        List<Transform> near = new List<Transform>(points.Count);
-
-        for (int i = 0; i < points.Count; i++)
-        {
-            Transform point = points[i];
-            if (point == null) continue;
-
-            bool tooClose = playerTransform != null &&
-                            Vector3.Distance(point.position, playerTransform.position) <
-                            repositionMinPlayerDistance;
-
-            if (tooClose) near.Add(point);
-            else          far.Add(point);
-        }
-
-        return TryWarpToAnyOf(far) || TryWarpToAnyOf(near);
-    }
-
-    /// <summary>
-    /// Tries every entry, starting from a random one and wrapping, instead of picking one and
-    /// hoping. NavMeshAgent.Warp fails silently — it returns false and leaves the agent exactly
-    /// where it was — whenever the target does not land on the NavMesh, so a single marker nudged
-    /// off the mesh used to be enough to leave the Nemesis standing at the capture point, which
-    /// is the whole thing this is here to avoid.
-    /// </summary>
-    private bool TryWarpToAnyOf(List<Transform> points)
-    {
-        if (points.Count == 0) return false;
-
-        int start = Random.Range(0, points.Count);
-        for (int i = 0; i < points.Count; i++)
-        {
-            Transform target = points[(start + i) % points.Count];
-            if (!WarpTo(target.position)) continue;
-
-            // Or the next stuck check would measure progress from the pre-warp position.
-            lastStuckSamplePosition = target.position;
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Warp and not transform.position: a NavMeshAgent keeps its own internal position and would
-    /// drag the Nemesis straight back on the next agent update.
-    /// </summary>
-    /// <returns>false when the agent could not be placed there — the target is off the NavMesh.</returns>
-    private bool WarpTo(Vector3 position)
-    {
-        if (navAgent == null || !navAgent.isActiveAndEnabled)
-        {
-            transform.position = position;
-            return true;
-        }
-
-        return navAgent.Warp(position);
-    }
-
-    // ── Stuck detection ─────────────────────────────────────────────────────
-    //
-    // Hooked into this Update and not into the states because Patrolling, Investigating,
-    // Chasing and Searching all need it and this is the one place they share. Catch is
-    // excluded on purpose: standing still is the whole point of that state.
-
-    /// <summary>
-    /// Warps the Nemesis out when it has stopped making progress — wedged on geometry, or on a
-    /// NavMesh island it cannot path off.
-    /// </summary>
-    private void CheckStuck()
-    {
-        // Only counts while it is actually trying to get somewhere. Waiting out
-        // PatrolWaypointWaitTime at a waypoint is not being stuck, and testing the agent's path
-        // covers that without having to special-case each state's idle timings.
-        //
-        // IsStuckDetectionSuppressed covers what the agent does not drive: opening a door and
-        // riding the freight elevator. In both the Nemesis makes little or no progress on purpose.
-        if (IsStuckDetectionSuppressed || !IsNavigatingState() || !IsTryingToMove())
-        {
-            stuckSampleTimer = 0f;
-            lastStuckSamplePosition = transform.position;
-            return;
-        }
-
-        stuckSampleTimer += Time.deltaTime;
-        if (stuckSampleTimer < stuckCheckInterval) return;
-
-        stuckSampleTimer = 0f;
-
-        Vector3 position = transform.position;
-        float travelled = Vector3.Distance(position, lastStuckSamplePosition);
-        lastStuckSamplePosition = position;
-
-        if (travelled >= stuckMinDistance) return;
-
-        Debug.LogWarning($"[NemesisStateManager] Stuck: moved {travelled:F2}u in " +
-                         $"{stuckCheckInterval}s while pathing. Warping out.", this);
-        TeleportToStuckEscapeWayPoint();
-    }
-
     private bool IsNavigatingState()
     {
         if (CurrentState == null) return false;
@@ -688,99 +499,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         return key == ENemesisState.Patrolling ||
                key == ENemesisState.Investigating ||
                key == ENemesisState.Chasing ||
-               key == ENemesisState.Searching;
-    }
-
-    /// <summary>
-    /// Whether the Nemesis is currently supposed to be getting somewhere — which is what makes a
-    /// lack of progress mean "stuck" rather than "waiting out PatrolWaypointWaitTime".
-    ///
-    /// The two cases below used to return false, i.e. "not trying to move", which reset the stuck
-    /// timer every frame. That left the escape unable to fire in precisely the two situations it
-    /// exists for: the Nemesis stood still, animation and all, for the rest of the run.
-    /// </summary>
-    private bool IsTryingToMove()
-    {
-        if (navAgent == null || !navAgent.isActiveAndEnabled) return false;
-
-        // Off the NavMesh altogether — a Warp that did not land on one (ChooseSpawnPoint and the
-        // escape itself both warp blind), or geometry rebuilt out from under it. It cannot path
-        // anywhere and will not recover on its own, so this is the most stuck it can possibly be.
-        if (!navAgent.isOnNavMesh) return true;
-
-        if (navAgent.pathPending) return false;
-
-        // A destination it cannot reach: a waypoint placed off the mesh, or one on an island cut
-        // off by a closed door. hasPath stays false while the agent re-requests an impossible
-        // path and remainingDistance reads Infinity, so the check below read it as "idle at a
-        // waypoint". Guarded on the destination being somewhere else, because an agent that has
-        // never been given one reports PathInvalid while standing exactly where it belongs.
-        if (navAgent.pathStatus != NavMeshPathStatus.PathComplete &&
-            Vector3.Distance(transform.position, navAgent.destination) > navAgent.stoppingDistance)
-        {
-            return true;
-        }
-
-        return navAgent.hasPath && navAgent.remainingDistance > navAgent.stoppingDistance;
-    }
-
-    /// <summary>
-    /// Nearest waypoint the player cannot see, so the Nemesis is not watched teleporting.
-    /// </summary>
-    private void TeleportToStuckEscapeWayPoint()
-    {
-        IReadOnlyList<Transform> allWaypoints = nemesisController != null
-            ? nemesisController.AllUnlockedWaypoints
-            : null;
-
-        if (allWaypoints == null || allWaypoints.Count == 0)
-        {
-            Debug.LogWarning("[NemesisStateManager] Stuck with no waypoints to escape to.", this);
-            return;
-        }
-
-        Vector3 position = transform.position;
-        Transform best = null;
-        float bestDistance = float.MaxValue;
-        Transform nearestOverall = null;
-        float nearestOverallDistance = float.MaxValue;
-
-        foreach (Transform wp in allWaypoints)
-        {
-            if (wp == null) continue;
-
-            float distance = Vector3.Distance(position, wp.position);
-
-            if (distance < nearestOverallDistance)
-            {
-                nearestOverallDistance = distance;
-                nearestOverall = wp;
-            }
-
-            if (!IsHiddenFromPlayer(wp.position)) continue;
-            if (distance >= bestDistance) continue;
-
-            bestDistance = distance;
-            best = wp;
-        }
-
-        // Every waypoint is in view (open room, no cover): warp to the nearest one anyway.
-        // Being seen to teleport is bad, staying wedged for the rest of the run is worse.
-        if (best == null) best = nearestOverall;
-        if (best == null) return;
-
-        if (navAgent != null && navAgent.isActiveAndEnabled) navAgent.Warp(best.position);
-        else transform.position = best.position;
-
-        lastStuckSamplePosition = best.position;
-    }
-
-    private bool IsHiddenFromPlayer(Vector3 point)
-    {
-        if (playerTransform == null) return true;        // Nobody around to watch it happen.
-        if (fieldOfListening == null) return false;      // No way to test: assume it is visible.
-
-        return fieldOfListening.IsOccludedByWall(playerTransform.position, point);
+               key == ENemesisState.Searching ||
+               key == ENemesisState.Traversing;
     }
 
     private void InitializeStates()
@@ -790,7 +510,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching,this));
         States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating,this));
         States.Add(ENemesisState.Catch, new NemesisCatchState(ENemesisState.Catch, this));
+        States.Add(ENemesisState.Traversing, new NemesisTraversingState(ENemesisState.Traversing, this));
         CurrentState = States[ENemesisState.Patrolling];
     }
-
 }

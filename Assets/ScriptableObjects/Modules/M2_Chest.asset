@@ -17,7 +17,6 @@ MonoBehaviour:
   penalty: 1
   associatedPuzzleId: 
   timerDuration: 180
-  cojeraMultiplier: 0.6
   sprintReduction: 0.25
   shakeAmplitude: 0.03
   shakeFrequency: 1.2

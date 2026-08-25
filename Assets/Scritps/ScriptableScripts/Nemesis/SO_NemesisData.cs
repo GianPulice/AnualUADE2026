@@ -47,6 +47,80 @@ public class SO_NemesisData : ScriptableObject
     [Tooltip("Effective range through a wall = listenRange * this. Spec default: 0.6.")]
     [SerializeField, Range(0f, 1f)] private float wallOcclusionMultiplier = 0.6f;
 
+    [Tooltip("Effective range through a FLOOR = listenRange * this.\n\n" +
+             "Deliberately more generous than the wall multiplier: a floor slab is the one thing " +
+             "the Nemesis can never see through, so hearing is its only channel to the storey " +
+             "above. Set this too low and it can never work out that you are up there; set it to " +
+             "1 and it tracks you between floors as if the slab were not there.\n\n" +
+             "Combined with the player's own noise radii (crouch 1 / walk 2 / run 6) this is the " +
+             "knob that decides how much running upstairs costs you.")]
+    [SerializeField, Range(0f, 1f)] private float floorOcclusionMultiplier = 0.75f;
+
+    [Tooltip("Measure how far a noise is along the NavMesh instead of in a straight line.\n\n" +
+             "This is what makes a player directly overhead read as the 12 metres they are on " +
+             "foot rather than the 5 they are as the crow flies — so hearing them does not make " +
+             "the Nemesis behave as though they were within arm's reach. Costs one " +
+             "NavMesh.CalculatePath every NoiseUpdateCooldown seconds.")]
+    [SerializeField] private bool hearingUsesPathDistance = true;
+
+    [Header("Navigation")]
+    [Tooltip("Seconds between recalculations of the route verdict — reachable, how far, which " +
+             "floor, whether the lift is on the way.\n\n" +
+             "Each one is a NavMesh.CalculatePath, so this is a real cost knob. It is also a " +
+             "STABILITY knob: the verdict flipping frame to frame is what made the Nemesis " +
+             "oscillate between Chasing and Searching while standing under the player. Do not " +
+             "drop it near zero to make it feel sharper.")]
+    [SerializeField, Min(0.05f)] private float routeVerdictInterval = 0.4f;
+
+    [Tooltip("Height difference, in metres, past which a target counts as being on another " +
+             "floor. Roughly one storey; below a full storey it starts firing on ramps and " +
+             "crates.")]
+    [SerializeField, Min(0.5f)] private float floorHeightThreshold = 2.5f;
+
+    [Tooltip("Seconds the Nemesis keeps walking to the freight elevator after it has stopped " +
+             "seeing or hearing the player.\n\n" +
+             "This is what makes the lift trip a decision instead of an accident. At 0 it turns " +
+             "around the instant you break line of sight — which, since a floor slab breaks it " +
+             "the moment it starts climbing, means it never gets there at all.")]
+    [SerializeField, Min(0f)] private float elevatorCommitTime = 12f;
+
+    [Tooltip("Seconds of movement the Nemesis extrapolates ahead of a remembered position when " +
+             "deciding where to look.\n\n" +
+             "Keep it small. The velocity it extrapolates was OBSERVED, not read off the player, " +
+             "so a long lead turns a stale glimpse into a confident claim about somewhere nobody " +
+             "was ever seen — and a monster that arrives where you were going reads as the game " +
+             "cheating, not as the monster being sharp. 0 disables prediction entirely.")]
+    [SerializeField, Range(0f, 1.5f)] private float searchLeadTime = 0.4f;
+
+    [Tooltip("Seconds over which a sighting or a noise stops steering the patrol.\n\n" +
+             "At 0 seconds old the player bias applies at full RoutePlayerBiasStrength; by this " +
+             "many seconds it is gone and the roll falls back to the route weights you authored. " +
+             "It is what stops the Nemesis orbiting the room it lost you in for the rest of the " +
+             "run.\n\n" +
+             "Only has any effect while BiasUsesLastKnownPosition is on — with it off the bias " +
+             "reads the player's live position, which is never stale.")]
+    [SerializeField, Min(1f)] private float beliefMemoryTime = 45f;
+
+    [Tooltip("Maximum seconds the Nemesis waits at a landing for the freight elevator to free up " +
+             "or finish a trip.\n\n" +
+             "This is the safety net for 'the player is riding the lift right now': once it runs " +
+             "out, the Nemesis abandons the link and paths whatever other way it can, instead of " +
+             "standing at the doors forever. Keep it comfortably above one full ride, or it gives " +
+             "up on trips that were about to work.")]
+    [SerializeField, Min(1f)] private float elevatorWaitTimeout = 20f;
+
+    [Header("Stuck detection")]
+    [Tooltip("How long the Nemesis has to make no progress before it counts as stuck and warps " +
+             "itself out.")]
+    [SerializeField, Min(0.5f)] private float stuckCheckInterval = 3f;
+
+    [Tooltip("Distance it has to cover within stuckCheckInterval to count as making progress.")]
+    [SerializeField, Min(0.05f)] private float stuckMinDistance = 0.5f;
+
+    [Tooltip("Waypoints closer than this to the player are not eligible when repositioning after " +
+             "a capture, so the Nemesis does not warp on top of the player it just respawned.")]
+    [SerializeField, Min(0f)] private float repositionMinPlayerDistance = 15f;
+
     [Header("Player feedback")]
     [Tooltip("Distance at which the proximity vignette starts to show. Independent of the " +
              "vision range: tension has to rise even if the Nemesis has never seen you. " +
@@ -149,6 +223,17 @@ public class SO_NemesisData : ScriptableObject
     public float ListenRange { get => listenRange; set => listenRange = value; }
     public bool WallOcclusionEnabled { get => wallOcclusionEnabled; set => wallOcclusionEnabled = value; }
     public float WallOcclusionMultiplier { get => wallOcclusionMultiplier; set => wallOcclusionMultiplier = value; }
+    public float FloorOcclusionMultiplier { get => floorOcclusionMultiplier; set => floorOcclusionMultiplier = value; }
+    public float RouteVerdictInterval { get => routeVerdictInterval; set => routeVerdictInterval = value; }
+    public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
+    public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
+    public float SearchLeadTime { get => searchLeadTime; set => searchLeadTime = value; }
+    public float BeliefMemoryTime { get => beliefMemoryTime; set => beliefMemoryTime = value; }
+    public float ElevatorWaitTimeout { get => elevatorWaitTimeout; set => elevatorWaitTimeout = value; }
+    public bool HearingUsesPathDistance { get => hearingUsesPathDistance; set => hearingUsesPathDistance = value; }
+    public float StuckCheckInterval { get => stuckCheckInterval; set => stuckCheckInterval = value; }
+    public float StuckMinDistance { get => stuckMinDistance; set => stuckMinDistance = value; }
+    public float RepositionMinPlayerDistance { get => repositionMinPlayerDistance; set => repositionMinPlayerDistance = value; }
     public float ProximityRadius { get => proximityRadius; set => proximityRadius = value; }
     public float RouteReverseChance { get => routeReverseChance; set => routeReverseChance = value; }
     public float RouteSkipWaypointChance { get => routeSkipWaypointChance; set => routeSkipWaypointChance = value; }

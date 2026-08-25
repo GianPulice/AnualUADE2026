@@ -16,6 +16,9 @@ MonoBehaviour:
   investigationSpeed: 3
   chaseSpeed: 4
   searchSpeed: 3.5
-  angularSpeed: 8
-  acceleration: 8
-  stoppingDistance: 0.5
+  angularSpeed: 200
+  acceleration: 14
+  stoppingDistance: 1
+  linkTraversalSpeed: 2.5
+  boardingSpeed: 1.5
+  traversalTurnSpeed: 180

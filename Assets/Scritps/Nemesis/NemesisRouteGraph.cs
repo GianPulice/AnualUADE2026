@@ -103,7 +103,12 @@ public sealed class NemesisRouteGraph
             NemesisRoute route = routes[i];
             if (route == null || !route.IsUnlocked) continue;
 
-            builder.Append(route.GetInstanceID()).Append(':')
+            // GetEntityId and not the deprecated GetInstanceID. Stringified rather than converted
+            // to a number: EntityId exposes no conversion operator to int, and its ToULong is
+            // documented as raw data whose "bit arrangement might change" — which is fine to
+            // print and wrong to depend on. ToString costs a small allocation per route, and this
+            // runs once per patrol cycle, not per frame.
+            builder.Append(route.GetEntityId().ToString()).Append(':')
                    .Append(route.Waypoints.Count).Append('|');
         }
         return builder.ToString();

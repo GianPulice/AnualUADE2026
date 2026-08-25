@@ -50,7 +50,7 @@ public class SO_PostProcessToggle : ScriptableObject
              "stays on, and switching off looks broken as soon as the preset changes.")]
     [SerializeField] private List<Material> visionFogMaterials = new List<Material>();
 
-    [Tooltip("Master property of the fog Shader Graph.")]
+    [Tooltip("Master property of the fog shader (VisionFog_HLSL.shader).")]
     [SerializeField] private string visionFogEnableProperty = "_EnableVisionFog";
 
     [Header("Renderer features (PC_Renderer)")]

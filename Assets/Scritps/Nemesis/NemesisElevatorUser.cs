@@ -27,23 +27,41 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NemesisStateManager))]
 public class NemesisElevatorUser : MonoBehaviour
 {
-    [Header("Plain links (jumps / drops)")]
-    [Tooltip("Speed at which a plain link is crossed, in metres per second.")]
-    [SerializeField, Min(0.1f)] private float linkTraversalSpeed = 2.5f;
-
-    [Header("Freight elevator")]
-    [Tooltip("Speed at which it boards and steps off the platform.")]
-    [SerializeField, Min(0.1f)] private float boardingSpeed = 1.5f;
-
-    [Tooltip("Maximum seconds it waits for the platform to free up or finish a trip.\n\n" +
-             "This is the safety net for 'the player is using the elevator': once it runs out, " +
-             "the Nemesis abandons the link and paths whatever other way it can, instead of " +
-             "waiting at the landing forever.")]
-    [SerializeField, Min(1f)] private float platformWaitTimeout = 20f;
+    // Nothing is serialised on this component. The three speeds live in SO_NemesisMovement next to
+    // the ones the NavMeshAgent uses, and the wait timeout in SO_NemesisData with the rest of the
+    // behaviour tuning — a designer adjusting how the monster moves should not have to know which
+    // of the two systems happens to be driving it at the time.
+    //
+    // The fallbacks are only reached when an SO is missing, which ValidateReferences already
+    // reports as an error. They exist so a broken prefab still crosses its links instead of
+    // freezing halfway across one on a speed of 0.
+    private const float FallbackLinkTraversalSpeed = 2.5f;
+    private const float FallbackBoardingSpeed = 1.5f;
+    private const float FallbackTurnSpeed = 180f;
+    private const float FallbackWaitTimeout = 20f;
 
     private NemesisStateManager stateManager;
     private NavMeshAgent agent;
     private bool isTraversing;
+
+    private SO_NemesisMovement Movement => stateManager != null ? stateManager.NemesisMovement : null;
+    private SO_NemesisData Data => stateManager != null ? stateManager.NemesisData : null;
+
+    /// <summary>Metres per second crossing a plain link — a jump or a drop.</summary>
+    private float LinkTraversalSpeed =>
+        Movement != null ? Movement.LinkTraversalSpeed : FallbackLinkTraversalSpeed;
+
+    /// <summary>Metres per second stepping onto and off the platform.</summary>
+    private float BoardingSpeed =>
+        Movement != null ? Movement.BoardingSpeed : FallbackBoardingSpeed;
+
+    /// <summary>Degrees per second it turns while this component is moving it by hand.</summary>
+    private float TraversalTurnSpeed =>
+        Movement != null ? Movement.TraversalTurnSpeed : FallbackTurnSpeed;
+
+    /// <summary>Maximum seconds it waits for the platform to free up or finish a trip.</summary>
+    private float PlatformWaitTimeout =>
+        Data != null ? Data.ElevatorWaitTimeout : FallbackWaitTimeout;
 
     private void Awake()
     {
@@ -108,7 +126,7 @@ public class NemesisElevatorUser : MonoBehaviour
             Vector3 start = transform.position;
             Vector3 end = data.endPos + Vector3.up * agent.baseOffset;
 
-            await MoveTransformToAsync(start, end, linkTraversalSpeed, token);
+            await MoveTransformToAsync(start, end, LinkTraversalSpeed, token);
 
             if (agent.isActiveAndEnabled && agent.isOnOffMeshLink) agent.CompleteOffMeshLink();
         }
@@ -169,7 +187,14 @@ public class NemesisElevatorUser : MonoBehaviour
             agent.enabled = false;
             agentDisabled = true;
 
-            await MoveTransformToAsync(transform.position, elevator.RidePosition, boardingSpeed, token);
+            await MoveTransformToAsync(transform.position, elevator.RidePosition, BoardingSpeed, token);
+
+            // 3b. Turn to face the landing it will step off at, before the doors close on it.
+            //     The ride is purely vertical, so nothing during it has a heading to offer, and
+            //     the platform carries passengers by position only — it never touches rotation.
+            //     Skipped, the Nemesis rides the whole shaft facing back the way it came in and
+            //     steps out backwards.
+            await TurnToFaceAsync(exit.position, token);
 
             // 4. Ride. The platform moves loose passengers in its own FixedUpdate.
             platform.AddPassenger(transform);
@@ -181,7 +206,7 @@ public class NemesisElevatorUser : MonoBehaviour
             platform.ReleaseAfterRide();
 
             // 5. Step off onto the opposite landing, which is on the NavMesh.
-            await MoveTransformToAsync(transform.position, exit.position, boardingSpeed, token);
+            await MoveTransformToAsync(transform.position, exit.position, BoardingSpeed, token);
         }
         finally
         {
@@ -198,7 +223,16 @@ public class NemesisElevatorUser : MonoBehaviour
                 if (hadPath && agent.isOnNavMesh) agent.SetDestination(savedDestination);
             }
 
-            if (stateManager != null) stateManager.PopStuckSuppression();
+            if (stateManager != null)
+            {
+                // The Nemesis is now on a different floor than when the cached route was
+                // measured, and that cached answer is what NemesisTraversingState reads to decide
+                // the trip is over. Left standing it still says "the lift is on the way" — the
+                // lift that was just ridden — and the trip does not end until the cache expires
+                // on its own.
+                stateManager.InvalidateRouteVerdict();
+                stateManager.PopStuckSuppression();
+            }
             isTraversing = false;
         }
     }
@@ -219,7 +253,7 @@ public class NemesisElevatorUser : MonoBehaviour
     private async UniTask WaitUntilIdleAsync(MovingPlatform platform, CancellationToken token)
     {
         float waited = 0f;
-        while (!platform.IsIdle && waited < platformWaitTimeout)
+        while (!platform.IsIdle && waited < PlatformWaitTimeout)
         {
             waited += Time.deltaTime;
             await UniTask.Yield(token);
@@ -229,7 +263,7 @@ public class NemesisElevatorUser : MonoBehaviour
     private async UniTask WaitUntilArrivedAsync(MovingPlatform platform, CancellationToken token)
     {
         float waited = 0f;
-        while (!platform.HasArrived && waited < platformWaitTimeout)
+        while (!platform.HasArrived && waited < PlatformWaitTimeout)
         {
             waited += Time.deltaTime;
             await UniTask.Yield(token);
@@ -245,6 +279,10 @@ public class NemesisElevatorUser : MonoBehaviour
         float distance = Vector3.Distance(from, to);
         if (distance < 0.01f) return;
 
+        // Turned into the direction of travel as it goes, rather than sliding there rigid. The
+        // agent is off for the whole traversal, so this is the only thing writing rotation.
+        Quaternion targetRotation = FlatLookRotation(to - from);
+
         float duration = distance / Mathf.Max(0.1f, speed);
         float elapsed = 0f;
 
@@ -252,9 +290,49 @@ public class NemesisElevatorUser : MonoBehaviour
         {
             elapsed += Time.deltaTime;
             transform.position = Vector3.Lerp(from, to, Mathf.Clamp01(elapsed / duration));
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation,
+                                                          TraversalTurnSpeed * Time.deltaTime);
             await UniTask.Yield(token);
         }
 
         transform.position = to;
+    }
+
+    /// <summary>
+    /// Turns on the spot to face a point, and does not return until it is facing it.
+    ///
+    /// Used before the ride itself, which is the one leg with no direction of travel to borrow: it
+    /// is purely vertical, so <see cref="MoveTransformToAsync"/> has nothing to turn towards and
+    /// the platform moves the Nemesis without touching its rotation at all.
+    /// </summary>
+    private async UniTask TurnToFaceAsync(Vector3 point, CancellationToken token)
+    {
+        Quaternion target = FlatLookRotation(point - transform.position);
+
+        while (Quaternion.Angle(transform.rotation, target) > 1f)
+        {
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, target,
+                                                          TraversalTurnSpeed * Time.deltaTime);
+            await UniTask.Yield(token);
+        }
+
+        transform.rotation = target;
+    }
+
+    /// <summary>
+    /// Look rotation with the vertical component discarded, so a target above or below does not
+    /// tip the Nemesis onto its face.
+    ///
+    /// Falls back to the current rotation for a direction that is purely vertical — a landing
+    /// stacked exactly over the ride point — because Quaternion.LookRotation of a zero vector is
+    /// undefined and Unity warns about it.
+    /// </summary>
+    private Quaternion FlatLookRotation(Vector3 direction)
+    {
+        direction.y = 0f;
+
+        return direction.sqrMagnitude > 0.0001f
+            ? Quaternion.LookRotation(direction)
+            : transform.rotation;
     }
 }

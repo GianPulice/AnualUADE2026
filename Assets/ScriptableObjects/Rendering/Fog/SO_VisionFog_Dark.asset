@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9610cc42620bd3b4eafa9fc758329e80, type: 3}
+  m_Name: SO_VisionFog_Dark
+  m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
+  dataVersion: 2
+  visionStart: 2
+  visionEnd: 6.8
+  fogDensity: 5.43
+  fogFalloffPower: 0.85
+  darkness: 1
+  extinctionTint: {r: 1, g: 1, b: 1, a: 1}
+  fogColor: {r: 0.6886792, g: 0.055224285, b: 0.055224285, a: 1}
+  fogColorIntensity: 0.5
+  inscatterStrength: 0.033
+  lightPreservation: 0.17
+  lightThreshold: 0.45
+  lightKnee: 0.3
+  maxLightPreservation: 0.45
+  lightDistanceFalloff: 0.081
+  blurStrength: 0.0102
+  playerLightRange: 4.4
+  playerLightClear: 0.94
+  playerLightFalloff: 2
+  playerLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
+  playerLightTint: 1
+  playerLightInjection: 0.04
+  bypassFalloff: 2
+  bypassDefaultColor: {r: 1, g: 0.85, b: 0.6, a: 1}
+  bypassDefaultIntensity: 1
+  bypassDefaultClear: 1
+  transitionDuration: 5
+  silhouetteMode: 3
+  densityPower: 0.25
+  playerLightIntensity: 0.94
