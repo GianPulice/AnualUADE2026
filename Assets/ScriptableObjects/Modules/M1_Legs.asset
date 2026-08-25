@@ -16,7 +16,7 @@ MonoBehaviour:
   moduleLogLabel: M1
   penalty: 0
   associatedPuzzleId: puzzle_central_piso1
-  timerDuration: 10
+  timerDuration: 300
   walkAndRunSpeedPercent: 40
   sprintReduction: 0.25
   shakeAmplitude: 0.03
