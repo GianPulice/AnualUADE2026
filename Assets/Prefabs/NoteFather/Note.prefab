@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8175496343849381458}
   - component: {fileID: 7706458165399549689}
   - component: {fileID: 2820506238401912842}
-  - component: {fileID: 2442010880590061293}
+  - component: {fileID: 7947140177708132941}
   m_Layer: 6
   m_Name: Note
   m_TagString: Untagged
@@ -113,7 +113,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2, y: 0.05, z: 2.7007248}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2442010880590061293
+--- !u!114 &7947140177708132941
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -122,7 +122,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 2530198244687189650}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2ab0444fc25799b489cc5a343f42b0d4, type: 3}
+  m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NoteInteractable
-  documentData: {fileID: 0}
+  m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
+  itemToPick: {fileID: 0}

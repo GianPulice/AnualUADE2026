@@ -98,7 +98,12 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
                     playerStateManager.CurrentVelocity = targetSpeed;
                 }
                 playerStateManager.RigBody.linearVelocity = playerStateManager.MoveDir * playerStateManager.CurrentVelocity;
-                playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+                // Feed the Animator the intent velocity (pre-cojera), not the physical one, so the
+                // walk/run blend tree still switches to Run when the player sprints with a legs
+                // penalty active. The character still moves at CurrentVelocity — only the anim
+                // decision uses the un-penalized value.
+                float animSpeed = playerStateManager.CurrentVelocity / Mathf.Max(playerStateManager.MoveSpeedPenaltyFactor, 0.01f);
+                playerStateManager.AnimController.SetFloat("moveSpeed", animSpeed);
             }
             else
             {

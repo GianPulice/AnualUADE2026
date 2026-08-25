@@ -99,7 +99,10 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
             }
             playerStateManager.RigBody.linearVelocity = playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity;
-            playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
+            // Send the pre-cojera velocity to the Animator so the crouch blend keeps the same
+            // anim while the legs penalty scales physical speed. See PlayerMovingState for details.
+            float animSpeed = playerStateManager.CurrentVelocity / Mathf.Max(playerStateManager.MoveSpeedPenaltyFactor, 0.01f);
+            playerStateManager.AnimController.SetFloat("moveSpeed", animSpeed);
         }
     }
 }

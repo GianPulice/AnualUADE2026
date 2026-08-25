@@ -32,8 +32,9 @@ public class ModuleData : ScriptableObject
     [SerializeField] private float timerDuration = 60f;
 
     [Header("Legs penalty (only used when Penalty == Legs)")]
-    [Tooltip("MoveSpeed multiplier applied when the module explodes. 0.6 = 40% slower.")]
-    [SerializeField, Range(0.1f, 1f)] private float cojeraMultiplier = 0.6f;
+    [Tooltip("Player speed after the module explodes, as a percentage of the base speed. " +
+             "Applies equally to walking and sprinting. 100 = normal speed, 50 = half speed, 1 = almost stopped.")]
+    [SerializeField, Range(1, 100)] private int walkAndRunSpeedPercent = 60;
 
     [Header("Chest penalty (only used when Penalty == Chest)")]
     [Tooltip("Sprint speed reduction applied when the module explodes. 0.25 = -25%.")]
@@ -65,7 +66,7 @@ public class ModuleData : ScriptableObject
     public string AssociatedPuzzleId => associatedPuzzleId;
     public float TimerDuration => timerDuration;
 
-    public float CojeraMultiplier => cojeraMultiplier;
+    public float CojeraMultiplier => walkAndRunSpeedPercent / 100f;
 
     public float SprintReduction => sprintReduction;
     public float ShakeAmplitude => shakeAmplitude;
