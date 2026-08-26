@@ -11,13 +11,13 @@ GameObject:
   - component: {fileID: 3256238774213127310}
   - component: {fileID: 2366422750808635313}
   - component: {fileID: 1483984594125604321}
-  - component: {fileID: 2345190876790801778}
+  - component: {fileID: 195632675659892665}
   m_Layer: 0
   m_Name: Building_13
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!4 &3256238774213127310
 Transform:
@@ -27,9 +27,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3289781080574156544}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -80, y: 0.02004385, z: -2}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5616, y: 0.5616, z: 0.5616}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -91,8 +91,8 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &2345190876790801778
-MeshCollider:
+--- !u!65 &195632675659892665
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -109,7 +109,6 @@ MeshCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -660886918228742087, guid: a062f846619dc184e91964176f8268f4, type: 3}
+  serializedVersion: 3
+  m_Size: {x: 7.683446, y: 4.272251, z: 3.5505424}
+  m_Center: {x: 0.00000083446525, y: 2.065009, z: -0.0000005364419}

@@ -42,6 +42,15 @@ public class FieldOfView : MonoBehaviour
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
 
     /// <summary>
+    /// Where the cone is cast from — eye height, not the pivot.
+    ///
+    /// Public so <see cref="NemesisGizmos"/> can draw the cone from the same origin the sweep
+    /// actually uses. Falls back to this component's transform outside Play mode, because the
+    /// Awake fallback that normally fills it in has not run yet in the Scene view.
+    /// </summary>
+    public Transform ViewTransform => viewTransform != null ? viewTransform : transform;
+
+    /// <summary>
     /// How fast and in what direction the target appeared to be moving when it was last seen, in
     /// units per second.
     ///

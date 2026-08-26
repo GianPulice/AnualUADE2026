@@ -131,11 +131,15 @@ public class NemesisRoute : MonoBehaviour
     /// Colour tells the gate apart at a glance: cyan = open, amber = closed. Out of Play mode
     /// that reads the configured intent (a puzzle-gated route draws amber because that is how
     /// it will start), in Play mode it reads the live state.
+    ///
+    /// Unlabelled and unconditional on purpose — every route in a level, always. Names live in
+    /// <see cref="OnDrawGizmosSelected"/> instead: a level with a dozen routes drawing every
+    /// waypoint's name over every other route's, all the time, stops being readable well before
+    /// it stops being technically correct.
     /// </summary>
     private void OnDrawGizmos()
     {
         bool openNow = Application.isPlaying ? isUnlocked : (!IsPuzzleGated && startUnlocked);
-
         Gizmos.color = openNow ? new Color(0.2f, 0.8f, 1f) : new Color(1f, 0.65f, 0.1f);
 
         Transform previous = null;
@@ -148,5 +152,64 @@ public class NemesisRoute : MonoBehaviour
             if (previous != null) Gizmos.DrawLine(previous.position, child.position);
             previous = child;
         }
+    }
+
+    /// <summary>
+    /// Names — this route and every one of its waypoints — drawn only while the route (the
+    /// waypoints' parent) is the selected object. Click it to read it; every other route in the
+    /// level stays as the plain spheres and lines above.
+    ///
+    /// Each waypoint carries its own scene name and its order in the route. The name matters
+    /// because it is the only handle NemesisSetupValidator's report gives you ("Waypoint (11)
+    /// does not land on the NavMesh") — without it, finding which of a dozen identical-looking
+    /// spheres that refers to means opening the Hierarchy and counting. The order matters because
+    /// two waypoints sitting close together make the polyline alone ambiguous about which end is
+    /// the start.
+    /// </summary>
+    private void OnDrawGizmosSelected()
+    {
+        bool openNow = Application.isPlaying ? isUnlocked : (!IsPuzzleGated && startUnlocked);
+        Color color = openNow ? new Color(0.2f, 0.8f, 1f) : new Color(1f, 0.65f, 0.1f);
+
+        Transform first = null;
+        int index = 0;
+
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            if (!child.CompareTag(WaypointTag)) continue;
+
+            if (first == null) first = child;
+
+            DrawWaypointLabel(child, index, color);
+            index++;
+        }
+
+        DrawRouteLabel(first, openNow, color);
+    }
+
+    private static void DrawWaypointLabel(Transform waypoint, int index, Color color)
+    {
+#if UNITY_EDITOR
+        UnityEditor.Handles.color = color;
+        UnityEditor.Handles.Label(waypoint.position + Vector3.up * 0.45f, $"#{index} {waypoint.name}");
+#endif
+    }
+
+    /// <summary>
+    /// Names the route itself — GameObject name, open/closed, weight — above its first waypoint,
+    /// or at the route's own transform when it has none at all. That second case is deliberate: a
+    /// route with zero tagged children is exactly what the validator flags as "will never be
+    /// picked", and an empty route with no label is the hardest of all of these to locate by eye.
+    /// </summary>
+    private void DrawRouteLabel(Transform first, bool openNow, Color color)
+    {
+#if UNITY_EDITOR
+        Vector3 position = first != null ? first.position : transform.position;
+        string state = openNow ? "abierta" : "cerrada";
+
+        UnityEditor.Handles.color = color;
+        UnityEditor.Handles.Label(position + Vector3.up * 0.9f, $"{name} ({state}, peso {weight:0.##})");
+#endif
     }
 }

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8186484412823799722}
   - component: {fileID: 582818024726257442}
   - component: {fileID: 4966656912679455941}
+  - component: {fileID: 3348450038284759010}
   m_Layer: 0
   m_Name: Bags_1
   m_TagString: Untagged
@@ -27,7 +28,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2666480880407067609}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -10.872386, y: 0.046727657, z: -47.91618}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.497716, y: 2.5346951, z: 1.6031148}
   m_Center: {x: -0.0017149448, y: 1.2276721, z: 0.040849596}
+--- !u!208 &3348450038284759010
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2666480880407067609}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 1.2490001, y: 1.2670001, z: 0.80200005}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: -0.002, y: 1.228, z: 0.041}
+  m_TimeToStationary: 0.5

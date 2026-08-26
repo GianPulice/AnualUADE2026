@@ -931,6 +931,7 @@ GameObject:
   - component: {fileID: 4238794743462556567}
   - component: {fileID: 151019658099850401}
   - component: {fileID: 1161570539962797983}
+  - component: {fileID: 2115712118164525721}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -1157,6 +1158,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ad2f428cd55df074293960d12042cd26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisLifecycle
+--- !u!114 &2115712118164525721
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 127900732f816ce4ebcdb8606f72c96c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisGizmos
+  drawVisionCone: 1
+  drawCrouchedVisionCone: 1
+  drawProximityDetection: 1
+  drawHearing: 1
+  drawCatchReach: 1
+  drawSearchSweep: 1
+  drawProximityVignette: 1
+  arcSegments: 28
+  drawLabels: 1
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0

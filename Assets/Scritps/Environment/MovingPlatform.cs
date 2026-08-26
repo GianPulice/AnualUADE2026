@@ -13,10 +13,11 @@ using UnityEngine;
 /// Rigidbody and the NavMesh does not travel with the platform, so its component switches the
 /// agent off for the trip and lets the platform carry it as a loose passenger.
 ///
-/// Nobody but code (the Nemesis) can call it back once it is parked away from them — there is no
-/// physical call button anywhere in the project. <see cref="autoReturnToBottom"/> is the fix for
-/// that: left idle at the top with nobody on it, the platform calls itself back down so the
-/// player is never permanently locked out of a floor because the Nemesis rode up and walked away.
+/// <see cref="ElevatorCallPanel"/> is what lets the PLAYER call it — one panel per landing. Before
+/// it existed, only the Nemesis could summon the platform, and the player who rode up and stepped
+/// off was locked out of that floor for the rest of the run as soon as
+/// <see cref="autoReturnToBottom"/> took the cabin away. That auto-return is now a safety net for a
+/// shaft whose panels are not wired yet, not the mechanism.
 /// </summary>
 public class MovingPlatform : MonoBehaviour
 {
@@ -36,15 +37,13 @@ public class MovingPlatform : MonoBehaviour
              "Must comfortably exceed how long boarding and stepping off actually take at this " +
              "shaft (NemesisElevatorUser's boardingSpeed, ~1-2s for a typical gap). Too short and " +
              "the cabin can start sinking out from under a passenger still walking off the ride " +
-             "point onto the landing — cosmetic, not gameplay-breaking, but it looks broken. The " +
-             "5s default clears that with room to spare.")]
-    [SerializeField, Min(0.5f)] private float autoReturnDelay = 5f;
+             "point onto the landing — cosmetic, not gameplay-breaking, but it looks broken.\n\n" +
+             "Now that ElevatorCallPanel exists, being generous costs nothing and being stingy " +
+             "actively hurts: a short delay yanks the cabin away from a player who just stepped " +
+             "off upstairs and is about to want it back.")]
+    [SerializeField, Min(0.5f)] private float autoReturnDelay = 15f;
 
     private float autoReturnTimer;
-
-    /// <summary>Whether the CURRENT trip was started by the auto-return timer rather than by a
-    /// passenger. Read on arrival to decide whether anyone is coming to release it.</summary>
-    private bool isAutoReturning;
 
     private enum State { Idle, Waiting, Moving, WaitingForExit }
 
@@ -53,6 +52,20 @@ public class MovingPlatform : MonoBehaviour
     private float traveled;
     private float waitTimer;
     private Rigidbody passengerRb;
+
+    /// <summary>
+    /// Who has reserved the platform, or null when it is free for anyone to call.
+    ///
+    /// Exists so <see cref="ElevatorCallPanel"/> can tell "parked and available" apart from "the
+    /// Nemesis is three steps into a trip it has not physically started yet". The platform's own
+    /// State cannot answer that: NemesisElevatorUser spends its first seconds waiting for the
+    /// cabin to be Idle, and during that window a panel press would steal the ride out from under
+    /// a monster that has already committed to it.
+    ///
+    /// It lives here rather than on NemesisElevatorUser because the platform is the resource being
+    /// contended for, and because a panel should not have to know that the Nemesis exists.
+    /// </summary>
+    private object claimOwner;
 
     /// <summary>Passengers with no Rigidbody that ride along. They receive the same delta as the
     /// platform, applied straight to their Transform.</summary>
@@ -69,6 +82,37 @@ public class MovingPlatform : MonoBehaviour
 
     /// <summary>Which way the next trip would go.</summary>
     public bool GoingUp => goingUp;
+
+    /// <summary>Whether somebody has reserved the platform. See <see cref="claimOwner"/>.</summary>
+    public bool IsClaimed => claimOwner != null;
+
+    /// <summary>Parked, unreserved, and therefore callable from a landing panel.</summary>
+    public bool IsAvailable => state == State.Idle && claimOwner == null;
+
+    /// <summary>
+    /// Reserves the platform for one caller.
+    /// </summary>
+    /// <returns>false when somebody else already holds it. Re-claiming with the same owner
+    /// succeeds, so a caller that retries does not have to track whether it already claimed.
+    /// </returns>
+    public bool TryClaim(object owner)
+    {
+        if (owner == null) return false;
+        if (claimOwner != null && !ReferenceEquals(claimOwner, owner)) return false;
+
+        claimOwner = owner;
+        return true;
+    }
+
+    /// <summary>
+    /// Releases the reservation. Ignores a caller that does not hold it, so a <c>finally</c> block
+    /// can release unconditionally without having to know whether its claim ever succeeded.
+    /// </summary>
+    public void ReleaseClaim(object owner)
+    {
+        if (owner == null || !ReferenceEquals(claimOwner, owner)) return;
+        claimOwner = null;
+    }
 
     /// <summary>Set by <see cref="SetRideDistance"/>. Negative means "nobody overrode it, use the
     /// config".</summary>
@@ -128,8 +172,23 @@ public class MovingPlatform : MonoBehaviour
         {
             state = State.Idle;
             goingUp = !goingUp;
+            return;
         }
+
+        // Stepped off before it set off. The trip is cancelled rather than left to leave empty:
+        // it never moved, so there is no direction to flip, and flipping one here is how a player
+        // who thought better of it ended up with the cabin's next trip pointing at the floor it
+        // was already parked on.
+        //
+        // Guarded on there being nobody else aboard — the Nemesis boards through AddPassenger and
+        // raises no trigger events, so without this a player brushing past the cabin would cancel
+        // a ride the monster is standing on.
+        if (state == State.Waiting && !IsOccupied()) state = State.Idle;
     }
+
+    /// <summary>Whether anyone at all is aboard: the player (by trigger) or a code-driven
+    /// passenger (by <see cref="AddPassenger"/>).</summary>
+    private bool IsOccupied() => passengerRb != null || extraPassengers.Count > 0;
 
     // ── API for passengers driven from code (the Nemesis) ───────────────────
 
@@ -191,6 +250,23 @@ public class MovingPlatform : MonoBehaviour
             return;
         }
 
+        if (state == State.WaitingForExit)
+        {
+            // Waiting to be vacated by somebody who is no longer aboard. That is not a state
+            // anything can get out of on its own: the player's way out is OnTriggerExit and a
+            // code-driven passenger's is ReleaseAfterRide, and neither fires for a passenger that
+            // simply stopped existing — a Nemesis whose traversal timed out and let go of the
+            // platform a frame after it arrived, or one destroyed mid-ride. Left wedged here the
+            // cabin reports itself occupied forever, so no panel and no monster can ever call it
+            // again: the shaft is dead for the rest of the run.
+            //
+            // Guarded on IsOccupied rather than run unconditionally, because "parked and waiting"
+            // is the CORRECT state while a player is standing on it — releasing under them would
+            // flip the next trip's direction and let it set off while they are still aboard.
+            if (!IsOccupied()) ReleaseAfterRide();
+            return;
+        }
+
         if (state != State.Moving) return;
 
         // Read once: RideDistance resolves the override every call, and the two comparisons below
@@ -212,18 +288,22 @@ public class MovingPlatform : MonoBehaviour
 
         if (traveled >= rideDistance)
         {
+            bool wasOccupied = IsOccupied();
+
             state = State.WaitingForExit;
             OnRideCompleted?.Invoke();
 
-            // An auto-return trip has no passenger, so nothing will ever raise OnTriggerExit or
-            // call ReleaseAfterRide() for it — left alone it would sit in WaitingForExit forever,
-            // parked at the bottom but reporting itself as still occupied. Releasing it here, in
-            // the same tick it arrives, is that trip's own step-off.
-            if (isAutoReturning)
-            {
-                isAutoReturning = false;
-                ReleaseAfterRide();
-            }
+            // An empty trip has nobody to raise OnTriggerExit or call ReleaseAfterRide() for it —
+            // left alone it would sit in WaitingForExit forever, parked at the far end but
+            // reporting itself as still occupied, and then no panel and no Nemesis could ever call
+            // it again. Releasing it here, in the same tick it arrives, is that trip's own
+            // step-off.
+            //
+            // Written against "was anyone aboard" rather than against the auto-return flag it used
+            // to check: an auto-return is only ONE of the ways a trip ends up empty. A panel
+            // summoning the cabin from the other floor is another, and so is a player who boards
+            // and steps off again before StartDelay runs out.
+            if (!wasOccupied) ReleaseAfterRide();
         }
     }
 
@@ -243,7 +323,11 @@ public class MovingPlatform : MonoBehaviour
 
         // Occupied: a player standing in the trigger, or a Nemesis mid-boarding via AddPassenger.
         // Either way this is not "idle and forgotten", it is about to be used properly.
-        if (passengerRb != null || extraPassengers.Count > 0)
+        //
+        // Claimed counts the same way: NemesisElevatorUser holds the platform from the moment it
+        // commits to the link, seconds before it is physically aboard. Without this the cabin can
+        // set off on an auto-return while the monster is still walking onto it.
+        if (IsOccupied() || IsClaimed)
         {
             autoReturnTimer = 0f;
             return;
@@ -253,7 +337,7 @@ public class MovingPlatform : MonoBehaviour
         if (autoReturnTimer < autoReturnDelay) return;
 
         autoReturnTimer = 0f;
-        isAutoReturning = RequestRide();
+        RequestRide();
     }
 
     /// <summary>

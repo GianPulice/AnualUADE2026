@@ -30,8 +30,10 @@ MonoBehaviour:
   floorHeightThreshold: 2.5
   elevatorCommitTime: 12
   searchLeadTime: 0.4
+  searchSweepRadius: 5
   beliefMemoryTime: 45
   elevatorWaitTimeout: 20
+  elevatorAbandonCooldown: 10
   stuckCheckInterval: 3
   stuckMinDistance: 0.5
   repositionMinPlayerDistance: 15
@@ -44,7 +46,7 @@ MonoBehaviour:
   biasUsesLastKnownPosition: 1
   crossRouteTransferChance: 0.3
   waypointBiasSampleCount: 8
-  catchMaxReach: 1.5
+  catchMaxReach: 1
   catchMaxVerticalOffset: 1
   catchRequiresLineOfSight: 1
   proximityDetectionRespectsWalls: 1

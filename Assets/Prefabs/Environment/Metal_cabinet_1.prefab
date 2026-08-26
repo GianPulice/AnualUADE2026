@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2334700502112061574}
   - component: {fileID: 5837809316331333652}
   - component: {fileID: 3619225048483489848}
+  - component: {fileID: 1220972392336263012}
   m_Layer: 0
   m_Name: Metal_cabinet_1
   m_TagString: Untagged
@@ -27,7 +28,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 868198882627394252}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -8, y: -0.010856509, z: -42}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.2119317, y: 1.4367304, z: 0.3995734}
   m_Center: {x: 0.00000011920929, y: 0.6999999, z: -0.00000023841858}
+--- !u!208 &1220972392336263012
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 868198882627394252}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.606, y: 0.71800005, z: 0.2}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.70000005, z: 0}
+  m_TimeToStationary: 0.5

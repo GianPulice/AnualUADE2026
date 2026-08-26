@@ -12,7 +12,8 @@ GameObject:
   - component: {fileID: 177157875184624743}
   - component: {fileID: 4072973418163535115}
   - component: {fileID: -6197177777463356856}
-  m_Layer: 0
+  - component: {fileID: 1066194878950140249}
+  m_Layer: 12
   m_Name: Caja
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -27,9 +28,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5039906845055331945}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -27.009228, y: 0.002250195, z: -72.06786}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.3606, y: 1.3606, z: 1.3606}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.81014633, y: 0.8123823, z: 0.8101466}
   m_Center: {x: -0.000000074505806, y: 0.36869553, z: 0.000000059604645}
+--- !u!208 &1066194878950140249
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5039906845055331945}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.40500003, y: 0.40600002, z: 0.40500003}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.36900002, z: 0}
+  m_TimeToStationary: 0.5

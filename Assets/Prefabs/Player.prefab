@@ -194,6 +194,9 @@ MonoBehaviour:
   groundLeyerMask:
     serializedVersion: 2
     m_Bits: 9
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 0
   groundAngleLimit: 45
   isInteracting: 0
 --- !u!54 &8279488126507840101
@@ -635,7 +638,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.29144114, y: 2.7106911e-15, z: -2.2266497e-15, w: 0.9565888}
+  m_LocalRotation: {x: 0.2916562, y: 0.000000020243803, z: -0.0000000061725944, w: 0.95652324}
   m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -929,7 +932,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 94bdac1eb0c482c47915ef00b17d555f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraSensitivityApplier
-  _verticalAxisName: 
+  _verticalAxisName: Look Orbit Y
 --- !u!114 &4823901756230984512
 MonoBehaviour:
   m_ObjectHideFlags: 0
