@@ -17,7 +17,7 @@ MonoBehaviour:
   penalty: 0
   associatedPuzzleId: puzzle_central_piso1
   timerDuration: 600
-  walkAndRunSpeedPercent: 15
+  walkAndRunSpeedPercent: 80
   sprintReduction: 0.25
   shakeAmplitude: 0.03
   shakeFrequency: 1.2
