@@ -74,6 +74,10 @@ public class NemesisController : MonoBehaviour
     private readonly List<Transform> flatWaypointsBuffer = new List<Transform>();
     private readonly List<Transform> spawnPointsBuffer = new List<Transform>();
 
+    // Spawn-point selection buffers. See PickWeightedSpawnPoint.
+    private readonly List<Transform> hiddenSpawnCandidatesBuffer = new List<Transform>();
+    private readonly List<float> hiddenSpawnDistancesBuffer = new List<float>();
+
     // Waypoint-selection buffers. Reused because this runs on every waypoint arrival and every
     // replan, and it is not worth allocating each time.
     private readonly List<int> candidateBuffer = new List<int>();
@@ -581,9 +585,10 @@ public class NemesisController : MonoBehaviour
     // ── Spawn point selection ───────────────────────────────────────────────
 
     /// <summary>
-    /// Picks a spawn point and warps the Nemesis there. Prefers the point farthest from the
-    /// player that is outside the player's line of sight (reusing FieldOfListening's occlusion
-    /// raycast — see <see cref="IsHiddenFromPlayer"/> — rather than a dedicated vision check).
+    /// Picks a spawn point and warps the Nemesis there. Weighted towards the point farthest from
+    /// the player among the ones outside the player's line of sight (reusing FieldOfListening's
+    /// occlusion raycast — see <see cref="IsHiddenFromPlayer"/> — rather than a dedicated vision
+    /// check) — see <see cref="PickWeightedSpawnPoint"/> for why this is a roll and not an argmax.
     ///
     /// "Farthest" is measured over the NavMesh and not in a straight line: the point on the other
     /// side of the wall is 3 metres away on foot and 30 in a straight line, and picking by
@@ -617,8 +622,9 @@ public class NemesisController : MonoBehaviour
 
         Transform player = PlayerRegistry.CurrentTransform;
 
-        Transform bestHidden = null;
-        float bestHiddenDistance = -1f;
+        hiddenSpawnCandidatesBuffer.Clear();
+        hiddenSpawnDistancesBuffer.Clear();
+
         Transform bestAny = null;
         float bestAnyDistance = -1f;
 
@@ -637,20 +643,55 @@ public class NemesisController : MonoBehaviour
             // No registered player yet: nobody to be seen by, every point counts as hidden.
             if (player == null || IsHiddenFromPlayer(point.position, player.position))
             {
-                if (distance > bestHiddenDistance)
-                {
-                    bestHiddenDistance = distance;
-                    bestHidden = point;
-                }
+                hiddenSpawnCandidatesBuffer.Add(point);
+                hiddenSpawnDistancesBuffer.Add(distance);
             }
         }
 
-        if (bestHidden != null) return bestHidden;
+        if (hiddenSpawnCandidatesBuffer.Count > 0)
+            return PickWeightedSpawnPoint(hiddenSpawnCandidatesBuffer, hiddenSpawnDistancesBuffer);
 
         // Every configured point is in view (or none could be tested): fall back to the
-        // farthest one and let the caller know to mask the pop-in.
+        // farthest one and let the caller know to mask the pop-in. Argmax and not a roll here —
+        // every candidate is equally exposed, so there is no "safer" option to weight towards.
         allVisible = bestAny != null;
         return bestAny;
+    }
+
+    /// <summary>
+    /// Weighted-random pick among the hidden spawn candidates, weighted by distance SQUARED so the
+    /// farthest ones still clearly dominate — giving the player breathing room is the whole point
+    /// of preferring distance — but stop being the only thing that can ever happen.
+    ///
+    /// This used to be a plain argmax ("always the single farthest hidden point"), and that is the
+    /// entire explanation for "the Nemesis starts from the same place every run": the player always
+    /// begins from the same position, spawn points and geometry are static, so the farthest hidden
+    /// point is a pure function of the level and returns the identical Transform every single time
+    /// — no roll anywhere in the old function to vary it. The patrol's own route/waypoint rolls
+    /// (BeginPatrolCycle, PickWeightedNode) were never the problem: they already use Random.value
+    /// correctly. They just kept drawing from the same small neighbourhood of nearby waypoints,
+    /// because "nearby" was always measured from the same starting point.
+    /// </summary>
+    private Transform PickWeightedSpawnPoint(List<Transform> candidates, List<float> distances)
+    {
+        if (candidates.Count == 1) return candidates[0];
+
+        float total = 0f;
+        for (int i = 0; i < distances.Count; i++)
+            total += distances[i] * distances[i];
+
+        if (total <= 0f) return candidates[Random.Range(0, candidates.Count)];
+
+        float roll = Random.value * total;
+        float cumulative = 0f;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            cumulative += distances[i] * distances[i];
+            if (roll <= cumulative) return candidates[i];
+        }
+
+        // Only reachable through float rounding at the very edge of the range.
+        return candidates[candidates.Count - 1];
     }
 
     /// <summary>

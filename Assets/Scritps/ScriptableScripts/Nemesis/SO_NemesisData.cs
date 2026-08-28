@@ -92,6 +92,14 @@ public class SO_NemesisData : ScriptableObject
              "cheating, not as the monster being sharp. 0 disables prediction entirely.")]
     [SerializeField, Range(0f, 1.5f)] private float searchLeadTime = 0.4f;
 
+    [Tooltip("Radius, in metres, of the random scatter the Searching state falls back to when the " +
+             "patrol graph cannot offer an unswept waypoint.\n\n" +
+             "It used to be a hardcoded 5 inside the state, which made it invisible: nobody tuning " +
+             "the search could see how tight a circle the Nemesis was actually walking. Small " +
+             "values have it pacing the room it lost you in; large ones scatter it so wide the " +
+             "sweep stops reading as a search at all.")]
+    [SerializeField, Min(1f)] private float searchSweepRadius = 5f;
+
     [Tooltip("Seconds over which a sighting or a noise stops steering the patrol.\n\n" +
              "At 0 seconds old the player bias applies at full RoutePlayerBiasStrength; by this " +
              "many seconds it is gone and the roll falls back to the route weights you authored. " +
@@ -108,6 +116,16 @@ public class SO_NemesisData : ScriptableObject
              "standing at the doors forever. Keep it comfortably above one full ride, or it gives " +
              "up on trips that were about to work.")]
     [SerializeField, Min(1f)] private float elevatorWaitTimeout = 20f;
+
+    [Tooltip("Seconds the Nemesis ignores a freight elevator after giving up on it.\n\n" +
+             "Without it, abandoning the link and re-evaluating it are the same frame: the agent " +
+             "is still standing on the link, so the next Update starts the whole wait over, times " +
+             "out again, and the Nemesis spends the rest of the run cycling at the landing " +
+             "without ever moving. The stuck watchdog cannot save it either — a traversal " +
+             "suppresses the watchdog by design.\n\n" +
+             "Keep it long enough for the agent to actually walk away and commit to another " +
+             "route, or it steps off the link and immediately steps back on.")]
+    [SerializeField, Min(0f)] private float elevatorAbandonCooldown = 10f;
 
     [Header("Stuck detection")]
     [Tooltip("How long the Nemesis has to make no progress before it counts as stuck and warps " +
@@ -228,8 +246,10 @@ public class SO_NemesisData : ScriptableObject
     public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchLeadTime { get => searchLeadTime; set => searchLeadTime = value; }
+    public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
     public float BeliefMemoryTime { get => beliefMemoryTime; set => beliefMemoryTime = value; }
     public float ElevatorWaitTimeout { get => elevatorWaitTimeout; set => elevatorWaitTimeout = value; }
+    public float ElevatorAbandonCooldown { get => elevatorAbandonCooldown; set => elevatorAbandonCooldown = value; }
     public bool HearingUsesPathDistance { get => hearingUsesPathDistance; set => hearingUsesPathDistance = value; }
     public float StuckCheckInterval { get => stuckCheckInterval; set => stuckCheckInterval = value; }
     public float StuckMinDistance { get => stuckMinDistance; set => stuckMinDistance = value; }

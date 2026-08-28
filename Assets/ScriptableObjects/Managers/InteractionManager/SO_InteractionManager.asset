@@ -12,10 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96491aaf6e1b4d646a2e12493e463415, type: 3}
   m_Name: SO_InteractionManager
   m_EditorClassIdentifier: Assembly-CSharp::SO_InteractionManager
-  interactionDistance: 7.5
+  interactionDistance: 3
   interactableLayers:
     serializedVersion: 2
     m_Bits: 64
   blockingLayers:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 6153
+  crosshairViewportPoint: {x: 0.5, y: 0.5}
+  castRadius: 0.125
+  fallbackOriginHeight: 1.2

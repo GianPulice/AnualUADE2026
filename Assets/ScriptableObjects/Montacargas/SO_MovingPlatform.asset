@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: SO_MovingPlatform
   m_EditorClassIdentifier: Assembly-CSharp::SO_MovingPlatform
   speed: 2
-  distance: 5
+  distance: 7
   startDelay: 1

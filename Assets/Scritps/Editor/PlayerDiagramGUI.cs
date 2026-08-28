@@ -88,6 +88,78 @@ internal static class PlayerDiagramGUI
         GUI.matrix = saved;
     }
 
+    /// <summary>
+    /// Outline circle, built from straight <see cref="Line"/> segments rather than
+    /// <c>Handles.DrawWireDisc</c> — same reasoning as <see cref="Line"/> itself: this stays plain
+    /// IMGUI with no Repaint-only guard to get wrong. 0° points up the canvas (screen -Y), matching
+    /// <see cref="Arc"/> so the two compose in the same top-down diagram without a second
+    /// convention to remember.
+    /// </summary>
+    internal static void Circle(Vector2 center, float radiusPx, Color c, float thickness = 1.5f,
+                                int segments = 32)
+    {
+        if (radiusPx <= 0.5f) return;
+
+        Vector2 previous = PointOnCircle(center, radiusPx, 0f);
+        for (int i = 1; i <= segments; i++)
+        {
+            Vector2 point = PointOnCircle(center, radiusPx, 360f * i / segments);
+            Line(previous, point, c, thickness);
+            previous = point;
+        }
+    }
+
+    /// <summary>
+    /// Outline pie-slice: two straight radii plus a curved rim, centred on
+    /// <paramref name="centerAngleDeg"/> (0 = up the canvas, clockwise positive — screen space, so
+    /// this is a compass bearing, not a maths angle) and spanning
+    /// <paramref name="totalSpanDeg"/> degrees in total, split evenly either side of the centre.
+    /// This is a vision cone drawn top-down, which is the one shape none of the existing helpers
+    /// covered.
+    /// </summary>
+    internal static void Arc(Vector2 origin, float radiusPx, float centerAngleDeg, float totalSpanDeg,
+                             Color c, float thickness = 1.5f, int segments = 24)
+    {
+        if (radiusPx <= 0.5f || totalSpanDeg <= 0f) return;
+
+        float half = Mathf.Clamp(totalSpanDeg, 0f, 360f) * 0.5f;
+        float from = centerAngleDeg - half;
+        float to = centerAngleDeg + half;
+
+        Vector2 start = PointOnCircle(origin, radiusPx, from);
+        Line(origin, start, c, thickness);
+
+        Vector2 previous = start;
+        for (int i = 1; i <= segments; i++)
+        {
+            Vector2 point = PointOnCircle(origin, radiusPx, Mathf.Lerp(from, to, (float)i / segments));
+            Line(previous, point, c, thickness);
+            previous = point;
+        }
+
+        Line(previous, origin, c, thickness);
+    }
+
+    /// <summary>A point at a given compass bearing (0 = up, clockwise) and distance from a centre,
+    /// in the same screen-space pixels every other primitive here works in.</summary>
+    private static Vector2 PointOnCircle(Vector2 centre, float radiusPx, float bearingDeg)
+    {
+        float rad = bearingDeg * Mathf.Deg2Rad;
+        return centre + new Vector2(Mathf.Sin(rad), -Mathf.Cos(rad)) * radiusPx;
+    }
+
+    /// <summary>Small forward-facing marker for "you are here" diagrams: a dot with a tick
+    /// pointing at 0° (up the canvas), plus a caption below it.</summary>
+    internal static void Pawn(Vector2 position, Color c, string caption, float radiusPx = 4f)
+    {
+        Circle(position, radiusPx, c, 1.5f, 16);
+        Line(position, PointOnCircle(position, radiusPx * 2.2f, 0f), c, 1.5f);
+
+        if (string.IsNullOrEmpty(caption)) return;
+        Text(new Rect(position.x - 40f, position.y + radiusPx + 3f, 80f, 13f), caption, c,
+             TextAnchor.MiddleCenter);
+    }
+
     /// <summary>Vertical measurement: a capped bar with the distance written next to it.</summary>
     internal static void VMeasure(float x, float yA, float yB, Color c, string label, float labelWidth = 150f)
     {

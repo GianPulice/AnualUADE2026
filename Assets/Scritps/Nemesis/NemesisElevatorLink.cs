@@ -229,18 +229,63 @@ public class NemesisElevatorLink : MonoBehaviour
     public Transform GetExitLanding(Vector3 fromPosition) =>
         IsAtBottomSide(fromPosition) ? topLanding : bottomLanding;
 
+    /// <summary>The landing being stood at: where the trip starts, and where a failed one has to
+    /// put the passenger back.</summary>
+    public Transform GetBoardingLanding(Vector3 fromPosition) =>
+        IsAtBottomSide(fromPosition) ? bottomLanding : topLanding;
+
+    /// <summary>
+    /// Which landing the cabin is parked at RIGHT NOW, measured from the ride point instead of read
+    /// off <see cref="MovingPlatform.GoingUp"/>.
+    ///
+    /// GoingUp answers "which way would the NEXT trip leave", and that is the same fact as "which
+    /// end is it parked at" only while the cabin is idle. Mid-trip it still describes the trip in
+    /// progress, so a cabin halfway up the shaft — because the player pressed a call panel — still
+    /// reports itself as sitting at the bottom. Every "is it on my floor?" test that read the flag
+    /// was therefore answering about the past, and boarding walked the Nemesis into thin air on the
+    /// strength of it.
+    ///
+    /// Compared on height alone: the shaft is vertical, so Y is the only axis that separates the
+    /// two landings, and the horizontal offset between them (3.7 m in this scene) only eats into
+    /// the margin of a full 3D comparison.
+    /// </summary>
+    public bool IsCabinAtBottom =>
+        Mathf.Abs(RidePosition.y - bottomLanding.position.y) <=
+        Mathf.Abs(RidePosition.y - topLanding.position.y);
+
+    /// <summary>Whether the cabin is parked on the same side as <paramref name="position"/> — the
+    /// question "can something standing here actually step onto it".</summary>
+    public bool IsCabinOnSameSideAs(Vector3 position) => IsCabinAtBottom == IsAtBottomSide(position);
+
     private void OnDrawGizmosSelected()
     {
         if (bottomLanding == null || topLanding == null) return;
 
-        Gizmos.color = new Color(0.2f, 1f, 0.6f);
+        Color landingColor = new Color(0.2f, 1f, 0.6f);
+        Gizmos.color = landingColor;
         Gizmos.DrawWireSphere(bottomLanding.position, 0.4f);
         Gizmos.DrawWireSphere(topLanding.position, 0.4f);
         Gizmos.DrawLine(bottomLanding.position, topLanding.position);
 
+        // "bottom"/"top" plus the scene object's own name (e.g. "Start"/"End" in this project) —
+        // the role alone does not tell you which physical object it is if the two ever get
+        // renamed, and the name alone does not tell you which end of the shaft it serves.
+        Label(bottomLanding.position, $"bottom ({bottomLanding.name})", landingColor);
+        Label(topLanding.position, $"top ({topLanding.name})", landingColor);
+
         if (ridePoint == null) return;
 
-        Gizmos.color = new Color(1f, 0.9f, 0.2f);
+        Color rideColor = new Color(1f, 0.9f, 0.2f);
+        Gizmos.color = rideColor;
         Gizmos.DrawWireCube(ridePoint.position, new Vector3(0.6f, 0.1f, 0.6f));
+        Label(ridePoint.position, $"ride point ({ridePoint.name})", rideColor);
+    }
+
+    private static void Label(Vector3 position, string text, Color color)
+    {
+#if UNITY_EDITOR
+        UnityEditor.Handles.color = color;
+        UnityEditor.Handles.Label(position + Vector3.up * 0.5f, text);
+#endif
     }
 }

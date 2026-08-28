@@ -121,6 +121,248 @@ The manager fires `InteractionEvents.TargetChanged(interactable)` when the targe
 
 Selection is by **first hit along the ray**, with no dot-product priority when several interactables overlap — see `docs/TODO-UI.md` · Interaction Prompt.
 
+### Puzzles
+
+Progress is **not** stored on the puzzle objects. `PuzzleStateManager` (`Scritps/Managers/`) is the
+single source of truth and holds five collections keyed by string id: completed puzzles, inserted
+sockets, opened doors, valve positions and container slots. Everything else reads from it and
+writes to it — which is what lets a scene reload, a checkpoint rollback or a save restore work
+without every puzzle object having to serialize itself.
+
+It raises one event, `PuzzleStateManager.OnPuzzleCompleted(string puzzleId)`, and that string is
+the spine of the whole game: routes unlock on it (`NemesisRoute.unlockedByPuzzleId`), the Nemesis
+wakes up on it (`NemesisController.activatedByPuzzleId`), checkpoints activate on it
+(`Checkpoint.puzzleId`), and modules resolve on it (`ModuleData.associatedPuzzleId`). All four use
+the same **subscribe + catch-up** shape, and they have to: the event only fires on the transition,
+and an object loaded after the puzzle was solved would otherwise never hear about it. Subscribe in
+`OnEnable`/`Awake`, then re-check `IsPuzzleCompleted(id)` in `Start`.
+
+Sub-puzzle types, each an interactable plus a controller that watches for its completion condition:
+
+| Puzzle | Interactable | Controller | State key |
+|---|---|---|---|
+| SP1 — button sequence | `SequencePanelInteractable` + `SequenceButtonInteractable` | opens `SequencePanelUIController` | completed puzzle id |
+| Sockets / fuses | `SocketInteractable` | — | `SetSocketInserted` |
+| Valves | `ValveInteractable` | `ValvePuzzleController.CheckValves()` | `SetValvePosition` |
+| Containers / balls | `ContainerInteractable`, `ContainerSlot`, `BallPuzzleItem`, `BasketTrigger` | `ContainerPuzzleController.CheckContainers()` | `SetContainerSlot` |
+| Hub | — | `HubPuzzleController.CheckHubCompletion()` | completed puzzle id |
+| Doors | `DoorInteractable` | — | `SetDoorOpened` |
+
+`SO_PuzzleData` and its siblings (`SO_SequencePuzzleData`, `SO_ValvePuzzleData`,
+`SO_ContainerPuzzleData`, `SO_HubPuzzleData`, `SO_SocketData`, `SO_ValveData`, `SO_ContainerData`,
+`SO_DoorData`) carry the ids and the solution. **The id string in the asset is the contract** — a
+typo there fails silently, because nothing ever looks up a puzzle that does not exist.
+
+`PuzzleController` / `PuzzleReward` are a generic wrapper that predates the per-type controllers and
+still has no callers; see *Current state* below.
+
+### Modules (the device timers)
+
+The run's clock. `ModuleManager` (`Scritps/Player/Modules/`) owns one `ModuleRuntime` per
+`ModuleData` in `SO_ModulesConfig`, in order, and enforces two rules: **one module Active at a
+time**, and **module N cannot start until N−1 is Resolved**.
+
+The loop is fully wired end to end:
+
+```
+ZoneTrigger (player walks into a zone)  -> ModuleManager.ActivateModule(data)   [timer starts]
+PuzzleStateManager.OnPuzzleCompleted    -> ResolveModule(matching module)       [timer stops]
+timer hits zero                         -> ModuleEvents.OnExploded              [penalty is permanent]
+```
+
+`ModuleData` is the designer asset and the manager **never writes to it** — live values are in the
+POCO `ModuleRuntime`, so a run cannot leave dirty state in a `.asset`. Timers tick on
+`Time.unscaledDeltaTime` on purpose: the inventory sets `timeScale = 0`, and a timer you can stop
+by opening a menu is not a timer. `PauseManager` pauses them explicitly instead, through
+`PauseTicking`/`ResumeTicking` (ref-counted).
+
+Penalties are routed by `PenaltyType` into `PlayerStateManager.ApplyPenalty` and are **permanent
+for the rest of the run by design** — there is no method to clear them:
+
+| Penalty | Effect | Read by |
+|---|---|---|
+| `Legs` (M1) | `MoveSpeedPenaltyFactor` drops to `CojeraMultiplier` | `EffectiveMoveSpeed` |
+| `Chest` (M2) | `SprintPenaltyFactor` drops by `SprintReduction` | `PlayerMovingState` sprint |
+| `Head` (M3) | `IsBlindnessActive` | `BlindnessOverlayView`, which subscribes to `OnExploded` itself |
+
+The movement states feed the Animator the **pre-penalty** speed so a limping player still plays the
+run blend; only the physical velocity is scaled.
+
+### Capture, checkpoints and session reset
+
+A capture is a **cost, not a Game Over**. The chain is deliberately one-directional so no system
+reaches into another:
+
+```
+NemesisCatchState -> PlayerStateManager.OnCaptured() -> PlayerEvents.OnPlayerCaptured
+                 -> CheckpointManager (subscribed)   -> respawn + PuzzleStateManager.RestoreSnapshot
+                                                     -> ModuleManager.ApplyTimePenalty
+                 -> CheckpointManager.OnRespawned    -> NemesisStateManager (subscribed)
+```
+
+The Nemesis never calls into save or UI; it only raises and only listens. `Checkpoint` activates by
+physical trigger, by puzzle id, or either, once only — and **snapshots puzzle progress at
+activation, not at capture**, because the point of the rollback is to undo whatever you did after
+the last safe moment.
+
+`GameSession.BeginNewSession()` is the New Game / Retry reset, called from `MainMenuController` and
+`ResultScreenController`. Persistent managers implement `ISessionResettable` and register in
+`Awake`; statics subscribe to `GameSession.OnNewSessionStarting`. **Adding a new stateful manager
+means implementing that interface — not editing the menu controllers.**
+
+### Inventory
+
+`InventoryManager` is a flat list of `SO_InventoryItem` with `AddItem` / `DiscardItem` /
+`ConsumeItem`, each raising an `InventoryEvents` static event. Items carry `ItemID`, `Category`
+(which picks one of the four preset highlight materials), `IsConsumable` and `IsMetallic`.
+`GetItemIDs` / `RestoreFromIDs` are the save hooks.
+
+The UI is a modal (`InventoryManagerUI`, Tab) and therefore goes through `UIStateManager` — which
+means it sets `timeScale = 0`, which is why the module timers are unscaled.
+
+### Player
+
+`PlayerStateManager` drives `Idle / Moving / Crouch / Interacting / Hidden / Disabled`, resolves its
+own hierarchy references in `Awake` (so the character model is swappable) and disables itself with
+one aggregated error if anything is still missing.
+
+It is a **Rigidbody + CapsuleCollider** character, not a `CharacterController` — step offset and
+slope limit do not exist here. Movement is written as `linearVelocity` through
+`ApplyMoveVelocity(Vector3)`, which capsule-casts against `obstacleMask` and projects the horizontal
+component along whatever it is about to hit. Without that deflection the raw assignment overwrites
+the solver's collision response every frame and the player sticks to every prop. `CheckGround`
+probes downward — masked, bounded, and with its return value checked — and its hit normal is what
+`MoveDir` gets projected onto, so a bad probe corrupts movement rather than just grounding.
+
+`SO_Movement` holds speeds, capsule heights per stance and the **noise radii** (crouch 1 / walk 2 /
+run 6) that `FieldOfListening` picks up through the `AudioEmitingZone` sphere the states resize.
+`SO_CameraConfig` holds the rig: FOV, shoulder offset, look limits and the crouch pivot drop.
+`PlayerRegistry` is a static class (not a `Singleton<T>`) that every system uses to find the player,
+with `SubscribeAndCatchUp` for consumers that load before the gameplay scene.
+
+### Nemesis: routes, activation and siblings
+
+Beyond the FSM described above:
+
+- **`NemesisRoute`** — a patrol route is a GameObject whose direct children tagged
+  `NemesisWaypoint` are its waypoints, **in Hierarchy order**. Reordering the route means
+  reordering the children. Each route has a weight and a lock, optionally gated on a puzzle id.
+- **`NemesisRouteGraph`** — merges every unlocked route and works out which waypoints are on the
+  same NavMesh island. This is what lets the Nemesis borrow a waypoint from another route and adopt
+  it, which is how it changes floor without waiting for the route roll.
+- **`NemesisController`** — owns the routes, rolls the active one (weighted, biased toward where it
+  *believes* the player is), and picks the spawn point. Activation is gated on
+  `activatedByPuzzleId`: until that puzzle is solved the Nemesis is dormant — invisible, no senses,
+  no navigation, FSM not started.
+- **`NemesisNav`** — every distance and reachability question measured over the NavMesh instead of
+  in a straight line. `Vector3.Distance` lies in a level with floors, and three separate bugs came
+  from that one mistake.
+- **`NemesisDoorUser`** — opens doors by sweeping along `desiredVelocity`, independent of the FSM,
+  so it works in patrol, investigation and chase alike. `DoorInteractable.nemesisCanOpen` /
+  `nemesisCanForceLocked` are the per-door policy; a door with `nemesisCanOpen` off should also get
+  a `NavMeshObstacle` with Carve so the Nemesis does not path into it at all.
+- **`NemesisAudio`** — per-state looping audio with crossfades. `stateLoops` is a designer-authored
+  array, so **adding a value to `ENemesisState` without an entry crossfades the monster to
+  silence**. `NemesisChaseMusic` is separate and driven by `OnChaseStarted/Ended`.
+
+### Editor tools
+
+All under `Tools/`:
+
+| Menu item | What it does |
+|---|---|
+| `Nemesis/Validate Navigation Setup` | Reports mismatched layer masks and geometry outside the bake |
+| `Nemesis/Repair Layer Masks` | Fixes every "what is solid" mask at once. Does **not** rebake |
+| `Nemesis/Migrate Prop Layers` | Moves configured Hierarchy subtrees onto Props/Ground |
+| `Audio/Create or Update Master Mixer` | Builds the 8-bus mixer |
+| `Audio/Bake Ambience Texture Clips` | Generates the noise and drone clips (layers 3 and 4 need no sourced audio) |
+| `Door/Setup Door Visual` | Door prefab wiring |
+| `Puzzle UI/Setup Sequence Panel UI` | SP1 panel wiring |
+| `Scenes/Build Testing Blockout` | Test scene generator |
+
+Custom inspectors live in `Scritps/Editor/`: `SO_MovementEditor` and `SO_CameraConfigEditor` draw
+to-scale diagrams and live verdicts on top of `PlayerDiagramGUI`, a small shared IMGUI kit
+(`Canvas`, `Bar`, `Verdict`, `Line`, `VMeasure`) with the project palette — green = healthy,
+red = penalised, amber = warning. Reuse it for any new authoring inspector rather than starting a
+new drawing helper.
+
+Scene gizmos worth knowing about: `NemesisGizmos` (every `SO_NemesisData` range, drawn to scale
+with its metre value), `NemesisRoute` (waypoints and the route polyline), `InteractionRangeGizmo`
+(the interaction SphereCast's real reach), `NemesisElevatorLink` and `ElevatorCallPanel`. All of
+them use `OnDrawGizmos` rather than `OnDrawGizmosSelected` **on purpose** — a selected-only gizmo
+is invisible in Prefab Mode, which is where tuning happens — and they read their values from the
+ScriptableObject, never from a local copy that could drift from what the game actually uses.
+
+### Layers
+
+Four layers carry meaning. Everything else in the project is decoration.
+
+| Layer | Holds | In the NavMesh bake | Blocks line of sight |
+|---|---|---|---|
+| `3 Ground` | floors, stairs, landings | yes, walkable | yes |
+| `11 Wall` | walls, columns, door headers | yes | yes |
+| `12 Props` | loose props, pipes, visual mass | yes, as **Not Walkable** | yes |
+| `0 Default` | ceilings, everything unclassified | **no** | yes |
+
+Two rules follow from that table, and both were learned the hard way:
+
+**`Default` is deliberately outside the bake.** This project keeps ceilings there, and a ceiling
+that goes into the bake comes out as a perfectly walkable roof. `Props` exists precisely so props
+can be baked without dragging the ceilings in with them.
+
+**Four separate systems ask "what is solid?" and they must all give the same answer** —
+`FieldOfView.obstacleMask`, `FieldOfListening.obstacleMask`, the camera's
+`CinemachineDeoccluder.CollideAgainst`, `SO_InteractionManager.blockingLayers`, and
+`PlayerStateManager.obstacleMask`. They drifted apart once and every symptom looked like a
+different bug: the Nemesis walked through props, the camera clipped through floors, the player
+interacted through walls, and item highlights lit up across the level.
+
+A mask that is wrong does not fail — it quietly does less. `Tools/Nemesis/Validate Navigation
+Setup` turns that into a console message, `Tools/Nemesis/Repair Layer Masks` fixes every mask
+above at once, and `Tools/Nemesis/Migrate Prop Layers` moves whole Hierarchy subtrees onto the
+right layer (the roots it knows about are a constant at the top of `NemesisSetupValidator.cs`).
+**None of them rebakes the NavMesh** — the mask decides what goes into a bake, it does not trigger
+one. Navigation window ▸ Bake, by hand, afterwards.
+
+### Freight elevator
+
+`MovingPlatform` is the cabin, `NemesisElevatorLink` is the static root that owns the `NavMeshLink`
+and measures the shaft, `NemesisElevatorUser` performs the crossing for the Nemesis, and
+`ElevatorCallPanel` is the player's call button — one per landing, which is what stops a player who
+rides up and steps off from being locked out of that floor.
+
+The platform can be **claimed** (`TryClaim`/`ReleaseClaim`/`IsClaimed`). `NemesisElevatorUser`
+holds the claim for the whole attempt, from before it starts waiting until its `finally`. That is
+what stops a panel press from stealing a ride the monster has already committed to, and what stops
+`autoReturnToBottom` from setting off under a Nemesis that is still walking aboard. A panel refuses
+while the platform is claimed rather than queueing the call.
+
+When the Nemesis gives up on a shaft it must call `ActivateCurrentOffMeshLink(false)` — **not**
+`CompleteOffMeshLink()`, which reports the crossing as done and teleports it to the other floor for
+free. It then shelves that elevator for `SO_NemesisData.ElevatorAbandonCooldown` seconds; without
+that the agent is still standing on the link and restarts the same doomed wait on the next frame,
+forever, with the stuck watchdog suppressed by the traversal.
+
+### Safe zones (the Hub)
+
+Handled purely on the NavMesh: a `NavMeshModifierVolume` over the Hub with its area set to
+**Not Walkable** (not merely high-cost — a cost penalty only makes the Nemesis prefer another
+route, it does not stop it entering if that route is the only one, or if pathfinding decides the
+detour is worth it). Not Walkable means the NavMeshAgent physically cannot path there, full stop.
+
+There is no C# side to this rule. An earlier version gated it in code (suppressing the Nemesis's
+sensors while the player stood in a trigger volume), which needed careful handling in
+`NemesisStateManager`/`NemesisChasingState`/`NemesisInvestigatingState` to avoid the FSM
+oscillating between Chasing and Patrolling every other frame. The NavMesh-only approach sidesteps
+all of that: if the Nemesis can never reach the space, there is nothing to gate.
+
+One consequence worth knowing: this only blocks *movement*. The Nemesis can still **see or hear**
+the player inside the Hub if line of sight allows it (e.g. through a doorway) — it just cannot walk
+in. If that turns out to read as a bug in playtest ("it grabbed me through the door" is different
+from "it followed me in"; the Not Walkable area only prevents the second), the fix is back on the
+sensor side: either extend the Not Walkable volume to cover the doorway approach, or block sight at
+the door with a physical barrier the vision/hearing raycasts already respect.
+
 ### Visual Systems
 
 **Vision Fog**: Fullscreen Shader Graph pass (`VisionFog.mat`) driven by `VisionRangeController.cs`. Sets `_PlayerPos`, `_VisionStart`, `_VisionEnd` as shader globals. Range lerps between `visionEndDark` (6m) and `visionEndLit` (25m) based on `RenderSettings.ambientLight` luminance. Guard: if `visionEnd <= visionStart`, the shader passes through unchanged — prevents a black screen when the controller is inactive.
@@ -182,19 +424,25 @@ Volume envelopes use `Time.unscaledDeltaTime` (a fade frozen mid-way by a modal 
 
 ## Current state — what is and is not wired
 
-The systems below are **implemented but not connected to anything**. Read this before assuming a feature works end to end.
+The systems below are **implemented but not connected to anything**. Read this before assuming a feature works end to end. Verified against the code — if you fix one of these, delete the line.
 
-- **Module timers never start.** `InventoryManagerUI.StartModuleTimer()` and `ResolveModule()` have zero callers, so `ModuleData.Status` stays `Inactive` and `TickModuleTimers` is a no-op. Nothing downstream fires: no `ModuleExploded`, no `BlindnessOverlayView`, no `CheckGameOver` → `ReportGameOver`.
+**Still not wired:**
+
 - **There is no win condition.** `GameResultManager.ReportWin` is only called from `WinLoseTest.cs` (debug key `I`). The only reachable ending is the Nemesis catching you.
-- **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** Only `SequencePanelInteractable` (SP1) completes itself, writing straight to `PuzzleStateManager` and bypassing `PuzzleController`.
+- **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
 - **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
-- **Doors animate open but stay solid**: `DoorInteractable.DisableBlockingCollider()` is commented out in both call sites.
-- **Audio is nearly silent.** The only gameplay sound routed through `AudioManager` is `PlaySFX("PickUpInteractable")` — no footsteps, music, Nemesis or UI audio. The **ambience system is built** (`Scritps/Ambience/`, see below) but ships with placeholder clips and needs its scene wiring done.
-- **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers; `PuzzleStateManager` has no serialization at all.
-- **Retry does not reset run state.** `InventoryManager` and `PuzzleStateManager` are `DontDestroyOnLoad` with no `Clear()`, and `GameResultManager.ResetSession()` only resets the result flag — a retry keeps every collected item and completed puzzle.
+- **Audio is nearly silent.** Only two gameplay sounds route through `AudioManager`: `PickUpInteractable` and the elevator call panel. No footsteps, no UI audio. `NemesisAudio` and `NemesisChaseMusic` are built and need their clips and scene wiring; the **ambience system** (`Scritps/Ambience/`) is built but ships with placeholder clips.
+- **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
+- **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
 - **`EPlayerState.InDanger`** is in the enum but never registered in the state dictionary; transitioning to it would throw `KeyNotFound`. `PlayerHiddenState` is inert (no collider/visibility change) and is toggled by debug keys `R`/`T`/`Y` still live in `PlayerStateManager.InputUpdate`.
-- **Nemesis `OnTrigger*` throws.** Patrol, Investigating and Searching states `throw new NotImplementedException()` in their trigger overrides, and `StateManager` forwards trigger callbacks to the active state.
-- **Most of `SO_NemesisMovement` is unused** — only `PatrolSpeed` and `ChaseSpeed` are ever assigned to the NavMeshAgent. `SO_NemesisData.InvestigationTimeOut` and `NoiseUpdateCooldown` are never read.
 - **Two parallel unfinished grab/push implementations**: `GrabbableBall` + `PushBoxTriggerLogic` (active) and `PushableBall` (its `FixedUpdate` is entirely commented out). `GrabbableBall` reads `KeyCode.E` with no `PauseManager.IsGameplayInputBlocked` guard.
 - **Debug scripts still ship in the game folder**: `WinLoseTest.cs`, `TestClick.cs`, `Editor/TestSceneBuilder.cs`.
+
+**Wired since this section was last written** — kept here because the old text said otherwise and people still quote it:
+
+- **Module timers do run.** `ZoneTrigger` → `ModuleManager.ActivateModule`, and `PuzzleStateManager.OnPuzzleCompleted` → `HandlePuzzleCompleted` → `ResolveModule` closes the loop. Explosion, penalty and `BlindnessOverlayView` all fire.
+- **Retry does reset run state**, through `GameSession.BeginNewSession()` and `ISessionResettable`.
+- **`SO_NemesisMovement` is fully consumed.** `NemesisLifecycle.ApplyMovementTuning` applies `AngularSpeed`, `Acceleration` and `StoppingDistance`; the four state speeds are all assigned. `InvestigationTimeOut` and `NoiseUpdateCooldown` are both read.
+- **Nemesis trigger overrides no longer throw** — they are empty, which is correct: the FSM is driven by the sensors, not by triggers.
+- **`DoorInteractable` no longer has a blocking-collider path at all.** Whether the Nemesis can pass is decided by `nemesisCanOpen` plus the NavMesh (a `NavMeshObstacle` with Carve), not by toggling colliders.

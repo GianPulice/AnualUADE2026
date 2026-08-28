@@ -16,9 +16,9 @@ MonoBehaviour:
   acceleration: 8
   rotationSpeed: 10
   sprintSpeedMultiplier: 1.8
-  crouchSpeedMultiplier: 0.45
-  standingHeight: 1.8
-  crouchHeight: 0.9
+  crouchSpeedMultiplier: 0.508
+  standingHeight: 1.859
+  crouchHeight: 0.84
   runNoiseRadius: 6
   footstepNoiseRadius: 2
   crouchNoiseRadius: 1

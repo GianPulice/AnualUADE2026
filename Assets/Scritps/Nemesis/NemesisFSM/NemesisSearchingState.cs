@@ -233,8 +233,13 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     private Vector3 GetRandomPointInNavMesh()
     {
         const int maxAttempts = 30;
-        const float range = 5f;
         const float sampleRadius = 1f;
+
+        // Read off the SO rather than a local const. It was hardcoded at 5, which meant the one
+        // number deciding how wide the fallback sweep is could not be seen in the inspector, could
+        // not be drawn by the gizmos, and could not be tuned without a recompile.
+        SO_NemesisData data = nemesisStateManager.NemesisData;
+        float range = data != null ? data.SearchSweepRadius : 5f;
 
         Vector3 origin = nemesisStateManager.NavAgent.destination;
 

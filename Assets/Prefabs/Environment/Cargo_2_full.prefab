@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8959525891291688083}
   - component: {fileID: 4362830881898684222}
   - component: {fileID: 3150705815158325358}
+  - component: {fileID: 2218424631998555104}
   m_Layer: 0
   m_Name: Cargo_2_full
   m_TagString: Untagged
@@ -27,7 +28,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8494995610966087988}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -27.020912, y: 0.010494769, z: -64.97106}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 4.9367228, y: 1.7574464, z: 1.7630844}
   m_Center: {x: -0.00000011920929, y: 0.83204156, z: 0.000000029802322}
+--- !u!208 &2218424631998555104
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8494995610966087988}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 2.4680002, y: 0.87900007, z: 0.882}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.832, z: 0}
+  m_TimeToStationary: 0.5

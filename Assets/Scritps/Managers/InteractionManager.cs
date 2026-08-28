@@ -1,14 +1,26 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Interaction system based on a raycast from the centre of the camera.
-// The camera casts a ray forward with the distance configured in SO_InteractionManager.
-// If the ray hits a Collider hanging off an IInteractable and that one can be interacted with,
-// it becomes the "current" one and the UI shows the prompt. The E key runs the interaction.
+/// <summary>
+/// Interaction system driven by the crosshair.
+///
+/// The cast is fired through the crosshair's exact viewport point (see
+/// <see cref="SO_InteractionManager.CrosshairViewportPoint"/>) so what the reticle covers is
+/// literally what gets picked. The REACH, however, is measured from the player and not from the
+/// camera: this is a third person rig, the camera orbits ~3.4 m behind and above the character,
+/// and a budget spent from there is mostly empty air between the lens and the player's hands.
+/// <see cref="InteractionProbe"/> does both by starting the cast at the point of the crosshair ray
+/// closest to the player — everything between the camera and the character (their own body, the
+/// wall the Deoccluder pinched the camera into) is behind the start and simply cannot interfere.
+///
+/// Occlusion is resolved with two casts instead of one combined mask so that interaction volumes
+/// may be triggers. A door's interaction box has to be a trigger: it is authored on the door root
+/// and does not swing with the hinge, so as a solid collider it walls the doorway shut forever.
+/// </summary>
 public class InteractionManager : Singleton<InteractionManager>
 {
     [Header("Config")]
-    [Tooltip("Distance and layers for the raycast.")]
+    [Tooltip("Reach, layers, crosshair position and cast radius.")]
     [SerializeField] private SO_InteractionManager config;
 
     public SO_InteractionManager Config => config;
@@ -83,31 +95,10 @@ public class InteractionManager : Singleton<InteractionManager>
 
     private IInteractable RaycastForInteractable()
     {
-        if (playerCamera == null) return null;
-        if (config == null) return null;
-
-        float distance = config.InteractionDistance;
-        LayerMask combinedMask = config.InteractableLayers | config.BlockingLayers;
-
-        Vector3 origin = playerCamera.transform.position;
-        Vector3 direction = playerCamera.transform.forward;
-
-        // SphereCast: a "thick" ray with a small radius. Makes aiming at small items
-        // (pickups on the floor, valves) more forgiving without losing directionality.
-        const float sphereRadius = 0.1f;
-
-        if (!Physics.SphereCast(origin, sphereRadius, direction, out RaycastHit hit, distance, combinedMask, QueryTriggerInteraction.Ignore))
-            return null;
-
-        // We look for an IInteractable on the collider itself or on its parents.
-        // If we find one, it is valid (a child of the prefab is not on the Interactable layer
-        // but its root is, and it must still be activatable).
-        // If we do not find one, the first hit is a wall / blocking object.
-        IInteractable interactable =
-            hit.collider.GetComponent<IInteractable>() ??
-            hit.collider.GetComponentInParent<IInteractable>();
-
-        return interactable;
+        // Camera.main is the CinemachineBrain camera, i.e. the one actually rendering the frame
+        // the crosshair is drawn over — not the CinemachineCamera rig, whose transform lags the
+        // brain by a frame and is not what ScreenPointToRay would agree with.
+        return InteractionProbe.Find(playerCamera, PlayerRegistry.Current, config, out _);
     }
 
     private void Interact()

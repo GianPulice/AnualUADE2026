@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 172154996322402933}
   - component: {fileID: 991271391789809159}
   - component: {fileID: 3579805436572119801}
+  - component: {fileID: 6322141522937200388}
   m_Layer: 0
   m_Name: Palet_stack
   m_TagString: Untagged
@@ -27,7 +28,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7603385428057928923}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -10.015698, y: 0.0054847, z: -45.023952}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -110,5 +111,21 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.2130542, y: 1.081816, z: 1.7726789}
-  m_Center: {x: -0.000000059604645, y: 0.5306214, z: 0}
+  m_Size: {x: 1.8647003, y: 1.081816, z: 1.7726866}
+  m_Center: {x: -0.03069201, y: 0.5306214, z: 3.6409764e-12}
+--- !u!208 &6322141522937200388
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7603385428057928923}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.87, y: 0.46, z: 0.655}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.531, z: 0}
+  m_TimeToStationary: 0.5

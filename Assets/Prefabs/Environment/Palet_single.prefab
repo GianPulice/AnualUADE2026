@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3563965726652280688}
   - component: {fileID: 132785526083232978}
   - component: {fileID: 2132332649157951698}
+  - component: {fileID: 8637591813481627945}
   m_Layer: 0
   m_Name: Palet_single
   m_TagString: Untagged
@@ -27,9 +28,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7932320299326606368}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -8.012979, y: 0.0019870847, z: -45}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.3038212, y: 0.86643285, z: 1.1414}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.7492282, y: 0.21636334, z: 1.3952221}
   m_Center: {x: 0.00000008940697, y: 0.10139264, z: 0.00000011920929}
+--- !u!208 &8637591813481627945
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7932320299326606368}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.87500006, y: 0.108, z: 0.698}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.101, z: 0}
+  m_TimeToStationary: 0.5
