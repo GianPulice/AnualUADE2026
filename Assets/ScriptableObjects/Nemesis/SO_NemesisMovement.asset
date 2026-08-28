@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: SO_NemesisMovement
   m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisMovement
   patrolSpeed: 2
-  investigationSpeed: 3
-  chaseSpeed: 4
-  searchSpeed: 3.5
+  investigationSpeed: 2.5
+  chaseSpeed: 3
+  searchSpeed: 2.7
   angularSpeed: 200
   acceleration: 14
   stoppingDistance: 1
