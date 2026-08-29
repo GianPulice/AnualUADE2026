@@ -44,6 +44,49 @@ public sealed class NemesisRouteGraph
         public bool IsValid => Route != null && Waypoint != null;
     }
 
+    /// <summary>
+    /// A compact group of nearby waypoints — a "cúmulo" — that the Nemesis patrols as one unit
+    /// instead of hopping waypoint by waypoint across the level.
+    ///
+    /// Clusters are SPATIAL, not authored: they are built from where the waypoints actually are,
+    /// so one cluster routinely mixes waypoints from several routes that happen to cover the same
+    /// corner of the level. That is the point. Picking one waypoint at a time from the whole
+    /// merged set is what made the patrol read as teleporting — two consecutive indices of a
+    /// route in this level can be thirty metres apart, and the cross-route roll could send it to
+    /// the far corner on any arrival. Committing to a cluster makes the same waypoints read as
+    /// "it is sweeping that area now", which is what a stalker is supposed to look like.
+    ///
+    /// Every member is in the same NavMesh island by construction, so anything picked out of a
+    /// cluster the Nemesis is standing in is guaranteed reachable.
+    /// </summary>
+    public readonly struct Cluster
+    {
+        /// <summary>Index into the graph's flat member list where this cluster's nodes start.</summary>
+        public readonly int FirstMember;
+
+        public readonly int MemberCount;
+
+        /// <summary>Average position of the members. What the zone-level rolls measure against:
+        /// one path query per cluster instead of one per waypoint.</summary>
+        public readonly Vector3 Centroid;
+
+        /// <summary>The NavMesh island every member sits on.</summary>
+        public readonly int Component;
+
+        /// <summary>Average of the members' route weights, so the designer's per-zone frequency
+        /// still steers which cluster gets patrolled.</summary>
+        public readonly float Weight;
+
+        public Cluster(int firstMember, int memberCount, Vector3 centroid, int component, float weight)
+        {
+            FirstMember = firstMember;
+            MemberCount = memberCount;
+            Centroid = centroid;
+            Component = component;
+            Weight = weight;
+        }
+    }
+
     private readonly List<Node> nodes = new List<Node>();
 
     /// <summary>Which NavMesh island each node belongs to. Two nodes sharing a number have a path
@@ -54,10 +97,34 @@ public sealed class NemesisRouteGraph
     /// these, which is what keeps this out of N squared.</summary>
     private readonly List<int> representatives = new List<int>();
 
+    private readonly List<Cluster> clusters = new List<Cluster>();
+
+    /// <summary>Every cluster's members, concatenated. A cluster reads its own slice through
+    /// <see cref="Cluster.FirstMember"/> and <see cref="Cluster.MemberCount"/> — one list instead
+    /// of a list per cluster, so a rebuild does not allocate one array per zone.</summary>
+    private readonly List<int> clusterMembers = new List<int>();
+
+    /// <summary>Which cluster each node ended up in, or -1 while the build is still running.
+    /// Doubles as the "already assigned" mark the greedy build reads.</summary>
+    private readonly List<int> clusterOf = new List<int>();
+
     private string fingerprint = string.Empty;
     private int componentCount;
 
+    /// <summary>
+    /// Above this many waypoints the densest-seed pass is dropped for plain iteration order.
+    ///
+    /// Seeding each cluster at the node with the most neighbours gives rounder, more evenly sized
+    /// zones, and costs one extra N-squared sweep per cluster — fine for the few dozen waypoints
+    /// a hand-built level carries, not fine for a generated one with hundreds. The cheap seeding
+    /// produces slightly lumpier clusters and nothing else: no correctness depends on which node
+    /// happened to start one.
+    /// </summary>
+    private const int DensestSeedNodeLimit = 128;
+
     public int NodeCount => nodes.Count;
+
+    public int ClusterCount => clusters.Count;
     public int ComponentCount => componentCount;
     public bool IsBuilt => nodes.Count > 0;
 
@@ -118,25 +185,37 @@ public sealed class NemesisRouteGraph
         Fingerprint(routes) != fingerprint;
 
     /// <summary>
-    /// Rebuilds the merged set. Cheap to over-call: it does nothing when the fingerprint matches.
+    /// Rebuilds the merged set and its clusters. Cheap to over-call: it does nothing when the
+    /// fingerprint matches.
     /// </summary>
+    /// <param name="clusterRadius">How far from a cluster's running centre a waypoint may sit and
+    /// still join it. This is what "a cúmulo" means in metres.</param>
+    /// <param name="maxClusterSize">Ceiling on how many waypoints one cluster may hold, so a dense
+    /// zone does not swallow a whole floor.</param>
     /// <param name="force">Rebuild even when the fingerprint matches. For after a NavMesh rebake,
     /// which changes no route but does change what is reachable.</param>
-    public void Rebuild(IReadOnlyList<NemesisRoute> routes, bool force = false)
+    public void Rebuild(IReadOnlyList<NemesisRoute> routes, float clusterRadius,
+                        int maxClusterSize, bool force = false)
     {
-        string next = Fingerprint(routes);
+        // The cluster settings ride along in the fingerprint: retuning the radius in the SO while
+        // in Play mode has to re-cluster, and nothing about the ROUTES changed to say so.
+        string next = Fingerprint(routes) + $"#{clusterRadius:0.###}/{maxClusterSize}";
         if (!force && next == fingerprint) return;
 
         fingerprint = next;
         nodes.Clear();
         componentOf.Clear();
         representatives.Clear();
+        clusters.Clear();
+        clusterMembers.Clear();
+        clusterOf.Clear();
         componentCount = 0;
 
         if (routes == null) return;
 
         CollectValidNodes(routes);
         AssignComponents();
+        BuildClusters(clusterRadius, maxClusterSize);
     }
 
     /// <summary>
@@ -210,6 +289,198 @@ public sealed class NemesisRouteGraph
                              "NavMesh islands with no path between them. The Nemesis will only be " +
                              "able to move within the island it is standing on — if that is not the " +
                              "intent, stairs, ramps or NavMeshLinks are missing between them.");
+        }
+    }
+
+    // ── Clustering ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Groups the nodes into compact spatial clusters, one island at a time.
+    ///
+    /// Greedy seed-and-grow rather than k-means: there is no k to pick here — how many zones a
+    /// level has is a fact about where the waypoints are, not a number a designer should have to
+    /// guess — and k-means would also happily straddle a wall, because it knows nothing about
+    /// islands. This grows from a seed, never leaves the seed's island, and stops at the radius.
+    ///
+    /// Growth is measured from the cluster's RUNNING CENTROID and not from the seed. Measuring
+    /// from the seed makes a cluster a circle around whichever node happened to start it, so a
+    /// zone shaped like a corridor comes out cut in half; measuring from the centroid lets the
+    /// group drift along the corridor as it absorbs it. Single-linkage (measuring from the
+    /// nearest member) would do that too, and then keep going: one chain of waypoints two metres
+    /// apart would swallow the entire floor.
+    /// </summary>
+    private void BuildClusters(float clusterRadius, int maxClusterSize)
+    {
+        for (int i = 0; i < nodes.Count; i++) clusterOf.Add(-1);
+
+        if (nodes.Count == 0) return;
+
+        float radius = Mathf.Max(0.5f, clusterRadius);
+        float radiusSqr = radius * radius;
+        int maxSize = Mathf.Max(1, maxClusterSize);
+        bool useDensestSeed = nodes.Count <= DensestSeedNodeLimit;
+
+        int assigned = 0;
+        while (assigned < nodes.Count)
+        {
+            int seed = useDensestSeed ? FindDensestUnassigned(radiusSqr) : FindFirstUnassigned();
+            if (seed < 0) break;   // Unreachable while assigned < count; never spin on a bad state.
+
+            int first = clusterMembers.Count;
+            int component = componentOf[seed];
+            int clusterIndex = clusters.Count;
+
+            Vector3 sum = nodes[seed].Position;
+            float weightSum = RouteWeightOf(seed);
+
+            clusterMembers.Add(seed);
+            clusterOf[seed] = clusterIndex;
+            assigned++;
+
+            while (clusterMembers.Count - first < maxSize)
+            {
+                int size = clusterMembers.Count - first;
+                int next = FindNearestUnassigned(sum / size, component, radiusSqr);
+                if (next < 0) break;
+
+                clusterMembers.Add(next);
+                clusterOf[next] = clusterIndex;
+                sum += nodes[next].Position;
+                weightSum += RouteWeightOf(next);
+                assigned++;
+            }
+
+            int count = clusterMembers.Count - first;
+            clusters.Add(new Cluster(first, count, sum / count, component, weightSum / count));
+        }
+
+        WarnIfClusteringIsPointless(radius);
+    }
+
+    private float RouteWeightOf(int nodeIndex) =>
+        nodes[nodeIndex].Route != null ? Mathf.Max(0f, nodes[nodeIndex].Route.Weight) : 0f;
+
+    private int FindFirstUnassigned()
+    {
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            if (clusterOf[i] < 0) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// The unassigned node with the most unassigned neighbours of its own island inside the
+    /// radius — the middle of the densest remaining knot of waypoints.
+    ///
+    /// Seeding at the densest node instead of the first one in iteration order is what keeps a
+    /// zone from being carved up by whichever of its waypoints the loop reached first: start at
+    /// the edge of a room and the far half of it spills into a second, thinner cluster.
+    /// </summary>
+    private int FindDensestUnassigned(float radiusSqr)
+    {
+        int best = -1;
+        int bestNeighbours = -1;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            if (clusterOf[i] >= 0) continue;
+
+            int neighbours = 0;
+            for (int j = 0; j < nodes.Count; j++)
+            {
+                if (j == i || clusterOf[j] >= 0) continue;
+                if (componentOf[j] != componentOf[i]) continue;
+                if (Vector3.SqrMagnitude(nodes[j].Position - nodes[i].Position) <= radiusSqr) neighbours++;
+            }
+
+            if (neighbours <= bestNeighbours) continue;
+
+            bestNeighbours = neighbours;
+            best = i;
+        }
+
+        return best;
+    }
+
+    /// <summary>Closest unassigned node of <paramref name="component"/> to a point, or -1 when
+    /// nothing unassigned is left inside the radius.</summary>
+    private int FindNearestUnassigned(Vector3 centre, int component, float radiusSqr)
+    {
+        int best = -1;
+        float bestSqr = radiusSqr;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            if (clusterOf[i] >= 0) continue;
+            if (componentOf[i] != component) continue;
+
+            float distanceSqr = Vector3.SqrMagnitude(nodes[i].Position - centre);
+            if (distanceSqr > bestSqr) continue;
+
+            bestSqr = distanceSqr;
+            best = i;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Says so when the radius is so small that almost every waypoint became its own cluster.
+    ///
+    /// That case is not an error and nothing breaks — the Nemesis patrols clusters of one, which
+    /// is exactly the waypoint-by-waypoint behaviour clusters exist to replace. It fails silently
+    /// though: the feature is switched on, the inspector says so, and the monster moves the same
+    /// as before. Worth one line at build time.
+    /// </summary>
+    private void WarnIfClusteringIsPointless(float radius)
+    {
+        if (clusters.Count == 0 || nodes.Count <= 3) return;
+
+        float averageSize = (float)nodes.Count / clusters.Count;
+        if (averageSize >= 1.5f) return;
+
+        Debug.LogWarning($"[NemesisRouteGraph] Cluster radius {radius:0.##}u split {nodes.Count} " +
+                         $"waypoints into {clusters.Count} clusters ({averageSize:0.##} waypoints " +
+                         "each), so patrolling by cluster is the same as patrolling waypoint by " +
+                         "waypoint. Raise Cluster Radius on the SO_NemesisData until a cluster " +
+                         "covers a room or a corridor.");
+    }
+
+    public Cluster GetCluster(int index) => clusters[index];
+
+    /// <summary>The cluster a node belongs to, or -1 when the index does not exist.</summary>
+    public int ClusterOf(int nodeIndex) =>
+        nodeIndex >= 0 && nodeIndex < clusterOf.Count ? clusterOf[nodeIndex] : -1;
+
+    /// <summary>
+    /// Fills <paramref name="results"/> with the node indices of one cluster. Writes into the
+    /// caller's list for the same reason <see cref="CollectNodesInComponent"/> does: this runs
+    /// every time the Nemesis moves on to another zone.
+    /// </summary>
+    public void CollectClusterMembers(int clusterIndex, List<int> results)
+    {
+        results.Clear();
+        if (clusterIndex < 0 || clusterIndex >= clusters.Count) return;
+
+        Cluster cluster = clusters[clusterIndex];
+        for (int i = 0; i < cluster.MemberCount; i++)
+        {
+            results.Add(clusterMembers[cluster.FirstMember + i]);
+        }
+    }
+
+    /// <summary>Every cluster sitting on the given NavMesh island — the zones the Nemesis can
+    /// actually walk to from where it is standing.</summary>
+    public void CollectClustersInComponent(int component, List<int> results)
+    {
+        results.Clear();
+        if (component < 0) return;
+
+        for (int i = 0; i < clusters.Count; i++)
+        {
+            if (clusters[i].Component != component) continue;
+            results.Add(i);
         }
     }
 

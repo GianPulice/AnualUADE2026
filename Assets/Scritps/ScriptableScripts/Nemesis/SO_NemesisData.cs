@@ -180,12 +180,57 @@ public class SO_NemesisData : ScriptableObject
              "remote-controlled.")]
     [SerializeField] private bool biasUsesLastKnownPosition = true;
 
+    [Header("Patrol routes — cúmulos (clusters)")]
+    [Tooltip("Patrol by ZONE instead of by waypoint: the Nemesis picks a cúmulo of nearby " +
+             "waypoints, sweeps it, and only then moves on to another one — preferring a cúmulo " +
+             "next door, so it migrates through the level instead of jumping across it.\n\n" +
+             "Off restores the old behaviour: one waypoint picked at a time out of the whole " +
+             "merged set, with Cross Route Transfer Chance rolled on every arrival. That is what " +
+             "made the patrol read as teleporting — two consecutive waypoints of a route in this " +
+             "level can be thirty metres apart.\n\n" +
+             "With this on, Cross Route Transfer Chance is ignored: a cúmulo is spatial, so it " +
+             "already mixes whatever routes cover that corner of the level.")]
+    [SerializeField] private bool clusterPatrolEnabled = true;
+
+    [Tooltip("Metres. How far from a cúmulo's centre a waypoint may sit and still belong to it — " +
+             "i.e. how big a 'zone' is.\n\n" +
+             "Tune it against the level, not against a feeling: it should be about the size of a " +
+             "room or a stretch of corridor. Too small and every waypoint becomes its own cúmulo, " +
+             "which is the old behaviour with extra steps (the graph warns when that happens). " +
+             "Too large and one cúmulo swallows the floor, and the Nemesis never appears to leave.")]
+    [SerializeField, Min(1f)] private float clusterRadius = 12f;
+
+    [Tooltip("Ceiling on how many waypoints one cúmulo may hold, so a densely marked room does " +
+             "not absorb everything within the radius.")]
+    [SerializeField, Range(2, 12)] private int maxClusterSize = 5;
+
+    [Tooltip("Fewest waypoints of a cúmulo the Nemesis visits before moving on. A cúmulo with " +
+             "fewer members than this is simply swept whole.")]
+    [SerializeField, Min(1)] private int clusterMinWaypoints = 3;
+
+    [Tooltip("Most waypoints of a cúmulo the Nemesis visits before moving on. Rolled between the " +
+             "minimum and this on each cúmulo, so it does not spend the same amount of time in " +
+             "every zone.")]
+    [SerializeField, Min(1)] private int clusterMaxWaypoints = 6;
+
+    [Tooltip("How many times more likely the NEXT cúmulo is when it is right next door.\n\n" +
+             "This is the knob that turns the patrol into a walk through the level instead of a " +
+             "series of jumps: at 1 the next zone is drawn from anywhere on the island with no " +
+             "preference at all. It only applies when finishing a cúmulo — entering Patrolling " +
+             "fresh (after a chase, say) is deliberately free to relocate anywhere.")]
+    [SerializeField, Min(1f)] private float clusterNeighbourBias = 4f;
+
+    [Tooltip("Metres of path beyond which a cúmulo stops counting as 'next door'. Measured over " +
+             "the NavMesh, so a zone one floor up is as far as the walk to the lift makes it.")]
+    [SerializeField, Min(1f)] private float clusterNeighbourFalloff = 25f;
+
     [Header("Patrol routes — cross-route transfer")]
     [Tooltip("Chance, on each waypoint arrival, of jumping to a waypoint on ANOTHER unlocked " +
              "route instead of following the current route in order.\n\n" +
              "This is what lets it change floor without waiting for the route roll to hand it the " +
              "upper one: if another route has a reachable waypoint on level 1, it can borrow it " +
-             "and adopt that route from there. 0 locks it inside its own route, as before.")]
+             "and adopt that route from there. 0 locks it inside its own route, as before.\n\n" +
+             "IGNORED while Cluster Patrol Enabled is on — see that field.")]
     [SerializeField, Range(0f, 1f)] private float crossRouteTransferChance = 0.3f;
 
     [Tooltip("How many candidate waypoints are evaluated with real path distance on each pick. " +
@@ -261,6 +306,21 @@ public class SO_NemesisData : ScriptableObject
     public float RoutePlayerBiasStrength { get => routePlayerBiasStrength; set => routePlayerBiasStrength = value; }
     public float RoutePlayerBiasFalloff { get => routePlayerBiasFalloff; set => routePlayerBiasFalloff = value; }
     public bool BiasUsesLastKnownPosition { get => biasUsesLastKnownPosition; set => biasUsesLastKnownPosition = value; }
+    public bool ClusterPatrolEnabled { get => clusterPatrolEnabled; set => clusterPatrolEnabled = value; }
+    public float ClusterRadius { get => clusterRadius; set => clusterRadius = value; }
+    public int MaxClusterSize { get => maxClusterSize; set => maxClusterSize = value; }
+    public int ClusterMinWaypoints { get => clusterMinWaypoints; set => clusterMinWaypoints = value; }
+
+    /// <summary>Clamped against the minimum rather than trusted: the two are independent fields
+    /// and a max typed below the min would make the roll's range empty.</summary>
+    public int ClusterMaxWaypoints
+    {
+        get => Mathf.Max(clusterMinWaypoints, clusterMaxWaypoints);
+        set => clusterMaxWaypoints = value;
+    }
+
+    public float ClusterNeighbourBias { get => clusterNeighbourBias; set => clusterNeighbourBias = value; }
+    public float ClusterNeighbourFalloff { get => clusterNeighbourFalloff; set => clusterNeighbourFalloff = value; }
     public float CrossRouteTransferChance { get => crossRouteTransferChance; set => crossRouteTransferChance = value; }
     public int WaypointBiasSampleCount { get => waypointBiasSampleCount; set => waypointBiasSampleCount = value; }
     public float CatchMaxReach { get => catchMaxReach; set => catchMaxReach = value; }

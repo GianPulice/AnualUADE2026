@@ -84,6 +84,18 @@ public class NemesisController : MonoBehaviour
     private readonly List<int> sampledBuffer = new List<int>();
     private readonly List<float> weightBuffer = new List<float>();
     private readonly List<float> prefilterKeyBuffer = new List<float>();
+    private readonly List<Vector3> candidatePositionBuffer = new List<Vector3>();
+
+    /// <summary>
+    /// Zone-level patrol: which cúmulo of waypoints is being swept and in what order. All of the
+    /// maths lives in that class, which is a plain object and not a component — this controller
+    /// only feeds it the graph and the tuning, and points the agent at whatever node comes back.
+    ///
+    /// currentRoute and currentWaypointIndex above are kept in step with its tour (see
+    /// <see cref="AdoptClusterNode"/>), so CurrentWaypoint, the gizmos and NemesisSetupValidator
+    /// all keep reading the same fields they always did, whichever mode is running.
+    /// </summary>
+    private readonly NemesisClusterPatrol clusterPatrol = new NemesisClusterPatrol();
 
     /// <summary>The waypoint the Nemesis should currently be walking towards, or null if no
     /// route is active (nothing unlocked yet, or no routes configured at all).</summary>
@@ -161,16 +173,24 @@ public class NemesisController : MonoBehaviour
     /// Called once every time Patrolling is (re)entered, and additionally every
     /// RouteReplanInterval seconds while it keeps patrolling (see <see cref="TickPatrol"/>).
     ///
-    /// It rebuilds the merged set when needed, picks the active route among the unlocked ones that
-    /// have at least one waypoint reachable from here — weighted by their inspector weight and by
-    /// how close they are to where it believes the player is — and also picks which waypoint of
-    /// that route to start from, instead of always going back to index 0.
+    /// It rebuilds the merged set when needed and picks where to patrol next, among what is
+    /// genuinely reachable from where the Nemesis is standing — weighted by the designer's route
+    /// weights and by how close it is to where it believes the player is.
+    ///
+    /// With cluster patrol on (the default) what gets picked is a ZONE: a cúmulo of nearby
+    /// waypoints, swept as a unit. With it off, a single waypoint out of the whole merged set,
+    /// which is the older behaviour — see SO_NemesisData.ClusterPatrolEnabled for why that reads
+    /// as the monster teleporting around the level.
+    ///
+    /// Either way this is a fresh decision and deliberately NOT biased towards staying nearby:
+    /// arriving here means it just gave up a chase or a search, and pinning it to the zone it
+    /// lost you in is the opposite of what should happen next.
     /// </summary>
     public void BeginPatrolCycle()
     {
         replanTimer = 0f;
 
-        routeGraph.Rebuild(routes);
+        RebuildGraph();
 
         SO_NemesisData data = Data;
         float reverseChance = data != null ? data.RouteReverseChance : 0f;
@@ -190,6 +210,11 @@ public class NemesisController : MonoBehaviour
             return;
         }
 
+        if (UsesClusterPatrol && TryAdoptClusterIn(component, preferNeighbours: false)) return;
+
+        // Clusters off, or the graph produced none: the single-waypoint pick.
+        clusterPatrol.Reset();
+
         routeGraph.CollectNodesInComponent(component, candidateBuffer);
         if (candidateBuffer.Count == 0)
         {
@@ -205,6 +230,20 @@ public class NemesisController : MonoBehaviour
         }
 
         AdoptNode(routeGraph.GetNode(picked));
+    }
+
+    /// <summary>Whether the Nemesis patrols by zone. Defaults to on when there is no SO to ask,
+    /// matching the asset's own default.</summary>
+    private bool UsesClusterPatrol => Data == null || Data.ClusterPatrolEnabled;
+
+    /// <summary>Rebuild with the cluster settings currently on the SO. Cheap to over-call: the
+    /// graph does nothing when nothing has changed, the cluster knobs included.</summary>
+    private void RebuildGraph()
+    {
+        SO_NemesisData data = Data;
+        routeGraph.Rebuild(routes,
+                           data != null ? data.ClusterRadius : 12f,
+                           data != null ? data.MaxClusterSize : 5);
     }
 
     /// <summary>
@@ -227,18 +266,26 @@ public class NemesisController : MonoBehaviour
     }
 
     /// <summary>
-    /// Moves the traversal on to the next waypoint, honoring the current direction and consuming
-    /// the pending skip (if this cycle rolled one). Called by NemesisPatrolState once it has
+    /// Moves the traversal on to the next waypoint. Called by NemesisPatrolState once it has
     /// waited out PatrolWaypointWaitTime at <see cref="CurrentWaypoint"/>.
     ///
-    /// With probability CrossRouteTransferChance, instead of stepping in order it jumps to a
-    /// waypoint on another unlocked and reachable route, and adopts that route from there. That
-    /// jump is what lets it change floor without waiting for the route roll to hand it the upper
-    /// one: the route is still an ordered polyline (the gizmo does not lie), it just stops being
-    /// a cage.
+    /// With cluster patrol on this steps along the current cúmulo's sweep, and moves to a
+    /// neighbouring cúmulo once this one's budget is spent — see <see cref="AdvanceWithinCluster"/>.
+    ///
+    /// With it off it honors the current direction and consumes the pending skip (if this cycle
+    /// rolled one), and with probability CrossRouteTransferChance jumps to a waypoint on another
+    /// unlocked and reachable route instead, adopting that route from there. That jump is what let
+    /// it change floor without waiting for the route roll to hand it the upper one: the route is
+    /// still an ordered polyline (the gizmo does not lie), it just stops being a cage.
     /// </summary>
     public void AdvanceToNextWaypoint()
     {
+        if (UsesClusterPatrol && clusterPatrol.HasCluster)
+        {
+            AdvanceWithinCluster();
+            return;
+        }
+
         if (TryTransferToAnotherRoute()) return;
 
         if (currentRoute == null) return;
@@ -269,6 +316,96 @@ public class NemesisController : MonoBehaviour
                                            Mathf.Max(0, node.Route.Waypoints.Count - 1));
     }
 
+    // ── Cluster patrol ──────────────────────────────────────────────────────
+    //
+    // Thin wrappers. The rolls, the sweep order and the budget all live in NemesisClusterPatrol,
+    // which is a plain class with no scene references. All this layer does is translate between
+    // "graph node index" and this controller's currentRoute/currentWaypointIndex pair.
+
+    /// <summary>
+    /// Steps along the cúmulo being swept, and moves on to another one when this visit is over.
+    /// </summary>
+    private void AdvanceWithinCluster()
+    {
+        int node = clusterPatrol.Advance();
+        if (node >= 0)
+        {
+            AdoptClusterNode(node);
+            return;
+        }
+
+        // Zone swept. Next one, preferring next door — that preference is the whole difference
+        // between a patrol that walks the level and one that jumps around it.
+        RebuildGraph();
+
+        if (routeGraph.TryGetComponentAt(transform.position, out int component) &&
+            TryAdoptClusterIn(component, preferNeighbours: true))
+        {
+            return;
+        }
+
+        // Nothing else reachable: sweep this one again rather than stand still.
+        node = clusterPatrol.Resweep(routeGraph, BuildClusterSettings(applyNeighbourBias: false),
+                                     transform.position, direction);
+        if (node >= 0)
+        {
+            AdoptClusterNode(node);
+            return;
+        }
+
+        clusterPatrol.Reset();
+        FallBackToWeightedRouteWithoutGraph();
+    }
+
+    /// <summary>
+    /// Rolls for a cúmulo on the given island and starts sweeping it.
+    /// </summary>
+    /// <param name="preferNeighbours">Weight the roll towards zones close to where the Nemesis is
+    /// standing. On when moving from one cúmulo to the next, off for a fresh patrol cycle — which
+    /// should be free to relocate anywhere, since arriving there means it just gave up a chase.
+    /// </param>
+    /// <returns>false when the island has no usable cúmulo, so the caller can fall back.</returns>
+    private bool TryAdoptClusterIn(int component, bool preferNeighbours)
+    {
+        bool skip = pendingSkip;
+
+        int node = clusterPatrol.Begin(routeGraph, BuildClusterSettings(preferNeighbours),
+                                       transform.position, component, direction, ref skip,
+                                       excludeCurrent: preferNeighbours);
+
+        pendingSkip = skip;
+
+        if (node < 0) return false;
+
+        AdoptClusterNode(node);
+        return true;
+    }
+
+    /// <summary>
+    /// Points the traversal at a node the cluster patrol handed back.
+    ///
+    /// It goes through <see cref="AdoptNode"/> rather than keeping a destination of its own, so
+    /// currentRoute and currentWaypointIndex stay true in cluster mode too — which is what lets
+    /// <see cref="CurrentWaypoint"/>, the gizmos and the setup validator carry on reading the
+    /// fields they always read, without any of them having to know which mode is running.
+    /// </summary>
+    private void AdoptClusterNode(int node) => AdoptNode(routeGraph.GetNode(node));
+
+    /// <summary>
+    /// Gathers the tuning and the current belief into the struct the cluster patrol rolls with.
+    ///
+    /// The belief and its freshness are read HERE and not in there on purpose: where the Nemesis
+    /// thinks the player is comes off FieldOfView/FieldOfListening, and the point of the auxiliary
+    /// class is that it knows nothing about sensors — it is handed a position and a strength.
+    /// </summary>
+    private NemesisClusterPatrol.Settings BuildClusterSettings(bool applyNeighbourBias)
+    {
+        bool hasBelief = TryGetPlayerBeliefPosition(out Vector3 belief);
+
+        return NemesisClusterPatrol.Settings.From(Data, hasBelief, belief, BeliefFreshness(),
+                                                  applyNeighbourBias);
+    }
+
     // ── Cross-route transfer ────────────────────────────────────────────────
 
     /// <summary>
@@ -281,7 +418,7 @@ public class NemesisController : MonoBehaviour
         float chance = data != null ? data.CrossRouteTransferChance : 0f;
         if (chance <= 0f || Random.value >= chance) return false;
 
-        routeGraph.Rebuild(routes);
+        RebuildGraph();
         if (!routeGraph.TryGetComponentAt(transform.position, out int component)) return false;
 
         // excludeRoute: waypoints from OTHER routes are what is being asked for. Staying on the
@@ -318,7 +455,12 @@ public class NemesisController : MonoBehaviour
         SO_NemesisData data = Data;
         int sampleCount = data != null ? Mathf.Max(2, data.WaypointBiasSampleCount) : 8;
 
-        PrefilterCandidates(candidates, origin, hasBelief, belief, sampleCount);
+        candidatePositionBuffer.Clear();
+        for (int i = 0; i < candidates.Count; i++)
+            candidatePositionBuffer.Add(routeGraph.GetNode(candidates[i]).Position);
+
+        NemesisClusterPatrol.KeepClosest(candidates, candidatePositionBuffer, origin, hasBelief,
+                                         belief, sampleCount, sampledBuffer, prefilterKeyBuffer);
         if (sampledBuffer.Count == 0) return -1;
 
         float biasStrength = data != null ? Mathf.Max(1f, data.RoutePlayerBiasStrength) : 1f;
@@ -342,7 +484,8 @@ public class NemesisController : MonoBehaviour
 
             if (weight > 0f && hasBelief && biasStrength > 1f)
             {
-                weight *= PlayerBiasFor(node.Position, belief, biasStrength, falloff);
+                weight *= NemesisClusterPatrol.ProximityWeight(node.Position, belief,
+                                                              biasStrength, falloff);
             }
 
             weightBuffer.Add(weight);
@@ -393,68 +536,6 @@ public class NemesisController : MonoBehaviour
         return 1f - Mathf.Clamp01(age / memory);
     }
 
-    /// <summary>
-    /// Weight multiplier from closeness to the player, measured over the NavMesh.
-    ///
-    /// Returns 1 (no bias) when the waypoint is unreachable from where it believes the player is:
-    /// that is not "far", it is "not comparable", and penalising it would drop it out of the roll
-    /// for a reason that has nothing to do with the zone's design.
-    /// </summary>
-    private static float PlayerBiasFor(Vector3 waypoint, Vector3 belief, float strength, float falloff)
-    {
-        if (!NemesisNav.TryGetPathDistance(waypoint, belief, out float distance)) return 1f;
-
-        float t = 1f - Mathf.Clamp01(distance / falloff);
-        return Mathf.Lerp(1f, strength, t);
-    }
-
-    /// <summary>
-    /// Trims the candidates down to the <paramref name="sampleCount"/> most promising ones using
-    /// straight-line distance, which is free, so as not to pay two path queries for every waypoint
-    /// in the level.
-    ///
-    /// The key is the minimum of "close to me" and "close to the player": keeping only what is
-    /// near the Nemesis would discard precisely the waypoints on the player's floor, which are the
-    /// interesting ones. A waypoint one floor up is close in a straight line, so it survives the
-    /// prefilter and is then evaluated properly, with real path distance.
-    /// </summary>
-    private void PrefilterCandidates(List<int> candidates, Vector3 origin,
-                                     bool hasBelief, Vector3 belief, int sampleCount)
-    {
-        sampledBuffer.Clear();
-
-        if (candidates.Count <= sampleCount)
-        {
-            sampledBuffer.AddRange(candidates);
-            return;
-        }
-
-        // Sorted insertion into a fixed-size list: simpler and cheaper than sorting the whole list
-        // just to keep the first eight.
-        List<float> keys = prefilterKeyBuffer;
-        keys.Clear();
-
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            Vector3 position = routeGraph.GetNode(candidates[i]).Position;
-
-            float key = Vector3.SqrMagnitude(position - origin);
-            if (hasBelief) key = Mathf.Min(key, Vector3.SqrMagnitude(position - belief));
-
-            int insertAt = sampledBuffer.Count;
-            while (insertAt > 0 && keys[insertAt - 1] > key) insertAt--;
-
-            if (insertAt >= sampleCount) continue;
-
-            sampledBuffer.Insert(insertAt, candidates[i]);
-            keys.Insert(insertAt, key);
-
-            if (sampledBuffer.Count <= sampleCount) continue;
-
-            sampledBuffer.RemoveAt(sampledBuffer.Count - 1);
-            keys.RemoveAt(keys.Count - 1);
-        }
-    }
 
     /// <summary>
     /// Where the Nemesis BELIEVES the player is: the last position it saw or heard, not the real
@@ -576,11 +657,24 @@ public class NemesisController : MonoBehaviour
     }
 
     /// <summary>
-    /// Forces the merged set to be rebuilt. Needed when the NavMesh changes without any route
-    /// changing: a rebake, or a door that stopped blocking. Without this the graph keeps believing
-    /// the islands it worked out last time.
+    /// Forces the merged set — and its cúmulos — to be rebuilt. Needed when the NavMesh changes
+    /// without any route changing: a rebake, or a door that stopped blocking. Without this the
+    /// graph keeps believing the islands it worked out last time.
+    ///
+    /// The cluster being swept is dropped along with it: its index refers to a list that is about
+    /// to be rebuilt from scratch, and reusing it would point the sweep at whatever zone happens
+    /// to land in that slot. The next AdvanceToNextWaypoint re-picks one.
     /// </summary>
-    public void InvalidateRouteGraph() => routeGraph.Rebuild(routes, force: true);
+    public void InvalidateRouteGraph()
+    {
+        SO_NemesisData data = Data;
+        routeGraph.Rebuild(routes,
+                           data != null ? data.ClusterRadius : 12f,
+                           data != null ? data.MaxClusterSize : 5,
+                           force: true);
+
+        clusterPatrol.Reset();
+    }
 
     // ── Spawn point selection ───────────────────────────────────────────────
 
@@ -726,4 +820,98 @@ public class NemesisController : MonoBehaviour
         if (agent != null && agent.isActiveAndEnabled) agent.Warp(point.position);
         else transform.position = point.position;
     }
+
+    // ── Cluster gizmos ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws the cúmulos and the sweep currently being walked, so "which zone is it in and where
+    /// is it going next" is answerable by looking at the Scene view instead of by reading logs.
+    ///
+    /// Play mode only, and that is not a limitation to work around: the clusters do not exist
+    /// outside it. Building them needs the NavMesh islands, which cost one path query per
+    /// waypoint — fine once per unlock, ruinous every time the Scene view repaints. The static
+    /// half of the picture is already drawn by <see cref="NemesisRoute"/>'s own gizmos.
+    ///
+    /// Selected-only, unlike NemesisGizmos: this draws over every waypoint in the level, and a
+    /// level's worth of spheres and labels on screen at all times stops being readable well before
+    /// it stops being correct — the same reasoning NemesisRoute gives for keeping its labels in
+    /// OnDrawGizmosSelected.
+    /// </summary>
+    private void OnDrawGizmosSelected()
+    {
+        if (!Application.isPlaying || !routeGraph.IsBuilt) return;
+
+        for (int c = 0; c < routeGraph.ClusterCount; c++)
+        {
+            DrawCluster(c, isActive: c == clusterPatrol.CurrentCluster);
+        }
+
+        DrawTour();
+    }
+
+    private void DrawCluster(int clusterIndex, bool isActive)
+    {
+        // Amber is the active zone, cool blue the dormant ones — the project's own alert/passive
+        // pair. No red anywhere: that is reserved for danger, and a patrol route is not danger.
+        Color color = isActive ? new Color(1f, 0.784f, 0.314f) : new Color(0.35f, 0.5f, 0.62f);
+        Gizmos.color = color;
+
+        NemesisRouteGraph.Cluster cluster = routeGraph.GetCluster(clusterIndex);
+        routeGraph.CollectClusterMembers(clusterIndex, gizmoMemberBuffer);
+
+        for (int i = 0; i < gizmoMemberBuffer.Count; i++)
+        {
+            Vector3 member = routeGraph.GetNode(gizmoMemberBuffer[i]).Position;
+
+            // Centroid to member, so a cluster reads as one group at a glance instead of as
+            // loose spheres that happen to share a colour.
+            Gizmos.DrawLine(cluster.Centroid, member);
+            Gizmos.DrawWireSphere(member, isActive ? 0.5f : 0.3f);
+        }
+
+        if (!isActive) return;
+
+        Gizmos.DrawWireCube(cluster.Centroid, Vector3.one * 0.4f);
+
+#if UNITY_EDITOR
+        UnityEditor.Handles.color = color;
+        UnityEditor.Handles.Label(cluster.Centroid + Vector3.up * 1.2f,
+                                  $"cúmulo #{clusterIndex} — {clusterPatrol.TourIndex + 1}/" +
+                                  $"{clusterPatrol.TourBudget} de {cluster.MemberCount} " +
+                                  $"(peso {cluster.Weight:0.##})");
+#endif
+    }
+
+    /// <summary>
+    /// The sweep order of the active cluster, numbered, with the waypoints past this visit's
+    /// budget drawn dimmer — they belong to the cúmulo but will not be walked this time round.
+    /// </summary>
+    private void DrawTour()
+    {
+        IReadOnlyList<int> tour = clusterPatrol.Tour;
+        if (!clusterPatrol.HasCluster || tour.Count == 0) return;
+
+        for (int i = 0; i < tour.Count; i++)
+        {
+            bool withinBudget = i < clusterPatrol.TourBudget;
+            Vector3 position = routeGraph.GetNode(tour[i]).Position;
+
+            Gizmos.color = withinBudget ? new Color(1f, 0.784f, 0.314f)
+                                        : new Color(1f, 0.784f, 0.314f, 0.25f);
+
+            if (i > 0)
+                Gizmos.DrawLine(routeGraph.GetNode(tour[i - 1]).Position, position);
+
+#if UNITY_EDITOR
+            UnityEditor.Handles.color = Gizmos.color;
+            UnityEditor.Handles.Label(position + Vector3.up * 0.7f,
+                                      i == clusterPatrol.TourIndex ? $"▶ {i}" : i.ToString());
+#endif
+        }
+    }
+
+    /// <summary>The gizmos read the cluster members through a buffer of their own: the Scene view
+    /// repaints while the game is running, and sharing its own would have a gizmo
+    /// clear a list the sweep is halfway through consuming.</summary>
+    private readonly List<int> gizmoMemberBuffer = new List<int>();
 }
