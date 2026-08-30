@@ -38,8 +38,20 @@ public class SO_NemesisData : ScriptableObject
     [SerializeField, Range(0f, 1f)] private float crouchVisionMultiplier = 0.6f;
 
     [Header("Hearing")]
-    [Tooltip("Radius of the hearing OverlapSphere.")]
+    [Tooltip("Hard ceiling on hearing, and the radius of the broadphase OverlapSphere. How loud " +
+             "the player actually is decides the real range — see Noise Range Scale.")]
     [SerializeField] private float listenRange = 10f;
+
+    [Tooltip("Metres of hearing per metre of the player's own noise emitter radius.\n\n" +
+             "This is the knob that makes moving quietly WORTH something. The player's emitter " +
+             "(crouch 1 / walk 2 / run 6) used to decide only whether the OverlapSphere caught " +
+             "the collider at all: once a wall was in the way the test collapsed to " +
+             "'listenRange * multiplier', identical for a sprint and a crouch. Sneaking behind " +
+             "cover bought you literally nothing, which is where it mattered most.\n\n" +
+             "At 2.5 the three gaits become 2.5 / 5 / 15 m, capped by Listen Range. Keep Listen " +
+             "Range above loudness * this for the loudest gait, or the cap flattens the top of " +
+             "the scale and running stops being louder than walking.")]
+    [SerializeField, Min(0.1f)] private float noiseRangeScale = 2.5f;
 
     [Tooltip("Whether a wall between the Nemesis and a noise attenuates it.")]
     [SerializeField] private bool wallOcclusionEnabled = true;
@@ -99,6 +111,44 @@ public class SO_NemesisData : ScriptableObject
              "values have it pacing the room it lost you in; large ones scatter it so wide the " +
              "sweep stops reading as a search at all.")]
     [SerializeField, Min(1f)] private float searchSweepRadius = 5f;
+
+    [Header("Search — interception")]
+    //
+    // Searching used to walk to the nearest unswept waypoint FROM WHERE IT WAS STANDING: the last
+    // known position never entered the maths, so it circled the spot it lost you at while you
+    // walked away. These four turn that sweep into a cut-off — anchor on where it last sensed
+    // you, project along the direction it saw you moving, and head for the waypoint it can reach
+    // before you can.
+    //
+    // It still runs on BELIEF: the heading comes from FieldOfView.LastKnownVelocity, which is
+    // measured from consecutive sightings. Change direction the moment you break line of sight
+    // and the cut-off goes to the wrong place — that is the reward for juking, and it is meant
+    // to be there.
+
+    [Tooltip("How far from a detection a waypoint may sit and still be marked as 'this is where " +
+             "I sensed them'. Roughly the spacing between neighbouring waypoints.")]
+    [SerializeField, Min(0.5f)] private float beliefTraceRadius = 3f;
+
+    [Tooltip("How strictly a waypoint has to be AHEAD of the player to count as a cut-off, as a " +
+             "dot product against the observed heading.\n\n" +
+             "1 = only dead ahead. 0 = anything not behind them. Negative values let it cut off " +
+             "backwards, which is not cutting off — it is guessing. Around 0.25 gives a workable " +
+             "forward arc without demanding the player run in a straight line.")]
+    [SerializeField, Range(-1f, 1f)] private float interceptForwardDot = 0.25f;
+
+    [Tooltip("How late the Nemesis is still allowed to arrive and count it as a cut-off.\n\n" +
+             "1 = it must get there no later than the player would. 1.15 lets it commit to points " +
+             "it reaches 15% late, which is usually still in front of a player who slows down at " +
+             "a corner. Push it far past that and it starts committing to interceptions it " +
+             "cannot make, which reads as following you badly rather than as cutting you off.")]
+    [SerializeField, Min(1f)] private float interceptTimeMargin = 1.15f;
+
+    [Tooltip("How fast the Nemesis ASSUMES the player is moving when working out whether it can " +
+             "cut them off. Not read off the player — that would be omniscience.\n\n" +
+             "Set it to the player's sprint speed: assuming the worst case makes it cut wide and " +
+             "commit only to interceptions that hold up even if you run flat out. Assume too " +
+             "little and it cuts behind you every time.")]
+    [SerializeField, Min(0.5f)] private float assumedPlayerSpeed = 4.5f;
 
     [Tooltip("Seconds over which a sighting or a noise stops steering the patrol.\n\n" +
              "At 0 seconds old the player bias applies at full RoutePlayerBiasStrength; by this " +
@@ -284,6 +334,7 @@ public class SO_NemesisData : ScriptableObject
     public float ProximityDetectionRange { get => proximityDetectionRange; set => proximityDetectionRange = value; }
     public float CrouchVisionMultiplier { get => crouchVisionMultiplier; set => crouchVisionMultiplier = value; }
     public float ListenRange { get => listenRange; set => listenRange = value; }
+    public float NoiseRangeScale { get => noiseRangeScale; set => noiseRangeScale = value; }
     public bool WallOcclusionEnabled { get => wallOcclusionEnabled; set => wallOcclusionEnabled = value; }
     public float WallOcclusionMultiplier { get => wallOcclusionMultiplier; set => wallOcclusionMultiplier = value; }
     public float FloorOcclusionMultiplier { get => floorOcclusionMultiplier; set => floorOcclusionMultiplier = value; }
@@ -292,6 +343,10 @@ public class SO_NemesisData : ScriptableObject
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchLeadTime { get => searchLeadTime; set => searchLeadTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
+    public float BeliefTraceRadius { get => beliefTraceRadius; set => beliefTraceRadius = value; }
+    public float InterceptForwardDot { get => interceptForwardDot; set => interceptForwardDot = value; }
+    public float InterceptTimeMargin { get => interceptTimeMargin; set => interceptTimeMargin = value; }
+    public float AssumedPlayerSpeed { get => assumedPlayerSpeed; set => assumedPlayerSpeed = value; }
     public float BeliefMemoryTime { get => beliefMemoryTime; set => beliefMemoryTime = value; }
     public float ElevatorWaitTimeout { get => elevatorWaitTimeout; set => elevatorWaitTimeout = value; }
     public float ElevatorAbandonCooldown { get => elevatorAbandonCooldown; set => elevatorAbandonCooldown = value; }

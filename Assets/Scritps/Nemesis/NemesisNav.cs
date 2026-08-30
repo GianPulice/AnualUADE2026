@@ -24,6 +24,47 @@ public static class NemesisNav
     /// mid-jump.</summary>
     public const float DefaultSampleRadius = 2f;
 
+    /// <summary>
+    /// The areas the Nemesis is allowed to walk on. Set once from its own NavMeshAgent (see
+    /// <see cref="NemesisLifecycle.ApplyMovementTuning"/>) and used by every query that did not
+    /// ask for something else.
+    ///
+    /// It exists so that the oracle, the route graph, the hearing sensor and the HUD all measure
+    /// over the SAME NavMesh the agent can actually use. Without it, marking a safe room as
+    /// off-limits to the agent would leave every other system still measuring straight through
+    /// it — the vignette would light up for a Nemesis that cannot reach you, and the patrol bias
+    /// would keep drawing it towards a zone it is not allowed to enter.
+    ///
+    /// A mutable static rather than a parameter threaded through nine call sites. That is only
+    /// sound because THE DESIGN HAS EXACTLY ONE NEMESIS — a second one with different area
+    /// permissions would overwrite this and both would measure over the wrong mesh. It is the
+    /// one single-Nemesis assumption in the system that is not otherwise written down; the other
+    /// two are NemesisEvents (a single global channel for the HUD) and
+    /// NemesisElevatorLink.Active.
+    /// </summary>
+    public static int AreaMask = NavMesh.AllAreas;
+
+    /// <summary>
+    /// Static state survives leaving Play mode when domain reload is disabled. This class was the
+    /// only static hub in the project without the guard that every other one carries
+    /// (NemesisEvents, PlayerRegistry, PuzzleStateManager, CheckpointManager, GameSession,
+    /// GameResultManager, AmbienceEvents).
+    ///
+    /// <see cref="AreaMask"/> is the one that bites. It is written only from
+    /// NemesisLifecycle.ApplyMovementTuning, which runs on Activate — so a puzzle-gated Nemesis
+    /// that never wakes up in the next session inherits the previous run's mask and quietly
+    /// refuses to path into areas it should reach, with nothing in the log to point at.
+    ///
+    /// scratchPath goes too: it holds native memory, and a NavMeshPath carried across a session
+    /// boundary is a handle from a world that no longer exists.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        AreaMask = NavMesh.AllAreas;
+        scratchPath = null;
+    }
+
     /// <summary>How close a path corner has to pass to a landing to count as "this path went
     /// through that elevator". The corner Unity emits for a link IS the link endpoint, so this
     /// only has to absorb the SamplePosition snap between the landing marker and the baked
@@ -100,6 +141,13 @@ public static class NemesisNav
                                    int areaMask = NavMesh.AllAreas)
     {
         route = default;
+
+        // Every other entry point in this class funnels through here, so resolving the default in
+        // one place covers all of them. AllAreas works as the "unspecified" sentinel because no
+        // caller in the project asks for it deliberately — they all take the parameter default —
+        // and until AreaMask is set it IS AllAreas, so behaviour is unchanged until a scene
+        // actually restricts the agent.
+        if (areaMask == NavMesh.AllAreas) areaMask = AreaMask;
 
         if (!NavMesh.SamplePosition(from, out NavMeshHit fromHit, sampleRadius, areaMask)) return false;
         if (!NavMesh.SamplePosition(to, out NavMeshHit toHit, sampleRadius, areaMask)) return false;

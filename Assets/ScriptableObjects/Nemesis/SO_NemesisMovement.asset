@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ca4c193cdc7c8646a56c88e9ab5e5d9, type: 3}
   m_Name: SO_NemesisMovement
   m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisMovement
-  patrolSpeed: 2
-  investigationSpeed: 2.5
-  chaseSpeed: 3
-  searchSpeed: 2.7
+  patrolSpeed: 2.75
+  investigationSpeed: 2.75
+  chaseSpeed: 4.75
+  searchSpeed: 4.75
   angularSpeed: 200
   acceleration: 14
   stoppingDistance: 1

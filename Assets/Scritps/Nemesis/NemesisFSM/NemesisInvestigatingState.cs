@@ -5,48 +5,24 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
 {
     private NemesisStateManager nemesisStateManager;
 
-    private float timeOut = 0;
-    private float currentTime = 0;
+    // The timeout that used to be cached here is read by NemesisDecision straight off the SO, so
+    // retuning InvestigationTimeOut in Play mode now takes effect immediately instead of on the
+    // next scene load — these constructors run once, at Awake.
 
     public NemesisInvestigatingState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
-        timeOut = nemesisStateManager.NemesisData.InvestigationTimeOut;
     }
 
     public override void EnterState()
     {
         NextState = StateKey;
-        currentTime = 0;
-        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.InvestigationSpeed;
-        nemesisStateManager.AnimController.SetBool("isWalking", true);
+
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
+                                    nemesisStateManager.NemesisMovement.InvestigationSpeed);
     }
 
-    public override void ExitState()
-    {
-        nemesisStateManager.AnimController.SetBool("isWalking", false);
-    }
-
-    public override NemesisStateManager.ENemesisState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
-    }
+    public override void ExitState() { }
 
     public override void UpdateState()
     {
@@ -54,34 +30,17 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         // NemesisStateManager.IsAgentReady.
         if (!nemesisStateManager.IsAgentReady) return;
 
-        if (nemesisStateManager.HasVisualTarget)
-        {
-            NextState = NemesisStateManager.ENemesisState.Chasing;
-            return;
-        }
-
+        // Walking to the noise is the whole job now.
+        //
+        // Both ways out — it arrived and found nothing, or it ran out of patience — are rung 5 of
+        // NemesisDecision's ladder, which reads NemesisStateManager.HasArrived and BeliefAge. The
+        // "a fresh noise renews its interest" rule that used to be a currentTime reset here comes
+        // out for free there: BeliefAge resets on every detection, so a new noise pushes the
+        // timeout back without anything having to remember to do it.
         if (nemesisStateManager.HasAudioTarget)
         {
-            // Fresh noise renews its interest: the timeout only measures how long it has
-            // been going with nothing to follow.
-            currentTime = 0;
-            nemesisStateManager.NavAgent.destination = nemesisStateManager.FieldOfListening.LastKnownPosition;
-            return;
-        }
-
-        currentTime += Time.deltaTime;
-
-        // Two independent ways out: it arrived and found nothing, or it ran out of patience.
-        // Without the timeout an unreachable destination left it stuck here forever.
-        //
-        // remainingDistance (path length) instead of Vector3.Distance (straight line): a noise
-        // heard from a different floor used to read as "arrived" or "unreachable" based on raw
-        // 3D distance rather than whether the agent had actually walked there.
-        NavMeshAgent agent = nemesisStateManager.NavAgent;
-        bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
-        if (hasArrived || currentTime >= timeOut)
-        {
-            NextState = NemesisStateManager.ENemesisState.Patrolling;
+            nemesisStateManager.NavAgent.destination =
+                nemesisStateManager.FieldOfListening.LastKnownPosition;
         }
     }
 }

@@ -123,6 +123,13 @@ public class NemesisLifecycle : MonoBehaviour
         agent.acceleration = movement.Acceleration;
         agent.stoppingDistance = movement.StoppingDistance;
         agent.autoBraking = false;
+
+        // Published so every NemesisNav query measures over the same NavMesh the agent is allowed
+        // to walk on. This is what makes an off-limits area (a safe room painted with a custom
+        // NavMesh area, with that bit cleared on the agent) mean the same thing to the route
+        // oracle, the patrol graph, the hearing sensor and the HUD as it does to the agent —
+        // instead of only stopping the body while every measurement still reads straight through.
+        NemesisNav.AreaMask = agent.areaMask;
     }
 
     // ── Repositioning ───────────────────────────────────────────────────────

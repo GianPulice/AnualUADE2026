@@ -32,27 +32,6 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
         playerStateManager.AnimController.SetBool("isTrapped", false);
     }
 
-    public override PlayerStateManager.EPlayerState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
-    }
-
     public override void UpdateState()
     {
         // No longer terminal. CheckpointManager clears IsDisabled once it has moved the player

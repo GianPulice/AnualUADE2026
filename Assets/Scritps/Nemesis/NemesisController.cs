@@ -42,6 +42,7 @@ public class NemesisController : MonoBehaviour
              "Must match the PuzzleId on the puzzle's SO_PuzzleData / SO_ValvePuzzleData / etc. " +
              "Leave empty to have the Nemesis active from the moment you hit Play (the old " +
              "behaviour, where it starts wherever it happens to be placed in the scene).")]
+    [PuzzleId]
     [SerializeField] private string activatedByPuzzleId;
 
     [Header("Spawn points")]
@@ -64,6 +65,7 @@ public class NemesisController : MonoBehaviour
     private int direction = 1;       // +1 walks the route forward, -1 walks it backward.
     private bool pendingSkip;        // Consumed by the first AdvanceToNextWaypoint() of a cycle.
     private float replanTimer;
+    private bool nearbyPatrolRequested;   // Set by Searching on its way out. See BeginPatrolCycle.
 
     /// <summary>Merged set of every unlocked route, with the NavMesh islands already resolved.
     /// Only rebuilt when the unlocked set changes.</summary>
@@ -117,6 +119,13 @@ public class NemesisController : MonoBehaviour
     /// <summary>The merged route set. Public so an editor tool can inspect it without duplicating
     /// the build.</summary>
     public NemesisRouteGraph RouteGraph => routeGraph;
+
+    // Read by NemesisDebugHUD. The gizmos below already reach into clusterPatrol directly, being
+    // members of this class; the HUD is a separate component and needs a way in that does not
+    // hand it the whole object.
+    public int CurrentCluster => clusterPatrol.CurrentCluster;
+    public int ClusterTourIndex => clusterPatrol.TourIndex;
+    public int ClusterTourBudget => clusterPatrol.TourBudget;
 
     /// <summary>Every waypoint across every unlocked route, flattened. Used for the "any
     /// waypoint will do" cases: post-capture repositioning and stuck-escape.</summary>
@@ -210,7 +219,20 @@ public class NemesisController : MonoBehaviour
             return;
         }
 
-        if (UsesClusterPatrol && TryAdoptClusterIn(component, preferNeighbours: false)) return;
+        // Prowling: a cycle entered straight out of Searching stays around the zone it lost the
+        // player in, instead of being free to relocate across the level. Without it the 4-second
+        // search reads as the Nemesis forgetting you the instant it expires; with it, giving up
+        // the search is the start of it circling the area rather than the end of the encounter.
+        //
+        // Consumed here so it applies to exactly one cycle: the periodic replan that follows,
+        // and every cycle after it, is a fresh decision again.
+        bool prowl = ConsumeNearbyPatrolRequest();
+
+        if (UsesClusterPatrol &&
+            TryAdoptClusterIn(component, preferNeighbours: prowl, excludeCurrent: false))
+        {
+            return;
+        }
 
         // Clusters off, or the graph produced none: the single-waypoint pick.
         clusterPatrol.Reset();
@@ -235,6 +257,48 @@ public class NemesisController : MonoBehaviour
     /// <summary>Whether the Nemesis patrols by zone. Defaults to on when there is no SO to ask,
     /// matching the asset's own default.</summary>
     private bool UsesClusterPatrol => Data == null || Data.ClusterPatrolEnabled;
+
+    // ── Prowling after a search ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Asks the next patrol cycle to stay around here instead of relocating freely. Called by
+    /// <see cref="NemesisSearchingState"/> on its way out.
+    ///
+    /// A one-shot request rather than the state manager exposing a "previous state": the FSM base
+    /// is shared with the player, and giving it a notion of state history to serve one Nemesis
+    /// behaviour is a change with a much wider blast radius than a bool.
+    /// </summary>
+    public void RequestNearbyPatrol() => nearbyPatrolRequested = true;
+
+    private bool ConsumeNearbyPatrolRequest()
+    {
+        bool requested = nearbyPatrolRequested;
+        nearbyPatrolRequested = false;
+        return requested;
+    }
+
+    // ── Sensed trail ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stamps the waypoint nearest to whatever the Nemesis is sensing right now, building the
+    /// trail <see cref="NemesisSearchingState"/> reads to work out which way the player was
+    /// heading. Called once per frame by <see cref="NemesisStateManager"/> while either sensor
+    /// has a target.
+    ///
+    /// It goes through <see cref="TryGetPlayerBeliefPosition"/> — the same sight-then-hearing
+    /// resolution the patrol bias already uses — rather than reading the player, so the trail
+    /// records only what was actually sensed. That is what makes breaking line of sight and
+    /// doubling back work: the trail keeps pointing the way you were going, and the Nemesis
+    /// commits to it.
+    /// </summary>
+    public void MarkBeliefTrace()
+    {
+        if (!routeGraph.IsBuilt) return;
+        if (!TryGetPlayerBeliefPosition(out Vector3 belief)) return;
+
+        SO_NemesisData data = Data;
+        routeGraph.MarkSensedAt(belief, data != null ? data.BeliefTraceRadius : 3f);
+    }
 
     /// <summary>Rebuild with the cluster settings currently on the SO. Cheap to over-call: the
     /// graph does nothing when nothing has changed, the cluster knobs included.</summary>
@@ -339,7 +403,7 @@ public class NemesisController : MonoBehaviour
         RebuildGraph();
 
         if (routeGraph.TryGetComponentAt(transform.position, out int component) &&
-            TryAdoptClusterIn(component, preferNeighbours: true))
+            TryAdoptClusterIn(component, preferNeighbours: true, excludeCurrent: true))
         {
             return;
         }
@@ -364,14 +428,21 @@ public class NemesisController : MonoBehaviour
     /// standing. On when moving from one cúmulo to the next, off for a fresh patrol cycle — which
     /// should be free to relocate anywhere, since arriving there means it just gave up a chase.
     /// </param>
+    /// <param name="excludeCurrent">Drop the zone being swept from the draw.
+    ///
+    /// It used to be tied to <paramref name="preferNeighbours"/>, on the reasoning that the two
+    /// always travelled together: finishing a cúmulo means "somewhere else, preferably next
+    /// door". Prowling after a search wants the first half without the second — stay around
+    /// here, and the zone it lost you in is the single best place to stay — so the two are
+    /// separate parameters now.</param>
     /// <returns>false when the island has no usable cúmulo, so the caller can fall back.</returns>
-    private bool TryAdoptClusterIn(int component, bool preferNeighbours)
+    private bool TryAdoptClusterIn(int component, bool preferNeighbours, bool excludeCurrent)
     {
         bool skip = pendingSkip;
 
         int node = clusterPatrol.Begin(routeGraph, BuildClusterSettings(preferNeighbours),
                                        transform.position, component, direction, ref skip,
-                                       excludeCurrent: preferNeighbours);
+                                       excludeCurrent);
 
         pendingSkip = skip;
 
@@ -516,7 +587,7 @@ public class NemesisController : MonoBehaviour
     /// about, because in that mode the patrol is quietly steered by where the player actually is
     /// rather than by anything the Nemesis observed.
     /// </summary>
-    private float BeliefFreshness()
+    public float BeliefFreshness()
     {
         SO_NemesisData data = Data;
         if (data == null || !data.BiasUsesLastKnownPosition) return 1f;

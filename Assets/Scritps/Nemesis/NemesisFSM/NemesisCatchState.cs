@@ -46,6 +46,15 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
             // Used to return here leaving NextState == Catch, with an empty UpdateState and no
             // transition out: the Nemesis stayed frozen in Catch for the rest of the run.
             // Searching is the honest resolution — it thought it had someone and it does not.
+            // The one decision this state still takes for itself, and it is not a decision about
+            // the world — it is this state reporting that it cannot execute. NemesisDecision put
+            // the Nemesis here because the player was in reach a moment ago; only the state that
+            // tried to grab them can discover that there is nobody to grab.
+            //
+            // StateManager.TransitionToState re-reads GetNextState right after EnterState for
+            // exactly this case, so the rejection resolves in the same frame. Before that it lived
+            // one frame in Catch — one frame of red vignette and a crossfade into the capture
+            // loop, both of which the player saw.
             Debug.LogWarning("[NemesisCatchState] Entered Catch without a target — nobody to " +
                              "capture. Falling back to Searching.");
             NextState = NemesisStateManager.ENemesisState.Searching;
@@ -55,7 +64,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         // The one call the spec allows: from here on the Nemesis waits, it does not act.
         player.OnCaptured();
         FaceEachOther();
-        nemesisStateManager.AnimController.SetBool("isCatching", true);
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
     }
 
     /// <summary>
@@ -79,34 +88,12 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void ExitState()
     {
-        nemesisStateManager.AnimController.SetBool("isCatching", false);
         player = null;
 
         // Opens the no-re-entry window. Runs on every exit, the "nobody to capture" bail out
         // included: without it that fallback goes Catch -> Searching -> Chasing -> Catch again on
         // the next frame, because the Nemesis is still standing on top of the player.
         nemesisStateManager.BeginCatchCooldown();
-    }
-
-    public override NemesisStateManager.ENemesisState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
     }
 
     public override void UpdateState()

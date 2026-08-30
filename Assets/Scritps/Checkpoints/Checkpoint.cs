@@ -31,6 +31,7 @@ public class Checkpoint : MonoBehaviour
 
     [Tooltip("Puzzle whose completion activates this checkpoint. " +
              "Only read in PuzzleCompleted / Either mode.")]
+    [PuzzleId]
     [SerializeField] private string puzzleId;
 
     [Tooltip("Tag the trigger filters by. Only read in PhysicalTrigger / Either mode.")]

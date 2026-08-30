@@ -33,6 +33,32 @@ public class NemesisTelemetry : MonoBehaviour
     /// </summary>
     public void Initialize(NemesisStateManager manager) => stateManager = manager;
 
+    /// <summary>
+    /// Where the Searching state is currently aiming its cut-off, or null when it is not searching
+    /// or fell back to the sweep.
+    ///
+    /// It lives here and not on the state manager because reporting is this class's whole job, and
+    /// because the facade should not be reaching into a specific state's internals to answer a
+    /// question about it. Nothing in the FSM reads this — the debug HUD and the gizmos do.
+    ///
+    /// It is worth surfacing at all because the interception is the one decision in the system
+    /// with no visible tell: a Nemesis heading somewhere clever and a Nemesis heading somewhere by
+    /// accident look identical from outside, and the absence of a point is information too — it
+    /// means the belief, the heading or the waypoints were not good enough to commit to.
+    /// </summary>
+    public Vector3? SearchInterceptPoint
+    {
+        get
+        {
+            if (stateManager == null) return null;
+
+            NemesisSearchingState searching = stateManager.SearchingState;
+            return searching != null && searching.HasIntercept
+                ? searching.InterceptPoint
+                : (Vector3?)null;
+        }
+    }
+
     // ── Proximity ───────────────────────────────────────────────────────────
 
     /// <summary>

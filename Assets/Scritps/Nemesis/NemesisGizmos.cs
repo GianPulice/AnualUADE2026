@@ -95,6 +95,35 @@ public class NemesisGizmos : MonoBehaviour
         DrawHearing(data, manager);
         DrawCatch(data);
         DrawSearchAndVignette(data);
+        DrawIntercept();
+    }
+
+    /// <summary>
+    /// A line to wherever the Searching state is aiming its cut-off.
+    ///
+    /// It is drawn because the interception is the one decision in the system with no visible
+    /// tell: a Nemesis heading somewhere clever and a Nemesis heading somewhere by accident look
+    /// identical from outside. Without this, "did it cut me off or did it wander into me" is not
+    /// answerable, and neither is the tuning that depends on it.
+    ///
+    /// Nothing is drawn when it fell back to the sweep, so the ABSENCE of the line is information
+    /// too: it means the belief, the heading or the waypoints were not good enough to commit to.
+    /// </summary>
+    private void DrawIntercept()
+    {
+        // Fetched rather than cached, like the state manager above it: the Scene view draws
+        // outside Play mode where Awake has not run.
+        NemesisTelemetry telemetry = GetComponent<NemesisTelemetry>();
+        if (telemetry == null) return;
+
+        Vector3? intercept = telemetry.SearchInterceptPoint;
+        if (!intercept.HasValue) return;
+
+        Gizmos.color = SearchColor;
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, intercept.Value);
+        Gizmos.DrawWireCube(intercept.Value, Vector3.one * 0.5f);
+
+        DrawLabel(intercept.Value + Vector3.up * 0.8f, "intercepción", SearchColor);
     }
 
     /// <summary>
@@ -186,18 +215,74 @@ public class NemesisGizmos : MonoBehaviour
         FieldOfListening listening = manager.FieldOfListening;
         Vector3 origin = listening != null ? listening.transform.position : transform.position;
 
+        // The ceiling, not the range. What the Nemesis actually hears depends on how loud the
+        // player is being, which is the three bands below — this outer ring is only the cap.
         DrawDisc(origin, data.ListenRange, HearingColor);
         DrawLabel(origin + Vector3.right * data.ListenRange,
-                  $"hearing {data.ListenRange:0.#} m", HearingColor);
+                  $"hearing cap {data.ListenRange:0.#} m", HearingColor);
 
-        if (!data.WallOcclusionEnabled) return;
+        DrawGaitBands(data, origin);
+    }
 
-        // The attenuated rings are the ranges that apply most of the time: the Nemesis is almost
-        // never in an open room with the player. Dimmed so the full radius stays the outer edge.
-        Color faded = new Color(HearingColor.r, HearingColor.g, HearingColor.b, 0.45f);
+    /// <summary>
+    /// The three ranges that actually decide whether you are heard: one per gait, at the player's
+    /// own noise radii.
+    ///
+    /// These are the rings worth looking at, and they did not exist before because the range did
+    /// not depend on the player at all — behind a wall a sprint and a crouch were audible at
+    /// identical distance. Now they are three different circles, and a level designer can stand
+    /// the Nemesis in a corridor and see exactly which of them a doorway falls inside.
+    ///
+    /// The wall multiplier is applied to all three rather than drawn as three more rings: six
+    /// concentric circles stop being readable, and "through a wall" is the case that applies
+    /// nearly always, so it is the one worth showing.
+    /// </summary>
+    private void DrawGaitBands(SO_NemesisData data, Vector3 origin)
+    {
+        // Read off SO_Movement so the picture cannot drift from the player's real emitter. Falls
+        // back to the shipped radii when the asset cannot be found — this is a Scene-view aid and
+        // must not throw or vanish just because nothing is loaded.
+        float crouch = 1f, walk = 2f, run = 6f;
 
-        DrawDisc(origin, data.ListenRange * data.WallOcclusionMultiplier, faded);
-        DrawDisc(origin, data.ListenRange * data.FloorOcclusionMultiplier, faded);
+        SO_Movement movement = FindPlayerMovement();
+        if (movement != null)
+        {
+            crouch = movement.CrouchNoiseRadius;
+            walk = movement.FootstepNoiseRadius;
+            run = movement.RunNoiseRadius;
+        }
+
+        float wall = data.WallOcclusionEnabled ? data.WallOcclusionMultiplier : 1f;
+        Color faded = new Color(HearingColor.r, HearingColor.g, HearingColor.b, 0.5f);
+
+        DrawGaitBand(data, origin, crouch, wall, "crouch", faded);
+        DrawGaitBand(data, origin, walk,   wall, "walk",   faded);
+        DrawGaitBand(data, origin, run,    wall, "run",    HearingColor);
+    }
+
+    private void DrawGaitBand(SO_NemesisData data, Vector3 origin, float loudness, float wall,
+                              string gait, Color color)
+    {
+        // Same formula as FieldOfListening.CanHear, deliberately: a gizmo that computes the range
+        // its own way is worse than no gizmo, because it is believed.
+        float open = Mathf.Min(data.ListenRange, loudness * data.NoiseRangeScale);
+
+        DrawDisc(origin, open, color);
+        DrawLabel(origin + Vector3.forward * open,
+                  $"{gait} {open:0.#} m  (wall {open * wall:0.#})", color);
+    }
+
+    private static SO_Movement FindPlayerMovement()
+    {
+#if UNITY_EDITOR
+        string[] guids = UnityEditor.AssetDatabase.FindAssets("t:SO_Movement");
+        if (guids.Length == 0) return null;
+
+        string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+        return UnityEditor.AssetDatabase.LoadAssetAtPath<SO_Movement>(path);
+#else
+        return null;
+#endif
     }
 
     // ── Capture ─────────────────────────────────────────────────────────────
@@ -213,7 +298,7 @@ public class NemesisGizmos : MonoBehaviour
         Vector3 centre = transform.position;
 
         // A cylinder and not a sphere: the check is horizontal distance AND vertical offset,
-        // tested separately (see NemesisChasingState.CanActuallyReachPlayer). A sphere would
+        // tested separately (see NemesisStateManager.CanReachPlayerNow). A sphere would
         // suggest the grab reaches diagonally as far as it reaches flat, which is the mistake that
         // made "it grabbed me from the floor below" hard to reason about.
         DrawDisc(centre + Vector3.up * height, reach, CatchColor);

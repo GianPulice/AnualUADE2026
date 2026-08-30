@@ -21,6 +21,11 @@ public static class NemesisEvents
         OnStateChanged = null;
     }
 
+    // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
+    // two of them would both drive the one HUD vignette, and whichever stopped chasing last would
+    // switch it off while the other was still hunting. The other two places that assume this are
+    // NemesisNav.AreaMask and NemesisElevatorLink.Active.
+
     public static event Action OnChaseStarted;
     public static event Action OnChaseEnded;
 

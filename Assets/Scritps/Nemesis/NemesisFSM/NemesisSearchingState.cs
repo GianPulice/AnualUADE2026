@@ -6,66 +6,64 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 {
     private NemesisStateManager nemesisStateManager;
 
-    private float timeOut = 0;
-    private float currentTime = 0;
-
-    /// <summary>
-    /// Shortest time this state can last, in seconds.
-    ///
-    /// Without it, Chasing handing over a target it can see (because the path to it was partial)
-    /// and this state handing it straight back (because it can see it) is a closed loop that
-    /// turns over every other frame: speed, the Animator and this state's own logging all thrash,
-    /// and the Nemesis stands vibrating in place instead of doing either thing. A floor is
-    /// cheaper and more robust than teaching both sides about the other's exit condition.
-    /// </summary>
-    private const float MinimumDwellTime = 0.5f;
-
-    private float dwellTime;
-
     /// <summary>Graph nodes already visited during this search. Cleared on entry and whenever a
     /// fresh noise restarts the search somewhere else.</summary>
     private readonly List<int> sweptNodes = new List<int>();
 
+    /// <summary>
+    /// How far back the sensed-waypoint trail is allowed to reach when reading which way the
+    /// player was heading.
+    ///
+    /// Not on the SO because it is not really a design value: it has to be long enough to hold
+    /// two waypoints' worth of travel and short enough that the trail describes this encounter
+    /// rather than the previous one. The tuning that matters — how hard it commits to the answer
+    /// — is InterceptForwardDot and InterceptTimeMargin.
+    /// </summary>
+    private const float TrailMemoryTime = 8f;
+
+    // Reused across calls: the interception runs on entry and on every fresh noise, and there is
+    // no reason to allocate three lists each time. Same pattern as NemesisController's own
+    // selection buffers.
+    private readonly List<int> candidateBuffer = new List<int>();
+    private readonly List<int> sampledBuffer = new List<int>();
+    private readonly List<float> keyBuffer = new List<float>();
+    private readonly List<Vector3> positionBuffer = new List<Vector3>();
+
+    /// <summary>Where the current cut-off is aimed, for the debug HUD and the gizmos. Reading it
+    /// is the only way to tell an interception from the fallback sweep at a glance.</summary>
+    public Vector3 InterceptPoint { get; private set; }
+
+    /// <summary>Whether the destination came from the cut-off maths or from the fallback sweep.
+    /// </summary>
+    public bool HasIntercept { get; private set; }
+
     public NemesisSearchingState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
-        timeOut = nemesisStateManager.NemesisData.SearchTimeOut;
     }
 
     public override void EnterState()
     {
         NextState = StateKey;
-        currentTime = 0;
-        dwellTime = 0;
         sweptNodes.Clear();
-        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.SearchSpeed;
-        nemesisStateManager.AnimController.SetBool("isRunning", true);
+
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
+                                    nemesisStateManager.NemesisMovement.SearchSpeed);
+
+        // The one expensive decision of this state, taken once. See TryGetInterceptPoint for why
+        // it must not be re-taken per frame.
+        RetargetSearch();
     }
 
     public override void ExitState()
     {
-        nemesisStateManager.AnimController.SetBool("isRunning", false);
-    }
+        HasIntercept = false;
 
-    public override NemesisStateManager.ENemesisState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
+        // Whatever happens next, the patrol that follows should prowl this area rather than
+        // relocate across the level. Set on EVERY exit, the transition to Chasing included: it is
+        // consumed by the next BeginPatrolCycle, so a search that succeeded and turned into a
+        // chase simply spends it later, after that chase ends — which is still the right zone.
+        nemesisStateManager.NemesisController?.RequestNearbyPatrol();
     }
 
     public override void UpdateState()
@@ -74,43 +72,194 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         // NemesisStateManager.IsAgentReady.
         if (!nemesisStateManager.IsAgentReady) return;
 
-        dwellTime += Time.deltaTime;
-
-        if (nemesisStateManager.HasVisualTarget && dwellTime >= MinimumDwellTime)
+        // How long the search lasts, the half-second floor before anything may pull it out, and
+        // going back to Chasing on sight are all rungs of NemesisDecision's ladder — rung 0 and
+        // rung 6. What is left here is sweeping.
+        if (nemesisStateManager.HasAudioTarget)
         {
-            NextState = NemesisStateManager.ENemesisState.Chasing;
+            // A fresh noise outranks everything: it is newer information than the belief the
+            // cut-off was aimed with. Clear the swept set and re-take the decision around the new
+            // anchor, rather than carrying on towards a point chosen for where the player used to
+            // be.
+            sweptNodes.Clear();
+            RetargetSearch();
+        }
+
+        if (nemesisStateManager.HasArrived)
+        {
+            nemesisStateManager.NavAgent.destination = GetNextSweepPoint();
+        }
+    }
+    /// <summary>
+    /// Takes the search's one expensive decision: cut the player off if it can, sweep if it
+    /// cannot.
+    ///
+    /// Called on entry and on a fresh noise, and NOWHERE ELSE. See
+    /// <see cref="TryGetInterceptPoint"/> for the cost.
+    /// </summary>
+    private void RetargetSearch()
+    {
+        if (!nemesisStateManager.IsAgentReady) return;
+
+        if (TryGetInterceptPoint(out Vector3 intercept))
+        {
+            HasIntercept = true;
+            InterceptPoint = intercept;
+            nemesisStateManager.NavAgent.destination = intercept;
+            return;
+        }
+
+        HasIntercept = false;
+
+        // No cut-off to be had — no belief, no heading, or nothing ahead it can win the race to.
+        // A noise it can still hear is nonetheless better information than a blind sweep, so head
+        // for that, nudged along the direction the target was last observed moving.
+        FieldOfListening listening = nemesisStateManager.FieldOfListening;
+        if (nemesisStateManager.HasAudioTarget && listening != null)
+        {
+            nemesisStateManager.NavAgent.destination = PredictedFrom(listening.LastKnownPosition);
+            return;
+        }
+
+        nemesisStateManager.NavAgent.destination = GetNextSweepPoint();
+    }
+
+    /// <summary>
+    /// The waypoint to cut the player off at: ahead of where they were going, and reachable
+    /// before they could get there.
+    ///
+    /// THE DIFFERENCE FROM SWEEPING
+    ///
+    /// <see cref="GetNextSweepPoint"/> walks outward from where the Nemesis is STANDING, so it
+    /// searches the room it lost you in while you walk out of the building. This starts from
+    /// where it last SENSED you, reads which way you were travelling, and asks a different
+    /// question entirely: not "where haven't I looked" but "where can I be waiting".
+    ///
+    /// The two times are what makes it a cut-off rather than a chase. For each candidate it
+    /// compares how long IT would take to get there against how long the PLAYER would, and keeps
+    /// only the ones it wins — then takes the soonest of those, because arriving early is the
+    /// whole point. When the geometry offers a shortcut this produces a flank for free; nobody
+    /// had to author "go around".
+    ///
+    /// IT RUNS ON BELIEF, AND THAT IS DELIBERATE. The heading comes from waypoints the sensors
+    /// actually stamped. Break line of sight and double back and the cut-off lands where you were
+    /// going, not where you went — the Nemesis commits to a wrong guess, which is exactly the
+    /// reward for juking and must not be "fixed".
+    ///
+    /// COST: two path queries per candidate, over at most WaypointBiasSampleCount candidates —
+    /// 16 CalculatePath calls with the shipped value of 8. That is affordable once per entry into
+    /// this state and a frame-hitch if it ever leaks into UpdateState. Keep it out of the tick.
+    /// </summary>
+    private bool TryGetInterceptPoint(out Vector3 point)
+    {
+        point = Vector3.zero;
+
+        NemesisController controller = nemesisStateManager.NemesisController;
+        NemesisRouteGraph graph = controller != null ? controller.RouteGraph : null;
+        if (graph == null || !graph.IsBuilt) return false;
+
+        if (!nemesisStateManager.TryGetBelief(out Vector3 anchor)) return false;
+        if (!TryGetHeading(graph, anchor, out Vector3 heading)) return false;
+
+        Vector3 origin = nemesisStateManager.transform.position;
+
+        // Same island only, so anything picked is genuinely reachable — the guarantee the whole
+        // graph exists to provide.
+        if (!graph.TryGetComponentAt(origin, out int component)) return false;
+        graph.CollectNodesInComponent(component, candidateBuffer);
+        if (candidateBuffer.Count == 0) return false;
+
+        SO_NemesisData data = nemesisStateManager.NemesisData;
+        int sampleCount = data != null ? Mathf.Max(2, data.WaypointBiasSampleCount) : 8;
+
+        // Free straight-line prefilter before paying for any path query. Keyed on min(distance to
+        // me, distance to the anchor) — the same trim the patrol rolls use, and public static for
+        // exactly this reason: keeping only what is near the Nemesis would throw away the
+        // candidates near the player, which are the ones worth evaluating.
+        positionBuffer.Clear();
+        for (int i = 0; i < candidateBuffer.Count; i++)
+            positionBuffer.Add(graph.GetNode(candidateBuffer[i]).Position);
+
+        NemesisClusterPatrol.KeepClosest(candidateBuffer, positionBuffer, origin, true, anchor,
+                                         sampleCount, sampledBuffer, keyBuffer);
+        if (sampledBuffer.Count == 0) return false;
+
+        float forwardDot = data != null ? data.InterceptForwardDot : 0.25f;
+        float timeMargin = data != null ? Mathf.Max(1f, data.InterceptTimeMargin) : 1.15f;
+        float playerSpeed = data != null ? Mathf.Max(0.5f, data.AssumedPlayerSpeed) : 4.5f;
+        float ownSpeed = Mathf.Max(0.5f, nemesisStateManager.NemesisMovement.SearchSpeed);
+
+        int best = -1;
+        float bestTime = float.PositiveInfinity;
+
+        for (int i = 0; i < sampledBuffer.Count; i++)
+        {
+            NemesisRouteGraph.Node node = graph.GetNode(sampledBuffer[i]);
+            if (!node.IsValid) continue;
+
+            // Ahead of them, not behind. Flattened: a waypoint one floor up is not "ahead"
+            // just because the stairs happen to run that way.
+            Vector3 toNode = node.Position - anchor;
+            toNode.y = 0f;
+            if (toNode.sqrMagnitude < 0.01f) continue;
+            if (Vector3.Dot(toNode.normalized, heading) < forwardDot) continue;
+
+            // Both distances over the NavMesh. Infinity when unreachable, which fails the
+            // comparison below on its own — no special case needed.
+            float ownTime = NemesisNav.PathDistanceOrInfinity(origin, node.Position) / ownSpeed;
+            if (ownTime >= bestTime) continue;   // Cannot win: skip before the second query.
+
+            float playerTime = NemesisNav.PathDistanceOrInfinity(anchor, node.Position) / playerSpeed;
+            if (ownTime > playerTime * timeMargin) continue;   // Would not get there in time.
+
+            bestTime = ownTime;
+            best = sampledBuffer[i];
+        }
+
+        if (best < 0) return false;
+
+        point = graph.GetNode(best).Position;
+        sweptNodes.Add(best);   // Do not immediately re-pick it as a sweep target on arrival.
+        return true;
+    }
+
+    /// <summary>
+    /// Which way the player was travelling, in order of how much the answer is worth.
+    ///
+    /// The trail of stamped waypoints comes first because it measures over seconds of real
+    /// navigation, where <see cref="FieldOfView.LastKnownVelocity"/> measures over at most half a
+    /// second between sightings. For a cut-off several seconds out, a sidestep caught in that
+    /// half-second window is noise that sends the Nemesis down the wrong corridor.
+    ///
+    /// The last resort — "away from me" — is the only assumption in the system, and it is the
+    /// conservative one: someone who has just broken line of sight is, more often than not, still
+    /// putting distance between you.
+    /// </summary>
+    private bool TryGetHeading(NemesisRouteGraph graph, Vector3 anchor, out Vector3 heading)
+    {
+        heading = Vector3.zero;
+
+        if (graph.TryGetSensedTrail(TrailMemoryTime, out Vector3 from, out Vector3 to))
+        {
+            heading = to - from;
         }
         else
         {
-            if (currentTime < timeOut)
-            {
-                currentTime += Time.deltaTime;
-                if (nemesisStateManager.HasAudioTarget)
-                {
-                    // A fresh noise outranks the sweep: go to it, and clear the swept set so the
-                    // search restarts around the new information instead of carrying on ticking
-                    // off waypoints chosen for where the player used to be.
-                    nemesisStateManager.NavAgent.destination = PredictedFrom(
-                        nemesisStateManager.FieldOfListening.LastKnownPosition);
-                    sweptNodes.Clear();
-                }
+            FieldOfView view = nemesisStateManager.FieldOfView;
+            Vector3 velocity = view != null ? view.LastKnownVelocity : Vector3.zero;
 
-                // remainingDistance follows the actual path (stairs, detours); a straight-line
-                // check here made the sweep stall on any point placed at a different height —
-                // see NemesisPatrolState for the full explanation of the same fix.
-                NavMeshAgent agent = nemesisStateManager.NavAgent;
-                bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
-                if (hasArrived)
-                {
-                   agent.destination = GetNextSweepPoint();
-                }
-            }
-            else
-            {
-                NextState = NemesisStateManager.ENemesisState.Patrolling;
-            }
+            heading = velocity.sqrMagnitude > 0.01f
+                ? velocity
+                : anchor - nemesisStateManager.transform.position;
         }
+
+        heading.y = 0f;
+        if (heading.sqrMagnitude < 0.01f) return false;
+
+        heading.Normalize();
+        return true;
     }
+
     /// <summary>
     /// Where to look next.
     ///

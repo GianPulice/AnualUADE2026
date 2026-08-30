@@ -34,6 +34,7 @@ public class NemesisRoute : MonoBehaviour
              "SO_PuzzleData / SO_ValvePuzzleData / etc.\n\n" +
              "Filling this in is the whole setup: the route wires itself to the puzzle and no " +
              "one has to call UnlockRoute() by hand. Leave empty to fall back to 'Start Unlocked'.")]
+    [PuzzleId]
     [SerializeField] private string unlockedByPuzzleId;
 
     private readonly List<Transform> waypoints = new List<Transform>();

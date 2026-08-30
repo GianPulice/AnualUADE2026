@@ -86,6 +86,17 @@ public class NemesisElevatorLink : MonoBehaviour
 
     public static IReadOnlyList<NemesisElevatorLink> Active => active;
 
+    /// <summary>
+    /// Static state survives leaving Play mode when domain reload is disabled. OnDisable removes
+    /// entries and Unity does raise it on the way out of Play, so in practice this list empties
+    /// itself — but "in practice" is exactly the reasoning every other static hub in the project
+    /// declined to rely on, and a stale entry here is not harmless: NemesisNav.FindCrossedElevator
+    /// walks this list to decide whether a path goes through a lift, so a destroyed elevator left
+    /// in it makes the Nemesis commit to a shaft that no longer exists.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => active.Clear();
+
     public MovingPlatform Platform => platform;
     public Transform BottomLanding => bottomLanding;
     public Transform TopLanding => topLanding;

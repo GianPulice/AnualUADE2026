@@ -34,27 +34,6 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         playerStateManager.AnimController.SetFloat("moveSpeed", 0);
     }
 
-    public override PlayerStateManager.EPlayerState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-        
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-        
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-        
-    }
-
     public override void UpdateState()
     {
         if (playerStateManager.IsDisabled)

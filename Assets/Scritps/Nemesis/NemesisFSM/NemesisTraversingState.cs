@@ -30,10 +30,6 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
 {
     private readonly NemesisStateManager nemesisStateManager;
 
-    /// <summary>Seconds since the player was last seen or heard. Reset by any fresh sense, not by
-    /// arriving anywhere — it measures how old the reason for this trip is.</summary>
-    private float sinceLastSensed;
-
     /// <summary>Where it is heading. Held rather than re-read every frame because the belief
     /// stops updating the moment the slab cuts line of sight, and re-reading a
     /// LastKnownPosition that is no longer being written is not the same as remembering the
@@ -49,10 +45,9 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
     public override void EnterState()
     {
         NextState = StateKey;
-        sinceLastSensed = 0f;
 
-        nemesisStateManager.AnimController.SetBool("isRunning", true);
-        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.ChaseSpeed;
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
+                                    nemesisStateManager.NemesisMovement.ChaseSpeed);
 
         // The cached verdict is deliberately NOT invalidated here, even though it may be up to
         // RouteVerdictInterval old. This state and Chasing decide on complementary readings of
@@ -61,122 +56,33 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
         // number, not that either reads a fresh one. Re-measuring on entry would let the answer
         // change between the frame that decided to come here and the first frame spent here,
         // which is precisely the flip this state exists to stop.
-        if (TryGetBelief(out Vector3 belief)) believedTarget = belief;
-        else                                  believedTarget = nemesisStateManager.transform.position;
+        if (nemesisStateManager.TryGetBelief(out Vector3 belief)) believedTarget = belief;
+        else believedTarget = nemesisStateManager.transform.position;
     }
 
-    public override void ExitState()
-    {
-        nemesisStateManager.AnimController.SetBool("isRunning", false);
-    }
-
-    public override NemesisStateManager.ENemesisState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
-    }
+    public override void ExitState() { }
 
     public override void UpdateState()
     {
+        // Refreshing the destination is all this state does now.
+        //
+        // Every reason to LEAVE used to be computed here — out of patience, the belief left the
+        // NavMesh, the lift stopped being on the way — and all three are questions about the
+        // world rather than about this state's own execution, so they live in NemesisDecision's
+        // ladder. Rung 2 keeps the Nemesis here for as long as the route to the belief still
+        // crosses a lift and the belief is younger than ElevatorCommitTime; the moment either
+        // stops holding, the ladder falls through to the rung that fits and the machine moves.
+        // Nothing here has to detect "arrived upstairs" or "the player came down" separately.
+        if (nemesisStateManager.HasVisualTarget || nemesisStateManager.HasAudioTarget)
+        {
+            if (nemesisStateManager.TryGetBelief(out Vector3 fresh)) believedTarget = fresh;
+        }
+
         // The agent is switched off for the whole ride — NemesisElevatorUser owns the Nemesis
         // from the moment it steps onto the link until it is warped off at the far landing. There
         // is nothing to ask of a disabled agent, and asking logs an error per frame.
-        //
-        // Note the timer keeps running through the ride on purpose: a lift stuck because the
-        // player is riding it should eventually give up, and that is exactly what
-        // ElevatorCommitTime is for.
-        sinceLastSensed += Time.deltaTime;
-
-        if (nemesisStateManager.HasVisualTarget || nemesisStateManager.HasAudioTarget)
-        {
-            sinceLastSensed = 0f;
-            if (TryGetBelief(out Vector3 fresh)) believedTarget = fresh;
-        }
-
         if (!nemesisStateManager.IsAgentReady) return;
 
-        SO_NemesisData data = nemesisStateManager.NemesisData;
-        float commitTime = data != null ? data.ElevatorCommitTime : 12f;
-
-        // Out of patience. Searching and not Patrolling: it still has a rough idea of where the
-        // player was, and a sweep is a better use of that than filing it away.
-        if (sinceLastSensed >= commitTime)
-        {
-            NextState = NemesisStateManager.ENemesisState.Searching;
-            return;
-        }
-
-        NavMeshAgent agent = nemesisStateManager.NavAgent;
-        agent.destination = believedTarget;
-
-        // Re-measure the route. This is the exit condition and it is self-correcting: the trip is
-        // over exactly when the lift stops being part of the way there, which covers arriving
-        // upstairs, the player coming down, and the player moving somewhere the lift does not
-        // help with — without any of those needing to be detected separately.
-        if (!nemesisStateManager.TryGetThrottledRoute(believedTarget, out NemesisNav.NavRoute route))
-        {
-            // The belief does not land on the NavMesh any more. Nothing to walk towards.
-            NextState = NemesisStateManager.ENemesisState.Searching;
-            return;
-        }
-
-        if (route.CrossesLink) return;
-
-        // No lift on the way any more.
-        if (!route.IsComplete)
-        {
-            // Unreachable by any route. Not a vertical problem, so this state cannot help.
-            NextState = NemesisStateManager.ENemesisState.Searching;
-            return;
-        }
-
-        // Same floor and reachable on foot: hand back to the normal pursuit, which owns the
-        // capture.
-        NextState = nemesisStateManager.HasVisualTarget
-            ? NemesisStateManager.ENemesisState.Chasing
-            : NemesisStateManager.ENemesisState.Searching;
-    }
-
-    /// <summary>
-    /// Where the Nemesis currently believes the player is: seen first, heard second.
-    ///
-    /// Same order and same "memory, not state" semantics as the patrol bias in NemesisController:
-    /// HasLastKnownPosition is checked rather than HasVisualTarget, because a belief that is no
-    /// longer being refreshed is still the reason this trip started.
-    /// </summary>
-    private bool TryGetBelief(out Vector3 position)
-    {
-        position = Vector3.zero;
-
-        FieldOfView view = nemesisStateManager.FieldOfView;
-        if (view != null && view.HasLastKnownPosition)
-        {
-            position = view.LastKnownPosition;
-            return true;
-        }
-
-        FieldOfListening listening = nemesisStateManager.FieldOfListening;
-        if (listening != null && listening.HasLastKnownPosition)
-        {
-            position = listening.LastKnownPosition;
-            return true;
-        }
-
-        return false;
+        nemesisStateManager.NavAgent.destination = believedTarget;
     }
 }

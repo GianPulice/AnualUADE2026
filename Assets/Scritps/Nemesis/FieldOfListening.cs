@@ -152,7 +152,10 @@ public class FieldOfListening : MonoBehaviour
             GameObject target = targetsInListenRadius[i].gameObject;
             if (listenedTargets.Contains(target)) continue;
 
-            if (!CanHear(target.transform.position, listenRange)) continue;
+            // The OverlapSphere is only a broadphase now — how loud the emitter actually is
+            // decides the real range, and that is read off the collider it just returned.
+            float loudness = GetEmitterRadius(targetsInListenRadius[i]);
+            if (!CanHear(target.transform.position, listenRange, loudness)) continue;
 
             listenedTargets.Add(target);
         }
@@ -178,22 +181,55 @@ public class FieldOfListening : MonoBehaviour
     /// They multiply when both apply. A player crouching upstairs and behind a wall should be
     /// close to inaudible, not merely as muffled as either one alone.
     ///
-    /// An unoccluded noise is always heard: the OverlapSphere that produced this candidate
-    /// already applied listenRange, and the player's own emitter radius (crouch 1 / walk 2 /
-    /// run 6) is what widens or narrows it. That is pre-existing behaviour and is left alone.
+    /// HOW LOUD THE PLAYER IS DECIDES THE RANGE. This is the part that used to be missing, and
+    /// its absence is why moving quietly bought nothing where it mattered. The emitter radius
+    /// (crouch 1 / walk 2 / run 6) only ever decided whether the broadphase OverlapSphere caught
+    /// the collider; the moment any geometry was in the way the test collapsed to
+    /// "listenRange * multiplier", which has no loudness term in it at all. Behind a wall a
+    /// sprint and a crouch were audible at exactly the same distance.
+    ///
+    /// listenRange survives as a CEILING rather than as the range itself, so a designer can cap
+    /// how far the Nemesis can ever hear without having to reason about the emitter.
     /// </summary>
-    private bool CanHear(Vector3 source, float listenRange)
+    /// <param name="loudness">The noise emitter's own radius, in metres.</param>
+    private bool CanHear(Vector3 source, float listenRange, float loudness)
     {
-        if (!nemesisData.WallOcclusionEnabled) return true;
+        float effectiveRange = Mathf.Min(listenRange, loudness * nemesisData.NoiseRangeScale);
 
-        float multiplier = 1f;
+        if (nemesisData.WallOcclusionEnabled)
+        {
+            if (IsBlockedBy(source, soundBlockerMask)) effectiveRange *= nemesisData.WallOcclusionMultiplier;
+            if (IsBlockedBy(source, floorMask))        effectiveRange *= nemesisData.FloorOcclusionMultiplier;
+        }
 
-        if (IsBlockedBy(source, soundBlockerMask)) multiplier *= nemesisData.WallOcclusionMultiplier;
-        if (IsBlockedBy(source, floorMask))        multiplier *= nemesisData.FloorOcclusionMultiplier;
+        return MeasuredDistanceTo(source) <= effectiveRange;
+    }
 
-        if (multiplier >= 1f) return true;
+    /// <summary>
+    /// How loud a noise source is, as the radius of its emitter in world units.
+    ///
+    /// Read off the collider the OverlapSphere already returned rather than by reaching into the
+    /// player: the sensor stays a sensor, and anything that wants to be heard only has to carry a
+    /// trigger sized to how loud it is.
+    ///
+    /// lossyScale matters because the emitter rides a scaled hierarchy — a SphereCollider of
+    /// radius 6 under a parent scaled 0.5 is a 3-metre noise, and reading the raw radius would
+    /// make every gait louder than the design says.
+    ///
+    /// The bounds fallback keeps a non-sphere emitter audible instead of silently inaudible,
+    /// which is the failure mode worth avoiding: a designer who swaps the collider shape should
+    /// get roughly the right behaviour, not a Nemesis that has gone deaf for no visible reason.
+    /// </summary>
+    private static float GetEmitterRadius(Collider col)
+    {
+        if (col is SphereCollider sphere)
+        {
+            Vector3 scale = sphere.transform.lossyScale;
+            float maxScale = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+            return sphere.radius * maxScale;
+        }
 
-        return MeasuredDistanceTo(source) <= listenRange * multiplier;
+        return col.bounds.extents.magnitude;
     }
 
     /// <summary>

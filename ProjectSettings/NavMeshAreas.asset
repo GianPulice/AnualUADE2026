@@ -10,11 +10,11 @@ NavMeshProjectSettings:
   - name: Not Walkable
     cost: 1
   - name: Jump
-    cost: 2
-  - name: 
-    cost: 1
-  - name: 
-    cost: 1
+    cost: 3
+  - name: NemesisBlocked
+    cost: 99
+  - name: Forklift
+    cost: 3
   - name: 
     cost: 1
   - name: 

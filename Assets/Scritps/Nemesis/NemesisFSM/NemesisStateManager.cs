@@ -22,7 +22,6 @@ using UnityEngine.AI;
 /// </summary>
 public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisState>
 {
-    [SerializeField] private Transform selfTransform;
     [SerializeField] private FieldOfView fieldOfView;
     [SerializeField] private FieldOfListening fieldOfListening;
     [SerializeField] private SO_NemesisData nemesisData;
@@ -36,6 +35,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private NemesisTelemetry telemetry;
     [SerializeField] private NemesisStuckEscape stuckEscape;
     [SerializeField] private NemesisLifecycle lifecycle;
+
+    [Header("Decision layer")]
+    [Tooltip("Tick this once a Unity Behavior graph is wired up and driving the Nemesis. The " +
+             "graph then owns the priority order and calls RequestState itself, and the built-in " +
+             "C# ladder in NemesisDecision stops running.\n\n" +
+             "Left off, that ladder decides — which is what keeps the Nemesis working while the " +
+             "graph is being authored. Either way the conditions come from the same predicates " +
+             "on NemesisDecision, so the two cannot drift apart on what 'sees the player' means.")]
+    [SerializeField] private bool decisionsFromGraph;
 
     [Header("Capture")]
     [Tooltip("Seconds the Nemesis stays inert in Catch after the player has respawned, before " +
@@ -70,14 +78,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// has not entered any state yet in that window.</summary>
     public bool IsActive { get => isActive; }
 
-    public Transform SelfTransform { get => selfTransform; set => selfTransform = value; }
+    // Read-only on purpose. Every one of these had a public setter and not one had an external
+    // writer — surface that let any code in the project repoint the Nemesis's agent or animator
+    // mid-run, in exchange for nothing.
     public FieldOfView FieldOfView { get => fieldOfView; }
     public FieldOfListening FieldOfListening {get => fieldOfListening; }
     public SO_NemesisData NemesisData { get => nemesisData; }
-    public SO_NemesisMovement NemesisMovement { get => nemesisMovement; set => nemesisMovement = value; }
-    public NavMeshAgent NavAgent { get => navAgent; set => navAgent = value; }
-    public NemesisController NemesisController { get => nemesisController; set => nemesisController = value; }
-    public Animator AnimController { get => animController; set => animController = value; }
+    public SO_NemesisMovement NemesisMovement { get => nemesisMovement; }
+    public NavMeshAgent NavAgent { get => navAgent; }
+    public NemesisController NemesisController { get => nemesisController; }
+    public Animator AnimController { get => animController; }
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
 
@@ -85,9 +95,17 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// all need it and none of which should be subscribing to PlayerRegistry separately.</summary>
     public Transform PlayerTransform => playerTransform;
 
-    /// <summary>The state the FSM is in, or null before it has started. Nullable so a caller
-    /// cannot mistake "not started yet" for Patrolling, which is enum value 0.</summary>
-    public ENemesisState? CurrentStateKey => CurrentState != null ? CurrentState.StateKey : (ENemesisState?)null;
+    /// <summary>
+    /// The state the FSM is in, or null before it has started. Nullable so a caller cannot
+    /// mistake "not started yet" for Patrolling, which is enum value 0.
+    ///
+    /// isActive is part of the test and not an extra: InitializeStates assigns
+    /// CurrentState = States[Patrolling] during Awake, so without it this returned Patrolling for
+    /// a dormant Nemesis and the guarantee above was simply false. The decision layer reads this
+    /// to know where it is, so it has to be true.
+    /// </summary>
+    public ENemesisState? CurrentStateKey =>
+        isActive && CurrentState != null ? CurrentState.StateKey : (ENemesisState?)null;
 
     /// <summary>
     /// Whether the agent can be asked for anything without Unity logging an error.
@@ -98,6 +116,62 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// NavMesh does not travel with the platform.
     /// </summary>
     public bool IsAgentReady => navAgent != null && navAgent.isActiveAndEnabled && navAgent.isOnNavMesh;
+
+    /// <summary>
+    /// Whether the agent has reached the end of its current path.
+    ///
+    /// One place, because the expression is subtle and was copied six times across five files. The
+    /// subtlety: remainingDistance measures along the ACTUAL path, following stairs and detours,
+    /// where Vector3.Distance cuts through the air. A waypoint one floor up reads as "close" the
+    /// moment the agent is nearly underneath it, long before it has climbed anything — and a
+    /// marker placed at eye height adds a permanent Y gap that can keep arrival from ever
+    /// registering at all. That paragraph used to be written out in four separate states, nearly
+    /// word for word, which is what a missing method looks like.
+    /// </summary>
+    public bool HasArrived => IsAgentReady && !navAgent.pathPending &&
+                              navAgent.remainingDistance <= navAgent.stoppingDistance;
+
+    /// <summary>
+    /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
+    /// another one.
+    ///
+    /// The one-shot channel — play a fall, wait for it to land — is a different thing and does not
+    /// exist yet. Keeping them apart from the start is what will let it be added beside this
+    /// rather than tangled into it.
+    /// </summary>
+    public enum EGait
+    {
+        Idle,
+        Walking,
+        Running,
+        Grabbing,
+    }
+
+    private static readonly int WalkingParam = Animator.StringToHash("isWalking");
+    private static readonly int RunningParam = Animator.StringToHash("isRunning");
+    private static readonly int CatchingParam = Animator.StringToHash("isCatching");
+
+    /// <summary>
+    /// Sets how the Nemesis moves and how it looks doing it, together.
+    ///
+    /// They are one decision and used to be two handles reached through this facade — which is
+    /// exactly how Searching ended up playing its run animation at walking speed. Nothing could
+    /// catch that, because nothing owned the pair. Setting both here makes the mismatched
+    /// combination unrepresentable rather than merely discouraged.
+    ///
+    /// It also retires seventeen loose Animator string literals in favour of three hashes, and
+    /// empties four of the six ExitState bodies: they existed only to switch a bool back off, and
+    /// the next state's gait now says what every bool should be.
+    /// </summary>
+    public void SetGait(EGait gait, float speed)
+    {
+        if (navAgent != null) navAgent.speed = speed;
+        if (animController == null) return;
+
+        animController.SetBool(WalkingParam, gait == EGait.Walking);
+        animController.SetBool(RunningParam, gait == EGait.Running);
+        animController.SetBool(CatchingParam, gait == EGait.Grabbing);
+    }
 
     public enum ENemesisState
     {
@@ -128,6 +202,166 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <see cref="NemesisPathOracle.IsAcrossFloors"/>.</summary>
     public bool IsRouteAcrossFloors(in NemesisNav.NavRoute route) =>
         pathOracle != null && pathOracle.IsAcrossFloors(route);
+
+    // ── Decision layer ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The decision layer's way in: ask for a state, and the machine takes it from there.
+    ///
+    /// The split this exists to enforce is that the tree decides WHICH state and the machine owns
+    /// entering it, running it and leaving it. Writing NextState — rather than transitioning
+    /// here — is what keeps the tree from needing to know anything about state lifecycles, and it
+    /// means a request and a state's own self-rejection travel down the same channel and cannot
+    /// contradict each other.
+    ///
+    /// Ignoring a request for the current state matters: without it, asking for Patrolling every
+    /// frame while patrolling would look like a transition to the machine and re-enter the state
+    /// continuously.
+    /// </summary>
+    public void RequestState(ENemesisState key)
+    {
+        if (CurrentState == null || CurrentState.StateKey.Equals(key)) return;
+        CurrentState.NextState = key;
+    }
+
+    /// <summary>
+    /// The prioritised ladder, read once per frame. Null while a Behavior graph is driving.
+    ///
+    /// Public so a graph node can call the same predicates rather than reimplementing them.
+    /// </summary>
+    public NemesisDecision Decision { get; private set; }
+
+    /// <summary>Whether a Unity Behavior graph owns the decision instead of the built-in ladder.
+    /// </summary>
+    public bool DecisionsFromGraph => decisionsFromGraph;
+
+    /// <summary>The Searching state instance, or null before the machine is built. Reached for by
+    /// <see cref="NemesisTelemetry.SearchInterceptPoint"/>, which reports where its cut-off is
+    /// aimed — the machine itself never reads it.</summary>
+    public NemesisSearchingState SearchingState =>
+        States.TryGetValue(ENemesisState.Searching, out BaseState<ENemesisState> state)
+            ? state as NemesisSearchingState
+            : null;
+
+    private void TickDecision()
+    {
+        // With a graph driving, it calls RequestState on its own and the ladder must not also
+        // vote — two decision layers writing the same channel is the distributed problem all over
+        // again, with an extra participant.
+        if (decisionsFromGraph || Decision == null) return;
+
+        // NOTHING IS DECIDED WHILE SOMETHING ELSE OWNS THE BODY.
+        //
+        // NemesisElevatorUser switches the agent off for the whole freight-elevator ride and moves
+        // the Transform by hand. Every state used to carry this guard at the top of its own
+        // UpdateState, which had the side effect that no transition could happen during a ride —
+        // and that side effect was load-bearing. Moving the decision up here without it meant the
+        // ladder re-deciding mid-ride: the Nemesis is in the shaft and off the NavMesh, so the
+        // route query behind rung 2 fails, "the lift is on the way" goes false, and it drops out
+        // of Traversing into a state that cannot act either. The commitment that put it on the
+        // lift in the first place evaporates halfway up.
+        //
+        // Freezing the decision here is also right for the other case that clears this flag — an
+        // agent knocked off the NavMesh by a Warp that did not land. Nothing it could decide would
+        // be actionable, and NemesisStuckEscape is what resolves that one.
+        if (!IsAgentReady) return;
+
+        RequestState(Decision.Decide());
+    }
+
+    /// <summary>
+    /// Whether the player is genuinely within arm's reach: close horizontally, on the same floor,
+    /// and with no wall in between.
+    ///
+    /// It answers a different question from the agent's own arrival test, and that is the whole
+    /// reason it exists. NavMeshAgent.remainingDistance measures how far the agent still has to go
+    /// to reach the end of ITS path, and when that path is partial the end is the closest
+    /// reachable point to the player — right against the wall separating them. There
+    /// remainingDistance drops to zero with the player two metres away and a wall in between,
+    /// which is exactly the grab-through-walls bug.
+    ///
+    /// Moved out of NemesisChasingState, where it was private: with the decision layer choosing
+    /// when to capture, "can it reach them" is a fact about the world rather than something one
+    /// state knows about itself.
+    /// </summary>
+    public bool CanReachPlayerNow
+    {
+        get
+        {
+            if (nemesisData == null) return true;   // No data to filter with: do not break the flow.
+            if (fieldOfView == null) return false;
+
+            PlayerStateManager target = fieldOfView.GetCurrentTarget();
+            if (target == null) return false;
+
+            Vector3 toPlayer = target.transform.position - transform.position;
+
+            // Between floors: the vertical gap rules the capture out before anything else. A
+            // player directly above is a metre and a half away in a straight line and half a
+            // storey on foot.
+            if (Mathf.Abs(toPlayer.y) > nemesisData.CatchMaxVerticalOffset) return false;
+
+            toPlayer.y = 0f;
+            if (toPlayer.sqrMagnitude > nemesisData.CatchMaxReach * nemesisData.CatchMaxReach) return false;
+
+            if (!nemesisData.CatchRequiresLineOfSight) return true;
+            if (fieldOfListening == null) return true;   // No way to test it: do not block the capture.
+
+            Vector3 eye = transform.position + Vector3.up * CatchProbeHeight;
+            Vector3 targetPoint = target.transform.position + Vector3.up * CatchProbeHeight;
+            return !fieldOfListening.IsOccludedByWall(eye, targetPoint);
+        }
+    }
+
+    /// <summary>Height the capture's line-of-sight ray is fired from. Cast from the pivots, which
+    /// sit at floor level, the ray scrapes the ground and always reports occlusion.</summary>
+    private const float CatchProbeHeight = 1f;
+
+    // ── Facade: belief ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Where the Nemesis currently believes the player is: seen first, heard second.
+    ///
+    /// Deliberately reads <c>HasLastKnownPosition</c> and not <c>HasVisualTarget</c> — a belief
+    /// that stopped being refreshed is still a belief, and it is the whole reason a pursuit or a
+    /// search is happening at all.
+    ///
+    /// Lives here rather than in a state because three of them want the same answer (Traversing
+    /// to hold its destination, Searching to anchor its cut-off, and the controller's patrol bias
+    /// through its own equivalent). Three private copies of the same sight-then-hearing ladder is
+    /// how the definition of "belief" quietly drifts apart between them.
+    /// </summary>
+    public bool TryGetBelief(out Vector3 position)
+    {
+        position = Vector3.zero;
+
+        if (fieldOfView != null && fieldOfView.HasLastKnownPosition)
+        {
+            position = fieldOfView.LastKnownPosition;
+            return true;
+        }
+
+        if (fieldOfListening != null && fieldOfListening.HasLastKnownPosition)
+        {
+            position = fieldOfListening.LastKnownPosition;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Seconds since either sensor last caught the player, or infinity if neither ever
+    /// has. How much <see cref="TryGetBelief"/>'s answer is still worth.</summary>
+    public float BeliefAge
+    {
+        get
+        {
+            float age = float.PositiveInfinity;
+            if (fieldOfView != null) age = Mathf.Min(age, fieldOfView.TimeSinceLastSighting);
+            if (fieldOfListening != null) age = Mathf.Min(age, fieldOfListening.TimeSinceLastNoise);
+            return age;
+        }
+    }
 
     /// <summary>Drops the cached verdict so the next query recomputes. Called when entering a
     /// state that is about to act on the answer, and after every teleport.</summary>
@@ -223,6 +457,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         stuckEscape.Initialize(this);
         lifecycle.Initialize(this);
 
+        // After ValidateReferences, because it reads NemesisData through this facade, and before
+        // InitializeStates so nothing can tick a half-built machine.
+        Decision = new NemesisDecision(this);
+
         InitializeStates();
 
         // Deliberately the last thing Awake does, and deliberately not in OnEnable.
@@ -253,8 +491,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// </summary>
     private void ResolveHierarchyReferences()
     {
-        if (selfTransform == null) selfTransform = transform;
-
         // NemesisController is required on this GameObject (see its RequireComponent), so this
         // always succeeds when the inspector reference was simply left unassigned.
         if (nemesisController == null) nemesisController = GetComponent<NemesisController>();
@@ -362,10 +598,21 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         hasVisualTarget = fieldOfView.HasVisualTarget;
         hasAudioTarget = fieldOfListening.HasAudioTarget;
 
+        // Lay down the trail of patrol waypoints the player was sensed near. Done here, off the
+        // flags that were just sampled, so there is exactly one place that decides "a detection
+        // happened this frame" — and so the trail records only what the sensors actually caught.
+        if (hasVisualTarget || hasAudioTarget) nemesisController?.MarkBeliefTrace();
+
         // Before the FSM tick, not after: proximity owes nothing to the current state, and below
         // base.Update() anything a state threw took it down too, every frame. See
         // NemesisTelemetry.TickProximity.
         telemetry.TickProximity();
+
+        // Decide before executing. The tree looks at the world exactly as the sensors read it a
+        // few lines above, and base.Update() acts on that answer in the SAME frame — where a
+        // state writing its own NextState during UpdateState could only ever be picked up on the
+        // next one. That one-frame lag on every transition disappears with this ordering.
+        TickDecision();
 
         base.Update();
 

@@ -108,6 +108,21 @@ public sealed class NemesisRouteGraph
     /// Doubles as the "already assigned" mark the greedy build reads.</summary>
     private readonly List<int> clusterOf = new List<int>();
 
+    /// <summary>
+    /// When each node was last near something the Nemesis SENSED, on the <see cref="Time.time"/>
+    /// clock. <see cref="float.NegativeInfinity"/> for a node that never has been.
+    ///
+    /// This is the Nemesis's memory of your route through the level, and it is what a bare
+    /// last-known-position cannot give it: a single point says where you were, a trail of stamped
+    /// waypoints says which way you were travelling — measured over seconds of real navigation
+    /// rather than over the half-second window the velocity estimate is capped to.
+    ///
+    /// Written only from actual detections (see <see cref="NemesisController.MarkBeliefTrace"/>),
+    /// never by polling the player, so it stays belief and not truth: break line of sight and
+    /// double back, and the trail keeps pointing the way you were going.
+    /// </summary>
+    private readonly List<float> lastSensedAt = new List<float>();
+
     private string fingerprint = string.Empty;
     private int componentCount;
 
@@ -138,6 +153,82 @@ public sealed class NemesisRouteGraph
     {
         int a = ComponentOf(nodeA);
         return a >= 0 && a == ComponentOf(nodeB);
+    }
+
+    // ── Sensed trail ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Records that the Nemesis sensed the player near here, stamping the closest waypoint within
+    /// <paramref name="radius"/>. A detection with no waypoint nearby is simply not recorded —
+    /// the trail is a map of the player's route through the PATROL GRAPH, and a corner of the
+    /// level with no waypoints is a corner the Nemesis has no way to reason about.
+    /// </summary>
+    public void MarkSensedAt(Vector3 position, float radius)
+    {
+        int best = -1;
+        float bestSqr = radius * radius;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            if (!nodes[i].IsValid) continue;
+
+            float distanceSqr = Vector3.SqrMagnitude(nodes[i].Position - position);
+            if (distanceSqr > bestSqr) continue;
+
+            bestSqr = distanceSqr;
+            best = i;
+        }
+
+        if (best >= 0) lastSensedAt[best] = Time.time;
+    }
+
+    /// <summary>
+    /// The direction the player was last observed travelling, taken from the two most recently
+    /// stamped waypoints.
+    ///
+    /// Preferred over <see cref="FieldOfView.LastKnownVelocity"/> for deciding where to cut
+    /// someone off, and the difference is the timescale. That velocity is measured between
+    /// sightings less than half a second apart, so it captures a sidestep as faithfully as a
+    /// commitment — aim a ten-second interception with it and a player who strafed once at the
+    /// moment of the last glimpse sends the Nemesis down the wrong corridor. Two waypoints are
+    /// metres apart and seconds apart: they describe where someone is actually GOING.
+    /// </summary>
+    /// <param name="maxAge">How old the newer of the two stamps may be. Past this the trail is
+    /// not evidence of anything current.</param>
+    /// <returns>false when fewer than two waypoints were stamped inside the window, or when both
+    /// stamps landed on the same waypoint and there is no direction to read.</returns>
+    public bool TryGetSensedTrail(float maxAge, out Vector3 from, out Vector3 to)
+    {
+        from = to = Vector3.zero;
+
+        int newest = -1, previous = -1;
+        float newestTime = float.NegativeInfinity, previousTime = float.NegativeInfinity;
+        float cutoff = Time.time - maxAge;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            float stamp = lastSensedAt[i];
+            if (stamp < cutoff) continue;
+
+            if (stamp > newestTime)
+            {
+                previous = newest;         previousTime = newestTime;
+                newest = i;                newestTime = stamp;
+            }
+            else if (stamp > previousTime)
+            {
+                previous = i;              previousTime = stamp;
+            }
+        }
+
+        if (newest < 0 || previous < 0) return false;
+
+        from = nodes[previous].Position;
+        to = nodes[newest].Position;
+
+        // Two waypoints on top of each other give a zero vector, which LookRotation and
+        // normalisation both handle badly. Report "no usable trail" instead.
+        return Vector3.SqrMagnitude(to - from) > 0.01f;
     }
 
     public bool TryGetNodeIndex(Transform waypoint, out int index)
@@ -209,6 +300,12 @@ public sealed class NemesisRouteGraph
         clusters.Clear();
         clusterMembers.Clear();
         clusterOf.Clear();
+
+        // Dropped with the rest, and that is correct rather than a loss: the stamps are indexed by
+        // node, and the node list is about to be replaced. Carrying them over would attribute the
+        // player's trail to whatever waypoints happen to land in those slots.
+        lastSensedAt.Clear();
+
         componentCount = 0;
 
         if (routes == null) return;
@@ -247,6 +344,10 @@ public sealed class NemesisRouteGraph
                 }
 
                 nodes.Add(new Node(route, w, waypoint));
+
+                // Kept in step with nodes so the two are always indexable by the same integer.
+                // Negative infinity and not 0: 0 is a real Time.time value in the first frame.
+                lastSensedAt.Add(float.NegativeInfinity);
             }
         }
     }

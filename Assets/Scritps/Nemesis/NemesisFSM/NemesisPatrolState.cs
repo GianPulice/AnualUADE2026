@@ -23,55 +23,30 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void EnterState()
     {
-        //Debug.Log("Nemesis Enter Patrol State");
         NextState = StateKey;
         currentTime = 0f;
         unreachableTime = 0f;
-        nemesisStateManager.NavAgent.speed = nemesisStateManager.NemesisMovement.PatrolSpeed;
+
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
+                                    nemesisStateManager.NemesisMovement.PatrolSpeed);
 
         // Picks the active route (weighted, among the unlocked ones) and rolls this cycle's
         // reverse/skip variation. Tier 3.1: see NemesisController.BeginPatrolCycle.
         nemesisStateManager.NemesisController?.BeginPatrolCycle();
     }
 
-    public override void ExitState()
-    {
-        //Debug.Log("Nemesis Exit Patrol State");
-        nemesisStateManager.AnimController.SetBool("isWalking", false);
-    }
-
-    public override NemesisStateManager.ENemesisState GetNextState()
-    {
-        if (NextState != StateKey) return NextState;
-        else return StateKey;
-    }
-
-    public override void OnTriggerEnter(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerExit(Collider other)
-    {
-
-    }
-
-    public override void OnTriggerStay(Collider other)
-    {
-
-    }
+    public override void ExitState() { }
 
     public override void UpdateState()
     {
-        if (nemesisStateManager.HasVisualTarget)
-        {
-            NextState = NemesisStateManager.ENemesisState.Chasing;
-        }
-        else if (nemesisStateManager.HasAudioTarget)
-        {
-            NextState = NemesisStateManager.ENemesisState.Investigating;
-        }
-        else
+        // Agent switched off (freight elevator ride) or off the NavMesh: nothing to ask of it this
+        // frame. Every other state carries this and this one lost it when the transition logic
+        // came out — without it, a Nemesis parked in Patrolling while the elevator owns its body
+        // reads agent.isOnNavMesh on a disabled agent and Unity logs once per frame.
+        if (!nemesisStateManager.IsAgentReady) return;
+
+        // Seeing and hearing used to be tested here first, ahead of the walking. They are rungs 3
+        // and 5 of NemesisDecision's ladder now, so what is left is the walking.
         {
             NemesisController controller = nemesisStateManager.NemesisController;
             if (controller == null) return;
@@ -123,38 +98,29 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
                                  "skipping it. Check that it sits on the NavMesh and that its " +
                                  "area is reachable from here.", target);
 
-                nemesisStateManager.AnimController.SetBool("isWalking", false);
                 controller.AdvanceToNextWaypoint();
                 return;
             }
 
             unreachableTime = 0f;
 
-            // NavMeshAgent.remainingDistance measures distance along the actual path, not a
-            // straight line through the air. Vector3.Distance was used here before and it never
-            // accounted for height: a waypoint one floor up read as "close" the moment the agent
-            // was nearly underneath it, long before it had climbed the stairs, and a waypoint
-            // marker sitting even slightly above floor height (common — markers tend to get
-            // placed at eye level) added a permanent Y gap that could keep this from ever
-            // reading as arrived, freezing patrol there for good.
-            bool hasArrived = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
-
-            if (!hasArrived)
+            // Idle while waiting out PatrolWaypointWaitTime, walking otherwise. The gait carries
+            // the speed with it, so a waiting Nemesis cannot end up standing still with a walk
+            // animation playing — which is the class of mismatch SetGait exists to prevent.
+            if (!nemesisStateManager.HasArrived)
             {
-                nemesisStateManager.AnimController.SetBool("isWalking", true);
+                nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
+                                            nemesisStateManager.NemesisMovement.PatrolSpeed);
+            }
+            else if (currentTime < timeToNextWP)
+            {
+                currentTime += Time.deltaTime;
+                nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
             }
             else
             {
-                if (currentTime < timeToNextWP)
-                {
-                    currentTime += Time.deltaTime;
-                    nemesisStateManager.AnimController.SetBool("isWalking", false);
-                }
-                else
-                {
-                    currentTime = 0;
-                    controller.AdvanceToNextWaypoint();
-                }
+                currentTime = 0;
+                controller.AdvanceToNextWaypoint();
             }
         }
     }
