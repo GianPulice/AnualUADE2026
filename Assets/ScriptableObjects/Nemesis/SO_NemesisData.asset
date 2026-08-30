@@ -13,12 +13,17 @@ MonoBehaviour:
   m_Name: SO_NemesisData
   m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisData
   investigationTimeOut: 8
-  searchTimeOut: 4
+  searchTimeOut: 15
   visionLossGracePeriod: 2
   patrolWaypointWaitTime: 1.5
+  patrolWaitVariance: 0
   noiseUpdateCooldown: 0.5
   viewRange: 7
   viewAngle: 120
+  focusAngle: 60
+  awarenessBuildTime: 1.2
+  awarenessDecayRate: 0.5
+  awarenessTriggerThreshold: 0.4
   proximityDetectionRange: 1.5
   crouchVisionMultiplier: 0.418
   listenRange: 15
@@ -32,6 +37,15 @@ MonoBehaviour:
   elevatorCommitTime: 12
   searchLeadTime: 0.4
   searchSweepRadius: 5
+  searchLastKnownBias: 3
+  searchPredictionBias: 2.5
+  searchBiasFalloff: 20
+  searchSweptPenalty: 0.15
+  searchPauseTime: 1.2
+  chaseTimePrediction: 0.45
+  chaseRouteReplanInterval: 0.75
+  chaseBeliefMoveThreshold: 3
+  chaseDetourTolerance: 1.25
   beliefTraceRadius: 3
   interceptForwardDot: 0.25
   interceptTimeMargin: 1.15
@@ -43,6 +57,8 @@ MonoBehaviour:
   stuckMinDistance: 0.5
   repositionMinPlayerDistance: 15
   proximityRadius: 12
+  scanHalfAngle: 50
+  scanSpeed: 60
   routeReverseChance: 0.15
   routeSkipWaypointChance: 0.15
   routeReplanInterval: 25
@@ -56,6 +72,8 @@ MonoBehaviour:
   clusterMaxWaypoints: 6
   clusterNeighbourBias: 4
   clusterNeighbourFalloff: 25
+  clusterRecencyPenalty: 0.25
+  clusterRecencyMemory: 2
   crossRouteTransferChance: 0.3
   waypointBiasSampleCount: 8
   catchMaxReach: 1
