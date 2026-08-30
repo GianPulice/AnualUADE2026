@@ -1128,7 +1128,7 @@ MonoBehaviour:
   stuckEscape: {fileID: 151019658099850401}
   lifecycle: {fileID: 1161570539962797983}
   nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
-  captureGracePeriod: 8
+  captureGracePeriod: 4
   catchCooldown: 2
 --- !u!114 &6366883338896328337
 MonoBehaviour:

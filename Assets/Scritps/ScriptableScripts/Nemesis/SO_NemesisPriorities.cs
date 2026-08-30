@@ -119,6 +119,42 @@ public class SO_NemesisPriorities : ScriptableObject
             // by the commit time measured from the last SENSE: the walk plus the ride is tens of
             // seconds with the player invisible behind a slab, so without a bound this would hold
             // forever on a belief that has gone cold.
+            // ITS BODY IS ON THE LIFT. Nothing re-decides that.
+            //
+            // NemesisElevatorUser drives the Nemesis by hand for the whole crossing, and for the
+            // first twenty seconds of it - the wait for the cabin - the agent is still enabled, so
+            // nothing else in the system can tell that something has taken over. An interrupt
+            // because this is not a sensor that can flicker, it is a fact about who owns the body.
+            Rung(NemesisStateManager.ENemesisState.Traversing,
+                 "esta cruzando el montacargas",
+                 interrupts: true,
+                 NemesisCondition.Is(ENemesisPredicate.IsUsingElevator)),
+
+            // THE APPROACH IS A COMMITMENT, and this rung is what makes it one.
+            //
+            // The rung below can only ENTER this state; it cannot hold it, because its condition
+            // is re-asked from wherever the Nemesis is standing right now. RouteToBeliefCrossesFloors
+            // measures the path from the CURRENT position, and walking towards a landing changes
+            // that path continuously - near the doors it flips outright, because a route computed
+            // from a point already on the link no longer counts as crossing it.
+            //
+            // Each flip is a real transition, and StateManager.Update runs a transition OR
+            // UpdateState, never both. So the Nemesis bounced Traversing-Searching several times a
+            // second, never ran a frame of either, and never finished the walk - the violet/green
+            // flicker at the landing. Raising SearchTimeOut made it obvious rather than causing
+            // it: a longer search sweeps further and wanders into the flip zone more often.
+            //
+            // Same shape and same reasoning as "le queda presupuesto de busqueda" further down:
+            // once a commitment is made it runs on its own clock instead of being re-justified
+            // every frame. The two bounds are what keeps it from becoming a trap - it gives up if
+            // the walk drags past ElevatorCommitTime, or if the belief it set out for goes cold.
+            Rung(NemesisStateManager.ENemesisState.Traversing,
+                 "ya se comprometio con el montacargas",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
+                 NemesisCondition.TimeInStateUnder(ENemesisThreshold.ElevatorCommitTime),
+                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
+
             Rung(NemesisStateManager.ENemesisState.Traversing,
                  "para llegar hay que tomar el montacargas",
                  interrupts: false,
@@ -141,7 +177,51 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.VisionLossGracePeriod)),
 
-            // A noise to walk towards.
+            // Once in, the search runs on its own clock: it is a fixed budget of time to spend on
+            // a belief, not something to re-justify every frame — and ABOVE "hears a noise" is
+            // load-bearing, not cosmetic.
+            //
+            // NemesisSearchingState's own UpdateState already has a "a fresh noise outranks
+            // everything, re-aim the cut-off" mechanism (see RetargetSearch), and it never got to
+            // run: with the noise rung sitting above this one, hearing anything while searching —
+            // even the same noise still going — voted the ladder into Investigating before
+            // Searching.UpdateState ever executed a single frame. StateManager.Update runs a
+            // transition OR UpdateState, never both, so the retarget logic was dead code and every
+            // noise cut the search short — which read as "sometimes short, sometimes the full
+            // budget" depending on whether the player happened to be making noise. This rung
+            // outranking the noise rung is what lets Searching absorb a fresh noise itself instead
+            // of the ladder yanking the Nemesis out from under it.
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "le queda presupuesto de búsqueda",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
+                 NemesisCondition.TimeInStateUnder(ENemesisThreshold.SearchTimeOut)),
+
+            // A noise to walk towards — reached only when the rung above did not already claim an
+            // ongoing search. Starting fresh from Patrolling or Traversing still works exactly the
+            // same: IsIn(Searching) above is false, so this is the first rung that fires.
+            // Caught something in the corner of its eye. Walks over to look instead of sprinting,
+            // which is the entire point of splitting the cone into two bands: peeking round a
+            // corner used to trip "lo esta viendo", an INTERRUPT rung, in the same frame.
+            //
+            // WHERE THIS SITS IS THE WHOLE DESIGN OF IT.
+            //
+            // Below the search budget, because a suspicion is WEAKER information than a noise and
+            // the noise rung is already below it - for the reason spelled out on that rung, that
+            // pulling Searching out from under itself leaves its own retarget logic as dead code.
+            // Put this above the budget and that bug comes straight back, wearing a different hat.
+            //
+            // Above the noise rung, because seeing a shape is worth more than hearing one: it
+            // carries a direction and a distance where a noise carries a rough origin.
+            //
+            // Not an interrupt: a suspicion is exactly the kind of thing that should have to wait
+            // out the hysteresis window. If it resolves into an actual sighting, "lo esta viendo"
+            // is an interrupt and wins anyway.
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "vio algo de reojo",
+                 interrupts: false,
+                 NemesisCondition.Is(ENemesisPredicate.IsSuspicious)),
+
             Rung(NemesisStateManager.ENemesisState.Investigating,
                  "escucha un ruido",
                  interrupts: false,
@@ -156,15 +236,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Not(ENemesisPredicate.HasArrived),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.InvestigationTimeOut)),
-
-            // Once in, the search runs on its own clock: it is a fixed budget of time to spend on
-            // a belief, not something to re-justify every frame. Hence time in state and not
-            // belief age.
-            Rung(NemesisStateManager.ENemesisState.Searching,
-                 "le queda presupuesto de búsqueda",
-                 interrupts: false,
-                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
-                 NemesisCondition.TimeInStateUnder(ENemesisThreshold.SearchTimeOut)),
 
             // Coming off a pursuit still believing something: sweep rather than file it away.
             // Two rungs and not one because a rung is an AND — splitting the old
@@ -336,6 +407,25 @@ public enum ENemesisPredicate
     /// been held. A different question from the belief age, and mixing them up is how a search
     /// budget ends up refreshing every time the player steps on gravel.</summary>
     TimeInStateUnder,
+
+    // APPEND NEW PREDICATES HERE, NEVER IN THE MIDDLE.
+    //
+    // NemesisCondition is a plain struct and Unity serialises an enum field as its INTEGER value,
+    // so SO_NemesisPriorities.asset stores every authored rung as "predicate: 6", not as
+    // "predicate: IsInState". Inserting a member anywhere above this line renumbers everything
+    // below it and silently rewrites the designer's whole ladder into a different one - the rung
+    // that asked whether the Nemesis was in a given state starts asking whether it has arrived,
+    // and nothing errors. The struct's own doc comment explains why it avoids SerializeReference
+    // for exactly this kind of survivability; ordering is the other half of that promise.
+
+    /// <summary>Something is in the PERIPHERAL band of the vision cone and the suspicion meter has
+    /// climbed past the designer's threshold, but it has not resolved into a sighting. Goes false
+    /// as soon as SeesPlayer goes true - the two never hold together.</summary>
+    IsSuspicious,
+
+    /// <summary>NemesisElevatorUser has a crossing in flight: waiting for the cabin, boarding,
+    /// riding or stepping off. Nothing should re-decide the state while this holds.</summary>
+    IsUsingElevator,
 }
 
 /// <summary>

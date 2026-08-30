@@ -24,7 +24,7 @@ MonoBehaviour:
   listenRange: 15
   noiseRangeScale: 2.5
   wallOcclusionEnabled: 1
-  wallOcclusionMultiplier: 0.6
+  wallOcclusionMultiplier: 0.8
   floorOcclusionMultiplier: 0.75
   hearingUsesPathDistance: 1
   routeVerdictInterval: 0.4

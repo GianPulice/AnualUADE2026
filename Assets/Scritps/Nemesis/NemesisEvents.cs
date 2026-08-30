@@ -19,6 +19,7 @@ public static class NemesisEvents
         OnChaseEnded = null;
         OnProximityChanged = null;
         OnStateChanged = null;
+        OnCaptureResolved = null;
     }
 
     // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
@@ -39,8 +40,23 @@ public static class NemesisEvents
     /// </summary>
     public static event Action<NemesisStateManager.ENemesisState> OnStateChanged;
 
+    /// <summary>
+    /// The Nemesis has finished repositioning after a capture and is about to go back to
+    /// Patrolling. Raised once, right after <see cref="NemesisStateManager.RepositionAfterCapture"/>
+    /// runs — i.e. the WARP has already happened by the time anyone hears this.
+    ///
+    /// This is the "it is now safe to show the Nemesis again" signal. <c>CheckpointManager.
+    /// OnRespawned</c> fires much earlier — the instant the PLAYER lands at the checkpoint — and
+    /// says nothing about where the Nemesis is. Revealing the screen on that event alone is what
+    /// let the player watch the Nemesis pop from the capture spot to a spawn point in plain
+    /// sight, sometimes several seconds after the screen had already gone clear again. Nothing
+    /// else in the project should reveal a "the capture is fully over" cover before this fires.
+    /// </summary>
+    public static event Action OnCaptureResolved;
+
     public static void ChaseStarted()                    => OnChaseStarted?.Invoke();
     public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
+    public static void CaptureResolved()                 => OnCaptureResolved?.Invoke();
 }

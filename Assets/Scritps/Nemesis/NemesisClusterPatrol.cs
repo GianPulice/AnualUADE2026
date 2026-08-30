@@ -63,10 +63,24 @@ public sealed class NemesisClusterPatrol
         public readonly int MinWaypoints;
         public readonly int MaxWaypoints;
 
+        /// <summary>How much a zone's weight is cut for having been swept recently. 1 disables the
+        /// penalty; 0.25 leaves it a quarter of its tickets.
+        ///
+        /// It exists because excluding only the zone just finished is not enough to stop the
+        /// Nemesis bouncing A-B-A-B between two neighbours forever: the moment it leaves B, A is a
+        /// full-weight candidate again, and the neighbour bias actively favours it for being next
+        /// door. A short memory is what turns "somewhere else" into "somewhere it has not just
+        /// been".</summary>
+        public readonly float RecencyPenalty;
+
+        /// <summary>How many recently swept zones the penalty applies to.</summary>
+        public readonly int RecencyMemory;
+
         public Settings(bool hasBelief, Vector3 belief,
                         float playerBiasStrength, float playerBiasFalloff,
                         float neighbourBiasStrength, float neighbourBiasFalloff,
-                        int sampleCount, int minWaypoints, int maxWaypoints)
+                        int sampleCount, int minWaypoints, int maxWaypoints,
+                        float recencyPenalty, int recencyMemory)
         {
             HasBelief = hasBelief;
             Belief = belief;
@@ -77,6 +91,8 @@ public sealed class NemesisClusterPatrol
             SampleCount = Mathf.Max(2, sampleCount);
             MinWaypoints = Mathf.Max(1, minWaypoints);
             MaxWaypoints = Mathf.Max(1, maxWaypoints);
+            RecencyPenalty = Mathf.Clamp01(recencyPenalty);
+            RecencyMemory = Mathf.Max(0, recencyMemory);
         }
 
         /// <summary>
@@ -104,7 +120,9 @@ public sealed class NemesisClusterPatrol
                 data != null ? data.ClusterNeighbourFalloff : 25f,
                 data != null ? data.WaypointBiasSampleCount : 8,
                 data != null ? data.ClusterMinWaypoints : 3,
-                data != null ? data.ClusterMaxWaypoints : 6);
+                data != null ? data.ClusterMaxWaypoints : 6,
+                data != null ? data.ClusterRecencyPenalty : 0.25f,
+                data != null ? data.ClusterRecencyMemory : 2);
         }
     }
 
@@ -128,6 +146,11 @@ public sealed class NemesisClusterPatrol
     private readonly List<float> weightBuffer = new List<float>();
     private readonly List<float> keyBuffer = new List<float>();
     private readonly List<Vector3> positionBuffer = new List<Vector3>();
+
+    /// <summary>Zones swept recently, most recent last. Their weight is cut by
+    /// <see cref="Settings.RecencyPenalty"/> so the patrol stops ping-ponging between two
+    /// neighbours. Trimmed to <see cref="Settings.RecencyMemory"/> on every adoption.</summary>
+    private readonly List<int> recentClusters = new List<int>();
 
     public bool HasCluster => currentCluster >= 0;
 
@@ -155,6 +178,11 @@ public sealed class NemesisClusterPatrol
         tour.Clear();
         tourIndex = 0;
         tourBudget = 0;
+
+        // The recency list holds cluster INDICES, and Reset is called precisely when the graph is
+        // about to be rebuilt and those indices are about to mean something else. Keeping them
+        // would penalise whichever unrelated zones happen to land in those slots.
+        recentClusters.Clear();
     }
 
     /// <summary>
@@ -260,7 +288,29 @@ public sealed class NemesisClusterPatrol
         tourBudget = Mathf.Min(tour.Count,
                                Random.Range(settings.MinWaypoints, settings.MaxWaypoints + 1));
 
+        RecordVisit(clusterIndex, settings.RecencyMemory);
+
         return tour[0];
+    }
+
+    /// <summary>
+    /// Pushes a zone onto the recency list, trimming it to the configured memory.
+    ///
+    /// Recorded HERE — at the end of a successful adoption — and not when the cluster is picked:
+    /// an adoption that falls through because the cúmulo turned out to be empty never swept
+    /// anything, and penalising it afterwards would push the patrol away from a zone it has not
+    /// actually visited.
+    ///
+    /// Re-adopting the zone already at the head is a Resweep (one-cúmulo island), and moving it
+    /// rather than appending a duplicate is what keeps the memory holding N distinct zones instead
+    /// of N copies of the only one available.
+    /// </summary>
+    private void RecordVisit(int clusterIndex, int memory)
+    {
+        recentClusters.Remove(clusterIndex);
+        recentClusters.Add(clusterIndex);
+
+        while (recentClusters.Count > memory) recentClusters.RemoveAt(0);
     }
 
     /// <summary>
@@ -283,6 +333,17 @@ public sealed class NemesisClusterPatrol
     private void BuildTour(NemesisRouteGraph graph, Vector3 origin, int direction)
     {
         tour.Clear();
+
+        // Shuffled BEFORE the greedy chain, never after it.
+        //
+        // The chain itself is what makes a zone read as swept rather than scribbled over, so
+        // shuffling its output would undo the whole point. What the shuffle changes is which
+        // member wins a TIE: TakeExtremeMember scans in list order and keeps the first strict
+        // improvement, so two waypoints the same distance away always resolved the same way, and
+        // walking into the same room from the same side produced a byte-identical route every
+        // single time. Randomising the scan order leaves the shape of the sweep intact and lets
+        // the ties fall differently.
+        RouletteSelection.Shuffle(memberBuffer);
 
         int start = TakeExtremeMember(graph, origin, farthest: direction < 0);
         if (start < 0) return;
@@ -354,7 +415,6 @@ public sealed class NemesisClusterPatrol
         if (sampledBuffer.Count == 0) return -1;
 
         weightBuffer.Clear();
-        float total = 0f;
 
         for (int i = 0; i < sampledBuffer.Count; i++)
         {
@@ -373,24 +433,23 @@ public sealed class NemesisClusterPatrol
                                           settings.NeighbourBiasStrength, settings.NeighbourBiasFalloff);
             }
 
+            // Applied LAST, so it cuts whatever the two biases built up rather than being
+            // swamped by them. The neighbour bias in particular pulls hard towards the zone next
+            // door — which, right after leaving it, is the zone it just swept.
+            if (weight > 0f && recentClusters.Contains(sampledBuffer[i]))
+            {
+                weight *= settings.RecencyPenalty;
+            }
+
             weightBuffer.Add(weight);
-            total += weight;
         }
 
-        // Every candidate zone sits at weight 0 — the designer switched those routes off — but it
-        // still has to go somewhere. Uniform among the survivors.
-        if (total <= 0f) return sampledBuffer[Random.Range(0, sampledBuffer.Count)];
-
-        float roll = Random.value * total;
-        float cumulative = 0f;
-        for (int i = 0; i < sampledBuffer.Count; i++)
-        {
-            cumulative += weightBuffer[i];
-            if (roll <= cumulative) return sampledBuffer[i];
-        }
-
-        // Only reachable through float rounding at the very edge of the range.
-        return sampledBuffer[sampledBuffer.Count - 1];
+        // The roll, plus the all-zero case (the designer switched those routes off and it still
+        // has to go somewhere: uniform among the survivors) and the float-rounding fallback, all
+        // live in RouletteSelection now — shared with NemesisController's per-waypoint pick, so
+        // "clusters on" and "clusters off" cannot drift apart for a reason nobody chose.
+        int index = RouletteSelection.Roulette(weightBuffer);
+        return index < 0 ? -1 : sampledBuffer[index];
     }
 
     // ── Shared selection maths ──────────────────────────────────────────────

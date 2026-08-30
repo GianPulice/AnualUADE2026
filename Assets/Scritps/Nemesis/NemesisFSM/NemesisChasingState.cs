@@ -19,14 +19,27 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 {
     private NemesisStateManager nemesisStateManager;
 
+    /// <summary>Where to run, and why. See <see cref="NemesisPursuit"/> - the whole of what this
+    /// state used to express as one assignment to destination.</summary>
+    private readonly NemesisPursuit pursuit;
+
+    /// <summary>Read by NemesisGizmos so the prediction and the chosen detour are visible in the
+    /// Scene view. Nothing in the FSM reads it.</summary>
+    public NemesisPursuit Pursuit => pursuit;
+
     public NemesisChasingState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
+        pursuit = new NemesisPursuit(stateManager);
     }
 
     public override void EnterState()
     {
         NextState = StateKey;
+
+        // A fresh decision, not whatever the last chase ended on - which could be a waypoint on
+        // the far side of the level, chosen for a belief that has nothing to do with this one.
+        pursuit.Reset();
 
         // The patrol stopping distance is sized for waypoints and is wider than the capture
         // reach, so leaving it in place here halts the agent outside the only range a grab can
@@ -54,22 +67,22 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
         // dead agent and floods the console with errors.
         if (!nemesisStateManager.IsAgentReady) return;
 
-        // The BELIEF and not FieldOfView.LastKnownPosition, which is what this used to read.
+        // Everything about WHERE to run lives in NemesisPursuit now: this used to be
+        // "destination = belief", which is Seek aimed at where the player already was.
         //
-        // The two differ exactly when the player breaks line of sight and keeps making noise —
-        // the commonest way a chase continues. Sight stops updating and hearing does not, so the
-        // visual memory freezes at the doorway they went through while the ladder, reading a
-        // belief age that hearing keeps at zero, correctly keeps the Nemesis chasing. Running at
-        // the frozen point means arriving at the doorway and standing in it. Reading the belief
-        // means the noise steers the pursuit, which is what "it heard you and came after you"
-        // is supposed to look like.
-        if (!nemesisStateManager.TryGetBelief(out Vector3 belief)) return;
+        // It still runs on the BELIEF and never on the player's real transform, and that part is
+        // load-bearing. Sight and hearing go stale at different rates - break line of sight while
+        // still making noise and the visual memory freezes at the doorway you went through while
+        // hearing keeps updating - so the pursuit steers by whichever sensor caught you last.
+        // Reading FieldOfView directly, which this once did, is what had the Nemesis sprint to a
+        // doorway and stand in it while it could plainly hear you leaving.
+        if (!pursuit.TryGetDestination(out Vector3 destination)) return;
 
-        // Runs at the remembered position, not at the player — and keeps running at it after both
-        // sensors go quiet, for as long as the grace rung keeps the Nemesis in this state. That is
-        // what turns breaking line of sight into a few seconds of grace rather than an instant
-        // reprieve.
-        nemesisStateManager.NavAgent.destination = belief;
+        // Set every frame: the prediction moves continuously even though the route decision behind
+        // it is throttled. Keeps running at the remembered position after both sensors go quiet,
+        // for as long as the grace rung keeps the Nemesis in this state - which is what turns
+        // breaking line of sight into a few seconds of grace rather than an instant reprieve.
+        nemesisStateManager.NavAgent.destination = destination;
 
         // Standing over the player with the capture cooldown still closed, or against the wall at
         // the end of a partial path: either way there is nowhere left to run, and continuing to

@@ -50,6 +50,7 @@ public class SO_NemesisDataEditor : Editor
     private const float CatchLabelBearing    = 180f;
 
     private static readonly Color TestPointColor = new Color(0.92f, 0.72f, 0.28f);
+    private static readonly Color FocusColor = new Color(0.95f, 0.55f, 0.25f);
 
     public override void OnInspectorGUI()
     {
@@ -148,6 +149,17 @@ public class SO_NemesisDataEditor : Editor
         {
             float radiusPx = data.ViewRange * pxPerMetre;
             PlayerDiagramGUI.Arc(origin, radiusPx, 0f, data.ViewAngle, vision);
+
+            // The focus wedge, nested. What the reader is meant to take from the picture is the
+            // GAP between the two arcs: that is the peripheral band, the only place where being
+            // seen takes time instead of happening the instant you step into it. Drawn in the
+            // hard-detection orange rather than a colour of its own, because "inside this you are
+            // spotted immediately" is the same claim the proximity circle makes.
+            if (data.HasPeripheralVision)
+            {
+                PlayerDiagramGUI.Arc(origin, radiusPx, 0f, data.FocusAngle, FocusColor);
+                LabelAt(origin, radiusPx * 0.55f, 0f, $"foco {data.FocusAngle:0.#}\u00b0", FocusColor);
+            }
             LabelAt(origin, radiusPx, 0f, $"visión {data.ViewRange:0.#} m", vision);
         }
 
@@ -214,6 +226,7 @@ public class SO_NemesisDataEditor : Editor
         DrawZoomedTest(data, distance, bearing);
 
         bool withinCone = bearing <= data.ViewAngle * 0.5f;
+        bool withinFocus = bearing <= data.FocusAngle * 0.5f;
         bool seenStanding = withinCone && distance <= data.ViewRange;
         bool seenCrouched = withinCone && distance <= data.ViewRange * data.CrouchVisionMultiplier;
         bool heard = distance <= data.ListenRange;
@@ -224,6 +237,24 @@ public class SO_NemesisDataEditor : Editor
             seenStanding ? "Te ve parado" : "No te ve parado (fuera de rango o del cono)");
         PlayerDiagramGUI.Verdict(seenCrouched,
             seenCrouched ? "Te ve agachado" : "No te ve agachado");
+
+        // The verdict that makes the two-band cone tunable at all: "te ve" stopped being one
+        // question the moment detection got a ramp, and the answer that matters is HOW LONG.
+        // Without this the designer can see that a position is inside the cone and has no way to
+        // tell whether it means instant death or a second and a half of grace.
+        if (seenStanding && data.HasPeripheralVision)
+        {
+            if (withinFocus)
+            {
+                PlayerDiagramGUI.Verdict(true, "Te ve <b>al instante</b> (dentro del cono de foco)");
+            }
+            else
+            {
+                PlayerDiagramGUI.Verdict(false,
+                    $"Visi\u00f3n perif\u00e9rica: te nota reci\u00e9n a los " +
+                    $"<b>{NoticeSeconds(data, distance):0.00} s</b> de exposici\u00f3n continua");
+            }
+        }
         PlayerDiagramGUI.Verdict(heard, heard ? "Te oye" : "No te oye");
         PlayerDiagramGUI.Verdict(hardDetected,
             hardDetected ? "Detección dura: te nota igual, sin importar nada más"
@@ -297,10 +328,39 @@ public class SO_NemesisDataEditor : Editor
         GUI.EndClip();
     }
 
+    /// <summary>
+    /// Seconds of continuous peripheral exposure before the Nemesis notices, at this distance.
+    ///
+    /// MUST MIRROR FieldOfView.TickAwareness. A tester that computes the number its own way is
+    /// worse than no tester, because it is believed - the same argument NemesisGizmos makes about
+    /// recomputing the hearing bands. If the ramp in TickAwareness changes, this changes with it.
+    /// </summary>
+    private static float NoticeSeconds(SO_NemesisData data, float distance)
+    {
+        float closeness = 1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, data.ViewRange));
+        float rate = Mathf.Lerp(0.35f, 2f, closeness) / Mathf.Max(0.05f, data.AwarenessBuildTime);
+
+        return rate <= 0.0001f ? float.PositiveInfinity : 1f / rate;
+    }
+
     // Chequeos ================================================================================
 
     private static void DrawChecks(SO_NemesisData data)
     {
+        // Backed by FocusAngle's own tooltip. This one fails SILENTLY in game, which is why it
+        // earns a check: with the focus cone as wide as the vision cone there is no peripheral
+        // band, so the suspicion ramp, the "vio algo de reojo" rung and the whole gradual-detection
+        // feature simply never fire - and nothing anywhere says so. The Nemesis just goes back to
+        // spotting you instantly and it looks like the feature was never built.
+        bool focusIsInner = data.HasPeripheralVision;
+        PlayerDiagramGUI.Verdict(focusIsInner,
+            focusIsInner
+                ? $"Cono de foco ({data.FocusAngle:0.#}\u00b0) dentro del de visi\u00f3n ({data.ViewAngle:0.#}\u00b0): " +
+                  $"quedan {(data.ViewAngle - data.FocusAngle) * 0.5f:0.#}\u00b0 de perif\u00e9rica a cada lado"
+                : $"Cono de foco ({data.FocusAngle:0.#}\u00b0) igual o m\u00e1s ancho que el de visi\u00f3n " +
+                  $"({data.ViewAngle:0.#}\u00b0) \u2014 no hay visi\u00f3n perif\u00e9rica: todo vuelve a ser " +
+                  $"detecci\u00f3n instant\u00e1nea y la regla 'vio algo de reojo' no se dispara nunca");
+
         // Backed directly by ProximityDetectionRange's own tooltip: "Keep it well under viewRange
         // — this is 'it is literally on top of me', not a second vision range."
         bool proximityIsTight = data.ProximityDetectionRange < data.ViewRange * 0.75f;

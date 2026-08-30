@@ -36,6 +36,18 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private NemesisStuckEscape stuckEscape;
     [SerializeField] private NemesisLifecycle lifecycle;
 
+    [Tooltip("Barre la mirada de lado a lado mientras el Nemesis espera parado en un waypoint. " +
+             "Se agrega solo, igual que los cuatro de arriba.\n\n" +
+             "Se tunea desde SO_NemesisData (Scan Half Angle / Scan Speed), no desde ac\u00e1; " +
+             "poniendo Scan Half Angle en 0 queda inerte y la mirada vuelve a estar pegada al " +
+             "frente del cuerpo.")]
+    [SerializeField] private NemesisLookAround lookAround;
+
+    [Tooltip("Opcional. Si el Nemesis lo tiene, la escalera se entera de cuándo está cruzando el " +
+             "montacargas y no lo saca de Traversing en el medio. Sin este componente el Nemesis " +
+             "simplemente no usa montacargas.")]
+    [SerializeField] private NemesisElevatorUser elevatorUser;
+
     [Header("Decision layer")]
     [Tooltip("La escalera de prioridades: qué estado pide el Nemesis y en qué orden se leen las " +
              "reglas. Es un asset reordenable, así que cambiar el orden no recompila nada.\n\n" +
@@ -48,8 +60,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [Header("Capture")]
     [Tooltip("Seconds the Nemesis stays inert in Catch after the player has respawned, before " +
              "warping to a random waypoint and going back to Patrolling. This is the player's " +
-             "window to get away from the checkpoint.")]
-    [SerializeField] private float captureGracePeriod = 8f;
+             "window to get away from the checkpoint.\n\n" +
+             "The screen stays covered by CaptureFadeView for the whole window (it waits on " +
+             "NemesisEvents.OnCaptureResolved, fired right after the warp) — so raising this " +
+             "does not risk the player seeing the teleport, only lengthens how long the cover " +
+             "stays up.")]
+    [SerializeField] private float captureGracePeriod = 4f;
 
     [Tooltip("Seconds after leaving Catch during which the Nemesis cannot enter it again.\n\n" +
              "Two jobs: it stops the Nemesis from re-grabbing the player the instant a capture " +
@@ -59,6 +75,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private bool hasVisualTarget = false;
     private bool hasAudioTarget = false;
+    private bool isSuspicious = false;
 
     private bool isActive;
 
@@ -90,6 +107,30 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public Animator AnimController { get => animController; }
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
+
+    /// <summary>
+    /// The Nemesis has caught something in the corner of its eye without having actually seen it.
+    ///
+    /// Sampled once per frame alongside the other two rather than read live off the sensor, and
+    /// for the same reason they are: the decision layer has to look at ONE snapshot of the world,
+    /// taken before it runs. A predicate reading the sensor directly could answer differently to
+    /// two rungs of the same ladder pass if a sweep landed in between.
+    /// </summary>
+    public bool IsSuspicious { get => isSuspicious; }
+
+    /// <summary>
+    /// A lift crossing is physically in progress - waiting for the cabin, boarding, riding or
+    /// stepping off.
+    ///
+    /// Read live off the component rather than sampled once per frame like the three sensor flags,
+    /// because it is not a sensor reading that can flicker: it is a fact about who is currently
+    /// driving the body, and it changes at most twice per trip.
+    /// </summary>
+    public bool IsUsingElevator => elevatorUser != null && elevatorUser.IsTraversing;
+
+    /// <summary>How full the suspicion meter is, 0 to 1. Read by NemesisDebugHUD - the ladder uses
+    /// <see cref="IsSuspicious"/>, which is this against the designer's threshold.</summary>
+    public float Awareness => fieldOfView != null ? fieldOfView.Awareness : 0f;
 
     /// <summary>The player, or null when none is registered. Read by the sibling components, which
     /// all need it and none of which should be subscribing to PlayerRegistry separately.</summary>
@@ -311,6 +352,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public NemesisSearchingState SearchingState =>
         States.TryGetValue(ENemesisState.Searching, out BaseState<ENemesisState> state)
             ? state as NemesisSearchingState
+            : null;
+
+    /// <summary>The Chasing state instance, or null before the machine is built. Reached for by
+    /// NemesisGizmos, which draws where the pursuit is aiming - the machine itself never reads it.
+    /// </summary>
+    public NemesisChasingState ChasingState =>
+        States.TryGetValue(ENemesisState.Chasing, out BaseState<ENemesisState> chasing)
+            ? chasing as NemesisChasingState
             : null;
 
     private void TickDecision()
@@ -604,6 +653,18 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         stuckEscape = ResolveSibling(stuckEscape);
         lifecycle   = ResolveSibling(lifecycle);
 
+        // Added on the same terms as the four above: it carries no scene wiring a designer could
+        // get wrong - it finds the state manager and the sensor off this object, and every number
+        // it uses lives on SO_NemesisData. Requiring the prefab to be opened and re-saved to gain
+        // it would mean the scan silently does nothing on any Nemesis nobody remembered to touch,
+        // which is the worst of both worlds: a feature that exists in the code and not in the game.
+        lookAround  = ResolveSibling(lookAround);
+
+        // GetComponent and NOT ResolveSibling: unlike the five above, this one is a real feature
+        // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
+        // freight elevator should not silently grow one.
+        if (elevatorUser == null) elevatorUser = GetComponent<NemesisElevatorUser>();
+
         // includeInactive: the sensors are switched off while the Nemesis is dormant, and the
         // Animator sits on the model root, which a prefab may ship disabled.
         if (fieldOfView == null)      fieldOfView      = GetComponentInChildren<FieldOfView>(true);
@@ -695,6 +756,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
         hasVisualTarget = fieldOfView.HasVisualTarget;
         hasAudioTarget = fieldOfListening.HasAudioTarget;
+        isSuspicious = fieldOfView.IsSuspicious;
 
         // Lay down the trail of patrol waypoints the player was sensed near. Done here, off the
         // flags that were just sampled, so there is exactly one place that decides "a detection

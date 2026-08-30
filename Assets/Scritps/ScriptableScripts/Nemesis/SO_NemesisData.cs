@@ -7,6 +7,19 @@ public class SO_NemesisData : ScriptableObject
     [SerializeField] private float searchTimeOut;
     [SerializeField] private float visionLossGracePeriod;
     [SerializeField] private float patrolWaypointWaitTime;
+
+    [Tooltip("Segundos de variación, hacia arriba y hacia abajo, sobre la espera en cada " +
+             "waypoint. La espera real se sortea entre (espera - esto) y (espera + esto), sin " +
+             "bajar de 0.\n\n" +
+             "En 0 el Nemesis espera exactamente lo mismo en todos los waypoints, siempre, y eso " +
+             "es justo lo que lo hace leerse como un metrónomo: una vez que le tomaste el tiempo a " +
+             "una ronda, le tomaste el tiempo a todas. Con variación, quedarte quieto esperando " +
+             "que se vaya deja de ser una cuenta y pasa a ser una apuesta.\n\n" +
+             "Es una variación y no un par mín/máx a propósito: el valor autorado de la espera " +
+             "sigue siendo el centro, así que subir esto no puede retunear sin querer cuánto tarda " +
+             "una ronda entera.")]
+    [SerializeField, Min(0f)] private float patrolWaitVariance = 0f;
+
     [SerializeField] private float noiseUpdateCooldown;
 
     // Tuneable detection parameters live here and not on the sensor components so that a
@@ -25,6 +38,37 @@ public class SO_NemesisData : ScriptableObject
              "forward vector.")]
     [Range(0, 360)]
     [SerializeField] private float viewAngle = 90f;
+
+    [Tooltip("Ancho TOTAL, en grados, del cono interno de foco: lo que el Nemesis mira de verdad.\n\n" +
+             "Adentro de este cono te detecta al instante, igual que siempre. Entre este ángulo y " +
+             "View Angle está la visión PERIFÉRICA: ahí no te detecta de una, sino que le va " +
+             "subiendo la sospecha (ver Awareness Build Time). Eso es lo que hace que asomarse a " +
+             "una esquina te dé un instante en vez de arrancar la persecución en el mismo frame.\n\n" +
+             "Si lo ponés igual o mayor que View Angle no hay banda periférica y el sistema entero " +
+             "queda desactivado: todo vuelve a ser detección instantánea. El inspector del asset " +
+             "te avisa cuando pasa eso.")]
+    [Range(0, 360)]
+    [SerializeField] private float focusAngle = 60f;
+
+    [Tooltip("Segundos de exposición continua en la periferia, en el BORDE del rango de visión, " +
+             "para que la sospecha llegue al máximo y te detecte.\n\n" +
+             "Escala con la distancia: pegado al Nemesis es casi inmediato, en el límite del rango " +
+             "tarda esto. Muy bajo y la periferia es lo mismo que el foco; muy alto y podés " +
+             "cruzarle el campo visual caminando sin que reaccione nunca.")]
+    [SerializeField, Min(0.05f)] private float awarenessBuildTime = 1.2f;
+
+    [Tooltip("Cuánta sospecha se le baja por segundo cuando deja de verte.\n\n" +
+             "0.5 la vacía en dos segundos desde el máximo. Que decaiga y no se corte de golpe es " +
+             "lo que hace que asomarse dos veces seguidas sea más peligroso que asomarse una: la " +
+             "segunda arranca desde donde quedó la primera.")]
+    [SerializeField, Min(0.01f)] private float awarenessDecayRate = 0.5f;
+
+    [Tooltip("A partir de qué nivel de sospecha (0 a 1) el Nemesis empieza a moverse hacia vos, " +
+             "sin haberte detectado del todo.\n\n" +
+             "Es el umbral que lee la regla nueva de la escalera de prioridades: por encima de " +
+             "esto pide Investigating. Al llegar a 1 pasa a ser detección completa y manda la " +
+             "regla 'lo está viendo'.")]
+    [SerializeField, Range(0f, 1f)] private float awarenessTriggerThreshold = 0.4f;
 
     [Tooltip("Hard detection radius. Inside it the Nemesis notices the player no matter what: " +
              "no cone, no occlusion raycast, and it is the only thing that defeats Hidden. " +
@@ -112,6 +156,93 @@ public class SO_NemesisData : ScriptableObject
              "sweep stops reading as a search at all.")]
     [SerializeField, Min(1f)] private float searchSweepRadius = 5f;
 
+    [Header("Search - donde busca")]
+    //
+    // El barrido elegia el waypoint sin visitar MAS CERCANO DE DONDE ESTABA PARADO, y nada mas.
+    // La ultima posicion conocida no entraba en la cuenta despues del primer destino, asi que el
+    // Nemesis daba vueltas por la habitacion donde te perdio mientras vos salias del edificio.
+    // Estos pesos convierten esa eleccion en una mezcla: donde te vio, donde cree que fuiste, y
+    // donde todavia no miro.
+
+    [Tooltip("Cuantas veces mas probable es un waypoint por estar cerca de la ULTIMA POSICION " +
+             "CONOCIDA.\n\n" +
+             "Es el ancla de toda la busqueda: lo unico que el Nemesis realmente observo. En 1 no " +
+             "pesa nada y la busqueda vuelve a ser 'mira lo que tenga mas cerca'.")]
+    [SerializeField, Min(1f)] private float searchLastKnownBias = 3f;
+
+    [Tooltip("Cuantas veces mas probable es un waypoint por estar cerca de la posicion PREDICHA - " +
+             "la ultima conocida proyectada por Search Lead Time en la direccion en la que lo vio " +
+             "moverse.\n\n" +
+             "Este es el que hace que la busqueda vaya hacia adelante en vez de quedarse en el " +
+             "lugar del hecho. Subilo por encima del anterior y el Nemesis apuesta fuerte a que " +
+             "seguiste de largo; bajalo y se queda peinando el lugar donde te perdio.")]
+    [SerializeField, Min(1f)] private float searchPredictionBias = 2.5f;
+
+    [Tooltip("Metros de camino mas alla de los cuales los dos pesos de arriba dejan de aplicar.\n\n" +
+             "Chico = solo prioriza waypoints practicamente encima de donde te sintio. Grande = la " +
+             "busqueda entera se inclina hacia esa zona del nivel.")]
+    [SerializeField, Min(1f)] private float searchBiasFalloff = 20f;
+
+    [Tooltip("Cuanto se le recorta el peso a un waypoint que ya reviso EN ESTA busqueda. " +
+             "0 lo descarta del todo, 1 le da lo mismo.\n\n" +
+             "No es 0 a proposito: descartarlos del todo hace que una busqueda larga se quede sin " +
+             "candidatos y termine tirando puntos al azar. Con un resto de peso puede volver a " +
+             "pasar por un lugar, que es lo que hace de verdad alguien que busca.")]
+    [SerializeField, Range(0f, 1f)] private float searchSweptPenalty = 0.15f;
+
+    [Tooltip("Segundos que el Nemesis se queda quieto en cada punto de busqueda antes de elegir " +
+             "el siguiente.\n\n" +
+             "Es lo que convierte la busqueda en algo LEGIBLE. Sin esta pausa encadena destinos " +
+             "sin parar y desde afuera no se distingue de una patrulla rara: no hay forma de saber " +
+             "que esta buscando, ni donde, ni si ya se fue de la zona. Con la pausa se planta, " +
+             "mira alrededor (ver Scan Half Angle) y sigue - y desde un escondite se puede leer si " +
+             "te esta por encontrar o si ya paso de largo.\n\n" +
+             "0 la desactiva y vuelve al encadenado de antes.")]
+    [SerializeField, Min(0f)] private float searchPauseTime = 1.2f;
+
+    [Header("Chase - pursuit")]
+    //
+    // La persecucion era Seek puro: destination = ultima posicion sentida. Correr hacia donde el
+    // jugador ESTUVO significa llegar siempre un paso tarde, y contra un jugador que corre en
+    // linea recta el Nemesis nunca acorta distancia. Estos knobs son la prediccion temporal y la
+    // eleccion de ruta que la reemplazan.
+
+    [Tooltip("Segundos que el Nemesis proyecta hacia adelante la posicion del jugador mientras lo " +
+             "persigue.\n\n" +
+             "Mas alto = corta mas por delante. Demasiado alto y adivina: apunta a donde el " +
+             "jugador habria estado si nunca hubiera doblado, y eso se lee como que el juego hace " +
+             "trampa, no como que el monstruo es vivo.\n\n" +
+             "La velocidad que extrapola es OBSERVADA (FieldOfView.LastKnownVelocity), no leida " +
+             "del jugador, asi que cambiar de direccion apenas rompes la linea de vision siempre " +
+             "funciona. 0 desactiva la prediccion y vuelve al Seek de antes.\n\n" +
+             "Es un valor aparte de Search Lead Time a proposito: buscar y perseguir tienen " +
+             "tolerancias distintas al error. Perseguir puede permitirse mas porque te esta " +
+             "viendo o te acaba de ver.")]
+    [SerializeField, Range(0f, 1.5f)] private float chaseTimePrediction = 0.45f;
+
+    [Tooltip("Cada cuantos segundos el Nemesis re-evalua por que waypoint conviene ir mientras " +
+             "persigue.\n\n" +
+             "Cada re-evaluacion cuesta consultas de camino sobre varios candidatos, asi que esto " +
+             "es un knob de costo real. No lo bajes a cero para que se sienta mas agil: la " +
+             "prediccion se recalcula igual todos los frames, esto es solo la eleccion de ruta.")]
+    [SerializeField, Min(0.1f)] private float chaseRouteReplanInterval = 0.75f;
+
+    [Tooltip("Metros que se tiene que mover la creencia para forzar una re-evaluacion de ruta " +
+             "antes de que venza el intervalo.\n\n" +
+             "Es lo que hace que volver a verte del otro lado del pasillo se sienta inmediato en " +
+             "vez de esperar hasta tres cuartos de segundo.")]
+    [SerializeField, Min(0.5f)] private float chaseBeliefMoveThreshold = 3f;
+
+    [Tooltip("Cuanto mas puede tardar un waypoint de flanqueo respecto de ir derecho, y aun asi " +
+             "valer la pena.\n\n" +
+             "1 = solo acepta desvios que no cuesten nada. 1.25 acepta llegar un 25% mas tarde a " +
+             "cambio de terminar en un lugar desde donde te VE. Muy alto y deja de perseguirte " +
+             "para irse a pasear por posiciones bonitas.\n\n" +
+             "No se aplica cuando no hay camino completo hasta la creencia: ahi cualquier waypoint " +
+             "alcanzable con linea de vision es mejor que quedarse pegado contra una pared, que es " +
+             "lo que hacia antes.")]
+    [SerializeField, Min(1f)] private float chaseDetourTolerance = 1.25f;
+
     [Header("Search — interception")]
     //
     // Searching used to walk to the nearest unswept waypoint FROM WHERE IT WAS STANDING: the last
@@ -195,6 +326,21 @@ public class SO_NemesisData : ScriptableObject
              "A bit larger than the FieldOfView's viewRange (10 in the prefab) works well.")]
     [SerializeField] private float proximityRadius = 12f;
 
+    [Header("Patrol routes - mirar alrededor")]
+    [Tooltip("Cuántos grados hacia cada lado barre la MIRADA mientras el Nemesis espera parado en " +
+             "un waypoint.\n\n" +
+             "La mirada es independiente del cuerpo: el NavMeshAgent rota al Nemesis hacia donde " +
+             "camina, así que sin esto la pausa en un waypoint es el monstruo clavado mirando el " +
+             "pasillo por el que vino. Con esto, la espera pasa a leerse como que está revisando.\n\n" +
+             "0 lo apaga y la mirada queda pegada al frente del cuerpo, como antes.")]
+    [SerializeField, Range(0f, 180f)] private float scanHalfAngle = 50f;
+
+    [Tooltip("Grados por segundo a los que gira la mirada durante ese barrido.\n\n" +
+             "Rápido se lee como nervioso y además hace la periferia inútil (te barre por encima " +
+             "antes de que la sospecha llegue a subir). Lento se lee pesado y deliberado, y le da " +
+             "tiempo a la sospecha a acumularse - que es lo que querés que pase.")]
+    [SerializeField, Min(1f)] private float scanSpeed = 60f;
+
     [Header("Patrol routes (Tier 3.1)")]
     [Tooltip("Chance, rolled once every time Patrolling is (re)entered, of walking the active " +
              "route in the opposite direction for that cycle.")]
@@ -274,6 +420,20 @@ public class SO_NemesisData : ScriptableObject
              "the NavMesh, so a zone one floor up is as far as the walk to the lift makes it.")]
     [SerializeField, Min(1f)] private float clusterNeighbourFalloff = 25f;
 
+    [Tooltip("Cuánto se le recorta el peso a una zona por haber sido barrida hace poco. " +
+             "1 = sin penalización, 0.25 = le quedan la cuarta parte de los boletos.\n\n" +
+             "Excluir sólo la zona recién terminada no alcanza para que el Nemesis deje de hacer " +
+             "A-B-A-B entre dos vecinas: apenas se va de B, A vuelve a ser candidata a peso " +
+             "completo, y encima el sesgo de vecindad la favorece justamente por estar al lado. " +
+             "Esto es lo que convierte 'andá a otro lado' en 'andá a donde no acabás de estar'.")]
+    [SerializeField, Range(0f, 1f)] private float clusterRecencyPenalty = 0.25f;
+
+    [Tooltip("A cuántas zonas recién barridas se les aplica la penalización.\n\n" +
+             "0 la apaga. Subirlo cerca de la cantidad de cúmulos de la isla deja al Nemesis sin " +
+             "candidatas sin penalizar, y ahí la penalización se anula sola — todas pesan poco, " +
+             "que es lo mismo que si ninguna pesara poco.")]
+    [SerializeField, Min(0)] private int clusterRecencyMemory = 2;
+
     [Header("Patrol routes — cross-route transfer")]
     [Tooltip("Chance, on each waypoint arrival, of jumping to a waypoint on ANOTHER unlocked " +
              "route instead of following the current route in order.\n\n" +
@@ -328,9 +488,28 @@ public class SO_NemesisData : ScriptableObject
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
     public float PatrolWaypointWaitTime { get => patrolWaypointWaitTime; set => patrolWaypointWaitTime = value; }
+    public float PatrolWaitVariance { get => patrolWaitVariance; set => patrolWaitVariance = value; }
+
+    /// <summary>Shortest the Nemesis may wait at a waypoint. Floored at 0: a variance wider than
+    /// the base wait would otherwise ask for a negative delay.</summary>
+    public float PatrolWaitMin => Mathf.Max(0f, patrolWaypointWaitTime - patrolWaitVariance);
+
+    /// <summary>Longest the Nemesis may wait at a waypoint.</summary>
+    public float PatrolWaitMax => Mathf.Max(PatrolWaitMin, patrolWaypointWaitTime + patrolWaitVariance);
     public float NoiseUpdateCooldown { get => noiseUpdateCooldown; set => noiseUpdateCooldown = value; }
     public float ViewRange { get => viewRange; set => viewRange = value; }
     public float ViewAngle { get => viewAngle; set => viewAngle = value; }
+    public float FocusAngle { get => focusAngle; set => focusAngle = value; }
+    public float AwarenessBuildTime { get => awarenessBuildTime; set => awarenessBuildTime = value; }
+    public float AwarenessDecayRate { get => awarenessDecayRate; set => awarenessDecayRate = value; }
+    public float AwarenessTriggerThreshold { get => awarenessTriggerThreshold; set => awarenessTriggerThreshold = value; }
+    public float ScanHalfAngle { get => scanHalfAngle; set => scanHalfAngle = value; }
+    public float ScanSpeed { get => scanSpeed; set => scanSpeed = value; }
+
+    /// <summary>Whether the peripheral band exists at all. False when the designer has widened the
+    /// focus cone to (or past) the full view cone, which switches gradual detection off and
+    /// restores the old instant-detection behaviour everywhere.</summary>
+    public bool HasPeripheralVision => focusAngle < viewAngle;
     public float ProximityDetectionRange { get => proximityDetectionRange; set => proximityDetectionRange = value; }
     public float CrouchVisionMultiplier { get => crouchVisionMultiplier; set => crouchVisionMultiplier = value; }
     public float ListenRange { get => listenRange; set => listenRange = value; }
@@ -343,6 +522,15 @@ public class SO_NemesisData : ScriptableObject
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchLeadTime { get => searchLeadTime; set => searchLeadTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
+    public float SearchLastKnownBias { get => searchLastKnownBias; set => searchLastKnownBias = value; }
+    public float SearchPredictionBias { get => searchPredictionBias; set => searchPredictionBias = value; }
+    public float SearchBiasFalloff { get => searchBiasFalloff; set => searchBiasFalloff = value; }
+    public float SearchSweptPenalty { get => searchSweptPenalty; set => searchSweptPenalty = value; }
+    public float SearchPauseTime { get => searchPauseTime; set => searchPauseTime = value; }
+    public float ChaseTimePrediction { get => chaseTimePrediction; set => chaseTimePrediction = value; }
+    public float ChaseRouteReplanInterval { get => chaseRouteReplanInterval; set => chaseRouteReplanInterval = value; }
+    public float ChaseBeliefMoveThreshold { get => chaseBeliefMoveThreshold; set => chaseBeliefMoveThreshold = value; }
+    public float ChaseDetourTolerance { get => chaseDetourTolerance; set => chaseDetourTolerance = value; }
     public float BeliefTraceRadius { get => beliefTraceRadius; set => beliefTraceRadius = value; }
     public float InterceptForwardDot { get => interceptForwardDot; set => interceptForwardDot = value; }
     public float InterceptTimeMargin { get => interceptTimeMargin; set => interceptTimeMargin = value; }
@@ -374,6 +562,8 @@ public class SO_NemesisData : ScriptableObject
         set => clusterMaxWaypoints = value;
     }
 
+    public float ClusterRecencyPenalty { get => clusterRecencyPenalty; set => clusterRecencyPenalty = value; }
+    public int ClusterRecencyMemory { get => clusterRecencyMemory; set => clusterRecencyMemory = value; }
     public float ClusterNeighbourBias { get => clusterNeighbourBias; set => clusterNeighbourBias = value; }
     public float ClusterNeighbourFalloff { get => clusterNeighbourFalloff; set => clusterNeighbourFalloff = value; }
     public float CrossRouteTransferChance { get => crossRouteTransferChance; set => crossRouteTransferChance = value; }

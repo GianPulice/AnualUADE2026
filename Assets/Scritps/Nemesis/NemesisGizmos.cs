@@ -35,6 +35,12 @@ public class NemesisGizmos : MonoBehaviour
              "crouched. Usually far smaller than anyone expects.")]
     [SerializeField] private bool drawCrouchedVisionCone = true;
 
+    [Tooltip("Inner cone (FocusAngle): where detection is INSTANT. Everything between it and the " +
+             "outer cone is peripheral vision, where the Nemesis only builds suspicion instead of " +
+             "spotting you outright. Drawn nested inside the vision cone, so the gap between the " +
+             "two arcs IS the peripheral band.")]
+    [SerializeField] private bool drawFocusCone = true;
+
     [Tooltip("Hard detection radius: inside it you are seen with no cone and no hiding.")]
     [SerializeField] private bool drawProximityDetection = true;
 
@@ -96,6 +102,45 @@ public class NemesisGizmos : MonoBehaviour
         DrawCatch(data);
         DrawSearchAndVignette(data);
         DrawIntercept();
+        DrawPursuit();
+    }
+
+    /// <summary>
+    /// Where the chase is aiming: the predicted point, and the waypoint it decided to route
+    /// through when it took one.
+    ///
+    /// Same argument as DrawIntercept below. A Nemesis that swung round a corner to open the angle
+    /// on you and a Nemesis that wandered into you from the side are indistinguishable from the
+    /// outside, so without this "did the flanking work" is not a question anyone can answer - and
+    /// ChaseDetourTolerance is a number nobody can tune. The ABSENCE of the detour line is
+    /// information too: it means going direct was good enough, which is the common and correct
+    /// case.
+    ///
+    /// Play mode only, because none of it exists outside it.
+    /// </summary>
+    private void DrawPursuit()
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisStateManager manager = StateManager;
+        NemesisChasingState chasing = manager != null ? manager.ChasingState : null;
+        NemesisPursuit pursuit = chasing != null ? chasing.Pursuit : null;
+        if (pursuit == null || !pursuit.HasPredictedPoint) return;
+
+        Vector3 eye = transform.position + Vector3.up * 0.5f;
+
+        // Amber, the alert band, and not red: red is the capture reach and nothing else.
+        Gizmos.color = VisionColor;
+        Gizmos.DrawLine(eye, pursuit.PredictedPoint);
+        Gizmos.DrawWireSphere(pursuit.PredictedPoint, 0.4f);
+        DrawLabel(pursuit.PredictedPoint + Vector3.up * 0.8f, "predicho", VisionColor);
+
+        if (!pursuit.HasRoutePoint) return;
+
+        Gizmos.color = HardDetectColor;
+        Gizmos.DrawLine(eye, pursuit.RoutePoint);
+        Gizmos.DrawWireCube(pursuit.RoutePoint, Vector3.one * 0.5f);
+        DrawLabel(pursuit.RoutePoint + Vector3.up * 0.8f, "flanqueo", HardDetectColor);
     }
 
     /// <summary>
@@ -148,6 +193,16 @@ public class NemesisGizmos : MonoBehaviour
         if (drawVisionCone)
             DrawCone(eye, data.ViewRange, data.ViewAngle, VisionColor, $"view {data.ViewRange:0.#} m");
 
+        // Nested inside the outer cone, so what the eye reads off the picture is the GAP: that
+        // wedge is the band where the Nemesis has to look at you for a moment before it reacts.
+        // Drawn in the hard-detection orange rather than a fourth colour, because "inside this you
+        // are spotted immediately" is the same statement the proximity ring makes.
+        if (drawFocusCone && data.HasPeripheralVision)
+        {
+            DrawCone(eye, data.ViewRange, data.FocusAngle, HardDetectColor,
+                     $"foco {data.FocusAngle:0.#}\u00b0");
+        }
+
         if (!drawCrouchedVisionCone) return;
 
         // Crouching shortens the range rather than breaking line of sight — see FieldOfView. So it
@@ -169,22 +224,33 @@ public class NemesisGizmos : MonoBehaviour
     /// (<c>Vector3.Angle(forward, dir) &lt; viewAngle / 2</c>) — drawing the full angle to each
     /// side would show a cone twice as wide as the one the game uses.
     /// </summary>
-    private void DrawCone(Transform eye, float range, float angle, Color color, string label)
+    private void DrawCone(Transform eye, float range, float angle, Color color, string label) =>
+        DrawCone(eye.position, LookDirectionOf(eye), range, angle, color, label);
+
+    /// <summary>
+    /// Cone around an explicit front vector.
+    ///
+    /// The overload exists because the eye no longer necessarily looks where the body points: with
+    /// NemesisLookAround driving FieldOfView.LookDirection, a cone drawn off eye.forward while the
+    /// Nemesis is scanning is a picture of somewhere it is NOT looking, which is worse than no
+    /// picture at all.
+    /// </summary>
+    private void DrawCone(Vector3 origin, Vector3 front, float range, float angle, Color color,
+                          string label)
     {
         if (range <= 0.01f) return;
 
-        Vector3 origin = eye.position;
         float half = Mathf.Clamp(angle, 0f, 360f) * 0.5f;
 
         Gizmos.color = color;
 
-        Vector3 previous = origin + DirectionAt(eye, -half) * range;
+        Vector3 previous = origin + DirectionAt(front, -half) * range;
         Gizmos.DrawLine(origin, previous);
 
         for (int i = 1; i <= arcSegments; i++)
         {
             float t = (float)i / arcSegments;
-            Vector3 point = origin + DirectionAt(eye, Mathf.Lerp(-half, half, t)) * range;
+            Vector3 point = origin + DirectionAt(front, Mathf.Lerp(-half, half, t)) * range;
 
             Gizmos.DrawLine(previous, point);
             previous = point;
@@ -192,18 +258,32 @@ public class NemesisGizmos : MonoBehaviour
 
         Gizmos.DrawLine(origin, previous);
 
-        DrawLabel(origin + eye.forward * range, label, color);
+        DrawLabel(origin + DirectionAt(front, 0f) * range, label, color);
     }
 
-    /// <summary>Direction <paramref name="degrees"/> off the transform's forward, flattened so a
-    /// Nemesis on a ramp still draws its cone level with the floor.</summary>
-    private static Vector3 DirectionAt(Transform eye, float degrees)
+    /// <summary>
+    /// Where the cone should be drawn from: the sensor's live look direction in Play mode, the
+    /// eye's forward otherwise.
+    ///
+    /// Reached through the component rather than cached, like everything else here - the Scene view
+    /// draws outside Play mode, where Awake has not run.
+    /// </summary>
+    private Vector3 LookDirectionOf(Transform eye)
     {
-        Vector3 forward = eye.forward;
-        forward.y = 0f;
-        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        NemesisStateManager manager = StateManager;
+        FieldOfView view = manager != null ? manager.FieldOfView : null;
 
-        return Quaternion.AngleAxis(degrees, Vector3.up) * forward.normalized;
+        return view != null && Application.isPlaying ? view.LookDirection : eye.forward;
+    }
+
+    /// <summary>Direction <paramref name="degrees"/> off a front vector, flattened so a Nemesis on
+    /// a ramp still draws its cone level with the floor.</summary>
+    private static Vector3 DirectionAt(Vector3 front, float degrees)
+    {
+        front.y = 0f;
+        if (front.sqrMagnitude < 0.0001f) front = Vector3.forward;
+
+        return Quaternion.AngleAxis(degrees, Vector3.up) * front.normalized;
     }
 
     // ── Hearing ─────────────────────────────────────────────────────────────

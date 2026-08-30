@@ -26,7 +26,7 @@ MonoBehaviour:
   - enabled: 1
     target: 3
     interrupts: 0
-    note: 'compromiso: la búsqueda dura al menos medio segundo'
+    note: "compromiso: la b\xFAsqueda dura al menos medio segundo"
     conditions:
     - predicate: 6
       negate: 0
@@ -50,6 +50,36 @@ MonoBehaviour:
       customSeconds: 0
   - enabled: 1
     target: 5
+    interrupts: 1
+    note: esta cruzando el montacargas
+    conditions:
+    - predicate: 10
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 5
+    interrupts: 0
+    note: ya se comprometio con el montacargas
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 5
+      threshold: 0
+      customSeconds: 0
+    - predicate: 8
+      negate: 0
+      state: 0
+      threshold: 3
+      customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 3
+      customSeconds: 0
+  - enabled: 1
+    target: 5
     interrupts: 0
     note: para llegar hay que tomar el montacargas
     conditions:
@@ -66,7 +96,7 @@ MonoBehaviour:
   - enabled: 1
     target: 2
     interrupts: 1
-    note: lo está viendo
+    note: "lo est\xE1 viendo"
     conditions:
     - predicate: 0
       negate: 0
@@ -76,7 +106,7 @@ MonoBehaviour:
   - enabled: 1
     target: 2
     interrupts: 0
-    note: lo perdió de vista recién
+    note: "lo perdi\xF3 de vista reci\xE9n"
     conditions:
     - predicate: 6
       negate: 0
@@ -84,6 +114,31 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
     - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "le queda presupuesto de b\xFAsqueda"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 3
+      threshold: 0
+      customSeconds: 0
+    - predicate: 8
+      negate: 0
+      state: 0
+      threshold: 2
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: vio algo de reojo
+    conditions:
+    - predicate: 9
       negate: 0
       state: 0
       threshold: 0
@@ -101,7 +156,7 @@ MonoBehaviour:
   - enabled: 1
     target: 1
     interrupts: 0
-    note: sigue yendo hacia el último ruido
+    note: "sigue yendo hacia el \xFAltimo ruido"
     conditions:
     - predicate: 6
       negate: 0
@@ -121,22 +176,7 @@ MonoBehaviour:
   - enabled: 1
     target: 3
     interrupts: 0
-    note: le queda presupuesto de búsqueda
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 3
-      threshold: 0
-      customSeconds: 0
-    - predicate: 8
-      negate: 0
-      state: 0
-      threshold: 2
-      customSeconds: 0
-  - enabled: 1
-    target: 3
-    interrupts: 0
-    note: venía persiguiendo y todavía cree algo
+    note: "ven\xEDa persiguiendo y todav\xEDa cree algo"
     conditions:
     - predicate: 6
       negate: 0
@@ -151,7 +191,7 @@ MonoBehaviour:
   - enabled: 1
     target: 3
     interrupts: 0
-    note: venía hacia el montacargas y todavía cree algo
+    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
     conditions:
     - predicate: 6
       negate: 0

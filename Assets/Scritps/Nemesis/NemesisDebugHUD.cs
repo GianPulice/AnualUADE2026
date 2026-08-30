@@ -149,7 +149,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 12f + stripHeight + 26f;
+        float height = lineHeight * 13f + stripHeight + 26f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -158,6 +158,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         Row(ref line, "estado", DescribeState());
         Row(ref line, "regla", DescribeRung());
+        Row(ref line, "sospecha", DescribeAwareness());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "distancia", DescribeDistance());
         Row(ref line, "búsqueda", DescribeSearch());
@@ -205,6 +206,36 @@ public class NemesisDebugHUD : MonoBehaviour
             : decision.LastReason;
     }
 
+    /// <summary>
+    /// The peripheral-vision meter, as a bar plus its number and the threshold it has to clear.
+    ///
+    /// Without this row the whole two-band cone is untunable: AwarenessBuildTime is a rate nobody
+    /// can see, so "did it not notice me, or did it notice me and the threshold is too high" is
+    /// not a question anyone can answer while playing - and those two have opposite fixes.
+    ///
+    /// A bar and not just a number because what matters while testing is the SHAPE of the ramp:
+    /// how fast it fills as you step further into the cone, and how fast it drains once you duck
+    /// back out. Both read at a glance and neither reads off a figure changing ten times a second.
+    /// </summary>
+    private string DescribeAwareness()
+    {
+        float awareness = stateManager.Awareness;
+
+        SO_NemesisData data = stateManager.NemesisData;
+        float threshold = data != null ? data.AwarenessTriggerThreshold : 0f;
+
+        const int Cells = 12;
+        int filled = Mathf.Clamp(Mathf.RoundToInt(awareness * Cells), 0, Cells);
+
+        string bar = new string('#', filled) + new string('.', Cells - filled);
+
+        if (stateManager.HasVisualTarget) return $"[{bar}] <b>lo ve</b>";
+
+        string state = stateManager.IsSuspicious ? "  ·  <b>sospecha</b>" : "";
+
+        return $"[{bar}] {awareness:0.00} / {threshold:0.00}{state}";
+    }
+
     private string DescribeBelief()
     {
         if (!stateManager.TryGetBelief(out _)) return "nunca lo sintió";
@@ -246,11 +277,26 @@ public class NemesisDebugHUD : MonoBehaviour
         if (telemetry == null) telemetry = GetComponent<NemesisTelemetry>();
         if (telemetry == null) return "—";
 
-        Vector3? intercept = telemetry.SearchInterceptPoint;
-        if (!intercept.HasValue) return "barrido (sin intercepción)";
+        NemesisSearchingState searching = stateManager.SearchingState;
 
-        float distance = Vector3.Distance(transform.position, intercept.Value);
-        return $"<b>interceptando</b> a {distance:0.0} m";
+        // The pause outranks everything else on this row: while it is standing still looking
+        // around, "where is it heading" is not the question - it has already got there.
+        if (searching != null && searching.IsPausing) return "<b>mirando alrededor</b>";
+
+        Vector3? intercept = telemetry.SearchInterceptPoint;
+        if (intercept.HasValue)
+        {
+            float interceptDistance = Vector3.Distance(transform.position, intercept.Value);
+            return $"<b>interceptando</b> a {interceptDistance:0.0} m";
+        }
+
+        // No cut-off to be had, so it is working the weighted roll. Reporting the target and how
+        // far it is turns "barrido" from a label into something that can be checked against the
+        // last known position: if the two keep diverging, the LKP bias is too low.
+        if (searching == null) return "barrido (sin intercepción)";
+
+        float distance = Vector3.Distance(transform.position, searching.SearchTarget);
+        return $"buscando a {distance:0.0} m (sin intercepción)";
     }
 
     private string DescribeCluster()

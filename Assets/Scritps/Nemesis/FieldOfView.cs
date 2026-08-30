@@ -38,8 +38,78 @@ public class FieldOfView : MonoBehaviour
     private Vector3 lastKnownVelocity;
     private float lastSightingTime;
 
+    // -- Peripheral vision --------------------------------------------------
+    //
+    // What the last sweep found in the OUTER band of the cone: inside viewAngle but outside
+    // focusAngle. Detection there is not instant; it accumulates. Held as state between sweeps
+    // because the sweep runs on viewDelay (0.1 s) while the ramp below is integrated every frame,
+    // which is what keeps the build-up frame-rate independent instead of "however many sweeps
+    // happened to land".
+
+    private bool peripheralContact;
+    private GameObject peripheralTarget;
+    private Vector3 peripheralPoint;
+
+    /// <summary>How close the peripheral contact is, 1 at the eye and 0 at the edge of the vision
+    /// range. Scales the build-up: something at arm's length in the corner of the eye registers
+    /// far faster than the same thing at the far end of a corridor.</summary>
+    private float peripheralCloseness;
+
+    private float awareness;
+
+    private Vector3 lookDirection;
+
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
+
+    /// <summary>
+    /// How close the Nemesis is to noticing something in the corner of its eye: 0 nothing, 1
+    /// detected.
+    ///
+    /// This is the whole of the change from binary vision. Before it, the cone was all-or-nothing:
+    /// a player at the extreme edge of a 120 degree cone, seven metres away, tripped exactly the
+    /// same instant detection as one standing dead ahead at two metres - and since "sees the
+    /// player" is an INTERRUPT rung on the priority ladder, peeking round a corner started a full
+    /// chase in the same frame, with no beat in between for the player to react to.
+    ///
+    /// Reaching 1 promotes the contact to a real sighting and everything downstream behaves as it
+    /// always did. Below 1 it is readable by the decision layer as suspicion, which is what sends
+    /// the Nemesis to walk over and look rather than to sprint.
+    /// </summary>
+    public float Awareness { get => awareness; }
+
+    /// <summary>Whether the Nemesis is onto something without having actually seen it yet. False
+    /// once it HAS seen them - past that point this is no longer a suspicion, and a rung reading
+    /// both would fire twice for one event.</summary>
+    public bool IsSuspicious
+    {
+        get
+        {
+            if (hasVisualTarget || nemesisData == null) return false;
+
+            return awareness >= nemesisData.AwarenessTriggerThreshold;
+        }
+    }
+
+    /// <summary>
+    /// Where the eye is actually pointed. Defaults to the view transform's forward and can be
+    /// driven elsewhere - see <see cref="NemesisLookAround"/>.
+    ///
+    /// It has to be separate from the body's forward because the body's forward is not the
+    /// Nemesis's to spend: the NavMeshAgent rotates it towards whatever it is walking at. With the
+    /// cone welded to that, a Nemesis standing still at a patrol waypoint stares down the corridor
+    /// it arrived from for the entire wait and cannot look anywhere else, however long it stands
+    /// there.
+    /// </summary>
+    public Vector3 LookDirection
+    {
+        get => lookDirection.sqrMagnitude > 0.0001f ? lookDirection : ViewTransform.forward;
+        set => lookDirection = value.sqrMagnitude > 0.0001f ? value.normalized : Vector3.zero;
+    }
+
+    /// <summary>Hands the eye back to the body. Called when whatever was steering the look
+    /// direction stops.</summary>
+    public void ResetLookDirection() => lookDirection = Vector3.zero;
 
     /// <summary>
     /// Where the cone is cast from — eye height, not the pivot.
@@ -130,6 +200,14 @@ public class FieldOfView : MonoBehaviour
         // Cleared too, or GetCurrentTarget keeps handing back the player it was holding and the
         // capture check can fire again on a target the Nemesis is no longer entitled to know about.
         lastKnownTarget = null;
+
+        // Same reasoning one level down: a suspicion meter left full is a memory of the player
+        // too, and the whole point of this call is that the respawn has made every such memory
+        // actively false. Left standing it would re-promote to a sighting on the next frame the
+        // Nemesis happened to have anything in its periphery.
+        awareness = 0f;
+        peripheralContact = false;
+        peripheralTarget = null;
     }
 
     /// <summary>
@@ -160,6 +238,59 @@ public class FieldOfView : MonoBehaviour
             currentTimer = 0;
             FindVisibleTargets();
         }
+
+        // Every frame, not once per sweep. The sweep runs on viewDelay and only decides WHAT is
+        // in the periphery; how fast that turns into a detection is a rate, and integrating a rate
+        // on a 0.1 s cadence would make the whole feature depend on how the timer happened to line
+        // up with the frames.
+        TickAwareness(Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Moves the suspicion meter, and promotes it to a real sighting when it fills.
+    ///
+    /// The build-up is scaled by closeness so the ramp means something across the whole range:
+    /// with a flat rate, a player at the far edge of the cone and one two metres away are noticed
+    /// after the same number of seconds, which is the binary sensor again wearing a timer.
+    ///
+    /// The decay is deliberately slower than the build-up at its default tuning, and that is what
+    /// makes leaning out twice in a row worse than leaning out once: the second peek starts from
+    /// wherever the first one left off.
+    /// </summary>
+    private void TickAwareness(float deltaTime)
+    {
+        if (nemesisData == null) return;
+
+        // Already seen: the meter is full by definition and nothing needs integrating. Leaving it
+        // full also means that losing sight decays from the top rather than snapping to zero.
+        if (hasVisualTarget)
+        {
+            awareness = 1f;
+            return;
+        }
+
+        if (!peripheralContact)
+        {
+            awareness = Mathf.Max(0f, awareness - nemesisData.AwarenessDecayRate * deltaTime);
+            return;
+        }
+
+        float buildTime = Mathf.Max(0.05f, nemesisData.AwarenessBuildTime);
+
+        // Closeness scales the RATE, floored so a contact at the very edge of the range still
+        // eventually registers instead of stalling at a value it can never climb past.
+        float rate = Mathf.Lerp(0.35f, 2f, peripheralCloseness) / buildTime;
+
+        awareness = Mathf.Min(1f, awareness + rate * deltaTime);
+
+        if (awareness < 1f) return;
+
+        // Filled: this stops being a suspicion and becomes a sighting, on exactly the same terms
+        // as one caught by the focus cone. RecordSighting is what keeps LastKnownVelocity honest,
+        // so it has to run here too and not only on the instant path.
+        hasVisualTarget = true;
+        lastKnownTarget = peripheralTarget;
+        RecordSighting(peripheralPoint);
     }
 
     /// <summary>
@@ -185,13 +316,20 @@ public class FieldOfView : MonoBehaviour
         if (player == null) return false;
 
         Vector3 playerPosition = player.transform.position;
-        if (Vector3.Distance(viewTransform.position, playerPosition) > range) return false;
+        if (!LineOfSight.CheckRange(viewTransform.position, playerPosition, range)) return false;
 
         if (nemesisData.ProximityDetectionRespectsWalls && IsOccluded(playerPosition)) return false;
 
         hasVisualTarget = true;
         lastKnownTarget = player.gameObject;
         RecordSighting(playerPosition);
+
+        // Straight to full. Hard proximity is the one detection that answers no questions about
+        // cones or suspicion - it is "you are standing on me" - so ramping it would be absurd, and
+        // leaving the meter low here would let it decay while the player is still in contact.
+        awareness = 1f;
+        peripheralContact = false;
+
         return true;
     }
 
@@ -230,15 +368,8 @@ public class FieldOfView : MonoBehaviour
     /// the distance is a couple of metres and the question being answered is "is there a wall in
     /// between", not "is a shoulder peeking out".
     /// </summary>
-    private bool IsOccluded(Vector3 targetPosition)
-    {
-        Vector3 origin = viewTransform.position;
-        Vector3 toTarget = targetPosition - origin;
-        float distance = toTarget.magnitude;
-        if (distance <= 0.0001f) return false;
-
-        return Physics.Raycast(origin, toTarget / distance, distance, obstacleMask);
-    }
+    private bool IsOccluded(Vector3 targetPosition) =>
+        !LineOfSight.CheckView(viewTransform.position, targetPosition, obstacleMask);
 
     public void FindVisibleTargets()
     {
@@ -252,6 +383,11 @@ public class FieldOfView : MonoBehaviour
         if (player != null && player.IsHidden)
         {
             hasVisualTarget = false;
+
+            // Cleared as well, or the suspicion meter keeps climbing off the last sweep that saw
+            // them - which would have the Nemesis work out that someone is in the locker purely
+            // by having been looking that way when they got in.
+            peripheralContact = false;
             return;
         }
 
@@ -262,34 +398,75 @@ public class FieldOfView : MonoBehaviour
         // a lower silhouette is harder to pick out, not invisible.
         if (player != null && player.IsCrouch) viewRange *= nemesisData.CrouchVisionMultiplier;
 
+        Vector3 eye = viewTransform.position;
+        Vector3 front = LookDirection;
+        float focusAngle = nemesisData.FocusAngle;
+
         visibleTargets.Clear();
-        Collider[] targetsInViewRadius = Physics.OverlapSphere(viewTransform.position, viewRange, targetMask);
+        peripheralContact = false;
+
+        GameObject focusHit = null;
+        GameObject peripheralHit = null;
+        float peripheralDistance = float.PositiveInfinity;
+
+        Collider[] targetsInViewRadius = Physics.OverlapSphere(eye, viewRange, targetMask);
         for (int i = 0; i < targetsInViewRadius.Length; i++)
         {
-            for (int j = -1; j < 2; j++)
+            Collider candidate = targetsInViewRadius[i];
+
+            // The OUTER cone, sampled at feet/centre/head. One call where this used to be a
+            // hand-rolled double loop; see LineOfSight.CheckConeSampled for why the three samples
+            // and the together-per-sample angle+occlusion test both matter.
+            if (!LineOfSight.CheckConeSampled(eye, front, candidate, viewAngle, minDistance,
+                                              obstacleMask, out Vector3 seenPoint))
             {
-                Vector3 targetPoint = targetsInViewRadius[i].bounds.center + new Vector3(0f, j * targetsInViewRadius[i].bounds.extents.y * 0.9f, 0f);
-                float distToTarget = Vector3.Distance(viewTransform.position, targetPoint);
-                Vector3 dirToTarget = (targetPoint - viewTransform.position).normalized;
-                if (Vector3.Angle(viewTransform.forward, dirToTarget) < viewAngle / 2 || distToTarget <= minDistance)
-                {
-                    if (!Physics.Raycast(viewTransform.position, dirToTarget, distToTarget, obstacleMask))
-                    {
-                        if (!visibleTargets.Contains(targetsInViewRadius[i].gameObject))
-                        {
-                            visibleTargets.Add(targetsInViewRadius[i].gameObject);
-                            lastKnownTarget = targetsInViewRadius[i].gameObject;
-                        }
-                    }
-                }
+                continue;
             }
+
+            GameObject target = candidate.gameObject;
+            float distance = Vector3.Distance(eye, seenPoint);
+
+            // Inside the focus cone this is a sighting, exactly as it always was. minDistance
+            // still overrides the angle: something touching the Nemesis is not "in the corner of
+            // its eye" no matter which way it happens to be facing.
+            bool inFocus = distance <= minDistance ||
+                           LineOfSight.CheckAngle(eye, seenPoint, front, focusAngle);
+
+            if (inFocus)
+            {
+                if (!visibleTargets.Contains(target))
+                {
+                    visibleTargets.Add(target);
+                    focusHit = target;
+                }
+                continue;
+            }
+
+            // Outer band. Not a detection yet - it feeds the suspicion ramp in TickAwareness, and
+            // only becomes one if the exposure lasts. Nearest wins, so a second target further out
+            // cannot slow down the ramp for the one actually closing in.
+            if (distance >= peripheralDistance) continue;
+
+            peripheralDistance = distance;
+            peripheralHit = target;
+            peripheralPoint = target.transform.position;
         }
+
         if (visibleTargets.Count > 0)
         {
             hasVisualTarget = true;
+            lastKnownTarget = focusHit != null ? focusHit : visibleTargets[0];
             RecordSighting(visibleTargets[0].transform.position);
+            return;
         }
-        else hasVisualTarget = false;
+
+        hasVisualTarget = false;
+
+        if (peripheralHit == null) return;
+
+        peripheralContact = true;
+        peripheralTarget = peripheralHit;
+        peripheralCloseness = 1f - Mathf.Clamp01(peripheralDistance / Mathf.Max(0.01f, viewRange));
     }
     /// <summary>
     /// Last target seen, or null if nobody has been seen yet / the object was destroyed.

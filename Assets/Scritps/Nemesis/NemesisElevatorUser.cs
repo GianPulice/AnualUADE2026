@@ -51,6 +51,17 @@ public class NemesisElevatorUser : MonoBehaviour
     private bool isTraversing;
 
     /// <summary>
+    /// A lift crossing is in flight: waiting for the cabin, boarding, riding, or stepping off.
+    ///
+    /// Public because the decision ladder needs it. While this is true the Nemesis's body is being
+    /// driven by hand and the FSM must say Traversing whatever the route verdict happens to think
+    /// this frame - see the "esta cruzando el montacargas" rung. It spans the whole attempt,
+    /// including the cabin wait, which is the part where the agent is still enabled and therefore
+    /// the part where the rest of the system can least tell that something else is in charge.
+    /// </summary>
+    public bool IsTraversing => isTraversing;
+
+    /// <summary>
     /// The elevator most recently given up on, and until when it stays off the menu.
     ///
     /// Abandoning a link is not the same as leaving it: the agent is still standing on it, so
@@ -138,6 +149,43 @@ public class NemesisElevatorUser : MonoBehaviour
         // instead of blowing up on a null reference.
         if (elevator != null && elevator.IsUsable) TraverseElevatorAsync(elevator, token).Forget();
         else                                       TraverseSimpleLinkAsync(data, token).Forget();
+    }
+
+    /// <summary>
+    /// Freezes the agent where it stands and drops it to the idle gait, or hands it back.
+    ///
+    /// <c>isStopped</c> and not <c>ResetPath</c>: the path is what the Nemesis goes back to
+    /// following if the lift never comes, and throwing it away here would make every abandoned
+    /// attempt also a lost destination.
+    ///
+    /// The gait is set through the state manager rather than on the Animator, because gait and
+    /// speed are one decision there - which is the whole reason SetGait exists, and why "standing
+    /// still playing a run" is a combination this component cannot accidentally produce once it
+    /// goes through it.
+    ///
+    /// Releasing restores the RUNNING gait rather than whatever was there before: the only state
+    /// that reaches a lift is Traversing, which runs. Reading the previous value back would mean
+    /// remembering it across an await that can be cancelled halfway.
+    /// </summary>
+    private void HoldStill(bool hold)
+    {
+        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
+        {
+            agent.isStopped = hold;
+
+            // Zeroed as well as stopped. isStopped halts the steering but leaves whatever velocity
+            // the agent had built up, and a body that keeps drifting for a few tenths of a second
+            // after being told to wait is exactly how it ends up inside the shaft wall.
+            if (hold) agent.velocity = Vector3.zero;
+        }
+
+        if (stateManager == null) return;
+
+        SO_NemesisMovement movement = Movement;
+        float chaseSpeed = movement != null ? movement.ChaseSpeed : 0f;
+
+        if (hold) stateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
+        else      stateManager.SetGait(NemesisStateManager.EGait.Running, chaseSpeed);
     }
 
     private bool IsOnCooldown(NemesisElevatorLink elevator) =>
@@ -251,8 +299,31 @@ public class NemesisElevatorUser : MonoBehaviour
             //    end up issuing trips over each other.
             if (!platform.TryClaim(this)) return;
 
+            // 1b. STAND STILL AND LOOK LIKE IT.
+            //
+            // The wait below can last twenty seconds with the agent still ENABLED, and until now
+            // nothing told it to stop. Two things went wrong for the whole of that window, both
+            // from the same cause.
+            //
+            // The animation: NemesisTraversingState sets the running gait on entry and never
+            // touches it again, so the Nemesis stood at the landing sprinting on the spot.
+            //
+            // The wall: the agent was standing on the off-mesh link with a destination on the far
+            // side of the shaft, and every frame NemesisTraversingState re-issued it. An agent
+            // asked to keep going while it sits on a link it is not allowed to auto-traverse
+            // grinds along the link direction - which points straight through the shaft wall,
+            // because that is what the link is for. It is not that the Nemesis ignores the wall;
+            // it is that nobody had told it to stop walking at it.
+            //
+            // Stopping the agent is the same move NemesisDoorUser already makes while it sweeps a
+            // door open, and for the same reason.
+            HoldStill(true);
+
             // 2. Get the cabin to this floor, whatever it happens to be doing right now.
             if (!await BringCabinHereAsync(elevator, platform, token)) return;
+
+            // Boarding is hand-driven from here, so the hold is released along with the agent.
+            HoldStill(false);
 
             // 3. Board. The agent goes off first: with it alive, moving the Transform by hand does
             //    nothing because the agent snaps it back to its own internal position.
@@ -328,6 +399,12 @@ public class NemesisElevatorUser : MonoBehaviour
             // the agent is not on a link, so the mid-ride cancellation case — where the warp above
             // has already taken it off — costs nothing and cannot be forgotten.
             if (!completed) AbandonElevator(elevator);
+
+            // Whatever happened - rode it, gave up, got cancelled - the agent must not be left
+            // frozen. An early return between HoldStill(true) and HoldStill(false) would otherwise
+            // strand a stopped agent, which reads exactly like the stuck Nemesis this whole
+            // component exists to avoid, except the watchdog is suppressed and cannot rescue it.
+            HoldStill(false);
 
             if (stateManager != null)
             {

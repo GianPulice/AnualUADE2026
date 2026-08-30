@@ -83,6 +83,13 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
         // is nothing to ask of a disabled agent, and asking logs an error per frame.
         if (!nemesisStateManager.IsAgentReady) return;
 
+        // Standing on the link means NemesisElevatorUser is already driving: it has stopped the
+        // agent and is waiting for the cabin. IsAgentReady does NOT cover that window - the agent
+        // is only switched off once boarding starts, and the wait before it can run twenty
+        // seconds - so without this the destination was re-issued every frame at a point on the
+        // far side of the shaft, repathing a stopped agent into the wall it is standing against.
+        if (nemesisStateManager.NavAgent.isOnOffMeshLink) return;
+
         nemesisStateManager.NavAgent.destination = believedTarget;
     }
 }

@@ -35,7 +35,19 @@ using UnityEngine;
 /// therefore never running a single UpdateState, which reads in game as a monster that sees you
 /// and stands there twitching.
 ///
-/// IT IS STATELESS ON PURPOSE. Everything it needs to know about time comes from
+/// HOW THE LADDER IS EVALUATED
+///
+/// As a decision tree, built once from the rung list: one QuestionNode per rung, its false branch
+/// being the rung below. See BuildTree. That is the same first-match-wins answer the for loop it
+/// replaced produced, and it lifts the one ceiling a flat list has - a false branch can be a
+/// different sub-ladder rather than always the next line down.
+///
+/// IT KEEPS NO MEMORY BETWEEN DECISIONS, WHICH IS THE PART THAT MATTERS. It does hold two things
+/// now: the built tree (rebuilt when the ladder's shape changes) and a handful of per-pass fields
+/// the closures read during a single walk. Neither carries anything from one frame's decision into
+/// the next, so the property that counts is intact - no clock, no accumulated belief, nothing that
+/// would make this a second state machine sitting above the real one. Everything it knows about
+/// time still comes from
 /// <see cref="StateManager{EState}.TimeInCurrentState"/> and
 /// <see cref="NemesisStateManager.BeliefAge"/>. A decision layer with its own memory is a second
 /// state machine, and then there are two. The dwell hysteresis below is measured the same way,
@@ -90,6 +102,19 @@ public sealed class NemesisDecision
     public bool SeesPlayer => stateManager.HasVisualTarget;
 
     public bool HearsPlayer => stateManager.HasAudioTarget;
+
+    /// <summary>
+    /// Something in the corner of its eye that it has not resolved into a sighting yet.
+    ///
+    /// Deliberately goes false the moment SeesPlayer goes true, rather than both being true at
+    /// once: they are two stages of one event, and a ladder where a rung can match both would fire
+    /// the weaker response on the way into the stronger one.
+    /// </summary>
+    public bool IsSuspicious => stateManager.IsSuspicious;
+
+    /// <summary>Its body is on the freight elevator - waiting for it, boarding, riding or stepping
+    /// off. A fact about who is driving, not a sensor reading.</summary>
+    public bool IsUsingElevator => stateManager.IsUsingElevator;
 
     public bool HasBelief => stateManager.TryGetBelief(out _);
 
@@ -168,31 +193,158 @@ public sealed class NemesisDecision
         // Measured off TimeInCurrentState rather than a counter here, which is what keeps this
         // class stateless: no clock of its own means no second state machine.
         float dwell = DwellWindow;
-        bool holding = current.HasValue && dwell > 0f && stateManager.TimeInCurrentState < dwell;
 
-        for (int i = 0; i < ladder.Count; i++)
-        {
-            NemesisPriorityRung rung = ladder[i];
-            if (rung == null || !rung.enabled) continue;
+        currentKey = current;
+        holding = current.HasValue && dwell > 0f && stateManager.TimeInCurrentState < dwell;
 
-            // Inside the window, only an interrupt or a rung asking for where it already is may
-            // win. Anything else is skipped rather than allowed to fall through to a lower rung,
-            // so the window means "stay put", not "pick the runner-up".
-            if (holding && !rung.interrupts && current.Value != rung.target) continue;
+        decided = null;
+        LastRungIndex = -1;
 
-            if (!Holds(rung)) continue;
+        EnsureTree(ladder);
+        root?.Execute();
 
-            LastRungIndex = i;
-            LastReason = string.IsNullOrEmpty(rung.note) ? rung.target.ToString() : rung.note;
-            return rung.target;
-        }
+        if (decided.HasValue) return decided.Value;
 
         // Nothing matched. Only reachable from a hand-edited ladder with no unconditional rung at
         // the bottom, or from inside the dwell window with no rung asking for the current state.
         // Staying put is the safe answer: the alternative is picking a state nobody asked for.
-        LastRungIndex = -1;
         LastReason = holding ? "esperando la histéresis" : "ninguna regla se cumplió";
         return current ?? NemesisStateManager.ENemesisState.Patrolling;
+    }
+
+    // ── The tree ────────────────────────────────────────────────────────────
+    //
+    // The ladder is the DATA and the tree is the STRUCTURE. Decide() used to be a for loop over
+    // the rungs; it is now a walk down a tree built from those same rungs, which changes nothing
+    // about which state wins and one thing about what the ladder is able to express.
+    //
+    // WHAT IT BUYS. A for loop can only ever ask the rungs in order: rung i not matching means
+    // rung i+1, always. A tree's false branch is a child like any other, so a question can open
+    // two different sub-ladders instead of one continuation - which is what a flat list cannot
+    // say. HasBelief, for instance, is currently repeated across three separate rungs because
+    // there was no way to ask it once. As shipped the tree is still a spine, rung after rung, and
+    // that is deliberate: this change preserves the shipped behaviour exactly and only removes the
+    // ceiling.
+    //
+    // WHAT IT MUST NOT BECOME. A SECOND VOTER. See the class comment: the last time two decision
+    // layers wrote NextState the Nemesis changed state every frame and therefore never ran a
+    // single UpdateState. The tree does not sit beside the ladder, it IS the ladder's evaluation.
+
+    private ITreeNode root;
+
+    /// <summary>The rungs the current tree was built from, in order. Compared element by element
+    /// against the live ladder to notice a rebuild is due.</summary>
+    private NemesisPriorityRung[] builtSnapshot;
+
+    // Per-pass context. The tree is built once and walked every frame, so a question cannot close
+    // over anything that changes per frame; these are written at the top of Decide() and read by
+    // the closures during that same walk. It is what lets a static tree answer a moving world
+    // without giving this class a clock of its own.
+    private NemesisStateManager.ENemesisState? currentKey;
+    private bool holding;
+    private NemesisStateManager.ENemesisState? decided;
+
+    /// <summary>
+    /// Rebuilds the tree when the ladder's shape has changed, and not otherwise.
+    ///
+    /// ELEMENT BY ELEMENT, NOT BY COUNT OR BY REFERENCE. SO_NemesisPriorities.Rungs hands back the
+    /// same List every time, and reordering a list changes neither its identity nor its length -
+    /// so both of the cheap checks miss a reorder completely. And reordering is not a rare event:
+    /// it is the ladder's whole authoring workflow, the reason it is an asset instead of code. A
+    /// tree that did not notice would turn "drag a rule up" into "drag a rule up and restart Play",
+    /// which is exactly the friction the asset exists to remove.
+    ///
+    /// What deliberately does NOT force a rebuild is editing a rung's conditions, its note, its
+    /// enabled flag or its interrupts flag. Those are read live inside the closures below, so they
+    /// take effect on the very next frame with no rebuild at all.
+    /// </summary>
+    private void EnsureTree(IReadOnlyList<NemesisPriorityRung> ladder)
+    {
+        if (root != null && MatchesSnapshot(ladder)) return;
+
+        builtSnapshot = new NemesisPriorityRung[ladder.Count];
+        for (int i = 0; i < ladder.Count; i++) builtSnapshot[i] = ladder[i];
+
+        root = BuildTree(ladder);
+    }
+
+    private bool MatchesSnapshot(IReadOnlyList<NemesisPriorityRung> ladder)
+    {
+        if (builtSnapshot == null || builtSnapshot.Length != ladder.Count) return false;
+
+        for (int i = 0; i < ladder.Count; i++)
+        {
+            if (!ReferenceEquals(builtSnapshot[i], ladder[i])) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// One QuestionNode per rung, each one's FALSE branch being the rung below it.
+    ///
+    /// Built back to front so every node already has its continuation to point at, and so the
+    /// bottom rung's false branch is null - falling off the end of the tree decides nothing, which
+    /// Decide() then reports as "ninguna regla se cumplio" exactly as the loop's fall-through did.
+    /// </summary>
+    private ITreeNode BuildTree(IReadOnlyList<NemesisPriorityRung> ladder)
+    {
+        ITreeNode next = null;
+
+        for (int i = ladder.Count - 1; i >= 0; i--)
+        {
+            NemesisPriorityRung rung = ladder[i];
+
+            // Copied into a local so each closure captures ITS OWN index rather than sharing the
+            // loop variable, which in a foreach over a captured iteration variable is the classic
+            // way to end up with every rung reporting the last index.
+            int index = i;
+
+            ITreeNode wins = new ActionNode(() => Win(rung, index));
+            next = new QuestionNode(() => RungWins(rung), wins, next);
+        }
+
+        return next;
+    }
+
+    /// <summary>
+    /// Whether this rung may win right now. Byte for byte the three tests the for loop ran, in the
+    /// same order.
+    ///
+    /// The middle one is the hysteresis: inside the window, only an interrupt or a rung asking for
+    /// where the Nemesis already is may win. Anything else is refused rather than allowed to fall
+    /// through to a lower rung, so the window means "stay put" and not "pick the runner-up" - and
+    /// because it lives inside the question, refusing here still hands control to the false branch
+    /// and the walk carries on, which is the same shape the loop's `continue` had.
+    /// </summary>
+    private bool RungWins(NemesisPriorityRung rung)
+    {
+        if (rung == null || !rung.enabled) return false;
+
+        if (holding && !rung.interrupts &&
+            (!currentKey.HasValue || currentKey.Value != rung.target))
+        {
+            return false;
+        }
+
+        return Holds(rung);
+    }
+
+    /// <summary>
+    /// The leaf: records which rung won and why, and stops the walk by virtue of having no
+    /// children.
+    ///
+    /// It writes a field rather than returning, because ActionNode returns void - a tree that has
+    /// to produce a value works by having its leaves put the value somewhere the caller reads
+    /// afterwards. That is not a limitation worth designing around here: LastRungIndex and
+    /// LastReason already had to be written as a side effect for the debug HUD, so the leaf was
+    /// always going to be doing this much.
+    /// </summary>
+    private void Win(NemesisPriorityRung rung, int index)
+    {
+        LastRungIndex = index;
+        LastReason = string.IsNullOrEmpty(rung.note) ? rung.target.ToString() : rung.note;
+        decided = rung.target;
     }
 
     private float DwellWindow
@@ -225,6 +377,8 @@ public sealed class NemesisDecision
         {
             ENemesisPredicate.SeesPlayer => SeesPlayer,
             ENemesisPredicate.HearsPlayer => HearsPlayer,
+            ENemesisPredicate.IsSuspicious => IsSuspicious,
+            ENemesisPredicate.IsUsingElevator => IsUsingElevator,
             ENemesisPredicate.HasBelief => HasBelief,
             ENemesisPredicate.CanCatchPlayer => CanCatchPlayer,
             ENemesisPredicate.RouteToBeliefCrossesFloors => RouteToBeliefCrossesFloors,

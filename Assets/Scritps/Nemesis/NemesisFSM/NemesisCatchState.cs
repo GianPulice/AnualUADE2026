@@ -118,6 +118,13 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
                 if (graceTimer < nemesisStateManager.CaptureGracePeriod) return;
 
                 nemesisStateManager.RepositionAfterCapture();
+
+                // AFTER the warp, not before: this is what CaptureFadeView waits for to reveal
+                // the screen. Firing it earlier would defeat the entire point — the Nemesis would
+                // already be mid-teleport, or worse, still visibly standing at the capture spot,
+                // while the screen said it was safe to look.
+                NemesisEvents.CaptureResolved();
+
                 NextState = NemesisStateManager.ENemesisState.Patrolling;
                 break;
         }

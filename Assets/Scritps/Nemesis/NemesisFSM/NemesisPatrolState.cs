@@ -18,7 +18,29 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
     public NemesisPatrolState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
-        timeToNextWP = nemesisStateManager.NemesisData.PatrolWaypointWaitTime;
+    }
+
+    /// <summary>
+    /// Rolls how long to stand at the waypoint being walked to.
+    ///
+    /// Per waypoint, and no longer once in the constructor. Two things were wrong with the old
+    /// version and only one of them was the metronome: reading PatrolWaypointWaitTime at
+    /// construction meant the value was sampled during Awake and never again, so retuning the wait
+    /// in Play mode did nothing at all until the scene was reloaded — the same staleness the
+    /// Investigating state's cached timeout had before the decision layer started reading the SO
+    /// directly.
+    ///
+    /// The other thing is the point of the change: an identical pause at every marker means that
+    /// once the player has timed one round, they have timed every round. Waiting behind a crate
+    /// for the monster to move on stops being a bet and becomes arithmetic.
+    /// </summary>
+    private void RollWaitTime()
+    {
+        SO_NemesisData data = nemesisStateManager.NemesisData;
+
+        timeToNextWP = data != null
+            ? RouletteSelection.GetRandom(data.PatrolWaitMin, data.PatrolWaitMax)
+            : 0f;
     }
 
     public override void EnterState()
@@ -26,6 +48,7 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
         NextState = StateKey;
         currentTime = 0f;
         unreachableTime = 0f;
+        RollWaitTime();
 
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
                                     nemesisStateManager.NemesisMovement.PatrolSpeed);
@@ -120,6 +143,7 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
             else
             {
                 currentTime = 0;
+                RollWaitTime();
                 controller.AdvanceToNextWaypoint();
             }
         }

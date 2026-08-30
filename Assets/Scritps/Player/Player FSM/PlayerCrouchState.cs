@@ -77,7 +77,23 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
                 playerStateManager.CurrentVelocity = 0;
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(false);
             }
-            playerStateManager.ApplyMoveVelocity(playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity);
+
+            // GROUNDED ONLY. This used to run unconditionally, and that is the whole of the
+            // slow-motion fall while crouched: ApplyMoveVelocity takes the WHOLE vector it is
+            // given and writes it straight onto linearVelocity, and PlayerBody.forward * speed
+            // has no vertical component. Stepping off a ledge while crouched left gravity
+            // exactly one FixedUpdate to build up Y speed before this ran again next frame and
+            // reset it back to ~0 — a real fall, replayed one physics step at a time forever.
+            //
+            // PlayerMovingState and PlayerIdleState already only touch linearVelocity while
+            // grounded (Moving drops to Idle on !IsGrounded; Idle's own zeroing is gated the
+            // same way) — Crouch was the one state that never got that guard, presumably because
+            // stepping off a ledge crouched is rarer than doing it upright.
+            if (playerStateManager.IsGrounded)
+            {
+                playerStateManager.ApplyMoveVelocity(playerStateManager.PlayerBody.forward * playerStateManager.CurrentVelocity);
+            }
+
             // Send the pre-cojera velocity to the Animator so the crouch blend keeps the same
             // anim while the legs penalty scales physical speed. See PlayerMovingState for details.
             float animSpeed = playerStateManager.CurrentVelocity / Mathf.Max(playerStateManager.MoveSpeedPenaltyFactor, 0.01f);

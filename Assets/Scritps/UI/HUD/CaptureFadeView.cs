@@ -6,11 +6,21 @@ using UnityEngine;
 
 /// <summary>
 /// The black cover that hides a capture. Goes opaque when the Nemesis grabs the player, stays
-/// black while CheckpointManager moves it back to the last activated checkpoint (or to the run's
-/// start point when none was reached yet), and clears once the player is already standing there.
+/// black through the player's own teleport to the checkpoint AND the Nemesis's separate grace
+/// period and reposition, and only clears once <see cref="NemesisEvents.OnCaptureResolved"/> says
+/// the Nemesis has actually moved away.
 ///
-/// It does not move anybody: the respawn is entirely CheckpointManager's job and happens on its
-/// own timing. This view only covers the screen while that runs, so the teleport is not watched.
+/// THE REVEAL IS NOT KEYED TO THE PLAYER'S OWN RESPAWN, AND THAT USED TO BE THE BUG. The player
+/// lands at the checkpoint on CheckpointManager's timing — a second or two — but the Nemesis is
+/// still standing at the capture spot for its whole CaptureGracePeriod after that (by design: it
+/// is the player's mercy window). Revealing the screen the moment the PLAYER is safe said nothing
+/// about the Nemesis, and the fade would already be long gone by the time it warped away — so the
+/// pop was in plain sight, potentially several seconds later, sometimes with the player already
+/// back near the checkpoint watching it happen. Waiting for the Nemesis's own signal instead means
+/// the cover cannot lift before the thing it exists to hide is actually gone.
+///
+/// It does not move anybody: the respawn is CheckpointManager's job and the reposition is the
+/// Nemesis's own, both on their own timing. This view only covers the screen while both run.
 ///
 /// Purely reactive by necessity — it lives in the additively loaded LevelUI scene and could not
 /// hold an inspector reference to the Nemesis, the player or the CheckpointManager even if it
@@ -30,9 +40,9 @@ public class CaptureFadeView : MonoBehaviour
              "player watches itself being dragged to the checkpoint.")]
     [SerializeField, Min(0f)] private float fadeInDuration = 0.6f;
 
-    [Tooltip("Seconds to hold the screen fully black after the player has been placed at the " +
-             "checkpoint, before revealing. Reads as a beat instead of a hard cut, and gives the " +
-             "teleport a frame to settle before anything is visible.")]
+    [Tooltip("Seconds to hold the screen fully black after the Nemesis has finished repositioning " +
+             "(NemesisEvents.OnCaptureResolved), before revealing. Reads as a beat instead of a " +
+             "hard cut, and gives the warp a frame to settle before anything is visible.")]
     [SerializeField, Min(0f)] private float blackHoldDuration = 0.4f;
 
     [Tooltip("Seconds to go from black back to clear at the respawn point.")]
@@ -105,16 +115,16 @@ public class CaptureFadeView : MonoBehaviour
 
         // Awake/OnDestroy and not OnEnable/OnDisable, same as the vignette views: this object is
         // never toggled off, and OnEnable would silently stop working the day someone does.
-        PlayerEvents.OnPlayerCaptured  += HandlePlayerCaptured;
-        CheckpointManager.OnRespawned  += HandleRespawned;
-        GameResultManager.OnGameResult += HandleGameResult;
+        PlayerEvents.OnPlayerCaptured    += HandlePlayerCaptured;
+        NemesisEvents.OnCaptureResolved  += HandleCaptureResolved;
+        GameResultManager.OnGameResult   += HandleGameResult;
     }
 
     private void OnDestroy()
     {
-        PlayerEvents.OnPlayerCaptured  -= HandlePlayerCaptured;
-        CheckpointManager.OnRespawned  -= HandleRespawned;
-        GameResultManager.OnGameResult -= HandleGameResult;
+        PlayerEvents.OnPlayerCaptured    -= HandlePlayerCaptured;
+        NemesisEvents.OnCaptureResolved  -= HandleCaptureResolved;
+        GameResultManager.OnGameResult   -= HandleGameResult;
 
         fadeCts?.Cancel();
         fadeCts?.Dispose();
@@ -130,13 +140,14 @@ public class CaptureFadeView : MonoBehaviour
         FadeTo(1f, fadeInDuration, 0f, afterFade: () => SetOverlaysActive(false)).Forget();
 
     /// <summary>
-    /// The player is already standing at its respawn position. CheckpointManager picks between
-    /// the active checkpoint and the run's start point on its own and passes null for the second
-    /// case — which one it was makes no difference here, the reveal is the same.
+    /// The Nemesis has finished repositioning after the capture — the player already landed at
+    /// the checkpoint well before this, and has been waiting behind the black screen the whole
+    /// time the Nemesis stood there running out its grace period. Only now is it gone from where
+    /// it grabbed the player, so only now is it safe to lift the cover.
     ///
     /// The overlays come back while the screen is still black, so neither is seen popping in.
     /// </summary>
-    private void HandleRespawned(Checkpoint checkpoint) =>
+    private void HandleCaptureResolved() =>
         FadeTo(0f, fadeOutDuration, blackHoldDuration, beforeFade: () => SetOverlaysActive(true)).Forget();
 
     /// <summary>

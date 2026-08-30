@@ -79,6 +79,7 @@ public class NemesisController : MonoBehaviour
     // Spawn-point selection buffers. See PickWeightedSpawnPoint.
     private readonly List<Transform> hiddenSpawnCandidatesBuffer = new List<Transform>();
     private readonly List<float> hiddenSpawnDistancesBuffer = new List<float>();
+    private readonly List<float> spawnWeightBuffer = new List<float>();
 
     // Waypoint-selection buffers. Reused because this runs on every waypoint arrival and every
     // replan, and it is not worth allocating each time.
@@ -87,6 +88,14 @@ public class NemesisController : MonoBehaviour
     private readonly List<float> weightBuffer = new List<float>();
     private readonly List<float> prefilterKeyBuffer = new List<float>();
     private readonly List<Vector3> candidatePositionBuffer = new List<Vector3>();
+
+    // Buffers of their own rather than sharing weightBuffer above. The two selections never
+    // overlap today (SelectWeightedRoute only runs once PickWeightedNode has already returned),
+    // but "these two happen to run in the right order" is not a property anybody would notice
+    // breaking, and a shared buffer cleared halfway through a consumer is a silent wrong answer
+    // rather than a crash.
+    private readonly List<NemesisRoute> routeCandidatesBuffer = new List<NemesisRoute>();
+    private readonly List<float> routeWeightBuffer = new List<float>();
 
     /// <summary>
     /// Zone-level patrol: which cúmulo of waypoints is being swept and in what order. All of the
@@ -546,7 +555,6 @@ public class NemesisController : MonoBehaviour
         biasStrength = Mathf.Lerp(1f, biasStrength, BeliefFreshness());
 
         weightBuffer.Clear();
-        float total = 0f;
 
         for (int i = 0; i < sampledBuffer.Count; i++)
         {
@@ -560,22 +568,14 @@ public class NemesisController : MonoBehaviour
             }
 
             weightBuffer.Add(weight);
-            total += weight;
         }
 
-        // Every candidate route sits at weight 0: the designer switched them off, but it still has
-        // to go somewhere. Uniform among the ones that survived the prefilter.
-        if (total <= 0f) return sampledBuffer[Random.Range(0, sampledBuffer.Count)];
-
-        float roll = Random.value * total;
-        float cumulative = 0f;
-        for (int i = 0; i < sampledBuffer.Count; i++)
-        {
-            cumulative += weightBuffer[i];
-            if (roll <= cumulative) return sampledBuffer[i];
-        }
-
-        return sampledBuffer[sampledBuffer.Count - 1];
+        // The roll itself lives in RouletteSelection, which also owns the two edge cases this
+        // used to spell out on its own: every candidate at weight 0 (the designer switched those
+        // routes off, and it still has to go somewhere — uniform among the survivors) and the
+        // float-rounding fallback to the last bucket.
+        int index = RouletteSelection.Roulette(weightBuffer);
+        return index < 0 ? -1 : sampledBuffer[index];
     }
 
     /// <summary>
@@ -674,35 +674,37 @@ public class NemesisController : MonoBehaviour
     /// if none qualify (e.g. nothing unlocked yet).</summary>
     private NemesisRoute SelectWeightedRoute()
     {
+        routeCandidatesBuffer.Clear();
+        routeWeightBuffer.Clear();
+
         float totalWeight = 0f;
+
         for (int i = 0; i < routes.Count; i++)
         {
             NemesisRoute route = routes[i];
             if (route == null || !route.IsUnlocked || route.Waypoints.Count == 0) continue;
-            totalWeight += Mathf.Max(0f, route.Weight);
+
+            float weight = Mathf.Max(0f, route.Weight);
+
+            routeCandidatesBuffer.Add(route);
+            routeWeightBuffer.Add(weight);
+            totalWeight += weight;
         }
 
+        // THE ALL-ZERO CASE IS DELIBERATELY NOT DELEGATED, and this is the one place in the file
+        // where that is true.
+        //
+        // RouletteSelection answers "every candidate weighs nothing" with a uniform pick, which is
+        // right for PickWeightedNode: it is choosing among waypoints it has already established are
+        // reachable, and the Nemesis has to walk somewhere. Here the question is different — this
+        // runs only when the Nemesis did not land on any known NavMesh island — and returning a
+        // route the designer explicitly weighted to zero would send it off towards waypoints
+        // nobody chose for it. Null instead leaves NemesisPatrolState standing by, which is a state
+        // NemesisStuckEscape can see and recover from.
         if (totalWeight <= 0f) return null;
 
-        float roll = Random.value * totalWeight;
-        float cumulative = 0f;
-        for (int i = 0; i < routes.Count; i++)
-        {
-            NemesisRoute route = routes[i];
-            if (route == null || !route.IsUnlocked || route.Waypoints.Count == 0) continue;
-
-            cumulative += Mathf.Max(0f, route.Weight);
-            if (roll <= cumulative) return route;
-        }
-
-        // Only reachable through float rounding at the very edge of the range: fall back to the
-        // last qualifying route rather than returning nothing when totalWeight was in fact > 0.
-        for (int i = routes.Count - 1; i >= 0; i--)
-        {
-            NemesisRoute route = routes[i];
-            if (route != null && route.IsUnlocked && route.Waypoints.Count > 0) return route;
-        }
-        return null;
+        int index = RouletteSelection.Roulette(routeWeightBuffer);
+        return index < 0 ? null : routeCandidatesBuffer[index];
     }
 
     // ── Route unlocking ─────────────────────────────────────────────────────
@@ -841,22 +843,15 @@ public class NemesisController : MonoBehaviour
     {
         if (candidates.Count == 1) return candidates[0];
 
-        float total = 0f;
+        // Squared here rather than inside the roll, because the squaring IS the design — see the
+        // doc comment above — and RouletteSelection has no business knowing that this particular
+        // caller weights by distance at all.
+        spawnWeightBuffer.Clear();
         for (int i = 0; i < distances.Count; i++)
-            total += distances[i] * distances[i];
+            spawnWeightBuffer.Add(distances[i] * distances[i]);
 
-        if (total <= 0f) return candidates[Random.Range(0, candidates.Count)];
-
-        float roll = Random.value * total;
-        float cumulative = 0f;
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            cumulative += distances[i] * distances[i];
-            if (roll <= cumulative) return candidates[i];
-        }
-
-        // Only reachable through float rounding at the very edge of the range.
-        return candidates[candidates.Count - 1];
+        int index = RouletteSelection.Roulette(spawnWeightBuffer);
+        return index < 0 ? candidates[candidates.Count - 1] : candidates[index];
     }
 
     /// <summary>
