@@ -149,7 +149,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 11f + stripHeight + 26f;
+        float height = lineHeight * 12f + stripHeight + 26f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -157,6 +157,7 @@ public class NemesisDebugHUD : MonoBehaviour
         Rect line = new Rect(panel.x + 10f, panel.y + 8f, panel.width - 20f, lineHeight);
 
         Row(ref line, "estado", DescribeState());
+        Row(ref line, "regla", DescribeRung());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "distancia", DescribeDistance());
         Row(ref line, "búsqueda", DescribeSearch());
@@ -183,6 +184,25 @@ public class NemesisDebugHUD : MonoBehaviour
         if (!key.HasValue) return "sin arrancar (dormido)";
 
         return $"{key.Value}  ({Time.time - stateEnteredAt:0.0} s)";
+    }
+
+    /// <summary>
+    /// Which rung of the priority ladder won this frame.
+    ///
+    /// Without it, "why is it doing that" is not a question anyone can answer while playing —
+    /// the state is the ANSWER, and this is the reason. It matters most for the cases that look
+    /// like bugs and are not: a Nemesis that keeps chasing a player it cannot see is rung 6
+    /// holding, and a Nemesis that ignores a noise for a third of a second is the hysteresis
+    /// window doing its job.
+    /// </summary>
+    private string DescribeRung()
+    {
+        NemesisDecision decision = stateManager.Decision;
+        if (decision == null) return "—";
+
+        return decision.LastRungIndex >= 0
+            ? $"#{decision.LastRungIndex + 1}  {decision.LastReason}"
+            : decision.LastReason;
     }
 
     private string DescribeBelief()

@@ -738,7 +738,7 @@ GameObject:
   - component: {fileID: 5784579404892481668}
   - component: {fileID: 1266421742240066292}
   - component: {fileID: 400651606283616958}
-  - component: {fileID: 6339968041394248726}
+  - component: {fileID: 2943210259171343688}
   m_Layer: 0
   m_Name: Point Light (1)
   m_TagString: Untagged
@@ -816,7 +816,7 @@ Light:
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 0
   m_ColorTemperature: 9293
-  m_UseColorTemperature: 1
+  m_UseColorTemperature: 0
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
@@ -855,7 +855,7 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!114 &6339968041394248726
+--- !u!114 &2943210259171343688
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -864,13 +864,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 4645824814468374308}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5e6f708192a3b4c5d6e7f8091a2b3c4, type: 3}
+  m_Script: {fileID: 11500000, guid: c4b3a2918f7e6d5c4b3a2f1e0d9c8b7a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FogLightSource
-  lightComponent: {fileID: 1266421742240066292}
-  useLightComponent: 1
-  rangeMultiplier: 2
-  intensityMultiplier: 1.5
+  m_EditorClassIdentifier: Assembly-CSharp::FogLightBypass
+  radius: 2
+  overrideAppearance: 0
+  color: {r: 1, g: 0.85, b: 0.6, a: 1}
+  intensity: 2.5
+  clearAmount: 1
+  lightComponent: {fileID: 0}
+  lightIntensityScale: 1
 --- !u!1 &5145813882391055412
 GameObject:
   m_ObjectHideFlags: 0
@@ -1076,6 +1079,7 @@ GameObject:
   - component: {fileID: 151019658099850401}
   - component: {fileID: 1161570539962797983}
   - component: {fileID: 2115712118164525721}
+  - component: {fileID: 2743926386273877225}
   - component: {fileID: 6725881323002343902}
   m_Layer: 0
   m_Name: Nemesis
@@ -1123,7 +1127,7 @@ MonoBehaviour:
   telemetry: {fileID: 4238794743462556567}
   stuckEscape: {fileID: 151019658099850401}
   lifecycle: {fileID: 1161570539962797983}
-  decisionsFromGraph: 0
+  nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
   captureGracePeriod: 8
   catchCooldown: 2
 --- !u!114 &6366883338896328337
@@ -1144,7 +1148,7 @@ MonoBehaviour:
     m_Bits: 256
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 2057
+    m_Bits: 6153
   soundBlockerMask:
     serializedVersion: 2
     m_Bits: 0
@@ -1172,7 +1176,7 @@ MonoBehaviour:
     m_Bits: 128
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 2057
+    m_Bits: 6153
   nemesisData: {fileID: 11400000, guid: f7e72de382ac7894c890e2d4810977a1, type: 2}
 --- !u!195 &5684726728193510827
 NavMeshAgent:
@@ -1321,9 +1325,35 @@ MonoBehaviour:
   drawHearing: 1
   drawCatchReach: 1
   drawSearchSweep: 1
-  drawProximityVignette: 1
+  drawProximityVignette: 0
   arcSegments: 28
   drawLabels: 1
+--- !u!114 &2743926386273877225
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32267fc19fc01c343ab2f8f6aec860b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisEyes
+  eyeLights:
+  - {fileID: 1911305753568928611}
+  - {fileID: 1266421742240066292}
+  calmColor: {r: 0.541, g: 0.706, b: 0.831, a: 1}
+  alertColor: {r: 1, g: 0.784, b: 0.314, a: 1}
+  huntColor: {r: 1, g: 0.55, b: 0.15, a: 1}
+  catchColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
+  calmIntensity: 1.2
+  huntIntensity: 2.6
+  fogGlow: {fileID: 7491611946530618718}
+  glowRadius: 9
+  glowClearAmount: 0.05
+  glowIntensityScale: 1.6
+  easeSpeed: 4
 --- !u!114 &6725881323002343902
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1339,7 +1369,7 @@ MonoBehaviour:
   visible: 1
   toggleKey: 290
   origin: {x: 12, y: 12}
-  width: 340
+  width: 500
   historySeconds: 60
 --- !u!1 &6671652095207704162
 GameObject:
@@ -1450,7 +1480,7 @@ GameObject:
   - component: {fileID: 5433524013248895066}
   - component: {fileID: 1911305753568928611}
   - component: {fileID: 2826639694687843046}
-  - component: {fileID: 6151594779733033711}
+  - component: {fileID: 7491611946530618718}
   m_Layer: 0
   m_Name: Point Light
   m_TagString: Untagged
@@ -1528,7 +1558,7 @@ Light:
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 0
   m_ColorTemperature: 9036
-  m_UseColorTemperature: 1
+  m_UseColorTemperature: 0
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
@@ -1567,7 +1597,7 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!114 &6151594779733033711
+--- !u!114 &7491611946530618718
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1576,13 +1606,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 7540245321651619465}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5e6f708192a3b4c5d6e7f8091a2b3c4, type: 3}
+  m_Script: {fileID: 11500000, guid: c4b3a2918f7e6d5c4b3a2f1e0d9c8b7a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FogLightSource
-  lightComponent: {fileID: 1911305753568928611}
-  useLightComponent: 1
-  rangeMultiplier: 2
-  intensityMultiplier: 1.5
+  m_EditorClassIdentifier: Assembly-CSharp::FogLightBypass
+  radius: 2
+  overrideAppearance: 0
+  color: {r: 1, g: 0.85, b: 0.6, a: 1}
+  intensity: 2.5
+  clearAmount: 1
+  lightComponent: {fileID: 0}
+  lightIntensityScale: 1
 --- !u!1 &7616801607348127552
 GameObject:
   m_ObjectHideFlags: 0

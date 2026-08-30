@@ -881,15 +881,25 @@ public class NemesisController : MonoBehaviour
         return listener.IsOccludedByWall(playerPosition, point);
     }
 
+    /// <summary>
+    /// Moves the Nemesis to a spawn point, through the facade rather than by touching the agent.
+    ///
+    /// It used to call agent.Warp itself, with a comment saying it followed the same reasoning as
+    /// the state manager's warps — which is exactly the argument for not writing it twice. The
+    /// copy quietly skipped all three things that version does: snapping the marker onto the
+    /// NavMesh (a spawn point placed by eye inside a wall strands the agent off the mesh for the
+    /// whole session, and every state's guard then makes it stand still), dropping the cached
+    /// route verdict, and resetting the stuck watchdog's sample.
+    /// </summary>
     private void WarpTo(Transform point)
     {
-        NavMeshAgent agent = stateManager != null ? stateManager.NavAgent : null;
+        if (stateManager != null)
+        {
+            stateManager.WarpTo(point.position);
+            return;
+        }
 
-        // Warp and not transform.position: a NavMeshAgent keeps its own internal position and
-        // would drag the Nemesis straight back on the next agent update (same reasoning as
-        // NemesisStateManager's RepositionAfterCapture/TeleportToStuckEscapeWayPoint).
-        if (agent != null && agent.isActiveAndEnabled) agent.Warp(point.position);
-        else transform.position = point.position;
+        transform.position = point.position;
     }
 
     // ── Cluster gizmos ──────────────────────────────────────────────────────

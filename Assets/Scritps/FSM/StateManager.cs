@@ -28,9 +28,22 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
     /// </summary>
     public float TimeInCurrentState => Time.time - StateEnteredAt;
 
+    /// <summary>
+    /// Stamps the clock <see cref="TimeInCurrentState"/> measures against.
+    ///
+    /// Public-to-subclasses because entering the first state is not always Start's job: a
+    /// puzzle-gated Nemesis stays dormant through Start and enters Patrolling from Activate()
+    /// instead, which has to reach the protected States dictionary and so cannot live anywhere
+    /// else. Without stamping it there, StateEnteredAt keeps its default of 0 and every dwell
+    /// floor and timeout above the machine reads the entire session as time already spent in
+    /// that first state — so a commitment that is supposed to last half a second is over before
+    /// it starts.
+    /// </summary>
+    protected void MarkStateEntered() => StateEnteredAt = Time.time;
+
     public virtual void Start()
     {
-        StateEnteredAt = Time.time;
+        MarkStateEntered();
         CurrentState.EnterState();
     }
     public virtual void Update()
@@ -66,7 +79,7 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
         IsTransitioningState = true;
         CurrentState.ExitState();
         CurrentState = nextState;
-        StateEnteredAt = Time.time;
+        MarkStateEntered();
         CurrentState.EnterState();
         IsTransitioningState = false;
 

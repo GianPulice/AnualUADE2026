@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -16,36 +17,51 @@ using UnityEngine;
 ///
 /// Here it is one prioritised ladder, read top to bottom, and the patches become visible rules.
 ///
-/// WHY IT IS A PLAIN CLASS AND NOT A GRAPH — YET
+/// WHY THIS IS AN EVALUATOR AND THE LADDER IS AN ASSET
 ///
-/// The intended authoring surface is a Unity Behavior graph, so a designer can reorder priorities
-/// without a recompile. This class is the same ladder in C#, and it exists for two reasons: the
-/// Nemesis has to keep working while that graph is being built, and every predicate below is
-/// public so a graph node is a three-line wrapper rather than a reimplementation. When the graph
-/// is wired, tick <see cref="NemesisStateManager.DecisionsFromGraph"/> and the graph drives
-/// instead — calling these same predicates, so the two can never disagree about what "sees the
-/// player" means.
+/// The ladder itself lives in <see cref="SO_NemesisPriorities"/>, which is a reorderable list the
+/// designer edits without a recompile. This class is the part that cannot live in an asset: the
+/// predicates. Each one is a single side-effect-free question about the world, and every rung in
+/// the asset is a reference to one of them — so the asset can reorder the reasoning but can never
+/// hold a second, subtly different definition of what "sees the player" means.
+///
+/// That split is what a Unity Behavior graph was going to provide, and it is why the graph came
+/// back out: every branch of it was [conditions] -> "put the Nemesis in X" hung off one Selector,
+/// which is a list drawn sideways. What it added on top of the list was a package dependency, an
+/// asset that only merges through UnityYAMLMerge, eight wrapper classes that did nothing but call
+/// the predicates below — and, in practice, a SECOND voter: the graph agent ticked itself from
+/// its own Update while this ladder ticked from NemesisStateManager, both writing the same
+/// NextState channel. Two voters is how the Nemesis ended up changing state every frame and
+/// therefore never running a single UpdateState, which reads in game as a monster that sees you
+/// and stands there twitching.
 ///
 /// IT IS STATELESS ON PURPOSE. Everything it needs to know about time comes from
 /// <see cref="StateManager{EState}.TimeInCurrentState"/> and
 /// <see cref="NemesisStateManager.BeliefAge"/>. A decision layer with its own memory is a second
-/// state machine, and then there are two.
+/// state machine, and then there are two. The dwell hysteresis below is measured the same way,
+/// which is what lets it exist without giving this class a clock.
 /// </summary>
 public sealed class NemesisDecision
 {
-    /// <summary>
-    /// Shortest time the Nemesis may stay in Searching before anything is allowed to pull it out.
-    ///
-    /// This was a private const inside NemesisSearchingState and it is the clearest example of why
-    /// the ladder is better than distributed transitions: Chasing handing over a target it can see
-    /// (because the path to it was partial) and Searching handing it straight back (because it can
-    /// see it) is a closed loop that turns over every other frame. As a floor buried in one state
-    /// it read as an arbitrary magic number; as the first rung of the ladder it reads as what it
-    /// is — a commitment that outranks everything, including sight.
-    /// </summary>
-    private const float MinimumSearchDwell = 0.5f;
-
     private readonly NemesisStateManager stateManager;
+
+    /// <summary>
+    /// The ladder used when the Nemesis has no <see cref="SO_NemesisPriorities"/> assigned.
+    ///
+    /// Built from the same static method the asset's own Reset() uses, so "the default" is one
+    /// definition and not two. Static because it never varies and there is one Nemesis; built
+    /// lazily so a project that always assigns the asset never pays for it.
+    /// </summary>
+    private static List<NemesisPriorityRung> fallbackLadder;
+
+    /// <summary>
+    /// Static state survives leaving Play mode when domain reload is disabled. Nothing here is
+    /// per-session — the list is rebuilt identically every time — but a stale one would be built
+    /// from whatever the code said in the previous session, which is confusing to debug for no
+    /// gain.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => fallbackLadder = null;
 
     public NemesisDecision(NemesisStateManager manager)
     {
@@ -54,10 +70,22 @@ public sealed class NemesisDecision
 
     private SO_NemesisData Data => stateManager.NemesisData;
 
+    private IReadOnlyList<NemesisPriorityRung> Ladder
+    {
+        get
+        {
+            SO_NemesisPriorities priorities = stateManager.Priorities;
+            if (priorities != null && priorities.Rungs != null && priorities.Rungs.Count > 0)
+                return priorities.Rungs;
+
+            return fallbackLadder ??= SO_NemesisPriorities.BuildDefaultLadder();
+        }
+    }
+
     // ── Predicates ──────────────────────────────────────────────────────────
     //
-    // Public and side-effect free. Each one is exactly one question, so a Behavior graph node is a
-    // wrapper around a property rather than a second copy of the reasoning.
+    // Public and side-effect free. Each one is exactly one question, so a rung in the asset is a
+    // reference to a property rather than a second copy of the reasoning.
 
     public bool SeesPlayer => stateManager.HasVisualTarget;
 
@@ -70,6 +98,9 @@ public sealed class NemesisDecision
     public float BeliefAge => stateManager.BeliefAge;
 
     public bool IsIn(NemesisStateManager.ENemesisState key) => stateManager.CurrentStateKey == key;
+
+    /// <summary>Whether the agent has reached the end of its current path.</summary>
+    public bool HasArrived => stateManager.HasArrived;
 
     /// <summary>Whether the player is close enough, level enough and unobstructed enough to grab,
     /// and the post-capture cooldown has expired.</summary>
@@ -97,83 +128,137 @@ public sealed class NemesisDecision
         }
     }
 
+    // ── Why it decided what it decided ──────────────────────────────────────
+
+    /// <summary>Index of the rung that won this frame, or -1 when none did. For the debug HUD:
+    /// without it, "why is it doing this" is not a question anyone can answer while playing.
+    /// </summary>
+    public int LastRungIndex { get; private set; } = -1;
+
+    /// <summary>The winning rung's note, or a short explanation when nothing won.</summary>
+    public string LastReason { get; private set; } = "—";
+
     // ── The ladder ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The state the Nemesis should be in this frame, read top to bottom: the first rung that
-    /// holds wins.
+    /// The state the Nemesis should be in this frame: the first rung whose conditions all hold.
     ///
-    /// Order is the whole design. Capture outranks pursuit because a Nemesis with its hands on you
-    /// should not be re-deciding; the lift outranks sight because a visible player one floor up is
-    /// exactly the case a plain chase handles worst; and the dwell floor outranks all of it,
-    /// because a decision reversed within half a second was never a decision.
+    /// Order is the whole design, and it is the designer's to change — see
+    /// <see cref="SO_NemesisPriorities"/> for the shipped order and why it reads the way it does.
     /// </summary>
     public NemesisStateManager.ENemesisState Decide()
     {
+        IReadOnlyList<NemesisPriorityRung> ladder = Ladder;
+        NemesisStateManager.ENemesisState? current = stateManager.CurrentStateKey;
+
+        // THE HYSTERESIS WINDOW, AND WHY THE LADDER NEEDS ONE.
+        //
+        // Every predicate above is sampled fresh each frame, and two of them come off sensors
+        // that sweep on their own cadence. A player sitting exactly at the edge of the hearing
+        // range flips HearsPlayer on and off several times a second, and each flip is a genuine
+        // state change: the machine exits, enters, and — because StateManager.Update runs either
+        // UpdateState OR a transition, never both — never gets to run a single frame of the state
+        // it just entered. Nothing sets a destination, so the Nemesis stands still changing its
+        // mind, which is exactly what it looks like from the outside.
+        //
+        // Holding the answer for a fraction of a second costs nothing a player can perceive and
+        // removes the entire class of problem. The two things that must never wait — seeing the
+        // player, and being able to grab them — are marked as interrupts in the asset.
+        //
+        // Measured off TimeInCurrentState rather than a counter here, which is what keeps this
+        // class stateless: no clock of its own means no second state machine.
+        float dwell = DwellWindow;
+        bool holding = current.HasValue && dwell > 0f && stateManager.TimeInCurrentState < dwell;
+
+        for (int i = 0; i < ladder.Count; i++)
+        {
+            NemesisPriorityRung rung = ladder[i];
+            if (rung == null || !rung.enabled) continue;
+
+            // Inside the window, only an interrupt or a rung asking for where it already is may
+            // win. Anything else is skipped rather than allowed to fall through to a lower rung,
+            // so the window means "stay put", not "pick the runner-up".
+            if (holding && !rung.interrupts && current.Value != rung.target) continue;
+
+            if (!Holds(rung)) continue;
+
+            LastRungIndex = i;
+            LastReason = string.IsNullOrEmpty(rung.note) ? rung.target.ToString() : rung.note;
+            return rung.target;
+        }
+
+        // Nothing matched. Only reachable from a hand-edited ladder with no unconditional rung at
+        // the bottom, or from inside the dwell window with no rung asking for the current state.
+        // Staying put is the safe answer: the alternative is picking a state nobody asked for.
+        LastRungIndex = -1;
+        LastReason = holding ? "esperando la histéresis" : "ninguna regla se cumplió";
+        return current ?? NemesisStateManager.ENemesisState.Patrolling;
+    }
+
+    private float DwellWindow
+    {
+        get
+        {
+            SO_NemesisPriorities priorities = stateManager.Priorities;
+            return priorities != null ? priorities.MinimumStateDwell : 0.35f;
+        }
+    }
+
+    /// <summary>Whether every condition on a rung holds. An empty list holds, which is what makes
+    /// the bottom rung the ladder's safety net.</summary>
+    private bool Holds(NemesisPriorityRung rung)
+    {
+        List<NemesisCondition> conditions = rung.conditions;
+        if (conditions == null) return true;
+
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            if (!Evaluate(conditions[i])) return false;
+        }
+
+        return true;
+    }
+
+    private bool Evaluate(NemesisCondition condition)
+    {
+        bool value = condition.predicate switch
+        {
+            ENemesisPredicate.SeesPlayer => SeesPlayer,
+            ENemesisPredicate.HearsPlayer => HearsPlayer,
+            ENemesisPredicate.HasBelief => HasBelief,
+            ENemesisPredicate.CanCatchPlayer => CanCatchPlayer,
+            ENemesisPredicate.RouteToBeliefCrossesFloors => RouteToBeliefCrossesFloors,
+            ENemesisPredicate.HasArrived => HasArrived,
+            ENemesisPredicate.IsInState => IsIn(condition.state),
+            ENemesisPredicate.BeliefAgeUnder => BeliefAge < Resolve(condition),
+            ENemesisPredicate.TimeInStateUnder => stateManager.TimeInCurrentState < Resolve(condition),
+            _ => false,
+        };
+
+        return condition.negate ? !value : value;
+    }
+
+    /// <summary>
+    /// The number behind a time condition, read off <see cref="SO_NemesisData"/>.
+    ///
+    /// Falls back to the same defaults the states used before the ladder existed, so a Nemesis
+    /// with no data asset degrades to the shipped tuning rather than to zero — which would make
+    /// every "under" condition false and strand it in whatever state it happened to be in.
+    /// </summary>
+    private float Resolve(NemesisCondition condition)
+    {
+        if (condition.threshold == ENemesisThreshold.Custom) return condition.customSeconds;
+
         SO_NemesisData data = Data;
 
-        // 0. Commitment. While it holds, nothing below is even consulted.
-        if (IsIn(NemesisStateManager.ENemesisState.Searching) &&
-            stateManager.TimeInCurrentState < MinimumSearchDwell)
+        return condition.threshold switch
         {
-            return NemesisStateManager.ENemesisState.Searching;
-        }
-
-        // 1. Close enough to grab.
-        if (CanCatchPlayer) return NemesisStateManager.ENemesisState.Catch;
-
-        // 2. It believes the player is on another floor and the lift is the way there. Bounded by
-        //    ElevatorCommitTime measured from the last time it actually sensed them — the walk plus
-        //    the ride is tens of seconds with the player invisible behind a slab, so without a
-        //    bound this would hold forever on a belief that has gone cold.
-        float commitTime = data != null ? data.ElevatorCommitTime : 12f;
-        if (RouteToBeliefCrossesFloors && BeliefAge < commitTime)
-        {
-            return NemesisStateManager.ENemesisState.Traversing;
-        }
-
-        // 3. Plainly visible.
-        if (SeesPlayer) return NemesisStateManager.ENemesisState.Chasing;
-
-        // 4. Just lost sight. Measured from the last SENSE rather than from entering the state, so
-        //    hearing them mid-chase renews the pursuit exactly the way seeing them would — which
-        //    is what the old per-state counter did by resetting itself.
-        float grace = data != null ? data.VisionLossGracePeriod : 2f;
-        if (IsIn(NemesisStateManager.ENemesisState.Chasing) && BeliefAge < grace)
-        {
-            return NemesisStateManager.ENemesisState.Chasing;
-        }
-
-        // 5. A noise to walk towards. Leaves on arrival or on running out of patience, and a fresh
-        //    noise renews it because BeliefAge resets on every detection.
-        float investigateTimeOut = data != null ? data.InvestigationTimeOut : 8f;
-        if (HearsPlayer) return NemesisStateManager.ENemesisState.Investigating;
-
-        if (IsIn(NemesisStateManager.ENemesisState.Investigating) &&
-            !stateManager.HasArrived &&
-            BeliefAge < investigateTimeOut)
-        {
-            return NemesisStateManager.ENemesisState.Investigating;
-        }
-
-        // 6. Sweeping. Once in, it runs on its own clock: the search is a fixed budget of time to
-        //    spend on a belief, not something to re-justify every frame.
-        float searchTimeOut = data != null ? data.SearchTimeOut : 4f;
-        if (IsIn(NemesisStateManager.ENemesisState.Searching))
-        {
-            return stateManager.TimeInCurrentState < searchTimeOut
-                ? NemesisStateManager.ENemesisState.Searching
-                : NemesisStateManager.ENemesisState.Patrolling;
-        }
-
-        // Coming off a pursuit still believing something: sweep rather than file it away.
-        if (HasBelief && (IsIn(NemesisStateManager.ENemesisState.Chasing) ||
-                          IsIn(NemesisStateManager.ENemesisState.Traversing)))
-        {
-            return NemesisStateManager.ENemesisState.Searching;
-        }
-
-        // 7. Nothing to act on.
-        return NemesisStateManager.ENemesisState.Patrolling;
+            ENemesisThreshold.VisionLossGracePeriod => data != null ? data.VisionLossGracePeriod : 2f,
+            ENemesisThreshold.InvestigationTimeOut => data != null ? data.InvestigationTimeOut : 8f,
+            ENemesisThreshold.SearchTimeOut => data != null ? data.SearchTimeOut : 4f,
+            ENemesisThreshold.ElevatorCommitTime => data != null ? data.ElevatorCommitTime : 12f,
+            ENemesisThreshold.BeliefMemoryTime => data != null ? data.BeliefMemoryTime : 45f,
+            _ => 0f,
+        };
     }
 }

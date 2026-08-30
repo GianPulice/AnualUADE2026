@@ -1,0 +1,171 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f74a0aaf7cb4453db9861b861ea7582c, type: 3}
+  m_Name: SO_NemesisPriorities
+  m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisPriorities
+  rungs:
+  - enabled: 1
+    target: 4
+    interrupts: 1
+    note: una captura en curso no se vuelve a decidir
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 4
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: 'compromiso: la búsqueda dura al menos medio segundo'
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 3
+      threshold: 0
+      customSeconds: 0
+    - predicate: 8
+      negate: 0
+      state: 0
+      threshold: 5
+      customSeconds: 0.5
+  - enabled: 1
+    target: 4
+    interrupts: 1
+    note: lo tiene al alcance de la mano
+    conditions:
+    - predicate: 3
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 5
+    interrupts: 0
+    note: para llegar hay que tomar el montacargas
+    conditions:
+    - predicate: 4
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 3
+      customSeconds: 0
+  - enabled: 1
+    target: 2
+    interrupts: 1
+    note: lo está viendo
+    conditions:
+    - predicate: 0
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 2
+    interrupts: 0
+    note: lo perdió de vista recién
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 2
+      threshold: 0
+      customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: escucha un ruido
+    conditions:
+    - predicate: 1
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: sigue yendo hacia el último ruido
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 1
+      threshold: 0
+      customSeconds: 0
+    - predicate: 5
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 1
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: le queda presupuesto de búsqueda
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 3
+      threshold: 0
+      customSeconds: 0
+    - predicate: 8
+      negate: 0
+      state: 0
+      threshold: 2
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: venía persiguiendo y todavía cree algo
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 2
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: venía hacia el montacargas y todavía cree algo
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 5
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 0
+    interrupts: 0
+    note: nada que atender
+    conditions: []
+  minimumStateDwell: 0.35

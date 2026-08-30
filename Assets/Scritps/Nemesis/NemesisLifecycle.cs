@@ -57,6 +57,12 @@ public class NemesisLifecycle : MonoBehaviour
         if (stateManager.FieldOfView != null) stateManager.FieldOfView.enabled = !dormant;
         if (stateManager.FieldOfListening != null) stateManager.FieldOfListening.enabled = !dormant;
 
+        // Lights are not Renderers, so HideRenderers below does not touch them — a dormant Nemesis
+        // would sit in the dark with its eyes still glowing, which is the one thing that would
+        // give away a monster that has not spawned yet.
+        NemesisEyes eyes = GetComponent<NemesisEyes>();
+        if (eyes != null) eyes.SetLightsEnabled(!dormant);
+
         if (dormant) HideRenderers();
         else         RestoreRenderers();
     }
@@ -151,6 +157,18 @@ public class NemesisLifecycle : MonoBehaviour
     /// </summary>
     public void RepositionAfterCapture()
     {
+        // The encounter is over. Forgetting where the player was is as much a part of that as
+        // moving away from it: the checkpoint has physically relocated them, so the remembered
+        // position now points at the one spot they provably are not.
+        //
+        // Without this the Nemesis walks away and comes straight back. The belief is fresh — it
+        // had its hands on the player a second ago — so BeliefFreshness sits near 1 and the patrol
+        // bias pulls hard towards the capture point, undoing the warp below. And on the way there
+        // the decision ladder reads that same fresh belief and lands it in Searching instead of
+        // back on patrol, which is the behaviour this fixes.
+        if (stateManager.FieldOfView != null) stateManager.FieldOfView.ForgetLastKnownPosition();
+        if (stateManager.FieldOfListening != null) stateManager.FieldOfListening.ForgetLastKnownPosition();
+
         NemesisController controller = stateManager.NemesisController;
 
         IReadOnlyList<Transform> spawns = controller != null ? controller.SpawnPoints : null;

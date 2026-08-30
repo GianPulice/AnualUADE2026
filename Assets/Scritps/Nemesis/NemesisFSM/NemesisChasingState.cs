@@ -28,11 +28,24 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
     {
         NextState = StateKey;
 
+        // The patrol stopping distance is sized for waypoints and is wider than the capture
+        // reach, so leaving it in place here halts the agent outside the only range a grab can
+        // fire from. See NemesisStateManager.PursuitStoppingDistance.
+        nemesisStateManager.SetStoppingDistance(nemesisStateManager.PursuitStoppingDistance);
+
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                     nemesisStateManager.NemesisMovement.ChaseSpeed);
     }
 
-    public override void ExitState() { }
+    /// <summary>
+    /// Hands the agent back its normal stopping distance. Everything else in the FSM — the patrol
+    /// waypoint wait, the search sweep advancing, the ladder's arrival test — measures against
+    /// that value, so a chase that ended without restoring it would quietly retune all three.
+    /// </summary>
+    public override void ExitState()
+    {
+        nemesisStateManager.SetStoppingDistance(nemesisStateManager.DefaultStoppingDistance);
+    }
 
     public override void UpdateState()
     {
@@ -41,13 +54,22 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
         // dead agent and floods the console with errors.
         if (!nemesisStateManager.IsAgentReady) return;
 
-        FieldOfView view = nemesisStateManager.FieldOfView;
-        if (view == null || !view.HasLastKnownPosition) return;
+        // The BELIEF and not FieldOfView.LastKnownPosition, which is what this used to read.
+        //
+        // The two differ exactly when the player breaks line of sight and keeps making noise —
+        // the commonest way a chase continues. Sight stops updating and hearing does not, so the
+        // visual memory freezes at the doorway they went through while the ladder, reading a
+        // belief age that hearing keeps at zero, correctly keeps the Nemesis chasing. Running at
+        // the frozen point means arriving at the doorway and standing in it. Reading the belief
+        // means the noise steers the pursuit, which is what "it heard you and came after you"
+        // is supposed to look like.
+        if (!nemesisStateManager.TryGetBelief(out Vector3 belief)) return;
 
-        // Runs at the remembered position, not at the player — and keeps running at it after sight
-        // is lost, for as long as rung 4 keeps the Nemesis in this state. That is what turns
-        // breaking line of sight into a few seconds of grace rather than an instant reprieve.
-        nemesisStateManager.NavAgent.destination = view.LastKnownPosition;
+        // Runs at the remembered position, not at the player — and keeps running at it after both
+        // sensors go quiet, for as long as the grace rung keeps the Nemesis in this state. That is
+        // what turns breaking line of sight into a few seconds of grace rather than an instant
+        // reprieve.
+        nemesisStateManager.NavAgent.destination = belief;
 
         // Standing over the player with the capture cooldown still closed, or against the wall at
         // the end of a partial path: either way there is nowhere left to run, and continuing to

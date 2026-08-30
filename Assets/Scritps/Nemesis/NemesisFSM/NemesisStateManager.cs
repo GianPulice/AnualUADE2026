@@ -37,13 +37,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     [SerializeField] private NemesisLifecycle lifecycle;
 
     [Header("Decision layer")]
-    [Tooltip("Tick this once a Unity Behavior graph is wired up and driving the Nemesis. The " +
-             "graph then owns the priority order and calls RequestState itself, and the built-in " +
-             "C# ladder in NemesisDecision stops running.\n\n" +
-             "Left off, that ladder decides — which is what keeps the Nemesis working while the " +
-             "graph is being authored. Either way the conditions come from the same predicates " +
-             "on NemesisDecision, so the two cannot drift apart on what 'sees the player' means.")]
-    [SerializeField] private bool decisionsFromGraph;
+    [Tooltip("La escalera de prioridades: qué estado pide el Nemesis y en qué orden se leen las " +
+             "reglas. Es un asset reordenable, así que cambiar el orden no recompila nada.\n\n" +
+             "Vacío usa la escalera por defecto que está escrita en " +
+             "SO_NemesisPriorities.BuildDefaultLadder() — el Nemesis funciona igual, pero nadie " +
+             "puede reordenarla desde el editor. Creá el asset con " +
+             "Create > Scriptable Objects > SO_NemesisPriorities.")]
+    [SerializeField] private SO_NemesisPriorities nemesisPriorities;
 
     [Header("Capture")]
     [Tooltip("Seconds the Nemesis stays inert in Catch after the player has respawned, before " +
@@ -131,6 +131,61 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public bool HasArrived => IsAgentReady && !navAgent.pathPending &&
                               navAgent.remainingDistance <= navAgent.stoppingDistance;
 
+    /// <summary>The agent's stopping distance as the prefab ships it. Captured in Awake, and used
+    /// only when there is no movement asset to read the authored value from.</summary>
+    private float defaultStoppingDistance;
+
+    /// <summary>
+    /// The stopping distance everything except an active pursuit runs at, and what
+    /// <see cref="SetStoppingDistance"/> restores to.
+    ///
+    /// Read off the movement asset rather than off the agent, because the agent's own value is
+    /// only true between Awake and Activate: <see cref="NemesisLifecycle.ApplyMovementTuning"/>
+    /// overwrites it from the SO on waking up. Capturing the prefab's number instead would mean a
+    /// chase that ends hands the agent back a stopping distance the designer had already
+    /// overridden — and that number decides when four separate things count as "arrived".
+    /// </summary>
+    public float DefaultStoppingDistance =>
+        nemesisMovement != null ? nemesisMovement.StoppingDistance : defaultStoppingDistance;
+
+    /// <summary>
+    /// How close the agent tries to get while it is actively closing on the player.
+    ///
+    /// IT IS DERIVED FROM THE CATCH REACH BECAUSE THE TWO ARE ONE SETTING PRETENDING TO BE TWO,
+    /// and the prefab proved it: a stopping distance of 1.5 m against a CatchMaxReach of 1 m
+    /// means the agent halts half a metre outside the only range at which a capture can fire. The
+    /// Nemesis sprints at the player, stops short, plays its idle, and waits — visibly seeing
+    /// them, never reaching them, forever. Nothing errors; the two numbers simply do not overlap.
+    ///
+    /// Kept at a fraction of the reach rather than at zero: an agent asked to arrive exactly on
+    /// top of its destination oscillates around it, and the capture only needs to get inside the
+    /// range, not to the centre of it.
+    ///
+    /// Floored so a designer who sets CatchMaxReach very small does not get an agent that jitters
+    /// on the spot instead of one that cannot catch.
+    /// </summary>
+    public float PursuitStoppingDistance
+    {
+        get
+        {
+            float reach = nemesisData != null ? nemesisData.CatchMaxReach : 1f;
+            return Mathf.Clamp(reach * 0.6f, 0.2f, Mathf.Max(0.2f, DefaultStoppingDistance));
+        }
+    }
+
+    /// <summary>
+    /// Sets how close the agent gets before it counts as arrived.
+    ///
+    /// A state that changes it owns putting it back — Chasing does, in its ExitState. It is on
+    /// the facade rather than reached through NavAgent so that "arrived" keeps one definition:
+    /// <see cref="HasArrived"/> reads whatever this last set, and every state's arrival test goes
+    /// through that one property.
+    /// </summary>
+    public void SetStoppingDistance(float distance)
+    {
+        if (navAgent != null) navAgent.stoppingDistance = Mathf.Max(0f, distance);
+    }
+
     /// <summary>
     /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
     /// another one.
@@ -214,26 +269,41 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// means a request and a state's own self-rejection travel down the same channel and cannot
     /// contradict each other.
     ///
-    /// Ignoring a request for the current state matters: without it, asking for Patrolling every
-    /// frame while patrolling would look like a transition to the machine and re-enter the state
-    /// continuously.
+    /// A STATE'S OWN REQUEST OUTRANKS THE LADDER'S. Finding NextState already pointing somewhere
+    /// else means the state itself wrote it, and a state only ever writes it to report something
+    /// about its own EXECUTION that the ladder cannot see: NemesisCatchState does it twice, once
+    /// on discovering there is nobody to grab and once when its grace window has run out. Both
+    /// are set during base.Update() and can only be picked up on the following frame — where this
+    /// runs first. Overwriting them there strands the Nemesis in Catch for the rest of the run,
+    /// because the ladder's top rung is "a capture in progress is not re-decided" and it would win
+    /// every frame, forever.
+    ///
+    /// THERE IS EXACTLY ONE OTHER WRITER AND THAT IS THE POINT. This guard used to be spelled
+    /// "return if the request is for the current state", which does the same job by accident and
+    /// stops doing it the moment anything else writes the channel. Something did: the Behavior
+    /// graph agent sat on the prefab ticking from its own Update, so a frame where the ladder
+    /// wanted to stay put left the GRAPH's stale request standing, and base.Update() transitioned
+    /// on it. Chasing and Patrolling then alternated every frame — and a machine that transitions
+    /// every frame never runs a single UpdateState, so nothing ever set a destination. That is
+    /// the Nemesis that looks straight at you and stands there changing its mind.
     /// </summary>
     public void RequestState(ENemesisState key)
     {
-        if (CurrentState == null || CurrentState.StateKey.Equals(key)) return;
+        if (CurrentState == null) return;
+        if (!CurrentState.NextState.Equals(CurrentState.StateKey)) return;
+
         CurrentState.NextState = key;
     }
 
     /// <summary>
-    /// The prioritised ladder, read once per frame. Null while a Behavior graph is driving.
-    ///
-    /// Public so a graph node can call the same predicates rather than reimplementing them.
+    /// The prioritised ladder, read once per frame. The Nemesis's only voter — see
+    /// <see cref="RequestState"/> for what happened the last time there were two.
     /// </summary>
     public NemesisDecision Decision { get; private set; }
 
-    /// <summary>Whether a Unity Behavior graph owns the decision instead of the built-in ladder.
-    /// </summary>
-    public bool DecisionsFromGraph => decisionsFromGraph;
+    /// <summary>The rung list the ladder walks, or null to use the built-in default. See
+    /// <see cref="SO_NemesisPriorities"/>.</summary>
+    public SO_NemesisPriorities Priorities => nemesisPriorities;
 
     /// <summary>The Searching state instance, or null before the machine is built. Reached for by
     /// <see cref="NemesisTelemetry.SearchInterceptPoint"/>, which reports where its cut-off is
@@ -245,26 +315,23 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private void TickDecision()
     {
-        // With a graph driving, it calls RequestState on its own and the ladder must not also
-        // vote — two decision layers writing the same channel is the distributed problem all over
-        // again, with an extra participant.
-        if (decisionsFromGraph || Decision == null) return;
-
         // NOTHING IS DECIDED WHILE SOMETHING ELSE OWNS THE BODY.
         //
         // NemesisElevatorUser switches the agent off for the whole freight-elevator ride and moves
         // the Transform by hand. Every state used to carry this guard at the top of its own
         // UpdateState, which had the side effect that no transition could happen during a ride —
-        // and that side effect was load-bearing. Moving the decision up here without it meant the
-        // ladder re-deciding mid-ride: the Nemesis is in the shaft and off the NavMesh, so the
-        // route query behind rung 2 fails, "the lift is on the way" goes false, and it drops out
-        // of Traversing into a state that cannot act either. The commitment that put it on the
-        // lift in the first place evaporates halfway up.
+        // and that side effect was load-bearing. Moving the decision up here without it meant
+        // re-deciding mid-ride: the Nemesis is in the shaft and off the NavMesh, so the route
+        // query behind the elevator rung fails, "the lift is on the way" goes false, and it drops
+        // out of Traversing into a state that cannot act either. The commitment that put it on the
+        // lift evaporates halfway up.
         //
-        // Freezing the decision here is also right for the other case that clears this flag — an
-        // agent knocked off the NavMesh by a Warp that did not land. Nothing it could decide would
-        // be actionable, and NemesisStuckEscape is what resolves that one.
+        // Freezing here is also right for the other case that clears this flag — an agent knocked
+        // off the NavMesh by a Warp that did not land. Nothing decided would be actionable, and
+        // NemesisStuckEscape is what resolves that one.
         if (!IsAgentReady) return;
+
+        if (Decision == null) return;
 
         RequestState(Decision.Decide());
     }
@@ -320,34 +387,44 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     // ── Facade: belief ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Where the Nemesis currently believes the player is: seen first, heard second.
+    /// Where the Nemesis currently believes the player is: whichever sensor caught them most
+    /// recently.
     ///
     /// Deliberately reads <c>HasLastKnownPosition</c> and not <c>HasVisualTarget</c> — a belief
     /// that stopped being refreshed is still a belief, and it is the whole reason a pursuit or a
     /// search is happening at all.
     ///
+    /// FRESHEST AND NOT SIGHT-FIRST, WHICH IT USED TO BE. "Seen first, heard second" is only
+    /// right while the sighting is at least as recent as the noise, and the case where it is not
+    /// is the common one: the player runs behind a wall. Sight stops updating, hearing keeps
+    /// updating, and a sight-first belief pins the answer to the spot where they disappeared. The
+    /// Nemesis then runs to that spot, arrives, and stands on it — while the noise renewing its
+    /// pursuit every frame keeps it from ever giving up and searching. It reads in game as a
+    /// monster that heard you, sprinted to the wrong place and froze there.
+    ///
     /// Lives here rather than in a state because three of them want the same answer (Traversing
     /// to hold its destination, Searching to anchor its cut-off, and the controller's patrol bias
-    /// through its own equivalent). Three private copies of the same sight-then-hearing ladder is
-    /// how the definition of "belief" quietly drifts apart between them.
+    /// through its own equivalent). Three private copies of the same comparison is how the
+    /// definition of "belief" quietly drifts apart between them.
     /// </summary>
     public bool TryGetBelief(out Vector3 position)
     {
         position = Vector3.zero;
 
-        if (fieldOfView != null && fieldOfView.HasLastKnownPosition)
-        {
-            position = fieldOfView.LastKnownPosition;
-            return true;
-        }
+        bool sawIt = fieldOfView != null && fieldOfView.HasLastKnownPosition;
+        bool heardIt = fieldOfListening != null && fieldOfListening.HasLastKnownPosition;
 
-        if (fieldOfListening != null && fieldOfListening.HasLastKnownPosition)
-        {
-            position = fieldOfListening.LastKnownPosition;
-            return true;
-        }
+        if (!sawIt && !heardIt) return false;
 
-        return false;
+        // Both ages are infinity when the sensor has never fired, so the comparison picks the one
+        // that has without needing a special case. Ties go to sight, which is the more precise of
+        // the two: a sighting is a position, a noise is roughly where a sound came from.
+        float sightAge = sawIt ? fieldOfView.TimeSinceLastSighting : float.PositiveInfinity;
+        float noiseAge = heardIt ? fieldOfListening.TimeSinceLastNoise : float.PositiveInfinity;
+
+        position = sightAge <= noiseAge ? fieldOfView.LastKnownPosition
+                                        : fieldOfListening.LastKnownPosition;
+        return true;
     }
 
     /// <summary>Seconds since either sensor last caught the player, or infinity if neither ever
@@ -409,18 +486,35 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// </returns>
     public bool WarpTo(Vector3 position)
     {
+        // Snapped first, and refused outright when nothing walkable is nearby.
+        //
+        // Every caller aims at a hand-placed marker, and a marker a few centimetres inside a wall
+        // is a warp that lands the agent off the NavMesh. Unity reports that warp as a success;
+        // what follows is an agent that cannot path, states whose guards make it stand still, and
+        // a stuck watchdog that warps it somewhere else — through the next wall. Refusing here
+        // leaves the Nemesis where it was, which the watchdog can retry, instead of stranding it
+        // somewhere it can never recover from.
+        if (!NemesisNav.TrySnapToNavMesh(position, out Vector3 landing))
+        {
+            Debug.LogWarning($"[{nameof(NemesisStateManager)}] Refused to warp to {position}: no " +
+                             $"walkable NavMesh within {NemesisNav.DefaultSampleRadius}u of it. " +
+                             "Check that the marker sits on the mesh and inside an area this " +
+                             "Nemesis is allowed to use.", this);
+            return false;
+        }
+
         // Warp and not transform.position: a NavMeshAgent keeps its own internal position and
         // would drag the Nemesis straight back on the next agent update.
         bool moved;
 
         if (navAgent == null || !navAgent.isActiveAndEnabled)
         {
-            transform.position = position;
+            transform.position = landing;
             moved = true;
         }
         else
         {
-            moved = navAgent.Warp(position);
+            moved = navAgent.Warp(landing);
         }
 
         if (!moved) return false;
@@ -460,6 +554,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
         Decision = new NemesisDecision(this);
+
+        // Captured before anything can change it, so the states have a value to return the agent
+        // to. See DefaultStoppingDistance.
+        defaultStoppingDistance = navAgent.stoppingDistance;
 
         InitializeStates();
 
@@ -692,6 +790,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         stuckEscape.ResetSample();
 
         CurrentState = States[ENemesisState.Patrolling];
+
+        // Start() deliberately does not call base.Start(), which is what would normally stamp
+        // this — so without it here the machine reports having been in Patrolling since the
+        // session began, and every dwell floor the decision layer expresses is already expired
+        // the first time it is asked.
+        MarkStateEntered();
         CurrentState.EnterState();
     }
 

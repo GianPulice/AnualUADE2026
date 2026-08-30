@@ -271,4 +271,35 @@ public static class NemesisNav
     public static bool IsOnNavMesh(Vector3 point, float sampleRadius = DefaultSampleRadius,
                                    int areaMask = NavMesh.AllAreas)
         => NavMesh.SamplePosition(point, out _, sampleRadius, areaMask);
+
+    /// <summary>
+    /// The nearest point on the walkable mesh, for anything about to be TELEPORTED there.
+    ///
+    /// Every warp in the system aims at a hand-placed marker — a spawn point, a patrol waypoint,
+    /// an elevator landing — and a marker is authored by eye. A few centimetres above the floor
+    /// is harmless; a few centimetres inside a wall is not. NavMeshAgent.Warp will happily place
+    /// the agent there and report success, and from then on isOnNavMesh is false: it cannot path,
+    /// every state's guard makes it do nothing, and the stuck watchdog warps it again — to
+    /// another marker, possibly through another wall. What that looks like from the outside is a
+    /// monster that walks through walls.
+    ///
+    /// Uses <see cref="AreaMask"/> by default, so a warp cannot drop the Nemesis into an area it
+    /// is not allowed to path out of — which strands it exactly as thoroughly as landing off the
+    /// mesh does, and is harder to see.
+    /// </summary>
+    /// <returns>false when there is no walkable surface within the radius, in which case
+    /// <paramref name="snapped"/> is the original point and the caller should not warp at all.
+    /// </returns>
+    public static bool TrySnapToNavMesh(Vector3 point, out Vector3 snapped,
+                                        float sampleRadius = DefaultSampleRadius)
+    {
+        if (NavMesh.SamplePosition(point, out NavMeshHit hit, sampleRadius, AreaMask))
+        {
+            snapped = hit.position;
+            return true;
+        }
+
+        snapped = point;
+        return false;
+    }
 }

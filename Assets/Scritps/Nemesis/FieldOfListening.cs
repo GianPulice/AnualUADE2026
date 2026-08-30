@@ -116,6 +116,16 @@ public class FieldOfListening : MonoBehaviour
     }
 
     /// <summary>
+    /// Drops the memory of the last noise. See <see cref="FieldOfView.ForgetLastKnownPosition"/>
+    /// for why a capture is the only thing entitled to call this.
+    /// </summary>
+    public void ForgetLastKnownPosition()
+    {
+        hasAudioTarget = false;
+        hasLastKnownPosition = false;
+    }
+
+    /// <summary>
     /// Swaps the data asset at runtime. Tier 3.3 uses it to push a scaled copy of the SO without
     /// touching the original asset.
     /// </summary>

@@ -113,6 +113,26 @@ public class FieldOfView : MonoBehaviour
     }
 
     /// <summary>
+    /// Drops the memory of where the target was, as though it had never been seen.
+    ///
+    /// The one legitimate caller is the end of a capture. Everywhere else "a belief is a memory,
+    /// not a state" holds and this must not be used — but a checkpoint respawn physically moves
+    /// the player somewhere else, so the remembered position stops being a stale fact and becomes
+    /// an actively false one. Keeping it sends the Nemesis straight back to where it just caught
+    /// you, which is the one place the player provably is not.
+    /// </summary>
+    public void ForgetLastKnownPosition()
+    {
+        hasVisualTarget = false;
+        hasLastKnownPosition = false;
+        lastKnownVelocity = Vector3.zero;
+
+        // Cleared too, or GetCurrentTarget keeps handing back the player it was holding and the
+        // capture check can fire again on a target the Nemesis is no longer entitled to know about.
+        lastKnownTarget = null;
+    }
+
+    /// <summary>
     /// Swaps the data asset at runtime. Tier 3.3 uses it to push a scaled copy of the SO without
     /// touching the original asset.
     /// </summary>
