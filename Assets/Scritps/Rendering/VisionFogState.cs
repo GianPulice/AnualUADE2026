@@ -61,6 +61,7 @@ public struct VisionFogState
     public Color bypassDefaultColor;
     public float bypassDefaultIntensity;
     public float bypassDefaultClear;
+    public float bypassPlayerFade;
 
     // ── Shader property IDs ─────────────────────────────────────────────────
     public static class Ids
@@ -94,6 +95,7 @@ public struct VisionFogState
         public static readonly int PlayerLightInjection = Shader.PropertyToID("_PlayerLightInjection");
 
         public static readonly int BypassFalloff        = Shader.PropertyToID("_FogBypassFalloff");
+        public static readonly int BypassPlayerFade     = Shader.PropertyToID("_FogBypassPlayerFade");
         public static readonly int BypassData           = Shader.PropertyToID("_FogLightBypassData");
         public static readonly int BypassColor          = Shader.PropertyToID("_FogLightBypassColor");
         public static readonly int BypassCount          = Shader.PropertyToID("_FogLightBypassCount");
@@ -136,6 +138,7 @@ public struct VisionFogState
             bypassDefaultColor     = c.bypassDefaultColor,
             bypassDefaultIntensity = c.bypassDefaultIntensity,
             bypassDefaultClear     = c.bypassDefaultClear,
+            bypassPlayerFade       = c.bypassPlayerFade,
         };
     }
 
@@ -182,6 +185,7 @@ public struct VisionFogState
             bypassDefaultColor     = Color.Lerp(a.bypassDefaultColor,     b.bypassDefaultColor,     t),
             bypassDefaultIntensity = Mathf.Lerp(a.bypassDefaultIntensity, b.bypassDefaultIntensity, t),
             bypassDefaultClear     = Mathf.Lerp(a.bypassDefaultClear,     b.bypassDefaultClear,     t),
+            bypassPlayerFade       = Mathf.Lerp(a.bypassPlayerFade,       b.bypassPlayerFade,       t),
         };
     }
 
@@ -223,6 +227,7 @@ public struct VisionFogState
         bypassDefaultColor     += other.bypassDefaultColor     * weight;
         bypassDefaultIntensity += other.bypassDefaultIntensity * weight;
         bypassDefaultClear     += other.bypassDefaultClear     * weight;
+        bypassPlayerFade       += other.bypassPlayerFade       * weight;
     }
 
     /// <summary>Divides an accumulated state by its total weight. No-op below 1e-4.</summary>
@@ -241,6 +246,7 @@ public struct VisionFogState
         playerLightColor *= k; playerLightTint *= k; playerLightInjection *= k;
         bypassFalloff *= k; bypassDefaultColor *= k;
         bypassDefaultIntensity *= k; bypassDefaultClear *= k;
+        bypassPlayerFade *= k;
     }
 
     // ── Output ──────────────────────────────────────────────────────────────
@@ -292,6 +298,7 @@ public struct VisionFogState
         Shader.SetGlobalFloat(Ids.PlayerLightInjection, playerLightInjection);
 
         Shader.SetGlobalFloat(Ids.BypassFalloff, bypassFalloff);
+        Shader.SetGlobalFloat(Ids.BypassPlayerFade, bypassPlayerFade);
     }
 
     /// <summary>

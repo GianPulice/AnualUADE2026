@@ -122,6 +122,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
     float  _PlayerLightInjection;  // cuanta luz SUMA (glow dentro de la niebla)
 
     float  _FogBypassFalloff;
+    float  _FogBypassPlayerFade;   // 0..1 — cuanto apaga la luz del modulo del player al glow del bypass
     float4 _FogLightBypassData[VISION_FOG_MAX_BYPASS];   // xyz = world pos, w = radio
     float4 _FogLightBypassColor[VISION_FOG_MAX_BYPASS];  // rgb = color*intensidad (lineal), a = clear 0..1
     int    _FogLightBypassCount;
@@ -340,6 +341,15 @@ Shader "Hidden/Custom/VisionFogHLSL"
         // mira la luminancia del pixel y un skybox brillante se abriria un hueco en la niebla.
         // Forzarlo aca deja el cielo siempre hundido, que es lo que un area de oscuridad quiere.
         opticalDepth = lerp(opticalDepth, max(_FogDensity, 0.0) * 4.0, skyMask);
+
+        // El glow del bypass se difumina donde el player ya ilumina. El player lleva su luz de
+        // modulo encima; cuando una bypass zone se solapa con ese radio su inyeccion se SUMA a
+        // lo que la luz del player ya puso, y lo que este parado ahi (tipicamente el Nemesis) se
+        // sobre-ilumina. Atenuamos la luz inyectada -no el clear, que sigue con MAX- en
+        // proporcion a cuanto de este pixel ya cae dentro de la luz del player. Con
+        // _FogBypassPlayerFade = 0 no hace nada (comportamiento viejo); con 1 el halo del bypass
+        // se apaga del todo en el centro de la luz del player.
+        bypassLight *= 1.0 - saturate(playerMask) * saturate(_FogBypassPlayerFade);
 
         // ── Luz que los focos meten DENTRO de la niebla ────────────────────
         // Esto es lo que hace que una lampara se lea como un halo en la oscuridad en vez de

@@ -228,6 +228,16 @@ public class SO_VisionFogConfig : ScriptableObject
              "nítida (clear bajo). Ése es el look que casi siempre querés.")]
     [Range(0f, 1f)] public float bypassDefaultClear = 1f;
 
+    [Tooltip("Cuánto se apaga el halo de una zona bypass DONDE la luz del módulo del player ya " +
+             "llega.\n\n" +
+             "  0 = el bypass brilla igual aunque el player esté al lado (comportamiento viejo)\n" +
+             "  1 = dentro de la luz del player el halo del bypass se apaga del todo\n\n" +
+             "Sirve para que algo parado en una zona bypass — típico el Nemesis — no se " +
+             "sobre-ilumine cuando además cae dentro de la luz del jugador. Sólo toca el brillo " +
+             "inyectado, no cuánta niebla limpia la zona ni el falloff. Cae con el mismo radio y " +
+             "curva (playerLightRange / playerLightFalloff) que la luz del módulo.")]
+    [Range(0f, 1f)] public float bypassPlayerFade = 1f;
+
     // ── Transition ──────────────────────────────────────────────────────────
     [Header("Transición al activarse")]
     [Tooltip("Segundos que tarda la niebla en pasar del preset anterior a éste, cuando el " +
@@ -308,6 +318,7 @@ public class SO_VisionFogConfig : ScriptableObject
         bypassDefaultColor = new Color(1f, 0.85f, 0.6f);
         bypassDefaultIntensity = 0f; // v1 bypass zones cleared fog but emitted no light
         bypassDefaultClear = 1f;
+        bypassPlayerFade = 1f;     // v1 had no bypass injection, so nothing to fade — 1 is the new default
 
         dataVersion = CurrentDataVersion;
     }

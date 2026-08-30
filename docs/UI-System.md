@@ -436,6 +436,8 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | CameraSensitivityApplier |
 | `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView |
 | `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView |
+| `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisEyes |
+| `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
 | `InventoryEvents.OnModuleTimerTick/StateChanged/Exploded` | timers de módulos | ModuleHUDView |

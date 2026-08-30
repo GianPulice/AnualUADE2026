@@ -71,11 +71,11 @@ Both the player and the Nemesis AI use the same generic FSM base:
 - **`StateManager<EState>`** (`Scritps/FSM/StateManager.cs`) — `MonoBehaviour` that owns a `Dictionary<EState, BaseState<EState>>`, drives `Update`/`TransitionToState`, and forwards `OnTriggerEnter/Stay/Exit` to the active state.
 - **`BaseState<EState>`** (`Scritps/FSM/BaseState.cs`) — abstract class with `EnterState`, `ExitState`, `UpdateState`, `GetNextState`, and trigger callbacks.
 
-**Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus `Traversing` and the terminal `Catch` (managed by `NemesisStateManager`). `Traversing` is entered from `Chasing` when reaching the player means changing floor by freight elevator; it holds that decision open for `SO_NemesisData.elevatorCommitTime` even with the player out of sight, because a floor slab breaks line of sight for the whole trip and without it the lift ride was abandoned every time. Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.1s) and `FieldOfListening.cs`, which occludes sight and sound with *different* masks — a floor blocks sight but only attenuates sound, and that is the Nemesis's only channel to the storey above. Route questions ("reachable? which floor? is the lift on the way?") go through `NemesisPathOracle`, which throttles them; that interval is a stability knob as much as a cost one, since a verdict flipping frame to frame makes the FSM oscillate. `NemesisTelemetry` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set — `Traversing` is deliberately NOT in it, since the player is a storey away and unreachable — and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
+**Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus `Traversing` and the terminal `Catch` (managed by `NemesisStateManager`). `Traversing` means "getting there needs the freight elevator"; it holds that decision open for `SO_NemesisData.ElevatorCommitTime` even with the player out of sight, because a floor slab breaks line of sight for the whole trip and without it the lift ride was abandoned every time. **Which state the Nemesis is in is not decided by the states themselves** — see *Nemesis: the decision layer* below. Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.1s) and `FieldOfListening.cs`, which occludes sight and sound with *different* masks — a floor blocks sight but only attenuates sound, and that is the Nemesis's only channel to the storey above. Route questions ("reachable? which floor? is the lift on the way?") go through `NemesisPathOracle`, which throttles them; that interval is a stability knob as much as a cost one, since a verdict flipping frame to frame makes the FSM oscillate. `NemesisTelemetry` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set — `Traversing` is deliberately NOT in it, since the player is a storey away and unreachable — and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
 
-**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport). The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot.
+**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport), `NemesisLookAround` (sweeps the gaze while standing still). `NemesisElevatorUser` is resolved with `GetComponent` but deliberately **not** auto-added: unlike the others it is a real feature with scene wiring behind it, and a level with no freight elevator should not silently grow one. The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot.
 
-Adding a state to `ENemesisState` has two non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**, and `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it.
+Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**; `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it; and no rung of the priority ladder will ever ask for it until you add one, so it is unreachable by default. **Append the new value at the end of the enum** — `SO_NemesisPriorities.asset` stores every rung's target as an integer, so inserting in the middle silently rewrites the designer's whole ladder into a different one.
 
 **Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`).
 
@@ -96,6 +96,8 @@ Communication between systems in different scenes uses **static C# events**. Key
 | `SettingsModel.OnSettingsApplied` | SettingsModel | CameraSensitivityApplier |
 | `NemesisEvents.OnChaseStarted/Ended` | NemesisStateManager | VignetteChaseView |
 | `NemesisEvents.OnProximityChanged` | NemesisStateManager | VignetteProximityView |
+| `NemesisEvents.OnStateChanged` | NemesisTelemetry | NemesisAudio, NemesisEyes |
+| `NemesisEvents.OnCaptureResolved` | NemesisCatchState | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed/Consumed` | InventoryManager | InteractionPromptView, ModuleHUDView |
 | `UIStateManager.OnModalPushed/Popped` | UIStateManager | (subscribers as needed) |
@@ -265,6 +267,185 @@ Beyond the FSM described above:
   array, so **adding a value to `ENemesisState` without an entry crossfades the monster to
   silence**. `NemesisChaseMusic` is separate and driven by `OnChaseStarted/Ended`.
 
+- **`NemesisClusterPatrol`** — patrol is by ZONE, not by waypoint: it picks a cluster of nearby
+  waypoints, sweeps it, then moves to one next door, so the monster walks through the level instead
+  of teleporting across it. Recently swept zones are down-weighted (`ClusterRecencyPenalty` /
+  `ClusterRecencyMemory`), which is what stops it ping-ponging between two neighbours — excluding
+  only the zone it just left is not enough, because the neighbour bias immediately favours it again.
+- **`NemesisPursuit`** — where to run while chasing. Plain class, not a MonoBehaviour, owned by
+  `NemesisChasingState`. See *Nemesis: chase and search*.
+- **`NemesisLookAround`** — sweeps the gaze while the Nemesis stands still. Auto-added like the
+  other siblings; tuned from `SO_NemesisData`, and inert at `ScanHalfAngle` 0.
+
+Two shared helpers live in `Scritps/Utils/` and exist because the same code had been written by
+hand several times over:
+
+- **`RouletteSelection`** — weighted random selection. Takes a list of weights and returns an
+  **index**, because every caller already holds parallel buffers it reuses to avoid allocating on a
+  hot path; a `Dictionary`-shaped API would mean building one per call to throw it away. It owns
+  the two edge cases each hand-rolled copy had rediscovered separately: every candidate at weight
+  zero (uniform among them), and the float-rounding fall-through. Note it also skips zero-weight
+  entries outright — `Random.value` can return exactly 0, and without that guard the first bucket
+  wins even when the caller had weighted it out.
+- **`LineOfSight`** — see *Nemesis: senses*.
+
+The Nemesis rolls rather than picks the best almost everywhere — patrol zone, waypoint, spawn point,
+pursuit detour, search target. That is deliberate and consistent: *"the zone you are in gets more
+tickets"* reads as the monster prowling around you, *"it always goes where you are"* reads as it
+seeing through walls.
+
+### Nemesis: the decision layer
+
+**The states do not decide which state comes next.** `NemesisDecision` does, once per frame, and
+writes the answer through `NemesisStateManager.RequestState`. Every state's `UpdateState` is
+therefore only about *doing* its job, not about *leaving* it.
+
+There is **exactly one voter**, and that is load-bearing. An earlier version ran a Unity Behavior
+graph alongside the C# ladder; both wrote the same `NextState` channel, so the FSM transitioned
+every frame and — because `StateManager.Update` runs a transition **or** `UpdateState`, never both
+— never executed a single frame of any state. That reads in game as a monster that looks straight
+at you and stands there twitching. If you add a second thing that writes `NextState`, you will
+reproduce it.
+
+**The ladder is data, the tree is structure.**
+
+- `SO_NemesisPriorities` (asset) holds the **order** and **which questions** each rung asks. It is
+  a reorderable list, read top to bottom, first match wins. Reordering is a designer action with no
+  recompile.
+- `SO_NemesisData` holds the **numbers**. A rung says "younger than the chase grace", never
+  "younger than 2", so a threshold keeps one home.
+- `NemesisDecision` holds the **predicates** — one side-effect-free property per question, so the
+  asset can reorder the reasoning but can never hold a second definition of what "sees the player"
+  means.
+- Evaluation builds a **decision tree** from that rung list (`Scritps/AI/`: `ITreeNode`,
+  `QuestionNode`, `ActionNode`): one `QuestionNode` per rung, its false branch being the rung
+  below. Same first-match-wins answer a `for` loop gave, minus the ceiling — a false branch can
+  open a different sub-ladder instead of always being the next line down.
+
+**Two rules that fail silently if you break them:**
+
+1. **Append to `ENemesisPredicate` / `ENemesisState` / `ENemesisThreshold`, never insert.** Unity
+   serialises an enum field as its integer, so the asset stores `predicate: 6`, not
+   `predicate: IsInState`. Inserting a member renumbers everything below it and rewrites the
+   authored ladder into a different one — the rung that asked "am I in this state" starts asking
+   "have I arrived", and nothing errors.
+2. **Add a new rung in BOTH places.** `NemesisDecision.Ladder` prefers the asset whenever it has
+   rungs, and the shipped prefab has one assigned. A rung added only to
+   `SO_NemesisPriorities.BuildDefaultLadder()` never runs. The code default exists so the two
+   cannot drift, not as the thing that executes.
+
+**Hysteresis.** `MinimumStateDwell` (default 0.35 s) holds the answer briefly so a sensor flickering
+at the edge of its range cannot trade the Nemesis back and forth every frame. Inside the window only
+rungs marked `interrupts` may win. Reserve that flag for what must never wait — seeing the player,
+being able to grab them, and a physical fact like riding the lift. Marking everything an interrupt
+is the same as switching hysteresis off.
+
+**The tree is rebuilt when the ladder's shape changes**, compared **element by element**. Reordering
+a `List<T>` changes neither its identity nor its length, so both cheap checks miss a reorder — and
+reordering is the ladder's entire authoring workflow.
+
+**The shipped order, and the two commitment groups.** Read top to bottom it is the design: a
+capture in progress is never re-decided; the lift outranks plain sight, because a visible player
+one floor up is the case a flat chase handles worst; the bottom rung is unconditional so the ladder
+can never fall through to nothing. Two groups exist purely to stop oscillation, and both were added
+after watching it happen:
+
+- `esta cruzando el montacargas` + `ya se comprometio con el montacargas` — see *Freight elevator*.
+- `le queda presupuesto de busqueda`, which sits **above** the noise rung. With the noise rung
+  higher, hearing anything while searching voted the Nemesis into `Investigating` before
+  `NemesisSearchingState.UpdateState` ever ran a frame, so its "a fresh noise re-aims the cut-off"
+  logic was dead code and every noise cut the search short.
+
+`NemesisDebugHUD` shows the winning rung's index and note every frame. "Why is it doing this" is
+not answerable without it.
+
+### Nemesis: senses
+
+**Vision is two cones, not one.** `SO_NemesisData.FocusAngle` is the inner cone where detection is
+instant, exactly as it always was. Everything between it and `ViewAngle` is **peripheral**: it does
+not trip a sighting, it fills an `Awareness` meter (0..1) for as long as the exposure lasts, faster
+the closer the target is. At 1 it promotes to a real sighting and everything downstream behaves
+normally; above `AwarenessTriggerThreshold` but below 1 it reads as `IsSuspicious`, which the
+`vio algo de reojo` rung turns into `Investigating` — the Nemesis walks over to look instead of
+sprinting. Losing the exposure decays the meter at `AwarenessDecayRate`, so leaning out twice in a
+row is worse than leaning out once.
+
+Before this, vision was all-or-nothing and "sees the player" is an **interrupt** rung, so peeking
+round a corner started a full chase in the same frame with no beat for the player to react to.
+
+Setting `FocusAngle` at or above `ViewAngle` removes the peripheral band entirely and restores the
+old instant-detection behaviour. That is a legitimate choice and it fails invisibly, so
+`SO_NemesisDataEditor` checks for it.
+
+**The gaze is not the body.** `FieldOfView.LookDirection` is what the cone is cast from, and it
+defaults to the view transform's forward but can be driven elsewhere. It has to be separable
+because the `NavMeshAgent` owns the body's rotation — it turns towards whatever it is walking at —
+so with the cone welded to that, a Nemesis standing still stares down the corridor it arrived from
+for the whole wait and physically cannot look anywhere else. `NemesisLookAround` sweeps it
++/-`ScanHalfAngle` at `ScanSpeed` during the two moments the Nemesis is deliberately stationary:
+waiting out a patrol waypoint, and pausing at a search point. It hands the gaze back on every other
+state.
+
+**`LineOfSight` (`Scritps/Utils/`) is the shared range/angle/occlusion test.** Use it rather than
+writing the trio again — six hand-rolled copies existed before it. Two things about it are
+deliberate:
+
+- **Nothing flattens Y.** The angle test is full 3D, matching what `FieldOfView` has always done: a
+  player on a catwalk directly overhead is outside a 90-degree cone. `NemesisGizmos` flattens when
+  it *draws* a cone, which is a drawing concern and does not belong in the test.
+- **`CheckConeSampled` samples three points up the target's bounds** (feet, centre, head) and tests
+  angle and occlusion *together* per sample. Collapsing it to one central ray narrows detection
+  everywhere at once — a head showing over a crate stops counting — and nothing errors; the monster
+  just gets quietly worse at its job.
+
+Hearing is unchanged and described under the FSM section: `FieldOfListening` occludes sight and
+sound with **different** masks, and how loud the player is (their emitter radius) decides the real
+range.
+
+### Nemesis: chase and search
+
+**Chasing runs `NemesisPursuit`, not `destination = belief`.** Seek aimed at where the player
+already was means arriving after they have left the next place too, so against someone running in a
+straight line the Nemesis holds station instead of closing.
+
+- **Prediction.** `NemesisPursuit.PredictAhead` projects the belief forward by
+  `ChaseTimePrediction` along the observed velocity, and **keeps the dot guard**: if the lead point
+  lands on the far side of the Nemesis — which is what happens when the player runs *at* it — it
+  aims at the target instead of turning around and sprinting away. `NemesisSearchingState` uses the
+  same static with its own (deliberately shorter) `SearchLeadTime`; it used to have a second copy
+  without the guard.
+- **The velocity is OBSERVED** (`FieldOfView.LastKnownVelocity`, measured between sightings) and
+  never read off the player's movement code. That is the difference between predicting and
+  cheating, and it is what keeps changing direction the instant you break line of sight a real
+  counterplay.
+- **Route choice.** With the player out of sight, it scores patrol waypoints by: clear line of
+  sight to the predicted point (the factor that produces flanking for free), being within
+  `ListenRange` of the belief (so a footstep re-acquires you), path proximity to the last known
+  position decayed by `BeliefFreshness`, and its own arrival time. It is a **roll, not an argmax** —
+  always taking the single best vantage point is indistinguishable from knowing where you are. A
+  detour must fit inside `ChaseDetourTolerance` of going direct, unless there is no complete direct
+  route at all, in which case anything reachable beats standing against the wall.
+- **It does its own path query and deliberately NOT through `NemesisPathOracle`.** The oracle holds
+  one cached answer and does not key it on the target, so querying it here would hand the pursuit a
+  verdict computed for the decision layer's belief and, worse, reset the oracle's timer with a
+  verdict computed for the predicted point — which the elevator rung then reads as its own. It is
+  affordable because the replan is already throttled by `ChaseRouteReplanInterval`.
+
+**Searching picks where to look with a weighted roll** (`PickSearchTarget`), mixing the last known
+position, the predicted position, what it has not swept yet (reduced, not excluded — a search that
+refuses to double back runs out of places to go), and its own travel time. It used to be "the
+nearest unvisited waypoint from where I am standing", which peeled outward from the spot it lost
+you at while you walked away.
+
+`SearchPauseTime` makes it stop at each point and look around before choosing the next. That is
+what makes a search **legible**: without it the Nemesis chains destinations and, from inside a
+hiding place, none of it says whether it is closing in or has already written the area off.
+
+The interception (`TryGetInterceptPoint`) is unchanged and still outranks both: it is the only part
+that reasons about the *player's* travel time rather than its own, and the only one that can put the
+Nemesis somewhere before you get there. It runs on entry and on a fresh noise, **never in the tick**
+— it costs two path queries per candidate.
+
 ### Editor tools
 
 All under `Tools/`:
@@ -343,6 +524,39 @@ free. It then shelves that elevator for `SO_NemesisData.ElevatorAbandonCooldown`
 that the agent is still standing on the link and restarts the same doomed wait on the next frame,
 forever, with the stuck watchdog suppressed by the traversal.
 
+**The agent is still ENABLED while it waits for the cabin**, and that window can run twenty seconds.
+It is only switched off once boarding starts. Two bugs lived in that gap and both had the same
+cause — nothing had told the agent to stop:
+
+- `NemesisTraversingState` re-issued `destination` every frame at a point on the far side of the
+  shaft. An agent asked to keep going while it sits on an off-mesh link it may not auto-traverse
+  grinds along the link direction, which points straight through the shaft wall, because that is
+  what the link is for. It is not that the Nemesis ignores the wall; nobody had told it to stop
+  walking at it.
+- The gait stayed `Running` from `Traversing.EnterState`, so it sprinted on the spot at the landing.
+
+`NemesisElevatorUser.HoldStill(true)` now stops the agent, zeroes its velocity and drops the gait to
+`Idle` before the wait, releasing on boarding and again in the `finally` so no early return strands a
+frozen agent. `NemesisTraversingState` skips writing `destination` while `agent.isOnOffMeshLink` —
+`IsAgentReady` does **not** cover that window.
+
+**Two ladder rungs exist purely to keep the FSM from re-deciding mid-trip.**
+`RouteToBeliefCrossesFloors` is measured from wherever the Nemesis is standing *right now*, and
+walking towards a landing changes that path continuously — near the doors it flips outright, because
+a route computed from a point already on the link no longer counts as crossing it. Each flip is a
+real transition, and a machine that transitions never runs `UpdateState`, so it bounced
+`Traversing`/`Searching` several times a second and never finished the walk.
+
+- `esta cruzando el montacargas` (`IsUsingElevator`, an **interrupt**) — while
+  `NemesisElevatorUser` is driving the body, the FSM says `Traversing` whatever the route verdict
+  thinks. It is not a sensor that can flicker; it is a fact about who owns the body.
+- `ya se comprometio con el montacargas` (`InState(Traversing)` + `TimeInStateUnder` +
+  `BeliefAgeUnder`, both on `ElevatorCommitTime`) — the rung below can only *enter* the state, not
+  hold it. Once committed, the approach runs on its own clock instead of being re-justified every
+  frame. **Trade-off:** it holds for up to `ElevatorCommitTime` even if the route stops crossing
+  floors. Lower that number if it feels sticky; the capture rung is an interrupt above it, so a grab
+  still works.
+
 ### Safe zones (the Hub)
 
 Handled purely on the NavMesh: a `NavMeshModifierVolume` over the Hub with its area set to
@@ -378,7 +592,12 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 Data lives in `Assets/ScriptableObjects/`. Key types in `Scritps/ScriptableScripts/`:
 - `SO_InventoryItem` — item data (ItemID, ItemName, Category, IsConsumable, IsMetallic, parameters).
 - `SO_SceneList` / `ScreenEventChannel` — scene navigation.
-- `SO_NemesisData` / `SO_NemesisMovement` — Nemesis tuning.
+- `SO_NemesisData` / `SO_NemesisMovement` — Nemesis tuning. `SO_NemesisData` has a custom inspector
+  (`SO_NemesisDataEditor`) with a to-scale range diagram, a distance/angle case tester and a set of
+  checks; add a detection value there too or it exists only as a float nobody can picture.
+- `SO_NemesisPriorities` — the Nemesis's priority ladder as a reorderable asset. See
+  *Nemesis: the decision layer*, especially the two rules about enum ordering and editing both the
+  asset and `BuildDefaultLadder()`.
 - `SO_Movement` / `SO_CameraConfig` — player tuning.
 - `SO_SaveSlotData` / `SO_SaveSlotDatabase` — save slot stubs.
 - Puzzle data: `SO_SequencePuzzleData`, `SO_ContainerPuzzleData`, `SO_ValvePuzzleData`, `SO_HubPuzzleData`.
@@ -394,6 +613,27 @@ Async operations (scene load/unload, UI transitions) use **UniTask** (`Cysharp.T
 **Adding a pushable screen**: create Model/View/Controller inheriting the base classes, create a scene, add it to `SO_SceneList` under a group label, add it to Build Settings. Invoke via `screenChannel.RaisePushScreen("label")`.
 
 **GameResultManager**: call `GameResultManager.ResetSession()` at the start of each gameplay session, otherwise a second Win/Lose cannot be reported (static `_resultReported` guard).
+
+**Enums that a ScriptableObject serialises are append-only.** Unity stores an enum field as its
+integer, so an asset holds `predicate: 6`, not `predicate: IsInState`. Inserting a member anywhere
+above the end renumbers everything below it and silently rewrites the authored data into something
+else — nothing errors, the behaviour just changes. This applies to `ENemesisPredicate`,
+`ENemesisState`, `ENemesisThreshold` and any enum a designer's asset references. Add at the end,
+always.
+
+**Reach for the shared helpers before writing the maths again.** `RouletteSelection` (weighted
+random) and `LineOfSight` (range / cone / occlusion) in `Scritps/Utils/` both exist because the same
+few lines had been re-derived in four to six places, and copies drift: two of them had already
+stopped agreeing on what happens when every candidate weighs zero. `NemesisNav` plays the same role
+for distance and reachability — measure over the NavMesh, never with `Vector3.Distance`, in a level
+with floors.
+
+**Anything a designer has to tune needs somewhere to see it.** A detection or navigation value that
+exists only as a float on `SO_NemesisData` is untunable in practice. The three places that make it
+visible are `SO_NemesisDataEditor` (the asset's diagram, case tester and checks), `NemesisGizmos`
+(the same ranges drawn to scale against real level geometry) and `NemesisDebugHUD` (live state,
+winning rung, belief age, suspicion). A decision with no visible tell — an interception, a flanking
+detour — is one nobody can confirm ever happened.
 
 **Settings appliers**: `SettingsModel` persists every field to PlayerPrefs and raises `OnSettingsApplied`. The appliers that consume those keys already exist and are wired:
 
@@ -438,6 +678,11 @@ The systems below are **implemented but not connected to anything**. Read this b
 - **`EPlayerState.InDanger`** is in the enum but never registered in the state dictionary; transitioning to it would throw `KeyNotFound`. `PlayerHiddenState` is inert (no collider/visibility change) and is toggled by debug keys `R`/`T`/`Y` still live in `PlayerStateManager.InputUpdate`.
 - **Two parallel unfinished grab/push implementations**: `GrabbableBall` + `PushBoxTriggerLogic` (active) and `PushableBall` (its `FixedUpdate` is entirely commented out). `GrabbableBall` reads `KeyCode.E` with no `PauseManager.IsGameplayInputBlocked` guard.
 - **Debug scripts still ship in the game folder**: `WinLoseTest.cs`, `TestClick.cs`, `Editor/TestSceneBuilder.cs`.
+- **`SO_NemesisData.patrolWaitVariance` ships at 0**, so the wait at every patrol waypoint is still
+  the same length every time and a player who has timed one round has timed them all. It defaults
+  off on purpose — the variance is expressed as +/- seconds around the authored wait, and no code
+  default can know what that authored value is without retuning existing assets. Set it to about
+  `0.6` to switch the feature on.
 
 **Wired since this section was last written** — kept here because the old text said otherwise and people still quote it:
 
@@ -445,4 +690,6 @@ The systems below are **implemented but not connected to anything**. Read this b
 - **Retry does reset run state**, through `GameSession.BeginNewSession()` and `ISessionResettable`.
 - **`SO_NemesisMovement` is fully consumed.** `NemesisLifecycle.ApplyMovementTuning` applies `AngularSpeed`, `Acceleration` and `StoppingDistance`; the four state speeds are all assigned. `InvestigationTimeOut` and `NoiseUpdateCooldown` are both read.
 - **Nemesis trigger overrides no longer throw** — they are empty, which is correct: the FSM is driven by the sensors, not by triggers.
+- **Transitions no longer live inside the states.** `NemesisDecision` decides, the states only act. Anything in this file describing a state as "transitioning to" another is out of date; look at `SO_NemesisPriorities` instead.
+- **Vision is gradual in the peripheral band**, chasing predicts and can route through a waypoint to open an angle, and searching rolls its target from the last known position rather than sweeping outward from its own feet. All three are on by default.
 - **`DoorInteractable` no longer has a blocking-collider path at all.** Whether the Nemesis can pass is decided by `nemesisCanOpen` plus the NavMesh (a `NavMeshObstacle` with Carve), not by toggling colliders.
