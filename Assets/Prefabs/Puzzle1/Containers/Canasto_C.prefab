@@ -122,8 +122,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8577465904704989797}
-  - component: {fileID: 7930465260231165785}
   - component: {fileID: 8068626085593968632}
+  - component: {fileID: 3828705585390516777}
   m_Layer: 0
   m_Name: BasketTrigger
   m_TagString: Untagged
@@ -140,13 +140,28 @@ Transform:
   m_GameObject: {fileID: 7673772146445303966}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.047, y: 0, z: -0.006}
+  m_LocalPosition: {x: 0.038, y: 0, z: -0.07}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 284940694553183006}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &7930465260231165785
+--- !u!114 &8068626085593968632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7673772146445303966}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 021956b4f2f7f664dbc5c8ba966f2905, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BasketTrigger
+  basketId: slot_3
+  linkedPuzzleId: sp2_contenedores
+  snapTarget: {fileID: 0}
+--- !u!65 &3828705585390516777
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -165,19 +180,5 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.31901807, y: 1, z: 0.32791507}
-  m_Center: {x: -0.028830491, y: 0, z: -0.005054742}
---- !u!114 &8068626085593968632
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7673772146445303966}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 021956b4f2f7f664dbc5c8ba966f2905, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BasketTrigger
-  basketId: slot_3
-  linkedPuzzleId: sp2_contenedores
+  m_Size: {x: 0.17131524, y: 1, z: 0.18537945}
+  m_Center: {x: -0.036735006, y: 0, z: 0.06621307}

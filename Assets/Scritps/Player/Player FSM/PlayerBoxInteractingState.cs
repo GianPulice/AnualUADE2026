@@ -15,7 +15,10 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     public override void EnterState()
     {
         Debug.Log("Enter Interacting State");
-        playerStateManager.SpeedMultiplier = 0.5f;
+        // Box push speed lives on SO_Movement (BoxPushSpeed) and is read directly in UpdateState.
+        // SpeedMultiplier is kept at 1 so nothing else (CameraSprintEffect, etc.) misreads it as
+        // a stance change — the tempo is capped by the SO value, not by the multiplier.
+        playerStateManager.SpeedMultiplier = 1f;
         playerStateManager.BoxColl.enabled = true;
         playerStateManager.IsCrouch = false;
         playerStateManager.AnimController.SetBool("isPushing", true);
@@ -62,13 +65,15 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
             {
                 if (Input.GetAxis("Vertical") > 0)
                 {
-                    if (playerStateManager.CurrentVelocity < playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier)
+                    float pushCap = playerStateManager.Movement.BoxPushSpeed;
+                    if (playerStateManager.CurrentVelocity < pushCap)
                     {
                         playerStateManager.CurrentVelocity += playerStateManager.Movement.Acceleration * Time.deltaTime;
+                        if (playerStateManager.CurrentVelocity > pushCap) playerStateManager.CurrentVelocity = pushCap;
                     }
                     else
                     {
-                        playerStateManager.CurrentVelocity = playerStateManager.Movement.MoveSpeed * playerStateManager.SpeedMultiplier;
+                        playerStateManager.CurrentVelocity = pushCap;
                     }
                 }
                 else playerStateManager.CurrentVelocity = 0;

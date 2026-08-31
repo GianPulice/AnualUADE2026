@@ -343,6 +343,10 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3427646197398109491, guid: 7e306b1ead7679e4bb1932b06b84a9c3, type: 3}
+      propertyPath: m_SortingOrder
+      value: 51
+      objectReference: {fileID: 0}
     - target: {fileID: 3483866002741315073, guid: 7e306b1ead7679e4bb1932b06b84a9c3, type: 3}
       propertyPath: m_Name
       value: CanvasSettings

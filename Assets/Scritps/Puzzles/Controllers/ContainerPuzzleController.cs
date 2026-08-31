@@ -5,6 +5,7 @@ public class ContainerPuzzleController : MonoBehaviour
     [SerializeField] private SO_ContainerPuzzleData containerPuzzleData;
 
     public string PuzzleId => containerPuzzleData != null ? containerPuzzleData.PuzzleId : string.Empty;
+    public SO_ContainerPuzzleData PuzzleData => containerPuzzleData;
 
     public void CheckContainers()
     {

@@ -33,6 +33,10 @@ public class DoorInteractable : BaseRangeInteractable
     private bool isOpen;
     private bool isAnimating;
     private bool wasEverOpened;
+    // Sign applied to openAngle for the CURRENT open cycle. Recomputed at every OpenDoor call from
+    // the position of whoever is opening (player or Nemesis), so the leaf always swings AWAY from
+    // them. Cached until CloseDoor so the reverse animation lands exactly back on the closed rot.
+    private float openedSign = 1f;
 
     public bool IsOpen => isOpen;
     public bool IsAnimating => isAnimating;
@@ -149,10 +153,12 @@ public void OpenDoor()
                                  $"'{doorData.DoorId}' opened but will not stay unlocked.", this);
         }
 
+        Vector3? openerPos = ResolvePlayerPosition();
+        openedSign = ResolveOpenSign(openerPos);
         StartCoroutine(AnimateOpen());
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
-        Debug.Log($"Door opened: {logId}");
+        Debug.Log($"Door opened: {logId} (openedSign={openedSign}, opener={(openerPos.HasValue ? openerPos.Value.ToString("F2") : "null")})", this);
     }
 
     // ── Opening by the Nemesis ──────────────────────────────────────────────
@@ -176,6 +182,13 @@ public void OpenDoor()
         // when this door canNOT be forced.
         if (!nemesisCanForceLocked && !CanInteractInCloseRange()) return false;
 
+        // Nemesis-side swing: same "away from whoever is opening" rule, but the reference is the
+        // Nemesis itself, not the player. Falls back to the player if we cannot locate one.
+        Vector3? nemesisOpenerPos = null;
+        NemesisController nemesis = Object.FindAnyObjectByType<NemesisController>();
+        if (nemesis != null) nemesisOpenerPos = nemesis.transform.position;
+        else nemesisOpenerPos = ResolvePlayerPosition();
+        openedSign = ResolveOpenSign(nemesisOpenerPos);
         StartCoroutine(AnimateOpen());
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
@@ -197,14 +210,14 @@ public void CloseDoor()
 private IEnumerator AnimateOpen()
     {
         yield return AnimateHinge(hingeClosedLocalRot,
-                                  hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f));
+                                  hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f));
         isOpen = true;
         InteractionEvents.RequestPromptRefresh();
     }
 
 private IEnumerator AnimateClose()
     {
-        yield return AnimateHinge(hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f),
+        yield return AnimateHinge(hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f),
                                   hingeClosedLocalRot);
         isOpen = false;
         InteractionEvents.RequestPromptRefresh();
@@ -235,7 +248,78 @@ private IEnumerator AnimateClose()
 private void ApplyOpenStateImmediate()
     {
         if (hinge != null)
-            hinge.localRotation = hingeClosedLocalRot * Quaternion.Euler(0f, openAngle, 0f);
+            hinge.localRotation = hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f);
+    }
+
+    // Tries every source of the player's world position, in order of reliability, and returns
+    // the first hit. Kept as a helper because scenes without the full player-registration flow
+    // wired up (e.g. isolated test scenes) leave PlayerRegistry.CurrentTransform null, which
+    // would silently fall back to the previous "always open the same way" behaviour.
+    private Vector3? ResolvePlayerPosition()
+    {
+        Transform t = PlayerRegistry.CurrentTransform;
+        if (t != null) return t.position;
+
+        GameObject taggedPlayer = GameObject.FindGameObjectWithTag("Player");
+        if (taggedPlayer != null) return taggedPlayer.transform.position;
+
+        if (Camera.main != null) return Camera.main.transform.position;
+
+        Debug.LogWarning($"[{nameof(DoorInteractable)}] '{name}' could not resolve a player " +
+                         "position when opening — the leaf will swing in its default direction.", this);
+        return null;
+    }
+
+    // Returns +1 or -1 so that rotating the leaf by openAngle * sign moves it AWAY from
+    // openerWorldPos. Simulates both signs on a sample point taken from the RENDERED leaf mesh
+    // (combined renderer bounds of the hinge's children), then picks whichever ends up further
+    // away in the XZ plane. The renderer sample matters: several door prefabs put a bare child
+    // Transform at the hinge origin and the mesh only exists deeper down — a naive first-child
+    // read leaves the offset at zero and both signs tie, silently locking the door to +1.
+    // Falls back to +1 (previous behaviour) when there is no renderer to sample or no opener.
+    private float ResolveOpenSign(Vector3? openerWorldPos)
+    {
+        if (hinge == null || !openerWorldPos.HasValue) return 1f;
+
+        Vector3 pivot = hinge.position;
+        if (!TryGetLeafSample(out Vector3 leafSample)) return 1f;
+
+        Vector3 offset = leafSample - pivot;
+        // Rotate only in the horizontal plane; the leaf's vertical extent has no bearing on
+        // which side of the door the player is on.
+        offset.y = 0f;
+        if (offset.sqrMagnitude < 1e-6f) return 1f;
+
+        Vector3 axis = Vector3.up;
+
+        Vector3 posEnd = pivot + Quaternion.AngleAxis(+openAngle, axis) * offset;
+        Vector3 negEnd = pivot + Quaternion.AngleAxis(-openAngle, axis) * offset;
+
+        Vector3 target = openerWorldPos.Value;
+        target.y = 0f;
+        posEnd.y = 0f;
+        negEnd.y = 0f;
+
+        float dPos = (posEnd - target).sqrMagnitude;
+        float dNeg = (negEnd - target).sqrMagnitude;
+        return dPos >= dNeg ? 1f : -1f;
+    }
+
+    // Finds a world-space point that actually sits inside the leaf's rendered volume: the
+    // combined centre of every Renderer under the hinge. Bare-Transform children at the pivot
+    // are ignored because they contribute no bounds.
+    private bool TryGetLeafSample(out Vector3 sample)
+    {
+        sample = default;
+
+        Renderer[] renderers = hinge.GetComponentsInChildren<Renderer>(includeInactive: false);
+        if (renderers == null || renderers.Length == 0) return false;
+
+        Bounds combined = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) combined.Encapsulate(renderers[i].bounds);
+
+        sample = combined.center;
+        return true;
     }
 
 private void CacheClosedRotation()

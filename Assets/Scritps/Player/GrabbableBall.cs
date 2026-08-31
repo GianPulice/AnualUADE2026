@@ -2,13 +2,17 @@ using UnityEngine;
 
 public class GrabbableBall : MonoBehaviour
 {
-    [SerializeField] private string playerTag = "Player";
+    private string playerTag = "Player";
+    [Tooltip("Seconds the box takes to slide to the centre of its matching basket after the " +
+             "BasketTrigger confirms it is the correct one. Only X/Z are tweened; Y is preserved.")]
+    [SerializeField, Min(0f)] private float snapDuration = 0.35f;
 
     private Rigidbody rb;
     private Transform currentTriggerTransform;
     private PlayerStateManager player;
     private bool playerNearby;
     private bool isGrabbed;
+    private bool locked;
 
     private float spamProtectionTimer = 0.5f;
     private float currentTimer = 0;
@@ -17,6 +21,7 @@ public class GrabbableBall : MonoBehaviour
     public Transform CurrentTriggerTransform { get => currentTriggerTransform; set => currentTriggerTransform = value; }
     public PlayerStateManager Player { get => player; set => player = value; }
     public bool PlayerNearby { get => playerNearby; set => playerNearby = value; }
+    public bool IsLocked => locked;
 
     private void Awake()
     {
@@ -25,6 +30,7 @@ public class GrabbableBall : MonoBehaviour
 
     private void Update()
     {
+        if (locked) return;
         if (!playerNearby && !isGrabbed) return;
 
         if (currentTimer >= spamProtectionTimer)
@@ -94,5 +100,61 @@ public class GrabbableBall : MonoBehaviour
         player.IsInteracting = false;
         isGrabbed = false;
         rb.mass = 1000;
+    }
+
+    // Same effect as Release, but survives a null Player. Used when the box is torn out of the
+    // player's hands from the outside (e.g. it snapped into its basket): the player reference may
+    // already be gone, and we still need isGrabbed / mass in a sane state.
+    private void ForceRelease()
+    {
+        if (player != null) player.IsInteracting = false;
+        isGrabbed = false;
+        if (rb != null) rb.mass = 1000;
+    }
+
+    /// <summary>
+    /// Called by <see cref="BasketTrigger"/> when THIS box has just entered the basket it is meant
+    /// for. Detaches the player from any push interaction, disables further grabs, freezes physics
+    /// input, and slides the box to (target.x, currentY, target.z) over <see cref="snapDuration"/>.
+    /// Y is never touched. Safe to call more than once — subsequent calls are ignored.
+    /// </summary>
+    public void LockAtBasket(Transform target)
+    {
+        if (locked) return;
+        if (target == null)
+        {
+            Debug.LogWarning($"[{nameof(GrabbableBall)}] '{name}' LockAtBasket called with a null " +
+                             "target. Ignoring.", this);
+            return;
+        }
+
+        if (isGrabbed) ForceRelease();
+
+        locked = true;
+
+        // Freeze physics so no residual push or collision can drift the box off-centre while the
+        // tween runs, and so the player cannot bump into it any more.
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+        }
+
+        // Kill the child trigger that lets the player latch on. Without this, walking near the
+        // locked box would still flip PlayerNearby and light up the "E" prompt.
+        foreach (PushBoxTriggerLogic t in GetComponentsInChildren<PushBoxTriggerLogic>(true))
+            t.enabled = false;
+
+        Vector3 from = transform.position;
+        Vector3 to = new Vector3(target.position.x, from.y, target.position.z);
+
+        if (snapDuration <= 0f)
+        {
+            transform.position = to;
+            return;
+        }
+
+        LeanTween.move(gameObject, to, snapDuration).setEaseOutCubic();
     }
 }

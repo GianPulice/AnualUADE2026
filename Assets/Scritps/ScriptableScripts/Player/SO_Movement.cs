@@ -27,6 +27,12 @@ public class SO_Movement : ScriptableObject
     [Tooltip("Speed while crouching, as a fraction of Move Speed. 0.45 = 45% of walking speed.")]
     [SerializeField, Range(0.1f, 1f)] private float crouchSpeedMultiplier = 0.45f;
 
+    [Header("Box push")]
+    [Tooltip("Absolute top speed at which the player walks while pushing a grabbed box, in m/s. " +
+             "The box mass stays low during the grab, so this is effectively the speed of the " +
+             "box too — a designer-facing dial that does not depend on Move Speed.")]
+    [SerializeField, Min(0f)] private float boxPushSpeed = 1.75f;
+
     [Tooltip("Height of the player's capsule while standing, in metres. The collider centre is " +
              "always half of this, so the capsule stays sitting on the floor.")]
     [SerializeField, Range(1f, 2.5f)] private float standingHeight = 1.8f;
@@ -60,6 +66,7 @@ public class SO_Movement : ScriptableObject
     public float RotationSpeed { get => rotationSpeed; set => rotationSpeed = value; }
     public float SprintSpeedMultiplier { get => sprintSpeedMultiplier; set => sprintSpeedMultiplier = value; }
     public float CrouchSpeedMultiplier { get => crouchSpeedMultiplier; set => crouchSpeedMultiplier = value; }
+    public float BoxPushSpeed { get => boxPushSpeed; set => boxPushSpeed = value; }
     public float StandingHeight { get => standingHeight; set => standingHeight = value; }
     public float CrouchHeight { get => crouchHeight; set => crouchHeight = value; }
     public float RunNoiseRadius { get => runNoiseRadius; set => runNoiseRadius = value; }

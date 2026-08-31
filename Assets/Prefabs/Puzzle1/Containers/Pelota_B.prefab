@@ -306,7 +306,6 @@ GameObject:
   - component: {fileID: 2283158211561607001}
   - component: {fileID: 4395340085526187129}
   - component: {fileID: 6114506311072273757}
-  - component: {fileID: 5725330328053340426}
   m_Layer: 0
   m_Name: Pelota_B
   m_TagString: Untagged
@@ -465,21 +464,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GrabbableBall
   playerTag: Player
---- !u!114 &5725330328053340426
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7332867751031854402}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c1d65b5d53d1a5e45bee97b9b1d8bd06, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PushableBall
-  playerTag: Player
-  pushDistance: 1.3
-  moveSpeed: 8
+  snapDuration: 3
 --- !u!1 &8671121699634703305
 GameObject:
   m_ObjectHideFlags: 0
