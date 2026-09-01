@@ -5,6 +5,20 @@ public class PauseManager : Singleton<PauseManager>
 {
     public static event Action<PauseState> OnPauseStateChanged;
 
+    /// <summary>
+    /// Domain-reload-disabled hygiene, same pattern as PlayerRegistry / NemesisEvents: without it
+    /// the static event keeps last session's subscribers (a destroyed PauseManagerUI) and the
+    /// cached instance points at a destroyed object, so the first pause of the new run fires into
+    /// dead handlers — which shows up as the pause menu appearing, or the game booting frozen,
+    /// every time you hit Play.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        OnPauseStateChanged = null;
+        instance = null;
+    }
+
     //-- Inputs ------------------------------
     [Header("Input System")]
     [SerializeField] private InputActionReference pauseAction;
@@ -60,6 +74,12 @@ public class PauseManager : Singleton<PauseManager>
     private void TryToggleFromInput()
     {
         if (IsPaused) return;   // if already paused, closing goes through UI/Exit.
+
+        // No player in the loaded scenes means there is no gameplay to pause. An ESC on the main
+        // menu (Player/Pause is enabled the whole run) or during a scene load would otherwise
+        // latch Paused, and the next level boots frozen with no visible menu — the pause UI
+        // subscribes to OnPauseStateChanged only after that state change already happened.
+        if (!PlayerRegistry.HasPlayer) return;
 
         if (UIStateManager.Exists && UIStateManager.Instance.IsBlockingPause) return;
 

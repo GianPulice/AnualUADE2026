@@ -52,6 +52,7 @@ public class VisionRangeController : MonoBehaviour
     // at full length once and the unused tail is zeroed rather than the array being resized.
     private readonly Vector4[] _bypassData  = new Vector4[MaxBypassZones];
     private readonly Vector4[] _bypassColor = new Vector4[MaxBypassZones];
+    private readonly Vector4[] _bypassAxis  = new Vector4[MaxBypassZones]; // xyz = cone axis, w = cos(half); w >= 2 => sphere
 
     // Current values (interpolated frame by frame) and where they are heading.
     private VisionFogState _current;
@@ -259,8 +260,14 @@ public class VisionRangeController : MonoBehaviour
 
             zone.Resolve(state, out Color color, out float intensity, out float clear);
 
-            Vector3 p = zone.transform.position;
+            Vector3 p = zone.WorldCenter;
             _bypassData[count] = new Vector4(p.x, p.y, p.z, zone.radius);
+
+            // A cone zone (typically fed by a Spot Light) carves the spherical pool by angle;
+            // w >= 2 is the sentinel the shader reads as "plain sphere, skip the angular test".
+            _bypassAxis[count] = zone.TryGetCone(out Vector3 axis, out float cosHalf)
+                ? new Vector4(axis.x, axis.y, axis.z, cosHalf)
+                : new Vector4(0f, 0f, 0f, 2f);
 
             // Pre-multiplied by intensity so the shader does one fewer multiply per zone per
             // pixel, and converted here because SetGlobalVectorArray does no colour conversion.
@@ -275,10 +282,12 @@ public class VisionRangeController : MonoBehaviour
         {
             _bypassData[i]  = Vector4.zero;
             _bypassColor[i] = Vector4.zero;
+            _bypassAxis[i]  = Vector4.zero;
         }
 
         Shader.SetGlobalVectorArray(VisionFogState.Ids.BypassData, _bypassData);
         Shader.SetGlobalVectorArray(VisionFogState.Ids.BypassColor, _bypassColor);
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.BypassAxis, _bypassAxis);
         Shader.SetGlobalInt(VisionFogState.Ids.BypassCount, count);
     }
 

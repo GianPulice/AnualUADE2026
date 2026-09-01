@@ -98,6 +98,7 @@ public struct VisionFogState
         public static readonly int BypassPlayerFade     = Shader.PropertyToID("_FogBypassPlayerFade");
         public static readonly int BypassData           = Shader.PropertyToID("_FogLightBypassData");
         public static readonly int BypassColor          = Shader.PropertyToID("_FogLightBypassColor");
+        public static readonly int BypassAxis           = Shader.PropertyToID("_FogLightBypassAxis");
         public static readonly int BypassCount          = Shader.PropertyToID("_FogLightBypassCount");
     }
 

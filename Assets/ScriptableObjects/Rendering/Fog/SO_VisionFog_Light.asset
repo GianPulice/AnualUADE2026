@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
   dataVersion: 2
   visionStart: 8
-  visionEnd: 8
+  visionEnd: 10
   fogDensity: 4.6
   fogFalloffPower: 1
   darkness: 1

@@ -33,6 +33,59 @@ public class FogLightBypass : MonoBehaviour
              "lámpara ilumina de verdad.")]
     [Min(0f)] public float radius = 3f;
 
+    [Tooltip("Corre el CENTRO de la esfera respecto del origen del objeto, en espacio local. El " +
+             "eje Z sigue hacia donde apunta la lámpara, así que subir Z empuja el resplandor " +
+             "haz adelante sin mover el GameObject. Funciona igual que el Center de un " +
+             "SphereCollider: rota y escala con el transform.")]
+    public Vector3 centerOffset = Vector3.zero;
+
+    /// <summary>
+    /// Where the sphere actually sits: the object's position with <see cref="centerOffset"/>
+    /// applied in local space. The controller and the gizmo both read this rather than
+    /// <c>transform.position</c>, so an offset zone clears and glows where it is drawn.
+    /// </summary>
+    public Vector3 WorldCenter => transform.TransformPoint(centerOffset);
+
+    public enum BypassShape { Sphere, Cone }
+
+    [Header("Forma")]
+    [Tooltip("Sphere = esfera (lámpara de techo, fogata, señal narrativa).\n\n" +
+             "Cone = cono, para una Spot: el resplandor arranca en el origen del objeto y se " +
+             "abre hacia +Z local (o hacia donde mira la Spot de 'Light Component'). En Cone " +
+             "conviene dejar Center Offset en 0 para que el vértice quede pegado a la lámpara.")]
+    public BypassShape shape = BypassShape.Sphere;
+
+    [Tooltip("Apertura TOTAL del cono, en grados. Se ignora si 'Light Component' es una Spot " +
+             "Light: en ese caso se usa el Spot Angle de la luz, así el cono del bypass y el de " +
+             "la lámpara son exactamente el mismo.")]
+    [Range(1f, 179f)] public float coneAngle = 50f;
+
+    /// <summary>
+    /// Cone parameters for the shader, in world space. Returns <c>false</c> for a
+    /// <see cref="BypassShape.Sphere"/> zone — the shader then skips the angular test and the zone
+    /// stays a plain sphere.
+    ///
+    /// When <see cref="lightComponent"/> is a Spot Light, its <c>forward</c> and <c>spotAngle</c>
+    /// win so the glow cone tracks the real lamp; otherwise the axis is this object's forward and
+    /// the aperture is <see cref="coneAngle"/>.
+    /// </summary>
+    public bool TryGetCone(out Vector3 axis, out float cosHalfAngle)
+    {
+        axis = transform.forward;
+        cosHalfAngle = 1f;
+        if (shape != BypassShape.Cone) return false;
+
+        float aperture = coneAngle;
+        if (lightComponent != null && lightComponent.type == LightType.Spot)
+        {
+            axis = lightComponent.transform.forward;
+            aperture = lightComponent.spotAngle;
+        }
+
+        cosHalfAngle = Mathf.Cos(aperture * 0.5f * Mathf.Deg2Rad);
+        return true;
+    }
+
     [Header("Apariencia")]
     [Tooltip("Apagado = usa los valores 'bypassDefault...' del SO_VisionFogConfig activo, así " +
              "todas las lámparas del área se ven iguales y se retocan de una sola vez.\n\n" +
@@ -65,6 +118,21 @@ public class FogLightBypass : MonoBehaviour
              "Si el halo te sale reventado, bajá esto antes de tocar la Light.")]
     [Range(0f, 4f)]
     [SerializeField] private float lightIntensityScale = 1f;
+
+    /// <summary>
+    /// Runtime multiplier on <see cref="lightComponent"/>'s intensity, exposed so a helper can
+    /// fade this zone's contribution while keeping everything else about it fixed — for example
+    /// <see cref="FogLightBypassPlayerFade"/>, which eases it down while the player is standing in
+    /// the pool so the glow does not wash out their view, and back to full seen from outside.
+    ///
+    /// Only bites when <see cref="lightComponent"/> is assigned; with no Light the zone's look
+    /// comes from the fields above or the preset defaults and this is inert. Clamped to >= 0.
+    /// </summary>
+    public float LightIntensityScale
+    {
+        get => lightIntensityScale;
+        set => lightIntensityScale = Mathf.Max(0f, value);
+    }
 
     private void OnEnable()  => VisionRangeController.RegisterBypass(this);
     private void OnDisable() => VisionRangeController.UnregisterBypass(this);
@@ -112,10 +180,35 @@ public class FogLightBypass : MonoBehaviour
                 : overrideAppearance     ? color
                 : new Color(1f, 0.85f, 0.3f);
 
+        Vector3 center = WorldCenter;
+
+        if (TryGetCone(out Vector3 axis, out float cosHalf))
+        {
+            // Apex + a few edge rays at the half-angle, plus the far cap — enough to read the
+            // aperture and where it points without drawing a solid mesh.
+            float half = Mathf.Acos(Mathf.Clamp(cosHalf, -1f, 1f));
+            Vector3 up = Vector3.Cross(axis, Vector3.up).sqrMagnitude < 1e-4f
+                ? Vector3.Cross(axis, Vector3.right) : Vector3.Cross(axis, Vector3.up);
+            up.Normalize();
+            Vector3 right = Vector3.Cross(axis, up);
+            float capR = radius * Mathf.Sin(half);
+            Vector3 capC = center + axis * (radius * Mathf.Cos(half));
+
+            Gizmos.color = new Color(c.r, c.g, c.b, 0.9f);
+            for (int k = 0; k < 4; k++)
+            {
+                Vector3 dir = (k == 0 ? up : k == 1 ? -up : k == 2 ? right : -right);
+                Gizmos.DrawLine(center, capC + dir * capR);
+            }
+            UnityEditor.Handles.color = new Color(c.r, c.g, c.b, 0.6f);
+            UnityEditor.Handles.DrawWireDisc(capC, axis, capR);
+            return;
+        }
+
         Gizmos.color = new Color(c.r, c.g, c.b, 0.35f);
-        Gizmos.DrawSphere(transform.position, radius);
+        Gizmos.DrawSphere(center, radius);
         Gizmos.color = new Color(c.r, c.g, c.b, 0.9f);
-        Gizmos.DrawWireSphere(transform.position, radius);
+        Gizmos.DrawWireSphere(center, radius);
     }
 #endif
 }

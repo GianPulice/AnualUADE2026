@@ -37,6 +37,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
              "crate and stick to it. Tools > Nemesis > Repair Layer Masks fills this in.")]
     [SerializeField] private LayerMask obstacleMask;
 
+    [Tooltip("What stops the player from standing back up out of a crouch. Leave empty to fall " +
+             "back to Ground + Wall + Props (groundLeyerMask | obstacleMask); add Default here if " +
+             "the level's low ceilings / crawl-space slabs sit on that layer.")]
+    [SerializeField] private LayerMask standBlockMask;
+
     [SerializeField] private float groundAngleLimit;
     private Vector3 inputDir = Vector3.zero;
     private Vector3 moveDir = Vector3.zero;
@@ -57,6 +62,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     // State booleans
     [SerializeField] private bool isInteracting = false;
     private bool isCrouch = false;
+    // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
+    private bool wantsToStand = false;
     private bool isHidden = false;
     private bool isInDanger = false;
     private bool isDisabled = false;
@@ -276,17 +283,36 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         inputDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
         inputDir.Normalize();
 
-        // Crouch mechanic
+        // Crouch mechanic. Standing back up is gated on headroom: pressing crouch under a low
+        // ceiling must NOT grow the capsule into it — that wedges the Rigidbody between the floor
+        // and the slab and the player freezes in place (the reported bug). The request is
+        // remembered instead and honoured automatically as soon as the space above clears.
         if (Input.GetButtonDown("Crouch"))
         {
             if (!isCrouch)
             {
                 isCrouch = true;
+                wantsToStand = false;
             }
-            else
+            else if (wantsToStand)
+            {
+                wantsToStand = false;   // second press: drop the pending stand-up, stay crouched.
+            }
+            else if (HasHeadroomToStand())
             {
                 isCrouch = false;
             }
+            else
+            {
+                wantsToStand = true;
+            }
+        }
+
+        // Deferred stand-up: the player asked to stand while blocked and has now moved clear.
+        if (isCrouch && wantsToStand && HasHeadroomToStand())
+        {
+            isCrouch = false;
+            wantsToStand = false;
         }
 
         // Hidden state testing
@@ -370,6 +396,37 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         rigBody.useGravity = groundAngle <= FlatGroundAngle;
 
         moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
+    }
+
+    /// <summary>Margin the stand-up probe is shrunk by so brushing a wall does not read as a ceiling.</summary>
+    private const float StandCheckSkin = 0.05f;
+
+    /// <summary>standBlockMask if the designer set it, otherwise Ground + Wall + Props.</summary>
+    private int ResolvedStandBlockMask =>
+        standBlockMask.value != 0 ? standBlockMask.value : (groundLeyerMask.value | obstacleMask.value);
+
+    /// <summary>
+    /// True when a standing-height capsule would fit where the player is right now.
+    ///
+    /// Sweeps a sphere the player's width straight up, from the crouched head to where the
+    /// standing head would be — so it never touches the floor and never self-hits (the player is
+    /// not in <see cref="ResolvedStandBlockMask"/>). Gates the crouch->stand transition; see
+    /// InputUpdate. Returns true if the collider or SO is missing rather than trapping the player.
+    /// </summary>
+    public bool HasHeadroomToStand()
+    {
+        if (capsuleColl == null || movement == null) return true;
+
+        float currentHeight = capsuleColl.height;
+        float targetHeight = movement.StandingHeight;
+        if (targetHeight <= currentHeight) return true;
+
+        float radius = Mathf.Max(0.01f, capsuleColl.radius - StandCheckSkin);
+        Vector3 origin = transform.position + Vector3.up * (currentHeight - radius);
+        float distance = targetHeight - currentHeight;
+
+        return !Physics.SphereCast(origin, radius, Vector3.up, out _, distance,
+                                   ResolvedStandBlockMask, QueryTriggerInteraction.Ignore);
     }
 
     /// <summary>

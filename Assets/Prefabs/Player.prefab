@@ -196,7 +196,10 @@ MonoBehaviour:
     m_Bits: 9
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 6153
+  standBlockMask:
+    serializedVersion: 2
+    m_Bits: 1
   groundAngleLimit: 45
   isInteracting: 0
 --- !u!54 &8279488126507840101
@@ -246,9 +249,9 @@ CapsuleCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Radius: 0.3
-  m_Height: 1.8
+  m_Height: 1.859
   m_Direction: 1
-  m_Center: {x: 0, y: 0.9, z: 0}
+  m_Center: {x: 0, y: 0.9295, z: 0}
 --- !u!82 &5563071216055759055
 AudioSource:
   m_ObjectHideFlags: 0
@@ -638,7 +641,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.2916562, y: 0.000000020243803, z: -0.0000000061725944, w: 0.95652324}
+  m_LocalRotation: {x: 0.2916563, y: 0.000000028506618, z: -0.0000000086920355, w: 0.95652324}
   m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -794,7 +797,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineDeoccluder
   CollideAgainst:
     serializedVersion: 2
-    m_Bits: 2049
+    m_Bits: 6153
   IgnoreTag: Player
   TransparentLayers:
     serializedVersion: 2
@@ -826,7 +829,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ca7de3aefa901374ba29464584a3109a, type: 3}
   m_Name: 
@@ -836,7 +839,7 @@ MonoBehaviour:
     Enabled: 1
     ObstacleLayers:
       serializedVersion: 2
-      m_Bits: 2049
+      m_Bits: 6153
     UseFollowTarget:
       Enabled: 1
       YOffset: 0

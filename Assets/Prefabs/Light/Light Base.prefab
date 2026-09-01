@@ -13,6 +13,8 @@ GameObject:
   - component: {fileID: 4273350710086606481}
   - component: {fileID: 3336644904878067262}
   - component: {fileID: 733449425569358093}
+  - component: {fileID: 5117057365039512605}
+  - component: {fileID: 8188672914748051489}
   m_Layer: 0
   m_Name: Light Base
   m_TagString: Untagged
@@ -47,8 +49,8 @@ Light:
   m_Type: 0
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Intensity: 15
-  m_Range: 25
-  m_SpotAngle: 51.237286
+  m_Range: 5
+  m_SpotAngle: 59.819477
   m_InnerSpotAngle: 43.039368
   m_CookieSize2D: {x: 0.5, y: 0.5}
   m_Shadows:
@@ -164,3 +166,64 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LightZone
   config: {fileID: 11400000, guid: 56fdc00862d936140817761bb5b2783e, type: 2}
   playerTag: Player
+--- !u!114 &5117057365039512605
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3033032239168611880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4b3a2918f7e6d5c4b3a2f1e0d9c8b7a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FogLightBypass
+  radius: 3
+  overrideAppearance: 0
+  color: {r: 1, g: 0.85, b: 0.6, a: 1}
+  intensity: 1
+  clearAmount: 1
+  lightComponent: {fileID: 0}
+  lightIntensityScale: 1
+--- !u!114 &8188672914748051489
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3033032239168611880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e1d2c3b4a5968778695a4b3c2d1e0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FogLightBypassPlayerFade
+  bypass: {fileID: 5117057365039512605}
+  zone: {fileID: 3336644904878067262}
+  playerTag: Player
+  insideScale: 0.3
+  outsideScale: 1
+  falloff:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  responseSpeed: 6

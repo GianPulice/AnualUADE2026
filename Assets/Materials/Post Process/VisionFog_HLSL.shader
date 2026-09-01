@@ -125,6 +125,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
     float  _FogBypassPlayerFade;   // 0..1 — cuanto apaga la luz del modulo del player al glow del bypass
     float4 _FogLightBypassData[VISION_FOG_MAX_BYPASS];   // xyz = world pos, w = radio
     float4 _FogLightBypassColor[VISION_FOG_MAX_BYPASS];  // rgb = color*intensidad (lineal), a = clear 0..1
+    float4 _FogLightBypassAxis[VISION_FOG_MAX_BYPASS];   // xyz = eje del cono (norm), w = cos(medio angulo); w >= 2 => esfera
     int    _FogLightBypassCount;
 
     // ── Noise procedural ───────────────────────────────────────────────────
@@ -245,8 +246,20 @@ Shader "Hidden/Custom/VisionFogHLSL"
             float4 zone = _FogLightBypassData[i];
             if (zone.w <= 0.001) continue;
 
-            float m = saturate(1.0 - distance(worldPos, zone.xyz) / zone.w);
+            float3 toP  = worldPos - zone.xyz;
+            float  dist = length(toP);
+            float  m = saturate(1.0 - dist / zone.w);
             m = pow(m, falloff);
+
+            // Cono: recorta el charco esferico por angulo respecto del eje. w >= 2 marca "esfera"
+            // y se saltea. Para una Spot el eje es su forward y el angulo su Spot Angle.
+            float4 ax = _FogLightBypassAxis[i];
+            if (ax.w < 1.5)
+            {
+                float3 dir  = dist > 1e-4 ? toP / dist : ax.xyz;
+                float  cosP = dot(dir, ax.xyz);
+                m *= smoothstep(ax.w, lerp(ax.w, 1.0, 0.25), cosP);
+            }
 
             float4 tint = _FogLightBypassColor[i];
             clearAmount    = max(clearAmount, m * tint.a);

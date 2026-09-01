@@ -32,6 +32,13 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
             model.Initialize();
         }
 
+        // A level always begins unpaused. PauseManager lives in the persistent Data scene, so its
+        // state outlives this scene: a stray pause latched before gameplay existed (e.g. ESC on
+        // the main menu) would otherwise carry in here and freeze the run, and because the state
+        // changed before this subscription there is no event left to open the menu on. Clearing it
+        // here guarantees a clean start regardless of how it got stuck.
+        if (PauseManager.Exists && PauseManager.Instance.IsPaused) PauseManager.RequestUnpause();
+
         PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
 
         view.OnContinueClicked += HandleContinue;
