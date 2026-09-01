@@ -14,18 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisData
   investigationTimeOut: 8
   searchTimeOut: 15
-  visionLossGracePeriod: 2
+  visionLossGracePeriod: 2.5
   patrolWaypointWaitTime: 1.5
-  patrolWaitVariance: 0
+  patrolWaitVariance: 0.25
   noiseUpdateCooldown: 0.5
   viewRange: 7
-  viewAngle: 120
-  focusAngle: 60
+  viewAngle: 150
+  focusAngle: 80
   awarenessBuildTime: 1.2
   awarenessDecayRate: 0.5
   awarenessTriggerThreshold: 0.4
   proximityDetectionRange: 1.5
-  crouchVisionMultiplier: 0.418
+  crouchVisionMultiplier: 0.5
   listenRange: 15
   noiseRangeScale: 2.5
   wallOcclusionEnabled: 1
@@ -36,22 +36,22 @@ MonoBehaviour:
   floorHeightThreshold: 2.5
   elevatorCommitTime: 12
   searchLeadTime: 0.4
-  searchSweepRadius: 5
-  searchLastKnownBias: 3
+  searchSweepRadius: 8
+  searchLastKnownBias: 4
   searchPredictionBias: 2.5
   searchBiasFalloff: 20
-  searchSweptPenalty: 0.15
+  searchSweptPenalty: 0.33
   searchPauseTime: 1.2
-  roomSweepRadius: 7
+  roomSweepRadius: 8
   roomCommitRange: 12
   sightCommitTime: 6
   chaseTimePrediction: 0.45
-  chaseRouteReplanInterval: 0.75
+  chaseRouteReplanInterval: 0.66
   chaseBeliefMoveThreshold: 3
   chaseDetourTolerance: 1.25
-  beliefTraceRadius: 3
+  beliefTraceRadius: 4
   interceptForwardDot: 0.25
-  interceptTimeMargin: 1.15
+  interceptTimeMargin: 1.25
   assumedPlayerSpeed: 4.5
   beliefMemoryTime: 45
   elevatorWaitTimeout: 20

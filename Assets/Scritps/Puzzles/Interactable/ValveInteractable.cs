@@ -11,8 +11,16 @@ public class ValveInteractable : BaseRangeInteractable
 
     private Coroutine rotationRoutine;
     private float rotatorBaseX;
+    private float rotatorBaseY;
     private float rotatorBaseZ;
-    private float rotatorCurrentY;    public string ValveId => valveData != null ? valveData.ValveId : string.Empty;
+    private float rotatorCurrentY;
+
+    // Degrees the wheel turns per interaction: one full revolution split across all
+    // valve positions, so every position rests at its own distinct, readable angle.
+    private float StepAngle =>
+        valveData != null && valveData.MaxPositions > 0 ? 360f / valveData.MaxPositions : 360f;
+
+    public string ValveId => valveData != null ? valveData.ValveId : string.Empty;
     public string LinkedPuzzleId => valveData != null ? valveData.LinkedPuzzleId : string.Empty;
 
     public int CurrentPosition
@@ -43,13 +51,19 @@ public class ValveInteractable : BaseRangeInteractable
         {
             Vector3 e = rotator.localEulerAngles;
             rotatorBaseX = e.x;
+            rotatorBaseY = e.y;
             rotatorBaseZ = e.z;
             rotatorCurrentY = e.y;
-        }        if (valveData == null)
+        }
+
+        if (valveData == null)
         {
             Debug.LogError($"ValveInteractable without SO_ValveData on {gameObject.name}");
             return;
         }
+
+        // Show the wheel at the angle matching its current logical position from the start.
+        SnapRotatorToPosition(CurrentPosition);
 
         StartCoroutine(InitializeValveState());
     }
@@ -69,6 +83,11 @@ private IEnumerator InitializeValveState()
             valveData.ValveId,
             CurrentPosition
         );
+
+        // If the stored position differs from what we snapped to in Awake (e.g. a loaded
+        // save), realign — but never interrupt a turn the player just started.
+        if (rotationRoutine == null)
+            SnapRotatorToPosition(CurrentPosition);
     }
 
     public override string GetInteractText()
@@ -138,7 +157,21 @@ private void PlayRotationFeedback()
         if (rotationRoutine != null)
             StopCoroutine(rotationRoutine);
 
-        rotationRoutine = StartCoroutine(RotateRotator(360f));
+        rotationRoutine = StartCoroutine(RotateRotator(StepAngle));
+    }
+
+    private void SnapRotatorToPosition(int position)
+    {
+        if (rotator == null) return;
+
+        if (rotationRoutine != null)
+        {
+            StopCoroutine(rotationRoutine);
+            rotationRoutine = null;
+        }
+
+        rotatorCurrentY = rotatorBaseY + position * StepAngle;
+        rotator.localEulerAngles = new Vector3(rotatorBaseX, rotatorCurrentY, rotatorBaseZ);
     }
 
 

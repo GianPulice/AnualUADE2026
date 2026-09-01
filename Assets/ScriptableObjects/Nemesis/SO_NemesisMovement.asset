@@ -15,7 +15,7 @@ MonoBehaviour:
   patrolSpeed: 2.75
   investigationSpeed: 2.5
   chaseSpeed: 3
-  searchSpeed: 2.7
+  searchSpeed: 2.75
   angularSpeed: 200
   acceleration: 14
   stoppingDistance: 1

@@ -13,16 +13,16 @@ MonoBehaviour:
   m_Name: SO_VisionFog_Light
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
   dataVersion: 2
-  visionStart: 8
-  visionEnd: 10
+  visionStart: 10
+  visionEnd: 25
   fogDensity: 4.6
-  fogFalloffPower: 1
+  fogFalloffPower: 1.5
   darkness: 1
   extinctionTint: {r: 1, g: 1, b: 1, a: 1}
   fogColor: {r: 0, g: 0, b: 0, a: 1}
   fogColorIntensity: 1
   inscatterStrength: 0
-  lightPreservation: 0.25
+  lightPreservation: 1
   lightThreshold: 0.45
   lightKnee: 0.3
   maxLightPreservation: 0.5
@@ -38,7 +38,8 @@ MonoBehaviour:
   bypassDefaultColor: {r: 1, g: 0.85, b: 0.6, a: 1}
   bypassDefaultIntensity: 1
   bypassDefaultClear: 1
-  transitionDuration: 12.5
+  bypassPlayerFade: 1
+  transitionDuration: 6
   silhouetteMode: 0
   densityPower: 1
   playerLightIntensity: 1
