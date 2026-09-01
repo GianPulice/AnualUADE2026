@@ -33,6 +33,11 @@ public class DoorInteractable : BaseRangeInteractable
     private bool isOpen;
     private bool isAnimating;
     private bool wasEverOpened;
+    // When the "locked door" bump is still audibly playing. Player mashing E while the clip is
+    // ringing must not stack another instance on top; we skip until Time.unscaledTime passes this.
+    // unscaledTime because the sound uses ignoreListenerPause and would otherwise stop being
+    // rate-limited while the game is paused.
+    private float blockedSoundBusyUntil;
     // Sign applied to openAngle for the CURRENT open cycle. Recomputed at every OpenDoor call from
     // the position of whoever is opening (player or Nemesis), so the leaf always swings AWAY from
     // them. Cached until CloseDoor so the reverse animation lands exactly back on the closed rot.
@@ -157,8 +162,35 @@ public void OpenDoor()
         openedSign = ResolveOpenSign(openerPos);
         StartCoroutine(AnimateOpen());
 
+        // Only sing the "unlocked" chime the first time a door that actually HAD a lock is
+        // defeated. A door with no required key was never locked, so there is nothing to unlock,
+        // and a re-open reuses the swing animation without touching the lock state either.
+        if (firstUnlock && doorData != null && doorData.RequiredKey != null && AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_interaction_puerta_desbloqueada", transform.position);
+
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door opened: {logId} (openedSign={openedSign}, opener={(openerPos.HasValue ? openerPos.Value.ToString("F2") : "null")})", this);
+    }
+
+    public override void OnInteractAttemptBlocked()
+    {
+        // Fires when the player presses E while looking at a door whose CanInteract returned
+        // false. Restrict the sound to the "actually locked" case: no data means no lock, a door
+        // that is currently animating is only busy (not locked), and an already-unlocked door is
+        // never gated behind requirements the player might not have met.
+        if (doorData == null) return;
+        if (isOpen || isAnimating) return;
+        if (wasEverOpened) return;
+        if (!AudioManager.Exists) return;
+
+        // Rate-limit: skip while the previous bump is still ringing. Length is looked up on the
+        // AudioManager rather than cached on this door so a re-imported clip picks up its new
+        // duration without every door prefab having to be re-saved.
+        if (Time.unscaledTime < blockedSoundBusyUntil) return;
+
+        AudioManager.Instance.PlaySFX("sfx_interaction_puerta_bloqueada", transform.position);
+        float length = AudioManager.Instance.GetSoundLength("sfx_interaction_puerta_bloqueada");
+        blockedSoundBusyUntil = Time.unscaledTime + length;
     }
 
     // ── Opening by the Nemesis ──────────────────────────────────────────────

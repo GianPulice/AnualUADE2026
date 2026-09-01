@@ -220,7 +220,19 @@ MonoBehaviour:
   voiceGroup: {fileID: 6132113099376921698, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
   initialPoolSize: 20
   sounds:
-  - {fileID: 11400000, guid: 597ae0f2d9de8be47b6ea553baef2afd, type: 2}
+  - {fileID: 11400000, guid: 08de9cc171094603ae1b3ae925f550ca, type: 2}
+  - {fileID: 11400000, guid: 5dfed1937e2f4060b33f31cb5ad7d7a2, type: 2}
+  - {fileID: 11400000, guid: bc8fe76c8d6743ba887f233b21c36f8d, type: 2}
+  - {fileID: 11400000, guid: 550cebc8f3b14d54a48fe7d86ecfc63f, type: 2}
+  - {fileID: 11400000, guid: da0954c72e674faebeccd72fccaaa6cd, type: 2}
+  - {fileID: 11400000, guid: 6ac8a5ad2cf44e5f90b9d14ef2e2b294, type: 2}
+  - {fileID: 11400000, guid: 2b973970e05d47f6a38a4500ca93a07d, type: 2}
+  - {fileID: 11400000, guid: 4c64f41b07e74552a509376e45345286, type: 2}
+  - {fileID: 11400000, guid: da0af8f0aab54523ac32ecfdbe5a5701, type: 2}
+  - {fileID: 11400000, guid: f093c41279904dafaeb936fadc31a80e, type: 2}
+  - {fileID: 11400000, guid: 25af871e27844aafb6dafe07dde6378a, type: 2}
+  - {fileID: 11400000, guid: 198a676e6dab44499f62e5f1ae0f314a, type: 2}
+  - {fileID: 11400000, guid: 107b476e332a448f97b88d8e122aac2c, type: 2}
 --- !u!4 &201702926
 Transform:
   m_ObjectHideFlags: 0

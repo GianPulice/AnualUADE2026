@@ -1110,8 +1110,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: socketData
-      value: 
+      value:
       objectReference: {fileID: 11400000, guid: 3e22e5c692e64d74880bfa6ee2819721, type: 2}
+    - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
+      propertyPath: insertSoundId
+      value: sfx_interaction_fuse_insert
+      objectReference: {fileID: 0}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: insertedVisual
       value: 

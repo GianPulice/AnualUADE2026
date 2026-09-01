@@ -10,9 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d1715b284d5177948a2b226d813abf7a, type: 3}
-  m_Name: PickUpInteractable
+  m_Name: SO_sfx_subpuzzle_completo
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
-  id: PickUpInteractable
+  id: sfx_subpuzzle_completo
   category: 0
-  clip: {fileID: 8300000, guid: b7b97a8a18714a54bbc11f9a66b1f86e, type: 3}
+  clip: {fileID: 8300000, guid: 3ca888bb8733cf5448cca42545a2b3b8, type: 3}
   loop: 0
+  ignoreListenerPause: 0

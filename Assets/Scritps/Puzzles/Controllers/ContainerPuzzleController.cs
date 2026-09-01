@@ -29,6 +29,9 @@ public class ContainerPuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(containerPuzzleData.PuzzleId);
 
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
+
         if (containerPuzzleData.RewardItem != null)
         {
             if (InventoryManager.Exists) InventoryManager.Instance.AddItem(containerPuzzleData.RewardItem);

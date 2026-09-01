@@ -95,6 +95,9 @@ public class SequencePanelInteractable : BaseRangeInteractable
             return;
         }
 
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_interaction_panel_electrico", transform.position);
+
         SequencePanelUIController.Instance.Open(this);
     }
 
@@ -135,6 +138,8 @@ public class SequencePanelInteractable : BaseRangeInteractable
         }
 
         currentSequence.Clear();
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_secuencia_incorrecta_panel_electrico");
         OnSequenceFailed?.Invoke();
         return false;
     }
@@ -174,6 +179,9 @@ public class SequencePanelInteractable : BaseRangeInteractable
                                   $"the reward '{sequenceData.RewardItem.name}' for " +
                                   $"'{sequenceData.PuzzleId}' was not granted.", this);
         }
+
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
 
         OnSequenceCompleted?.Invoke();
 

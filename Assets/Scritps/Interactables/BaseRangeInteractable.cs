@@ -25,5 +25,12 @@ public abstract class BaseRangeInteractable : MonoBehaviour, IInteractable
 
     protected abstract void OnInteract();
 
+    /// <summary>
+    /// Called by <see cref="InteractionManager"/> when the player presses E while looking at this
+    /// interactable but <see cref="CanInteract"/> returned false. Default: nothing. Override to
+    /// give the player audible/visual feedback that the action was refused (locked door, etc.).
+    /// </summary>
+    public virtual void OnInteractAttemptBlocked() { }
+
     public abstract bool IsRepeatable();
 }

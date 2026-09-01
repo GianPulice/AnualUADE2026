@@ -10,6 +10,11 @@ public class SocketInteractable : BaseRangeInteractable
              "that do not have a 3D model yet). Should start inactive in the prefab.")]
     [SerializeField] private GameObject insertedVisual;
 
+    [Header("Audio")]
+    [Tooltip("Id of the SO_SoundData to play when the item is inserted (must be registered in " +
+             "AudioManager.sounds). Leave empty to skip audio on this socket.")]
+    [SerializeField] private string insertSoundId = string.Empty;
+
     public bool IsInserted =>
         socketData != null && PuzzleStateManager.Exists &&
         PuzzleStateManager.Instance.IsSocketInserted(socketData.SocketId);
@@ -61,6 +66,9 @@ public class SocketInteractable : BaseRangeInteractable
 
         if (insertedVisual != null)
             insertedVisual.SetActive(true);
+
+        if (!string.IsNullOrEmpty(insertSoundId) && AudioManager.Exists)
+            AudioManager.Instance.PlaySFX(insertSoundId, transform.position);
 
         NotifyLinkedPuzzle();
 

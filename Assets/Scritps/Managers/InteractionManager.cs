@@ -106,7 +106,16 @@ public class InteractionManager : Singleton<InteractionManager>
         if (!Input.GetKeyDown(KeyCode.E)) return;
         if (Time.unscaledTime - lastInteractTime < InteractCooldown) return;
         if (currentInteractable == null) return;
-        if (!currentInteractable.CanInteract()) return;
+        if (!currentInteractable.CanInteract())
+        {
+            // Give the interactable a chance to react to the refused press (e.g. a locked door
+            // rattling instead of being silent). Cooldown is still bumped so a held key does not
+            // fire the feedback every frame.
+            lastInteractTime = Time.unscaledTime;
+            if (currentInteractable is BaseRangeInteractable blocked)
+                blocked.OnInteractAttemptBlocked();
+            return;
+        }
 
         lastInteractTime = Time.unscaledTime;
 

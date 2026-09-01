@@ -253,6 +253,19 @@ public class AudioManager : Singleton<AudioManager>
             if (src.isPlaying) src.Stop();
     }
 
+    /// <summary>
+    /// Length in seconds of the clip registered under <paramref name="id"/>, or 0 when the id is
+    /// unknown or its clip is missing. Used by callers that want to gate re-triggers on the
+    /// natural end of the clip (e.g. locked-door bump when the player mashes E) without asking
+    /// the pool for an AudioSource handle.
+    /// </summary>
+    public float GetSoundLength(string id)
+    {
+        if (!byId.TryGetValue(id, out var data)) return 0f;
+        if (data == null || data.Clip == null) return 0f;
+        return data.Clip.length;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — getters
     // ──────────────────────────────────────────────────────────────────────────

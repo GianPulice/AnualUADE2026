@@ -15,6 +15,10 @@ public class NoteInteractable : BaseRangeInteractable
             Debug.LogError("[NoteInteractable] There is no DocumentReaderController in the scene (LevelUI).");
             return;
         }
+
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_interaction_nota", transform.position);
+
         DocumentReaderController.Instance.Open(documentData);
     }
 

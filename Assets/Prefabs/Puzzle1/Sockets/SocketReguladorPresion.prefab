@@ -630,8 +630,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: socketData
-      value: 
+      value:
       objectReference: {fileID: 11400000, guid: 2f71e973b1c668846be2fc8c636f3d4e, type: 2}
+    - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
+      propertyPath: insertSoundId
+      value: sfx_interaction_insertar_regulador_de_presion
+      objectReference: {fileID: 0}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: insertedVisual
       value: 

@@ -5,6 +5,11 @@ public class PickupInteractable : BaseRangeInteractable
     [Header("Item")]
     [SerializeField] private SO_InventoryItem itemToPick;
 
+    [Header("Audio")]
+    [Tooltip("Id of the SO_SoundData to play when this item is picked up (must be registered in " +
+             "AudioManager.sounds). Leave empty to skip audio on this pickup.")]
+    [SerializeField] private string pickupSoundId = string.Empty;
+
     /// <summary>Item assigned to this pickup. Read by <see cref="ItemProximityHighlight"/>
     /// to resolve the category automatically without duplicating the dropdown by hand.</summary>
     public SO_InventoryItem Item => itemToPick;
@@ -33,7 +38,8 @@ public class PickupInteractable : BaseRangeInteractable
             return;
         }
 
-        if (AudioManager.Exists) AudioManager.Instance.PlaySFX("PickUpInteractable");
+        if (!string.IsNullOrEmpty(pickupSoundId) && AudioManager.Exists)
+            AudioManager.Instance.PlaySFX(pickupSoundId, transform.position);
 
         InventoryManager.Instance.AddItem(itemToPick);
         Destroy(gameObject);

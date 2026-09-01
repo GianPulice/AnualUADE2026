@@ -94,8 +94,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8221545152509093141, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
       propertyPath: itemToPick
-      value: 
+      value:
       objectReference: {fileID: 11400000, guid: e4973c235b5600e4caf8011e6943f16b, type: 2}
+    - target: {fileID: 8221545152509093141, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
+      propertyPath: pickupSoundId
+      value: sfx_interaction_key
+      objectReference: {fileID: 0}
     - target: {fileID: 8438275548156035699, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
       propertyPath: m_Name
       value: InventoryItemLlaveIngenieria

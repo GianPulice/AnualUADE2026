@@ -109,7 +109,16 @@ public class SequencePanelUIController
 
     // ── Handlers ────────────────────────────────────────────────────────────
 
-    private void HandleButtonClicked(int id) => model.TryPressButton(id);
+    private void HandleButtonClicked(int id)
+    {
+        // Route through the UI bus (not SFX) so it also stays audible while the panel pauses the
+        // game, and so the muffle profile that lowers world SFX during the panel does not swallow
+        // the click.
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlayUI("sfx_click_botones_panel_electrico_UI");
+
+        model.TryPressButton(id);
+    }
 
     private void HandleCloseClicked() => CloseSafe().Forget();
 

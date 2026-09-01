@@ -113,6 +113,9 @@ protected override void OnInteract()
             nextPosition
         );
 
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_interaction_valvula", transform.position);
+
         PlayRotationFeedback();        ValvePuzzleController[] controllers =
             FindObjectsByType<ValvePuzzleController>(FindObjectsInactive.Exclude);
 
