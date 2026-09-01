@@ -15,12 +15,17 @@ using UnityEngine.UI;
 public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHandler
 {
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
-    // ── Serialized ───────────────────────────────────────────────────────────
+    // ââ Serialized âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     [Header("UI")]
     [SerializeField] private Button selectButton;
     [SerializeField] private TextMeshProUGUI itemNameText;
     [SerializeField] private Image iconImage;
     [SerializeField] private Image iconBackground;
+
+    [Header("Row layout")]
+    [Tooltip("Total character width of the row. Only lines up with a monospaced font " +
+             "(ShareTechMono). Tune it to the real width of the list panel.")]
+    [SerializeField] private int rowCharWidth = 28;
 
     [Header("Selected Fill")]
     [SerializeField] private Image selectionFillImage; // Filled Horizontal
@@ -31,7 +36,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     [Header("Colors")]
     [SerializeField] private Color idleFillColor = Color.clear;
     [SerializeField] private Color selectedFillColor = Color.white;
-    // ── State ─────────────────────────────────────────────────────────────────
+    // ââ State âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     private Action<SO_InventoryItem> onClicked;
 
@@ -46,7 +51,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
 
     public SO_InventoryItem Item { get; private set; }
 
-    // ── Unity ─────────────────────────────────────────────────────────────────
+    // ââ Unity âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     void Awake()
     {
@@ -71,20 +76,20 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
         TickVisuals();
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ââ Public API ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     /// <summary>
-    /// Configures the slot with an item and registers the click callback.
+    /// Configures the slot with an item, its row number and the click callback.
     /// Called by InventoryView when refreshing the list.
     /// </summary>
-    public void Setup(SO_InventoryItem item, Action<SO_InventoryItem> clickCallback)
+    public void Setup(SO_InventoryItem item, int index, Action<SO_InventoryItem> clickCallback)
     {
         Item = item;
         onClicked = clickCallback;
 
         var visuals = categoryConfig.Get(item.Category);
 
-        itemNameText.text = item.ItemName;
+        itemNameText.text = BuildRowLabel(item, index, visuals.TagLabel);
         iconImage.sprite = item.ItemIcon;
         iconBackground.color = visuals.BackgroundColor;
 
@@ -181,7 +186,7 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
         targetFill = isSelected ? 1f : 0f;
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
+    // ââ Private âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     private void TickVisuals()
     {
@@ -216,6 +221,18 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     public void OnButtonClicked()
     {
         onClicked?.Invoke(Item);
+    }
+
+    /// <summary>
+    /// Builds the directory-listing row: "03 MECHANICAL_CORE ......[CMP]".
+    /// Depends on the monospaced font — see InventoryTextFormat.
+    /// </summary>
+    private string BuildRowLabel(SO_InventoryItem item, int index, string tag)
+    {
+        string left  = index.ToString("00") + " " + InventoryTextFormat.MachineName(item.ItemName);
+        string right = "[" + tag + "]";
+
+        return InventoryTextFormat.DotLeader(left, right, rowCharWidth);
     }
 
     private void ApplyButtonColor(Color color)

@@ -38,6 +38,6 @@ public class FailuresPipsView : MonoBehaviour
         }
 
         if (counterText != null)
-            counterText.text = $"{explodedCount} / {totalModules}";
+            counterText.text = $"{explodedCount}/{totalModules}";
     }
 }

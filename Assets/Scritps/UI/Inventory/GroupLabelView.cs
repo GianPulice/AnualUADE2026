@@ -16,6 +16,7 @@ public class GroupLabelView : MonoBehaviour
     {
         if (labelText != null)
             labelText.text = categoryConfig.Get(category).GroupLabel;
-            Category = category;
+
+        Category = category;
     }
 }

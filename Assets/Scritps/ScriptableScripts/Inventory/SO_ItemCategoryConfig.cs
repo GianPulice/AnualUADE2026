@@ -52,8 +52,8 @@ public class SO_ItemCategoryConfig : ScriptableObject
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#A62222"),
-            GroupLabel         = "— key",
-            TagLabel           = "Key",
+            GroupLabel         = "// KEYS",
+            TagLabel           = "KEY",
             // §4.4 Color Spec — ItemPSX 3D tint
             shaderTintColor    = HexToColor("#37474F"),
             shaderEmissionColor = Color.black,
@@ -67,8 +67,8 @@ public class SO_ItemCategoryConfig : ScriptableObject
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#248F24"),
-            GroupLabel         = "— component",
-            TagLabel           = "Puzzle Component",
+            GroupLabel         = "// COMPONENTS",
+            TagLabel           = "CMP",
             shaderTintColor    = HexToColor("#4E342E"),
             shaderEmissionColor = HexToColor("#FFC850"), // faint amber — only visible with _EmissionIntensity > 0
         };
@@ -81,8 +81,8 @@ public class SO_ItemCategoryConfig : ScriptableObject
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#2424B3"),
-            GroupLabel         = "— note",
-            TagLabel           = "Notes",
+            GroupLabel         = "// NOTES",
+            TagLabel           = "DOC",
             shaderTintColor    = HexToColor("#263238"),
             shaderEmissionColor = Color.black,
         };
@@ -95,8 +95,8 @@ public class SO_ItemCategoryConfig : ScriptableObject
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#BF7326"),
-            GroupLabel         = "— essential",
-            TagLabel           = "Essential",
+            GroupLabel         = "// ESSENTIAL",
+            TagLabel           = "ESS",
             shaderTintColor    = HexToColor("#1A237E"),
             shaderEmissionColor = Color.black,
         };
@@ -109,8 +109,8 @@ public class SO_ItemCategoryConfig : ScriptableObject
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
             SelectedBGColor    = HexToColor("#4D4D4D"),
-            GroupLabel         = "— Others",
-            TagLabel           = "Item",
+            GroupLabel         = "// OTHER",
+            TagLabel           = "ITM",
             shaderTintColor    = HexToColor("#37474F"),
             shaderEmissionColor = Color.black,
         };

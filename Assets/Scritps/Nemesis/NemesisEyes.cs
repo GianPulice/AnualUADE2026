@@ -18,9 +18,11 @@ using UnityEngine;
 /// round; from thirty metres down a corridor the silhouette says almost nothing about whether it
 /// has noticed you. The eyes can say it before the audio does.
 ///
-/// The colours honour the project's rule that RED IS DANGER AND NOTHING ELSE: only the capture
-/// burns red. Alerted is amber — the same alert band the gizmos and the HUD use — and calm is the
-/// cool blue that means passive everywhere else in this codebase.
+/// The COLOUR never changes: the eyes are always the danger red. Whether it has noticed you is
+/// read from how bright and how far the beam reaches — a dim short cone while it patrols, a hard
+/// long one the moment it is coming for you — not from a hue shift. A Nemesis whose eyes turn
+/// friendly blue while it is not looking at you was reading as a mood ring rather than as a
+/// monster, and it also lit the player and the walls in whatever colour the state happened to be.
 /// </summary>
 public class NemesisEyes : MonoBehaviour
 {
@@ -29,19 +31,10 @@ public class NemesisEyes : MonoBehaviour
              "prefab expects. Fill it in only to drive a subset.")]
     [SerializeField] private List<Light> eyeLights = new List<Light>();
 
-    [Header("Colour by state")]
-    [Tooltip("Patrolling: it has no idea where you are.")]
-    [SerializeField] private Color calmColor = new Color(0.541f, 0.706f, 0.831f);
-
-    [Tooltip("Investigating and Searching: it is acting on something it sensed.")]
-    [SerializeField] private Color alertColor = new Color(1f, 0.784f, 0.314f);
-
-    [Tooltip("Chasing and Traversing: it is coming for you and knows where you are.")]
-    [SerializeField] private Color huntColor = new Color(1f, 0.55f, 0.15f);
-
-    [Tooltip("Catch only. Red is reserved for danger by the project's visual language, and a " +
-             "capture is the only moment that qualifies.")]
-    [SerializeField] private Color catchColor = new Color(0.8f, 0.1f, 0.1f);
+    [Tooltip("El único color de los ojos, en todos los estados. Rojo peligro por la regla del " +
+             "proyecto (rojo = amenaza y nada más). Lo que dice si te vio es la INTENSIDAD y el " +
+             "ALCANCE del haz, no el tono.")]
+    [SerializeField] private Color eyeColor = new Color(0.8f, 0.1f, 0.1f);
 
     [Header("Intensity")]
     [SerializeField, Min(0f)] private float calmIntensity = 1.2f;
@@ -88,14 +81,12 @@ public class NemesisEyes : MonoBehaviour
              "forma — y perdés la lectura de hacia dónde mira.")]
     [SerializeField, Min(0f)] private float glowIntensityScale = 0.45f;
 
-    [Tooltip("How fast colour and intensity ease towards their target, per second. Snapping reads " +
+    [Tooltip("How fast intensity and reach ease towards their target, per second. Snapping reads " +
              "as a UI element rather than as a light on a creature.")]
     [SerializeField, Min(0.1f)] private float easeSpeed = 4f;
 
-    private Color targetColor;
     private float targetIntensity;
     private float targetRange;
-    private Color currentColor;
     private float currentIntensity;
     private float currentRange;
 
@@ -123,10 +114,9 @@ public class NemesisEyes : MonoBehaviour
         // Awake/OnDestroy and not OnEnable/OnDisable, per the project's convention for static
         // events: a static delegate outlives the GameObject's enabled state, so an enabled-scoped
         // subscription is a listener that quietly stops listening. Here that would mean the eyes
-        // staying whatever colour they were when the object was last switched off.
+        // staying whatever intensity they were when the object was last switched off.
         NemesisEvents.OnStateChanged += HandleStateChanged;
 
-        currentColor = targetColor = calmColor;
         currentIntensity = targetIntensity = calmIntensity;
         currentRange = targetRange = beamRange;
         Apply();
@@ -157,27 +147,19 @@ public class NemesisEyes : MonoBehaviour
         switch (state)
         {
             case NemesisStateManager.ENemesisState.Catch:
-                targetColor = catchColor;
-                targetIntensity = huntIntensity;
-                targetRange = beamRange * huntBeamRangeScale;
-                break;
-
             case NemesisStateManager.ENemesisState.Chasing:
             case NemesisStateManager.ENemesisState.Traversing:
-                targetColor = huntColor;
                 targetIntensity = huntIntensity;
                 targetRange = beamRange * huntBeamRangeScale;
                 break;
 
             case NemesisStateManager.ENemesisState.Investigating:
             case NemesisStateManager.ENemesisState.Searching:
-                targetColor = alertColor;
                 targetIntensity = Mathf.Lerp(calmIntensity, huntIntensity, 0.5f);
                 targetRange = beamRange;
                 break;
 
             default:
-                targetColor = calmColor;
                 targetIntensity = calmIntensity;
                 targetRange = beamRange;
                 break;
@@ -187,10 +169,9 @@ public class NemesisEyes : MonoBehaviour
     private void Update()
     {
         // Unscaled: the eyes keep easing while a pause menu is up rather than freezing
-        // mid-transition, which would leave them a colour that belongs to neither state.
+        // mid-transition, which would leave them at an intensity that belongs to neither state.
         float step = easeSpeed * Time.unscaledDeltaTime;
 
-        currentColor = Color.Lerp(currentColor, targetColor, step);
         currentIntensity = Mathf.Lerp(currentIntensity, targetIntensity, step);
         currentRange = Mathf.Lerp(currentRange, targetRange, step);
 
@@ -203,7 +184,7 @@ public class NemesisEyes : MonoBehaviour
         {
             if (eyeLights[i] == null) continue;
 
-            eyeLights[i].color = currentColor;
+            eyeLights[i].color = eyeColor;
             eyeLights[i].intensity = currentIntensity;
 
             // Only Spot lights carry a direction, and these are Spots (22° cone) despite the
@@ -220,7 +201,7 @@ public class NemesisEyes : MonoBehaviour
         // you is over there".
         fogGlow.overrideAppearance = true;
         fogGlow.radius = glowRadius;
-        fogGlow.color = currentColor;
+        fogGlow.color = eyeColor;
         fogGlow.intensity = currentIntensity * glowIntensityScale;
 
         // Glow high, clear low — the exact case FogLightBypass's own docs call out: "a lamp seen

@@ -51,7 +51,7 @@ public class ActiveModuleTimerView : MonoBehaviour
             timerText.text  = "--:--";
             timerText.color = InactiveTimerColor;
 
-            if (moduleIdText != null) moduleIdText.text = "no module";
+            if (moduleIdText != null) moduleIdText.text = "MOD_--";
             return;
         }
 

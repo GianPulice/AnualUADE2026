@@ -52,6 +52,12 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     // Scoring buffers for PickSearchTarget, reused for the same reason as the interception's.
     private readonly List<float> weightBuffer = new List<float>();
 
+    // The swept/unswept split in PrefilterUnsweptFirst. Separate lists because the two halves are
+    // trimmed independently and the second trim must not clear the first one's results.
+    private readonly List<int> sweptCandidateBuffer = new List<int>();
+    private readonly List<Vector3> sweptPositionBuffer = new List<Vector3>();
+    private readonly List<int> topUpBuffer = new List<int>();
+
     /// <summary>
     /// The free-roam sweep, used when the search commits to a room rather than to a cut-off. Owned
     /// by this state and constructed with it, the same arrangement NemesisChasingState has with
@@ -520,14 +526,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
         Vector3 predicted = PredictedFrom(anchor);
 
-        positionBuffer.Clear();
-        for (int i = 0; i < candidateBuffer.Count; i++)
-            positionBuffer.Add(graph.GetNode(candidateBuffer[i]).Position);
-
-        // Prefiltered on min(near me, near the anchor) - keeping only what is near the Nemesis is
-        // exactly the bug this method exists to fix.
-        NemesisClusterPatrol.KeepClosest(candidateBuffer, positionBuffer, origin, true, anchor,
-                                         sampleCount, sampledBuffer, keyBuffer);
+        PrefilterUnsweptFirst(graph, anchor, sampleCount);
         if (sampledBuffer.Count == 0) return GetRandomPointInNavMesh();
 
         float lastKnownBias = data != null ? data.SearchLastKnownBias : 3f;
@@ -574,6 +573,90 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         sweptNodes.Add(node);
 
         return graph.GetNode(node).Position;
+    }
+
+    /// <summary>
+    /// Trims the island's waypoints down to the ones worth paying a path query for: measured from
+    /// the PLAYER rather than from the Nemesis, and with the UNSWEPT ones given first claim on the
+    /// budget.
+    ///
+    /// THE BUG THIS FIXES. PickSearchTarget used to hand every node straight to KeepClosest, which
+    /// keeps the WaypointBiasSampleCount nearest and drops the rest — and only afterwards applied
+    /// the swept penalty to whatever survived. So the nodes the search had already visited went on
+    /// occupying all eight sample slots for the whole search. Once those eight were swept, every
+    /// candidate carried the same 0.33 multiplier, the roll picked among the same eight again, and
+    /// the Nemesis paced one small area until SearchTimeOut expired. With 37 waypoints in the
+    /// level and a budget of 8, the waypoints of the OTHER patrol route were never once evaluated:
+    /// the distance prefilter had discarded them before the penalty that was supposed to push the
+    /// search outwards ever ran.
+    ///
+    /// It got worse the longer the search lasted, which is the opposite of what a search should
+    /// do — more time meant more repetition rather than more ground covered.
+    ///
+    /// WHY SPLITTING THE BUDGET RATHER THAN EXCLUDING THE SWEPT ONES. Excluding them outright
+    /// would stop the Nemesis ever doubling back, and doubling back is a thing people looking for
+    /// you actually do — the same reason the weight below penalises rather than removes. Giving
+    /// the unswept ones first claim gets the expansion without the absolutism: early in a search
+    /// almost nothing is swept and this behaves exactly as before, and as the sweep fills up, the
+    /// window walks outward on its own and the second route comes into range. When everything
+    /// nearby has been swept, the swept half fills the budget and doubling back resumes.
+    ///
+    /// The final roll still applies SearchSweptPenalty, so a swept node that does make the cut is
+    /// a weak candidate rather than an equal one.
+    /// </summary>
+    private void PrefilterUnsweptFirst(NemesisRouteGraph graph, Vector3 anchor, int sampleCount)
+    {
+        // candidateBuffer arrives holding the whole island. Partition it in place: it keeps the
+        // unswept half, and the swept half moves to its own buffer.
+        sweptCandidateBuffer.Clear();
+        sweptPositionBuffer.Clear();
+        positionBuffer.Clear();
+
+        int kept = 0;
+        for (int i = 0; i < candidateBuffer.Count; i++)
+        {
+            int node = candidateBuffer[i];
+            Vector3 position = graph.GetNode(node).Position;
+
+            if (sweptNodes.Contains(node))
+            {
+                sweptCandidateBuffer.Add(node);
+                sweptPositionBuffer.Add(position);
+                continue;
+            }
+
+            candidateBuffer[kept] = node;
+            positionBuffer.Add(position);
+            kept++;
+        }
+        candidateBuffer.RemoveRange(kept, candidateBuffer.Count - kept);
+
+        // MEASURED FROM THE PLAYER, NOT FROM THE NEMESIS. KeepClosest normally keys on
+        // min(distance to me, distance to the anchor) so that a roll taken from across the level
+        // still sees the candidates near the player. A SEARCH does not want that minimum: the
+        // Nemesis is standing in the middle of the area it is searching, so "near me" and "near
+        // where I already looked" are the same set, and half the sample budget goes to waypoints
+        // it has just walked past. Keying on the anchor alone spends the whole budget on where the
+        // player actually was.
+        //
+        // Passing the anchor as the origin argument with hasBelief false is how that is expressed
+        // without giving the shared helper a second mode: its key is "distance from the point you
+        // hand it", and the parameter is only called origin because that is the common case. The
+        // three other callers — the patrol roll, the pursuit's detour, the interception — keep the
+        // minimum, and should: each of them is genuinely asking about its own travel too.
+        NemesisClusterPatrol.KeepClosest(candidateBuffer, positionBuffer, anchor, false,
+                                         Vector3.zero, sampleCount, sampledBuffer, keyBuffer);
+
+        int remaining = sampleCount - sampledBuffer.Count;
+        if (remaining <= 0 || sweptCandidateBuffer.Count == 0) return;
+
+        // Top up with the swept ones nearest the player. A second buffer because KeepClosest
+        // clears the results list it is handed, which would throw away the unswept half just
+        // selected.
+        NemesisClusterPatrol.KeepClosest(sweptCandidateBuffer, sweptPositionBuffer, anchor, false,
+                                         Vector3.zero, remaining, topUpBuffer, keyBuffer);
+
+        sampledBuffer.AddRange(topUpBuffer);
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ public class DiscardDialogView : MonoBehaviour
         pendingItem = item;
 
         if (titleText != null)
-            titleText.text = $"Discard \"{item.ItemName}\"?";
+            titleText.text = $"> DISCARD {InventoryTextFormat.MachineName(item.ItemName)} ?";
 
         overlayPanel?.SetActive(true);
     }

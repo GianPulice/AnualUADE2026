@@ -220,8 +220,10 @@ public class ItemDetailView : MonoBehaviour
 
         if (iconImage != null && item.ItemIcon != null) iconImage.sprite = item.ItemIcon;
         if (iconBackground != null) iconBackground.color = v.BackgroundColor;
-        if (itemNameText != null) itemNameText.text = item.ItemName;
-        if (categoryTagText != null) categoryTagText.text = v.TagLabel;
+        // Filename-style header, e.g. "> MECHANICAL_CORE.CMP"
+        if (itemNameText != null)
+            itemNameText.text = $"> {InventoryTextFormat.MachineName(item.ItemName)}.{v.TagLabel}";
+        if (categoryTagText != null) categoryTagText.text = $"[{v.TagLabel}]";
         if (categoryTagBackground != null) categoryTagBackground.color = v.BackgroundColor;
     }
 

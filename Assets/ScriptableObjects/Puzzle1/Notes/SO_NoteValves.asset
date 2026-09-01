@@ -13,11 +13,9 @@ MonoBehaviour:
   m_Name: SO_NoteValves
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: 
-  itemName: 
+  itemName: Valve Note
   category: 2
-  itemDescription: 'note valve
-
-'
+  itemDescription: Note describing the valve configuration.
   itemIcon: {fileID: 0}
   isMetallic: 0
   isConsumable: 0

@@ -1,6 +1,7 @@
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,6 +27,12 @@ public class InventoryView : MonoBehaviour
     [SerializeField] private Transform itemListContainer;   // ScrollRect Content
     [SerializeField] private ScrollRect scrollRect;
     [SerializeField] private RectTransform viewport;
+
+    [Header("List header")]
+    [Tooltip("Optional. Renders the dotted header row above the list, with the live item count.")]
+    [SerializeField] private TextMeshProUGUI listHeaderText;
+    [Tooltip("Character width of the header row. Match it to the slot rowCharWidth.")]
+    [SerializeField] private int headerCharWidth = 28;
 
     [Header("Prefabs")]
     [SerializeField] private ItemSlotView itemSlotPrefab;
@@ -71,6 +78,15 @@ public class InventoryView : MonoBehaviour
 
         IReadOnlyList<SO_InventoryItem> allItems = model.GetAllItems();
 
+        if (listHeaderText != null)
+        {
+            listHeaderText.text = InventoryTextFormat.DotLeader(
+                "// INVENTORY", allItems.Count.ToString("00") + " OBJ", headerCharWidth);
+        }
+
+        // Continuous numbering across groups, like a directory listing.
+        int rowIndex = 1;
+
         foreach (ItemCategory category in CategoryOrder)
         {
             List<SO_InventoryItem> group = allItems
@@ -88,7 +104,7 @@ public class InventoryView : MonoBehaviour
             foreach (SO_InventoryItem item in group)
             {
                 ItemSlotView slot = GetOrCreateSlot();
-                slot.Setup(item, OnSlotClicked);
+                slot.Setup(item, rowIndex++, OnSlotClicked);
                 slot.gameObject.SetActive(true);
                 activeSlots.Add(slot);
             }
