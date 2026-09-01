@@ -19,7 +19,7 @@ MonoBehaviour:
   patrolWaitVariance: 0.25
   noiseUpdateCooldown: 0.5
   viewRange: 7
-  viewAngle: 150
+  viewAngle: 170
   focusAngle: 80
   awarenessBuildTime: 1.2
   awarenessDecayRate: 0.5

@@ -7,13 +7,11 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: VisionFog_SilentHill
-  m_Shader: {fileID: 4800000, guid: c7f3a91e4b2d5648ae0179c3d8f6b204, type: 3}
+  m_Name: Decal
+  m_Shader: {fileID: -6465566751694194690, guid: 5a7cf1f1bfcf5494c800ac1b789e3fb7, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _ENABLEFOGBLUR_ON
-  - _ENABLEFOGNOISE_ON
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -25,6 +23,10 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _Imagen:
+        m_Texture: {fileID: 2800000, guid: 1ca2777d1e6882a4ba5639170a1a5ff5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -39,14 +41,24 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _EnableFogBlur: 1
-    - _EnableFogNoise: 1
-    - _EnableVisionFog: 0
-    - _FogDebugView: 0
-    - _FogNoiseIntensity: 0.4
-    - _FogNoiseOctaves: 3
-    - _FogNoiseScale: 0.05
-    - _FogScrollSpeed: 0.1
+    - _DecalMeshBiasType: 0
+    - _DecalMeshDepthBias: 0
+    - _DecalMeshViewBias: 0
+    - _DrawOrder: 0
+    - _alpha: 0
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
+--- !u!114 &518026960832568122
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Editor::UnityEditor.Rendering.Universal.AssetVersion
+  version: 10
