@@ -42,20 +42,20 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ChromaticAberrationOffset: 0.0112
+    - _ChromaticAberrationOffset: 0.0026
     - _ClampWarpEdges: 1
-    - _DitherLevels: 7
+    - _DitherLevels: 5
     - _DitherStrength: 0.05
     - _EnableChromaticAberration: 1
     - _EnableDither: 1
     - _EnableEffect: 1
     - _EnableScanlines: 1
-    - _JitterResolution: 165
-    - _PixelSize: 1028
-    - _ScanlineCount: 240
+    - _JitterResolution: 200
+    - _PixelSize: 512
+    - _ScanlineCount: 180
     - _ScanlineIntensity: 0.125
     - _Speed: 1
-    - _WarpIntensity: 0.0018
+    - _WarpIntensity: 0.005
     - _WarpScale: 20
     - _WarpStrength: 0.025
     m_Colors: []
