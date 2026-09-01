@@ -200,6 +200,43 @@ public class SO_NemesisData : ScriptableObject
              "0 la desactiva y vuelve al encadenado de antes.")]
     [SerializeField, Min(0f)] private float searchPauseTime = 1.2f;
 
+    [Header("Search — room sweep (free roam)")]
+    //
+    // The search used to be able to look ONLY at patrol waypoints: PickSearchTarget rolled over
+    // graph nodes and the free NavMesh scatter was reachable only when the graph failed. A room
+    // with no waypoint inside it was therefore a room the Nemesis could not search, however
+    // plainly it had just watched you walk into it.
+    //
+    // These three turn the "it saw you go in there" case into a sweep of THAT ROOM, moving on the
+    // NavMesh itself with the waypoints demoted from a cage to a set of hints. See NemesisFreeRoam.
+
+    [Tooltip("Radius, in metres, of the area the Nemesis sweeps when it saw you enter somewhere " +
+             "and commits to searching it.\n\n" +
+             "This is the derived stand-in for 'the room'. There are no authored room volumes in " +
+             "the project, so the area is this radius around the last sighting, clipped by the " +
+             "walls between — a candidate point the sighting cannot see across is treated as a " +
+             "different room. Roughly the size of your average interior; too large and the sweep " +
+             "leaks back out into the corridor it came from.")]
+    [SerializeField, Min(1f)] private float roomSweepRadius = 7f;
+
+    [Tooltip("How close, in metres of PATH, the last sighting has to be for losing you to trigger " +
+             "a room sweep instead of an interception.\n\n" +
+             "The two answer different questions. Losing someone across the level means cutting " +
+             "them off ahead of where they were going; losing someone who just stepped through a " +
+             "door five metres away means going in after them. Below this distance the search " +
+             "skips the interception entirely and sweeps. Set it to 0 to disable room sweeps and " +
+             "always intercept, which is the behaviour that shipped before this existed.")]
+    [SerializeField, Min(0f)] private float roomCommitRange = 12f;
+
+    [Tooltip("Seconds a sweep anchored on a SIGHTING ignores noises outside the room it is " +
+             "sweeping.\n\n" +
+             "Without it, any noise anywhere re-aims the search, which makes throwing something " +
+             "across the level a free escape button from a room the Nemesis watched you enter. " +
+             "Sight is better information than hearing and this is how long it is allowed to say " +
+             "so. A noise INSIDE the swept area is always honoured — that one confirms the guess " +
+             "rather than contradicting it. 0 restores 'any noise always wins'.")]
+    [SerializeField, Min(0f)] private float sightCommitTime = 6f;
+
     [Header("Chase - pursuit")]
     //
     // La persecucion era Seek puro: destination = ultima posicion sentida. Correr hacia donde el
@@ -434,6 +471,76 @@ public class SO_NemesisData : ScriptableObject
              "que es lo mismo que si ninguna pesara poco.")]
     [SerializeField, Min(0)] private int clusterRecencyMemory = 2;
 
+    [Header("Patrol routes — auto-generated sweep points")]
+    //
+    // WHAT THESE FIX. A cúmulo's sweep is its member waypoints and nothing else, so a room marked
+    // with ONE waypoint produces a tour of one stop: the Nemesis walks to it, the tour runs out
+    // immediately, and it leaves. It never prowls that room, however much the cluster settings say
+    // it should. Getting a room actually swept meant hand-placing four or five waypoints in it,
+    // which is authoring work that says nothing a single marker did not already say.
+    //
+    // These satellites are generated on the NavMesh around each authored waypoint at graph build
+    // time, and they join the cúmulo's TOUR only. They deliberately do NOT become graph nodes:
+    // they never enter the cluster's centroid or its weight (which would quietly re-aim the zone
+    // bias), never enter the per-waypoint patrol roll, the pursuit's detour candidates, the
+    // search, or the sensed trail. One authored waypoint still means one waypoint everywhere the
+    // Nemesis reasons about the level — it just means a small AREA when it comes to walking it.
+
+    [Tooltip("How many extra sweep points to generate around each patrol waypoint.\n\n" +
+             "0 turns the feature off and restores the behaviour where a cúmulo's sweep is its " +
+             "authored waypoints and nothing else. At 2-3 a single waypoint marks a room the " +
+             "Nemesis will actually prowl instead of clipping the corner of. Raising it does not " +
+             "make it sweep longer — that is Cluster Max Waypoints, which caps the stops per " +
+             "visit — it makes the stops it does take more varied.")]
+    [SerializeField, Range(0, 6)] private int waypointSatellites = 3;
+
+    [Tooltip("How far, in metres, generated points may sit from the waypoint they belong to.\n\n" +
+             "Think of it as how big a room one marker is claiming. Too small and the satellites " +
+             "cluster on top of the waypoint and the sweep looks like pacing; too large and they " +
+             "leak into the next room and the Nemesis appears to wander off mid-sweep. Points are " +
+             "snapped to the NavMesh and dropped if they cannot be reached from the waypoint, so " +
+             "an over-large radius wastes generation attempts rather than producing bad stops.")]
+    [SerializeField, Min(1f)] private float waypointSatelliteRadius = 4f;
+
+    [Header("Patrol routes — zone gravitation (director bias)")]
+    //
+    // READ THIS BEFORE TUNING IT. Everything else in this asset is measured off what the Nemesis
+    // SENSED. This one is not: it reads the player's live transform, so it is knowledge the
+    // Nemesis did not earn, and it is here on purpose.
+    //
+    // The reason is that RoutePlayerBiasStrength below could never do what it was asked to. It is
+    // gated on TryGetPlayerBeliefPosition, which returns false until the player has been seen or
+    // heard AT LEAST ONCE, and it is then scaled by BeliefFreshness, which decays to nothing over
+    // BeliefMemoryTime. On a cold patrol — the whole first stretch of a run — the bias was exactly
+    // zero and the Nemesis wandered by route weight alone.
+    //
+    // What keeps this honest is WHERE it applies. It biases the choice of CÚMULO and nothing
+    // finer: which corner of the level to prowl, never which waypoint to stand on. Combined with a
+    // wide falloff it reads as the monster drifting your way, which is the intent. Pushed too high
+    // it reads as the monster seeing through walls, which is the failure. The per-waypoint roll
+    // stays on the belief, and should.
+
+    [Tooltip("Let the patrol's ZONE choice gravitate towards where the player actually is, " +
+             "instead of only towards what the Nemesis has sensed.\n\n" +
+             "Off restores the shipped behaviour exactly: with no sighting and no noise, the " +
+             "patrol is an unbiased roll over your authored route weights. On, it drifts your way " +
+             "from the first second of the run. This is a director bias — it is deliberately " +
+             "unfair, and deliberately coarse.")]
+    [SerializeField] private bool zoneBiasUsesRealPlayer = true;
+
+    [Tooltip("How many times more likely the cúmulo containing the player is to be drawn.\n\n" +
+             "It has to compete with Cluster Neighbour Bias, which pulls towards whatever zone is " +
+             "next door — at equal strength the two roughly cancel and the drift is invisible. " +
+             "1 disables the gravitation without touching the toggle above.")]
+    [SerializeField, Min(1f)] private float zonePlayerBiasStrength = 4f;
+
+    [Tooltip("Metres of path beyond which the zone gravitation no longer applies.\n\n" +
+             "Deliberately wide. This is gravitation, not aim: a narrow falloff turns a drift " +
+             "towards your side of the level into a beeline for your room. Distance is measured " +
+             "over the NavMesh, so a zone one floor up counts as far even when it is 4 metres " +
+             "away.")]
+    [SerializeField, Min(1f)] private float zonePlayerBiasFalloff = 40f;
+
     [Header("Patrol routes — cross-route transfer")]
     [Tooltip("Chance, on each waypoint arrival, of jumping to a waypoint on ANOTHER unlocked " +
              "route instead of following the current route in order.\n\n" +
@@ -527,6 +634,9 @@ public class SO_NemesisData : ScriptableObject
     public float SearchBiasFalloff { get => searchBiasFalloff; set => searchBiasFalloff = value; }
     public float SearchSweptPenalty { get => searchSweptPenalty; set => searchSweptPenalty = value; }
     public float SearchPauseTime { get => searchPauseTime; set => searchPauseTime = value; }
+    public float RoomSweepRadius { get => roomSweepRadius; set => roomSweepRadius = value; }
+    public float RoomCommitRange { get => roomCommitRange; set => roomCommitRange = value; }
+    public float SightCommitTime { get => sightCommitTime; set => sightCommitTime = value; }
     public float ChaseTimePrediction { get => chaseTimePrediction; set => chaseTimePrediction = value; }
     public float ChaseRouteReplanInterval { get => chaseRouteReplanInterval; set => chaseRouteReplanInterval = value; }
     public float ChaseBeliefMoveThreshold { get => chaseBeliefMoveThreshold; set => chaseBeliefMoveThreshold = value; }
@@ -564,6 +674,11 @@ public class SO_NemesisData : ScriptableObject
 
     public float ClusterRecencyPenalty { get => clusterRecencyPenalty; set => clusterRecencyPenalty = value; }
     public int ClusterRecencyMemory { get => clusterRecencyMemory; set => clusterRecencyMemory = value; }
+    public int WaypointSatellites { get => waypointSatellites; set => waypointSatellites = value; }
+    public float WaypointSatelliteRadius { get => waypointSatelliteRadius; set => waypointSatelliteRadius = value; }
+    public bool ZoneBiasUsesRealPlayer { get => zoneBiasUsesRealPlayer; set => zoneBiasUsesRealPlayer = value; }
+    public float ZonePlayerBiasStrength { get => zonePlayerBiasStrength; set => zonePlayerBiasStrength = value; }
+    public float ZonePlayerBiasFalloff { get => zonePlayerBiasFalloff; set => zonePlayerBiasFalloff = value; }
     public float ClusterNeighbourBias { get => clusterNeighbourBias; set => clusterNeighbourBias = value; }
     public float ClusterNeighbourFalloff { get => clusterNeighbourFalloff; set => clusterNeighbourFalloff = value; }
     public float CrossRouteTransferChance { get => crossRouteTransferChance; set => crossRouteTransferChance = value; }

@@ -272,6 +272,7 @@ Beyond the FSM described above:
   of teleporting across it. Recently swept zones are down-weighted (`ClusterRecencyPenalty` /
   `ClusterRecencyMemory`), which is what stops it ping-ponging between two neighbours — excluding
   only the zone it just left is not enough, because the neighbour bias immediately favours it again.
+  A zone's sweep is a list of `TourStop`s, not of waypoints — see *Nemesis: generated sweep points*.
 - **`NemesisPursuit`** — where to run while chasing. Plain class, not a MonoBehaviour, owned by
   `NemesisChasingState`. See *Nemesis: chase and search*.
 - **`NemesisLookAround`** — sweeps the gaze while the Nemesis stands still. Auto-added like the
@@ -441,10 +442,136 @@ you at while you walked away.
 what makes a search **legible**: without it the Nemesis chains destinations and, from inside a
 hiding place, none of it says whether it is closing in or has already written the area off.
 
-The interception (`TryGetInterceptPoint`) is unchanged and still outranks both: it is the only part
-that reasons about the *player's* travel time rather than its own, and the only one that can put the
-Nemesis somewhere before you get there. It runs on entry and on a fresh noise, **never in the tick**
-— it costs two path queries per candidate.
+The interception (`TryGetInterceptPoint`) reasons about the *player's* travel time rather than its
+own, and is the only part that can put the Nemesis somewhere before you get there. It runs on entry
+and on a fresh noise, **never in the tick** — it costs two path queries per candidate.
+
+### Nemesis: node movement vs free roam
+
+**Two ways of getting around, and which one a state uses is now explicit.**
+`NemesisStateManager.MovementOf` is the table; `CurrentMovement` is on the debug HUD next to the
+state name.
+
+- **Node-bound** (`Patrolling`, `Traversing`) — the waypoints *are* the route, walked in the order
+  the designer authored them.
+- **Free roam** (`Chasing`, `Searching`, `Investigating`) — anywhere on the NavMesh, with the
+  waypoints demoted to hints. `NemesisPursuit` already worked this way; `Searching` did not.
+
+The distinction used to be implicit, readable only by opening each state to see what it assigned to
+`NavAgent.destination`, and `Searching` had drifted onto the wrong side of it without anyone
+deciding that: `PickSearchTarget` rolls over graph nodes and reaches the free NavMesh only down an
+error path, so **a room with no waypoint inside it was a room the Nemesis could not look in**,
+however plainly it had just watched you walk into it.
+
+**`NemesisFreeRoam`** is the free-roam mover — plain class, same shape as `NemesisPursuit`, owned by
+the state that uses it. It samples points on the NavMesh around a committed anchor, offering
+waypoints inside the area first (a waypoint the designer put in this room is a considered opinion
+about it) and filling the rest with sampled points. Dropping the graph drops two guarantees that
+were free, and both are paid for explicitly:
+
+- **Reachability** — `NavMesh.SamplePosition` returns the nearest surface, including one on another
+  island. Every candidate is path-tested; an unreachable destination is how the agent ends up
+  pressed against a wall with `remainingDistance` at zero.
+- **Confinement** — a room is not a circle. The disc is clipped by
+  `FieldOfListening.IsOccludedByWall` from the anchor, so a doorway stays open and the corridor
+  behind the wall does not. There are no authored room volumes in the project; this is the derived
+  stand-in for one, and it will treat an L-shaped room as two.
+
+Swept memory here is **spatial** (a list of positions, `SweptRadius` apart), not node indices, since
+most destinations are not nodes.
+
+**The room commitment** (`TryCommitRoomSweep`) runs *before* the interception, and that ordering is
+the fix for "it saw me go in there and kept walking". Losing sight has two shapes and the state used
+to answer both with a cut-off: across the level, cutting you off ahead of your heading is right;
+through a door five metres away it is wrong, because `TryGetHeading` reads the trail of *corridor*
+waypoints and the intercept lands further down that corridor. Three tests gate it — the belief must
+be **from sight** (a noise through a wall is not evidence of which room you are in), **fresh**, and
+**close measured over the NavMesh** (straight-line distance calls a room close when it is a
+forty-metre walk around the wall). `RoomCommitRange` at 0 disables it and restores
+interception-first.
+
+**Sight outranks hearing for `SightCommitTime`.** A committed sweep ignores noises *outside* the
+room — otherwise throwing something down the corridor is a free escape from the one situation the
+monster should be most dangerous in. A noise *inside* the swept area always re-aims, and re-commits
+the sweep rather than dropping it; that branch is load-bearing, since the belief it produces is no
+longer from sight and would otherwise fail the first test and kick the Nemesis back out to an
+interception.
+
+Tunables: `RoomSweepRadius`, `RoomCommitRange`, `SightCommitTime`. Drawn by `NemesisGizmos`
+(`drawRoomSweep`) as the anchor, its radius and the swept trail in visit order — a trail that keeps
+crossing itself means `SearchSweptPenalty` is too weak.
+
+**Level-design consequence worth knowing:** before this, a room with no waypoints was one the
+Nemesis could not search. That was an accidental difficulty valve, and it is now gone — rooms that
+played as safe need re-testing.
+
+### Nemesis: generated sweep points
+
+**One waypoint can mark a room the Nemesis actually prowls.** Before this, a cúmulo's sweep was its
+member waypoints and nothing else, so a room marked with a single waypoint produced a tour of one
+stop: walk to it, tour exhausted, leave. Getting a room swept meant hand-placing four or five
+markers that said nothing the first one did not.
+
+`WaypointSatellites` (0 = off) generates that many points on the NavMesh within
+`WaypointSatelliteRadius` of each waypoint, at **graph build time** — `NemesisRouteGraph.BuildSatellites`,
+after `BuildClusters`. Build time and not per visit because each candidate costs a path query, and
+because a point that moved every visit could not be drawn, tuned or compared between sweeps;
+variation comes from the tour shuffle instead. Reachability is tested **from the waypoint**, whose
+island is already known, so the answer does not depend on where the Nemesis happens to be standing.
+
+**They are not graph nodes, and that is the whole design.** Promoting them would have pulled them
+into the cluster centroid and weight (silently re-aiming the zone the director bias targets), the
+per-waypoint patrol roll, the pursuit's detour candidates, the search's interception, and the sensed
+trail — and multiplied `AssignComponents` (a path query per node) and `FindDensestUnassigned` (N²)
+by the satellite count. One authored waypoint still means one node everywhere the Nemesis *reasons*
+about the level; it means a small area only when it comes to *walking* it. `BuildSatellites` runs
+after `BuildClusters` specifically so the centroid/weight independence is structural rather than a
+rule someone has to remember.
+
+The tour is now `TourStop { Node, Position, IsSatellite }`: the chain of waypoints is still a greedy
+nearest-neighbour walk, then `ExpandTour` drops each waypoint's generated points in **immediately
+after it** — interleaved, so the sweep stays local (arrive, look around, move on) instead of walking
+the zone twice. `ClusterMinWaypoints`/`ClusterMaxWaypoints` now budget **stops**, not waypoints;
+budgeting by waypoint would walk two of an eight-stop zone and call it swept, which is what the
+feature exists to fix.
+
+`NemesisController.CurrentWaypointPosition` is the destination now, not `CurrentWaypoint.position`
+— the Transform stays the handle for "which authored waypoint is this" (warnings, validator, gizmos)
+but cannot express a point with no marker. `currentStopPosition` is an offset cleared in `AdoptNode`,
+so it can never outlive the sweep that produced it.
+
+`NemesisSetupValidator` reports the multiplier as a note: the generated points are runtime positions,
+not GameObjects, so they appear in no hierarchy and no search, and a designer watching the Nemesis
+walk five points around their one marker otherwise has no way to find out where the other four came
+from. Gizmos draw them as small spheres in the tour, distinct from the ringed authored waypoints.
+
+**`WaypointSatellites` at 0 restores the previous behaviour exactly**, not approximately: a zone whose
+waypoints have no generated points comes out of `ExpandTour` identical to the chain that went in.
+
+### Nemesis: zone gravitation (director bias)
+
+**`ZoneBiasUsesRealPlayer` reads the player's live transform.** It is the one place in the system
+that decides where to go from something the Nemesis did not sense, and it is deliberate.
+
+`RoutePlayerBiasStrength` could never do what it was asked to: it is gated on
+`TryGetPlayerBeliefPosition`, which returns false until the player has been seen or heard **at least
+once**, and is then scaled by `BeliefFreshness`, which decays to nothing over `BeliefMemoryTime`. On
+a cold patrol the bias was exactly zero, so "make it tend towards the player" could not be fixed by
+raising a number that was being multiplied by zero.
+
+What keeps it from reading as omniscience is that it is coarse in three separate ways: it weights
+**zones only** and never individual waypoints (the per-waypoint roll still runs on the belief), the
+weight is a **roll and not an argmax**, and `ZonePlayerBiasFalloff` is wide enough to say "your side
+of the level" rather than "your room". It is **not** scaled by `BeliefFreshness` — it descends from
+no sighting, so there is nothing to go stale.
+
+It also decides the `KeepClosest` prefilter's anchor in `PickCluster`, which is not cosmetic: the
+prefilter drops candidates *before* any weight is computed, so keyed on the belief alone the
+player's zone is discarded in exactly the case the bias exists for.
+
+`RouteReplanInterval` was lowered 25 → 12 s. That replan is the one moment the player bias runs
+without `ClusterNeighbourBias` competing against it (`BeginPatrolCycle` passes
+`applyNeighbourBias: false`), so at 25 s the gravitation was barely perceptible.
 
 ### Editor tools
 

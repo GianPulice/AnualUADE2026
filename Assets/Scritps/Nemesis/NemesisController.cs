@@ -122,6 +122,45 @@ public class NemesisController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Set while the cúmulo's sweep is at one of the auto-generated points around a waypoint,
+    /// null while it is at the waypoint itself (and always, outside cluster patrol).
+    ///
+    /// It is an OFFSET from the route bookkeeping rather than a replacement for it. currentRoute
+    /// and currentWaypointIndex keep pointing at the authored waypoint the stop belongs to, so
+    /// everything that reads them carries on working; this only changes where the agent is
+    /// actually sent. See <see cref="CurrentWaypointPosition"/>.
+    /// </summary>
+    private Vector3? currentStopPosition;
+
+    /// <summary>
+    /// Where the Nemesis should actually walk: the generated sweep point when the tour is at one,
+    /// the authored waypoint otherwise.
+    ///
+    /// THIS AND NOT <see cref="CurrentWaypoint"/>.position IS THE DESTINATION. The Transform is
+    /// still the right handle for "which authored waypoint is this", which is what the warnings,
+    /// the validator and the gizmos want — but it cannot express a point that has no marker, and
+    /// reading .position off it would quietly send the patrol back to the waypoint every time the
+    /// sweep tried to visit the space around it.
+    ///
+    /// Falls back to the Nemesis's own position when there is no route at all, so a caller that
+    /// skipped the null check on CurrentWaypoint gets "stay put" instead of the world origin.
+    /// </summary>
+    public Vector3 CurrentWaypointPosition
+    {
+        get
+        {
+            if (currentStopPosition.HasValue) return currentStopPosition.Value;
+
+            Transform waypoint = CurrentWaypoint;
+            return waypoint != null ? waypoint.position : transform.position;
+        }
+    }
+
+    /// <summary>Whether the patrol is currently heading for a generated sweep point rather than an
+    /// authored waypoint. For the debug HUD and the gizmos.</summary>
+    public bool IsAtGeneratedStop => currentStopPosition.HasValue;
+
     /// <summary>The route being patrolled right now, or null. Debug/gizmos only.</summary>
     public NemesisRoute CurrentRoute => currentRoute;
 
@@ -316,7 +355,9 @@ public class NemesisController : MonoBehaviour
         SO_NemesisData data = Data;
         routeGraph.Rebuild(routes,
                            data != null ? data.ClusterRadius : 12f,
-                           data != null ? data.MaxClusterSize : 5);
+                           data != null ? data.MaxClusterSize : 5,
+                           data != null ? data.WaypointSatellites : 0,
+                           data != null ? data.WaypointSatelliteRadius : 4f);
     }
 
     /// <summary>
@@ -353,6 +394,13 @@ public class NemesisController : MonoBehaviour
     /// </summary>
     public void AdvanceToNextWaypoint()
     {
+        // Dropped up front rather than in each branch below. AdoptNode clears it for the paths
+        // that go through it, but the sequential step at the bottom of this method writes
+        // currentWaypointIndex directly and never touches it — which, with cluster patrol switched
+        // off mid-run, would leave the patrol walking to a generated point belonging to a sweep
+        // that no longer exists. AdvanceWithinCluster re-sets it immediately when it applies.
+        currentStopPosition = null;
+
         if (UsesClusterPatrol && clusterPatrol.HasCluster)
         {
             AdvanceWithinCluster();
@@ -384,6 +432,12 @@ public class NemesisController : MonoBehaviour
     {
         if (!node.IsValid) return;
 
+        // Cleared on EVERY adoption, so a generated stop can never outlive the sweep that produced
+        // it. Every path that changes where the Nemesis is heading comes through here — the
+        // sequential step, the cross-route transfer, the weighted roll, the cluster tour — and a
+        // stale offset would send the patrol to a point in a zone it has already left.
+        currentStopPosition = null;
+
         currentRoute = node.Route;
         currentWaypointIndex = Mathf.Clamp(node.IndexInRoute, 0,
                                            Mathf.Max(0, node.Route.Waypoints.Count - 1));
@@ -400,10 +454,10 @@ public class NemesisController : MonoBehaviour
     /// </summary>
     private void AdvanceWithinCluster()
     {
-        int node = clusterPatrol.Advance();
-        if (node >= 0)
+        NemesisClusterPatrol.TourStop stop = clusterPatrol.Advance();
+        if (stop.IsValid)
         {
-            AdoptClusterNode(node);
+            AdoptClusterNode(stop);
             return;
         }
 
@@ -418,11 +472,11 @@ public class NemesisController : MonoBehaviour
         }
 
         // Nothing else reachable: sweep this one again rather than stand still.
-        node = clusterPatrol.Resweep(routeGraph, BuildClusterSettings(applyNeighbourBias: false),
+        stop = clusterPatrol.Resweep(routeGraph, BuildClusterSettings(applyNeighbourBias: false),
                                      transform.position, direction);
-        if (node >= 0)
+        if (stop.IsValid)
         {
-            AdoptClusterNode(node);
+            AdoptClusterNode(stop);
             return;
         }
 
@@ -449,15 +503,16 @@ public class NemesisController : MonoBehaviour
     {
         bool skip = pendingSkip;
 
-        int node = clusterPatrol.Begin(routeGraph, BuildClusterSettings(preferNeighbours),
-                                       transform.position, component, direction, ref skip,
-                                       excludeCurrent);
+        NemesisClusterPatrol.TourStop stop =
+            clusterPatrol.Begin(routeGraph, BuildClusterSettings(preferNeighbours),
+                                transform.position, component, direction, ref skip,
+                                excludeCurrent);
 
         pendingSkip = skip;
 
-        if (node < 0) return false;
+        if (!stop.IsValid) return false;
 
-        AdoptClusterNode(node);
+        AdoptClusterNode(stop);
         return true;
     }
 
@@ -469,7 +524,15 @@ public class NemesisController : MonoBehaviour
     /// <see cref="CurrentWaypoint"/>, the gizmos and the setup validator carry on reading the
     /// fields they always read, without any of them having to know which mode is running.
     /// </summary>
-    private void AdoptClusterNode(int node) => AdoptNode(routeGraph.GetNode(node));
+    private void AdoptClusterNode(NemesisClusterPatrol.TourStop stop)
+    {
+        // The route bookkeeping still goes through the node, generated stop or not: that is what
+        // keeps currentRoute and currentWaypointIndex true, and with them CurrentWaypoint, the
+        // gizmos and the setup validator. AdoptNode clears the offset, so it is set afterwards.
+        AdoptNode(routeGraph.GetNode(stop.Node));
+
+        if (stop.IsSatellite) currentStopPosition = stop.Position;
+    }
 
     /// <summary>
     /// Gathers the tuning and the current belief into the struct the cluster patrol rolls with.
@@ -481,9 +544,48 @@ public class NemesisController : MonoBehaviour
     private NemesisClusterPatrol.Settings BuildClusterSettings(bool applyNeighbourBias)
     {
         bool hasBelief = TryGetPlayerBeliefPosition(out Vector3 belief);
+        bool hasZoneAnchor = TryGetZoneAnchor(out Vector3 zoneAnchor);
 
         return NemesisClusterPatrol.Settings.From(Data, hasBelief, belief, BeliefFreshness(),
-                                                  applyNeighbourBias);
+                                                  applyNeighbourBias, hasZoneAnchor, zoneAnchor);
+    }
+
+    /// <summary>
+    /// Where the player ACTUALLY is, for the zone-level patrol bias only.
+    ///
+    /// THIS IS KNOWLEDGE THE NEMESIS DID NOT EARN, and it is the only place in the system that
+    /// reads the player's live transform to decide where to go. Everything else — the pursuit's
+    /// velocity, the search's heading, the per-waypoint roll — is measured off what the sensors
+    /// actually caught, and that is what makes breaking line of sight real counterplay rather
+    /// than a formality. None of that changes: this feeds ONE roll, the choice of cúmulo.
+    ///
+    /// WHY IT IS HERE. <see cref="TryGetPlayerBeliefPosition"/> returns false until the player has
+    /// been sensed at least once, and <see cref="BeliefFreshness"/> then decays what it returns to
+    /// nothing over BeliefMemoryTime. Between them, the player bias the designer authored was
+    /// exactly zero for the whole opening stretch of a run and again a minute after every lost
+    /// contact — which is to say it was off in most of the situations it was written for. The
+    /// honest fix for "make it tend towards the player" is not a bigger multiplier on a number
+    /// that is being multiplied by zero.
+    ///
+    /// WHAT KEEPS IT FROM READING AS OMNISCIENCE is that it is coarse in three separate ways: it
+    /// only weights ZONES and never individual waypoints, the weight is a roll and not an argmax
+    /// (see <see cref="PickWeightedNode"/> for why that distinction carries the whole illusion),
+    /// and ZonePlayerBiasFalloff is wide enough that it says "your side of the level" rather than
+    /// "your room". Turn ZoneBiasUsesRealPlayer off and the patrol goes back to being steered by
+    /// nothing but what it sensed.
+    /// </summary>
+    private bool TryGetZoneAnchor(out Vector3 position)
+    {
+        position = Vector3.zero;
+
+        SO_NemesisData data = Data;
+        if (data == null || !data.ZoneBiasUsesRealPlayer) return false;
+
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null) return false;
+
+        position = player.position;
+        return true;
     }
 
     // ── Cross-route transfer ────────────────────────────────────────────────
@@ -657,6 +759,12 @@ public class NemesisController : MonoBehaviour
     /// </summary>
     private void FallBackToWeightedRouteWithoutGraph()
     {
+        // This path assigns currentRoute and currentWaypointIndex itself rather than going through
+        // AdoptNode, so it has to drop the generated-stop offset on its own. It is reached when
+        // the Nemesis is off every known island — exactly when a leftover point from the last
+        // sweep would be least reachable.
+        currentStopPosition = null;
+
         NemesisRoute selected = SelectWeightedRoute();
 
         if (selected != currentRoute)
@@ -744,6 +852,8 @@ public class NemesisController : MonoBehaviour
         routeGraph.Rebuild(routes,
                            data != null ? data.ClusterRadius : 12f,
                            data != null ? data.MaxClusterSize : 5,
+                           data != null ? data.WaypointSatellites : 0,
+                           data != null ? data.WaypointSatelliteRadius : 4f,
                            force: true);
 
         clusterPatrol.Reset();
@@ -953,8 +1063,8 @@ public class NemesisController : MonoBehaviour
         UnityEditor.Handles.color = color;
         UnityEditor.Handles.Label(cluster.Centroid + Vector3.up * 1.2f,
                                   $"cúmulo #{clusterIndex} — {clusterPatrol.TourIndex + 1}/" +
-                                  $"{clusterPatrol.TourBudget} de {cluster.MemberCount} " +
-                                  $"(peso {cluster.Weight:0.##})");
+                                  $"{clusterPatrol.TourBudget} de {clusterPatrol.Stops.Count} " +
+                                  $"paradas ({cluster.MemberCount} wp, peso {cluster.Weight:0.##})");
 #endif
     }
 
@@ -964,19 +1074,24 @@ public class NemesisController : MonoBehaviour
     /// </summary>
     private void DrawTour()
     {
-        IReadOnlyList<int> tour = clusterPatrol.Tour;
-        if (!clusterPatrol.HasCluster || tour.Count == 0) return;
+        IReadOnlyList<NemesisClusterPatrol.TourStop> stops = clusterPatrol.Stops;
+        if (!clusterPatrol.HasCluster || stops.Count == 0) return;
 
-        for (int i = 0; i < tour.Count; i++)
+        for (int i = 0; i < stops.Count; i++)
         {
             bool withinBudget = i < clusterPatrol.TourBudget;
-            Vector3 position = routeGraph.GetNode(tour[i]).Position;
+            Vector3 position = stops[i].Position;
 
             Gizmos.color = withinBudget ? new Color(1f, 0.784f, 0.314f)
                                         : new Color(1f, 0.784f, 0.314f, 0.25f);
 
             if (i > 0)
-                Gizmos.DrawLine(routeGraph.GetNode(tour[i - 1]).Position, position);
+                Gizmos.DrawLine(stops[i - 1].Position, position);
+
+            // Generated stops drawn as a small sphere, authored waypoints left to the cluster
+            // gizmo above, which already rings them. Telling the two apart in the Scene view is
+            // the only way to answer "is it sweeping the room or just walking my markers".
+            if (stops[i].IsSatellite) Gizmos.DrawWireSphere(position, 0.25f);
 
 #if UNITY_EDITOR
             UnityEditor.Handles.color = Gizmos.color;

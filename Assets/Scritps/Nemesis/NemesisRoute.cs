@@ -133,13 +133,20 @@ public class NemesisRoute : MonoBehaviour
     /// that reads the configured intent (a puzzle-gated route draws amber because that is how
     /// it will start), in Play mode it reads the live state.
     ///
-    /// Unlabelled and unconditional on purpose — every route in a level, always. Names live in
+    /// Unlabelled on purpose — every route in a level, all at once. Names live in
     /// <see cref="OnDrawGizmosSelected"/> instead: a level with a dozen routes drawing every
     /// waypoint's name over every other route's, all the time, stops being readable well before
     /// it stops being technically correct.
+    ///
+    /// The one condition is <see cref="NemesisGizmos.DrawingEnabled"/>, the master switch on the
+    /// Nemesis itself. The routes are the bulk of what is on screen — a dozen polylines through
+    /// the whole level — so a switch that turned off the Nemesis's own rings and left these would
+    /// not have cleared anything worth clearing.
     /// </summary>
     private void OnDrawGizmos()
     {
+        if (!NemesisGizmos.DrawingEnabled) return;
+
         bool openNow = Application.isPlaying ? isUnlocked : (!IsPuzzleGated && startUnlocked);
         Gizmos.color = openNow ? new Color(0.2f, 0.8f, 1f) : new Color(1f, 0.65f, 0.1f);
 
@@ -169,6 +176,11 @@ public class NemesisRoute : MonoBehaviour
     /// </summary>
     private void OnDrawGizmosSelected()
     {
+        // Suppressed too, not just the always-on polyline above. A master switch that still let
+        // the labels through the moment you clicked a route would not be one — and clicking a
+        // route is exactly what you do while dressing the level, which is when the switch is off.
+        if (!NemesisGizmos.DrawingEnabled) return;
+
         bool openNow = Application.isPlaying ? isUnlocked : (!IsPuzzleGated && startUnlocked);
         Color color = openNow ? new Color(0.2f, 0.8f, 1f) : new Color(1f, 0.65f, 0.1f);
 

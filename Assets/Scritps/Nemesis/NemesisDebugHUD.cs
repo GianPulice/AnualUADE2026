@@ -179,12 +179,25 @@ public class NemesisDebugHUD : MonoBehaviour
         line.y += line.height;
     }
 
+    /// <summary>
+    /// The state, how long it has been in it, and HOW IT IS ALLOWED TO MOVE.
+    ///
+    /// The movement policy is on this row because it is the thing that used to be invisible. Node
+    /// movement and free roam produce very different-looking behaviour from the same state name —
+    /// a search working the waypoint graph and a search sweeping a room are both "Searching" — and
+    /// without the label the only way to tell them apart while playing is to guess from the path
+    /// it walks. See NemesisStateManager.MovementOf.
+    /// </summary>
     private string DescribeState()
     {
         NemesisStateManager.ENemesisState? key = stateManager.CurrentStateKey;
         if (!key.HasValue) return "sin arrancar (dormido)";
 
-        return $"{key.Value}  ({Time.time - stateEnteredAt:0.0} s)";
+        string movement = stateManager.CurrentMovement == NemesisStateManager.ENemesisMovement.FreeRoam
+            ? "free roam"
+            : "nodos";
+
+        return $"{key.Value}  ({Time.time - stateEnteredAt:0.0} s)  ·  <b>{movement}</b>";
     }
 
     /// <summary>
@@ -282,6 +295,18 @@ public class NemesisDebugHUD : MonoBehaviour
         // The pause outranks everything else on this row: while it is standing still looking
         // around, "where is it heading" is not the question - it has already got there.
         if (searching != null && searching.IsPausing) return "<b>mirando alrededor</b>";
+
+        // A committed room sweep outranks the intercept line below because the two are mutually
+        // exclusive by construction (see NemesisSearchingState.TryCommitRoomSweep) and this is the
+        // one the designer asked for: it is the row that answers "did it actually go in after me".
+        if (searching != null && searching.IsSweepingRoom)
+        {
+            NemesisFreeRoam roam = searching.FreeRoam;
+            float toAnchor = Vector3.Distance(transform.position, roam.Anchor);
+
+            return $"<b>barriendo habitación</b>  r {roam.Radius:0.#} m  ·  " +
+                   $"centro a {toAnchor:0.0} m  ·  {roam.SweptPoints.Count} puntos";
+        }
 
         Vector3? intercept = telemetry.SearchInterceptPoint;
         if (intercept.HasValue)

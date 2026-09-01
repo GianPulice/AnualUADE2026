@@ -104,8 +104,14 @@ public class NemesisPatrolState : BaseState<NemesisStateManager.ENemesisState>
             // is what keeps a Warp that failed to land from spamming "SetDestination can only be
             // called on an active agent that has been placed on a NavMesh" — the state manager's
             // stuck-escape is what actually resolves that case.
-            if (agent.isOnNavMesh && agent.destination != target.position)
-                agent.destination = target.position;
+            // CurrentWaypointPosition and not target.position: with generated sweep points on, the
+            // tour visits the space AROUND a waypoint as well as the waypoint itself, and those
+            // stops have no Transform to read. `target` stays the authored waypoint the stop
+            // belongs to, which is what the warning below wants to name.
+            Vector3 destination = controller.CurrentWaypointPosition;
+
+            if (agent.isOnNavMesh && agent.destination != destination)
+                agent.destination = destination;
 
             // A waypoint the agent cannot path to — placed off the mesh, or in a room sealed off
             // from here — used to leave the Nemesis walking on the spot forever: remainingDistance

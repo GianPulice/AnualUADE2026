@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Merges every unlocked route into a single navigable set of waypoints, and works out which of
@@ -122,6 +123,25 @@ public sealed class NemesisRouteGraph
     /// double back, and the trail keeps pointing the way you were going.
     /// </summary>
     private readonly List<float> lastSensedAt = new List<float>();
+
+    /// <summary>
+    /// Auto-generated sweep points, concatenated, read through the per-node slice in
+    /// <see cref="satelliteFirst"/> / <see cref="satelliteCount"/> — the same one-flat-list shape
+    /// <see cref="clusterMembers"/> uses, so a rebuild does not allocate a list per waypoint.
+    ///
+    /// THEY ARE NOT NODES, AND THAT IS THE WHOLE DESIGN. A satellite exists so a cúmulo's tour has
+    /// somewhere to walk; it is not a place the Nemesis reasons ABOUT. Promoting them to entries
+    /// in <see cref="nodes"/> would have pulled them into the cluster centroid and weight (moving
+    /// the zone the director bias aims at), the per-waypoint patrol roll, the pursuit's detour
+    /// candidates, the search's interception, and the sensed trail — and would have multiplied the
+    /// cost of <see cref="AssignComponents"/> (a path query per node) and
+    /// <see cref="FindDensestUnassigned"/> (N squared) by however many satellites each waypoint
+    /// got. One authored waypoint still means one node everywhere; it just means a small area when
+    /// it comes to walking it.
+    /// </summary>
+    private readonly List<Vector3> satellites = new List<Vector3>();
+    private readonly List<int> satelliteFirst = new List<int>();
+    private readonly List<int> satelliteCount = new List<int>();
 
     private string fingerprint = string.Empty;
     private int componentCount;
@@ -285,12 +305,19 @@ public sealed class NemesisRouteGraph
     /// zone does not swallow a whole floor.</param>
     /// <param name="force">Rebuild even when the fingerprint matches. For after a NavMesh rebake,
     /// which changes no route but does change what is reachable.</param>
+    /// <param name="satellitesPerWaypoint">Extra sweep points to generate around each waypoint.
+    /// 0 disables them. See <see cref="satellites"/> for why they are not nodes.</param>
+    /// <param name="satelliteRadius">How far a generated point may sit from its waypoint.</param>
     public void Rebuild(IReadOnlyList<NemesisRoute> routes, float clusterRadius,
-                        int maxClusterSize, bool force = false)
+                        int maxClusterSize, int satellitesPerWaypoint = 0,
+                        float satelliteRadius = 4f, bool force = false)
     {
         // The cluster settings ride along in the fingerprint: retuning the radius in the SO while
-        // in Play mode has to re-cluster, and nothing about the ROUTES changed to say so.
-        string next = Fingerprint(routes) + $"#{clusterRadius:0.###}/{maxClusterSize}";
+        // in Play mode has to re-cluster, and nothing about the ROUTES changed to say so. The
+        // satellite knobs ride along for exactly the same reason.
+        string next = Fingerprint(routes) +
+                      $"#{clusterRadius:0.###}/{maxClusterSize}" +
+                      $"@{satellitesPerWaypoint}/{satelliteRadius:0.###}";
         if (!force && next == fingerprint) return;
 
         fingerprint = next;
@@ -300,6 +327,9 @@ public sealed class NemesisRouteGraph
         clusters.Clear();
         clusterMembers.Clear();
         clusterOf.Clear();
+        satellites.Clear();
+        satelliteFirst.Clear();
+        satelliteCount.Clear();
 
         // Dropped with the rest, and that is correct rather than a loss: the stamps are indexed by
         // node, and the node list is about to be replaced. Carrying them over would attribute the
@@ -313,7 +343,105 @@ public sealed class NemesisRouteGraph
         CollectValidNodes(routes);
         AssignComponents();
         BuildClusters(clusterRadius, maxClusterSize);
+
+        // AFTER BuildClusters, and the order is a guarantee rather than a convenience: the
+        // centroid and the weight are computed from member nodes in the loop above, so generating
+        // the satellites here makes it structurally impossible for them to shift the zone the
+        // director bias aims at. See the satellites field.
+        BuildSatellites(satellitesPerWaypoint, satelliteRadius);
     }
+
+    /// <summary>
+    /// Generates the extra sweep points around each node, once per rebuild.
+    ///
+    /// AT BUILD TIME AND NOT PER VISIT, for two reasons. It costs a path query per candidate, and
+    /// paying that every time a cúmulo is adopted would put it on the patrol's hot path — where
+    /// the whole rest of this class has been carefully arranged not to be. And a satellite that
+    /// moved every visit could not be drawn by the gizmos, could not be reasoned about by anyone
+    /// tuning the radius, and would make two sweeps of the same zone incomparable. Fixed points
+    /// with a shuffled tour order gives the variation without the noise.
+    ///
+    /// REACHABILITY IS CHECKED FROM THE WAYPOINT, not from the Nemesis. SamplePosition returns the
+    /// nearest surface, which four metres from a waypoint can easily be on the other side of a
+    /// thin wall and on another island — and a tour stop the agent cannot path to is the stall
+    /// this graph's island partitioning exists to prevent. Testing from the waypoint rather than
+    /// from wherever the Nemesis happens to be standing is what keeps the answer stable: the
+    /// waypoint's own island is already known, so anything reachable from it is reachable from
+    /// anywhere the waypoint is.
+    /// </summary>
+    private void BuildSatellites(int perWaypoint, float radius)
+    {
+        // Kept in step with nodes even when the feature is off, so the slice lookups below never
+        // have to special-case an empty build.
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            satelliteFirst.Add(satellites.Count);
+            satelliteCount.Add(0);
+        }
+
+        if (perWaypoint <= 0 || nodes.Count == 0) return;
+
+        float sampleRadius = Mathf.Max(1f, radius);
+        const int AttemptsPerSatellite = 5;
+        const float MinSeparation = 1.5f;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            Vector3 origin = nodes[i].Position;
+            int first = satellites.Count;
+            int made = 0;
+
+            for (int s = 0; s < perWaypoint; s++)
+            {
+                for (int attempt = 0; attempt < AttemptsPerSatellite; attempt++)
+                {
+                    // Horizontal only. Random.onUnitSphere varies Y too and throws candidates
+                    // above and below the floor, which SamplePosition then snaps to whichever
+                    // surface is nearest — including the storey below.
+                    Vector2 circle = Random.insideUnitCircle * sampleRadius;
+                    Vector3 raw = origin + new Vector3(circle.x, 0f, circle.y);
+
+                    if (!NavMesh.SamplePosition(raw, out NavMeshHit hit, 1f, NemesisNav.AreaMask))
+                        continue;
+
+                    if (!NemesisNav.IsReachable(origin, hit.position)) continue;
+                    if (IsCrowded(hit.position, origin, first, made, MinSeparation)) continue;
+
+                    satellites.Add(hit.position);
+                    made++;
+                    break;
+                }
+            }
+
+            satelliteFirst[i] = first;
+            satelliteCount[i] = made;
+        }
+    }
+
+    /// <summary>Whether a generated point sits on top of its own waypoint or one of its siblings.
+    /// Two stops a stride apart are one stop that costs two.</summary>
+    private bool IsCrowded(Vector3 candidate, Vector3 waypoint, int first, int made,
+                           float minSeparation)
+    {
+        float minSqr = minSeparation * minSeparation;
+
+        if (Vector3.SqrMagnitude(candidate - waypoint) < minSqr) return true;
+
+        for (int i = 0; i < made; i++)
+        {
+            if (Vector3.SqrMagnitude(satellites[first + i] - candidate) < minSqr) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>How many generated sweep points a node has.</summary>
+    public int SatelliteCount(int nodeIndex) =>
+        nodeIndex >= 0 && nodeIndex < satelliteCount.Count ? satelliteCount[nodeIndex] : 0;
+
+    /// <summary>One of a node's generated sweep points, by its index within that node.</summary>
+    public Vector3 GetSatellite(int nodeIndex, int satelliteIndex) =>
+        satellites[satelliteFirst[nodeIndex] + satelliteIndex];
 
     /// <summary>
     /// Flattens the unlocked routes, dropping what is unusable and saying why. A waypoint off the

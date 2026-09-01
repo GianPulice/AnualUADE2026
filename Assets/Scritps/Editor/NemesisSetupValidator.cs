@@ -384,6 +384,8 @@ public static class NemesisSetupValidator
         // whole mesh and can freeze the editor for seconds. This only asks whether anything is baked.
         bool navMeshExists = NavMesh.CalculateTriangulation().vertices.Length > 0;
 
+        ReportGeneratedSweepPoints(report);
+
         foreach (NemesisRoute route in FindAll<NemesisRoute>())
         {
             int tagged = 0;
@@ -418,6 +420,45 @@ public static class NemesisSetupValidator
         }
 
         return problems;
+    }
+
+    /// <summary>
+    /// Says how many sweep points the Nemesis generates around each waypoint, and what that means
+    /// for the counts reported below.
+    ///
+    /// NOT A PROBLEM, and it returns no count for that reason — it is a note, because the number
+    /// of markers in the scene stops being the number of places the Nemesis stops. Without it, a
+    /// designer who marks a room with one waypoint and then watches the Nemesis walk five points
+    /// around it has no way to find out where the other four came from: they are runtime positions
+    /// on the NavMesh, not GameObjects, so they appear in no hierarchy and no search.
+    ///
+    /// It reads the SO off the Nemesis in the scene rather than a hardcoded default, so what it
+    /// reports is what will actually run.
+    /// </summary>
+    private static void ReportGeneratedSweepPoints(StringBuilder report)
+    {
+        foreach (NemesisStateManager manager in FindAll<NemesisStateManager>())
+        {
+            SO_NemesisData data = manager.NemesisData;
+            if (data == null) continue;
+
+            if (data.WaypointSatellites <= 0)
+            {
+                report.AppendLine("- Note: generated sweep points are off (Waypoint Satellites = " +
+                                  "0), so a cúmulo's sweep is exactly the waypoints you placed. A " +
+                                  "room marked with a single waypoint gets a single stop.");
+                return;
+            }
+
+            report.AppendLine($"- Note: the Nemesis generates up to {data.WaypointSatellites} extra " +
+                              $"sweep points within {data.WaypointSatelliteRadius:0.#} m of each " +
+                              "waypoint, on the NavMesh, at runtime. They are positions and not " +
+                              "GameObjects, so they will not appear in the hierarchy or in the " +
+                              "counts below — but they DO get walked, so one marker means a small " +
+                              "area swept rather than a single stop. They never affect a cúmulo's " +
+                              "centre or its weight.");
+            return;
+        }
     }
 
     private static int ValidateDoorUsers(StringBuilder report)

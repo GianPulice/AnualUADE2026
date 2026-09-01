@@ -48655,12 +48655,52 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawGizmos
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
       propertyPath: drawLabels
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
       propertyPath: arcSegments
       value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawHearing
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawFocusCone
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawRoomSweep
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawCatchReach
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawVisionCone
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawSearchSweep
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawProximityVignette
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawCrouchedVisionCone
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2115712118164525721, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
+      propertyPath: drawProximityDetection
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6133474145954848426, guid: edc340f4d08229a4fac80d4db65745f2, type: 3}
       propertyPath: m_Name

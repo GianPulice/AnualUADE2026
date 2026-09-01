@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -11,7 +12,10 @@ using UnityEngine;
 ///
 ///   - <b>OnDrawGizmos, not OnDrawGizmosSelected.</b> Selected-only gizmos are invisible in Prefab
 ///     Mode unless you click the root, which is exactly where this is most useful. Everything is
-///     behind per-block toggles instead, so the cost of always drawing is a checkbox.
+///     behind per-block toggles instead, so the cost of always drawing is a checkbox — plus a
+///     master <c>drawGizmos</c> switch, because "always on" is right while tuning detection and
+///     wrong while dressing the level, and turning eleven checkboxes off one at a time is not a
+///     workflow anyone repeats twice.
 ///   - <b>Every value is read from the ScriptableObject</b>, through NemesisStateManager, never
 ///     from a local copy. A gizmo with its own serialised radius drifts from the value the game
 ///     actually uses, and then it is worse than no gizmo at all.
@@ -26,6 +30,44 @@ using UnityEngine;
 [RequireComponent(typeof(NemesisStateManager))]
 public class NemesisGizmos : MonoBehaviour
 {
+    [Header("Master switch")]
+    [Tooltip("Turns every block below off in one click, without you having to remember which ones " +
+             "were on. It also switches off the PATROL ROUTE gizmos on the NemesisRoute objects — " +
+             "those are the bulk of what is on screen, so clearing everything else and leaving " +
+             "them would not have cleared much.\n\n" +
+             "This component draws from OnDrawGizmos rather than OnDrawGizmosSelected on purpose " +
+             "(see the class summary), so with a Nemesis in the scene its rings are always on " +
+             "screen — which is what you want while tuning detection and squarely in the way while " +
+             "dressing the level or framing a shot. Prefer this over disabling the component: the " +
+             "component also has to be enabled for the checkboxes to mean anything the next time " +
+             "you come back, and a disabled component reads as 'this is broken' to whoever finds " +
+             "it next.")]
+    [SerializeField] private bool drawGizmos = true;
+
+    /// <summary>
+    /// Whether Nemesis gizmos are being drawn at all, readable by components that draw their own
+    /// and sit on OTHER GameObjects — <see cref="NemesisRoute"/>, which is the whole reason this
+    /// is not just a private field.
+    ///
+    /// WHY A STATIC AND NOT A REFERENCE. The routes are their own objects, scattered through the
+    /// level, and they draw from their own OnDrawGizmos. For the switch on the Nemesis to reach
+    /// them, either they look the Nemesis up — FindObjectOfType per route per repaint, which is
+    /// the expensive answer to a checkbox — or the Nemesis publishes the answer once. This is the
+    /// same trade NemesisNav.AreaMask makes, and it carries the same caveat: with two
+    /// NemesisGizmos in a scene the last one to draw wins. The design has one Nemesis.
+    ///
+    /// DEFAULTS TRUE AND IS RESTORED ON DISABLE, which is the part that keeps it from becoming a
+    /// trap. A static that only ever gets written by a component can outlive it: switch the gizmos
+    /// off, delete the Nemesis, and every route in the level is invisible with no checkbox
+    /// anywhere to bring it back. Releasing the override in OnDisable means the routes draw
+    /// whenever nothing is actively suppressing them.
+    ///
+    /// No RuntimeInitializeOnLoadMethod reset, unlike the other statics in this project. Those
+    /// accumulate real state that a stale copy would corrupt; this one is re-asserted from the
+    /// serialised field on the very next repaint, so it cannot survive being wrong.
+    /// </summary>
+    public static bool DrawingEnabled { get; private set; } = true;
+
     [Header("Vision")]
     [Tooltip("Vision cone at full range, with the real ViewAngle. An arc and two edges rather " +
              "than a sphere: the angle is half the information and a sphere throws it away.")]
@@ -58,6 +100,10 @@ public class NemesisGizmos : MonoBehaviour
     [Tooltip("Radius of the Searching state's fallback scatter (SearchSweepRadius).")]
     [SerializeField] private bool drawSearchSweep = true;
 
+    [Tooltip("The room the search has committed to sweeping, its centre, and the points it has " +
+             "already looked at. Play mode only — nothing to draw until a search commits.")]
+    [SerializeField] private bool drawRoomSweep = true;
+
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
     [SerializeField] private bool drawProximityVignette = false;
 
@@ -81,8 +127,25 @@ public class NemesisGizmos : MonoBehaviour
 
     private NemesisStateManager StateManager => GetComponent<NemesisStateManager>();
 
+    /// <summary>Publishes the switch the moment the checkbox is clicked, rather than leaving the
+    /// routes waiting for this component's next repaint to notice.</summary>
+    private void OnValidate() => DrawingEnabled = drawGizmos;
+
+    /// <summary>Releases the override so nothing stays suppressed by a component that is no longer
+    /// drawing. See <see cref="DrawingEnabled"/>.</summary>
+    private void OnDisable() => DrawingEnabled = true;
+
     private void OnDrawGizmos()
     {
+        // Published BEFORE the early-out, and that order is the whole mechanism. Returning first
+        // would mean the one state worth broadcasting — "gizmos are off" — is the one state that
+        // never gets broadcast, and the routes would keep drawing forever.
+        DrawingEnabled = drawGizmos;
+
+        // Checked before anything else, including the component lookups below: the whole point of
+        // the switch is that a scene with it off pays nothing for this component at all.
+        if (!drawGizmos) return;
+
         NemesisStateManager manager = StateManager;
         if (manager == null) return;
 
@@ -102,6 +165,7 @@ public class NemesisGizmos : MonoBehaviour
         DrawCatch(data);
         DrawSearchAndVignette(data);
         DrawIntercept();
+        if (drawRoomSweep) DrawRoomSweep();
         DrawPursuit();
     }
 
@@ -169,6 +233,47 @@ public class NemesisGizmos : MonoBehaviour
         Gizmos.DrawWireCube(intercept.Value, Vector3.one * 0.5f);
 
         DrawLabel(intercept.Value + Vector3.up * 0.8f, "intercepción", SearchColor);
+    }
+
+    /// <summary>
+    /// The committed room sweep: the area, its centre, and every point already looked at.
+    ///
+    /// WITHOUT THIS THE FEATURE IS UNTUNABLE. RoomSweepRadius decides how much of a room counts as
+    /// the room, and the wall test that clips it is invisible by nature — the difference between
+    /// "the radius is too small" and "a wall is cutting the room in half" is not something anyone
+    /// can tell from watching the Nemesis walk. Drawing the anchor with its radius and the swept
+    /// trail alongside it makes both readable at a glance.
+    ///
+    /// Play mode only, and deliberately: unlike the ranges below, there is nothing to draw until a
+    /// search has actually committed to somewhere.
+    /// </summary>
+    private void DrawRoomSweep()
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisStateManager manager = GetComponent<NemesisStateManager>();
+        NemesisSearchingState searching = manager != null ? manager.SearchingState : null;
+        if (searching == null || !searching.IsSweepingRoom) return;
+
+        NemesisFreeRoam roam = searching.FreeRoam;
+
+        DrawDisc(roam.Anchor, roam.Radius, SearchColor);
+
+        Gizmos.color = SearchColor;
+        Gizmos.DrawWireSphere(roam.Anchor, 0.4f);
+
+        IReadOnlyList<Vector3> swept = roam.SweptPoints;
+        for (int i = 0; i < swept.Count; i++)
+        {
+            Gizmos.DrawWireCube(swept[i], Vector3.one * 0.35f);
+
+            // Chained in visit order, so the shape of the sweep is readable: a trail that keeps
+            // crossing itself means the swept-point penalty is too weak to spread it out.
+            if (i > 0) Gizmos.DrawLine(swept[i - 1], swept[i]);
+        }
+
+        DrawLabel(roam.Anchor + Vector3.up * 1.2f,
+                  $"barrido de habitación {roam.Radius:0.#} m", SearchColor);
     }
 
     /// <summary>

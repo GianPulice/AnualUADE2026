@@ -279,6 +279,24 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Traversing,
     }
 
+    /// <summary>
+    /// The two ways the Nemesis is allowed to get around. See <see cref="MovementOf"/> for which
+    /// state is which and why the line falls where it does.
+    ///
+    /// Not serialised anywhere — it is derived from the state, never authored — so unlike
+    /// <see cref="ENemesisState"/> and ENemesisPredicate this one carries no append-only hazard.
+    /// </summary>
+    public enum ENemesisMovement
+    {
+        /// <summary>Moves between authored waypoints, in the order the designer authored them.
+        /// </summary>
+        NodeBound,
+
+        /// <summary>Moves anywhere on the NavMesh, using the waypoints as hints rather than as
+        /// the only legal destinations.</summary>
+        FreeRoam,
+    }
+
     // ── Facade: route verdict (NemesisPathOracle) ───────────────────────────
 
     /// <summary>The route from here to a point, throttled. See <see cref="NemesisPathOracle"/>.
@@ -456,9 +474,25 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// through its own equivalent). Three private copies of the same comparison is how the
     /// definition of "belief" quietly drifts apart between them.
     /// </summary>
-    public bool TryGetBelief(out Vector3 position)
+    public bool TryGetBelief(out Vector3 position) => TryGetBelief(out position, out _);
+
+    /// <summary>
+    /// <see cref="TryGetBelief(out Vector3)"/>, and WHICH SENSE produced the answer.
+    ///
+    /// The source matters because the two are not equally good claims about where somebody is. A
+    /// sighting is a position; a noise is roughly where a sound came from, and the search's room
+    /// commitment is only worth making off the former — committing to sweep a room on the strength
+    /// of a footstep heard through a wall would have the Nemesis confidently searching the wrong
+    /// side of it.
+    ///
+    /// The overload exists rather than a separate BeliefFromSight property so the answer and its
+    /// provenance can never disagree: a property would resolve the freshest sensor a second time,
+    /// on sensor ages that may have moved on between the two calls.
+    /// </summary>
+    public bool TryGetBelief(out Vector3 position, out bool fromSight)
     {
         position = Vector3.zero;
+        fromSight = false;
 
         bool sawIt = fieldOfView != null && fieldOfView.HasLastKnownPosition;
         bool heardIt = fieldOfListening != null && fieldOfListening.HasLastKnownPosition;
@@ -471,8 +505,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         float sightAge = sawIt ? fieldOfView.TimeSinceLastSighting : float.PositiveInfinity;
         float noiseAge = heardIt ? fieldOfListening.TimeSinceLastNoise : float.PositiveInfinity;
 
-        position = sightAge <= noiseAge ? fieldOfView.LastKnownPosition
-                                        : fieldOfListening.LastKnownPosition;
+        fromSight = sightAge <= noiseAge;
+
+        position = fromSight ? fieldOfView.LastKnownPosition
+                             : fieldOfListening.LastKnownPosition;
         return true;
     }
 
@@ -915,6 +951,55 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
                key == ENemesisState.Searching ||
                key == ENemesisState.Traversing;
     }
+
+    /// <summary>
+    /// How a state gets around: along the authored waypoint graph, or freely over the NavMesh.
+    ///
+    /// THE DISTINCTION IS THE DESIGN, and until now it was only implicit — readable by opening
+    /// each state and seeing what it assigned to NavAgent.destination, which meant nobody could
+    /// see it while playing and it drifted. Searching was on the wrong side of it for a long time
+    /// without that being a decision anybody made: it rolled over graph nodes and reached the free
+    /// NavMesh only down an error path, so a room with no waypoint in it was a room the Nemesis
+    /// could not look inside.
+    ///
+    /// NODE-BOUND is for movement where the waypoints ARE the route. Patrolling walks the polyline
+    /// the designer authored, in the order they authored it, because that order is the level
+    /// design speaking. Traversing is node-bound in the same sense — its path is dictated by the
+    /// freight elevator's landings, not chosen.
+    ///
+    /// FREE ROAM is for everything about hunting the player. The waypoints stay useful as hints
+    /// about where a person might be worth looking for — NemesisFreeRoam offers them first, and
+    /// NemesisPursuit will detour through one that has line of sight — but they stop being the
+    /// only places the Nemesis is allowed to stand.
+    ///
+    /// A STATIC TABLE AND NOT A VIRTUAL PROPERTY. The alternative is re-parenting all six states
+    /// onto a Nemesis-specific base class to declare one value each; BaseState is shared with the
+    /// player FSM, so it cannot hold this. Six files touched to express six rows is the worse
+    /// trade, and <see cref="IsNavigatingState"/> directly above already set the precedent that
+    /// classifications of states live here, on the facade.
+    /// </summary>
+    public static ENemesisMovement MovementOf(ENemesisState state)
+    {
+        switch (state)
+        {
+            case ENemesisState.Chasing:
+            case ENemesisState.Searching:
+            case ENemesisState.Investigating:
+                return ENemesisMovement.FreeRoam;
+
+            // Catch navigates nowhere, so its answer is arbitrary. Node-bound is the quieter of
+            // the two defaults: nothing reads this for Catch, and if anything ever does, "does not
+            // roam" is the true half of the statement.
+            default:
+                return ENemesisMovement.NodeBound;
+        }
+    }
+
+    /// <summary>The movement policy of the state the Nemesis is in right now. For the debug HUD
+    /// and the gizmos — see <see cref="MovementOf"/> for why this is worth being able to see.
+    /// </summary>
+    public ENemesisMovement CurrentMovement =>
+        CurrentState != null ? MovementOf(CurrentState.StateKey) : ENemesisMovement.NodeBound;
 
     private void InitializeStates()
     {

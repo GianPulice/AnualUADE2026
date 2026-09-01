@@ -52,9 +52,25 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     // Scoring buffers for PickSearchTarget, reused for the same reason as the interception's.
     private readonly List<float> weightBuffer = new List<float>();
 
+    /// <summary>
+    /// The free-roam sweep, used when the search commits to a room rather than to a cut-off. Owned
+    /// by this state and constructed with it, the same arrangement NemesisChasingState has with
+    /// NemesisPursuit.
+    /// </summary>
+    private readonly NemesisFreeRoam freeRoam;
+
+    /// <summary>Whether this search is sweeping a room it watched the player enter, rather than
+    /// working the patrol graph. For the debug HUD and the gizmos.</summary>
+    public bool IsSweepingRoom => freeRoam.IsCommitted;
+
+    /// <summary>The free-roam sweep, so the gizmos can draw the committed area and what has
+    /// already been swept.</summary>
+    public NemesisFreeRoam FreeRoam => freeRoam;
+
     public NemesisSearchingState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
         nemesisStateManager = stateManager;
+        freeRoam = new NemesisFreeRoam(stateManager);
     }
 
     public override void EnterState()
@@ -62,6 +78,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         NextState = StateKey;
         sweptNodes.Clear();
         pauseRemaining = 0f;
+        freeRoam.Release();
 
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                     nemesisStateManager.NemesisMovement.SearchSpeed);
@@ -74,6 +91,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     public override void ExitState()
     {
         HasIntercept = false;
+        freeRoam.Release();
 
         // Whatever happens next, the patrol that follows should prowl this area rather than
         // relocate across the level. Set on EVERY exit, the transition to Chasing included: it is
@@ -91,7 +109,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         // How long the search lasts, the half-second floor before anything may pull it out, and
         // going back to Chasing on sight are all rungs of NemesisDecision's ladder — rung 0 and
         // rung 6. What is left here is sweeping.
-        if (nemesisStateManager.HasAudioTarget)
+        if (nemesisStateManager.HasAudioTarget && ShouldNoiseRetarget())
         {
             // A fresh noise outranks everything: it is newer information than the belief the
             // cut-off was aimed with. Clear the swept set and re-take the decision around the new
@@ -129,7 +147,60 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                     nemesisStateManager.NemesisMovement.SearchSpeed);
 
-        SetDestination(PickSearchTarget());
+        SetDestination(PickNextPoint());
+    }
+
+    /// <summary>
+    /// Where to look next: the committed room if there is one, the patrol graph otherwise.
+    ///
+    /// The fall-through matters. A room sweep that has run out of unswept ground has genuinely
+    /// finished searching that room, and standing in it until SearchTimeOut expires is the failure
+    /// this state's whole design is against — so it drops the commitment and hands back to the
+    /// graph-wide sweep, which is free to leave. Releasing rather than re-committing also means
+    /// the gizmos stop drawing an area nobody is searching any more.
+    /// </summary>
+    private Vector3 PickNextPoint()
+    {
+        if (freeRoam.IsCommitted)
+        {
+            if (freeRoam.TryGetNextPoint(out Vector3 point)) return point;
+
+            freeRoam.Release();
+        }
+
+        return PickSearchTarget();
+    }
+
+    /// <summary>
+    /// Whether a noise should pull the search off what it is currently doing.
+    ///
+    /// SIGHT OUTRANKS HEARING FOR A WHILE, WHICH IS THE WHOLE POINT. Re-aiming on every noise —
+    /// what this state did unconditionally — means that having been WATCHED walking into a room,
+    /// throwing something down the corridor gets the Nemesis to leave. That is a free escape from
+    /// the one situation the monster should be most dangerous in, and it costs the player nothing
+    /// to use, so it becomes the answer to every encounter.
+    ///
+    /// A noise INSIDE the swept area is always honoured. That one is not competing with the
+    /// sighting, it is agreeing with it, and ignoring it would have the Nemesis methodically
+    /// working through a room while the player knocks something over in the corner of it.
+    ///
+    /// The window is measured off TimeInCurrentState rather than a timer of its own: the
+    /// commitment is taken on entry, so time-in-state already IS time-since-commitment, and a
+    /// second clock would be a second thing to keep in sync.
+    /// </summary>
+    private bool ShouldNoiseRetarget()
+    {
+        if (!freeRoam.IsCommitted) return true;
+
+        SO_NemesisData data = nemesisStateManager.NemesisData;
+        float commitTime = data != null ? data.SightCommitTime : 0f;
+
+        if (nemesisStateManager.TimeInCurrentState >= commitTime) return true;
+
+        FieldOfListening listening = nemesisStateManager.FieldOfListening;
+        if (listening == null) return true;
+
+        return freeRoam.Contains(listening.LastKnownPosition);
     }
 
     /// <summary>Points the agent somewhere and records it, so the HUD and the gizmos can say what
@@ -154,6 +225,12 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         // for another second after hearing a noise somewhere else is the opposite of reacting.
         pauseRemaining = 0f;
 
+        // BEFORE THE INTERCEPTION, because the two answer different questions and the interception
+        // answers the wrong one at close range. See TryCommitRoomSweep.
+        if (TryCommitRoomSweep()) return;
+
+        freeRoam.Release();
+
         if (TryGetInterceptPoint(out Vector3 intercept))
         {
             HasIntercept = true;
@@ -175,6 +252,89 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         }
 
         SetDestination(PickSearchTarget());
+    }
+
+    /// <summary>
+    /// Commits the search to sweeping the place it just watched the player disappear into, if
+    /// that is what happened.
+    ///
+    /// THE PROBLEM THIS SOLVES. Losing sight of someone has two completely different shapes and
+    /// this state used to answer both with a cut-off. Lose them across the level and cutting them
+    /// off ahead of their heading is exactly right. Lose them because they stepped through a door
+    /// five metres away and it is exactly wrong: TryGetHeading reads the trail of waypoints they
+    /// walked past on the way — which are the CORRIDOR's — so the interception lands further down
+    /// that corridor and the Nemesis jogs straight past the door it saw them go through. Then
+    /// PickSearchTarget takes over, rolls over graph nodes, and if nobody placed a waypoint inside
+    /// that room the Nemesis will never once look in it.
+    ///
+    /// THE THREE TESTS, and each of them refuses a different wrong commitment:
+    ///
+    ///   FROM SIGHT. A noise heard through a wall is not evidence of which room anybody is in, and
+    ///   committing to sweep a room on the strength of one would have the Nemesis methodically
+    ///   searching the wrong side of that wall while the player walks away. The one exception is a
+    ///   noise inside a room it is ALREADY sweeping — see the branch below.
+    ///
+    ///   FRESH. An old sighting says where they were, not where they went. Sweeping the room
+    ///   somebody was seen entering thirty seconds ago is how the Nemesis ends up committed to an
+    ///   empty room while the player is two floors up.
+    ///
+    ///   CLOSE, MEASURED OVER THE NAVMESH. This is the test that actually separates the two
+    ///   shapes. Straight-line distance would call a room close when it is on the other side of
+    ///   the wall the Nemesis is standing against — the sighting four metres away and a
+    ///   forty-metre walk — and there is no sense in which the Nemesis "watched them go in there"
+    ///   if getting there means crossing the building.
+    ///
+    /// RoomCommitRange at 0 disables room sweeps entirely and restores the interception-first
+    /// behaviour that shipped before this existed.
+    /// </summary>
+    private bool TryCommitRoomSweep()
+    {
+        SO_NemesisData data = nemesisStateManager.NemesisData;
+        if (data == null) return false;
+
+        float commitRange = data.RoomCommitRange;
+        if (commitRange <= 0f) return false;
+
+        if (!nemesisStateManager.TryGetBelief(out Vector3 belief, out bool fromSight)) return false;
+
+        // A NOISE INSIDE THE ROOM ALREADY BEING SWEPT COUNTS TOO, and this branch is load-bearing
+        // rather than a nicety. ShouldNoiseRetarget deliberately lets a noise inside the committed
+        // area through — it is confirming the sweep, not contradicting it — and without this the
+        // retarget it triggers would find a belief that is no longer from sight, refuse to
+        // re-commit, and drop the Nemesis out of the room sweep and into an interception. Knocking
+        // something over in the corner of the room it is searching would be a reliable way to make
+        // it leave, which is the exact opposite of the intent.
+        //
+        // Evaluated before Commit below, while Anchor still refers to the sweep being replaced.
+        bool insideActiveSweep = freeRoam.IsCommitted && freeRoam.Contains(belief);
+
+        if (!fromSight && !insideActiveSweep) return false;
+
+        if (nemesisStateManager.BeliefAge >= Mathf.Max(0.01f, data.SightCommitTime)) return false;
+
+        Vector3 origin = nemesisStateManager.transform.position;
+
+        // Measured over the NavMesh, not in a straight line. Infinity when there is no route at
+        // all, which fails the comparison on its own and needs no special case.
+        if (NemesisNav.PathDistanceOrInfinity(origin, belief) > commitRange) return false;
+
+        freeRoam.Commit(belief, data.RoomSweepRadius);
+
+        // The interception is not merely skipped, it is retired for this commitment: leaving
+        // HasIntercept true would have the HUD and the gizmos drawing a cut-off point the search
+        // is no longer heading for.
+        HasIntercept = false;
+
+        if (freeRoam.TryGetNextPoint(out Vector3 point))
+        {
+            SetDestination(point);
+            return true;
+        }
+
+        // The area offered nothing reachable. Rather than stand in a room it cannot sweep, drop
+        // the commitment and let the caller fall through to the interception as before.
+        freeRoam.Release();
+        return false;
     }
 
     /// <summary>

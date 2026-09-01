@@ -50,6 +50,29 @@ public sealed class NemesisClusterPatrol
 
         public readonly float PlayerBiasFalloff;
 
+        /// <summary>Whether <see cref="ZoneAnchor"/> means anything. False when the director bias
+        /// is switched off, and then only the belief steers the roll.</summary>
+        public readonly bool HasZoneAnchor;
+
+        /// <summary>Where the player ACTUALLY is, as opposed to <see cref="Belief"/>.
+        ///
+        /// The two are separate fields rather than one resolved anchor because they are not the
+        /// same kind of claim and must not decay the same way. The belief is something the Nemesis
+        /// observed and goes stale; this one is a director's thumb on the scale and never does.
+        /// Keeping them apart is what lets the zone roll gravitate towards the player from the
+        /// first second of a run while the per-waypoint roll stays honest.
+        ///
+        /// See SO_NemesisData's "zone gravitation" header for why an unearned bias is here at all,
+        /// and why it is confined to the ZONE choice.</summary>
+        public readonly Vector3 ZoneAnchor;
+
+        /// <summary>How many times more likely a zone becomes for containing the player. NOT
+        /// decayed by belief freshness — it does not descend from a sighting, so there is nothing
+        /// to go stale.</summary>
+        public readonly float ZoneBiasStrength;
+
+        public readonly float ZoneBiasFalloff;
+
         /// <summary>How many times more likely a zone becomes for being next door. 1 disables it,
         /// which is what a fresh patrol cycle passes.</summary>
         public readonly float NeighbourBiasStrength;
@@ -78,6 +101,8 @@ public sealed class NemesisClusterPatrol
 
         public Settings(bool hasBelief, Vector3 belief,
                         float playerBiasStrength, float playerBiasFalloff,
+                        bool hasZoneAnchor, Vector3 zoneAnchor,
+                        float zoneBiasStrength, float zoneBiasFalloff,
                         float neighbourBiasStrength, float neighbourBiasFalloff,
                         int sampleCount, int minWaypoints, int maxWaypoints,
                         float recencyPenalty, int recencyMemory)
@@ -86,6 +111,10 @@ public sealed class NemesisClusterPatrol
             Belief = belief;
             PlayerBiasStrength = Mathf.Max(1f, playerBiasStrength);
             PlayerBiasFalloff = Mathf.Max(1f, playerBiasFalloff);
+            HasZoneAnchor = hasZoneAnchor;
+            ZoneAnchor = zoneAnchor;
+            ZoneBiasStrength = Mathf.Max(1f, zoneBiasStrength);
+            ZoneBiasFalloff = Mathf.Max(1f, zoneBiasFalloff);
             NeighbourBiasStrength = Mathf.Max(1f, neighbourBiasStrength);
             NeighbourBiasFalloff = Mathf.Max(1f, neighbourBiasFalloff);
             SampleCount = Mathf.Max(2, sampleCount);
@@ -103,8 +132,12 @@ public sealed class NemesisClusterPatrol
         /// the patrol orbiting the room it lost the player in for the rest of the run.</param>
         /// <param name="applyNeighbourBias">False for a fresh patrol cycle, which should be free
         /// to relocate anywhere; true when moving from one cúmulo to the next.</param>
+        /// <param name="hasZoneAnchor">Whether the caller resolved a live player position. See
+        /// <see cref="ZoneAnchor"/>: it is fed in rather than read here for the same reason the
+        /// belief is — this class knows nothing about sensors, registries or scenes.</param>
         public static Settings From(SO_NemesisData data, bool hasBelief, Vector3 belief,
-                                    float beliefFreshness, bool applyNeighbourBias)
+                                    float beliefFreshness, bool applyNeighbourBias,
+                                    bool hasZoneAnchor, Vector3 zoneAnchor)
         {
             // The fallbacks are only reached when the asset is missing, which the Nemesis already
             // reports elsewhere. They exist so a broken prefab still patrols instead of standing
@@ -116,6 +149,13 @@ public sealed class NemesisClusterPatrol
                 hasBelief, belief,
                 Mathf.Lerp(1f, Mathf.Max(1f, playerStrength), Mathf.Clamp01(beliefFreshness)),
                 data != null ? data.RoutePlayerBiasFalloff : 1f,
+                // NOT scaled by beliefFreshness, unlike the line above. That decay exists because a
+                // sighting gets old; the director bias descends from no sighting at all, so there
+                // is nothing for it to decay from. Scaling it here would reintroduce the exact
+                // gap it was added to close — no contact, no gravitation.
+                hasZoneAnchor, zoneAnchor,
+                data != null ? data.ZonePlayerBiasStrength : 1f,
+                data != null ? data.ZonePlayerBiasFalloff : 1f,
                 neighbourStrength,
                 data != null ? data.ClusterNeighbourFalloff : 25f,
                 data != null ? data.WaypointBiasSampleCount : 8,
@@ -126,16 +166,61 @@ public sealed class NemesisClusterPatrol
         }
     }
 
+    /// <summary>
+    /// One place the sweep stops at: where to walk, and which authored waypoint it belongs to.
+    ///
+    /// The two are separate because a stop is no longer necessarily a waypoint. Generated sweep
+    /// points (see <see cref="NemesisRouteGraph.SatelliteCount"/>) have a position of their own but
+    /// borrow their parent's <see cref="Node"/>, which is what keeps the controller's route and
+    /// index bookkeeping — and therefore CurrentWaypoint, the gizmos and the setup validator —
+    /// pointing at something real while the Nemesis walks somewhere that is not a marker.
+    /// </summary>
+    public readonly struct TourStop
+    {
+        /// <summary>Graph node this stop belongs to. -1 means "no stop".</summary>
+        public readonly int Node;
+
+        /// <summary>Where the agent should actually go.</summary>
+        public readonly Vector3 Position;
+
+        /// <summary>False for the authored waypoint itself, true for one of its generated points.
+        /// </summary>
+        public readonly bool IsSatellite;
+
+        public TourStop(int node, Vector3 position, bool isSatellite)
+        {
+            Node = node;
+            Position = position;
+            IsSatellite = isSatellite;
+        }
+
+        public bool IsValid => Node >= 0;
+
+        public static TourStop None => new TourStop(-1, Vector3.zero, false);
+    }
+
     /// <summary>Cluster being swept, or -1 when there is none.</summary>
     private int currentCluster = -1;
 
-    /// <summary>Graph node indices, in the order this visit sweeps them.</summary>
+    /// <summary>Graph node indices, in the order this visit sweeps them. The chain the greedy
+    /// nearest-neighbour walk produces, BEFORE the generated points are folded in.</summary>
     private readonly List<int> tour = new List<int>();
+
+    /// <summary>
+    /// The stops actually walked: <see cref="tour"/> with each waypoint's generated sweep points
+    /// interleaved after it.
+    ///
+    /// Kept separate from the chain rather than replacing it, because the two are built by
+    /// different rules and only one of them is a routing problem. The chain is a greedy TSP
+    /// opening over the cúmulo's real members and has to stay that way to read as a sweep;
+    /// expanding it afterwards is a presentation step that cannot get the ordering wrong.
+    /// </summary>
+    private readonly List<TourStop> stops = new List<TourStop>();
 
     private int tourIndex;
 
-    /// <summary>How many of the tour's waypoints this visit will actually walk before moving on.
-    /// Rolled per visit between MinWaypoints and MaxWaypoints.</summary>
+    /// <summary>How many stops this visit will actually walk before moving on. Rolled per visit
+    /// between MinWaypoints and MaxWaypoints.</summary>
     private int tourBudget;
 
     // Reused across calls: this runs every time the Nemesis finishes a zone, and none of it is
@@ -157,13 +242,14 @@ public sealed class NemesisClusterPatrol
     /// <summary>The cluster being swept, or -1. For gizmos and debugging.</summary>
     public int CurrentCluster => currentCluster;
 
-    /// <summary>The sweep order, as graph node indices. For gizmos and debugging.</summary>
-    public IReadOnlyList<int> Tour => tour;
+    /// <summary>The sweep order actually walked, generated points included. For gizmos and
+    /// debugging.</summary>
+    public IReadOnlyList<TourStop> Stops => stops;
 
-    /// <summary>How far into <see cref="Tour"/> the sweep is.</summary>
+    /// <summary>How far into <see cref="Stops"/> the sweep is.</summary>
     public int TourIndex => tourIndex;
 
-    /// <summary>How many of <see cref="Tour"/>'s entries this visit will walk. Entries past it
+    /// <summary>How many of <see cref="Stops"/>'s entries this visit will walk. Entries past it
     /// belong to the cúmulo but are being left for another visit.</summary>
     public int TourBudget => tourBudget;
 
@@ -176,6 +262,7 @@ public sealed class NemesisClusterPatrol
     {
         currentCluster = -1;
         tour.Clear();
+        stops.Clear();
         tourIndex = 0;
         tourBudget = 0;
 
@@ -204,11 +291,11 @@ public sealed class NemesisClusterPatrol
     /// RouteReplanInterval seconds without the Nemesis having left Patrolling, and excluding the
     /// current zone there would force a relocation every interval no matter what the waypoint
     /// budget said — which quietly turns MinWaypoints/MaxWaypoints into decoration.</param>
-    /// <returns>Graph node index to walk to, or -1 when the island has no usable cúmulo.</returns>
-    public int Begin(NemesisRouteGraph graph, in Settings settings, Vector3 origin, int component,
+    /// <returns>The stop to walk to, or <see cref="TourStop.None"/> when the island has no usable cúmulo.</returns>
+    public TourStop Begin(NemesisRouteGraph graph, in Settings settings, Vector3 origin, int component,
                      int direction, ref bool pendingSkip, bool excludeCurrent)
     {
-        if (graph == null) return -1;
+        if (graph == null) return TourStop.None;
 
         graph.CollectClustersInComponent(component, candidateBuffer);
 
@@ -217,10 +304,10 @@ public sealed class NemesisClusterPatrol
         if (excludeCurrent && currentCluster >= 0 && candidateBuffer.Count > 1)
             candidateBuffer.Remove(currentCluster);
 
-        if (candidateBuffer.Count == 0) return -1;
+        if (candidateBuffer.Count == 0) return TourStop.None;
 
         int picked = PickCluster(graph, candidateBuffer, origin, settings);
-        if (picked < 0) return -1;
+        if (picked < 0) return TourStop.None;
 
         return Adopt(graph, picked, settings, origin, direction, ref pendingSkip);
     }
@@ -233,37 +320,37 @@ public sealed class NemesisClusterPatrol
     /// comes out in a different order and it re-walks the zone rather than freezing on the last
     /// waypoint of the old sweep.
     /// </summary>
-    /// <returns>Graph node index to walk to, or -1 when there is no cluster to re-sweep.</returns>
-    public int Resweep(NemesisRouteGraph graph, in Settings settings, Vector3 origin, int direction)
+    /// <returns>The stop to walk to, or <see cref="TourStop.None"/> when there is no cluster to re-sweep.</returns>
+    public TourStop Resweep(NemesisRouteGraph graph, in Settings settings, Vector3 origin, int direction)
     {
-        if (graph == null || currentCluster < 0) return -1;
+        if (graph == null || currentCluster < 0) return TourStop.None;
 
         bool noSkip = false;
         return Adopt(graph, currentCluster, settings, origin, direction, ref noSkip);
     }
 
     /// <summary>
-    /// Steps the sweep on to the next waypoint.
+    /// Steps the sweep on to the next stop.
     /// </summary>
-    /// <returns>The next graph node index, or -1 when this visit is over — the caller should then
-    /// call <see cref="Begin"/> for a neighbouring cúmulo.</returns>
-    public int Advance()
+    /// <returns>The next stop, or <see cref="TourStop.None"/> when this visit is over — the caller
+    /// should then call <see cref="Begin"/> for a neighbouring cúmulo.</returns>
+    public TourStop Advance()
     {
-        if (currentCluster < 0) return -1;
+        if (currentCluster < 0) return TourStop.None;
 
         tourIndex++;
-        if (tourIndex >= tour.Count || tourIndex >= tourBudget) return -1;
+        if (tourIndex >= stops.Count || tourIndex >= tourBudget) return TourStop.None;
 
-        return tour[tourIndex];
+        return stops[tourIndex];
     }
 
     /// <summary>Takes over a cluster and lays out the order this visit will sweep it in.</summary>
     /// <returns>The first node of the sweep, or -1 when the cluster turned out to be empty.</returns>
-    private int Adopt(NemesisRouteGraph graph, int clusterIndex, in Settings settings,
+    private TourStop Adopt(NemesisRouteGraph graph, int clusterIndex, in Settings settings,
                       Vector3 origin, int direction, ref bool pendingSkip)
     {
         graph.CollectClusterMembers(clusterIndex, memberBuffer);
-        if (memberBuffer.Count == 0) return -1;
+        if (memberBuffer.Count == 0) return TourStop.None;
 
         currentCluster = clusterIndex;
         tourIndex = 0;
@@ -272,7 +359,7 @@ public sealed class NemesisClusterPatrol
         if (tour.Count == 0)
         {
             currentCluster = -1;
-            return -1;
+            return TourStop.None;
         }
 
         // The skip roll, translated to a zone: drop one of its waypoints from this visit. A cúmulo
@@ -285,12 +372,20 @@ public sealed class NemesisClusterPatrol
             pendingSkip = false;
         }
 
-        tourBudget = Mathf.Min(tour.Count,
+        // Folded in AFTER the skip roll, so the roll keeps meaning "drop one of this zone's
+        // waypoints" rather than "drop one arbitrary stop, possibly a generated one, possibly
+        // leaving its parent waypoint stranded in the middle of the chain".
+        ExpandTour(graph);
+
+        // Counted in STOPS and not waypoints. With generated points on, a two-waypoint zone has
+        // eight stops, and budgeting by waypoint would walk two of them and call the zone swept —
+        // which is the exact behaviour the generated points exist to fix.
+        tourBudget = Mathf.Min(stops.Count,
                                Random.Range(settings.MinWaypoints, settings.MaxWaypoints + 1));
 
         RecordVisit(clusterIndex, settings.RecencyMemory);
 
-        return tour[0];
+        return stops[0];
     }
 
     /// <summary>
@@ -362,6 +457,38 @@ public sealed class NemesisClusterPatrol
     }
 
     /// <summary>
+    /// Turns the chain of waypoints into the list of places actually walked, dropping each
+    /// waypoint's generated sweep points in immediately after it.
+    ///
+    /// THAT ORDER IS THE POINT. Interleaving keeps the sweep local: arrive at the marker, look
+    /// around the few metres it claims, move on to the next marker. Appending them all at the end
+    /// instead would have the Nemesis walk the whole zone's waypoints and then walk it again
+    /// visiting the gaps, which is twice the distance to cover the same ground and reads as
+    /// pacing rather than searching.
+    ///
+    /// A zone whose waypoints have no generated points comes out of this identical to the chain
+    /// that went in, which is what makes WaypointSatellites at 0 an exact restoration of the old
+    /// behaviour rather than an approximation of it.
+    /// </summary>
+    private void ExpandTour(NemesisRouteGraph graph)
+    {
+        stops.Clear();
+
+        for (int i = 0; i < tour.Count; i++)
+        {
+            int node = tour[i];
+
+            stops.Add(new TourStop(node, graph.GetNode(node).Position, false));
+
+            int satellites = graph.SatelliteCount(node);
+            for (int s = 0; s < satellites; s++)
+            {
+                stops.Add(new TourStop(node, graph.GetSatellite(node, s), true));
+            }
+        }
+    }
+
+    /// <summary>
     /// Removes and returns the member nearest to — or farthest from — a point, or -1 when none
     /// are left.
     ///
@@ -409,7 +536,18 @@ public sealed class NemesisClusterPatrol
         for (int i = 0; i < candidates.Count; i++)
             positionBuffer.Add(graph.GetCluster(candidates[i]).Centroid);
 
-        KeepClosest(candidates, positionBuffer, origin, settings.HasBelief, settings.Belief,
+        // WHICH ANCHOR THE PREFILTER USES IS NOT COSMETIC. KeepClosest drops every candidate that
+        // is neither near the Nemesis nor near the anchor, and it runs BEFORE any weight is
+        // computed — so a zone the prefilter discards cannot be rescued by any bias below. Keyed
+        // on the belief alone, the player's zone is dropped in precisely the case the director
+        // bias exists for: no contact yet, so there is no belief to be near.
+        //
+        // The live anchor wins when there is one, because it is a strict improvement: never stale,
+        // and on the rare frame the two disagree it is the belief that is wrong.
+        bool hasPrefilterAnchor = settings.HasZoneAnchor || settings.HasBelief;
+        Vector3 prefilterAnchor = settings.HasZoneAnchor ? settings.ZoneAnchor : settings.Belief;
+
+        KeepClosest(candidates, positionBuffer, origin, hasPrefilterAnchor, prefilterAnchor,
                     settings.SampleCount, sampledBuffer, keyBuffer);
 
         if (sampledBuffer.Count == 0) return -1;
@@ -425,6 +563,15 @@ public sealed class NemesisClusterPatrol
             {
                 weight *= ProximityWeight(cluster.Centroid, settings.Belief,
                                           settings.PlayerBiasStrength, settings.PlayerBiasFalloff);
+            }
+
+            // The director's thumb. Multiplied alongside the belief bias rather than replacing it,
+            // so a fresh sighting and the live position reinforce each other when they agree —
+            // which is most of the time, and exactly when the Nemesis should be closing in.
+            if (weight > 0f && settings.HasZoneAnchor && settings.ZoneBiasStrength > 1f)
+            {
+                weight *= ProximityWeight(cluster.Centroid, settings.ZoneAnchor,
+                                          settings.ZoneBiasStrength, settings.ZoneBiasFalloff);
             }
 
             if (weight > 0f && settings.NeighbourBiasStrength > 1f)

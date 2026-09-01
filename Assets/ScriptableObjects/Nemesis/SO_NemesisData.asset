@@ -42,6 +42,9 @@ MonoBehaviour:
   searchBiasFalloff: 20
   searchSweptPenalty: 0.15
   searchPauseTime: 1.2
+  roomSweepRadius: 7
+  roomCommitRange: 12
+  sightCommitTime: 6
   chaseTimePrediction: 0.45
   chaseRouteReplanInterval: 0.75
   chaseBeliefMoveThreshold: 3
@@ -61,7 +64,7 @@ MonoBehaviour:
   scanSpeed: 60
   routeReverseChance: 0.15
   routeSkipWaypointChance: 0.15
-  routeReplanInterval: 25
+  routeReplanInterval: 12
   routePlayerBiasStrength: 5
   routePlayerBiasFalloff: 35
   biasUsesLastKnownPosition: 1
@@ -74,6 +77,11 @@ MonoBehaviour:
   clusterNeighbourFalloff: 25
   clusterRecencyPenalty: 0.25
   clusterRecencyMemory: 2
+  waypointSatellites: 3
+  waypointSatelliteRadius: 4
+  zoneBiasUsesRealPlayer: 1
+  zonePlayerBiasStrength: 4
+  zonePlayerBiasFalloff: 40
   crossRouteTransferChance: 0.3
   waypointBiasSampleCount: 8
   catchMaxReach: 1
