@@ -6,37 +6,37 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/Bootstrapper/Bootstrap.unity
+    path: Assets/_Project/Scenes/Bootstrapper/Bootstrap.unity
     guid: d3f090e20d72d0f499896f34f86ee655
   - enabled: 1
-    path: Assets/Scenes/Data/Data.unity
+    path: Assets/_Project/Scenes/Data/Data.unity
     guid: f17bf9e99ef267742a8c02e8e2aeae3d
   - enabled: 1
-    path: Assets/Scenes/GameScenes/MainMenu.unity
+    path: Assets/_Project/Scenes/GameScenes/MainMenu.unity
     guid: 0c3b8203b8fbe9f418bb81cf3a085699
   - enabled: 1
-    path: "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
+    path: "Assets/_Project/Scenes/Dev/TestI\xF1aki.unity"
     guid: 1120f7b037eec3c46afc6903f9030d84
   - enabled: 1
-    path: Assets/Scenes/TestScenes/TestAlesio.unity
+    path: Assets/_Project/Scenes/Dev/TestAlesio.unity
     guid: 5706619538145cd409f2caee7c53bc45
   - enabled: 1
-    path: Assets/Scenes/TestScenes/TestFabriScene.unity
+    path: Assets/_Project/Scenes/Dev/TestFabriScene.unity
     guid: e5c45e55ee68db845b576231abb65368
   - enabled: 1
-    path: Assets/Scenes/TestScenes/TestLevel.unity
+    path: Assets/_Project/Scenes/Dev/TestLevel.unity
     guid: a0f71041ec58c8241bff773ecb9790d1
   - enabled: 1
-    path: Assets/Scenes/UI/MainMenuUI.unity
+    path: Assets/_Project/Scenes/UI/MainMenuUI.unity
     guid: bc7c4ed2b08b289478a432f1c485b1e5
   - enabled: 1
-    path: Assets/Scenes/UI/LevelUI.unity
+    path: Assets/_Project/Scenes/UI/LevelUI.unity
     guid: 91c38a404c4044648b6a3ad672cc19bf
   - enabled: 1
-    path: Assets/Scenes/UI/SettingsScene.unity
+    path: Assets/_Project/Scenes/UI/SettingsScene.unity
     guid: 4e1d823d8c19721469ae9ea166359101
   - enabled: 1
-    path: Assets/Scenes/WIRED_Zona1_Blockout.unity
+    path: Assets/_Project/Scenes/GameScenes/WIRED_Zona1_Blockout.unity
     guid: 8cccb62fce69da94ca2cec142fd180ad
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 99f9c9493070a9d4c979a8fec7c5a8d3, type: 2}

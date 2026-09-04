@@ -4,7 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**WIRED** — a Unity 6 (6000.x LTS) first-person survival horror game with a PSX aesthetic. Render pipeline: **URP 17.4.0**, Compatibility mode. All game scripts live under `Assets/Scritps/` (note the typo in the folder name — this is intentional and consistent throughout the project).
+**WIRED** — a Unity 6 (6000.x LTS) first-person survival horror game with a PSX aesthetic. Render pipeline: **URP 17.4.0**, Compatibility mode. All game scripts live under `Assets/_Project/Scripts/` (formerly `Assets/Scritps/`, with the typo — renamed during the asset reorganization).
+
+## Assets layout
+
+`Assets/` has exactly five top-level entries, and new content must go into one of them:
+
+- **`_Project/`** — everything the team authors. `Art/` (`Animations`, `Fonts`, `Materials`,
+  `Models`, `Textures`), `Audio/`, `Input/`, `Prefabs/`, `Scenes/`, `ScriptableObjects/`,
+  `Scripts/`, `Settings/`. The leading underscore keeps it pinned at the top of the Project window.
+- **`ThirdParty/`** — imported packs, each kept exactly as it shipped so a future re-import
+  from the Asset Store overwrites cleanly. **Never edit or reorganize a pack in place.** If you
+  need a variant of a pack asset, copy it into `_Project/` and change the copy.
+- **`_Archive/`** — kept but not part of the game: the Unity URP template leftovers
+  (`UnityTemplate/`), old screenshots, and a recovery scene. Nothing here should be referenced
+  by a shipping scene.
+- **`Resources/`** and **`TextMesh Pro/`** — Unity resolves both by folder name; do not move them.
+
+Scenes live in `_Project/Scenes/` under `Bootstrapper/`, `Data/`, `GameScenes/`, `UI/`, and
+`Dev/` (test and sandbox scenes). Editor tooling that hardcodes an `"Assets/..."` string —
+`NemesisTestSceneBuilder`, `PlayModeStartSceneSetter`, `AmbienceToneBaker`, `AudioMixerSetup`,
+`SO_PostProcessToggle` — must be updated whenever one of these folders moves; asset **references**
+survive a move on their own because Unity resolves them by GUID, but **path strings do not**.
 
 ## Language rule (hard requirement)
 
@@ -16,7 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   (interaction prompts, UI labels, save-slot descriptions).
 - Identifiers — class, method, field and local names.
 
-The whole of `Assets/Scritps/` was migrated to English. Do not reintroduce Spanish in code,
+The whole of `Assets/_Project/Scripts/` was migrated to English. Do not reintroduce Spanish in code,
 including in new files. Team-facing documentation under `docs/` stays in Spanish (except this
 file) — the rule applies to code, not to docs.
 
@@ -45,7 +66,7 @@ Navigation between screens is done by loading and unloading **groups of scenes a
 
 - **`SO_SceneList`** (ScriptableObject) — maps string labels (`"Menu"`, `"Level1_Group"`, `"UI_SaveSlots"`) to lists of scene names, and declares which scenes are **persistent** (never unloaded).
 - **`ScreenEventChannel`** (ScriptableObject) — exposes `RaisePushScreen(label)`, `RaisePopScreen()`, `RaiseClearAll()`.
-- **`ScreenManager`** (`Scritps/Managers/ScreenManager.cs`) — singleton that listens to the channel and performs async load/unload via UniTask.
+- **`ScreenManager`** (`_Project/Scripts/Managers/ScreenManager.cs`) — singleton that listens to the channel and performs async load/unload via UniTask.
 
 **Persistent scenes** (`Bootstrap`, `Data`, `LevelUI`, `UI_Settings`, etc.) are loaded at boot by `BootingSceneLoader` and live for the entire session. Their singletons are always accessible. **Pushable scenes** (`Menu`, `Level1_Group`, `UI_SaveSlots`, etc.) are loaded on demand; managers in them die when unloaded. Cross-scene references must use static events or ScriptableObject channels — Unity breaks serialized cross-scene references.
 
@@ -56,7 +77,7 @@ Every screen follows MVC:
 - **View** (`BaseScreenView`) — wraps a `CanvasGroup`; exposes `ShowAsync()`/`HideAsync()` that use `Time.unscaledDeltaTime` so they work during pause (`Time.timeScale = 0`). Never call `SetActive` directly on UI GameObjects — always use these methods.
 - **Controller** (`BaseScreenController<TView, TModel>`) — orchestrates. Overrides `OnBeforeOpen`, `OnAfterOpen`, `OnBeforeClose`, `OnAfterClose`.
 
-**Modal UIs** (Inventory, Settings, SequencePanel, DocumentReader, Pause) live in persistent scenes and implement `IModalUI` (`Scritps/Interfaces/IModalUI/IModalUI.cs`). They must call `UIStateManager.Instance.Push(this)` on open and `UIStateManager.Instance.Pop(this)` on close. The `UIStateManager` is the single authority over `Time.timeScale` and `Cursor` state while any modal is open — individual controllers must not manipulate these directly.
+**Modal UIs** (Inventory, Settings, SequencePanel, DocumentReader, Pause) live in persistent scenes and implement `IModalUI` (`_Project/Scripts/Interfaces/IModalUI/IModalUI.cs`). They must call `UIStateManager.Instance.Push(this)` on open and `UIStateManager.Instance.Pop(this)` on close. The `UIStateManager` is the single authority over `Time.timeScale` and `Cursor` state while any modal is open — individual controllers must not manipulate these directly.
 
 `IModalUI` requires:
 - `ModalId` — unique string for deduplication logging.
@@ -68,8 +89,8 @@ Every screen follows MVC:
 
 Both the player and the Nemesis AI use the same generic FSM base:
 
-- **`StateManager<EState>`** (`Scritps/FSM/StateManager.cs`) — `MonoBehaviour` that owns a `Dictionary<EState, BaseState<EState>>`, drives `Update`/`TransitionToState`, and forwards `OnTriggerEnter/Stay/Exit` to the active state.
-- **`BaseState<EState>`** (`Scritps/FSM/BaseState.cs`) — abstract class with `EnterState`, `ExitState`, `UpdateState`, `GetNextState`, and trigger callbacks.
+- **`StateManager<EState>`** (`_Project/Scripts/FSM/StateManager.cs`) — `MonoBehaviour` that owns a `Dictionary<EState, BaseState<EState>>`, drives `Update`/`TransitionToState`, and forwards `OnTriggerEnter/Stay/Exit` to the active state.
+- **`BaseState<EState>`** (`_Project/Scripts/FSM/BaseState.cs`) — abstract class with `EnterState`, `ExitState`, `UpdateState`, `GetNextState`, and trigger callbacks.
 
 **Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus `Traversing` and the terminal `Catch` (managed by `NemesisStateManager`). `Traversing` means "getting there needs the freight elevator"; it holds that decision open for `SO_NemesisData.ElevatorCommitTime` even with the player out of sight, because a floor slab breaks line of sight for the whole trip and without it the lift ride was abandoned every time. **Which state the Nemesis is in is not decided by the states themselves** — see *Nemesis: the decision layer* below. Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.1s) and `FieldOfListening.cs`, which occludes sight and sound with *different* masks — a floor blocks sight but only attenuates sound, and that is the Nemesis's only channel to the storey above. Route questions ("reachable? which floor? is the lift on the way?") go through `NemesisPathOracle`, which throttles them; that interval is a stability knob as much as a cost one, since a verdict flipping frame to frame makes the FSM oscillate. `NemesisTelemetry` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set — `Traversing` is deliberately NOT in it, since the player is a storey away and unreachable — and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
 
@@ -81,7 +102,7 @@ Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAu
 
 ### Singletons
 
-`Singleton<T>` (`Scritps/SingletonCreator/Singleton.cs`) is the base for global managers. Call `CreateSingleton(dontDestroyOnLoad)` in `Awake`. Use `Singleton<T>.Exists` before accessing `Instance` from contexts where the singleton might not be initialized.
+`Singleton<T>` (`_Project/Scripts/SingletonCreator/Singleton.cs`) is the base for global managers. Call `CreateSingleton(dontDestroyOnLoad)` in `Awake`. Use `Singleton<T>.Exists` before accessing `Instance` from contexts where the singleton might not be initialized.
 
 Persistent UI controllers that live in persistent scenes (e.g., `SettingsController`, `InventoryManagerUI`) use a plain `public static T Instance { get; private set; }` set in `Awake` — they do not need `DontDestroyOnLoad` because the scene already ensures one instance.
 
@@ -115,7 +136,7 @@ if (PauseManager.IsGameplayInputBlocked) return;
 
 ### Interactable System
 
-`IInteractable` (`Scritps/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetInteractText()`, `GetInfoText()`.
+`IInteractable` (`_Project/Scripts/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetInteractText()`, `GetInfoText()`.
 
 Detection is a **camera SphereCast**, not trigger registration: `InteractionManager.RaycastForInteractable()` casts from `Camera.main` forward with `SO_InteractionManager.InteractionDistance`, a 0.1 radius, against `InteractableLayers | BlockingLayers`. It resolves the `IInteractable` on the hit collider or its parents; if the first hit has none, it is a wall and nothing is targeted. `BaseRangeInteractable` no longer registers anything — it only describes *what* the interaction is. Each interactable needs a Collider on itself or on a child in the Interactable layer so the cast has something to hit.
 
@@ -125,7 +146,7 @@ Selection is by **first hit along the ray**, with no dot-product priority when s
 
 ### Puzzles
 
-Progress is **not** stored on the puzzle objects. `PuzzleStateManager` (`Scritps/Managers/`) is the
+Progress is **not** stored on the puzzle objects. `PuzzleStateManager` (`_Project/Scripts/Managers/`) is the
 single source of truth and holds five collections keyed by string id: completed puzzles, inserted
 sockets, opened doors, valve positions and container slots. Everything else reads from it and
 writes to it — which is what lets a scene reload, a checkpoint rollback or a save restore work
@@ -160,7 +181,7 @@ still has no callers; see *Current state* below.
 
 ### Modules (the device timers)
 
-The run's clock. `ModuleManager` (`Scritps/Player/Modules/`) owns one `ModuleRuntime` per
+The run's clock. `ModuleManager` (`_Project/Scripts/Player/Modules/`) owns one `ModuleRuntime` per
 `ModuleData` in `SO_ModulesConfig`, in order, and enforces two rules: **one module Active at a
 time**, and **module N cannot start until N−1 is Resolved**.
 
@@ -305,7 +326,7 @@ Beyond the FSM described above:
 - **`NemesisLookAround`** — sweeps the gaze while the Nemesis stands still. Auto-added like the
   other siblings; tuned from `SO_NemesisData`, and inert at `ScanHalfAngle` 0.
 
-Two shared helpers live in `Scritps/Utils/` and exist because the same code had been written by
+Two shared helpers live in `_Project/Scripts/Utils/` and exist because the same code had been written by
 hand several times over:
 
 - **`RouletteSelection`** — weighted random selection. Takes a list of weights and returns an
@@ -345,7 +366,7 @@ reproduce it.
 - `NemesisDecision` holds the **predicates** — one side-effect-free property per question, so the
   asset can reorder the reasoning but can never hold a second definition of what "sees the player"
   means.
-- Evaluation builds a **decision tree** from that rung list (`Scritps/AI/`: `ITreeNode`,
+- Evaluation builds a **decision tree** from that rung list (`_Project/Scripts/AI/`: `ITreeNode`,
   `QuestionNode`, `ActionNode`): one `QuestionNode` per rung, its false branch being the rung
   below. Same first-match-wins answer a `for` loop gave, minus the ceiling — a false branch can
   open a different sub-ladder instead of always being the next line down.
@@ -414,7 +435,7 @@ for the whole wait and physically cannot look anywhere else. `NemesisLookAround`
 waiting out a patrol waypoint, and pausing at a search point. It hands the gaze back on every other
 state.
 
-**`LineOfSight` (`Scritps/Utils/`) is the shared range/angle/occlusion test.** Use it rather than
+**`LineOfSight` (`_Project/Scripts/Utils/`) is the shared range/angle/occlusion test.** Use it rather than
 writing the trio again — six hand-rolled copies existed before it. Two things about it are
 deliberate:
 
@@ -614,14 +635,14 @@ All under `Tools/`:
 | `Nemesis/Build Nemesis Test Scene` | Generates `Scenes/TestScenes/NemesisTestbed.unity`: correct layers throughout, plus one deliberately BROKEN modifier volume so working and broken sit side by side. Does **not** bake |
 | `Items/Validate Interactable Highlights` | Finds interactables with no proximity highlight, and highlights whose material has no `_TintIntensity` / `_EmissionIntensity` — a silent no-op the inspector cannot show |
 
-Custom inspectors live in `Scritps/Editor/`: `SO_MovementEditor` and `SO_CameraConfigEditor` draw
+Custom inspectors live in `_Project/Scripts/Editor/`: `SO_MovementEditor` and `SO_CameraConfigEditor` draw
 to-scale diagrams and live verdicts on top of `PlayerDiagramGUI`, a small shared IMGUI kit
 (`Canvas`, `Bar`, `Verdict`, `Line`, `VMeasure`) with the project palette — green = healthy,
 red = penalised, amber = warning. Reuse it for any new authoring inspector rather than starting a
 new drawing helper.
 
-**Id fields are dropdowns, not text boxes.** Two `PropertyAttribute`s in `Scritps/Attributes/` turn
-a bare string into a list of the ids that actually exist, each with a drawer in `Scritps/Editor/`:
+**Id fields are dropdowns, not text boxes.** Two `PropertyAttribute`s in `_Project/Scripts/Attributes/` turn
+a bare string into a list of the ids that actually exist, each with a drawer in `_Project/Scripts/Editor/`:
 
 | Attribute | Drawer | Lists |
 |---|---|---|
@@ -780,7 +801,7 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 
 ### ScriptableObjects
 
-Data lives in `Assets/ScriptableObjects/`. Key types in `Scritps/ScriptableScripts/`:
+Data lives in `Assets/_Project/ScriptableObjects/`. Key types in `_Project/Scripts/ScriptableScripts/`:
 - `SO_InventoryItem` — item data (ItemID, ItemName, Category, IsConsumable, IsMetallic, parameters).
 - `SO_SceneList` / `ScreenEventChannel` — scene navigation.
 - `SO_NemesisData` / `SO_NemesisMovement` — Nemesis tuning. `SO_NemesisData` has a custom inspector
@@ -813,7 +834,7 @@ else — nothing errors, the behaviour just changes. This applies to `ENemesisPr
 always.
 
 **Reach for the shared helpers before writing the maths again.** `RouletteSelection` (weighted
-random) and `LineOfSight` (range / cone / occlusion) in `Scritps/Utils/` both exist because the same
+random) and `LineOfSight` (range / cone / occlusion) in `_Project/Scripts/Utils/` both exist because the same
 few lines had been re-derived in four to six places, and copies drift: two of them had already
 stopped agreeing on what happens when every candidate weighs zero. `NemesisNav` plays the same role
 for distance and reachability — measure over the NavMesh, never with `Vector3.Distance`, in a level
@@ -840,7 +861,7 @@ detour — is one nobody can confirm ever happened.
 
 Still unconnected: keybind rebinding (`SettingsPanelControlsView` shows static labels), `Settings_VHSGlitch` (read by `GlitchController` but not exposed in the Options UI yet), and `Settings_LowFreqAmbience` (persisted by `SettingsModel` and applied by `AmbienceComfortApplier`, but with no toggle in the Options panel — use the `Toggle Low-Freq Ambience` context menu on `AmbienceDriftLayer` meanwhile).
 
-### Ambience (`Scritps/Ambience/`)
+### Ambience (`_Project/Scripts/Ambience/`)
 
 Four constant layers plus randomised 3D one-shots, driven by `AmbienceController` in the **gameplay** scene (not `Data` — same choice as `VisionRangeController`).
 
@@ -873,7 +894,7 @@ The systems below are **implemented but not connected to anything**. Read this b
   sources are created in code and otherwise inherit Unity's `maxDistance` of 500, which is audible
   across the level and makes distance useless as information. Defaults match Unity's, so no existing
   clip changed. Still missing: footsteps, UI audio, and clips for `NemesisAudio` /
-  `NemesisChaseMusic`; the **ambience system** (`Scritps/Ambience/`) is built but ships with
+  `NemesisChaseMusic`; the **ambience system** (`_Project/Scripts/Ambience/`) is built but ships with
   placeholder clips.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.

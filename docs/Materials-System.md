@@ -4,7 +4,7 @@ Explica qué hace cada material, shader y script que armamos para el lenguaje vi
 
 Stack: **URP 17.4.0**, Unity 6, Compatibility mode (Renderer Feature API tradicional).
 
-> ⚠️ **Nota de idioma**: el código de `Assets/Scritps/` está íntegramente en inglés (comentarios,
+> ⚠️ **Nota de idioma**: el código de `Assets/_Project/Scripts/` está íntegramente en inglés (comentarios,
 > strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` § Language rule.
 
 ---
@@ -67,7 +67,7 @@ Assets/
 │       ├─ PS1_PostProcess.shadergraph                 ← original (referencia, no se toca)
 │       ├─ PS1_PostProcess_HLSL.shader                 ← NUEVO: PSX + dither/scanlines/CA
 │       └─ PS1Effect.mat                               ← apunta a PS1_PostProcess_HLSL.shader
-└─ Scritps/
+└─ _Project/Scripts/
     ├─ Environment/
     │   ├─ MonitorFlicker.cs                          ← pulso 0.2 Hz
     │   └─ FlickerLight.cs                            ← curve-driven, fluorescente
@@ -111,7 +111,7 @@ Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shade
 | Lightmap Flags | `1` (Realtime) | El flicker anima la emisión → no bakeable. |
 | Enable Instancing | ✅ | Multiple monitores en escena = un solo draw call. |
 
-**Acompañado por** [`MonitorFlicker.cs`](../Assets/Scritps/Environment/MonitorFlicker.cs) — ver sec 4.1.
+**Acompañado por** [`MonitorFlicker.cs`](../Assets/_Project/Scripts/Environment/MonitorFlicker.cs) — ver sec 4.1.
 
 ### 3.3 `mat_device_luz_ambar_jugador` — Encendedor del dispositivo del player
 
@@ -123,11 +123,11 @@ Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shade
 
 **Por qué realtime y no baked**: el player se mueve por el mundo, su luz tiene que recalcular shadows/lighting en cada frame. Una Point Light separada va con shadows = Soft, range = 3, intensity = 1 (configurable a futuro si meten degradación por módulos explotados — feature postergada).
 
-> **Enganche con el fog**: esta misma Point Light es la que alimenta el "hueco" de niebla vía [`FogLightSource`](../Assets/Scritps/Rendering/FogLightSource.cs) (ver §6.4). Un solo sistema de luz del player, dos lecturas: iluminación real + campo de visión en la niebla.
+> **Enganche con el fog**: esta misma Point Light es la que alimenta el "hueco" de niebla vía [`FogLightSource`](../Assets/_Project/Scripts/Rendering/FogLightSource.cs) (ver §6.4). Un solo sistema de luz del player, dos lecturas: iluminación real + campo de visión en la niebla.
 
 ### 3.4 `shader_flicker_light.shader` — Tubos fluorescentes
 
-Único shader **HLSL custom** de entorno (no Shader Graph). Está en `Assets/Materials/Environment/Fluorescent/shader_flicker_light.shader`.
+Único shader **HLSL custom** de entorno (no Shader Graph). Está en `Assets/_Project/Art/Materials/Environment/Fluorescent/shader_flicker_light.shader`.
 
 **Por qué custom**: el tubo fluorescente necesita brillar con su propia luz (es la fuente luminosa, no un objeto iluminado). URP/Lit sería overkill — el tubo no recibe luz importante, solo emite. Un shader unlit con `BaseColor * Intensity` alcanza.
 
@@ -137,7 +137,7 @@ Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shade
 
 **Properties**:
 - `_BaseColor` (HDR) — color del tubo.
-- `_Intensity` (Float) — se anima desde [`FlickerLight.cs`](../Assets/Scritps/Environment/FlickerLight.cs).
+- `_Intensity` (Float) — se anima desde [`FlickerLight.cs`](../Assets/_Project/Scripts/Environment/FlickerLight.cs).
 
 ---
 
@@ -362,7 +362,7 @@ ScriptableObject con el "feeling" de una zona. Crear con: Project → click dere
 | `transitionDuration` | ≥ 0 | Segundos de lerp al activarse este config. |
 | `silhouetteMode` | enum | GD pendiente (§3.7 del handoff): None/Items/Puzzles/All. |
 
-Los `LightZone` (`Scritps/Rendering/LightZone.cs`) son trigger volumes que pushean/popean un config al entrar/salir el player — así una safe room, un boss arena o un pasillo pueden tener cada uno su niebla.
+Los `LightZone` (`_Project/Scripts/Rendering/LightZone.cs`) son trigger volumes que pushean/popean un config al entrar/salir el player — así una safe room, un boss arena o un pasillo pueden tener cada uno su niebla.
 
 ### 6.4 `FogLightSource.cs` y `FogLightBypass.cs` — Fuentes de luz del fog (NUEVO)
 
@@ -415,7 +415,7 @@ Filtro fullscreen que le da el carácter retro final a toda la imagen. Originalm
 
 **Pipeline del fragment**: warp CRT → jitter → pixelation → sample (con CA opcional) → dither posterization → scanline modulation.
 
-**Compatibilidad con el applier**: [`PS1EffectApplier.cs`](../Assets/Scritps/Rendering/PS1EffectApplier.cs) sigue funcionando sin cambios — escribe `_EnableScanlines` y `_EnableDither` como floats desde PlayerPrefs (`Settings_CRTScanlines` / `Settings_PSXDithering`), que ahora existen en el shader. Es el enganche con el toggle de accesibilidad de Options.
+**Compatibilidad con el applier**: [`PS1EffectApplier.cs`](../Assets/_Project/Scripts/Rendering/PS1EffectApplier.cs) sigue funcionando sin cambios — escribe `_EnableScanlines` y `_EnableDither` como floats desde PlayerPrefs (`Settings_CRTScanlines` / `Settings_PSXDithering`), que ahora existen en el shader. Es el enganche con el toggle de accesibilidad de Options.
 
 ### 7.2 `GlitchController.cs` — Glitch VHS aleatorio (NUEVO)
 

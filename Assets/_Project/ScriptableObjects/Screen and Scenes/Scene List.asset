@@ -24,8 +24,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: 1120f7b037eec3c46afc6903f9030d84, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
-    - "Assets/Scenes/TestScenes/TestI\xF1aki.unity"
-    - Assets/Scenes/UI/LevelUI.unity
+    - "Assets/_Project/Scenes/Dev/TestI\xF1aki.unity"
+    - Assets/_Project/Scenes/UI/LevelUI.unity
     sceneNames:
     - "TestI\xF1aki"
     - LevelUI
@@ -34,8 +34,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: 0c3b8203b8fbe9f418bb81cf3a085699, type: 3}
     - {fileID: 102900000, guid: bc7c4ed2b08b289478a432f1c485b1e5, type: 3}
     scenePaths:
-    - Assets/Scenes/GameScenes/MainMenu.unity
-    - Assets/Scenes/UI/MainMenuUI.unity
+    - Assets/_Project/Scenes/GameScenes/MainMenu.unity
+    - Assets/_Project/Scenes/UI/MainMenuUI.unity
     sceneNames:
     - MainMenu
     - MainMenuUI
@@ -44,8 +44,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: 5706619538145cd409f2caee7c53bc45, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
-    - Assets/Scenes/TestScenes/TestAlesio.unity
-    - Assets/Scenes/UI/LevelUI.unity
+    - Assets/_Project/Scenes/Dev/TestAlesio.unity
+    - Assets/_Project/Scenes/UI/LevelUI.unity
     sceneNames:
     - TestAlesio
     - LevelUI
@@ -54,8 +54,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
-    - Assets/Scenes/TestScenes/TestFabriScene.unity
-    - Assets/Scenes/UI/LevelUI.unity
+    - Assets/_Project/Scenes/Dev/TestFabriScene.unity
+    - Assets/_Project/Scenes/UI/LevelUI.unity
     sceneNames:
     - TestFabriScene
     - LevelUI
@@ -64,8 +64,8 @@ MonoBehaviour:
     - {fileID: 102900000, guid: 8cccb62fce69da94ca2cec142fd180ad, type: 3}
     - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
     scenePaths:
-    - Assets/Scenes/WIRED_Zona1_Blockout.unity
-    - Assets/Scenes/UI/LevelUI.unity
+    - Assets/_Project/Scenes/GameScenes/WIRED_Zona1_Blockout.unity
+    - Assets/_Project/Scenes/UI/LevelUI.unity
     sceneNames:
     - WIRED_Zona1_Blockout
     - LevelUI

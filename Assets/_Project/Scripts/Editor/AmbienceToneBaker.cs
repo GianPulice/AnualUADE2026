@@ -47,7 +47,7 @@ using UnityEngine;
 /// </summary>
 public static class AmbienceToneBaker
 {
-    private const string OutputFolder = "Assets/Audios/Ambience/Generated";
+    private const string OutputFolder = "Assets/_Project/Audio/Ambience/Generated";
 
     private const int Seed = 1337;
 

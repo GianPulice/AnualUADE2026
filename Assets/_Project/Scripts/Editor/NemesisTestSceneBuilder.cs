@@ -25,7 +25,7 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public static class NemesisTestSceneBuilder
 {
-    private const string ScenePath = "Assets/Scenes/TestScenes/NemesisTestbed.unity";
+    private const string ScenePath = "Assets/_Project/Scenes/Dev/NemesisTestbed.unity";
 
     // Matches the real level. Ground + Wall + Props = 6152, and Default stays out so ceilings do
     // not bake as walkable roofs — see docs/CLAUDE.md § Layers.
@@ -56,7 +56,7 @@ public static class NemesisTestSceneBuilder
         BuildActors(root.transform);
         BuildProps(root.transform);
 
-        EnsureFolder("Assets/Scenes/TestScenes");
+        EnsureFolder("Assets/_Project/Scenes/Dev");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
 
@@ -238,9 +238,9 @@ public static class NemesisTestSceneBuilder
     {
         Transform actors = NewContainer(parent, "Actors");
 
-        InstantiatePrefab("Assets/Prefabs/Player.prefab", actors, new Vector3(0f, 1f, -4f));
+        InstantiatePrefab("Assets/_Project/Prefabs/Player.prefab", actors, new Vector3(0f, 1f, -4f));
 
-        GameObject nemesis = InstantiatePrefab("Assets/Prefabs/Nemesis.prefab", actors,
+        GameObject nemesis = InstantiatePrefab("Assets/_Project/Prefabs/Nemesis.prefab", actors,
                                                new Vector3(0f, 1f, 44f));
         if (nemesis != null) nemesis.AddComponent<NemesisTestConsole>();
 
@@ -253,11 +253,11 @@ public static class NemesisTestSceneBuilder
 
         // One door the Nemesis may open, one it may not. The second is the case that needs the
         // carving obstacle DoorInteractable adds on Awake to genuinely stop it.
-        InstantiatePrefab("Assets/Prefabs/DoorWood.prefab", props, new Vector3(0f, 0f, 6f));
-        InstantiatePrefab("Assets/Prefabs/DoorWood.prefab", props, new Vector3(0f, 0f, 36f));
+        InstantiatePrefab("Assets/_Project/Prefabs/DoorWood.prefab", props, new Vector3(0f, 0f, 6f));
+        InstantiatePrefab("Assets/_Project/Prefabs/DoorWood.prefab", props, new Vector3(0f, 0f, 36f));
 
-        InstantiatePrefab("Assets/Prefabs/MontacargasRoot.prefab", props, new Vector3(6f, 0f, 42f));
-        InstantiatePrefab("Assets/Prefabs/Environment/Locker.prefab", props, new Vector3(-5f, 0f, 3f));
+        InstantiatePrefab("Assets/_Project/Prefabs/MontacargasRoot.prefab", props, new Vector3(6f, 0f, 42f));
+        InstantiatePrefab("Assets/_Project/Prefabs/Environment/Locker.prefab", props, new Vector3(-5f, 0f, 3f));
 
         // A prop excluded from the bake by ignoreFromBuild rather than by layer, so both ways of
         // keeping geometry out of the NavMesh are visible in one scene. See docs/CLAUDE.md.
@@ -308,8 +308,8 @@ public static class NemesisTestSceneBuilder
 
     private static void BuildMaterials()
     {
-        EnsureFolder("Assets/Scenes/TestScenes/NemesisTestbedMaterials");
-        const string dir = "Assets/Scenes/TestScenes/NemesisTestbedMaterials";
+        EnsureFolder("Assets/_Project/Scenes/Dev/NemesisTestbedMaterials");
+        const string dir = "Assets/_Project/Scenes/Dev/NemesisTestbedMaterials";
 
         floorMat = SaveMaterial(new Color(0.30f, 0.30f, 0.32f), $"{dir}/testbed_floor.mat");
         wallMat = SaveMaterial(new Color(0.22f, 0.22f, 0.24f), $"{dir}/testbed_wall.mat");

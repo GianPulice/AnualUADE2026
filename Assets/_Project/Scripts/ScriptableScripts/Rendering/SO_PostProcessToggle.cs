@@ -37,7 +37,7 @@ using UnityEngine.Rendering.Universal;
 public class SO_PostProcessToggle : ScriptableObject
 {
     [Header("PSX filter")]
-    [Tooltip("Assets/Materials/Post Process/PS1Effect.mat")]
+    [Tooltip("Assets/_Project/Art/Materials/Post Process/PS1Effect.mat")]
     [SerializeField] private Material ps1Material;
 
     [Tooltip("Master property of the PSX shader. Do not touch unless the property is renamed in " +
@@ -54,7 +54,7 @@ public class SO_PostProcessToggle : ScriptableObject
     [SerializeField] private string visionFogEnableProperty = "_EnableVisionFog";
 
     [Header("Renderer features (PC_Renderer)")]
-    [Tooltip("The fullscreen passes on Assets/Settings/PC_Renderer.asset that draw the effects " +
+    [Tooltip("The fullscreen passes on Assets/_Project/Settings/PC_Renderer.asset that draw the effects " +
              "above: PSXEffect and Vision Fog. Switching these off takes the passes out of the " +
              "frame instead of leaving them running with a pass-through shader. Leave " +
              "ScreenSpaceAmbientOcclusion out of this list unless the intention really is to " +
@@ -179,7 +179,7 @@ public class SO_PostProcessToggle : ScriptableObject
     /// </summary>
     private void Reset()
     {
-        const string root = "Assets/Materials/Post Process/";
+        const string root = "Assets/_Project/Art/Materials/Post Process/";
 
         ps1Material = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(root + "PS1Effect.mat");
 
@@ -188,7 +188,7 @@ public class SO_PostProcessToggle : ScriptableObject
         AddIfFound(root + "VisionFog_SilentHill.mat");
 
         rendererFeatures = new List<ScriptableRendererFeature>();
-        AddRendererFeaturesFrom("Assets/Settings/PC_Renderer.asset");
+        AddRendererFeaturesFrom("Assets/_Project/Settings/PC_Renderer.asset");
     }
 
     private void AddIfFound(string path)

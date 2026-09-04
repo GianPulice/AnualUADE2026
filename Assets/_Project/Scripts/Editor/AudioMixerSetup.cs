@@ -15,7 +15,7 @@ using UnityEngine.Audio;
 /// </summary>
 public static class AudioMixerSetup
 {
-    private const string MixerFolder = "Assets/ScriptableObjects/Audio";
+    private const string MixerFolder = "Assets/_Project/ScriptableObjects/Audio";
     private const string MixerPath   = MixerFolder + "/MasterMixer.mixer";
 
     // Direct children of Master (7). Total groups = 8 counting Master.

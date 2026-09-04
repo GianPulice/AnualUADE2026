@@ -12,11 +12,11 @@ ARCHIVOS NUEVOS / MODIFICADOS
   Materials/Post Process/PS1Effect.mat             (mod) apunta al shader nuevo
   Materials/Items/ItemPSX_Outline.shader           (nuevo)
   Materials/Items/ItemPsx.mat                      (mod) apunta al shader nuevo
-  Scritps/ScriptableScripts/Rendering/SO_VisionFogConfig.cs (mod) campos nuevos
-  Scritps/Rendering/VisionRangeController.cs        (mod) pushea globals nuevos
-  Scritps/Rendering/FogLightSource.cs               (nuevo)
-  Scritps/Rendering/FogLightBypass.cs               (nuevo)
-  Scritps/Rendering/GlitchController.cs             (nuevo)
+  _Project/Scripts/ScriptableScripts/Rendering/SO_VisionFogConfig.cs (mod) campos nuevos
+  _Project/Scripts/Rendering/VisionRangeController.cs        (mod) pushea globals nuevos
+  _Project/Scripts/Rendering/FogLightSource.cs               (nuevo)
+  _Project/Scripts/Rendering/FogLightBypass.cs               (nuevo)
+  _Project/Scripts/Rendering/GlitchController.cs             (nuevo)
 
   NOTA: los shadergraph originales (PS1_PostProcess / ItemPSX) NO se tocaron,
   quedan como referencia. Los .mat ahora apuntan a los .shader nuevos.

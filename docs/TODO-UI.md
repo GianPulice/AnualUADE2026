@@ -4,7 +4,7 @@ Tareas que quedaron diferidas según las decisiones tomadas durante la migració
 arquitectura modal (`BaseScreenController` + `IModalUI` + `UIStateManager`) y el cruce con
 los specs de Inventario, Interacción y Puzzles.
 
-> ⚠️ **Nota de idioma**: todo el código de `Assets/Scritps/` está en inglés (comentarios,
+> ⚠️ **Nota de idioma**: todo el código de `Assets/_Project/Scripts/` está en inglés (comentarios,
 > strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` §
 > Language rule.
 

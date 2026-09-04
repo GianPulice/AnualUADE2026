@@ -4,7 +4,7 @@ Este documento explica cómo funciona la UI del juego: la arquitectura MVC, el c
 
 Está pensado para que alguien que se suma al proyecto pueda navegar el código y agregar pantallas nuevas sin romper lo existente.
 
-> ⚠️ **Nota de idioma**: el código de `Assets/Scritps/` está íntegramente en inglés (comentarios,
+> ⚠️ **Nota de idioma**: el código de `Assets/_Project/Scripts/` está íntegramente en inglés (comentarios,
 > strings, logs y textos de UI). Este documento sigue en español. Ver `docs/CLAUDE.md` § Language rule.
 
 ---
@@ -29,9 +29,9 @@ La comunicación entre sistemas que viven en escenas distintas se hace por **eve
 
 | Archivo | Rol |
 |---|---|
-| `Assets/Scritps/UI/Screen/BaseScreenController.cs` | Clase genérica `<TView, TModel>`. Define `Open()`, `Close()`, hooks virtuales. |
-| `Assets/Scritps/UI/Screen/BaseScreenView.cs` | Wrapper de `CanvasGroup` con `ShowAsync()`, `HideAsync()`, `Fade()`. |
-| `Assets/Scritps/UI/Screen/BaseScreenModel.cs` | POCO con `Initialize()`, `IsInitialized`, evento `OnDataChanged`. |
+| `Assets/_Project/Scripts/UI/Screen/BaseScreenController.cs` | Clase genérica `<TView, TModel>`. Define `Open()`, `Close()`, hooks virtuales. |
+| `Assets/_Project/Scripts/UI/Screen/BaseScreenView.cs` | Wrapper de `CanvasGroup` con `ShowAsync()`, `HideAsync()`, `Fade()`. |
+| `Assets/_Project/Scripts/UI/Screen/BaseScreenModel.cs` | POCO con `Initialize()`, `IsInitialized`, evento `OnDataChanged`. |
 
 ### Lifecycle de una pantalla
 
@@ -56,10 +56,10 @@ El método genérico `Fade(alpha, duration)` SÍ usa `Time.deltaTime` — está 
 
 | Archivo | Rol |
 |---|---|
-| `Assets/Scritps/Managers/ScreenManager.cs` | Singleton que carga/descarga grupos de escenas. Escucha eventos del channel. |
-| `Assets/Scritps/ScriptableScripts/Screens/SO_SceneList.cs` | Base de datos: nombre de grupo (`"Menu"`, `"Level1_Group"`) → lista de escenas, y lista de escenas **persistentes**. |
-| `Assets/Scritps/ScriptableScripts/Screens/ScreenEventChannel.cs` | Event channel ScriptableObject. Expone `RaisePushScreen(label)`, `RaisePopScreen()`, `RaiseClearAll()`. |
-| `Assets/Scritps/BootingScene/BootingSceneLoader.cs` | Carga las escenas iniciales al arrancar el juego. |
+| `Assets/_Project/Scripts/Managers/ScreenManager.cs` | Singleton que carga/descarga grupos de escenas. Escucha eventos del channel. |
+| `Assets/_Project/Scripts/ScriptableScripts/Screens/SO_SceneList.cs` | Base de datos: nombre de grupo (`"Menu"`, `"Level1_Group"`) → lista de escenas, y lista de escenas **persistentes**. |
+| `Assets/_Project/Scripts/ScriptableScripts/Screens/ScreenEventChannel.cs` | Event channel ScriptableObject. Expone `RaisePushScreen(label)`, `RaisePopScreen()`, `RaiseClearAll()`. |
+| `Assets/_Project/Scripts/BootingScene/BootingSceneLoader.cs` | Carga las escenas iniciales al arrancar el juego. |
 
 ### Cómo funciona la navegación
 
@@ -101,7 +101,7 @@ Ejemplos en el código:
 
 ### Por qué `static Instance` y NO `Singleton<T>`
 
-`Singleton<T>` (el de `Assets/Scritps/SingletonCreator/Singleton.cs`) está pensado para managers globales que pueden hacer `DontDestroyOnLoad`. Los controllers de UI persistente NO necesitan eso — la escena ya garantiza una sola instancia. Solo necesitan el accessor global. `public static T Instance { get; private set; }` + asignar en `Awake` es suficiente.
+`Singleton<T>` (el de `Assets/_Project/Scripts/SingletonCreator/Singleton.cs`) está pensado para managers globales que pueden hacer `DontDestroyOnLoad`. Los controllers de UI persistente NO necesitan eso — la escena ya garantiza una sola instancia. Solo necesitan el accessor global. `public static T Instance { get; private set; }` + asignar en `Awake` es suficiente.
 
 ---
 
@@ -111,10 +111,10 @@ Ejemplos en el código:
 
 | Archivo | Rol |
 |---|---|
-| `Assets/Scritps/Managers/PauseManager.cs` | Singleton<PauseManager>. Maneja `Time.timeScale`, escucha ESC, dispara evento estático `OnPauseStateChanged`. |
-| `Assets/Scritps/UI/Screen/Pause/PauseModel.cs` | Estado `PauseState { Unpaused, Paused }`. |
-| `Assets/Scritps/UI/Screen/Pause/PauseView.cs` | Botones Continue/Options/Exit. |
-| `Assets/Scritps/UI/Managers/PauseManagerUI.cs` | Controller. Escucha `OnPauseStateChanged` y abre/cierra el view. |
+| `Assets/_Project/Scripts/Managers/PauseManager.cs` | Singleton<PauseManager>. Maneja `Time.timeScale`, escucha ESC, dispara evento estático `OnPauseStateChanged`. |
+| `Assets/_Project/Scripts/UI/Screen/Pause/PauseModel.cs` | Estado `PauseState { Unpaused, Paused }`. |
+| `Assets/_Project/Scripts/UI/Screen/Pause/PauseView.cs` | Botones Continue/Options/Exit. |
+| `Assets/_Project/Scripts/UI/Managers/PauseManagerUI.cs` | Controller. Escucha `OnPauseStateChanged` y abre/cierra el view. |
 
 ### Flow de pausa
 
@@ -402,7 +402,7 @@ Listo. La pantalla se abre desde Pausa, ESC la cierra (gestionado por UIStateMan
 ## 9. Mapa rápido de archivos
 
 ```
-Assets/Scritps/
+Assets/_Project/Scripts/
 ├─ BootingScene/
 │   └─ BootingSceneLoader.cs              ← carga escenas iniciales
 ├─ Managers/

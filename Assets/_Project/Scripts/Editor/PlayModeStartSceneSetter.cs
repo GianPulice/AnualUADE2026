@@ -6,7 +6,7 @@ using UnityEngine.SceneManagement;
 [InitializeOnLoad]
 public static class PlayModeStartSceneSetter
 {
-    private const string BootingScenePath = "Assets/Scenes/Bootstrapper/Bootstrap.unity";
+    private const string BootingScenePath = "Assets/_Project/Scenes/Bootstrapper/Bootstrap.unity";
     private const string LastSceneKey = "LAST_PLAY_MODE_SCENE_PATH";
 
 
