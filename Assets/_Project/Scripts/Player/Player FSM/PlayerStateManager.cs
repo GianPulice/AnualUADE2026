@@ -72,6 +72,42 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
 
+    // ── Moving floors ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The platform currently carrying the player, or null.
+    ///
+    /// Set by <see cref="MovingPlatform"/> from its boarding trigger. It exists because
+    /// <see cref="CheckGround"/> answers "am I standing on something?" with a layer mask, and a
+    /// freight elevator cabin is not on a layer that mask contains: it sits on Interactable so the
+    /// crosshair can still pick up the ride button travelling with it, and the NavMesh bake
+    /// deliberately leaves it out. Riding it up therefore made the ground probe MISS -- there is
+    /// nothing on Ground or Default within two metres below a cabin a storey in the air -- and the
+    /// player was never grounded again. PlayerMovingState bounces straight back to Idle while
+    /// !IsGrounded, so the character stood in the lift completely unable to move, which is the
+    /// reported "press the montacargas button and the player loses his inputs".
+    ///
+    /// A reference and not a counter, because a platform destroyed mid-ride would leak a count
+    /// that nothing ever gives back, while Unity's own null semantics make a destroyed one read as
+    /// null here for free.
+    /// </summary>
+    private MovingPlatform carrier;
+
+    /// <summary>Whether a moving platform is carrying the player right now.</summary>
+    public bool IsCarriedByPlatform => carrier != null;
+
+    /// <summary>Called by <see cref="MovingPlatform"/> when the player boards it.</summary>
+    public void SetCarrier(MovingPlatform platform) => carrier = platform;
+
+    /// <summary>
+    /// Called by <see cref="MovingPlatform"/> when the player steps off it. Ignores a platform
+    /// that is not the one carrying us, so two overlapping cabins cannot clear each other's claim.
+    /// </summary>
+    public void ClearCarrier(MovingPlatform platform)
+    {
+        if (ReferenceEquals(carrier, platform)) carrier = null;
+    }
+
     // ── Module penalties ────────────────────────────────────────────────────────
     //
     // These factors are multiplied into the movement calculations in Moving/Crouch. They stay at
@@ -270,8 +306,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // Get the forward vector based on where the camera is looking
         orientation.forward = (transform.position - new Vector3(cameraTransform.position.x, transform.position.y, cameraTransform.position.z)).normalized;
 
-        // Build the movement direction vector from the inputs
-        inputDir = orientation.forward * Input.GetAxis("Vertical") + orientation.right * Input.GetAxis("Horizontal");
+        // Build the movement direction vector from the inputs.
+        //
+        // GetAxisRAW, not GetAxis. The smoothed axes in ProjectSettings/InputManager.asset run at
+        // gravity 3, so after the key is released the value takes about a third of a second to
+        // decay to zero — and for that whole third of a second inputDir is still non-zero, so
+        // PlayerMovingState keeps driving the character at FULL speed. That is the "he keeps
+        // walking after I let go" the playtest reported: it was never the animation blend, which
+        // is only 0.1-0.2s.
+        //
+        // Losing the smoothing costs nothing here: the ramp UP is already owned by
+        // SO_Movement.Acceleration in PlayerMovingState, which is where it can be tuned and where
+        // it applies to gamepads too. Raw still returns the analogue value for a stick.
+        inputDir = orientation.forward * Input.GetAxisRaw("Vertical")
+                 + orientation.right   * Input.GetAxisRaw("Horizontal");
         inputDir.Normalize();
 
         // Crouch mechanic. Standing back up is gated on headroom: pressing crouch under a low
@@ -356,7 +404,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             // step, the ray leaves from just inside the edge. The sphere answers "am I on ground"
             // where the ray answers "what is its normal", and only the second one is unavailable
             // here, so movement falls back to the raw input direction.
-            isGrounded = Physics.CheckSphere(transform.position, capsuleColl.radius, groundLeyerMask,
+            // Being carried is the third answer, and it outranks both probes: the cabin of a
+            // moving platform is solid floor the player is demonstrably standing on, it is just
+            // not on a layer either of them is allowed to see. See the carrier field.
+            isGrounded = IsCarriedByPlatform
+                      || Physics.CheckSphere(transform.position, capsuleColl.radius, groundLeyerMask,
                                              QueryTriggerInteraction.Ignore);
             rigBody.useGravity = true;
             moveDir = inputDir;
@@ -367,7 +419,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         if (groundAngle >= groundAngleLimit)
         {
-            isGrounded = false;
+            // Aboard a cabin the probe can still find something too steep to stand on -- the shaft
+            // wall sliding past, the lip of the landing below. The floor under the player's feet is
+            // the cabin either way, so the verdict stays "grounded".
+            isGrounded = IsCarriedByPlatform;
             rigBody.useGravity = true;
             moveDir = inputDir;
             return;

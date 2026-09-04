@@ -64,6 +64,13 @@ public class MovingPlatform : MonoBehaviour
     private Rigidbody passengerRb;
 
     /// <summary>
+    /// The player's FSM, resolved from whichever collider boarded. Held so the carry flag can be
+    /// handed back to the exact player it was given to, including from OnDisable when the shaft is
+    /// torn down mid-ride.
+    /// </summary>
+    private PlayerStateManager passengerPlayer;
+
+    /// <summary>
     /// Who has reserved the platform, or null when it is free for anyone to call.
     ///
     /// Exists so <see cref="ElevatorCallPanel"/> can tell "parked and available" apart from "the
@@ -175,6 +182,12 @@ public class MovingPlatform : MonoBehaviour
         // optional -- that separation is the whole point of departOnPlayerEnter.
         passengerRb = other.attachedRigidbody;
 
+        // The cabin is the player's floor from here on, and it is NOT on a layer their ground
+        // probe is allowed to see -- see PlayerStateManager.carrier. Without this the player reads
+        // as airborne the moment the lift leaves the landing, and PlayerMovingState kicks straight
+        // back to Idle every frame: they stand in the cabin unable to move for the whole ride.
+        SetPassengerPlayer(other.GetComponentInParent<PlayerStateManager>());
+
         if (!departOnPlayerEnter) return;
 
         if (state == State.Idle)
@@ -190,7 +203,10 @@ public class MovingPlatform : MonoBehaviour
         if (!other.CompareTag(playerTag)) return;
 
         if (other.attachedRigidbody == passengerRb)
+        {
             passengerRb = null;
+            SetPassengerPlayer(null);
+        }
 
         if (state == State.WaitingForExit)
         {
@@ -213,6 +229,32 @@ public class MovingPlatform : MonoBehaviour
     /// <summary>Whether anyone at all is aboard: the player (by trigger) or a code-driven
     /// passenger (by <see cref="AddPassenger"/>).</summary>
     private bool IsOccupied() => passengerRb != null || extraPassengers.Count > 0;
+
+    /// <summary>
+    /// Hands the "you are standing on a moving floor" flag to the player boarding, and takes it
+    /// back off the one leaving.
+    ///
+    /// Clearing the OLD passenger before claiming the new one matters when the two are different
+    /// objects -- a respawned player boarding a cabin the captured one never formally stepped out
+    /// of.
+    /// </summary>
+    private void SetPassengerPlayer(PlayerStateManager player)
+    {
+        if (ReferenceEquals(passengerPlayer, player)) return;
+
+        if (passengerPlayer != null) passengerPlayer.ClearCarrier(this);
+
+        passengerPlayer = player;
+
+        if (passengerPlayer != null) passengerPlayer.SetCarrier(this);
+    }
+
+    /// <summary>
+    /// A platform switched off or destroyed mid-ride raises no OnTriggerExit, so the flag it
+    /// handed out would never come back and the player would count as grounded in mid-air for the
+    /// rest of the run.
+    /// </summary>
+    private void OnDisable() => SetPassengerPlayer(null);
 
     // ── API for passengers driven from code (the Nemesis) ───────────────────
 

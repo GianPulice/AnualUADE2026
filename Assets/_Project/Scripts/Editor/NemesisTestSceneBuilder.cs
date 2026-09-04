@@ -289,7 +289,10 @@ public static class NemesisTestSceneBuilder
     {
         // Only a fallback: the Player prefab brings its own rig. This keeps the scene viewable if
         // the prefab failed to load, rather than opening to a black game view.
-        if (Object.FindFirstObjectByType<Camera>() != null) return;
+        // FindAnyObjectByType and not FindFirstObjectByType: the latter is deprecated because it
+        // orders by instance ID, and that ordering buys nothing here — the question is only
+        // whether a camera exists at all. Same choice as NemesisChaseMusic.
+        if (Object.FindAnyObjectByType<Camera>() != null) return;
 
         GameObject cam = new GameObject("Fallback Camera", typeof(Camera), typeof(AudioListener));
         cam.transform.SetParent(parent, false);

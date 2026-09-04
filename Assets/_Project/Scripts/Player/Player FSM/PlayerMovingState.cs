@@ -86,7 +86,13 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             }
             else
             {
-                playerStateManager.ApplyMoveVelocity(playerStateManager.MoveDir * playerStateManager.CurrentVelocity);
+                // Zero, not CurrentVelocity: this is the frame the input STOPPED, and
+                // re-applying the old speed here hands the Rigidbody a full-speed push on
+                // the way out. Idle zeroes it too, but only on its first UpdateState —
+                // and StateManager runs a transition OR an update, never both, so that is
+                // two frames later and the character has already slid.
+                playerStateManager.CurrentVelocity = 0f;
+                playerStateManager.ApplyMoveVelocity(Vector3.zero);
                 NextState = PlayerStateManager.EPlayerState.Idle;
             }
         }

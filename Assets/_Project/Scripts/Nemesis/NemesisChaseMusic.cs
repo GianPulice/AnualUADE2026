@@ -42,7 +42,11 @@ public class NemesisChaseMusic : MonoBehaviour
     [SerializeField, Min(0.05f)] private float fadeDuration = 2f;
 
     [Header("Routing")]
-    [Tooltip("Optional. If empty it is taken from AudioManager's Music bus at runtime.")]
+    [Tooltip("Leave EMPTY. It then resolves to AudioManager's Music bus, which is where this " +
+             "belongs: it is a score cue, not a sound the monster makes, and the Music slider is " +
+             "what the player reaches for to turn it down. Ambience follows that same slider.\n\n" +
+             "It was wired to the Nemesis bus in the level once, which made it ride the SFX slider " +
+             "instead and ignore the music setting entirely.")]
     [SerializeField] private AudioMixerGroup outputGroup;
 
     [Header("Ambience takeover")]

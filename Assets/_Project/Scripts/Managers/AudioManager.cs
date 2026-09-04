@@ -138,6 +138,15 @@ public class AudioManager : Singleton<AudioManager>
             if (s == null) continue;
             if (byId.ContainsKey(s.Id))
                 Debug.LogWarning($"[AudioManager] Duplicate sound id: '{s.Id}'. The previous one is replaced.");
+
+            // An entry with no AudioClip is worse than a missing entry: TryGet finds it, the
+            // source plays a null clip, and the caller gets silence with nothing in the console.
+            // A sound that exists on paper and cannot be heard is exactly how a door ends up
+            // "having" an open sound that nobody ever hears.
+            if (s.Clip == null)
+                Debug.LogWarning($"[AudioManager] Sound '{s.Id}' has no AudioClip assigned, so it " +
+                                 "will play silently. Drop the clip into the SO_SoundData asset.");
+
             byId[s.Id] = s;
         }
     }
@@ -316,10 +325,22 @@ public class AudioManager : Singleton<AudioManager>
         ApplyVolume(EXP_MASTER, masterVolume);
     }
 
+    /// <summary>
+    /// Volume of the music bus, and of Ambience with it.
+    ///
+    /// The two move together because ambience is atmosphere, not an effect: in a horror game the
+    /// player who turns the music down is asking for less mood, not for quieter footsteps. It used
+    /// to ride the SFX bundle instead, which is what forced the "never call mixer.SetFloat under
+    /// Ambience" rule — see <see cref="SetGameplaySfxBundle"/>.
+    ///
+    /// Both fields are updated so AmbienceVolume still reports what is actually on the bus; nothing
+    /// reads them apart from this class, but a stale mirror of the mixer is a debugging trap.
+    /// </summary>
     public void SetMusicVolume(float v)
     {
-        musicVolume = Mathf.Clamp01(v);
-        ApplyVolume(EXP_MUSIC, musicVolume);
+        musicVolume = ambienceVolume = Mathf.Clamp01(v);
+        ApplyVolume(EXP_MUSIC,    musicVolume);
+        ApplyVolume(EXP_AMBIENCE, ambienceVolume);
     }
 
     /// <summary>Volume of the SFX bus (world effects).</summary>
@@ -330,23 +351,27 @@ public class AudioManager : Singleton<AudioManager>
     }
 
     /// <summary>
-    /// Bundled mode: moves every non-music bus as a block
-    /// (SFX, Ambience, Player, Nemesis, UI and Voice).
+    /// Moves the gameplay effect buses together (SFX, Player, Nemesis, UI and Voice), which is what
+    /// the single "SFX" slider in Settings drives instead of one slider per bus.
     ///
-    /// This is the mode the game uses: the Settings panel exposes a single "SFX" slider
-    /// instead of one per bus. UI and Voice are included on purpose — if they were left out,
-    /// they would be the only two buses with no player control at all, stuck at their default.
-    /// To pin them again, remove their two lines from here.
+    /// UI and Voice are included on purpose — left out they would be the only buses with no player
+    /// control at all, stuck at their default. To pin them again, remove their two lines below.
+    ///
+    /// <b>Ambience is deliberately NOT here.</b> It used to be, and that is where the awkward rule
+    /// in docs/Ambience-System.md came from: "never call mixer.SetFloat for anything under Ambience"
+    /// existed only because this method overwrote it on every drag of the SFX slider, so per-layer
+    /// balance had to hide in fixed faders instead. Ambience now follows the MUSIC slider (see
+    /// <see cref="SetMusicVolume"/>) — it is atmosphere, not an effect, and in a horror game the
+    /// player reaching for the music slider is reaching for the same thing.
     ///
     /// The buses still exist separately in the mixer so they can be balanced against each other
-    /// (routing is decided by SO_SoundData.SoundCategory); this only unifies what the player
-    /// is allowed to touch.
+    /// (routing is decided by SO_SoundData.SoundCategory); this only unifies what the player is
+    /// allowed to touch.
     /// </summary>
     public void SetGameplaySfxBundle(float v)
     {
-        sfxVolume = ambienceVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = Mathf.Clamp01(v);
+        sfxVolume = playerVolume = nemesisVolume = uiVolume = voiceVolume = Mathf.Clamp01(v);
         ApplyVolume(EXP_SFX,      sfxVolume);
-        ApplyVolume(EXP_AMBIENCE, ambienceVolume);
         ApplyVolume(EXP_PLAYER,   playerVolume);
         ApplyVolume(EXP_NEMESIS,  nemesisVolume);
         ApplyVolume(EXP_UI,       uiVolume);
@@ -450,10 +475,42 @@ public class AudioManager : Singleton<AudioManager>
     /// Converts linear 0..1 to dB and writes it to the mixer. 0 maps to -80dB
     /// (practical silence, avoids -infinity from Log10(0)).
     /// </summary>
+    /// <summary>
+    /// Global attenuation applied on top of every slider, 1 = untouched, 0 = silent. Owned by
+    /// <see cref="AudioBackgroundApplier"/>, which fades it out just before the pause takes hold so
+    /// the world does not cut to silence in a single frame.
+    ///
+    /// A multiplier and not a second write to the same exposed parameters on purpose: the sliders
+    /// already own those, and two writers to one mixer parameter is the same class of bug as two
+    /// writers to a state machine's next-state channel — whichever ran last that frame wins, and
+    /// the result depends on script execution order.
+    ///
+    /// UI is excluded: menu clicks have to stay audible while paused, which is the whole reason
+    /// PlayUI forces ignoreListenerPause.
+    /// </summary>
+    public float PauseDuck
+    {
+        get => pauseDuck;
+        set
+        {
+            float clamped = Mathf.Clamp01(value);
+            if (Mathf.Approximately(clamped, pauseDuck)) return;
+
+            pauseDuck = clamped;
+            ApplyAllVolumesToMixer();
+        }
+    }
+
+    private float pauseDuck = 1f;
+
+    /// <summary>Buses the pause duck does NOT touch.</summary>
+    private static bool IsDuckExempt(string exposedParam) => exposedParam == EXP_UI;
+
     private void ApplyVolume(string exposedParam, float linear01)
     {
         if (mixer == null) return;
-        float db = linear01 <= 0.0001f ? -80f : Mathf.Log10(linear01) * 20f;
+        float effective = IsDuckExempt(exposedParam) ? linear01 : linear01 * pauseDuck;
+        float db = effective <= 0.0001f ? -80f : Mathf.Log10(effective) * 20f;
         mixer.SetFloat(exposedParam, db);
     }
 

@@ -69433,7 +69433,7 @@ MonoBehaviour:
   chaseMusicClip: {fileID: 8300000, guid: 10bbe534054ef3f4890ac477586cd5ae, type: 3}
   maxVolume: 1
   fadeDuration: 2
-  outputGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  outputGroup: {fileID: -2219433998997485648, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
   ambienceController: {fileID: 151307313187747756}
 --- !u!1001 &1968115813
 PrefabInstance:
