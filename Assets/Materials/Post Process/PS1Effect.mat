@@ -24,7 +24,7 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties: 
+  m_LockedProperties: _ChromaticAberrationOffset
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -42,20 +42,20 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ChromaticAberrationOffset: 0.0026
+    - _ChromaticAberrationOffset: 0.00249
     - _ClampWarpEdges: 1
-    - _DitherLevels: 5
+    - _DitherLevels: 8
     - _DitherStrength: 0.05
     - _EnableChromaticAberration: 1
     - _EnableDither: 1
     - _EnableEffect: 1
     - _EnableScanlines: 1
-    - _JitterResolution: 200
-    - _PixelSize: 512
-    - _ScanlineCount: 180
+    - _JitterResolution: 256
+    - _PixelSize: 256
+    - _ScanlineCount: 150
     - _ScanlineIntensity: 0.125
     - _Speed: 1
-    - _WarpIntensity: 0.005
+    - _WarpIntensity: 0.00217
     - _WarpScale: 20
     - _WarpStrength: 0.025
     m_Colors: []

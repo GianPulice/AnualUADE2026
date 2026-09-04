@@ -25,8 +25,8 @@ public class SequencePanelView : BaseScreenView
 
     [Header("Feedback — keys")]
     // Security keypad palette: dark metal at rest, amber on a correct press,
-    // red on a wrong one. Note: these colors WIN over those in SequencePanelUISetup,
-    // because Populate() repaints every key on open.
+    // red on a wrong one. These are the authority: Populate() repaints every key on open,
+    // so whatever the prefab was authored with is overwritten.
     [SerializeField] private Color buttonDefaultColor = new Color(0.18f, 0.18f, 0.19f, 1f);
     [SerializeField] private Color buttonActiveColor  = new Color(1f,    0.65f, 0.10f, 1f);
     [SerializeField] private Color buttonWrongColor   = new Color(0.55f, 0.10f, 0.08f, 1f);

@@ -11,10 +11,10 @@ GameObject:
   - component: {fileID: 1291712947208448837}
   - component: {fileID: 1632102027746942845}
   - component: {fileID: 6388884931102593901}
-  - component: {fileID: 1735451160877894954}
   - component: {fileID: 3733266162894312643}
   - component: {fileID: 478619519621879999}
   - component: {fileID: 2011457710059083411}
+  - component: {fileID: 5705307802236620336}
   m_Layer: 0
   m_Name: Cargo_2_empty
   m_TagString: Untagged
@@ -94,27 +94,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!65 &1735451160877894954
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8426517810401197433}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 4.9367228, y: 1.6131502, z: 0.13699478}
-  m_Center: {x: -0.00000023864425, y: 0.7598935, z: 0.8130448}
 --- !u!65 &3733266162894312643
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -178,3 +157,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 4.9367228, y: 1.6131502, z: 0.13699478}
   m_Center: {x: -0.00000023864425, y: 0.7598935, z: -0.84}
+--- !u!208 &5705307802236620336
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8426517810401197433}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 2.4680002, y: 0.80700004, z: 0.882}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0.76000005, z: 0}
+  m_TimeToStationary: 0.5

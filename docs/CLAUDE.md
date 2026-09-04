@@ -146,7 +146,7 @@ Sub-puzzle types, each an interactable plus a controller that watches for its co
 | SP1 — button sequence | `SequencePanelInteractable` + `SequenceButtonInteractable` | opens `SequencePanelUIController` | completed puzzle id |
 | Sockets / fuses | `SocketInteractable` | — | `SetSocketInserted` |
 | Valves | `ValveInteractable` | `ValvePuzzleController.CheckValves()` | `SetValvePosition` |
-| Containers / balls | `ContainerInteractable`, `ContainerSlot`, `BallPuzzleItem`, `BasketTrigger` | `ContainerPuzzleController.CheckContainers()` | `SetContainerSlot` |
+| Containers / balls | `BallPuzzleItem`, `BasketTrigger`, `GrabbableBall` + `PushBoxTriggerLogic` | `ContainerPuzzleController.CheckContainers()` | `SetContainerSlot` (keyed by **BallId**) |
 | Hub | — | `HubPuzzleController.CheckHubCompletion()` | completed puzzle id |
 | Doors | `DoorInteractable` | — | `SetDoorOpened` |
 
@@ -256,13 +256,40 @@ Beyond the FSM described above:
   *believes* the player is), and picks the spawn point. Activation is gated on
   `activatedByPuzzleId`: until that puzzle is solved the Nemesis is dormant — invisible, no senses,
   no navigation, FSM not started.
+  **The spawn-in has one rule and it is not negotiable: far, out of view, and behind cover.**
+  `ChooseSpawnPoint()` runs from `NemesisStateManager.Activate()`, and that moment is the worst
+  possible one for a bad spawn — the Nemesis wakes when a puzzle completes, so the player is
+  standing still, looking at what they just solved, with no chase to explain a monster being there.
+  Each point is graded `TooClose` / `FarButInView` / `FarAndBehind` / `FarBehindAndOccluded`, and
+  **only the top tier is ever used**; the lower three exist to explain a failure, not as fallbacks.
+  The pick among qualifying points is the distance-weighted roll, so the guarantee and the
+  run-to-run variety come from different places.
+  **A null is "not yet", not "never".** When nothing qualifies, `Activate()` puts the Nemesis back
+  to sleep and retries every 0.5 s (`TickDeferredSpawn`), because the condition clears itself the
+  moment the player walks on or turns round. It never settles for a worse point — an earlier version
+  took the best available tier, which sounds equivalent and means that the one time nothing is
+  hidden is exactly the time it spawns in plain sight.
+  Two tests, not one: `IsHiddenFromPlayer` is only an occlusion raycast, so a point twenty metres
+  down an open corridor the player is facing counts as perfectly hidden. `IsInPlayerView` adds the
+  angle test (`SO_NemesisData.SpawnSafeHalfAngle`, measured off the character body, flattened to XZ
+  so the storey above is not rejected wholesale). `SpawnMinPlayerDistance` is the distance floor.
+  Later respawns are unaffected — they go through `NemesisLifecycle.RepositionAfterCapture` and its
+  own `RepositionMinPlayerDistance`.
+  `onAllSpawnPointsVisible` was **removed**: it existed to let a fade mask a visible spawn, and a
+  visible spawn can no longer happen.
 - **`NemesisNav`** — every distance and reachability question measured over the NavMesh instead of
   in a straight line. `Vector3.Distance` lies in a level with floors, and three separate bugs came
   from that one mistake.
 - **`NemesisDoorUser`** — opens doors by sweeping along `desiredVelocity`, independent of the FSM,
   so it works in patrol, investigation and chase alike. `DoorInteractable.nemesisCanOpen` /
-  `nemesisCanForceLocked` are the per-door policy; a door with `nemesisCanOpen` off should also get
-  a `NavMeshObstacle` with Carve so the Nemesis does not path into it at all.
+  `nemesisCanForceLocked` are the per-door policy. **Every door carves the NavMesh automatically**:
+  `DoorInteractable.EnsureNavMeshObstacle()` adds a `NavMeshObstacle` with Carve to the leaf's solid
+  BoxCollider on `Awake` when the door has none. It has to exist because a `NavMeshAgent` ignores
+  physics colliders entirely, and the leaf lives on layer `Default`, which the surface excludes from
+  its bake — without the obstacle the NavMesh runs straight through every doorway and the Nemesis
+  walks through the closed panel. An obstacle and not baked geometry because the bake is static: a
+  baked leaf would block just as hard with the door open. Doors that already carry a hand-placed
+  obstacle anywhere in their hierarchy are left untouched, and `autoCarveNavMesh` turns it off.
 - **`NemesisAudio`** — per-state looping audio with crossfades. `stateLoops` is a designer-authored
   array, so **adding a value to `ENemesisState` without an entry crossfades the monster to
   silence**. `NemesisChaseMusic` is separate and driven by `OnChaseStarted/Ended`.
@@ -584,15 +611,34 @@ All under `Tools/`:
 | `Nemesis/Migrate Prop Layers` | Moves configured Hierarchy subtrees onto Props/Ground |
 | `Audio/Create or Update Master Mixer` | Builds the 8-bus mixer |
 | `Audio/Bake Ambience Texture Clips` | Generates the noise and drone clips (layers 3 and 4 need no sourced audio) |
-| `Door/Setup Door Visual` | Door prefab wiring |
-| `Puzzle UI/Setup Sequence Panel UI` | SP1 panel wiring |
-| `Scenes/Build Testing Blockout` | Test scene generator |
 
 Custom inspectors live in `Scritps/Editor/`: `SO_MovementEditor` and `SO_CameraConfigEditor` draw
 to-scale diagrams and live verdicts on top of `PlayerDiagramGUI`, a small shared IMGUI kit
 (`Canvas`, `Bar`, `Verdict`, `Line`, `VMeasure`) with the project palette — green = healthy,
 red = penalised, amber = warning. Reuse it for any new authoring inspector rather than starting a
 new drawing helper.
+
+**Id fields are dropdowns, not text boxes.** Two `PropertyAttribute`s in `Scritps/Attributes/` turn
+a bare string into a list of the ids that actually exist, each with a drawer in `Scritps/Editor/`:
+
+| Attribute | Drawer | Lists |
+|---|---|---|
+| `[PuzzleId]` | `PuzzleIdDrawer` | every `puzzleId` declared by the five puzzle SOs (collected by type NAME — they share no base class) |
+| `[SoundId]` | `SoundIdDrawer` | every `SO_SoundData` id, grouped into submenus by `SoundCategory` |
+
+Both exist for the same reason: these ids are matched by **string** at runtime, and a typo does not
+fail — it produces a gate that never opens or a sound that never plays, with nothing in the console.
+Both keep two escape hatches that are as load-bearing as the list: `(vacío)` to clear the field
+(most of these are optional), and `(escribir a mano…)` for an id whose asset does not exist yet. A
+value that matches nothing is shown with a `⚠ no existe` marker and **kept** — never silently
+snapped to the first entry, which would rewrite wiring nobody asked to change.
+
+`SoundIdDrawer` mirrors `SO_SoundData.Id`'s fallback to the **asset name** when the `id` field is
+blank. Reading only the serialized field would omit exactly those sounds from the dropdown: present
+at runtime, invisible in the inspector.
+
+Add `[SoundId]` to any new string field that names a sound. The six that exist today are on
+`PickUpInteractable`, `SocketInteractable`, `ElevatorCallPanel` (x2) and `ElevatorRideButton` (x2).
 
 Scene gizmos worth knowing about: `NemesisGizmos` (every `SO_NemesisData` range, drawn to scale
 with its metre value), `NemesisRoute` (waypoints and the route polyline), `InteractionRangeGizmo`
@@ -795,16 +841,16 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 **Still not wired:**
 
-- **There is no win condition.** `GameResultManager.ReportWin` is only called from `WinLoseTest.cs` (debug key `I`). The only reachable ending is the Nemesis catching you.
+- **There is no win condition.** `GameResultManager.ReportWin` has no caller at all — the debug `WinLoseTest.cs` that used to call it (key `I`) was deleted. The only reachable ending is the Nemesis catching you.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
 - **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is nearly silent.** Only two gameplay sounds route through `AudioManager`: `PickUpInteractable` and the elevator call panel. No footsteps, no UI audio. `NemesisAudio` and `NemesisChaseMusic` are built and need their clips and scene wiring; the **ambience system** (`Scritps/Ambience/`) is built but ships with placeholder clips.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
-- **`EPlayerState.InDanger`** is in the enum but never registered in the state dictionary; transitioning to it would throw `KeyNotFound`. `PlayerHiddenState` is inert (no collider/visibility change) and is toggled by debug keys `R`/`T`/`Y` still live in `PlayerStateManager.InputUpdate`.
-- **Two parallel unfinished grab/push implementations**: `GrabbableBall` + `PushBoxTriggerLogic` (active) and `PushableBall` (its `FixedUpdate` is entirely commented out). `GrabbableBall` reads `KeyCode.E` with no `PauseManager.IsGameplayInputBlocked` guard.
-- **Debug scripts still ship in the game folder**: `WinLoseTest.cs`, `TestClick.cs`, `Editor/TestSceneBuilder.cs`.
+- **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. `PlayerHiddenState` is still inert (no collider/visibility change) and the `R` (hidden) and `Y` (disabled) debug keys are still live in `PlayerStateManager.InputUpdate`; `R` goes away when `HidingSpotInteractable` lands.
+- **The two parallel grab/push implementations are resolved.** The physical-box version stayed (`GrabbableBall` + `PushBoxTriggerLogic` + `BallPuzzleItem` + `BasketTrigger`); `ContainerInteractable`, `ContainerSlot` and the dead `PushableBall` were deleted, so nothing competes for the `SetContainerSlot` keys any more. That key is a **BallId** — `SO_ContainerPuzzleData.ContainerRequirement.containerId` keeps the old field name but is authored with a ball id. `GrabbableBall` now carries its `PauseManager.IsGameplayInputBlocked` guard, and `BasketTrigger` caches the controller lookup instead of running two `FindObjectsByType` scans per trigger crossing.
+- **Three Editor tools were deleted as stale**: `Door/Setup Door Visual` (reflected on `leftPanel`/`rightPanel`, fields the hinged door no longer has — running it disabled the root MeshRenderer and added two stray cubes), `Puzzle UI/Setup Sequence Panel UI` (drove the View through `SetPrivateField`, so every View refactor broke it; the panel prefab is maintained by hand now) and `Scenes/Build Testing Blockout`. `WinLoseTest.cs` and `TestSceneBuilder.cs` went with them.
 - **`SO_NemesisData.patrolWaitVariance` ships at 0**, so the wait at every patrol waypoint is still
   the same length every time and a player who has timed one round has timed them all. It defaults
   off on purpose — the variance is expressed as +/- seconds around the authored wait, and no code

@@ -65,13 +65,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
     private bool wantsToStand = false;
     private bool isHidden = false;
-    private bool isInDanger = false;
     private bool isDisabled = false;
 
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
     public bool IsHidden { get => isHidden; set => isHidden = value; }
-    public bool IsInDanger { get => isInDanger; set => isInDanger = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
 
     // ── Module penalties ────────────────────────────────────────────────────────
@@ -106,13 +104,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         Crouch,
         Interacting,
         Hidden,
-
-        // NOT IMPLEMENTED — there is no PlayerInDangerState and nothing transitions here.
-        // The spec (§8) mentions it ("the player goes to In Danger and regains control")
-        // but never defines it, so the behaviour cannot be written yet. StateManager guards
-        // against the transition, so leaving it declared is safe.
-        InDanger,
-
         Disabled,
     }
     /// <summary>Name of the bare Transform used as the camera-relative input pivot.</summary>
@@ -320,13 +311,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         {
             if (isHidden) isHidden = false;
             else isHidden = true;
-        }
-
-        // InDanger state testing
-        if (Input.GetKeyDown(KeyCode.T))
-        {
-            if (isInDanger) isInDanger = false;
-            else isInDanger = true;
         }
 
         // Disabled state testing

@@ -102,6 +102,7 @@ GameObject:
   - component: {fileID: 2015925188867151723}
   - component: {fileID: 5457192283009266518}
   - component: {fileID: 5628188204269243204}
+  - component: {fileID: 2907272009850143806}
   m_Layer: 0
   m_Name: doorWood3.002
   m_TagString: Untagged
@@ -202,6 +203,22 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.016351288, y: 0.0025825195, z: 0.025366431}
   m_Center: {x: -0.008175646, y: 0.0000000035506684, z: 0.0126832165}
+--- !u!208 &2907272009850143806
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 231700552302277791}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.008, y: 0.001, z: 0.013}
+  m_MoveThreshold: 0.1
+  m_Carve: 0
+  m_CarveOnlyStationary: 1
+  m_Center: {x: -0.008, y: 0, z: 0.013}
+  m_TimeToStationary: 0.5
 --- !u!1 &2261219123566615772
 GameObject:
   m_ObjectHideFlags: 0

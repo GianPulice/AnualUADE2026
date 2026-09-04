@@ -11,6 +11,41 @@ public class BasketTrigger : MonoBehaviour
 
     private BallPuzzleItem currentBall;
 
+    private ContainerPuzzleController cachedController;
+
+    /// <summary>
+    /// The controller that owns <see cref="linkedPuzzleId"/>, resolved once and cached.
+    ///
+    /// Both trigger handlers used to run their own <c>FindObjectsByType</c> scan, so a single box
+    /// landing in a basket cost two full-scene searches — and a box nudged in and out of a basket
+    /// repeats that on every crossing.
+    ///
+    /// Resolved lazily rather than in Awake because gameplay scenes load additively: the controller
+    /// may not exist yet when this trigger wakes up. The null test is Unity's overloaded
+    /// <c>==</c>, so a controller destroyed with its scene reads as null here and is re-resolved
+    /// instead of throwing.
+    /// </summary>
+    private ContainerPuzzleController Controller
+    {
+        get
+        {
+            if (cachedController != null) return cachedController;
+
+            ContainerPuzzleController[] controllers =
+                FindObjectsByType<ContainerPuzzleController>(FindObjectsInactive.Exclude);
+
+            foreach (ContainerPuzzleController controller in controllers)
+            {
+                if (controller.PuzzleId != linkedPuzzleId) continue;
+
+                cachedController = controller;
+                break;
+            }
+
+            return cachedController;
+        }
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.isTrigger) return;
@@ -49,25 +84,27 @@ public class BasketTrigger : MonoBehaviour
         return transform.parent != null ? transform.parent : transform;
     }
 
+    /// <summary>
+    /// Whether the puzzle's Requirements table pairs this exact ball with this exact basket.
+    ///
+    /// Note the key semantics: <c>ContainerRequirement.containerId</c> is matched against
+    /// <c>BallPuzzleItem.BallId</c>. The field kept the "container" name from the deleted
+    /// ContainerInteractable implementation — it is authored with a BALL id.
+    /// </summary>
     private bool IsCorrectBallForThisBasket(BallPuzzleItem ball)
     {
-        ContainerPuzzleController[] controllers =
-            FindObjectsByType<ContainerPuzzleController>(FindObjectsInactive.Exclude);
+        ContainerPuzzleController controller = Controller;
+        if (controller == null) return false;
 
-        foreach (ContainerPuzzleController controller in controllers)
+        SO_ContainerPuzzleData data = controller.PuzzleData;
+        if (data == null) return false;
+
+        foreach (SO_ContainerPuzzleData.ContainerRequirement req in data.Requirements)
         {
-            if (controller.PuzzleId != linkedPuzzleId) continue;
-
-            SO_ContainerPuzzleData data = controller.PuzzleData;
-            if (data == null) return false;
-
-            foreach (SO_ContainerPuzzleData.ContainerRequirement req in data.Requirements)
-            {
-                if (req.containerId == ball.BallId && req.requiredSlotId == basketId)
-                    return true;
-            }
-            return false;
+            if (req.containerId == ball.BallId && req.requiredSlotId == basketId)
+                return true;
         }
+
         return false;
     }
 
@@ -95,16 +132,7 @@ public class BasketTrigger : MonoBehaviour
 
     private void NotifyPuzzleController()
     {
-        ContainerPuzzleController[] controllers =
-            FindObjectsByType<ContainerPuzzleController>(FindObjectsInactive.Exclude);
-
-        foreach (ContainerPuzzleController controller in controllers)
-        {
-            if (controller.PuzzleId == linkedPuzzleId)
-            {
-                controller.CheckContainers();
-                return;
-            }
-        }
+        ContainerPuzzleController controller = Controller;
+        if (controller != null) controller.CheckContainers();
     }
 }

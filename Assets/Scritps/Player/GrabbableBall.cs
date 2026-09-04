@@ -30,6 +30,11 @@ public class GrabbableBall : MonoBehaviour
 
     private void Update()
     {
+        // Required guard: Time.timeScale = 0 does NOT stop Input.GetKeyDown, so without this
+        // a crate could be grabbed or dropped through the open inventory or the pause menu.
+        // See docs/CLAUDE.md, Gameplay Input Guard.
+        if (PauseManager.IsGameplayInputBlocked) return;
+
         if (locked) return;
         if (!playerNearby && !isGrabbed) return;
 

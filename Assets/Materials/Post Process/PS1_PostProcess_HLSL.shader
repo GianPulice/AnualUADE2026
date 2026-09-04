@@ -7,10 +7,10 @@
 //
 // Reference names (para MaterialPropertyBlock / SetFloat / SetColor desde C#):
 //   _EnableEffect               master on/off
-//   _PixelSize                  tamaño del pixel bin (pixelation clásica PS1)
+//   _PixelSize                  filas de la grilla de pixelado (mas alto = menos pixelado)
 //   _WarpStrength               fuerza de la ondulación CRT
 //   _WarpIntensity              amplitud espacial de la onda
-//   _JitterResolution           resolución del jitter screen-space (PS1 vertex snap sim)
+//   _JitterResolution           segunda grilla de pixelado, mas gruesa (0 = off). NO es jitter
 //   _EnableDither               toggle dither Bayer 4x4
 //   _DitherStrength             mezcla 0..1 (0 = sin dither, 1 = full pattern)
 //   _DitherLevels               niveles de cuantización de color (2..8)
@@ -27,10 +27,10 @@ Shader "Hidden/Custom/PS1PostProcessHLSL"
         [Toggle] _EnableEffect              ("Enable Effect (master)", Float) = 1
 
         [Header(Pixelation and Warp)]
-        _PixelSize                          ("Pixel Size", Float) = 256
+        _PixelSize                          ("Pixel Grid Rows (mas alto = menos pixelado)", Float) = 256
         _WarpStrength                       ("Warp Strength", Range(0, 3)) = 0.1
         _WarpIntensity                      ("Warp Intensity", Range(0, 0.01)) = 0.0018
-        _JitterResolution                   ("Jitter Resolution", Float) = 50
+        _JitterResolution                   ("Coarse Pixel Grid (0 = off, NO es jitter)", Float) = 0
         // Si _WarpStrength se sube mucho, las esquinas piden UV fuera de [0,1] y el
         // sampler estira el último pixel del borde (bordes "agrandados"/deformados).
         // Con esto en 1 el warp queda siempre clampeado al frame; apagalo (0) solo
@@ -109,11 +109,14 @@ Shader "Hidden/Custom/PS1PostProcessHLSL"
         return _ClampWarpEdges > 0.5 ? saturate(warped) : warped;
     }
 
-    // Screen-space jitter — imita el vertex snapping / affine mapping de la PSX
-    // que hace que la imagen "tiemble" un frame por pixel.
-    // _JitterResolution define la resolución vertical de la grilla; la horizontal
-    // se corrige con el aspect ratio real de pantalla para no generar celdas
-    // rectangulares (eso deformaba/"agrandaba" los bordes en resoluciones != 1:1).
+    // ADVERTENCIA: esto NO es un jitter. El nombre viene de que se pensó como el
+    // vertex-snapping de PSX (la imagen "tiembla" un frame por pixel), pero para
+    // temblar necesitaría un offset dependiente de _Time antes del floor, y no lo
+    // tiene: es un floor(uv*res)/res estático. O sea, una SEGUNDA pasada de
+    // pixelado, y como corre ANTES de ApplyPixelation, si su resolución es más
+    // baja que _PixelSize es ella la que manda y _PixelSize deja de tener efecto.
+    // Se deja en 0 (apagado). Subirlo solo si se quiere una grilla más gruesa que
+    // _PixelSize a propósito; en ese caso el valor efectivo es el MENOR de los dos.
     float2 ApplyJitter(float2 uv)
     {
         if (_JitterResolution < 0.001) return uv;
@@ -123,9 +126,10 @@ Shader "Hidden/Custom/PS1PostProcessHLSL"
         return quantized;
     }
 
-    // Pixelation clásica — divide la pantalla en bloques cuadrados de _PixelSize
-    // filas. El ancho en bloques se deriva del aspect ratio real de pantalla para
-    // que cada bloque sea un cuadrado (píxel PS1 real), no un rectángulo estirado.
+    // Pixelation clásica. OJO CON EL NOMBRE: _PixelSize NO es el tamaño del pixel,
+    // es la CANTIDAD DE FILAS de la grilla. Más alto = más filas = MENOS pixelado.
+    // El ancho en bloques se deriva del aspect ratio real de pantalla para que cada
+    // bloque sea un cuadrado (píxel PS1 real), no un rectángulo estirado.
     float2 ApplyPixelation(float2 uv)
     {
         if (_PixelSize < 0.001) return uv;

@@ -9,9 +9,6 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     /// </summary>
     public static SettingsController Instance { get; private set; }
 
-    [Header("Input")]
-    [SerializeField] private KeyCode _closeKey = KeyCode.Escape;
-
     private bool _isOpen;
     private bool _isTransitioning;
 

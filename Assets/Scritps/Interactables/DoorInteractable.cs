@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class DoorInteractable : BaseRangeInteractable
 {
@@ -19,15 +20,23 @@ public class DoorInteractable : BaseRangeInteractable
     [Header("Nemesis")]
     [Tooltip("Whether the Nemesis can open this door on its way through. Turn it off on doors " +
              "that are meant to be a safe haven.\n\n" +
-             "When it is off, the door should also get a NavMeshObstacle with Carve: that way the " +
-             "NavMesh genuinely closes and the Nemesis does not even try to path through, instead " +
-             "of walking up to the door and pushing against it.")]
+             "The NavMeshObstacle that makes a closed door genuinely closed for pathfinding is " +
+             "now added automatically — see Auto Carve Nav Mesh below.")]
     [SerializeField] private bool nemesisCanOpen = true;
 
     [Tooltip("Whether the Nemesis can force the door even when it is locked or gated behind an " +
              "unsolved puzzle. On is the Mr. X behaviour: locks do not exist for it. Off makes it " +
              "respect the same conditions as the player.")]
     [SerializeField] private bool nemesisCanForceLocked = true;
+
+    [Tooltip("Give the swinging leaf a NavMeshObstacle with Carve on Awake, when it has none.\n\n" +
+             "ON by default, and it is what makes the Nemesis treat a closed door as closed. A " +
+             "NavMeshAgent ignores physics colliders entirely, and this scene's NavMeshSurface " +
+             "excludes layer Default from its bake, so without the obstacle the NavMesh runs " +
+             "straight through the doorway and the monster walks through the panel.\n\n" +
+             "Turn it off only for a door that already carries a hand-tuned obstacle whose shape " +
+             "does not match the leaf collider.")]
+    [SerializeField] private bool autoCarveNavMesh = true;
 
     private Quaternion hingeClosedLocalRot;
     private bool isOpen;
@@ -57,6 +66,11 @@ protected override void Awake()
         base.Awake();
 
         CacheClosedRotation();
+
+        // After CacheClosedRotation, which is what validates the hinge reference this
+        // depends on, and before ApplyOpenStateImmediate below: a door restored as already
+        // open has to carve where the leaf actually ENDS UP, not where it started.
+        EnsureNavMeshObstacle();
 
         wasEverOpened = doorData != null && PuzzleStateManager.Exists &&
                         PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
@@ -384,5 +398,85 @@ private void CacheClosedRotation()
     }    public override bool IsRepeatable()
     {
         return true;
+    }
+
+    // ── NavMesh carving ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gives the swinging leaf a <see cref="NavMeshObstacle"/> with Carve, unless it already has
+    /// one or this is switched off.
+    ///
+    /// <b>Why this is needed at all:</b> a NavMeshAgent ignores physics colliders completely — it
+    /// obeys only the NavMesh and NavMeshObstacles. The leaf's solid collider lives on layer 0
+    /// (Default), which the scene's NavMeshSurface deliberately excludes from its bake (that is
+    /// what keeps ceilings from baking as walkable roofs), so door geometry contributes nothing to
+    /// the NavMesh. The result is a NavMesh that runs straight through every doorway as if no door
+    /// existed, and a Nemesis that walks through the closed panel instead of opening it.
+    ///
+    /// <b>Why an obstacle and not baked geometry:</b> the bake is static. Moving the leaf onto a
+    /// baked layer would make the CLOSED door block correctly and leave the OPEN door blocking
+    /// just as hard. A carving obstacle moves with the panel: closed it covers the doorway, open
+    /// it carves to one side and frees the passage.
+    ///
+    /// <b>Why in code and not in the prefab:</b> same reason the Nemesis auto-adds its sibling
+    /// components — no existing prefab or scene instance has to be re-saved, and the ~110 door
+    /// instances already placed pick it up on load. A door that was given one by hand keeps it:
+    /// this only ever ADDS a missing component, never reconfigures an existing one.
+    /// </summary>
+    private void EnsureNavMeshObstacle()
+    {
+        if (!autoCarveNavMesh || hinge == null) return;
+
+        // Already carved by hand ANYWHERE on this door — leave it exactly as authored.
+        // Searched from the door ROOT and not from the hinge on purpose: an obstacle placed
+        // by hand may sit anywhere on the door, and a hinge-only check would miss one on
+        // the root and give that door a second, competing carve.
+        if (GetComponentInChildren<NavMeshObstacle>(includeInactive: true) != null) return;
+
+        // The obstacle goes on whatever carries the leaf's SOLID collider, so it inherits that
+        // object's rotation for free: it is a child of the hinge, so it swings with the door.
+        // Triggers are skipped on purpose — the door's interaction volume wraps the whole doorway
+        // and carving THAT would seal the opening permanently.
+        BoxCollider leaf = FindLeafCollider();
+        if (leaf == null)
+        {
+            Debug.LogWarning($"[{nameof(DoorInteractable)}] '{name}': no solid BoxCollider found " +
+                             "under the hinge, so no NavMeshObstacle could be sized automatically. " +
+                             "The Nemesis will path straight through this door. Add one by hand, " +
+                             "or turn off Auto Carve Nav Mesh to silence this.", this);
+            return;
+        }
+
+        NavMeshObstacle obstacle = leaf.gameObject.AddComponent<NavMeshObstacle>();
+        obstacle.shape = NavMeshObstacleShape.Box;
+
+        // Taken from the collider on the SAME GameObject, so centre and size are already in the
+        // right local space and need no conversion.
+        obstacle.center = leaf.center;
+        obstacle.size = leaf.size;
+
+        obstacle.carving = true;
+
+        // Only re-carve once the panel has come to rest. Carving every frame of a 0.6s swing is
+        // the expensive way to get the same answer, and it forces a NavMesh update while the agent
+        // is mid-path through the doorway.
+        obstacle.carveOnlyStationary = true;
+    }
+
+    /// <summary>
+    /// The first non-trigger BoxCollider under the hinge — the panel the player physically bumps
+    /// into. Restricted to BoxCollider because that is the only shape whose centre and size map
+    /// onto a NavMeshObstacle without approximating it.
+    /// </summary>
+    private BoxCollider FindLeafCollider()
+    {
+        BoxCollider[] colliders = hinge.GetComponentsInChildren<BoxCollider>(includeInactive: true);
+
+        foreach (BoxCollider candidate in colliders)
+        {
+            if (!candidate.isTrigger) return candidate;
+        }
+
+        return null;
     }
 }

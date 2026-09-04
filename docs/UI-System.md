@@ -301,6 +301,55 @@ Checklist:
 
 ---
 
+### 7.5 Escalado y anclaje: márgenes fijos, no fracciones
+
+El proyecto tiene **12 Canvas Scaler** repartidos entre escenas persistentes y prefabs modales, y el
+layout ya está calibrado a 1920x1080. Las reglas de abajo existen para que agregar un nodo no
+descalibre el resto.
+
+**El criterio de aceptación es doble**, y hay que cumplir los dos:
+
+1. A **1920x1080** el resultado tiene que ser **idéntico** al original. Si algo se movió aunque sea
+   un pixel a la resolución de referencia, el anclaje está mal.
+2. En el resto de las resoluciones, **nada puede quedar fuera del canvas**. Probar contra las cinco
+   de `ScreenSettingsApplier.Resolutions` — 1920x1080, 2560x1440, 3840x2160, 1366x768 y 1280x720.
+   Son todas 16:9, así que un fallo acá casi siempre es un anclaje en fracciones, no un problema de
+   aspect ratio.
+
+**Reglas concretas:**
+
+- **Las tiras horizontales van con márgenes fijos.** Una topbar, un footer o una barra de hints se
+  anclan con **stretch + inset** (left/right en pixeles, alto fijo), **nunca** con `anchorMin`/
+  `anchorMax` en fracciones. Una fracción escala el alto de la tira con la pantalla, y una topbar de
+  28px se convierte en una de 56px a 4K.
+- **Los textos de una línea van a tamaño fijo, anclados a un punto** — esquina o borde —, **no
+  estirados**. Un `TextMeshProUGUI` estirado reflowea distinto en cada resolución, y con
+  `DotLeader()` (relleno de puntos por conteo de caracteres) eso rompe la alineación de la lista
+  entera.
+- **El relleno de puntos depende de fuente monoespaciada.** `InventoryTextFormat.DotLeader()` calcula
+  sobre un ancho fijo **en caracteres**, no en pixeles. Funciona porque todo el inventario está en
+  Share Tech Mono. Cambiar cualquier fila a una fuente proporcional desalinea la columna.
+
+### 7.6 Animaciones de UI con LeanTween
+
+Dos reglas, y las dos vienen de bugs reales:
+
+- **`LeanTween.cancel(gameObject)` antes de cada tween nuevo.** Sin eso, dos tweens sobre la misma
+  propiedad corren a la vez y el último en escribir gana por frame — el objeto tiembla o queda a
+  mitad de camino. Es especialmente fácil de provocar donde hay **pooling**: un `ItemSlotView`
+  reciclado puede traerse el tween del item anterior.
+- **`setIgnoreTimeScale(true)` siempre.** El inventario, la pausa y el resto de las modales abren con
+  `Time.timeScale = 0` (lo pone el `UIStateManager` cuando alguna modal declara `PausesGame = true`).
+  Un tween que no ignora el timeScale se congela a mitad de la animación y no termina nunca.
+
+**Con pooling, el tween se dispara en el `Setup()` de la fila, no en `Awake`.** El `Awake` de un
+objeto pooleado corre una sola vez, la primera; las apariciones siguientes reusan el mismo
+GameObject y nunca lo vuelven a llamar.
+
+La misma lógica aplica a cualquier animación por código, no solo a LeanTween: los fades de
+`BaseScreenView.ShowAsync()`/`HideAsync()` usan `Time.unscaledDeltaTime` por esta razón, y
+`UISlideTransition` expone `ignoreTimeScale` (default `true`) por lo mismo. Ver §7.4.
+
 ## 8. Cómo agregar una pantalla nueva (mini-tutorial)
 
 Supongamos que querés agregar una pantalla de **estadísticas de la partida**, accesible desde Pausa.

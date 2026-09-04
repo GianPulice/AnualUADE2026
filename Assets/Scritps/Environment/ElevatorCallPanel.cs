@@ -71,9 +71,11 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
     [Header("Audio (SO_SoundData ids)")]
     [Tooltip("Played when the call is accepted. Leave empty for none.")]
+    [SoundId]
     [SerializeField] private string callAcceptedSoundId;
 
     [Tooltip("Played when the panel refuses because the lift is busy.")]
+    [SoundId]
     [SerializeField] private string callRefusedSoundId;
 
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");

@@ -13,6 +13,7 @@ public class SocketInteractable : BaseRangeInteractable
     [Header("Audio")]
     [Tooltip("Id of the SO_SoundData to play when the item is inserted (must be registered in " +
              "AudioManager.sounds). Leave empty to skip audio on this socket.")]
+    [SoundId]
     [SerializeField] private string insertSoundId = string.Empty;
 
     public bool IsInserted =>

@@ -8,6 +8,7 @@ public class PickupInteractable : BaseRangeInteractable
     [Header("Audio")]
     [Tooltip("Id of the SO_SoundData to play when this item is picked up (must be registered in " +
              "AudioManager.sounds). Leave empty to skip audio on this pickup.")]
+    [SoundId]
     [SerializeField] private string pickupSoundId = string.Empty;
 
     /// <summary>Item assigned to this pickup. Read by <see cref="ItemProximityHighlight"/>

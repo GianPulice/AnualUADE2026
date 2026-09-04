@@ -31,6 +31,12 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
     {
         //Debug.Log("Exit Crouch State");
         playerStateManager.AnimController.SetBool("isCrouch", false);
+        // Reset the blend speed too, the same way PlayerMovingState and
+        // PlayerBoxInteractingState do on their way out. Clearing isCrouch alone leaves the
+        // crouch-walk speed in moveSpeed, so any transition out of a crouch -- capture,
+        // interaction, or just standing up mid-stride -- pops the rig into the standing
+        // Walking blend for a frame.
+        playerStateManager.AnimController.SetFloat("moveSpeed", 0f);
         playerStateManager.SpeedMultiplier = 1;
         float standingHeight = playerStateManager.Movement.StandingHeight;
         playerStateManager.CapsuleColl.height = standingHeight;

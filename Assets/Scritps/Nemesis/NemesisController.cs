@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Events;
 
 /// <summary>
 /// Tier 3.1: owns the Nemesis's patrol routes/zones and where it spawns in.
@@ -46,16 +45,16 @@ public class NemesisController : MonoBehaviour
     [SerializeField] private string activatedByPuzzleId;
 
     [Header("Spawn points")]
-    [Tooltip("Candidate points for ChooseSpawnPoint(). The farthest one outside the player's " +
-             "line of sight is picked.")]
+    [Tooltip("Candidate points for ChooseSpawnPoint().\n\n" +
+             "A point is only ever used if ALL THREE hold: it is at least Spawn Min Player Distance " +
+             "away over the NavMesh, it is outside the player's view cone, and it is behind " +
+             "geometry. There is no falling back to a worse point — if none qualifies, the Nemesis " +
+             "stays asleep and retries twice a second until one does, which normally happens as " +
+             "soon as the player walks on or turns round.\n\n" +
+             "So place these apart, behind cover, and away from wherever the player will be " +
+             "standing when the activating puzzle completes. If the Nemesis never shows up, the " +
+             "console says which of the three tests everything failed.")]
     [SerializeField] private List<Transform> spawnPoints = new List<Transform>();
-
-    [Tooltip("Raised by ChooseSpawnPoint() when every configured spawn point is visible to the " +
-             "player, right before it warps the Nemesis in anyway. Hook a fade-to-black (or " +
-             "similar) transition here.\n\n" +
-             "PENDING (Tier 3.1): there is no fade system in the project yet, so this fires and " +
-             "the warp still happens the same frame — see the ChooseSpawnPoint doc comment.")]
-    [SerializeField] private UnityEvent onAllSpawnPointsVisible;
 
     [SerializeField] private NemesisStateManager stateManager;
 
@@ -80,6 +79,9 @@ public class NemesisController : MonoBehaviour
     private readonly List<Transform> hiddenSpawnCandidatesBuffer = new List<Transform>();
     private readonly List<float> hiddenSpawnDistancesBuffer = new List<float>();
     private readonly List<float> spawnWeightBuffer = new List<float>();
+
+    /// <summary>Latches the "nowhere safe to spawn" warning — see ReportNoSafeSpawnOnce.</summary>
+    private bool hasReportedNoSafeSpawn;
 
     // Waypoint-selection buffers. Reused because this runs on every waypoint arrival and every
     // replan, and it is not worth allocating each time.
@@ -211,7 +213,6 @@ public class NemesisController : MonoBehaviour
         }
     }
 
-    public UnityEvent OnAllSpawnPointsVisible => onAllSpawnPointsVisible;
 
     /// <summary>Puzzle that wakes the Nemesis up, or empty/null when it starts active.
     /// Read by <see cref="NemesisStateManager"/>, which owns the dormant/awake gate.</summary>
@@ -862,39 +863,69 @@ public class NemesisController : MonoBehaviour
     // ── Spawn point selection ───────────────────────────────────────────────
 
     /// <summary>
-    /// Picks a spawn point and warps the Nemesis there. Weighted towards the point farthest from
-    /// the player among the ones outside the player's line of sight (reusing FieldOfListening's
-    /// occlusion raycast — see <see cref="IsHiddenFromPlayer"/> — rather than a dedicated vision
-    /// check) — see <see cref="PickWeightedSpawnPoint"/> for why this is a roll and not an argmax.
+    /// Picks a spawn point and warps the Nemesis there.
     ///
-    /// "Farthest" is measured over the NavMesh and not in a straight line: the point on the other
-    /// side of the wall is 3 metres away on foot and 30 in a straight line, and picking by
-    /// straight line is exactly how the Nemesis ended up spawning on top of the player.
+    /// <b>The contract is that the Nemesis never appears on top of the player, or in front of
+    /// them.</b> That matters most at the moment this is called: the Nemesis wakes up when a puzzle
+    /// completes, which is exactly when the player is standing still, looking at the thing they
+    /// just solved, with no chase to explain a monster suddenly being there.
     ///
-    /// If every configured point is currently visible, <see cref="onAllSpawnPointsVisible"/>
-    /// fires before the warp so a fade-to-black (or similar) can mask the pop-in.
+    /// Candidates are graded by <see cref="SpawnSafety"/> — far enough, out of the player's view
+    /// cone, behind geometry — the best tier that has any candidate wins, and the choice inside
+    /// that tier is a distance-weighted roll. The minimum distance is a hard floor and is never
+    /// relaxed; if nothing clears it, nothing spawns and the level gets a warning.
     ///
-    /// PENDING (Tier 3.1): the project has no fade system yet, so that event and the warp below
-    /// both happen on the same frame — the Nemesis can still be seen popping in for that one
-    /// edge case. Once a fade transition exists, split this into "start fade" and "warp once the
-    /// fade has covered the screen" (e.g. drive the warp from the fade's own completion
+    /// Distance is measured over the NavMesh and not in a straight line: the point on the other
+    /// side of a wall is 3 metres away on foot and 30 in a straight line, and picking by straight
+    /// line is exactly how the Nemesis ended up spawning on top of the player.
+    ///
     /// callback) instead of firing them together.
     /// </summary>
-    /// <returns>The chosen spawn point, or null if none are configured.</returns>
+    /// <returns>The chosen spawn point, or null if none of them is safe to use.</returns>
     public Transform ChooseSpawnPoint()
     {
-        Transform chosen = SelectSpawnPoint(out bool allVisible);
+        Transform chosen = SelectSpawnPoint();
         if (chosen == null) return null;
-
-        if (allVisible) onAllSpawnPointsVisible?.Invoke();
 
         WarpTo(chosen);
         return chosen;
     }
 
-    private Transform SelectSpawnPoint(out bool allVisible)
+    /// <summary>
+    /// How safe a spawn point is right now, worst to best.
+    ///
+    /// Only <see cref="FarBehindAndOccluded"/> is ever used. The lower tiers exist so the failure
+    /// can be explained — "all three points are too close" and "all three are in the open" need
+    /// different fixes from the level designer — not as fallbacks to settle for.
+    /// </summary>
+    private enum SpawnSafety
     {
-        allVisible = false;
+        /// <summary>Inside <see cref="SO_NemesisData.SpawnMinPlayerDistance"/>. Never used.</summary>
+        TooClose = 0,
+
+        /// <summary>Far enough, but the player is looking straight at it through open air.</summary>
+        FarButInView = 1,
+
+        /// <summary>Far enough and out of the view cone, but with clear line of sight.</summary>
+        FarAndBehind = 2,
+
+        /// <summary>Far enough, out of the cone, and behind geometry. The one we want.</summary>
+        FarBehindAndOccluded = 3,
+    }
+
+    /// <summary>
+    /// The spawn points that are <see cref="SpawnSafety.FarBehindAndOccluded"/> right now, rolled
+    /// between. Returns null when none of them is — the lower tiers are diagnostics, never
+    /// fallbacks.
+    ///
+    /// <b>There is no degrading to a worse tier.</b> An earlier version took the best tier anyone
+    /// reached, which sounds equivalent and is not: it means that the one time no point happens to
+    /// be hidden — the player standing in the open, having just solved something, looking around —
+    /// is exactly the time it settles for a visible spawn. That is the case this whole grading
+    /// exists to prevent, so "nowhere safe yet" returns null and the caller waits instead.
+    /// </summary>
+    private Transform SelectSpawnPoint()
+    {
         if (spawnPoints == null || spawnPoints.Count == 0) return null;
 
         Transform player = PlayerRegistry.CurrentTransform;
@@ -902,8 +933,12 @@ public class NemesisController : MonoBehaviour
         hiddenSpawnCandidatesBuffer.Clear();
         hiddenSpawnDistancesBuffer.Clear();
 
-        Transform bestAny = null;
-        float bestAnyDistance = -1f;
+        // Counted only to explain the failure. A level whose points are all too close needs a
+        // different fix from one whose points are all in the open, and without the breakdown both
+        // read as "the Nemesis never showed up".
+        int tooClose = 0;
+        int inView = 0;
+        int exposed = 0;
 
         for (int i = 0; i < spawnPoints.Count; i++)
         {
@@ -911,28 +946,129 @@ public class NemesisController : MonoBehaviour
             if (point == null) continue;
 
             float distance = DistanceToPlayer(point.position, player);
-            if (distance > bestAnyDistance)
-            {
-                bestAnyDistance = distance;
-                bestAny = point;
-            }
 
-            // No registered player yet: nobody to be seen by, every point counts as hidden.
-            if (player == null || IsHiddenFromPlayer(point.position, player.position))
+            switch (RateSpawnPoint(point.position, distance, player))
             {
-                hiddenSpawnCandidatesBuffer.Add(point);
-                hiddenSpawnDistancesBuffer.Add(distance);
+                case SpawnSafety.TooClose:
+                    tooClose++;
+                    break;
+
+                case SpawnSafety.FarButInView:
+                    inView++;
+                    break;
+
+                case SpawnSafety.FarAndBehind:
+                    exposed++;
+                    break;
+
+                case SpawnSafety.FarBehindAndOccluded:
+                    hiddenSpawnCandidatesBuffer.Add(point);
+                    hiddenSpawnDistancesBuffer.Add(distance);
+                    break;
             }
         }
 
-        if (hiddenSpawnCandidatesBuffer.Count > 0)
-            return PickWeightedSpawnPoint(hiddenSpawnCandidatesBuffer, hiddenSpawnDistancesBuffer);
+        if (hiddenSpawnCandidatesBuffer.Count == 0)
+        {
+            ReportNoSafeSpawnOnce(tooClose, inView, exposed);
+            return null;
+        }
 
-        // Every configured point is in view (or none could be tested): fall back to the
-        // farthest one and let the caller know to mask the pop-in. Argmax and not a roll here —
-        // every candidate is equally exposed, so there is no "safer" option to weight towards.
-        allVisible = bestAny != null;
-        return bestAny;
+        return PickWeightedSpawnPoint(hiddenSpawnCandidatesBuffer, hiddenSpawnDistancesBuffer);
+    }
+
+    /// <summary>
+    /// Logged at most once per Nemesis, however many times the spawn is retried.
+    ///
+    /// The caller polls this every half second while it waits, and a warning per attempt would bury
+    /// the console in the normal case — the player simply has not moved yet. Once is enough to make
+    /// a genuinely unusable set of spawn points findable.
+    /// </summary>
+    private void ReportNoSafeSpawnOnce(int tooClose, int inView, int exposed)
+    {
+        if (hasReportedNoSafeSpawn) return;
+        hasReportedNoSafeSpawn = true;
+
+        Debug.LogWarning(
+            $"[{nameof(NemesisController)}] No spawn point is far enough, out of the player's " +
+            $"view cone AND behind cover, so the spawn-in is waiting for one. " +
+            $"Too close: {tooClose}. In the player's view: {inView}. Far but exposed: {exposed}.\n" +
+            "This clears itself as soon as the player moves or turns away. If it never does, the " +
+            "points are badly placed — spread them out, put them behind geometry, or lower " +
+            "Spawn Min Player Distance / Spawn Safe Half Angle on the SO_NemesisData.", this);
+    }
+
+    /// <summary>
+    /// Grades one spawn point against the player. Order matters: distance is checked first because
+    /// it is the only test whose failure is absolute.
+    /// </summary>
+    private SpawnSafety RateSpawnPoint(Vector3 point, float distance, Transform player)
+    {
+        // No player registered yet — nobody to be seen by, and nothing to be too close to.
+        if (player == null) return SpawnSafety.FarBehindAndOccluded;
+
+        if (distance < MinSpawnDistance()) return SpawnSafety.TooClose;
+
+        if (IsInPlayerView(point, player)) return SpawnSafety.FarButInView;
+
+        return IsHiddenFromPlayer(point, player.position)
+            ? SpawnSafety.FarBehindAndOccluded
+            : SpawnSafety.FarAndBehind;
+    }
+
+    /// <summary>
+    /// Whether the point falls inside the cone the player is facing.
+    ///
+    /// This is the test that <see cref="IsHiddenFromPlayer"/> does not do. Occlusion only answers
+    /// "is there a wall in between", so a point twenty metres down an open corridor the player
+    /// happens to be staring at counts as perfectly hidden — which is how a monster materialises
+    /// in plain sight the instant a puzzle completes.
+    ///
+    /// Measured off the character body rather than the camera: it is what
+    /// <see cref="PlayerStateManager.PlayerBody"/> exposes, it turns to face wherever the player is
+    /// heading, and it costs no Camera.main lookup per candidate. On this third-person rig the two
+    /// track each other closely enough for a spawn test — this decides where a monster appears, not
+    /// whether a shot lands.
+    ///
+    /// Flattened to XZ on purpose. A spawn point one storey up is not "in front of" the player in
+    /// any sense that matters, and letting height into the angle would reject the floor above for
+    /// no reason.
+    /// </summary>
+    private bool IsInPlayerView(Vector3 point, Transform player)
+    {
+        float halfAngle = SpawnSafeHalfAngle();
+        if (halfAngle <= 0f) return false;
+
+        PlayerStateManager manager = PlayerRegistry.Current;
+        Transform facing = manager != null && manager.PlayerBody != null
+            ? manager.PlayerBody
+            : player;
+
+        Vector3 forward = facing.forward;
+        forward.y = 0f;
+
+        Vector3 toPoint = point - player.position;
+        toPoint.y = 0f;
+
+        // Degenerate geometry — the point is directly overhead, or the body has no horizontal
+        // facing. Neither means the point is in view, so neither is treated as one.
+        if (forward.sqrMagnitude < 0.0001f || toPoint.sqrMagnitude < 0.0001f) return false;
+
+        return Vector3.Angle(forward, toPoint) <= halfAngle;
+    }
+
+    /// <summary>Falls back to a constant when no SO_NemesisData is assigned, so a misconfigured
+    /// prefab still refuses to spawn on top of the player instead of losing the floor entirely.</summary>
+    private float MinSpawnDistance()
+    {
+        SO_NemesisData data = stateManager != null ? stateManager.NemesisData : null;
+        return data != null ? data.SpawnMinPlayerDistance : 15f;
+    }
+
+    private float SpawnSafeHalfAngle()
+    {
+        SO_NemesisData data = stateManager != null ? stateManager.NemesisData : null;
+        return data != null ? data.SpawnSafeHalfAngle : 90f;
     }
 
     /// <summary>

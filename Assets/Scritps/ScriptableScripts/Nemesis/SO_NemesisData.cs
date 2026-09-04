@@ -357,6 +357,22 @@ public class SO_NemesisData : ScriptableObject
              "a capture, so the Nemesis does not warp on top of the player it just respawned.")]
     [SerializeField, Min(0f)] private float repositionMinPlayerDistance = 15f;
 
+    [Tooltip("Spawn points closer than this to the player are never used when the Nemesis first " +
+             "spawns in. Reuses the reposition distance above so there is one answer to \"too " +
+             "close\", not two that can drift apart.\n\n" +
+             "This one is a HARD floor: unlike the occlusion and angle tests, it is never relaxed. " +
+             "A spawn that is merely visible is survivable; one that lands in the player's lap is " +
+             "not.")]
+    [SerializeField, Min(0f)] private float spawnMinPlayerDistance = 15f;
+
+    [Tooltip("Half-angle of the cone in front of the player that counts as \"in view\", in " +
+             "degrees. A spawn point inside it is rejected even with clear distance, because " +
+             "occlusion alone does not stop the Nemesis popping into existence down an open " +
+             "corridor the player happens to be facing.\n\n" +
+             "90 = the whole front hemisphere. Lower it to allow spawns closer to the edge of " +
+             "vision; 0 disables the test.")]
+    [SerializeField, Range(0f, 180f)] private float spawnSafeHalfAngle = 90f;
+
     [Header("Player feedback")]
     [Tooltip("Distance at which the proximity vignette starts to show. Independent of the " +
              "vision range: tension has to rise even if the Nemesis has never seen you. " +
@@ -652,6 +668,8 @@ public class SO_NemesisData : ScriptableObject
     public float StuckCheckInterval { get => stuckCheckInterval; set => stuckCheckInterval = value; }
     public float StuckMinDistance { get => stuckMinDistance; set => stuckMinDistance = value; }
     public float RepositionMinPlayerDistance { get => repositionMinPlayerDistance; set => repositionMinPlayerDistance = value; }
+    public float SpawnMinPlayerDistance { get => spawnMinPlayerDistance; set => spawnMinPlayerDistance = value; }
+    public float SpawnSafeHalfAngle { get => spawnSafeHalfAngle; set => spawnSafeHalfAngle = value; }
     public float ProximityRadius { get => proximityRadius; set => proximityRadius = value; }
     public float RouteReverseChance { get => routeReverseChance; set => routeReverseChance = value; }
     public float RouteSkipWaypointChance { get => routeSkipWaypointChance; set => routeSkipWaypointChance = value; }

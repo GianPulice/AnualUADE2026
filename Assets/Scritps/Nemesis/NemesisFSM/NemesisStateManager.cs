@@ -79,6 +79,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private bool isActive;
 
+    /// <summary>Activation ran but nowhere was safe to appear, so the Nemesis is dormant and
+    /// retrying. See TickDeferredSpawn.</summary>
+    private bool awaitingSafeSpawn;
+    private float deferredSpawnTimer;
+
+    /// <summary>Seconds between retries. Each attempt costs a NavMesh path query per spawn point,
+    /// so it is polled at a human pace rather than every frame — the thing it waits for is the
+    /// player walking on or turning round, which takes far longer than this.</summary>
+    private const float DeferredSpawnRetryInterval = 0.5f;
+
     private Transform playerTransform;
     private bool isCaptureResolved;
     private bool hasReceivedRespawnNotification;
@@ -783,7 +793,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Dormant: no senses, no navigation, no proximity vignette. Checked before the pause
         // guard because a paused game and a Nemesis that has not spawned yet are different
         // things, and neither should tick the FSM.
-        if (!isActive) return;
+        if (!isActive)
+        {
+            // Woken but with nowhere safe to appear yet. Nothing else in Update may run:
+            // the senses, the FSM and the proximity vignette all belong to a Nemesis that
+            // is actually in the world, and this one is not in it yet.
+            if (awaitingSafeSpawn) TickDeferredSpawn();
+            return;
+        }
 
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
@@ -870,18 +887,54 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// the protected State dictionary of the shared FSM base, and reaching into that from a
     /// sibling component would give the machine a second owner.
     /// </summary>
+    /// <summary>
+    /// Retries the spawn-in while the Nemesis waits for somewhere safe to appear.
+    ///
+    /// Paused with the game on purpose: the player cannot move or turn while paused, so the answer
+    /// cannot change, and retrying would only burn path queries behind the menu.
+    /// </summary>
+    private void TickDeferredSpawn()
+    {
+        if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+
+        deferredSpawnTimer -= Time.deltaTime;
+        if (deferredSpawnTimer > 0f) return;
+
+        deferredSpawnTimer = DeferredSpawnRetryInterval;
+
+        // Straight back through Activate rather than duplicating its body: the isActive guard at
+        // the top makes it safe to call repeatedly, and it either succeeds outright or puts the
+        // Nemesis back to sleep with awaitingSafeSpawn still set.
+        Activate();
+    }
+
     public void Activate()
     {
         if (isActive) return;
-        isActive = true;
 
+        // Woken before the spawn attempt because the warp goes through the NavMeshAgent, and a
+        // dormant Nemesis has its agent disabled.
         lifecycle.SetDormant(false);
         lifecycle.ApplyMovementTuning();
 
-        // Picks the farthest point outside the player's line of sight and warps there. Done
-        // before entering Patrolling so the first patrol cycle starts from the spawn point and
-        // not from wherever the prefab was sitting.
-        nemesisController?.ChooseSpawnPoint();
+        // Done before entering Patrolling, so the first patrol cycle starts from the spawn point
+        // and not from wherever the prefab was sitting.
+        //
+        // A null means nowhere is safe RIGHT NOW — every spawn point is either too close to the
+        // player, inside their view cone, or standing in the open. That is a "not yet", not a
+        // "never": it clears itself the moment the player walks on or turns round. So the Nemesis
+        // goes back to sleep and tries again, rather than appearing somewhere it should not. See
+        // TickDeferredSpawn.
+        if (nemesisController != null && nemesisController.ChooseSpawnPoint() == null)
+        {
+            lifecycle.SetDormant(true);
+            awaitingSafeSpawn = true;
+            deferredSpawnTimer = 0f;
+            return;
+        }
+
+        isActive = true;
+        awaitingSafeSpawn = false;
 
         // After the warp, or the first stuck sample would be the pre-spawn position and the
         // Nemesis would read as having teleported "without progress" on the next check.

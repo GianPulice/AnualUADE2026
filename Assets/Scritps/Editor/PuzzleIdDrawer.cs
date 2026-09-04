@@ -44,8 +44,13 @@ public class PuzzleIdDrawer : PropertyDrawer
     private const string CustomLabel = "(escribir a mano…)";
 
     /// <summary>Set per-field once the user picks "escribir a mano". Not persisted: it is a view
-    /// mode, not data, and it should reset the next time the inspector is opened fresh.</summary>
-    private static readonly HashSet<string> ManualEntry = new HashSet<string>();
+    /// mode, not data, and it should reset the next time the inspector is opened fresh.
+    ///
+    /// Keyed by (object, propertyPath) rather than by an instance id on purpose: the id
+    /// accessors are a moving target (GetInstanceID is deprecated in favour of GetEntityId),
+    /// and the pair identifies the field just as precisely without depending on either.</summary>
+    private static readonly HashSet<(UnityEngine.Object target, string path)> ManualEntry =
+        new HashSet<(UnityEngine.Object, string)>();
 
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
@@ -57,7 +62,7 @@ public class PuzzleIdDrawer : PropertyDrawer
 
         EditorGUI.BeginProperty(position, label, property);
 
-        string key = property.propertyPath + property.serializedObject.targetObject.GetInstanceID();
+        (UnityEngine.Object, string) key = (property.serializedObject.targetObject, property.propertyPath);
 
         if (ManualEntry.Contains(key))
         {
@@ -101,7 +106,8 @@ public class PuzzleIdDrawer : PropertyDrawer
     /// <summary>Raw text field plus a way back to the dropdown, so the manual mode is never a
     /// one-way door.</summary>
     private static void DrawManualField(Rect position, SerializedProperty property,
-                                        GUIContent label, string key)
+                                        GUIContent label,
+                                        (UnityEngine.Object, string) key)
     {
         const float buttonWidth = 22f;
 

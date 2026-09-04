@@ -24,6 +24,16 @@ public class MovingPlatform : MonoBehaviour
     [SerializeField] private SO_MovingPlatform config;
     private string playerTag = "Player";
 
+    [Header("Boarding")]
+    [Tooltip("Let walking into the cabin start the trip on its own.\n\n" +
+             "OFF by design. The trigger that registers you as a passenger ALSO departed, so " +
+             "simply crossing the cabin sent it away with you: there was no way to walk past the " +
+             "lift, and no decision to ride it. Registering the passenger and starting the trip " +
+             "are now separate -- the first still happens on the trigger, the second only from " +
+             "ElevatorCallPanel (at a landing) or ElevatorRideButton (inside the cabin).\n\n" +
+             "Turn it back on only to reproduce the old behaviour.")]
+    [SerializeField] private bool departOnPlayerEnter = false;
+
     [Header("Auto-return")]
     [Tooltip("When parked at the top with nobody on it, call itself back down to the bottom " +
              "after autoReturnDelay seconds.\n\n" +
@@ -90,6 +100,15 @@ public class MovingPlatform : MonoBehaviour
     public bool IsAvailable => state == State.Idle && claimOwner == null;
 
     /// <summary>
+    /// Whether the PLAYER is standing in the cabin (registered by the boarding trigger).
+    ///
+    /// Deliberately not the same as the private IsOccupied(), which also counts code-driven
+    /// passengers: ElevatorRideButton has to refuse a press coming from someone who is not
+    /// actually aboard, and a Nemesis riding the cabin must not make that button pressable.
+    /// </summary>
+    public bool IsPlayerAboard => passengerRb != null;
+
+    /// <summary>
     /// Reserves the platform for one caller.
     /// </summary>
     /// <returns>false when somebody else already holds it. Re-claiming with the same owner
@@ -151,7 +170,12 @@ public class MovingPlatform : MonoBehaviour
     {
         if (!other.CompareTag(playerTag)) return;
 
+        // Registering the passenger is unconditional: FixedUpdate needs passengerRb to carry the
+        // player along with the cabin, whoever started the trip. Only the DEPARTURE below is
+        // optional -- that separation is the whole point of departOnPlayerEnter.
         passengerRb = other.attachedRigidbody;
+
+        if (!departOnPlayerEnter) return;
 
         if (state == State.Idle)
         {
