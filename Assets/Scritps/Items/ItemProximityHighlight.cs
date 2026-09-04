@@ -97,6 +97,7 @@ public class ItemProximityHighlight : MonoBehaviour
     {
         if (targetRenderer == null) targetRenderer = GetComponent<Renderer>();
         _selfInteractable = GetComponent<IInteractable>() ?? GetComponentInParent<IInteractable>();
+        WarnIfMaterialCannotShowHighlight();
         _propBlock = new MaterialPropertyBlock();
         _currentTint = farTint;
         _currentEmission = farEmission;
@@ -211,5 +212,30 @@ public class ItemProximityHighlight : MonoBehaviour
             _propBlock.SetColor(EmitColorId, _emissionColor);
         }
         targetRenderer.SetPropertyBlock(_propBlock);
+    }
+
+    /// <summary>
+    /// Says so when the material cannot render this highlight at all.
+    ///
+    /// A MaterialPropertyBlock write to a property the shader does not declare is a silent no-op:
+    /// the component runs its lerp on every look and the object never changes. That failure is
+    /// invisible in the inspector, in the profiler and in the console, which is why it gets a line
+    /// of its own here. Tools > Items > Validate Interactable Highlights finds the same thing
+    /// across the whole scene without entering Play mode.
+    /// </summary>
+    private void WarnIfMaterialCannotShowHighlight()
+    {
+        if (targetRenderer == null) return;
+
+        Material material = targetRenderer.sharedMaterial;
+        if (material == null) return;
+
+        if (material.HasProperty(EmissionId) && material.HasProperty(TintId)) return;
+
+        Debug.LogWarning(
+            $"[{nameof(ItemProximityHighlight)}] '{name}' uses material '{material.name}', whose " +
+            "shader has no _TintIntensity / _EmissionIntensity. The proximity highlight will do " +
+            "nothing at all — the property block writes into a property that does not exist. Use " +
+            "ItemPSX_Outline (Materials/Items/) or a material based on it.", this);
     }
 }

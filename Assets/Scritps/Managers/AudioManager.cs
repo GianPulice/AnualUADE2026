@@ -416,6 +416,14 @@ public class AudioManager : Singleton<AudioManager>
         {
             src.spatialBlend = 1f; // 3D
             src.transform.position = position.Value;
+
+            // Authored per clip. Pooled sources are created in code, so without this they
+            // carry Unity's defaults — maxDistance 500, which is audible across the whole
+            // level and makes distance useless as information. Defaults on SO_SoundData
+            // match Unity's, so this changed nothing until a clip opts in.
+            src.rolloffMode = data.Rolloff;
+            src.minDistance = data.MinDistance;
+            src.maxDistance = data.MaxDistance;
         }
         else
         {

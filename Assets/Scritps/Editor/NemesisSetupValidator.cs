@@ -78,6 +78,7 @@ public static class NemesisSetupValidator
         int problems = 0;
 
         problems += ValidateSurfaces(report);
+        problems += ValidateModifierVolumes(report);
         problems += ValidateSensors(report);
         problems += ValidateCameraAndInteraction(report);
         problems += ValidateWaypoints(report);
@@ -85,8 +86,8 @@ public static class NemesisSetupValidator
 
         if (problems == 0)
         {
-            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, sensors, camera, " +
-                      "interaction, waypoints and doors are set up correctly.");
+            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifier volumes, sensors, " +
+                      "camera, interaction, waypoints and doors are set up correctly.");
             return;
         }
 
@@ -301,6 +302,137 @@ public static class NemesisSetupValidator
                           "them. Move them to Props/Ground (Tools > Nemesis > Migrate Prop " +
                           "Layers) or add their layer to Include Layers.");
         return 1;
+    }
+
+    /// <summary>
+    /// Reports NavMeshModifierVolumes that the bake silently throws away, and volumes whose area
+    /// does not do what its name suggests.
+    ///
+    /// <b>This is the check that would have caught the safe-zone bug.</b> All three volumes in the
+    /// level were authored correctly — right size, right area, AffectedAgents on Everything — and
+    /// all three sat on layer Default, which the surface's Include Layers deliberately excludes so
+    /// that ceilings do not bake as walkable roofs. <see cref="NavMeshSurface"/> filters MODIFIER
+    /// VOLUMES through that same mask, not just geometry, so every one of them was dropped without
+    /// a word. The Hub read as a safe zone in the inspector and the Nemesis walked straight in.
+    ///
+    /// Unity reports nothing here by design: a volume that contributes nothing is not an error, it
+    /// is a volume the surface was not asked to collect. That is exactly why it has to be checked
+    /// against the surfaces actually in the scene rather than in isolation.
+    /// </summary>
+    private static int ValidateModifierVolumes(StringBuilder report)
+    {
+        NavMeshModifierVolume[] volumes = FindAll<NavMeshModifierVolume>();
+        if (volumes.Length == 0) return 0;
+
+        NavMeshSurface[] surfaces = FindAll<NavMeshSurface>();
+
+        // No surface at all is already reported by ValidateSurfaces, and saying it twice from here
+        // would just bury the one message that matters.
+        if (surfaces.Length == 0) return 0;
+
+        int problems = 0;
+
+        foreach (NavMeshModifierVolume volume in volumes)
+        {
+            problems += ReportVolumeReachesNoSurface(report, volume, surfaces);
+            problems += ReportVolumeAreaIsNotBlocking(report, volume);
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// A volume only reaches the bake through a surface that collects BOTH its layer and its agent
+    /// type. Failing either is the same silent no-op, so they are reported together with the reason
+    /// spelled out — "it is on the wrong layer" and "it is aimed at another agent type" need
+    /// different fixes.
+    /// </summary>
+    private static int ReportVolumeReachesNoSurface(StringBuilder report,
+                                                    NavMeshModifierVolume volume,
+                                                    NavMeshSurface[] surfaces)
+    {
+        int layerBit = 1 << volume.gameObject.layer;
+
+        bool layerAccepted = false;
+        bool agentAccepted = false;
+
+        foreach (NavMeshSurface surface in surfaces)
+        {
+            bool layerOk = (surface.layerMask.value & layerBit) != 0;
+            bool agentOk = volume.AffectsAgentType(surface.agentTypeID);
+
+            if (layerOk) layerAccepted = true;
+            if (agentOk) agentAccepted = true;
+
+            // Both, on the SAME surface — a volume accepted by one surface's layers and another's
+            // agent type is still collected by neither.
+            if (layerOk && agentOk) return 0;
+        }
+
+        string cause = !layerAccepted
+            ? $"it sits on layer '{LayerMask.LayerToName(volume.gameObject.layer)}', which no " +
+              "NavMeshSurface has in its Include Layers"
+            : !agentAccepted
+                ? "its Affected Agents does not include any agent type baked in this scene"
+                : "no single surface accepts both its layer and its agent type";
+
+        report.AppendLine(
+            $"- NavMeshModifierVolume '{volume.gameObject.name}' does nothing: {cause}. " +
+            "The surface filters modifier volumes through the same Include Layers as geometry, so " +
+            "the volume is dropped from the bake in silence — the area it declares is never " +
+            "applied. Move it onto a layer the surface collects (Props is the usual choice: a " +
+            "volume has no renderer or collider, so nothing else about that layer touches it), " +
+            "then rebake.");
+
+        return 1;
+    }
+
+    /// <summary>
+    /// A volume set to a high-cost area rather than Not Walkable does not block anything, and its
+    /// name usually claims otherwise.
+    ///
+    /// Cost only makes a route more expensive. Where it is the only route, or where the detour
+    /// costs more than the penalty, the agent walks through regardless — so a "safe zone" built on
+    /// cost is not safe, it is merely unpopular. Reported rather than fixed: a high-cost area is
+    /// perfectly legitimate for steering the Nemesis away from somewhere it is still allowed to go.
+    /// </summary>
+    private static int ReportVolumeAreaIsNotBlocking(StringBuilder report,
+                                                     NavMeshModifierVolume volume)
+    {
+        const int notWalkableArea = 1;
+
+        if (volume.area == notWalkableArea) return 0;
+
+        float cost = NavMesh.GetAreaCost(volume.area);
+        if (cost < HighAreaCostThreshold) return 0;
+
+        report.AppendLine(
+            $"- NavMeshModifierVolume '{volume.gameObject.name}' uses area " +
+            $"'{AreaName(volume.area)}' at cost {cost:0.#}, which does NOT block anything. A cost " +
+            "only makes the route expensive: with no alternative, or with a detour dearer than the " +
+            "penalty, the agent walks through anyway. If this is meant to be a place the Nemesis " +
+            "can never enter, set the area to 'Not Walkable'. If it is meant to be somewhere it " +
+            "merely avoids, ignore this.");
+
+        return 1;
+    }
+
+    /// <summary>Cost above which an area reads as an attempt to block rather than to steer.
+    /// Walkable is 1 and Jump is 3; anything an order of magnitude past that was authored by
+    /// someone who wanted a wall.</summary>
+    private const float HighAreaCostThreshold = 20f;
+
+    /// <summary>The area's name from the Navigation settings, falling back to its index so the
+    /// message still identifies it when the area was never named.</summary>
+    private static string AreaName(int area)
+    {
+        string[] names = NavMesh.GetAreaNames();
+        foreach (string name in names)
+        {
+            if (NavMesh.GetAreaFromName(name) == area) return name;
+        }
+
+        return $"#{area}";
     }
 
     private static int ValidateSensors(StringBuilder report)

@@ -255,6 +255,12 @@ public void CloseDoor()
 
 private IEnumerator AnimateOpen()
     {
+        // Emitted HERE and not in OpenDoor, because AnimateOpen is the single point both
+        // routes pass through: the player's OpenDoor and the Nemesis's TryOpenForNemesis.
+        // Hung off OpenDoor it would stay silent for the monster, which is the one case
+        // the sound exists for.
+        PlayDoorSound(doorData != null ? doorData.OpenSoundId : SO_DoorData.DefaultOpenSoundId);
+
         yield return AnimateHinge(hingeClosedLocalRot,
                                   hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f));
         isOpen = true;
@@ -263,6 +269,8 @@ private IEnumerator AnimateOpen()
 
 private IEnumerator AnimateClose()
     {
+        PlayDoorSound(doorData != null ? doorData.CloseSoundId : string.Empty);
+
         yield return AnimateHinge(hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f),
                                   hingeClosedLocalRot);
         isOpen = false;
@@ -478,5 +486,21 @@ private void CacheClosedRotation()
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Plays a door sound at the door's own position, so it is 3D and the player can tell which
+    /// door and which direction.
+    ///
+    /// Silent when the id is blank or the AudioManager has no such sound: a door with no clip
+    /// authored yet must still open. The audio is looked up by id through the manager rather than
+    /// cached on this component so a re-imported clip is picked up without touching the prefab —
+    /// the same reasoning as the locked-door sound above.
+    /// </summary>
+    private void PlayDoorSound(string soundId)
+    {
+        if (string.IsNullOrWhiteSpace(soundId) || !AudioManager.Exists) return;
+
+        AudioManager.Instance.PlaySFX(soundId, transform.position);
     }
 }

@@ -611,6 +611,8 @@ All under `Tools/`:
 | `Nemesis/Migrate Prop Layers` | Moves configured Hierarchy subtrees onto Props/Ground |
 | `Audio/Create or Update Master Mixer` | Builds the 8-bus mixer |
 | `Audio/Bake Ambience Texture Clips` | Generates the noise and drone clips (layers 3 and 4 need no sourced audio) |
+| `Nemesis/Build Nemesis Test Scene` | Generates `Scenes/TestScenes/NemesisTestbed.unity`: correct layers throughout, plus one deliberately BROKEN modifier volume so working and broken sit side by side. Does **not** bake |
+| `Items/Validate Interactable Highlights` | Finds interactables with no proximity highlight, and highlights whose material has no `_TintIntensity` / `_EmissionIntensity` — a silent no-op the inspector cannot show |
 
 Custom inspectors live in `Scritps/Editor/`: `SO_MovementEditor` and `SO_CameraConfigEditor` draw
 to-scale diagrams and live verdicts on top of `PlayerDiagramGUI`, a small shared IMGUI kit
@@ -737,6 +739,22 @@ Handled purely on the NavMesh: a `NavMeshModifierVolume` over the Hub with its a
 route, it does not stop it entering if that route is the only one, or if pathfinding decides the
 detour is worth it). Not Walkable means the NavMeshAgent physically cannot path there, full stop.
 
+**The volume must sit on a layer the surface collects.** `NavMeshSurface` filters modifier volumes
+through the same `Include Layers` mask as geometry, so a volume on `Default` — which this project
+excludes on purpose, for the ceilings — is dropped from the bake **without a word**. That is exactly
+how all three volumes in `WIRED_Zona1_Blockout` ended up doing nothing while looking correct in the
+inspector, and the Nemesis walked into the Hub. They live on `Props` now: a volume has no renderer
+and no collider, so nothing else that layer means can touch it. `Tools/Nemesis/Validate Navigation
+Setup` reports this case, and the one where a volume's `Affected Agents` excludes every agent type
+baked in the scene.
+
+**Area 3 is `NemesisAvoid` (cost 99), and it blocks nothing.** It was called `NemesisBlocked`, which
+is what the name problem was: a cost only makes a route expensive, so a "safe zone" built on it is
+not safe, merely unpopular. Nothing in the project uses it — the safe zones are `Not Walkable`. It is
+kept rather than deleted because NavMesh areas serialise by index, so removing index 3 would silently
+renumber `Forklift` into it. The validator warns when a volume uses a high-cost area, in case someone
+reaches for it expecting a wall.
+
 There is no C# side to this rule. An earlier version gated it in code (suppressing the Nemesis's
 sensors while the player stood in a trigger volume), which needed careful handling in
 `NemesisStateManager`/`NemesisChasingState`/`NemesisInvestigatingState` to avoid the FSM
@@ -845,7 +863,18 @@ The systems below are **implemented but not connected to anything**. Read this b
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
 - **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
-- **Audio is nearly silent.** Only two gameplay sounds route through `AudioManager`: `PickUpInteractable` and the elevator call panel. No footsteps, no UI audio. `NemesisAudio` and `NemesisChaseMusic` are built and need their clips and scene wiring; the **ambience system** (`Scritps/Ambience/`) is built but ships with placeholder clips.
+- **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
+  per-category `pickupSoundId` on `SO_ItemCategoryConfig` when its own field is empty — which it is
+  on every prefab, so before that every pickup in the game was silent. `DoorInteractable` emits from
+  `AnimateOpen`/`AnimateClose`, the single point both the player's `OpenDoor` and the Nemesis's
+  `TryOpenForNemesis` pass through, so **hearing the monster open a door is a real tell**; hung off
+  `OpenDoor` it would have stayed silent for the one case it exists for. `SO_SoundData` now carries
+  `minDistance` / `maxDistance` / `rolloff`, applied by `PlayInternal` for positioned sounds — pooled
+  sources are created in code and otherwise inherit Unity's `maxDistance` of 500, which is audible
+  across the level and makes distance useless as information. Defaults match Unity's, so no existing
+  clip changed. Still missing: footsteps, UI audio, and clips for `NemesisAudio` /
+  `NemesisChaseMusic`; the **ambience system** (`Scritps/Ambience/`) is built but ships with
+  placeholder clips.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
 - **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. `PlayerHiddenState` is still inert (no collider/visibility change) and the `R` (hidden) and `Y` (disabled) debug keys are still live in `PlayerStateManager.InputUpdate`; `R` goes away when `HidingSpotInteractable` lands.

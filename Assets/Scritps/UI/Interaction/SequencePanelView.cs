@@ -57,8 +57,9 @@ public class SequencePanelView : BaseScreenView
     /// <summary>Raised when the user clicks the UI's close button.</summary>
     public event Action OnCloseClicked;
 
-    // Keys by id. The position in the grid no longer matches the id: the keypad is laid out
-    // bottom-up (7 8 9 / 4 5 6 / 1 2 3 / 0) and has blank cells in between.
+    // Keys by id, never by position in the grid: the keypad is laid out
+    // top-down (1 2 3 / 4 5 6 / 7 8 9 / 0) with blank cells in between, so the Nth child is not
+    // the key labelled N. Reordering the layout therefore cannot break the puzzle.
     private readonly Dictionary<int, Button> buttonsById = new Dictionary<int, Button>();
     // Everything we instantiate under the grid — keys and blank cells alike — for teardown.
     private readonly List<GameObject> spawnedCells = new List<GameObject>();
@@ -164,16 +165,19 @@ public class SequencePanelView : BaseScreenView
     }
 
     // ── Internals ───────────────────────────────────────────────────────────
-
     /// <summary>
-    /// Lays out the keys the way a physical keypad reads: the numbers climb from the bottom
-    /// row up (1 2 3 at the bottom, 7 8 9 at the top) and the 0 sits alone underneath,
-    /// centred below the 2.
+    /// Lays out the keys the way a phone keypad reads: the numbers descend from the top row down
+    /// (1 2 3 at the top, 7 8 9 at the bottom) and the 0 sits alone underneath, centred below
+    /// the 8.
     ///
-    /// The GridLayoutGroup fills left to right and top to bottom, so the rows are emitted in
-    /// reverse and the gaps — the tail of an incomplete top row, and the space to the left of
-    /// the 0 — are filled with blank cells. Without them the grid would close the gaps and
-    /// pull the next key into the wrong column.
+    /// This is the order playtest asked for. It is the opposite of a calculator or a numpad, where
+    /// 1 is the BOTTOM-left key — worth knowing, because the two are easy to confuse by name and
+    /// the code used to emit the other one.
+    ///
+    /// The GridLayoutGroup fills left to right and top to bottom, which is the same direction the
+    /// ids run, so the rows are emitted in order. The gaps — the tail of an incomplete last row,
+    /// and the space to the left of the 0 — are filled with blank cells. Without them the grid
+    /// would close the gaps and pull the next key into the wrong column.
     /// </summary>
     private void BuildButtons(int count)
     {
@@ -191,13 +195,13 @@ public class SequencePanelView : BaseScreenView
         int columns = GetGridColumns();
         int rows    = Mathf.CeilToInt(count / (float)columns);
 
-        for (int row = rows - 1; row >= 0; row--)
+        for (int row = 0; row < rows; row++)
         {
             for (int col = 0; col < columns; col++)
             {
                 int buttonId = row * columns + col + 1;
                 if (buttonId <= count) SpawnKey(buttonId);
-                else                   SpawnBlankCell();   // incomplete top row
+                else                   SpawnBlankCell();   // tail of the incomplete last row
             }
         }
 

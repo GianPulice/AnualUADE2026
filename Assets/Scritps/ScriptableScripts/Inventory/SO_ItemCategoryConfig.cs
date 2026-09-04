@@ -54,6 +54,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
             SelectedBGColor    = HexToColor("#A62222"),
             GroupLabel         = "// KEYS",
             TagLabel           = "KEY",
+            pickupSoundId      = "sfx_interaction_key",
             // §4.4 Color Spec — ItemPSX 3D tint
             shaderTintColor    = HexToColor("#37474F"),
             shaderEmissionColor = Color.black,
@@ -83,6 +84,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
             SelectedBGColor    = HexToColor("#2424B3"),
             GroupLabel         = "// NOTES",
             TagLabel           = "DOC",
+            pickupSoundId      = "sfx_interaction_nota",
             shaderTintColor    = HexToColor("#263238"),
             shaderEmissionColor = Color.black,
         };
@@ -148,6 +150,13 @@ public struct CategoryVisuals
     [Header("UI")]
     public string GroupLabel;
     public string TagLabel;
+
+    [Header("Audio")]
+    [Tooltip("SO_SoundData played when an item of this category is picked up, unless the " +
+             "PickUpInteractable names one of its own. Per category rather than per item " +
+             "because a key and a note are meant to sound different, but two keys are not.")]
+    [SoundId]
+    public string pickupSoundId;
 
     [Header("3D Shader (ItemPSX) — §4.4 Color Spec")]
     [Tooltip("Tint color written to _TintColor of the ItemPSX shader.")]
