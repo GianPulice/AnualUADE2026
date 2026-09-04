@@ -67,29 +67,38 @@ MonoBehaviour:
   - label: Pink Noise
     clip: {fileID: 8300000, guid: 16512a82ec5151248ba610878bedd57f, type: 3}
     bus: 2
-    level: 0.08
+    level: 0.03
     relativeToBed: 1
-    driftMultiplierRange: {x: 0, y: 0}
-    driftIntervalRange: {x: 0, y: 0}
-    driftTravelRange: {x: 0, y: 0}
+    driftMultiplierRange: {x: 0.55, y: 1.45}
+    driftIntervalRange: {x: 35, y: 100}
+    driftTravelRange: {x: 30, y: 80}
+    comfortGated: 0
+  - label: Brown Noise
+    clip: {fileID: 8300000, guid: 0a8ce2bbf8369fc4b8d48ddb7c9fd97e, type: 3}
+    bus: 2
+    level: 0.05
+    relativeToBed: 1
+    driftMultiplierRange: {x: 0.55, y: 1.45}
+    driftIntervalRange: {x: 30, y: 90}
+    driftTravelRange: {x: 25, y: 70}
     comfortGated: 0
   - label: Sub 17Hz
     clip: {fileID: 8300000, guid: 6b598d8b9347f6347892e9c56c825ea0, type: 3}
-    bus: 0
+    bus: 3
     level: 0.5
     relativeToBed: 0
-    driftMultiplierRange: {x: 0, y: 0}
-    driftIntervalRange: {x: 0, y: 0}
-    driftTravelRange: {x: 0, y: 0}
+    driftMultiplierRange: {x: 0.55, y: 1.45}
+    driftIntervalRange: {x: 30, y: 90}
+    driftTravelRange: {x: 25, y: 70}
     comfortGated: 1
   - label: Sub 32Hz
     clip: {fileID: 8300000, guid: b5321d0c5047d7044bff879d69213e38, type: 3}
-    bus: 0
+    bus: 3
     level: 0.55
     relativeToBed: 1
-    driftMultiplierRange: {x: 0, y: 0}
-    driftIntervalRange: {x: 0, y: 0}
-    driftTravelRange: {x: 0, y: 0}
+    driftMultiplierRange: {x: 0.55, y: 1.45}
+    driftIntervalRange: {x: 40, y: 110}
+    driftTravelRange: {x: 35, y: 90}
     comfortGated: 1
   startupFadeSeconds: 6
   comfortRampSeconds: 3

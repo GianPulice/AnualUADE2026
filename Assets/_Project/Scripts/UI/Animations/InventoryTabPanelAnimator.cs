@@ -73,7 +73,9 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     [SerializeField] private LeanTweenType closeEase = UITweenDefaults.PanelCloseEase;
 
     [Header("Options")]
-    [Tooltip("The inventory opens with Time.timeScale = 0, so this should normally be true.")]
+    [Tooltip("Dejalo en true. El inventario ya no congela el juego, pero el menú de pausa sí " +
+             "puede abrirse encima suyo, y una animación en tiempo escalado se queda clavada a " +
+             "mitad de camino cuando eso pasa.")]
     [SerializeField] private bool ignoreTimeScale = true;
     [Tooltip("Collapse and hide (SetActive false) the panel in Awake so it starts closed.")]
     [SerializeField] private bool startHidden = true;

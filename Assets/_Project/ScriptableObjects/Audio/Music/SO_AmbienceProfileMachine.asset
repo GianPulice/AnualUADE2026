@@ -15,8 +15,7 @@ MonoBehaviour:
   displayName: Amb_Machine
   gizmoColor: {r: 0.3209643, g: 0.9019608, b: 0.29803923, a: 1}
   bedTracks:
-  - {fileID: 8300000, guid: b939487d057760a4184d55506dcf54c5, type: 3}
-  - {fileID: 8300000, guid: b0b842c1a52fc7e46b974c366ac2f189, type: 3}
+  - {fileID: 8300000, guid: d712283b4a771fb4ebda70fe1910e8d6, type: 3}
   bedVolume: 0.4
   bedTrackBalance: 0.7
   transitionDuration: 2.5

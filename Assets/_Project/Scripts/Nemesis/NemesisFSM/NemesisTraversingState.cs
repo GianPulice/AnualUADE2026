@@ -78,17 +78,26 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
             if (nemesisStateManager.TryGetBelief(out Vector3 fresh)) believedTarget = fresh;
         }
 
-        // The agent is switched off for the whole ride — NemesisElevatorUser owns the Nemesis
-        // from the moment it steps onto the link until it is warped off at the far landing. There
-        // is nothing to ask of a disabled agent, and asking logs an error per frame.
+        // The agent is switched off for the ride itself — NemesisElevatorUser owns the Nemesis
+        // from the moment it steps onto the link until it is put back down at the far landing.
+        // There is nothing to ask of a disabled agent, and asking logs an error per frame.
         if (!nemesisStateManager.IsAgentReady) return;
 
-        // Standing on the link means NemesisElevatorUser is already driving: it has stopped the
-        // agent and is waiting for the cabin. IsAgentReady does NOT cover that window - the agent
-        // is only switched off once boarding starts, and the wait before it can run twenty
-        // seconds - so without this the destination was re-issued every frame at a point on the
-        // far side of the shaft, repathing a stopped agent into the wall it is standing against.
-        if (nemesisStateManager.NavAgent.isOnOffMeshLink) return;
+        // A CROSSING IN FLIGHT OWNS THE BODY, and for most of it the agent is alive — waiting for
+        // the cabin, walking aboard, walking off. Two separate bugs came out of writing a
+        // destination into that window, and they are worth keeping named because the second one
+        // only appeared once the first was fixed:
+        //
+        //   - Standing on the link, stopped, waiting for the cabin: an agent asked to keep going
+        //     while it sits on a link it may not auto-traverse grinds along the link direction,
+        //     which points straight through the shaft wall.
+        //   - Walking aboard: NemesisElevatorUser steers the agent to a point on the cabin floor,
+        //     and a destination re-issued here every frame overwrites it — the Nemesis walks back
+        //     out of the lift it was boarding, one frame at a time.
+        //
+        // Asked as "is something else driving", not as "is it on a link", because the link is only
+        // one of the several stages where the answer is yes.
+        if (nemesisStateManager.IsUsingElevator) return;
 
         nemesisStateManager.NavAgent.destination = believedTarget;
     }

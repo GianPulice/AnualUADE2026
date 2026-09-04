@@ -66,8 +66,20 @@ public class NemesisElevatorLink : MonoBehaviour
     [Tooltip("Width of the link. Slightly more than the agent radius is enough.")]
     [SerializeField, Min(0.1f)] private float linkWidth = 1.5f;
 
+    [Header("Cabin floor")]
+    [Tooltip("Give the cabin a NavMesh of its own, so the Nemesis WALKS aboard instead of being " +
+             "interpolated onto it.\n\n" +
+             "On, the cabin floor is real ground: it is pathed onto around the shaft wall like " +
+             "any other floor, and a player standing in a parked cabin can be chased and grabbed " +
+             "there with no special case. Off, boarding falls back to a straight line from the " +
+             "landing to the ride point — which passes through the landing barrier, because a " +
+             "straight line is what it is.\n\n" +
+             "Turn it off only to compare against the old behaviour.")]
+    [SerializeField] private bool giveCabinItsOwnNavMesh = true;
+
     private NavMeshLink link;
     private bool isUsable;
+    private ElevatorCabinNavMesh cabinNav;
 
     /// <summary>
     /// Every usable elevator currently in the scene.
@@ -101,6 +113,28 @@ public class NemesisElevatorLink : MonoBehaviour
     public Transform BottomLanding => bottomLanding;
     public Transform TopLanding => topLanding;
 
+    /// <summary>The cabin's own NavMesh, or null when this shaft does not have one. See
+    /// <see cref="ElevatorCabinNavMesh"/>.</summary>
+    public ElevatorCabinNavMesh CabinNav => cabinNav;
+
+    /// <summary>
+    /// Takes the shaft link out of pathfinding, or puts it back.
+    ///
+    /// <see cref="NemesisElevatorUser"/> switches it off for the duration of a crossing it is
+    /// already performing, and that is not tidiness: an agent standing on a link it may not
+    /// auto-traverse cannot be steered anywhere — asked to keep going, it grinds along the link
+    /// direction, which points through the shaft wall. Removing the link is what hands the body
+    /// back to ordinary pathfinding so the walk aboard can be a walk.
+    ///
+    /// Through <c>activated</c> rather than <c>enabled</c>: it is one call into the navigation
+    /// system, it leaves the component's own bookkeeping (and the endpoints it tracks) untouched,
+    /// and it cannot be confused with the component having been switched off by a designer.
+    /// </summary>
+    public void SetShaftLinkActive(bool active)
+    {
+        if (link != null) link.activated = active;
+    }
+
     /// <summary>
     /// Whether the elevator is set up correctly and can be used. <see cref="NemesisElevatorUser"/>
     /// checks this before starting a traversal: with it false, the link is treated as a plain one
@@ -133,6 +167,25 @@ public class NemesisElevatorLink : MonoBehaviour
 
         ConfigureLink();
         CalibrateRideDistance();
+        EnsureCabinNavMesh();
+    }
+
+    /// <summary>
+    /// Adds the cabin's NavMesh component when the shaft is asking for one.
+    ///
+    /// Auto-added, unlike <see cref="NemesisElevatorUser"/> which deliberately is not, because the
+    /// two are different kinds of thing. That one is a feature with scene wiring behind it, and a
+    /// level with no lift should not silently grow a monster that uses one. This one has NO wiring:
+    /// it derives everything it needs from the cabin's collider and the two landings, which this
+    /// component has already validated. Requiring it to be dragged on by hand would mean every
+    /// existing elevator prefab keeps the wall-crossing boarding until someone remembers.
+    /// </summary>
+    private void EnsureCabinNavMesh()
+    {
+        if (!giveCabinItsOwnNavMesh) return;
+
+        cabinNav = GetComponent<ElevatorCabinNavMesh>();
+        if (cabinNav == null) cabinNav = gameObject.AddComponent<ElevatorCabinNavMesh>();
     }
 
     /// <summary>

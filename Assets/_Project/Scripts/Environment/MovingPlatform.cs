@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Freight elevator / shuttle platform. The player steps on, StartDelay passes, it travels
@@ -87,6 +88,32 @@ public class MovingPlatform : MonoBehaviour
     /// <summary>Passengers with no Rigidbody that ride along. They receive the same delta as the
     /// platform, applied straight to their Transform.</summary>
     private readonly List<Transform> extraPassengers = new List<Transform>();
+
+    /// <summary>
+    /// What the cabin picked up by itself as the trip set off, as opposed to what asked to board
+    /// through <see cref="AddPassenger"/>.
+    ///
+    /// Kept apart so a trip puts down exactly what it picked up and never a passenger somebody else
+    /// is managing: <see cref="NemesisElevatorUser"/> holds its own registration across the whole
+    /// crossing and takes it off itself, and a trip that helpfully removed it would drop the
+    /// monster halfway up the shaft.
+    /// </summary>
+    private readonly List<NavMeshAgent> autoRiders = new List<NavMeshAgent>();
+
+    /// <summary>The cabin's own floor, used to find who is standing on it. Cached: the sweep runs
+    /// on departure, which is not a moment to go looking through the hierarchy.</summary>
+    private Collider cabinFloor;
+
+    private static readonly Collider[] RiderProbe = new Collider[8];
+
+    /// <summary>How far above the cabin floor to look for riders. A little over agent height, so a
+    /// body standing on the floor is caught and one on the storey above is not.</summary>
+    private const float RiderProbeHeight = 2.5f;
+
+    /// <summary>How far to go looking for walkable ground when putting a carried agent down. Wide
+    /// enough to reach the landing from inside the cabin, which is the answer whenever the cabin's
+    /// own NavMesh has not come back yet.</summary>
+    private const float RiderRecoveryRadius = 3f;
 
     /// <summary>Parked, top or bottom, ready to be called.</summary>
     public bool IsIdle => state == State.Idle;
@@ -295,6 +322,116 @@ public class MovingPlatform : MonoBehaviour
         goingUp = !goingUp;
     }
 
+    private void Awake() => cabinFloor = FindCabinFloor();
+
+    /// <summary>The largest non-trigger collider on the cabin: its floor. Triggers are skipped
+    /// because the boarding trigger and the ride button both sit inside the same space.</summary>
+    private Collider FindCabinFloor()
+    {
+        Collider best = null;
+        float bestVolume = 0f;
+
+        foreach (Collider candidate in GetComponentsInChildren<Collider>())
+        {
+            if (candidate.isTrigger) continue;
+
+            Vector3 size = candidate.bounds.size;
+            float volume = size.x * size.y * size.z;
+            if (volume <= bestVolume) continue;
+
+            best = candidate;
+            bestVolume = volume;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Picks up whatever is standing in the cabin as the trip sets off.
+    ///
+    /// It exists because the cabin floor became walkable ground (see
+    /// <see cref="ElevatorCabinNavMesh"/>). The Nemesis can now be standing in the lift without
+    /// having asked for a ride — it chased somebody in there, or went to look at a noise. Before
+    /// that, the only way onto the cabin was a traversal, which registers itself as a passenger;
+    /// now a player can press a call panel with a monster aboard that nothing has told the platform
+    /// about, and the cabin leaves from under it. What that looks like is a Nemesis standing in
+    /// mid-air, off the NavMesh, until the stuck watchdog notices and warps it away.
+    ///
+    /// Anything with a NavMeshAgent, deliberately, and not "anything on the Nemesis layer": the
+    /// rule being expressed is "agents ride the lift". The player is the one thing that must NOT be
+    /// caught here — they are carried by their Rigidbody through the boarding trigger, and would
+    /// otherwise be moved twice per fixed step — and they have no agent.
+    /// </summary>
+    private void CollectLooseRiders()
+    {
+        if (cabinFloor == null) return;
+
+        Bounds bounds = cabinFloor.bounds;
+
+        Vector3 center = new Vector3(bounds.center.x,
+                                     bounds.max.y + RiderProbeHeight * 0.5f,
+                                     bounds.center.z);
+        Vector3 half = new Vector3(bounds.extents.x, RiderProbeHeight * 0.5f, bounds.extents.z);
+
+        int found = Physics.OverlapBoxNonAlloc(center, half, RiderProbe, Quaternion.identity,
+                                               ~0, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < found; i++)
+        {
+            NavMeshAgent agent = RiderProbe[i].GetComponentInParent<NavMeshAgent>();
+
+            // A disabled agent is already being driven by something else — a traversal in flight,
+            // a dormant Nemesis — and switching it back on at the far end would be this component
+            // taking over a body it does not own.
+            if (agent == null || !agent.enabled) continue;
+
+            Transform rider = agent.transform;
+
+            // Already aboard on purpose: whoever put it there owns taking it off again.
+            if (extraPassengers.Contains(rider)) continue;
+
+            AddPassenger(rider);
+            autoRiders.Add(agent);
+
+            // Off for the ride, exactly as NemesisElevatorUser does for a crossing it drives, and
+            // for the same reason: a live agent keeps its own internal position and drags the body
+            // straight back to it, so the carry below would do nothing at all.
+            agent.enabled = false;
+        }
+    }
+
+    /// <summary>Puts down exactly what <see cref="CollectLooseRiders"/> picked up. Run on arrival
+    /// and BEFORE the occupancy test, so a cabin whose only passenger was picked up this way
+    /// releases itself instead of sitting in WaitingForExit waiting to be vacated by somebody who
+    /// never asked to board.</summary>
+    private void DropLooseRiders()
+    {
+        for (int i = 0; i < autoRiders.Count; i++)
+        {
+            NavMeshAgent agent = autoRiders[i];
+            if (agent == null) continue;
+
+            RemovePassenger(agent.transform);
+            agent.enabled = true;
+
+            // Put down on whatever is walkable, and the cabin's own floor is not guaranteed to be
+            // one of the options yet: ElevatorCabinNavMesh restores it from Update, and this runs
+            // in FixedUpdate. Warping to the landing instead is a metre and a half of teleport in
+            // the worst case; leaving the agent enabled and off the mesh is a Nemesis that never
+            // moves again, or one that snaps back down the shaft the moment its floor reappears
+            // under a stale internal position.
+            if (agent.Warp(agent.transform.position) && agent.isOnNavMesh) continue;
+
+            if (NavMesh.SamplePosition(agent.transform.position, out NavMeshHit hit,
+                                       RiderRecoveryRadius, NavMesh.AllAreas))
+            {
+                agent.Warp(hit.position);
+            }
+        }
+
+        autoRiders.Clear();
+    }
+
     private void FixedUpdate()
     {
         if (config == null) return;
@@ -312,6 +449,10 @@ public class MovingPlatform : MonoBehaviour
             {
                 state = State.Moving;
                 traveled = 0f;
+
+                // At departure and not on arrival: this is the last moment anything standing in
+                // the cabin is still standing on something.
+                CollectLooseRiders();
             }
             return;
         }
@@ -354,6 +495,9 @@ public class MovingPlatform : MonoBehaviour
 
         if (traveled >= rideDistance)
         {
+            // Before the occupancy test on purpose — see DropLooseRiders.
+            DropLooseRiders();
+
             bool wasOccupied = IsOccupied();
 
             state = State.WaitingForExit;

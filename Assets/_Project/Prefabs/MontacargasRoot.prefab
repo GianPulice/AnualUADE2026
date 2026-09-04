@@ -179,7 +179,7 @@ Transform:
   m_GameObject: {fileID: 5607330975732219363}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.19079971, y: 5.638, z: 2.254364}
+  m_LocalPosition: {x: -0.19079971, y: 5.638, z: 2.26}
   m_LocalScale: {x: 4.570387, y: 1, z: 4.4542828}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -464,7 +464,8 @@ GameObject:
   - component: {fileID: 4851339136926292095}
   - component: {fileID: 8312962350523370375}
   - component: {fileID: 7383323924871355308}
-  m_Layer: 6
+  - component: {fileID: 998012208471940762}
+  m_Layer: 3
   m_Name: Montacargas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -646,3 +647,24 @@ MonoBehaviour:
   ridePoint: {fileID: 7543414350709273888}
   traversalCost: 5
   linkWidth: 1.5
+  giveCabinItsOwnNavMesh: 1
+--- !u!114 &998012208471940762
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7791698240898696526}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b3fca8de9ab1584fb33ff50265dfeeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ElevatorCabinNavMesh
+  agentTypeID: 0
+  geometryLayers:
+    serializedVersion: 2
+    m_Bits: 8
+  bakeHeadroom: 3
+  minRegionArea: 1.5
+  boardingInset: 0.9
+  boardingLinkWidth: 1.5

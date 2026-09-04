@@ -6,7 +6,6 @@ using UnityEngine;
 ///
 /// Responsibilities:
 ///   - Handle input (Tab opens, ESC/Tab closes, layer stack)
-///   - Control Time.timeScale on open/close
 ///   - Enable/disable the mouse cursor
 ///   - Orchestrate communication between Model and Views through InventoryEvents
 ///   - Keep the stack of active layers (inventory -> dialog -> ESC)
@@ -32,7 +31,14 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     public string ModalId => "Inventory";
     public bool ConsumesEscape => true;   // ESC closes inventory layers if pause is NOT on top
     public bool BlocksPause   => false;   // Pause is a global overlay: it can open on top of the inventory
-    public bool PausesGame    => true;
+
+    // The world keeps running while you read your inventory. Checking your bag is not a time-out:
+    // freezing everything turned it into a free pause the player could take mid-chase, and a
+    // survival horror that stops the monster whenever you open a menu has no tension in the menu.
+    // Player INPUT is still blocked while it is open — that comes from the modal stack
+    // (PauseManager.IsGameplayInputBlocked), not from timeScale, so nothing here has to change for
+    // it. Module timers and the Nemesis carry on, which is the point.
+    public bool PausesGame    => false;
     // RequestClose handles ALL inventory layers (discard dialog -> doc -> selection -> inventory).
     public void RequestClose() => HandleCancelInput();
 
@@ -126,10 +132,11 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         }
         else
         {
-            // Not while captured: opening a menu here sets Time.timeScale = 0, which used to
-            // freeze the Nemesis mid-capture (it could not finish its grace period and go back
-            // to Patrolling) for as long as the player kept the inventory open. The capture
-            // sequence has to run uninterrupted.
+            // Not while captured. The original reason was that opening a menu froze the Nemesis
+            // mid-capture — it could not finish its grace period and get back to Patrolling — for
+            // as long as the inventory stayed open; that one is gone now that the inventory does
+            // not touch timeScale. The guard stays for the plainer reason: being grabbed is not a
+            // moment the player gets to go rummaging through their bag.
             if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsDisabled) return;
 
             // Only opens if there is no other modal on top (pause, panel, doc...).
@@ -142,7 +149,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     /// <summary>
     /// Opens the inventory:
-    ///   - Time.timeScale = 0 (pauses gameplay)
     ///   - Cursor enabled and visible
     ///   - List refreshed
     ///   - First item auto-selected if there are any
@@ -168,7 +174,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     /// <summary>
     /// Closes the inventory:
-    ///   - Time.timeScale = 1 (resumes gameplay)
     ///   - Cursor disabled (back to the gameplay state)
     ///   - Stop the recording audio if it was playing
     /// </summary>

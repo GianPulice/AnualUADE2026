@@ -272,6 +272,95 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public void SetGait(EGait gait, float speed)
     {
         if (navAgent != null) navAgent.speed = speed;
+
+        currentGait = gait;
+
+        // A fresh order gets the benefit of the doubt: the body has not had a frame to move yet,
+        // and starting the still-timer from where the last order left it would blank the first
+        // steps of every walk that follows a pause.
+        stillTimer = 0f;
+
+        ApplyGaitToAnimator(gait);
+    }
+
+    /// <summary>How the Nemesis was last TOLD to move. What it is actually doing is
+    /// <see cref="TickLocomotionAnimation"/>'s business.</summary>
+    public EGait CurrentGait => currentGait;
+
+    private EGait currentGait = EGait.Idle;
+    private Vector3 lastGaitSamplePosition;
+    private float stillTimer;
+
+    /// <summary>Flat metres per second below which the body counts as standing still. Well under
+    /// the slowest authored speed, so it only ever catches a body that is not moving at all.
+    /// </summary>
+    private const float GaitMotionEpsilon = 0.05f;
+
+    /// <summary>How long it has to stand still before the legs stop. Short enough not to read as
+    /// lag, long enough that a single frame of contact with geometry does not flicker the
+    /// animation.</summary>
+    private const float GaitStillGrace = 0.15f;
+
+    /// <summary>A frame's displacement above this is a teleport, not a stride: a Warp, a spawn, or
+    /// the lift dropping the body at the far landing. Sampling through one would report a sprint
+    /// for a frame and, worse, re-arm the walk right after a warp into a standstill.</summary>
+    private const float GaitTeleportStep = 1f;
+
+    /// <summary>
+    /// Makes the animation agree with the body, once per frame.
+    ///
+    /// <see cref="SetGait"/> says what the Nemesis is TRYING to do; this says what it is actually
+    /// doing. They come apart whenever something outside the NavMeshAgent owns the body — the
+    /// freight elevator's cabin wait, a door being swept open, an agent stopped against geometry —
+    /// and the result is the same every time: a monster sprinting on the spot. Nothing could catch
+    /// it before, because the gait is an order and orders are not observations.
+    ///
+    /// Measured FLAT on purpose. The lift ride is five metres of pure vertical travel with the
+    /// body carried by the platform, and counting it as movement would play a walk cycle for the
+    /// whole ascent — which is the same bug wearing the opposite sign.
+    ///
+    /// Only Walking and Running are second-guessed. Idle and Grabbing are not claims about
+    /// movement, so there is nothing for the body to contradict.
+    /// </summary>
+    private void TickLocomotionAnimation()
+    {
+        Vector3 position = transform.position;
+        Vector3 delta = position - lastGaitSamplePosition;
+        lastGaitSamplePosition = position;
+
+        if (animController == null) return;
+
+        // A jump this size is a teleport. Resetting rather than measuring keeps the warp from
+        // registering as either a sprint (this frame) or a standstill (the next one).
+        if (delta.sqrMagnitude > GaitTeleportStep * GaitTeleportStep)
+        {
+            stillTimer = 0f;
+            return;
+        }
+
+        if (currentGait != EGait.Walking && currentGait != EGait.Running) return;
+
+        delta.y = 0f;
+
+        float deltaTime = Time.deltaTime;
+        float speed = deltaTime > 0f ? delta.magnitude / deltaTime : 0f;
+
+        if (speed > GaitMotionEpsilon) stillTimer = 0f;
+        else                           stillTimer += deltaTime;
+
+        ApplyGaitToAnimator(stillTimer >= GaitStillGrace ? EGait.Idle : currentGait);
+    }
+
+    /// <summary>Forgets where the body was, so the next tick measures from here. For anything that
+    /// moves the Nemesis without walking it there.</summary>
+    public void ResetGaitSampling()
+    {
+        lastGaitSamplePosition = transform.position;
+        stillTimer = 0f;
+    }
+
+    private void ApplyGaitToAnimator(EGait gait)
+    {
         if (animController == null) return;
 
         animController.SetBool(WalkingParam, gait == EGait.Walking);
@@ -828,6 +917,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         TickDecision();
 
         base.Update();
+
+        // After the FSM, so it reads the gait the state just asked for rather than last frame's,
+        // and so a state that decided to stand still this frame is not shown walking for one.
+        TickLocomotionAnimation();
 
         telemetry.TickStateEvents(isCaptureResolved);
         stuckEscape.Tick(IsNavigatingState());

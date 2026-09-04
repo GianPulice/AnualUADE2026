@@ -58,6 +58,86 @@ Additional documentation in `docs/`:
 - `docs/TODO-UI.md` — deferred UI work (inventory, save slots, settings tabs, puzzles)
 - `docs/SaveSlots-Setup.md` — manual Unity Editor steps to wire up the SaveSlots screen
 
+## Design specs
+
+Four GDD documents define the intended scope of the systems below. They are team documents (Docs /
+Drive), not files in this repo. They were written at different moments against different states of
+the code, so read them with one rule: **where a spec and this file disagree about how something
+works *today*, this file wins; where they disagree about what the feature is *meant to be*, the
+spec wins.**
+
+| Spec | Version | Where it stands in code |
+|---|---|---|
+| Inventory System | v2.0 | Built. Gaps: the audio player and the item catalogue — see *Inventory* |
+| Nemesis System | v1.0 draft | Built, and well past the spec. The spec is the document that is behind — see *Spec deltas* below |
+| Hiding System | v1.0 draft | **Not built.** `EPlayerState.Hidden` is an inert stub — see *Hiding spots* |
+| Obstacle System | v1.0 draft | **Not built.** Nothing in the project climbs, vaults, pushes or clears — see *Environmental obstacles* |
+
+### Spec vocabulary that does not exist in this codebase
+
+The three newer specs are written in a generic Unity idiom and name APIs this project never had.
+Implemented literally they compile against nothing, or worse, they get re-implemented alongside the
+real system and the two disagree. The mapping:
+
+| The spec says | This project actually has |
+|---|---|
+| `PlayerController` | `PlayerStateManager` (`_Project/Scripts/Player/Player FSM/`) |
+| `OnNoiseGenerated(origin, radius)` | **No noise event exists.** See *Noise is a sphere, not an event* |
+| `SetHidden(bool)` | `PlayerStateManager.IsHidden`, a plain settable bool, today toggled only by the `R` debug key |
+| `SetTrapped(bool)` / "block all input" | `IsDisabled` → `EPlayerState.Disabled`, or `IsInteracting` → `Interacting`. There is no `SetTrapped` |
+| `SetSpeedMultiplier(float)` | `PlayerStateManager.SpeedMultiplier`, written by the states. `EffectiveMoveSpeed` is the penalty-scaled base it multiplies |
+| `CharacterController`, capsule height 0.6, step offset | Rigidbody + `CapsuleCollider`; stance heights are `SO_Movement.StandingHeight` / `CrouchHeight`, and standing up is gated by `HasHeadroomToStand()` |
+| `HidingData` / `ObstacleData` SOs | Do not exist. Create them under `ScriptableScripts/` — tunables belong in an asset, not on the component |
+| `NemesisController.Activate()` | `NemesisStateManager.Activate()`, gated on `NemesisController.activatedByPuzzleId` |
+| `NemesisController.SetDifficultyLevel(n)` | **Does not exist.** The per-module escalation table (Nemesis spec §7.2) is unimplemented |
+| `visionRange` / `hearingRange` / `proximityDetectionRange` | `SO_NemesisData.ViewRange` / `ListenRange` / `ProximityDetectionRange` — plus `FocusAngle` and a peripheral awareness band the spec predates |
+| "state X transitions to Y" | States never decide transitions. `NemesisDecision` + `SO_NemesisPriorities` do — see *Nemesis: the decision layer* |
+| "the Hub blocks the Nemesis" (in code) | A NavMesh `Not Walkable` modifier volume. There is no C# side — see *Safe zones* |
+| `ModuleManager.GetActiveModuleTimeRemaining()` / `GetActiveModuleTotalTime()` | `GetActiveModule()` returns the `ModuleRuntime`; it already exposes `TimeRemaining`, `TimerProgress` (the bar fill the spec computes by hand), `FormattedTime` and `BarColor`. The total is `Data.TimerDuration`. `GetExplodedCount()` exists exactly as specified |
+
+### Noise is a sphere, not an event
+
+Every spec that talks about noise — hiding (breathing, exhaling), obstacles (scraping a shelf,
+crossing rubble) — assumes a fire-and-forget event the Nemesis subscribes to. **That is not how
+this project hears.**
+
+The player carries a `SphereCollider` (`PlayerStateManager.AudioEmitingZone`) on the listen mask.
+The movement states set its radius per gait from `SO_Movement` (crouch 1 / walk 2 / run 6) and
+`PlayerIdleState` switches the whole GameObject **off**, which is why standing still is silent.
+`FieldOfListening` sweeps every `listenDelay` (0.1 s), reads the emitter's real radius off the
+collider it caught, and scales it by `SO_NemesisData.NoiseRangeScale` before attenuating through
+walls (`WallOcclusionMultiplier`) and floors (`FloorOcclusionMultiplier`).
+
+Three consequences for anything that wants to "make a noise":
+
+1. **A noise is a duration, not an instant.** Enable the emitter at the radius you want and leave
+   it on for longer than one sweep — anything under 0.1 s can fall between two sweeps and be heard
+   by nobody. A single-frame pulse is a coin flip.
+2. **Restore what you changed.** The emitter is shared with the movement states. A radius or an
+   active flag left behind makes the player permanently loud or permanently deaf-to-the-monster for
+   the rest of the run, and nothing errors.
+3. **The number in the spec is not metres of audibility.** It is the emitter radius, before
+   `NoiseRangeScale` and before occlusion. Tune against `NemesisGizmos`, which draws the three gait
+   radii to scale, rather than against the spec table.
+
+Adding a real `OnNoiseGenerated` event is a legitimate design change, but it is a change to the
+Nemesis's hearing model and has to replace the sphere, not sit beside it. Two sources of truth for
+"how loud is the player" is the same failure the project already paid for with layer masks.
+
+### Spec deltas — Nemesis
+
+The Nemesis spec v1.0 is the oldest of the four and the code has moved past it. Things it describes
+that are **no longer true**: transitions living inside states, a single vision cone, `Vector3`
+distance checks, and detection being all-or-nothing. Things it asks for that are **still missing**:
+
+- **Difficulty escalation per module (§7.2).** No `SetDifficultyLevel`, no runtime SO copy. The
+  comments in `SO_NemesisData` about "Tier 3.3 hands this a scaled copy" describe the intended
+  mechanism (`ScriptableObject.Instantiate`, never write the asset), and `FieldOfListening.SetData`
+  is already the seam for it.
+- **A capture cinematic (§5).** `NemesisCatchState` plays out phases and `CaptureFadeView` fades;
+  there is no cinematic. Everything else in the capture chain is wired.
+- **`underTableVisionMultiplier` (hiding spec §3).** No field, no reader — see *Hiding spots*.
+
 ## Architecture
 
 ### Additive Scene Loading
@@ -98,7 +178,7 @@ Both the player and the Nemesis AI use the same generic FSM base:
 
 Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**; `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it; and no rung of the priority ladder will ever ask for it until you add one, so it is unreachable by default. **Append the new value at the end of the enum** — `SO_NemesisPriorities.asset` stores every rung's target as an integer, so inserting in the middle silently rewrites the designer's whole ladder into a different one.
 
-**Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`).
+**Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`). `Hidden` is registered and reachable but **inert** — it is the hook the hiding system will hang off, not a working state; see *Hiding spots*.
 
 ### Singletons
 
@@ -235,13 +315,87 @@ means implementing that interface — not editing the menu controllers.**
 
 ### Inventory
 
-`InventoryManager` is a flat list of `SO_InventoryItem` with `AddItem` / `DiscardItem` /
-`ConsumeItem`, each raising an `InventoryEvents` static event. Items carry `ItemID`, `Category`
-(which picks one of the four preset highlight materials), `IsConsumable` and `IsMetallic`.
-`GetItemIDs` / `RestoreFromIDs` are the save hooks.
+Spec: *Inventory System v2.0*. **The inventory is unlimited** — no slots, no capacity counter, no
+weight. The only management decision is the discard, and it is voluntary and irreversible. Anything
+that reintroduces a cap contradicts the design, which puts the pressure on the module timers and
+the Nemesis instead.
 
-The UI is a modal (`InventoryManagerUI`, Tab) and therefore goes through `UIStateManager` — which
-means it sets `timeScale = 0`, which is why the module timers are unscaled.
+`InventoryManager` (`_Project/Scripts/Managers/`) is the model: a flat `List<SO_InventoryItem>` with
+`AddItem` / `DiscardItem` / `ConsumeItem`, each raising an `InventoryEvents` static event, plus the
+queries `HasItem`, `GetItemsByCategory` and `HasMetallicItem`, and the save hooks `GetItemIDs` /
+`RestoreFromIDs`. It is an `ISessionResettable`, so New Game / Retry empties it and re-seeds
+`initialItems` — that list is a testing convenience and ships empty.
+
+`SO_InventoryItem` carries `ItemID`, `ItemName`, `Category`, `ItemDescription`, `IsMetallic`,
+`IsConsumable`, `ConsumeDescription`, `IsUnique`, `ContentType` (`None` / `Text` / `Audio`),
+`TextContent`, `AudioClip` and `TargetID`. **`ItemID` is the save contract.** `TargetID` has no
+reader anywhere — world interactables reference the item *asset*, not its id — so leave it empty
+rather than authoring a second, unenforced wiring scheme.
+
+**Items are used in the world, never from inside the inventory.** There is no "[E] use / insert"
+action on the list, and the spec's bottom hint implies one that does not exist. The key and
+component loop of spec §9–§10 lives on the interactables: `DoorInteractable` requires
+`SO_DoorData.RequiredKey` and consumes it on the first unlock when `ConsumeKey` is set (re-opening
+never re-checks); `SocketInteractable` requires `SO_SocketData.RequiredItem` and records the insert
+in `PuzzleStateManager`. Both surface "You need X" through `GetInfoText()`.
+
+The UI (`_Project/Scripts/UI/Inventory/`, controller `InventoryManagerUI`) is a modal on `Tab` and
+therefore goes through `UIStateManager` — which is what sets `timeScale = 0`, which is why the
+module timers are unscaled. The layout is the spec's: topbar, device HUD, grouped list, detail
+panel, discard footer.
+
+- `InventoryView` rebuilds the list on every refresh and instantiates a `GroupLabelView` per
+  **non-empty** category; `ItemSlotView` is the row and reports clicks back to the controller.
+- `ItemDetailView` fills header, description and metadata, and owns the **doc panel** for
+  `ContentType.Text` items (its own layer, reset to the top of the scroll on each open).
+- `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`
+  is the only thing that removes anything, and it is called on confirm alone.
+- `ModuleHUDView` + `ModuleRowView` + `ActiveModuleTimerView` + `FailuresPipsView` are the device
+  HUD of spec §3, inside the inventory: they subscribe to `ModuleEvents` and read `ModuleManager`
+  (`GetActiveModule()`, `GetExplodedCount()`) rather than polling, and they keep counting with the
+  inventory open because the timers tick on `Time.unscaledDeltaTime`.
+
+**ESC is a layer stack, not a close button.** `InventoryManagerUI.HandleCancelInput` unwinds
+discard dialog → doc panel → selection → inventory, one press per layer, and `RequestClose()` (the
+`IModalUI` hook the `UI/Exit` action calls) *is* that method. `Tab` is handled separately, closes
+the doc panel first if it is open, and only acts while the inventory is the top of the
+`UIStateManager` stack. It also refuses to open while the player `IsDisabled`: opening a menu sets
+`timeScale = 0`, which used to freeze the Nemesis mid-capture for as long as the player kept the
+inventory up.
+
+Two gaps against the spec, both intentional for now:
+
+- **The audio player is off.** `ItemDetailView.enableAudioFeatures` ships `false`; the play/stop
+  buttons, progress bar and `AudioSource` exist but are inert, and `CloseInventory`'s `StopAudio()`
+  call is commented out. Turning it on means honouring spec §14: `ignoreListenerPause = true` (the
+  `Awake` already sets it), progress advanced unscaled, and the clip stopped on close — a recording
+  still playing over the gameplay scene is the failure mode, and restarting from the beginning on
+  reselect is the specified behaviour, not a bug.
+- **Two document paths exist and they are not interchangeable.** An item with `ContentType.Text`
+  shows its text in the inventory's doc panel and can be re-read forever; a `NoteInteractable`
+  opens `DocumentReaderController` with an `SO_DocumentData` and never enters the inventory. Spec
+  §11 wants the notes to be held items, which is the first path. Choose one per piece of paper —
+  wiring both means the same note exists twice with two different texts to keep in sync.
+
+**Category is data, not a switch.** `SO_ItemCategoryConfig` holds, per category, the UI colours,
+the group label, the tag, the pickup sound (`[SoundId]`, used when `PickUpInteractable` names none
+of its own) and the 3D shader tint/emission. Worth knowing: the inventory palette in the asset
+(red keys / green components / blue notes / amber special) is **not** the palette in spec §4.3 —
+the spec's `#37474F` / `#4E342E` / `#263238` / `#1A237E` survive as the *world model* tints written
+to the `ItemPSX` shader. Either can be changed in one asset; neither is a code change.
+
+`IsMetallic` has exactly one reader, `HasMetallicItem()`, and **that method has no callers**: the
+magnetic door of spec §13.1 does not exist yet.
+
+**The item catalogue is a third built, and the placeholders are wrong in ways that will bite.**
+Five of the spec's eleven items exist as assets, in `ScriptableObjects/Puzzle1/Items/` —
+`llave_ingenieria`, `fusible_nuevo`, `nucleo_energetico`, `nucleo_mecanico`, `regulador_presion`,
+all metallic and consumable exactly as specified. Missing: the room key, the three notes, the audio
+recording and the chain cutter. The three `ScriptableObjects/InventoryItems/SO_InventoryItem*.asset`
+placeholders are not a head start — **all three carry `itemID: 1`**, which makes them
+indistinguishable to `GetItemIDs` / `RestoreFromIDs` the moment save/load is real, and the "Test
+Note" is flagged `isMetallic` where spec §13.1 says a clue never is. Fix or delete them before they
+get duplicated into the real items.
 
 ### Player
 
@@ -262,6 +416,124 @@ run 6) that `FieldOfListening` picks up through the `AudioEmitingZone` sphere th
 `SO_CameraConfig` holds the rig: FOV, shoulder offset, look limits and the crouch pivot drop.
 `PlayerRegistry` is a static class (not a `Singleton<T>`) that every system uses to find the player,
 with `SubscribeAndCatchUp` for consumers that load before the gameplay scene.
+
+### Hiding spots (spec'd, not built)
+
+Spec: *Hiding System v1.0*. Three spot types — metal locker (medium risk), under a work table
+(high risk, the only one that does not blind the monster), cargo container (low risk, no vision at
+all). Entering and leaving are always deliberate `E` presses, there is no time limit, and while
+inside the player controls only the camera and their breathing.
+
+**What already exists, and it is more than it looks like.**
+
+- `EPlayerState.Hidden` and `PlayerHiddenState` are registered and reachable, but the state is
+  inert: it changes no collider, no camera, no visibility, and its whole `UpdateState` is falling
+  back to `Idle` when `IsHidden` goes false. The `R` key in `PlayerStateManager.InputUpdate` is the
+  current stand-in for a hiding spot and goes away when the real one lands.
+- **The Nemesis side is already correct and should not be rewritten.**
+  `FieldOfView.FindVisibleTargets` returns early while `PlayerRegistry.Current.IsHidden`, clearing
+  the peripheral awareness meter as it goes — without that clear the monster reasons its way into
+  the locker off the sweep that watched the player climb in. Extreme proximity is tested in
+  `Update` *before* that early return, so `SO_NemesisData.ProximityDetectionRange` stays the single
+  thing that breaks hiding, exactly as spec §5.2 asks. `NemesisTestConsole` has a Hide toggle for
+  exercising all of this with no spot in the scene.
+- Hearing needs nothing special: a noise made while hidden reaches the Nemesis through the same
+  emitter every other noise uses, and lands it in `Investigating`, not `Chasing` — which is the
+  spec's own distinction (§5.1).
+
+**What has to be built, and the shape it should take here.**
+
+- `HidingSpotInteractable : BaseRangeInteractable` — one component with an enum for the three
+  types, a `Transform` for the interior camera pose, and a reference to a new `SO_HidingData`.
+  Detection is the `InteractionManager` SphereCast, so the spot needs a collider on the
+  Interactable layer; the spec's "two spots overlap, which prompt wins" case is already answered by
+  first-hit-along-the-ray.
+- Entering must set `IsHidden` **and** stop gameplay input. There is no `SetHidden` or `SetTrapped`
+  to call: add the transition on `PlayerStateManager` and make `PlayerHiddenState` do the work —
+  zero `CurrentVelocity`, stop writing `linearVelocity`, keep the camera live. `Tab` must not open
+  the inventory while hidden (spec §6): `InventoryManagerUI.HandleInput` already refuses while the
+  player `IsDisabled`, and hiding needs the same guard added next to it.
+- The camera is Cinemachine. Give each spot an interior virtual camera with the specified look
+  clamps (locker ±15 / ±10, under-table ±45 / −5..+15, container ±10 / ±10) and let the brain blend
+  in and out over the ~0.3 s transition; do not hand-lerp `Camera.main` against
+  `PlayerCameraController` and `SO_CameraConfig`, which own the normal rig.
+- **Breathing is the part the spec cannot be followed literally on.** There is no
+  `OnNoiseGenerated`. Breathing has to be expressed through the emitter the Nemesis already polls:
+  while hidden and not holding breath, enable `AudioEmitingZone` at the breathing radius for a beat
+  every `breathingInterval`, off in between; holding `F` keeps it off; releasing `F` pulses it once
+  at the larger exhale radius. Read *Noise is a sphere, not an event* before writing a line of it —
+  in particular a pulse shorter than `FieldOfListening.listenDelay` can be heard by nobody, and the
+  emitter must be restored to what the movement states expect on exit.
+- `SO_HidingData` holds `breathingInterval` (3 s), the breathing and exhale radii, the container's
+  `containerNoiseMultiplier` (0.5) and the locker's `closetBreathingMultiplier` (1.2, a *volume*
+  multiplier on the player's own audio, not a radius). Per-spot modifiers are applied on entry and
+  **undone on exit**, including on the paths that are not a normal exit — capture, checkpoint load,
+  scene unload.
+- Under-table is the exception that costs code on the Nemesis side: it does not blind vision, it
+  narrows it. That is a new `underTableVisionMultiplier` on `SO_NemesisData` plus a branch beside
+  the `IsHidden` early return in `FieldOfView`. Add the field at the end, add the range to
+  `SO_NemesisDataEditor` and `NemesisGizmos` so it can be seen, and if the spot type ever becomes an
+  enum a designer asset serialises, **append to it, never insert** — same rule as `ENemesisState`.
+- Audio: the locker and the container want `AudioMixerSnapshot`s (`InsideCloset`, `InsideContainer`).
+  The mixer is generated by `Tools/Audio/Create or Update Master Mixer` and today ships **only** the
+  default snapshot — the same gap that keeps audio from responding to pause. One snapshot each; do
+  them together.
+- Checkpoints: spec §6 says a respawn never puts the player back inside a spot. `CheckpointManager`
+  respawns at the checkpoint transform, so this holds for free — provided nothing leaves `IsHidden`
+  set. Clear it in `OnCaptured()` and on respawn, not only in the exit interaction.
+- The feedback already exists: `NemesisEvents.OnProximityChanged` drives `VignetteProximityView`
+  from the real distance and keeps working while hidden, which is the "brief pulse of red while
+  hidden" of Nemesis spec §6.2.
+
+### Environmental obstacles (spec'd, not built)
+
+Spec: *Obstacle System v1.0*. Nine obstacles in three categories — pass through (broken wall,
+window, tight shelves, low pipe), act on (blocking shelf, furniture barricade, rubble) and climb
+(low rubble, desk). None of them needs an inventory item, all are permanent, and several exist to
+make noise the player has to decide about. Nothing of this is implemented: there is no
+`ClimbableObstacle`, no `SO_ObstacleData`, no vault animation.
+
+What the project already gives you, and where the spec's implementation notes should be ignored:
+
+- **Crouch-gated passages need real geometry, not a trick collider.** The spec proposes an
+  invisible 1.0-high box that refuses a standing player. This project does not need one: the capsule
+  really shrinks to `SO_Movement.CrouchHeight`, and `HasHeadroomToStand()` sweeps a sphere upward
+  before allowing a stand-up, deferring it until the space clears. A low pipe modelled solid on
+  `Wall` or `Props` behaves exactly as specified, *and* pressing crouch under it no longer wedges
+  the Rigidbody — a real reported bug that an invisible blocker would reintroduce.
+- **The Nemesis is excluded from a gap by the bake, not by a component.** `Props` bakes as Not
+  Walkable and `Default` is excluded from the bake entirely, so a crouch-only opening is already
+  closed to the agent once the geometry around it is on the right layer. See *Layers*.
+  `Tools/Nemesis/Validate Navigation Setup` reports geometry that missed the bake; the bake itself
+  is always manual.
+- **An obstacle that opens must re-open the NavMesh.** Copy `DoorInteractable.EnsureNavMeshObstacle`:
+  a `NavMeshObstacle` with Carve on the solid collider, switched off when the shelf is pushed or the
+  rubble cleared. Not baked geometry — a bake is static and cannot be undone at runtime — and not
+  `NavMesh.BuildNavMesh()` mid-run, which the spec suggests and which this project cannot afford.
+- **Interaction is `IInteractable`.** `[E] Push shelf`, `Clear rubble`, `Climb` are
+  `BaseRangeInteractable` subclasses: `GetInteractText()` is the prompt, `CanInteract()` goes false
+  once the obstacle is done, `OnInteractAttemptBlocked()` is the refusal feedback, and
+  `InteractionManager` owns targeting and the 0.2 s cooldown. The spec's "the climb prompt must not
+  appear mid-puzzle" is already true — the player is in `Interacting` and the raycast targets one
+  thing at a time.
+- **Climbing needs an input lock and there is no `SetTrapped`.** Use `IsInteracting` →
+  `EPlayerState.Interacting` for the 0.6–0.8 s of the vault and restore afterwards. Keep the spec's
+  own ruling: a capture that lands during the animation still lands — a vault is not immunity. Move
+  the player to the dismount `Transform` at the end rather than animating the Rigidbody through the
+  obstacle.
+- **Noise is the emitter sphere again.** The spec's numbers (shelf 12, rubble 10, tight passage 5–6,
+  window frame 3) mean "enable the emitter at this radius for about a second", not "raise an event",
+  and they are pre-`NoiseRangeScale`, pre-occlusion figures. Put them in an `SO_ObstacleData`
+  alongside the clips and tune against `NemesisGizmos`.
+- **Persistence belongs in `PuzzleStateManager`.** `hasBeenMoved` / `hasBeenCleared` have to survive
+  a checkpoint rollback and a scene reload exactly like an opened door does; a bool on the prefab
+  does not. The existing `SetDoorOpened` collection is the precedent, and adding a sixth collection
+  is a smaller change than teaching every obstacle to serialise itself. An obstacle that forgets it
+  was cleared re-blocks a corridor the player already paid noise for.
+- **The tight-shelf passage is the one that touches `SpeedMultiplier`** (spec: 0.5) plus a noise
+  pulse above a speed threshold. Write it on enter and **restore it on exit** — in `OnTriggerExit`
+  and on disable — or a player who leaves the trigger during a scene transition keeps the penalty
+  for the rest of the run, with nothing on screen to explain it.
 
 ### Nemesis: routes, activation and siblings
 
@@ -733,8 +1005,81 @@ cause — nothing had told the agent to stop:
 
 `NemesisElevatorUser.HoldStill(true)` now stops the agent, zeroes its velocity and drops the gait to
 `Idle` before the wait, releasing on boarding and again in the `finally` so no early return strands a
-frozen agent. `NemesisTraversingState` skips writing `destination` while `agent.isOnOffMeshLink` —
-`IsAgentReady` does **not** cover that window.
+frozen agent. `NemesisTraversingState` skips writing `destination` for the whole of
+`IsUsingElevator`, not merely while `agent.isOnOffMeshLink` — `IsAgentReady` does **not** cover that
+window, and the link is only one of the stages where something else owns the body. (The other one
+cost a bug of its own: with boarding now agent-driven, a destination re-issued here every frame
+walked the Nemesis back out of the lift it was boarding, one frame at a time.)
+
+**The gait is now derived from the body, not just declared.** `SetGait` still says what the Nemesis
+is *trying* to do; `NemesisStateManager.TickLocomotionAnimation` says what it is *actually* doing,
+and drops the animator to Idle when a Walking/Running gait has produced no **flat** movement for
+0.15 s. Flat because the lift ride is five metres of pure vertical travel with the body carried by
+the platform, and counting that as movement plays a walk cycle for the whole ascent — the same bug
+wearing the opposite sign. This retires "sprinting on the spot" as a class of bug rather than at one
+call site: the cabin wait, a door being swept open and an agent stopped against geometry all used to
+produce it independently. Teleports (a Warp, a spawn) are detected by step size and reset the sample
+instead of registering as a sprint.
+
+### The cabin has a NavMesh of its own
+
+`ElevatorCabinNavMesh` — built at runtime, auto-added by `NemesisElevatorLink`, no scene wiring.
+
+Before it, boarding was a `Vector3.Lerp` from the landing to the ride point with the agent switched
+off, and that line passes through the `ElevatorLandingBarrier` and the shaft wall. Nothing was
+ignoring the wall; a lerp has no opinion about geometry. Two Unity facts do the work:
+
+- **A `NavMeshSurface` follows its transform.** The package re-adds its data instance whenever the
+  transform moves (`NavMesh.onPreUpdate` → `UpdateDataIfTransformChanged`), so a surface parented to
+  the cabin travels with it for free.
+- **Separate surfaces do not connect to each other.** Two NavMesh instances that merely touch are
+  still two islands; the only bridge is a `NavMeshLink`. Hence one short landing↔cabin link per
+  landing, live only while the cabin is parked there — the same rule `ElevatorLandingBarrier` uses,
+  polled for the same reason (arriving is only one of the four ways the cabin's whereabouts change,
+  and it is the only one that raises an event).
+
+The surface is collected by **Volume** and not by Children, because the volume is the one collect
+mode that ignores the transform's scale — and this project's cabin is scaled 4.57 x 1 x 4.45.
+Collecting children off a scaled transform is how a cabin ends up with a floor several metres wider
+than itself. Its layer mask defaults to the cabin collider's own layer (`Interactable` here), which
+is deliberately outside the level bake: nothing should bake a floor that moves.
+
+While the cabin travels, the surface **and** both links go off. That is not thrift: the package
+moves navmesh data by removing and re-adding it, so an agent standing on a moving island loses
+`isOnNavMesh` every frame and its path with it, and a live link whose far end is climbing the shaft
+is an invitation to walk into thin air. The ride itself is unchanged — agent off, body carried by
+`MovingPlatform`. What the cabin's mesh makes solid is the two ENDS, which is all boarding needs.
+
+Boarding and stepping off are therefore ordinary paths now (`WalkAboardAsync` / `WalkAshoreAsync`).
+`WalkAgentToAsync` borrows three agent settings and hands them back in a `finally`:
+`stoppingDistance` (the pursuit value of 1.5 m stops the Nemesis on the landing, not inside a 4.5 m
+cabin), `autoBraking` (off globally, for patrol flow), and `autoTraverseOffMeshLink` (off since
+`Awake` so lifts can be driven by hand — but the boarding link is a step through an open doorway,
+and `NemesisElevatorUser.Update` returns early while a traversal is in flight, so nobody else would
+ever cross it). **A partial path counts as failure**: it means the agent stopped at the nearest
+point it could reach — against the barrier, typically — where `remainingDistance` falls to zero and
+reads exactly like having arrived.
+
+The shaft link is **suspended** for the duration of a crossing
+(`NemesisElevatorLink.SetShaftLinkActive`), and restored unconditionally in the `finally`. Getting
+the agent off that link is what makes the walk possible at all; leaving it suspended would delete
+the lift from every future route query and quietly cost the Nemesis the ability to change floors.
+
+The hand-driven lerp is **kept as a fallback**, decided once per trip (`boardByWalking`) rather than
+per leg — boarding on foot and stepping off by hand would leave the body somewhere the other half of
+the traversal does not expect. A bake that produces nothing says so and boarding reverts to crossing
+the wall: ugly, but it still crosses, and a Nemesis that cannot change floors at all is worse.
+
+**A crossing is abandoned when the player is reachable without the lift.** `IsUsingElevator` is an
+interrupt in the ladder and spans the whole attempt, cabin wait included — up to twenty seconds
+during which nothing the senses report can change the Nemesis's mind. That is correct while it is
+riding and absurd while it is standing at a landing with the player in front of it, and it is where
+"I got on the elevator with it and it ignored me" came from. `ShouldAbandonForPlayer` cuts the
+pre-boarding waits short when the player is visible **and**
+`NemesisDecision.RouteToBeliefCrossesFloors` is false. Visibility alone is deliberately not enough:
+a player one storey up, visible through the shaft opening, is the exact case the lift exists for.
+The question is never asked once the body is aboard — stepping off mid-shaft is a fall, and the grab
+rung already outranks the crossing, so a player who rides up with it can still be caught.
 
 **Two ladder rungs exist purely to keep the FSM from re-deciding mid-trip.**
 `RouteToBeliefCrossesFloors` is measured from wherever the Nemesis is standing *right now*, and
@@ -819,6 +1164,8 @@ Data lives in `Assets/_Project/ScriptableObjects/`. Key types in `_Project/Scrip
 Async operations (scene load/unload, UI transitions) use **UniTask** (`Cysharp.Threading.Tasks`). Use `UniTask.WhenAll` for parallel loads. Use `.Forget()` on fire-and-forget calls. For timers that run during pause, use `UniTask.Delay(ms, DelayType.UnscaledDeltaTime)`.
 
 ## Key Conventions
+
+**Implementing a system from a GDD spec**: read *Design specs* before writing anything. Three of the four specs name APIs this project does not have (`OnNoiseGenerated`, `SetHidden`, `SetTrapped`, `SetSpeedMultiplier`, `CharacterController`), and following them literally either fails to compile or, worse, grows a second implementation beside the real one. A spec's **design** is the requirement; its implementation notes are suggestions written from outside this codebase. When the two collide, keep the design and use the mechanism that already exists here — and if the spec's mechanism really is better, replace the old one rather than running both.
 
 **Adding a modal UI**: implement `IModalUI`, call `UIStateManager.Instance.Push(this)` on open and `Pop(this)` on close. Do not touch `Time.timeScale` or `Cursor` — the `UIStateManager` owns those.
 
@@ -906,6 +1253,27 @@ The systems below are **implemented but not connected to anything**. Read this b
   off on purpose — the variance is expressed as +/- seconds around the authored wait, and no code
   default can know what that authored value is without retuning existing assets. Set it to about
   `0.6` to switch the feature on.
+- **The hiding system does not exist.** `EPlayerState.Hidden` is registered, `PlayerHiddenState` is
+  inert, and the only way into it is the `R` debug key. The *Nemesis* half is done — vision is
+  blinded by `IsHidden`, extreme proximity still detects — so what is missing is entirely on the
+  player and level side: the interactable, the interior cameras, the input lock and the breathing.
+  See *Hiding spots*.
+- **The obstacle system does not exist.** No `ClimbableObstacle`, no `SO_ObstacleData`, no vault
+  animation, no push/clear interactable. Crouch-only passages already work through the real capsule
+  and `HasHeadroomToStand()`; everything else in the spec is unbuilt. See *Environmental obstacles*.
+- **The magnetic door does not exist.** `InventoryManager.HasMetallicItem()` has no callers, so
+  `SO_InventoryItem.IsMetallic` is authored data nothing reads yet.
+- **The inventory audio player is switched off.** `ItemDetailView.enableAudioFeatures` is `false`
+  and `CloseInventory`'s `StopAudio()` is commented out — turn both on together, or a recording
+  keeps playing over the gameplay scene.
+- **`SO_InventoryItem.TargetID` has no reader.** Doors and sockets reference the item asset
+  directly; the id-based wiring the spec describes was never built.
+- **The Nemesis does not escalate per module.** There is no `SetDifficultyLevel`, so the whole of
+  Nemesis spec §7.2 (speed, ranges, search timeout and route count rising with each module) is
+  unimplemented. The mechanism it should use — a runtime `ScriptableObject.Instantiate` copy pushed
+  through `FieldOfListening.SetData` and friends, never a write to the asset — is already in place.
+- **There is no capture cinematic.** `NemesisCatchState` runs its phases and `CaptureFadeView`
+  fades to black; the rest of the chain (checkpoint, penalty, grace period, reposition) is wired.
 
 **Wired since this section was last written** — kept here because the old text said otherwise and people still quote it:
 

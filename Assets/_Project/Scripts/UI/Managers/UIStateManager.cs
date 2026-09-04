@@ -228,7 +228,17 @@ public class UIStateManager : Singleton<UIStateManager>
         {
             if (m != null && m.PausesGame) { anyPauses = true; break; }
         }
-        if (anyPauses) Time.timeScale = 0f;
+
+        // Assigned both ways, not only on the way down. This used to be `if (anyPauses)
+        // Time.timeScale = 0f`, which could never unfreeze: with a non-pausing modal left on the
+        // stack after a pausing one is popped — the pause menu closing over an open inventory —
+        // Pop calls back in here, finds anyPauses false, and did nothing at all, leaving the game
+        // frozen with only the inventory showing. It was unreachable while every modal in the
+        // project paused; the inventory not pausing is what made it reachable.
+        //
+        // The snapshot guard is for SetCursorFree, which discards the snapshot on the
+        // gameplay -> menu switch and leaves previousTimeScale describing a level that is gone.
+        Time.timeScale = anyPauses ? 0f : (snapshotTaken ? previousTimeScale : 1f);
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
