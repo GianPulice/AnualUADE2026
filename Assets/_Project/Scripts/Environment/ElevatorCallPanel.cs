@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -69,6 +70,14 @@ public class ElevatorCallPanel : BaseRangeInteractable
     [Tooltip("Pulses per second of the busy state. 0 holds it steady.")]
     [SerializeField, Min(0f)] private float busyPulseSpeed = 2f;
 
+    [Header("Switch animation")]
+    [Tooltip("Animator driving the lever mesh. Left empty it is taken from this object's own " +
+             "children, so the ElevatorCallSwitch prefab needs no wiring at all.")]
+    [SerializeField] private Animator switchAnimator;
+
+    [Tooltip("The name of the trigger in the animator when activated.")]
+    [SerializeField] private string pressTriggerName = "Pressed";
+
     [Header("Audio (SO_SoundData ids)")]
     [Tooltip("Played when the call is accepted. Leave empty for none.")]
     [SoundId]
@@ -79,6 +88,11 @@ public class ElevatorCallPanel : BaseRangeInteractable
     [SerializeField] private string callRefusedSoundId;
 
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+
+    /// <summary>Animator layer the lever states live on. Base layer; the controller has no other.</summary>
+    private const int SwitchLayer = 0;
+
+    private int pressTriggerHash;
 
     private MaterialPropertyBlock propertyBlock;
 
@@ -128,6 +142,11 @@ public class ElevatorCallPanel : BaseRangeInteractable
     protected override void Awake()
     {
         base.Awake();
+
+        // Ahead of the isConfigured early-out below: a panel whose shaft is miswired still has a
+        // lever, and a bad state name deserves its own line in the console instead of being
+        // swallowed by an unrelated failure.
+        ResolveSwitchAnimation();
 
         if (elevator == null) elevator = GetComponentInParent<NemesisElevatorLink>();
 
@@ -212,8 +231,43 @@ public class ElevatorCallPanel : BaseRangeInteractable
         // InteractionManager and the Nemesis can claim the platform in between. Treated as a
         // refusal rather than ignored, so the player gets told instead of being left pressing a
         // button that does nothing.
+        // Thrown for the PRESS, not for the outcome. Reaching here already means CanInteract said
+        // yes, so the player did physically flick the lever; whether the cabin answers is what the
+        // two sounds below are for. Move this into the accepted branch if the lever should stay
+        // still on a call the shaft refuses.
+        PlaySwitchPress();
+
         if (platform.RequestRide()) PlaySound(callAcceptedSoundId);
         else                        PlaySound(callRefusedSoundId);
+    }
+
+    // ── Lever animation ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Finds the Animator and resolves both state names once.
+    ///
+    /// Resolved up front because <see cref="Animator.Play(int, int, float)"/> with a state that is
+    /// not on the layer does NOTHING AT ALL — no exception, no warning, the lever simply never
+    /// moves. A typo there is invisible from inside the game and costs an afternoon in the Animator
+    /// window; HasState turns it into one line in the console at startup.
+    /// </summary>
+    private void ResolveSwitchAnimation()
+    {
+        if (switchAnimator == null) switchAnimator = GetComponentInChildren<Animator>(true);
+
+        // Silent when there is none. A call panel is allowed to be a flat unanimated box, and in
+        // this project most of them are.
+        if (switchAnimator == null) return;
+
+        pressTriggerHash = Animator.StringToHash(pressTriggerName);
+    }
+
+    /// <summary>Throws the lever. A no-op on a panel with no animator or no press state.</summary>
+    private void PlaySwitchPress()
+    {
+        if (switchAnimator == null) return;
+
+        switchAnimator.SetTrigger(pressTriggerHash);
     }
 
     private void PlaySound(string id)

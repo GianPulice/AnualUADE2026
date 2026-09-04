@@ -229,6 +229,8 @@ MonoBehaviour:
   cabinPresentColor: {r: 0.541, g: 0.706, b: 0.831, a: 1}
   busyColor: {r: 0.55, g: 0.42, b: 0.16, a: 1}
   busyPulseSpeed: 2
+  switchAnimator: {fileID: 1334382196719669392}
+  pressTriggerName: Pressed
   callAcceptedSoundId: 
   callRefusedSoundId: sfx_secuencia_incorrecta_panel_electrico
 --- !u!1 &3140267854124341348
