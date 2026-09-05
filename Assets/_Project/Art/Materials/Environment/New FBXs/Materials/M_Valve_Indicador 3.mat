@@ -83,7 +83,7 @@ Material:
     - _Surface: 0
     m_Colors:
     - _BaseColor: {r: 0, g: 0, b: 0, a: 1}
-    - _EmissionColor: {r: 5.656854, g: 0, b: 0, a: 1}
+    - _EmissionColor: {r: 0, g: 1.196673, b: 5.6568537, a: 1}
     - _RustColor: {r: 0.26, g: 0.11, b: 0.05, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
