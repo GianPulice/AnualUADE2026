@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d83b3fd4f3b51649a7fb918f784b770, type: 3}
-  m_Name: SO_AmbienceProfileMachine
+  m_Name: SO_AmbienceProfilePink
   m_EditorClassIdentifier: Assembly-CSharp::SO_AmbienceProfile
-  displayName: Amb_Machine
-  gizmoColor: {r: 0.3209643, g: 0.9019608, b: 0.29803923, a: 1}
+  displayName: Amb_Pink
+  gizmoColor: {r: 1, g: 0, b: 0.28442144, a: 1}
   bedTracks:
-  - {fileID: 8300000, guid: 1f87c128d6c60fd48851508f3a1fdec7, type: 3}
-  - {fileID: 8300000, guid: e44bd272d0a770c448f61dd39a7e852a, type: 3}
+  - {fileID: 8300000, guid: 6b598d8b9347f6347892e9c56c825ea0, type: 3}
+  - {fileID: 8300000, guid: 16512a82ec5151248ba610878bedd57f, type: 3}
   bedVolume: 0.4
   bedTrackBalance: 0.7
   transitionDuration: 2.5

@@ -932,8 +932,18 @@ snapped to the first entry, which would rewrite wiring nobody asked to change.
 blank. Reading only the serialized field would omit exactly those sounds from the dropdown: present
 at runtime, invisible in the inspector.
 
-Add `[SoundId]` to any new string field that names a sound. The six that exist today are on
-`PickUpInteractable`, `SocketInteractable`, `ElevatorCallPanel` (x2) and `ElevatorRideButton` (x2).
+Add `[SoundId]` to any new string field that names a sound, and `[PuzzleId]` to any that names a
+puzzle. The nine `[SoundId]` fields today are on `PickUpInteractable`, `SocketInteractable`,
+`ElevatorCallPanel` (x2), `ElevatorRideButton` (x2), `SO_ItemCategoryConfig` and `SO_DoorData` (x2).
+The `[PuzzleId]` ones are on `Checkpoint`, `NemesisRoute`, `NemesisController`, `SO_DoorData`,
+`ModuleData`, `SO_ContainerData`, `SO_SocketData` and `SO_ValveData`.
+
+Two different jobs hide behind "names a puzzle", and only one of them takes the attribute. A field
+that **declares** an id — `puzzleId` on the five `SO_*PuzzleData` assets — is the source the
+dropdown reads, so it stays a plain string; those five type names are the list at the top of
+`PuzzleIdDrawer`, and a sixth kind of puzzle asset has to be added there or its ids never appear in
+anyone's dropdown. A field that **references** one gets `[PuzzleId]`. Getting that backwards gives
+you a dropdown offering the value you are trying to define.
 
 Scene gizmos worth knowing about: `NemesisGizmos` (every `SO_NemesisData` range, drawn to scale
 with its metre value), `NemesisRoute` (waypoints and the route polyline), `InteractionRangeGizmo`
@@ -1097,6 +1107,97 @@ real transition, and a machine that transitions never runs `UpdateState`, so it 
   frame. **Trade-off:** it holds for up to `ElevatorCommitTime` even if the route stops crossing
   floors. Lower that number if it feels sticky; the capture rung is an interrupt above it, so a grab
   still works.
+
+### The Director
+
+`NemesisDirector` puts the monster where the tension is **without ever touching the FSM**. It
+cannot force `Chasing`, hand over the player's position, or skip a detection range — not because
+of layering hygiene, but because an AI the player can read is the product: a director that reaches
+into the FSM produces behaviour with no explanation on screen, and once the player suspects the
+game is deciding, every genuine piece of tracking reads as cheating too.
+
+Four levers, in ascending order of how much the player notices:
+
+1. **The patrol anchor.** `NemesisController.TryGetZoneAnchor` already biases the next zone towards
+   an anchor (the player's own position, `ZoneBiasUsesRealPlayer`). The Director overrides that
+   anchor with the pressure zone's centre. Coarse by construction — whole zones, a roll not an
+   argmax, a falloff that says "this side of the level" — so it reads as the monster being around.
+2. **Route weights.** `NemesisRoute.Weight` is now `authored × pressureMultiplier`. Scaled and not
+   set: a route the designer weighted 0.2 stays the least frequent of its neighbours under maximum
+   pressure, and one at 0 stays off. Only reaches the **waypoint** roll — the cluster roll reads
+   `Cluster.Weight`, which is averaged once at graph build — so anchor and weights divide the work
+   between the zone level and the waypoint level rather than doubling up.
+3. **Synthetic noise.** `FieldOfListening` sweeps for colliders on its listen mask and reads
+   loudness off the collider's radius; it does not care who made the sound. So a Director noise is
+   the same object a thrown bottle would be, on the same channel, and pushes the Nemesis to
+   `Investigating` exactly as a real one would. Sampled onto the NavMesh — a noise inside a wall
+   sends it to investigate somewhere it cannot stand. The layer must be in the Nemesis's listen
+   mask; `Start` reports it when it is not, because that failure is otherwise completely silent.
+4. **Senses.** A runtime **copy** of `SO_NemesisData` with wider hearing and sight, installed via
+   `NemesisStateManager.OverrideData` and thrown away after. A copy because ScriptableObject writes
+   in Play mode persist into the asset in the Editor: mutating it directly would leave the boost in
+   the project and a designer would find numbers nobody typed. Cloned fresh from the authored asset
+   at install time, so edits between two requests are picked up. `OverrideData` pushes to
+   `FieldOfView`, `FieldOfListening` and `NemesisPathOracle` too — each keeps its own reference, and
+   assigning only the manager's leaves a Nemesis that decides with the new ranges and senses with
+   the old.
+
+`NemesisPressureZone` is the unit: an id, a centre, a radius, a gizmo that colours by live
+intensity. Deliberately not `NemesisRoute` — a route is a path the Nemesis walks, a pressure zone
+is an area a designer wants haunted, and the second should not have to be carved out of the first.
+
+API: `NemesisDirector.RequestPressure(zoneId, intensity, duration)`, `ReleasePressure()`,
+`RequestEntrance(zoneId)`. A new request **replaces** the one in flight rather than stacking:
+pressure on two zones at once is pressure on none, since the patrol can only lean one way. Every
+path out restores what it touched, `OnDisable` included — a Director torn down mid-request would
+otherwise leave boosted weights and a cloned asset installed for the rest of the run. Evaluation
+runs every `evaluationInterval` (3 s), which is not a cost decision: nothing it does is a reaction
+to this frame.
+
+**The staged entrance** (`StageEntranceAsync`) is the Mr. X beat, and the one place a teleport is
+allowed. The rule worth keeping is not "never move the Nemesis" but "the player must never lose to
+something they had no way to see coming", and two enforced properties buy that back: it arrives
+**out of the player's sight** (`arriveOutOfSightOnly`, on by default) and never closer than
+`entranceMinDistance` measured **over the NavMesh** — ten metres through a wall is not ten metres —
+and then it **waits**, standing still and facing the player for `entranceStareSeconds`. Every other
+system here can only make the Nemesis faster; this is the one that makes it slower, deliberately.
+The player's short sight range is what makes it land: "out of sight" is a couple of rooms in this
+level, so a fair arrival is still a close one.
+
+The hold is `NemesisStateManager.SetExternalHold` — `isStopped` plus a zeroed velocity, the body
+and not the decision. The FSM is free to already be in `Chasing`; it just does not get to move yet,
+which is the difference between a beat and a lie. The stuck watchdog is suppressed for the window
+(a body deliberately standing still with a path is exactly what it fires on) and the animation needs
+no help, since `TickLocomotionAnimation` reads the body and finds it still.
+
+It never enters the Hub, and that costs nothing to maintain: the warp goes through
+`NemesisStateManager.WarpTo`, which refuses any point not on walkable NavMesh, and the Hub is a
+Not Walkable volume. There is no path from the Director to a safe zone and none can be added by
+accident.
+
+### Stuck detection escalates
+
+`NemesisStuckEscape` had one response to everything — teleport — which is the strongest move
+available and the one that reads worst. Most of what it fired on was a corrupt path rather than a
+wedged body: a destination issued mid-warp, a path computed against geometry a door has since
+carved, a partial path being walked dutifully to its end. All of those are fixed by asking the
+navigation system again.
+
+So the first no-progress window buys a `ResetPath` + `SetDestination` to the same target and a
+shorter second window (`SO_NemesisData.StuckRepathGrace`, 1.5 s — it has already spent a full
+interval going nowhere); only the second buys the warp. Off the NavMesh entirely skips straight to
+the warp, since there is no path to repair. The stage resets on any progress, so an episode has to
+be continuous to escalate.
+
+One subtlety worth not undoing: `ResetSample()` (public, for teleports) clears the stage, while the
+private `ResetProgressSample()` used by `Tick`'s own early-outs does not. The frame after a repath
+reports `pathPending`, which reads as "not trying to move" — clearing the stage there would forget
+the repath had happened and the watchdog would repath forever, never escalating.
+
+`RepathCount` / `WarpCount` are surfaced through the state manager onto the debug HUD ("trabas").
+The split is the point: repaths are the cheap fix working, warps are the body genuinely wedged.
+Warps climbing in one corner is a NavMesh bake or a misplaced waypoint, and no tuning in
+`SO_NemesisData` will fix it.
 
 ### Safe zones (the Hub)
 

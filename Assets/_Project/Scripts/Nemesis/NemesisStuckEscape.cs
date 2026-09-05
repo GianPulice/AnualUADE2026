@@ -21,11 +21,36 @@ public class NemesisStuckEscape : MonoBehaviour
     // on this component at all — it has no scene wiring of its own.
     private const float FallbackCheckInterval = 3f;
     private const float FallbackMinDistance = 0.5f;
+    private const float FallbackRepathGrace = 1.5f;
 
     private NemesisStateManager stateManager;
 
     private Vector3 lastSamplePosition;
     private float sampleTimer;
+
+    /// <summary>
+    /// How far up the escalation the current episode has got.
+    ///
+    /// The watchdog used to have one response to everything — teleport — which is the strongest
+    /// move available and the one that reads worst: a monster that vanishes and reappears
+    /// elsewhere. Most of what it fired on was not a wedged body but a corrupt path, and a corrupt
+    /// path is fixed by asking for it again.
+    ///
+    /// So: first no-progress window buys a repath, the next one buys the warp. Reset on any
+    /// progress, so an episode has to be continuous to escalate — a Nemesis that gets stuck twice
+    /// with a clean walk in between gets a repath both times, not a warp the second time.
+    /// </summary>
+    private EStuckStage stage = EStuckStage.Watching;
+
+    private enum EStuckStage
+    {
+        /// <summary>Making progress, or not stuck long enough to have done anything about it.</summary>
+        Watching,
+
+        /// <summary>The path has been thrown away and asked for again; waiting out
+        /// <see cref="RepathGrace"/> to see whether that was all it needed.</summary>
+        Repathed,
+    }
 
     // A counter and not a bool: the door and the freight elevator can both request suppression at
     // the same time, and with a bool the first one to release it would re-arm the detection while
@@ -62,6 +87,34 @@ public class NemesisStuckEscape : MonoBehaviour
         }
     }
 
+    /// <summary>Seconds a repath gets to work before the warp. See
+    /// <see cref="SO_NemesisData.StuckRepathGrace"/>.</summary>
+    private float RepathGrace
+    {
+        get
+        {
+            SO_NemesisData data = stateManager != null ? stateManager.NemesisData : null;
+            return data != null ? Mathf.Max(0.2f, data.StuckRepathGrace) : FallbackRepathGrace;
+        }
+    }
+
+    /// <summary>
+    /// How many times each rung of the escalation has fired this session, and where the last warp
+    /// happened.
+    ///
+    /// Counted rather than only logged because the number is the actual verdict on the level. A
+    /// warp or two over a long session is a watchdog doing its job; a warp every thirty seconds in
+    /// the same corner is a NavMesh bake or a badly placed waypoint, and no amount of tuning in
+    /// here will fix it. The two counters separate "the path went bad and we fixed it quietly"
+    /// from "the body was actually wedged", which are different problems with different owners.
+    /// </summary>
+    public int RepathCount { get; private set; }
+
+    public int WarpCount { get; private set; }
+
+    /// <summary>Where the last warp fired, for the debug HUD and for QA to point at.</summary>
+    public Vector3 LastWarpOrigin { get; private set; }
+
     /// <summary>
     /// True while something is moving the Nemesis outside the NavMeshAgent: opening a door, or
     /// riding the freight elevator. Detection does not run in that window.
@@ -94,6 +147,25 @@ public class NemesisStuckEscape : MonoBehaviour
     /// </summary>
     public void ResetSample()
     {
+        ResetProgressSample();
+
+        // A teleport ends the episode as well as the measurement. Without this an external warp —
+        // a respawn, the spawn pick — could leave the escalation standing at "already repathed",
+        // and the first no-progress window at the new position would skip the cheap fix and warp
+        // the Nemesis again.
+        stage = EStuckStage.Watching;
+    }
+
+    /// <summary>
+    /// Restarts only the measurement, deliberately keeping the escalation where it is.
+    ///
+    /// This is what <see cref="Tick"/> uses for the frames that do not count — and the difference
+    /// matters most in the one right after a repath, when the agent reports pathPending and
+    /// therefore "not trying to move". Clearing the stage there would forget that a repath had
+    /// already been tried, and the watchdog would repath forever and never escalate.
+    /// </summary>
+    private void ResetProgressSample()
+    {
         lastSamplePosition = transform.position;
         sampleTimer = 0f;
     }
@@ -111,11 +183,13 @@ public class NemesisStuckEscape : MonoBehaviour
         // covers that without having to special-case each state's idle timings.
         if (IsSuppressed || !isNavigatingState || !IsTryingToMove())
         {
-            ResetSample();
+            ResetProgressSample();
             return;
         }
 
-        float interval = CheckInterval;
+        // The window is shorter once a repath is in flight: the Nemesis has ALREADY spent a full
+        // interval going nowhere, so this is a second chance rather than a second full wait.
+        float interval = stage == EStuckStage.Repathed ? RepathGrace : CheckInterval;
 
         sampleTimer += Time.deltaTime;
         if (sampleTimer < interval) return;
@@ -126,10 +200,74 @@ public class NemesisStuckEscape : MonoBehaviour
         float travelled = Vector3.Distance(position, lastSamplePosition);
         lastSamplePosition = position;
 
-        if (travelled >= MinDistance) return;
+        if (travelled >= MinDistance)
+        {
+            // Moving again. Whatever it was, it is over — the next episode starts from the bottom
+            // of the escalation rather than inheriting this one's progress up it.
+            stage = EStuckStage.Watching;
+            return;
+        }
 
-        Debug.LogWarning($"[{nameof(NemesisStuckEscape)}] Stuck: moved {travelled:F2}u in " +
-                         $"{interval}s while pathing. Warping out.", this);
+        if (stage == EStuckStage.Watching)
+        {
+            stage = EStuckStage.Repathed;
+            Repath(travelled, interval);
+            return;
+        }
+
+        Warp(travelled, interval);
+        stage = EStuckStage.Watching;
+    }
+
+    /// <summary>
+    /// First rung: throw the path away and ask for the same destination again.
+    ///
+    /// Most of what this watchdog fires on is a path that went bad rather than a body that got
+    /// wedged — a destination issued while the agent was mid-warp, a path computed against
+    /// geometry that has since been carved by a door, a partial path the agent is dutifully
+    /// walking to the end of. None of those is a reason to teleport a monster across the level in
+    /// front of the player; all of them are fixed by asking the navigation system again.
+    ///
+    /// The destination is READ BACK and re-issued rather than remembered from somewhere: whatever
+    /// the agent is currently aiming at is what the FSM wants it to aim at, and this rung has no
+    /// business having an opinion about the target — only about the route to it.
+    /// </summary>
+    private void Repath(float travelled, float interval)
+    {
+        NavMeshAgent agent = stateManager.NavAgent;
+
+        // Off the mesh entirely: there is no path to fix, so skip straight to the warp. Repathing
+        // here would only spend the grace window logging errors.
+        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+        {
+            Warp(travelled, interval);
+            stage = EStuckStage.Watching;
+            return;
+        }
+
+        RepathCount++;
+
+        Vector3 destination = agent.destination;
+        agent.ResetPath();
+        agent.SetDestination(destination);
+
+        Debug.Log($"[{nameof(NemesisStuckEscape)}] No progress ({travelled:F2}u in {interval}s). " +
+                  $"Repathing to {destination} before giving up on it. " +
+                  $"(repaths this session: {RepathCount})", this);
+    }
+
+    /// <summary>Last rung: the body really is wedged, so take it somewhere it can walk from.</summary>
+    private void Warp(float travelled, float interval)
+    {
+        WarpCount++;
+        LastWarpOrigin = transform.position;
+
+        Debug.LogWarning($"[{nameof(NemesisStuckEscape)}] Still stuck after a repath " +
+                         $"({travelled:F2}u in {interval}s) at {LastWarpOrigin}. Warping out. " +
+                         $"(warps this session: {WarpCount}) — a warp or two over a long run is " +
+                         "this watchdog working; the same corner over and over is a NavMesh bake " +
+                         "or a waypoint problem, not a tuning one.", this);
+
         TeleportToEscapeWaypoint();
     }
 

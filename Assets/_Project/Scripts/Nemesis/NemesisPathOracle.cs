@@ -64,6 +64,14 @@ public class NemesisPathOracle : MonoBehaviour
     }
 
     /// <summary>Seconds an answer is allowed to be reused for.</summary>
+    /// <summary>
+    /// Repoints this at another tuning asset. Mirrors <c>FieldOfView.SetData</c> and
+    /// <c>FieldOfListening.SetData</c>, and exists for the same one caller: the Director swaps in
+    /// a boosted runtime copy for the length of a pressure request, and every holder of the
+    /// reference has to follow or half the Nemesis runs on the old numbers.
+    /// </summary>
+    public void SetData(SO_NemesisData data) => nemesisData = data;
+
     private float Interval => nemesisData != null
         ? Mathf.Max(0.05f, nemesisData.RouteVerdictInterval)
         : FallbackInterval;

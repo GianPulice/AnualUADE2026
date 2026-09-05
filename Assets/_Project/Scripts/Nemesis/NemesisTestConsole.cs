@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -11,13 +12,20 @@ using UnityEngine;
 /// a doorway, refusing an unsafe spawn, giving up on the lift — is otherwise a matter of waiting
 /// for it to happen again.
 ///
-/// <b>There is deliberately no "force state" button.</b> A state is requested by writing
-/// <c>NextState</c>, and <c>NemesisDecision</c> is the only thing allowed to write it — a second
-/// writer makes the FSM transition every frame and never execute a single frame of any state, which
-/// reads in game as a monster that looks straight at you and twitches. See docs/CLAUDE.md § Nemesis:
-/// the decision layer. So this panel changes the INPUTS the ladder reads instead, and lets the
-/// ladder reach the state on its own. That is also the more honest test: it exercises the real
-/// path.
+/// <b>Most of the panel changes the INPUTS the ladder reads</b> and lets the ladder reach a state
+/// on its own, rather than putting the Nemesis into one. That is the more honest test — it
+/// exercises the real path — and it is why the buttons are all situations rather than states.
+///
+/// <b>The one exception is pinning (keys 1-6), and where it hooks in is the whole reason it is
+/// safe.</b> A state is requested by writing <c>NextState</c>, and <c>NemesisDecision</c> is the
+/// only thing allowed to write it: a second writer makes the FSM transition every frame and never
+/// execute a single frame of any state, which reads in game as a monster that looks straight at you
+/// and twitches. Pinning does not write NextState — it overrides what the ladder ANSWERS, upstream
+/// of the single writer, so the state is entered once and then runs completely normally. See
+/// <c>NemesisDecision.Decide</c> and docs/CLAUDE.md § Nemesis: the decision layer.
+///
+/// What it cannot do is give a state a reason to exist: pinned Traversing with the player on your
+/// own floor stands still, because no route crosses the lift. That is the state working.
 ///
 /// <b>The body only compiles in the Editor and in development builds.</b> The class itself always
 /// exists so a scene that references it does not come up with a missing script; in a release build
@@ -40,25 +48,82 @@ public class NemesisTestConsole : MonoBehaviour
 
     private void Awake() => nemesis = GetComponent<NemesisStateManager>();
 
+    /// <summary>
+    /// The states in the order the number keys pin them. Explicit and not
+    /// <c>Enum.GetValues</c>: the enum is append-only for serialization reasons, so its order is a
+    /// history of when things were added rather than a useful order to reach for while playing.
+    /// </summary>
+    private static readonly NemesisStateManager.ENemesisState[] PinOrder =
+    {
+        NemesisStateManager.ENemesisState.Patrolling,
+        NemesisStateManager.ENemesisState.Investigating,
+        NemesisStateManager.ENemesisState.Chasing,
+        NemesisStateManager.ENemesisState.Searching,
+        NemesisStateManager.ENemesisState.Traversing,
+        NemesisStateManager.ENemesisState.Catch,
+    };
+
     private void Update()
     {
         if (Input.GetKeyDown(toggleKey)) isOpen = !isOpen;
+
+        HandlePinKeys();
+    }
+
+    /// <summary>
+    /// 1-6 pin a state, 0 hands it back to the ladder.
+    ///
+    /// Works with the panel closed, on purpose: pinning is something you want mid-chase, with both
+    /// hands on the movement keys and no interest in reading a GUI.
+    /// </summary>
+    private void HandlePinKeys()
+    {
+        if (nemesis == null || nemesis.Decision == null) return;
+
+        if (Input.GetKeyDown(KeyCode.Alpha0) || Input.GetKeyDown(KeyCode.Keypad0))
+        {
+            nemesis.Decision.PinnedState = null;
+            return;
+        }
+
+        for (int i = 0; i < PinOrder.Length; i++)
+        {
+            if (!Input.GetKeyDown(KeyCode.Alpha1 + i) && !Input.GetKeyDown(KeyCode.Keypad1 + i))
+                continue;
+
+            // Pressing the same number again releases it, so one key is both "show me this" and
+            // "carry on", which is the only pair of actions this is ever used for.
+            nemesis.Decision.PinnedState =
+                nemesis.Decision.PinnedState == PinOrder[i] ? null : PinOrder[i];
+            return;
+        }
     }
 
     private void OnGUI()
     {
         if (!isOpen)
         {
-            GUI.Label(new Rect(10f, 10f, 300f, 20f), $"[{toggleKey}] Nemesis test console");
+            string pinned = nemesis != null && nemesis.Decision?.PinnedState != null
+                ? $"   ESTADO FIJADO: {nemesis.Decision.PinnedState}  [0 suelta]"
+                : string.Empty;
+
+            GUI.Label(new Rect(10f, 10f, 520f, 20f),
+                      $"[{toggleKey}] Nemesis test console{pinned}");
             return;
         }
 
-        GUILayout.BeginArea(new Rect(10f, 10f, 330f, 340f), GUI.skin.box);
+        // Grown with the director section. Fixed rather than auto-sized because a panel that
+        // resizes as zones come and go is harder to click than one that is simply big enough.
+        GUILayout.BeginArea(new Rect(10f, 10f, 360f, 560f), GUI.skin.box);
         GUILayout.Label("NEMESIS TEST CONSOLE", GUI.skin.box);
 
         DrawStatus();
         GUILayout.Space(6f);
+        DrawPinnedState();
+        GUILayout.Space(6f);
         DrawSituations();
+        GUILayout.Space(6f);
+        DrawDirector();
 
         GUILayout.EndArea();
     }
@@ -92,6 +157,46 @@ public class NemesisTestConsole : MonoBehaviour
             GUILayout.Label("Dormant. If a puzzle already activated it, it is waiting for a " +
                             "spawn point that is far, out of view and behind cover.");
         }
+    }
+
+    /// <summary>
+    /// The pinned-state row.
+    ///
+    /// It is worth reading the caveat here rather than only in the code: what you get is the real
+    /// state, entered for a reason you chose, which is not the same as the state having a reason to
+    /// run. Pinned Traversing with the player on your own floor stands still — the route verdict
+    /// says nothing crosses the lift, so there is nowhere to traverse to. That is the state working,
+    /// not the pin failing.
+    /// </summary>
+    private void DrawPinnedState()
+    {
+        if (nemesis == null || nemesis.Decision == null) return;
+
+        NemesisStateManager.ENemesisState? pinned = nemesis.Decision.PinnedState;
+
+        GUILayout.Label(pinned.HasValue
+            ? $"ESTADO FIJADO: {pinned.Value}  —  la escalera está en pausa"
+            : "ESCALERA LIBRE  (1-6 fija un estado, 0 suelta)", GUI.skin.box);
+
+        GUILayout.BeginHorizontal();
+
+        for (int i = 0; i < PinOrder.Length; i++)
+        {
+            bool isPinned = pinned == PinOrder[i];
+            string label = $"{i + 1}";
+
+            // The number, and the state's initial under it, so the row is readable without having
+            // to remember the order.
+            if (GUILayout.Button(isPinned ? $"[{label}]" : label, GUILayout.Width(30f)))
+                nemesis.Decision.PinnedState = isPinned ? (NemesisStateManager.ENemesisState?)null
+                                                        : PinOrder[i];
+        }
+
+        if (GUILayout.Button("0", GUILayout.Width(30f))) nemesis.Decision.PinnedState = null;
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.Label("1 Patrol · 2 Investig · 3 Chase · 4 Search · 5 Traverse · 6 Catch");
     }
 
     private void DrawSituations()
@@ -132,6 +237,66 @@ public class NemesisTestConsole : MonoBehaviour
         if (GUILayout.Button("Capture the player"))
             player.OnCaptured();
     }
+
+    /// <summary>
+    /// Drives <see cref="NemesisDirector"/> by hand.
+    ///
+    /// It belongs on this panel and not on a separate one for the reason in the class doc: the
+    /// Director is an input-changer by construction — it moves the anchor, the weights, a noise —
+    /// and never writes a state. Pressing these buttons exercises exactly the path a puzzle
+    /// completion would, so what you see here is what will happen in the level, which is not true
+    /// of any "force state" button.
+    ///
+    /// One button per zone rather than a text field: an id typed slightly wrong fails silently
+    /// from the outside (the Director warns, but you have to be looking at the console), and the
+    /// list doubles as a check that the zones in the scene registered themselves at all.
+    /// </summary>
+    private void DrawDirector()
+    {
+        GUILayout.Label("DIRECTOR", GUI.skin.box);
+
+        IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
+
+        if (zones.Count == 0)
+        {
+            GUILayout.Label("No pressure zones in the scene. Add a NemesisPressureZone with an id.");
+            return;
+        }
+
+        for (int i = 0; i < zones.Count; i++)
+        {
+            NemesisPressureZone zone = zones[i];
+            if (zone == null) continue;
+
+            float live = NemesisDirector.IntensityOf(zone.ZoneId);
+            string label = live > 0f
+                ? $"■ {zone.ZoneId}  ({live:0.00})"
+                : $"Pressure: {zone.ZoneId}";
+
+            if (GUILayout.Button(label))
+                NemesisDirector.RequestPressure(zone.ZoneId, TestPressureIntensity, TestPressureDuration);
+        }
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Release"))
+            NemesisDirector.ReleasePressure();
+
+        // With no zone: anywhere near the player that qualifies. The zone-confined version is what
+        // a puzzle trigger uses; this one is the quickest way to look at the entrance itself.
+        if (GUILayout.Button("Staged entrance"))
+            NemesisDirector.RequestEntrance();
+
+        GUILayout.EndHorizontal();
+    }
+
+    /// <summary>Full pressure from the console, on purpose: a test that has to be run at half
+    /// strength to see anything is a test of the tuning, not of the feature.</summary>
+    private const float TestPressureIntensity = 1f;
+
+    /// <summary>Long enough to walk somewhere and watch the patrol drift, short enough that a
+    /// forgotten press does not colour the rest of the session.</summary>
+    private const float TestPressureDuration = 90f;
 
 #endif
 }

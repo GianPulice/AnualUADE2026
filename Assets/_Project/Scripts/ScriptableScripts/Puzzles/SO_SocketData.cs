@@ -4,6 +4,7 @@ using UnityEngine;
 public class SO_SocketData : ScriptableObject
 {
     [SerializeField] private string socketId;
+    [PuzzleId]
     [SerializeField] private string linkedPuzzleId;
     [SerializeField] private SO_InventoryItem requiredItem;
     [SerializeField] private bool consumeItem = true;

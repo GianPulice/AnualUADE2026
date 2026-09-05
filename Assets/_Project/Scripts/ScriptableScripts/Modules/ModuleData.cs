@@ -25,6 +25,7 @@ public class ModuleData : ScriptableObject
     [Tooltip("Id of the puzzle whose completion resolves this module. Must match the PuzzleId on " +
              "the puzzle's SO_PuzzleData / SO_ValvePuzzleData / etc. Leave empty if the module is " +
              "resolved by other means (only for testing).")]
+    [PuzzleId]
     [SerializeField] private string associatedPuzzleId;
 
     [Header("Timer")]

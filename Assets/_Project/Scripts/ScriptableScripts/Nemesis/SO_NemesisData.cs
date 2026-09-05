@@ -353,6 +353,17 @@ public class SO_NemesisData : ScriptableObject
     [Tooltip("Distance it has to cover within stuckCheckInterval to count as making progress.")]
     [SerializeField, Min(0.05f)] private float stuckMinDistance = 0.5f;
 
+    [Tooltip("Segundos que le da al Nemesis para arrancar después de recalcularle el camino, " +
+             "antes de teletransportarlo.\n\n" +
+             "El teleport tapa el síntoma; casi siempre el problema real es un path corrupto, no " +
+             "un camino bloqueado — y a un path corrupto lo arregla pedirlo de nuevo. Por eso el " +
+             "watchdog primero le hace ResetPath + SetDestination al mismo destino y le da esta " +
+             "ventana; recién si tampoco así se mueve, lo saca de ahí.\n\n" +
+             "Corta a propósito (menor que stuckCheckInterval): ya se comió el intervalo entero " +
+             "sin moverse, así que esto es una segunda oportunidad, no otra espera igual de " +
+             "larga. Muy corta y el agente no llega ni a terminar de calcular el camino nuevo.")]
+    [SerializeField, Min(0.2f)] private float stuckRepathGrace = 1.5f;
+
     [Tooltip("Waypoints closer than this to the player are not eligible when repositioning after " +
              "a capture, so the Nemesis does not warp on top of the player it just respawned.")]
     [SerializeField, Min(0f)] private float repositionMinPlayerDistance = 15f;
@@ -667,6 +678,7 @@ public class SO_NemesisData : ScriptableObject
     public bool HearingUsesPathDistance { get => hearingUsesPathDistance; set => hearingUsesPathDistance = value; }
     public float StuckCheckInterval { get => stuckCheckInterval; set => stuckCheckInterval = value; }
     public float StuckMinDistance { get => stuckMinDistance; set => stuckMinDistance = value; }
+    public float StuckRepathGrace { get => stuckRepathGrace; set => stuckRepathGrace = value; }
     public float RepositionMinPlayerDistance { get => repositionMinPlayerDistance; set => repositionMinPlayerDistance = value; }
     public float SpawnMinPlayerDistance { get => spawnMinPlayerDistance; set => spawnMinPlayerDistance = value; }
     public float SpawnSafeHalfAngle { get => spawnSafeHalfAngle; set => spawnSafeHalfAngle = value; }

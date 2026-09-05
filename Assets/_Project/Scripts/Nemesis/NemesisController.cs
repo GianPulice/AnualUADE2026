@@ -579,6 +579,15 @@ public class NemesisController : MonoBehaviour
     {
         position = Vector3.zero;
 
+        // The Director's request outranks the player's own position, and this is the whole of its
+        // hold over the patrol: it swaps out the point the zone roll leans towards and changes
+        // nothing else. Everything below — the coarseness that keeps this from reading as
+        // omniscience — applies to its anchor exactly as it does to the player's.
+        //
+        // Static and null-safe: a level with no Director in it answers false and falls straight
+        // through to the behaviour this method had before the Director existed.
+        if (NemesisDirector.TryGetPressureAnchor(out position)) return true;
+
         SO_NemesisData data = Data;
         if (data == null || !data.ZoneBiasUsesRealPlayer) return false;
 

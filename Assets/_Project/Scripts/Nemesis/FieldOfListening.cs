@@ -17,6 +17,13 @@ public class FieldOfListening : MonoBehaviour
 
     [SerializeField] private LayerMask listenMask;
 
+    /// <summary>
+    /// Which layers count as a noise. Exposed so <see cref="NemesisDirector"/> can check on load
+    /// that the layer it spawns its synthetic noises on is one this actually listens to — a
+    /// mismatch there produces no error and no sound, just a lever that does nothing.
+    /// </summary>
+    public LayerMask ListenMask => listenMask;
+
     [Tooltip("Geometric line of sight. Used by IsOccludedByWall, which despite living on the " +
              "hearing sensor answers a VISION question for four other systems: whether the " +
              "capture has a wall in the way, whether a spawn point is in view of the player, " +

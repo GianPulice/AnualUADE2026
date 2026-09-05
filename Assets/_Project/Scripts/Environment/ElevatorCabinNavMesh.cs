@@ -300,22 +300,64 @@ public class ElevatorCabinNavMesh : MonoBehaviour
     /// <summary>
     /// One link per landing, mounted on the STATIC root and pointed at a cabin-side transform.
     ///
-    /// On the root and not on the cabin for the same reason the shaft link is
+    /// On a static transform and not on the cabin for the same reason the shaft link is
     /// (<see cref="NemesisElevatorLink"/>'s class doc): a link registers itself relative to its own
     /// GameObject, so one mounted on the cabin is torn down and rebuilt every frame of the ride and
     /// can vanish from under an agent halfway across it. The END is allowed to travel, because
     /// autoUpdate re-points a link whose endpoint transforms have moved.
+    ///
+    /// Which transform that is has to be worked out rather than assumed — see
+    /// <see cref="ResolveStaticRoot"/>.
     /// </summary>
     private void BuildLinks()
     {
-        bottomLink = CreateLink(elevator.BottomLanding, bottomDoor, "BoardingLink_Bottom");
-        topLink = CreateLink(elevator.TopLanding, topDoor, "BoardingLink_Top");
+        Transform staticRoot = ResolveStaticRoot();
+
+        bottomLink = CreateLink(staticRoot, elevator.BottomLanding, bottomDoor, "BoardingLink_Bottom");
+        topLink = CreateLink(staticRoot, elevator.TopLanding, topDoor, "BoardingLink_Top");
     }
 
-    private NavMeshLink CreateLink(Transform landing, Transform door, string linkName)
+    /// <summary>
+    /// Something that does NOT travel with the cabin, to hang the boarding links off.
+    ///
+    /// It cannot just be <c>transform</c>. This component is auto-added next to
+    /// <see cref="NemesisElevatorLink"/>, and in this project's prefab that link is mounted on the
+    /// cabin rather than on the static root it is documented to live on — so parenting to
+    /// <c>transform</c> would put the boarding links on the moving lift, which is precisely the
+    /// arrangement both classes warn against.
+    ///
+    /// The landings are the definition of "does not move": the entire elevator depends on them
+    /// staying on their floor while the cabin travels between them, so whatever they hang off is
+    /// static by construction. That holds whether the link was wired correctly or not, which is
+    /// what makes this safe to rely on rather than a second guess.
+    /// </summary>
+    private Transform ResolveStaticRoot()
+    {
+        Transform cabin = platform.transform;
+
+        Transform landingParent = elevator.BottomLanding != null ? elevator.BottomLanding.parent : null;
+        if (IsStatic(landingParent, cabin)) return landingParent;
+
+        if (IsStatic(transform, cabin)) return transform;
+        if (IsStatic(cabin.parent, cabin)) return cabin.parent;
+
+        // Nothing static to be found: the whole shaft is parented under the cabin somehow. The
+        // links still work — they are only ever enabled while the cabin is parked — but they are
+        // being rebuilt for the whole of every trip, so it is worth knowing.
+        Debug.LogWarning($"[{nameof(ElevatorCabinNavMesh)}] '{name}': found nothing outside the " +
+                         "cabin to mount the boarding links on, so they travel with it. Check the " +
+                         "shaft's hierarchy — the landings should hang off a root the cabin is a " +
+                         "child of.", this);
+        return transform;
+    }
+
+    private static bool IsStatic(Transform candidate, Transform cabin) =>
+        candidate != null && candidate != cabin && !candidate.IsChildOf(cabin);
+
+    private NavMeshLink CreateLink(Transform parent, Transform landing, Transform door, string linkName)
     {
         GameObject host = new GameObject(linkName);
-        host.transform.SetParent(transform, worldPositionStays: false);
+        host.transform.SetParent(parent, worldPositionStays: false);
 
         NavMeshLink link = host.AddComponent<NavMeshLink>();
         link.agentTypeID = agentTypeID;

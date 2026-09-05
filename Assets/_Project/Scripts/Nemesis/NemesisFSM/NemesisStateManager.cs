@@ -633,8 +633,67 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     // ── Facade: stuck detection (NemesisStuckEscape) ────────────────────────
 
+    /// <summary>
+    /// Swaps the tuning asset every part of the Nemesis reads, and pushes it to the three
+    /// components that keep their own reference.
+    ///
+    /// ONE CALLER, ON PURPOSE: <see cref="NemesisDirector"/>, handing over a runtime copy with
+    /// widened senses for the length of a pressure request and handing the authored asset back
+    /// afterwards. It is not a general-purpose setter and should not become one — the reason it
+    /// can exist at all is that the Director owns both ends of the swap and guarantees the
+    /// restore.
+    ///
+    /// The push matters as much as the assignment. FieldOfView, FieldOfListening and
+    /// NemesisPathOracle each hold their own serialized reference, so assigning only this one
+    /// leaves the Nemesis half-boosted: it would decide with the new ranges and sense with the old.
+    /// </summary>
+    public void OverrideData(SO_NemesisData data)
+    {
+        if (data == null) return;
+
+        nemesisData = data;
+
+        if (fieldOfView != null) fieldOfView.SetData(data);
+        if (fieldOfListening != null) fieldOfListening.SetData(data);
+        if (pathOracle != null) pathOracle.SetData(data);
+    }
+
+    /// <summary>
+    /// Freezes the body where it stands without touching the FSM, or hands it back.
+    ///
+    /// For <see cref="NemesisDirector"/>'s staged entrance: the Nemesis has arrived and has very
+    /// probably already seen the player, so the FSM is free to be in Chasing — it just does not
+    /// get to move yet. Holding the BODY rather than the decision is what keeps that beat from
+    /// being a lie: nothing about what it knows is suppressed, and the moment the hold lifts it
+    /// carries on from wherever the ladder had already got to.
+    ///
+    /// <c>isStopped</c> and not <c>ResetPath</c>, for the same reason
+    /// <see cref="NemesisElevatorUser"/> uses it: the path is what it resumes on, and throwing it
+    /// away would make every hold also a lost destination. The velocity is zeroed as well, because
+    /// isStopped halts the steering but leaves whatever the body had built up, and a monster that
+    /// keeps drifting for a few tenths of a second after freezing looks broken rather than
+    /// menacing.
+    ///
+    /// The animation needs no help here: TickLocomotionAnimation reads the body, sees it standing
+    /// still, and drops to Idle on its own.
+    /// </summary>
+    public void SetExternalHold(bool hold)
+    {
+        if (navAgent == null || !navAgent.isActiveAndEnabled || !navAgent.isOnNavMesh) return;
+
+        navAgent.isStopped = hold;
+        if (hold) navAgent.velocity = Vector3.zero;
+    }
+
     /// <summary>See <see cref="NemesisStuckEscape.IsSuppressed"/>.</summary>
     public bool IsStuckDetectionSuppressed => stuckEscape != null && stuckEscape.IsSuppressed;
+
+    /// <summary>How many times the watchdog has quietly repaired a path, and how many times it has
+    /// had to warp the body out. For the debug HUD — see <see cref="NemesisStuckEscape"/> for why
+    /// the two are worth telling apart.</summary>
+    public int StuckRepathCount => stuckEscape != null ? stuckEscape.RepathCount : 0;
+
+    public int StuckWarpCount => stuckEscape != null ? stuckEscape.WarpCount : 0;
 
     /// <summary>Opens a window with no stuck detection. Every <see cref="PushStuckSuppression"/>
     /// must have its <see cref="PopStuckSuppression"/>, even if the traversal is cancelled — use

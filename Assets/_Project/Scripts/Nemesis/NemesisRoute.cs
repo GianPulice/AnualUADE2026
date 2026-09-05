@@ -42,8 +42,36 @@ public class NemesisRoute : MonoBehaviour
 
     private bool IsPuzzleGated => !string.IsNullOrWhiteSpace(unlockedByPuzzleId);
 
-    public float Weight => weight;
+    /// <summary>
+    /// How often this route gets picked, as everything that rolls a route sees it: the weight the
+    /// designer authored, times whatever the <see cref="NemesisDirector"/> is currently doing to
+    /// it.
+    ///
+    /// Two values and not one on purpose. The authored number is the design — "this corner is not
+    /// worth patrolling often" — and it has to survive being leaned on: a route weighted 0.2 stays
+    /// the least frequent of its neighbours even under maximum pressure, and a route switched off
+    /// at 0 stays off, because zero times anything is still zero. A director that SET the weight
+    /// instead of scaling it would flatten exactly the tuning it is supposed to bend.
+    /// </summary>
+    public float Weight => weight * pressureMultiplier;
+
+    /// <summary>The weight as authored, ignoring any pressure. For tooling and gizmos that should
+    /// show what the designer typed rather than what the roll is currently seeing.</summary>
+    public float AuthoredWeight => weight;
+
     public bool IsUnlocked => isUnlocked;
+
+    /// <summary>
+    /// Runtime-only, never serialised: pressure is a thing that is happening, not a property of
+    /// the level, and a multiplier left in an asset by a playtest is a mystery for whoever opens
+    /// the scene next.
+    /// </summary>
+    private float pressureMultiplier = 1f;
+
+    /// <summary>Scales this route's frequency for as long as the Director says so. 1 is "no
+    /// pressure" and is what every path out of a request restores.</summary>
+    public void SetPressureMultiplier(float multiplier) =>
+        pressureMultiplier = Mathf.Max(0f, multiplier);
 
     /// <summary>Ordered waypoints for this route, collected from tagged direct children.</summary>
     public IReadOnlyList<Transform> Waypoints => waypoints;

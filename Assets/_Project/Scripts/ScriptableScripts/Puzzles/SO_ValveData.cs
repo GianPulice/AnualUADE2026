@@ -4,6 +4,7 @@ using UnityEngine;
 public class SO_ValveData : ScriptableObject
 {
     [SerializeField] private string valveId;
+    [PuzzleId]
     [SerializeField] private string linkedPuzzleId;
     [SerializeField] private int maxPositions = 4;
     [SerializeField] private int initialPosition = 0;

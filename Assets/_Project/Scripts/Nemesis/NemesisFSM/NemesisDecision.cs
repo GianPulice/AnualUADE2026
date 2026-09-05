@@ -155,6 +155,15 @@ public sealed class NemesisDecision
 
     // ── Why it decided what it decided ──────────────────────────────────────
 
+    /// <summary>
+    /// A state held by hand from the test console, or null to let the ladder decide.
+    ///
+    /// Editor and development builds only, so it cannot ship as a way for anything to steer the
+    /// Nemesis. See <see cref="Decide"/> for why pinning the ladder's answer is safe where writing
+    /// NextState directly is not.
+    /// </summary>
+    public NemesisStateManager.ENemesisState? PinnedState { get; set; }
+
     /// <summary>Index of the rung that won this frame, or -1 when none did. For the debug HUD:
     /// without it, "why is it doing this" is not a question anyone can answer while playing.
     /// </summary>
@@ -173,6 +182,33 @@ public sealed class NemesisDecision
     /// </summary>
     public NemesisStateManager.ENemesisState Decide()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // PINNED FROM THE TEST CONSOLE, AND THE ONLY SAFE PLACE TO DO IT.
+        //
+        // "Force a state" is the obvious debug feature and the obvious implementation of it is
+        // wrong: a state is requested by writing NextState, NemesisDecision is the only thing
+        // allowed to write it, and a second writer makes the machine transition every frame and
+        // never execute a single frame of any state. That reads in game as a monster staring at
+        // you and twitching — see NemesisTestConsole's class doc, where it is the reason the panel
+        // had no such button.
+        //
+        // Overriding the ladder's ANSWER has none of that problem. There is still exactly one
+        // writer, the state is entered once and then runs normally, and everything downstream
+        // behaves as it would if the ladder had chosen it for real. What you are looking at is the
+        // genuine state, just entered for a reason you picked.
+        //
+        // Two caveats it is better to know than to discover: a state can still reject the entry
+        // (Catch with nobody to grab falls straight back to Searching, by design), and a pinned
+        // state whose preconditions are absent simply has nothing to do — pinned Traversing with
+        // no route across floors stands still, which is correct and not a bug.
+        if (PinnedState.HasValue)
+        {
+            LastRungIndex = -1;
+            LastReason = $"FIJADO a mano ({PinnedState.Value})";
+            return PinnedState.Value;
+        }
+#endif
+
         IReadOnlyList<NemesisPriorityRung> ladder = Ladder;
         NemesisStateManager.ENemesisState? current = stateManager.CurrentStateKey;
 

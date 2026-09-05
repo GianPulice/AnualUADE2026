@@ -27622,7 +27622,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20b37ff897f5edb4daba0b6a105326cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AmbienceZone
-  profile: {fileID: 11400000, guid: 3ea9fbe6efca3f344a5c37448d10d258, type: 2}
+  profile: {fileID: 0}
   playerTag: Player
 --- !u!65 &787635071
 BoxCollider:
@@ -28826,7 +28826,6 @@ Transform:
   - {fileID: 1347045238}
   - {fileID: 1588292786}
   - {fileID: 875942712}
-  - {fileID: 1125019066}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &819246066
@@ -40339,7 +40338,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1125019065}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -16.28428, y: 4.88961, z: 12.9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -40348,7 +40347,7 @@ Transform:
   - {fileID: 1729077915}
   - {fileID: 787635069}
   - {fileID: 992755667}
-  m_Father: {fileID: 816626569}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1127836887
 PrefabInstance:
@@ -54186,7 +54185,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20b37ff897f5edb4daba0b6a105326cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AmbienceZone
-  profile: {fileID: 11400000, guid: 9ca9add1f5c3b394f8e1f8e020fa2381, type: 2}
+  profile: {fileID: 0}
   playerTag: Player
 --- !u!65 &1465677930
 BoxCollider:
@@ -76095,3 +76094,4 @@ SceneRoots:
   - {fileID: 1393245714}
   - {fileID: 144278226}
   - {fileID: 816626569}
+  - {fileID: 1125019066}

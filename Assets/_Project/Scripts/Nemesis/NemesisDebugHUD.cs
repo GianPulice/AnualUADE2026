@@ -149,7 +149,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 13f + stripHeight + 26f;
+        float height = lineHeight * 14f + stripHeight + 26f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -164,6 +164,7 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "búsqueda", DescribeSearch());
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
+        Row(ref line, "trabas", DescribeStuck());
 
         line.y += 6f;
         Row(ref line, "seguro en", lastSafeTime >= 0f ? $"{lastSafeTime:0.0} s" : "—");
@@ -338,6 +339,27 @@ public class NemesisDebugHUD : MonoBehaviour
         string ready = stateManager.IsAgentReady ? "listo" : "<b>apagado / fuera del NavMesh</b>";
         string watchdog = stateManager.IsStuckDetectionSuppressed ? "  ·  watchdog suprimido" : "";
         return ready + watchdog;
+    }
+
+    /// <summary>
+    /// What the stuck watchdog has had to do this run.
+    ///
+    /// The two numbers are the point: repaths are the cheap fix working (a path went bad, it was
+    /// asked for again, nobody saw anything), warps are the body having been genuinely wedged.
+    /// A run that ends with warps at zero and a handful of repaths is a healthy level. Warps
+    /// climbing is a NavMesh bake or a waypoint sitting somewhere it should not, and no tuning in
+    /// SO_NemesisData will fix it — which is exactly the distinction that was invisible while the
+    /// watchdog only ever teleported.
+    /// </summary>
+    private string DescribeStuck()
+    {
+        int repaths = stateManager.StuckRepathCount;
+        int warps = stateManager.StuckWarpCount;
+
+        if (repaths == 0 && warps == 0) return "ninguna";
+
+        string warpText = warps > 0 ? $"<b>{warps} warp</b>" : "0 warp";
+        return $"{repaths} recalculo  ·  {warpText}";
     }
 
     private string DescribeSafeStats()

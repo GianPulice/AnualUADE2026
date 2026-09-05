@@ -165,9 +165,36 @@ public class NemesisElevatorLink : MonoBehaviour
             return;
         }
 
+        WarnIfMountedOnTheCabin();
         ConfigureLink();
         CalibrateRideDistance();
         EnsureCabinNavMesh();
+    }
+
+    /// <summary>
+    /// Reports the setup mistake this component's own class doc calls the single most common way to
+    /// break an elevator: mounting it on the cabin instead of on the static root.
+    ///
+    /// A NavMeshLink is re-registered whenever its GameObject moves, so one riding the cabin is
+    /// torn down and rebuilt every frame of every trip — it can vanish from under an agent halfway
+    /// across it, and a route query taken mid-ride can miss the crossing entirely and conclude the
+    /// other floor is unreachable.
+    ///
+    /// A warning and not an error, because it still mostly works: the landings are referenced by
+    /// transform, so the link's ENDS stay put even when its host does not. It is loud rather than
+    /// silent because "mostly works" is exactly the failure that gets found three bugs later.
+    /// </summary>
+    private void WarnIfMountedOnTheCabin()
+    {
+        if (platform == null) return;
+        if (transform != platform.transform && !transform.IsChildOf(platform.transform)) return;
+
+        Debug.LogWarning($"[{nameof(NemesisElevatorLink)}] '{name}' is mounted on the CABIN " +
+                         $"('{platform.name}'), not on the static root. Its NavMeshLink travels " +
+                         "with the lift and is rebuilt every frame of every trip. Move this " +
+                         "component and its NavMeshLink to the root (the object the landings hang " +
+                         "off), leaving MovingPlatform on the cabin. See this class's setup notes.",
+                         this);
     }
 
     /// <summary>

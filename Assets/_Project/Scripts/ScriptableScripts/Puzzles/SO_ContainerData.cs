@@ -4,6 +4,7 @@ using UnityEngine;
 public class SO_ContainerData : ScriptableObject
 {
     [SerializeField] private string containerId;
+    [PuzzleId]
     [SerializeField] private string linkedPuzzleId;
     [SerializeField] private string initialSlotId;
     [SerializeField] private string promptText = "Move container";
