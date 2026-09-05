@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**WIRED** — a Unity 6 (6000.x LTS) first-person survival horror game with a PSX aesthetic. Render pipeline: **URP 17.4.0**, Compatibility mode. All game scripts live under `Assets/_Project/Scripts/` (formerly `Assets/Scritps/`, with the typo — renamed during the asset reorganization).
+**WIRED** — a Unity 6 (6000.x LTS) third-person survival horror game with a PSX aesthetic. Render pipeline: **URP 17.4.0**, Compatibility mode. All game scripts live under `Assets/_Project/Scripts/` (formerly `Assets/Scritps/`, with the typo — renamed during the asset reorganization).
 
 ## Assets layout
 
@@ -60,7 +60,7 @@ Additional documentation in `docs/`:
 
 ## Design specs
 
-Four GDD documents define the intended scope of the systems below. They are team documents (Docs /
+Nine GDD documents define the intended scope of the systems below. They are team documents (Docs /
 Drive), not files in this repo. They were written at different moments against different states of
 the code, so read them with one rule: **where a spec and this file disagree about how something
 works *today*, this file wins; where they disagree about what the feature is *meant to be*, the
@@ -69,7 +69,12 @@ spec wins.**
 | Spec | Version | Where it stands in code |
 |---|---|---|
 | Inventory System | v2.0 | Built. Gaps: the audio player and the item catalogue — see *Inventory* |
-| Nemesis System | v1.0 draft | Built, and well past the spec. The spec is the document that is behind — see *Spec deltas* below |
+| Player System | v1.1 | Built, and **deliberately divergent** — there is a sprint the spec forbids. See *Spec deltas — Player* |
+| Interaction System | v1.0 draft | Built for Variant A. Variant B is an unopened skeleton — see *Spec deltas — Interaction* |
+| Nemesis System | v1.0 draft | Built, and well past the spec. The spec is the document that is behind — see *Spec deltas — Nemesis* |
+| Audio System | v1.1 | **Routing built, content thin.** 16 of the ~90 clips on disk are reachable — see *Spec deltas — Audio* |
+| Music Spec | v1.1 | 1 of 7 pieces. No `MusicManager` — see *Spec deltas — Music* |
+| Light System | v1.0 draft | Built as something else: the **vision fog**, not the spec's light model — see *Spec deltas — Light* |
 | Hiding System | v1.0 draft | **Not built.** `EPlayerState.Hidden` is an inert stub — see *Hiding spots* |
 | Obstacle System | v1.0 draft | **Not built.** Nothing in the project climbs, vaults, pushes or clears — see *Environmental obstacles* |
 
@@ -94,6 +99,20 @@ real system and the two disagree. The mapping:
 | "state X transitions to Y" | States never decide transitions. `NemesisDecision` + `SO_NemesisPriorities` do — see *Nemesis: the decision layer* |
 | "the Hub blocks the Nemesis" (in code) | A NavMesh `Not Walkable` modifier volume. There is no C# side — see *Safe zones* |
 | `ModuleManager.GetActiveModuleTimeRemaining()` / `GetActiveModuleTotalTime()` | `GetActiveModule()` returns the `ModuleRuntime`; it already exposes `TimeRemaining`, `TimerProgress` (the bar fill the spec computes by hand), `FormattedTime` and `BarColor`. The total is `Data.TimerDuration`. `GetExplodedCount()` exists exactly as specified |
+| `AudioManager.PlaySFX(AudioClip, pos)` — an `AudioClip` argument | Every `Play*` takes a **string id** that must resolve to an `SO_SoundData` asset dragged into the `AudioManager.sounds` array. A clip sitting in `_Project/Audio/` with no SO is unreachable; a wrong id logs a warning and plays nothing |
+| `IInteractable.GetPromptText()` | `GetInteractText()` **plus** `GetInfoText()` — the second is exactly the spec's §6.1 "Necesitas X" informative prompt, and it already exists |
+| `IInteractable.OnInteract(PlayerController player)` | `Interact()`, no argument. Interactables reach the player through `PlayerRegistry` and the manager singletons |
+| `PlayerController.OnDangerDetected()` | **Does not exist**, and neither does the `InDanger` state it would set. The danger *feedback* survives as `VignetteProximityView` / `VignetteChaseView`, driven straight off `NemesisEvents` |
+| `MusicManager` (`SetZone`, `PlayChaseMusic`, `OnEnterHiding`, `OnPuzzleResolved`, stinger source) | **Does not exist.** `NemesisChaseMusic` covers the chase cue only; `AudioManager.PlayMusic(id)` owns one 2D source and has **zero callers** |
+| `AmbientManager` / `DuckAmbience` / `RestoreAmbience` | `AmbienceController` + `AmbienceZone`. The duck hooks are `FadeOutAll` / `FadeInAll` (already used by `NemesisChaseMusic`) and `SetTensionScalars` (no callers) |
+| `ZoneTracker.OnPlayerZoneChanged` / a `ZoneType` enum | **Does not exist.** The project has no notion of "which zone is the player in". The nearest equivalents are two independent trigger push/pop stacks: `AmbienceZone` → `AmbienceController` and `LightZone` → `VisionRangeController` |
+| `FootstepSystem` (player or Nemesis) | **Does not exist.** Nothing in the project plays a footstep. Surface detection, per-surface clip banks and the step interval are all unwritten |
+| `AudioMixerSnapshot` (`Paused`, `InHiding`, `NemesisMuffled`, `NemesisClear`) | `MasterMixer.mixer` has exactly one snapshot, the default. Pause ducking is `AudioManager.PauseDuck`, a global multiplier; Nemesis occlusion is `NemesisAudio.occludedVolumeMultiplier`, eased per source. Neither applies a lowpass |
+| `NemesisController.PlayVoiceLine(VoiceLineType)` | **Does not exist.** `NemesisAudio` crossfades one looping clip per state and nothing else |
+| `LightManager`, `ZoneLightController`, the generator | **Do not exist.** No light in the project can be switched on by the player |
+| `AdaptationController` / `adaptationProgress` / `darkThreshold` | **Do not exist.** Standing still buys the player nothing today |
+| per-zone `lightLevel`, `playerVisibilityFactor`, `encendedorContribution` | **Do not exist.** `FieldOfView` has no light term at all — darkness does not shorten the Nemesis's sight and a lit room does not lengthen it. The per-zone knob that *does* exist is `SO_VisionFogConfig`, and it drives what the **player** sees, not what the Nemesis sees |
+| "the device's light" / "el encendedor" | `FogLightSource` on the player's amber `Light`, read by `VisionRangeController` to punch a hole in the vision fog |
 
 ### Noise is a sphere, not an event
 
@@ -137,6 +156,189 @@ distance checks, and detection being all-or-nothing. Things it asks for that are
 - **A capture cinematic (§5).** `NemesisCatchState` plays out phases and `CaptureFadeView` fades;
   there is no cinematic. Everything else in the capture chain is wired.
 - **`underTableVisionMultiplier` (hiding spec §3).** No field, no reader — see *Hiding spots*.
+
+### Spec deltas — Player
+
+The player spec is the one where **the code deliberately left the spec behind**, so read the
+divergences as decisions, not as bugs to fix back:
+
+- **Sprint exists, and the spec forbids it.** Spec §1.2 lists "correr (sprint)" among the
+  restrictions that "no deben implementarse". The project has `SO_Movement.SprintSpeedMultiplier`
+  (1.5), a `Sprint` action in `InputSystem_Actions`, `CameraSprintEffect`, a third noise radius
+  (`runNoiseRadius` 6, against walk 2 / crouch 1) that `NemesisGizmos` draws to scale — **and the
+  M2 module penalty is defined as a sprint reduction** (`SprintPenaltyFactor`). Removing sprint now
+  would delete one of the three module penalties. The spec is the document that is behind.
+- **Third-person orbital camera**, which is what spec §4 asks for: `CinemachineOrbitalFollow` plus a
+  Deoccluder plus a pivot that drops on crouch (`SO_CameraConfig.CrouchPivotDrop`). The spec's
+  `shoulderOffset`, `maxVerticalAngle` (80) and camera-wall raycast are all present; `fov` ships at
+  72 rather than the spec's 70, and `crouchSpeedMultiplier` at 0.45 rather than 0.6.
+- **Crouch is not a plain toggle.** Standing up is gated by `HasHeadroomToStand()` against
+  `standBlockMask`, with a `wantsToStand` latch honoured the frame the ceiling clears. A C press
+  under a duct does nothing, on purpose.
+- **`InDanger` was deleted** (spec §7 lists it as a state). It was never registered in the state
+  dictionary. Its feedback half survives in the vignette views.
+- **Movement is Rigidbody + CapsuleCollider**, not `CharacterController` — see the vocabulary table.
+
+Matching the spec without drama: `moveSpeed` 3.5, `acceleration` 8, unlimited inventory, capture →
+checkpoint against three modules → Game Over as two different endings, ESC always live, and the
+interaction/inventory input locks.
+
+**Missing from the player spec:** everything in §10.2 that is audio (footsteps, breathing) and the
+`Hidden` half of §8.3.
+
+### Spec deltas — Interaction
+
+Built to spec, and in one place stricter than it:
+
+- One `E`, a 0.2 s cooldown (`InteractionManager.InteractCooldown`), exactly one prompt on screen,
+  `CanInteract()` / `IsRepeatable()` honoured, and the four simple types (recoger, activar,
+  inspeccionar, abrir puerta) all shipping.
+- **Target selection does not use the spec's dot-product rule.** `InteractionProbe` fires a sphere
+  cast through the crosshair's own viewport point, measures reach **from the player** rather than
+  from the lens, and runs a second solid-only pass for occlusion so interaction volumes may stay
+  triggers. On a rig whose camera orbits ~3.4 m behind the character, the dot-product rule picks the
+  wrong object. Do not replace this with the spec's version.
+- **Variant A ships** (`SocketInteractable`: E plus the item in the inventory = immediate insertion).
+- **Variant B is a skeleton nothing opens.** `LateralInventoryView` renders the item list and raises
+  a selection event; the camera pan to `puzzleCameraPoint`, the `Interacting` lock, the ESC cancel
+  and the Nemesis interrupt are all absent — its own class comment lists them as pending. No puzzle
+  in the project requests it.
+- **Spec §8's specials route into systems that do not exist**: hiding, climbing, the window vault,
+  the shelf push and the sync station. Of that list only the elevator panels are real, and they are
+  not in the spec at all.
+
+### Spec deltas — Audio
+
+The **plumbing matches the spec closely; the content does not reach the game.**
+
+Built as specified: the eight-bus mixer (`Master > Music, Ambience, SFX, Player, Nemesis, UI,
+Voice`), an `AudioManager` singleton with one entry point per bus, `PlayLoop(id, source)` for
+externally-owned loops, `spatialBlend` 1 for anything played at a position and 0 otherwise, and
+`ignoreListenerPause` forced on UI and Voice so menu clicks survive the pause.
+
+**The content gap is the headline.** `_Project/Audio/` holds roughly ninety clips — footsteps for
+six surfaces, five breathing loops, the whole module set (tick normal and urgent, activation,
+explosion, damage loop, resolve, game-over, device hum, M2 chest vibe), Nemesis breathing and voice,
+generator and flicker audio, the save-point set, the UI set. **Sixteen `SO_SoundData` assets exist.**
+Everything else is a file on disk that no id resolves to and no call site asks for. Authoring the SO
+is the cheap half of the work and it is the half that is missing, not the recording.
+
+Where audio actually fires today: doors (from `AnimateOpen`/`AnimateClose`, so the Nemesis opening a
+door is audible), notes, pickups (with the `SO_ItemCategoryConfig` fallback), sockets, valves, the
+sequence panel, the elevator, the sub-puzzle completion sting, and one UI click. That is the whole
+list.
+
+**Footsteps and hidden breathing are built** — see *Footsteps and breathing* under Architecture.
+That covers `PLY_01`–`PLY_07`, `PLY_08`/`PLY_11` and `NEM_01`/`NEM_02`.
+
+**Missing outright, in spec-table order:** `PLY_09`/`PLY_10` (the hold-breath input and its
+involuntary exhale, which belong to the unbuilt hiding system); `NEM_06`–`NEM_13` voice lines (there
+is no `PlayVoiceLine`); every `MOD_*` call site — the module system runs its timers, explosions,
+penalties and resolutions **silently**, even though all nine clips exist; every `TRP_*` (the traps
+themselves do not exist); every `LUZ_*` — `FlickerLight`, `MonitorFlicker` and the generator have no
+`AudioSource` between them; every `SAV_*`; and `UI_01`–`UI_06` apart from the panel click, so the
+menus are silent.
+
+Deltas in mechanism rather than in scope:
+
+- **Pause.** The spec wants a `Paused` snapshot with a lowpass on everything but UI. What exists is
+  `AudioManager.PauseDuck`, a global multiplier that `AudioBackgroundApplier` fades and that exempts
+  UI. Same intent, no lowpass, and `NemesisChaseMusic` still ignores it.
+- **Nemesis occlusion.** The spec wants `NemesisMuffled` / `NemesisClear` snapshots driven by a zone
+  comparison. `NemesisAudio` instead eases a per-source volume multiplier off the same wall raycast
+  `FieldOfListening` already runs — attenuation, never a cut, and no zone system needed.
+- **`SO_SoundData` carries 3D rolloff, `minDistance` and `maxDistance` per clip.** The spec assumes
+  the AudioSource is configured at the call site; pooled sources are created in code and would
+  otherwise inherit Unity's `maxDistance` of 500, which makes distance useless as information.
+- **Bank content does not go through ids.** `AudioManager.PlayClip` (and the `PlayPlayer` /
+  `PlayNemesis` / `PlaySFX` overloads that take an `AudioClip`) plays a clip the caller already
+  holds, with per-shot volume, pitch and falloff. The id-based path cannot express any of those:
+  `PlayInternal` plays everything at volume 1 and pitch 1. Content drawn from a bank — footsteps
+  today — uses the clip overloads; content with one fixed sound per event keeps using ids.
+
+**Past the spec:** the entire ambience system. Spec §11 asks for one loop per zone plus an
+`OccasionalSoundPlayer`. `_Project/Scripts/Ambience/` ships four layers, coprime loop pairs to defeat
+loop detection, weighted event tiers with a repetition penalty, occlusion-aware 3D placement, an
+offline tone baker, and a low-frequency comfort toggle for players sensitive to the sub drones. None
+of that is in the spec.
+
+### Spec deltas — Music
+
+**One of the seven pieces exists.** `_Project/Audio/Music/` holds a single chase track, and
+`NemesisChaseMusic` plays it off `NemesisEvents.OnChaseStarted` / `OnChaseEnded`.
+
+There is **no `MusicManager`**, and therefore none of the spec's transition table: no `ZoneType`, no
+`SetZone`, no exploration pieces for Hub / zone / corridor, no crossfade pair of AudioSources, no
+stinger source, no menu music (`AudioManager.PlayMusic` has zero callers anywhere), no ending piece.
+`MUS_02`–`MUS_05` and `MUS_07` are unwritten as content *and* unreachable as code.
+
+Two deltas in the one piece that does exist:
+
+- **Fade timings.** Spec §2 wants 0.5 s in and 2 s out with a reversible fade. `NemesisChaseMusic`
+  uses a single `fadeDuration` (2 s default) in both directions. The reversal itself works — the
+  target volume is retargeted, not restarted.
+- **It fades the ambience out under itself.** `FadeOutAll` / `FadeInAll` on `AmbienceController` for
+  the takeover. The music spec does not ask for this; the *audio* spec §11 does, as
+  `DuckAmbience(0.3, 0.5)`. What ships is a full fade rather than a duck to 30% — a stronger reading
+  of the same idea.
+
+### Spec deltas — Light
+
+**The light spec describes a system the project did not build. It built a different one, better
+suited to the PSX look — but the two are not interchangeable, and the spec's gameplay consequences
+are all missing.**
+
+What the spec asks for: a per-zone `lightLevel`, a device light that contributes to a
+`playerVisibilityFactor` the Nemesis reads, visual adaptation earned by standing still, and
+generators the player switches on for a timed window of visibility.
+
+What exists instead: the **vision fog**. A fullscreen shader (`VisionRangeController` +
+`SO_VisionFogConfig`) whose radius is pushed and popped by `LightZone` trigger volumes, with the
+player's amber device Light punching a hole through it via `FogLightSource`. It answers "how far can
+the player see here", which is the spec's §5 table by another road.
+
+Mapping, so nobody builds the second copy:
+
+| Light spec | What plays that role here |
+|---|---|
+| per-zone `lightLevel` | the `SO_VisionFogConfig` preset a `LightZone` pushes |
+| the device's light (§3.1) | `FogLightSource` reading the real amber `Light` |
+| degradation by module count (§3.1.1) | **scaffolded, no caller.** `FogLightSource` reads the live `Light`, so dropping its intensity shrinks the fog hole for free — but nothing listens to `ModuleEvents.OnExploded` to drop it |
+| flickering lights (§2.3) | `FlickerLight` — and it already follows the spec's own advice: a deterministic `AnimationCurve` per instance with a per-instance offset, never `Random.Range` in `Update` |
+| monitors (§2.2) | `MonitorFlicker` (emission pulse through a `MaterialPropertyBlock`) |
+| red emergency lights (§2.1) | level dressing, no script — which is exactly what the spec asks for |
+
+**Missing outright:**
+
+- **The generator / timed zone activation (§2.4).** No `ZoneLightController`, no `IInteractable`, no
+  timed routine, no fade warning. The single most gameplay-bearing item in the whole spec.
+- **Visual adaptation (§3.2).** No `AdaptationController`, no `adaptationProgress`, no exposure or
+  lift drive on the post-process volume. Standing still is currently worth nothing to the player,
+  which also removes the spec's risk/reward beat.
+- **Light as an input to detection (§4).** `FieldOfView` has no light term whatsoever. Hiding in the
+  dark does not shorten the Nemesis's sight, the device light never gives the player away, and
+  `playerVisibilityFactor` does not exist. The vision fog changes what the *player* sees and nothing
+  about what the *Nemesis* sees — the spec's central bargain is not in the game.
+- **All of `LUZ_01`–`LUZ_07`.** The clips are on disk; no light component owns an `AudioSource`.
+
+**Past the spec:** the fog shader itself, its 16 bypass zones, the linear-colour discipline in
+`VisionFogState` (`Shader.SetGlobalColor` does no sRGB conversion, so every write goes through one
+method), `VisionFogClip`/`VisionFogTrack` for driving the fog from Timeline, and
+`FogLightBypassPlayerFade`.
+
+### What the code has that no spec asks for
+
+Useful to know before "finishing" a spec: a large share of the project is in none of the nine
+documents, and none of it should be deleted for failing to match one.
+
+Ambience (four layers, event scheduler, placement resolver, tone baker, comfort toggle) · the vision
+fog and its Timeline track · the whole Nemesis director layer (`NemesisDirector`,
+`NemesisRouteGraph`, `NemesisPathOracle`, `NemesisFreeRoam`, `NemesisPressureZone`, zone gravitation,
+stuck escalation, telemetry, the test console and the editor validators) · the freight elevator and
+its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene MVC UI framework,
+`UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
+applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (built, zero
+callers) · the ball/basket push puzzle.
 
 ## Architecture
 
@@ -1245,6 +1447,78 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 
 **Renderer Feature order** (`PC_Renderer.asset`): SSAO then Vision Fog (BeforeRenderingPostProcessing) then PS1Effect (BeforeRenderingPostProcessing). Fog must precede PS1 so world-space coherence is preserved before the pixelation pass.
 
+### Footsteps and breathing (`FootstepEmitter`, `HiddenBreathing`)
+
+Both walkers step through **one** component. `FootstepEmitter` fires a footstep every time its
+transform has covered one stride, and `SO_FootstepBank` says which clips that maps to.
+
+**Cadence is distance, not a timer.** That is the whole design. Walk, sprint and crouch cadences
+fall out of the movement code for free; the Nemesis's steps speed up in Chasing without this ever
+reading the FSM or `SO_NemesisMovement`; and steps stop on their own when the walker is blocked by a
+wall, a `NavMeshObstacle` or a zero `Time.timeScale`. A timer has to be kept in step with every
+speed retune and walks on the spot through all three.
+
+**The teleport guard is load-bearing.** The Nemesis is warped — `NemesisStuckEscape`, the spawn
+placement, `NemesisElevatorLink`. A warp is displacement with no walking in it, so any single-frame
+move over `teleportThreshold` drops the accumulator instead of spending it. Without it a 30 m warp
+fires thirty footsteps in one frame.
+
+**Surface resolution**, in order: a `FootstepSurface` marker on the collider or any parent, then the
+first bank entry whose `layers` mask claims that layer, then the bank's fallback. The marker is the
+intended authoring path — this project has one Unity tag in total and one PhysicMaterial, so there
+is nothing else to read. Only the Water entry claims a layer; giving Ground or Default to an entry
+makes it swallow every floor and no marker is ever reached.
+
+**Clip choice is a shuffle bag, not a random draw.** Independent draws over four clips repeat back
+to back about a quarter of the time, and a repeated footstep is the loudest tell that a sound is
+canned. The bag plays each clip once per cycle and refuses to open a new cycle on the clip the last
+one ended with.
+
+**Playback goes through the pool**, via `AudioManager.PlayClip` — 3D at the world point where the
+foot landed, exactly like `DoorInteractable`. That is more correct than a source parented to the
+walker, not just less code: a parented source keeps panning and dopplering as the walker runs past
+the listener, and a footstep belongs where it happened.
+
+**Neither component generates noise.** Noise here is a sphere the movement states own per gait; a
+second writer to its radius is how a player ends up permanently loud. See *Noise is a sphere, not
+an event*.
+
+`HiddenBreathing` plays a loop **only while `PlayerStateManager.IsHidden`**, which today is toggled
+only by the `R` debug key — it needs no changes when the hiding system lands. It owns a source
+because it fades (the shared pool returns no handle), and it reuses the previously-unused
+`AudioSource` already sitting on the player prefab root rather than adding a second one. It swaps to
+the ragged M2 clip when `ChestPenaltyActive`, chosen per episode so the swap never restarts a breath
+mid-loop. Fully 3D at 3–15 m linear: this is a third-person camera, the listener rides it a few
+metres back, and the breath is meant to come from the body on screen.
+
+The banks live in `_Project/ScriptableObjects/Audio/Footsteps/` — 45 player clips across six
+surfaces, 48 references for the Nemesis.
+
+**The Nemesis has no per-surface recordings**, so its bank synthesises them instead of faking a
+default. Its nine real recordings are the **Metal** surface — the audio spec describes its steps as
+"pesados y metalicos", so that is what they are, not a generic fallback — and the other five
+surfaces **reference the player's clips with a pitchRange centred near 0.82**. Three semitones down
+is about 20% longer and much deeper: the same material under a far heavier body. No extra audio
+files exist for this; the emitter already applies pitch per shot, so the whole thing is a tunable
+number in the asset. `fallbackSurface` is Metal, so an unmarked floor still sounds like the monster
+rather than like a heavy player.
+
+**The clips were cut from the source recordings, not sourced as one-shots.** The originals were
+long takes — concrete was 45 s — and playing one as a "footstep" left overlapping copies piling up.
+The cutter finds onsets with an RMS envelope and a Schmitt trigger, keeps the first five steps of
+each take, and writes them capped at 1 s with short fades so nothing clicks. Two things worth
+knowing before re-running anything like it: `water_01.mp3` was the **same take** as
+`water_03.wav` (onsets identical to the millisecond) and was dropped rather than split into
+duplicate pairs; and outputs land in the same folder as the sources, so every source has to be
+decoded before any output is written or a source gets overwritten before it is read.
+
+**Pitch is varied twice, deliberately.** Each clip carries a baked varispeed from an even ladder
+across +/-5%, so the clips have distinct identities; `FootstepEmitter` then draws a fresh pitch per
+step out of the bank's `pitchRange`, which is kept narrow (+/-3%) precisely because the two
+multiply. Metal is the exception — two clips, no baked ladder — so its runtime range is wide
+(+/-8%) and does all the work. If steps ever start reading as different shoes, `pitchRange` is the
+knob to reach for; the baked half needs a re-export.
+
 ### ScriptableObjects
 
 Data lives in `Assets/_Project/ScriptableObjects/`. Key types in `_Project/Scripts/ScriptableScripts/`:
@@ -1257,6 +1531,12 @@ Data lives in `Assets/_Project/ScriptableObjects/`. Key types in `_Project/Scrip
   *Nemesis: the decision layer*, especially the two rules about enum ordering and editing both the
   asset and `BuildDefaultLadder()`.
 - `SO_Movement` / `SO_CameraConfig` — player tuning.
+- `SO_FootstepBank` — footstep clips per surface, plus the M1 limp drags. Content only; the stride
+  lives on the `FootstepEmitter`, because stride belongs to the body and not to the floor.
+- `SO_AmbienceProfile` — one per area character. All six the ambience doc specifies now exist in
+  `ScriptableObjects/Audio/Ambience/` (moved there from `Audio/Music/`, GUIDs intact), plus
+  `Amb_Pink` for debug. Only three bed loops exist in the project, so Corridor/Machine/Vertical
+  share a pairing and are separated by mix rather than by material — see `docs/Ambience-System.md`.
 - `SO_SaveSlotData` / `SO_SaveSlotDatabase` — save slot stubs.
 - Puzzle data: `SO_SequencePuzzleData`, `SO_ContainerPuzzleData`, `SO_ValvePuzzleData`, `SO_HubPuzzleData`.
 
@@ -1344,6 +1624,21 @@ The systems below are **implemented but not connected to anything**. Read this b
   clip changed. Still missing: footsteps, UI audio, and clips for `NemesisAudio` /
   `NemesisChaseMusic`; the **ambience system** (`_Project/Scripts/Ambience/`) is built but ships with
   placeholder clips.
+- **Most of the audio that exists on disk still cannot be played.** `_Project/Audio/` holds ~90
+  clips and the project has **16 `SO_SoundData` assets**. Footsteps and hidden breathing now reach
+  the game through `SO_FootstepBank` and direct clip references instead — see *Footsteps and
+  breathing*. Every module sound, the Nemesis voice lines, the light and generator audio, the
+  save-point set and the UI set are still unreachable. For a fixed one-sound-per-event case the
+  blocking step is authoring the SO and dragging it into `AudioManager.sounds`; for anything with
+  variations, use a bank and the `PlayClip` overloads rather than minting twenty dead SOs.
+- **The module system is silent.** `ModuleManager` runs the timers, explosions, penalties and
+  resolutions without a single audio call, and `MOD_01`–`MOD_09` all have clips waiting.
+- **There is no music system.** One chase track played by `NemesisChaseMusic`. No `MusicManager`, no
+  zone/exploration music, no stinger, no menu or ending piece — `AudioManager.PlayMusic` has zero
+  callers. See *Spec deltas — Music*.
+- **Light is not an input to detection.** No `lightLevel`, no `playerVisibilityFactor`, no visual
+  adaptation and no generator; `FieldOfView` has no light term. The vision fog changes what the
+  player sees, not what the Nemesis sees. See *Spec deltas — Light*.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
 - **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. `PlayerHiddenState` is still inert (no collider/visibility change) and the `R` (hidden) and `Y` (disabled) debug keys are still live in `PlayerStateManager.InputUpdate`; `R` goes away when `HidingSpotInteractable` lands.

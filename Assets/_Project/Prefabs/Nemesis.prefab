@@ -1062,6 +1062,7 @@ GameObject:
   - component: {fileID: 2743926386273877225}
   - component: {fileID: 6725881323002343902}
   - component: {fileID: 2070260496085017616}
+  - component: {fileID: 8823410557001220303}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -1840,3 +1841,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4195913431897697815}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8823410557001220303
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
+  bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
+  bus: 1
+  strideLength: 1.1
+  minSpeed: 0.35
+  teleportThreshold: 2
+  minDistance: 2
+  maxDistance: 25
+  volumeScale: 1
+  probeMask:
+    serializedVersion: 2
+    m_Bits: 4121
+  probeStart: 0.4
+  probeLength: 1.6
+  footOffset: {x: 0, y: 0, z: 0}
+  player: {fileID: 0}
+  crouchVolumeScale: 0.45
+  crouchStrideScale: 1.3

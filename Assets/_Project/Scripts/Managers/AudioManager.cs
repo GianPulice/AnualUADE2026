@@ -243,6 +243,68 @@ public class AudioManager : Singleton<AudioManager>
         src.Play();
     }
 
+    /// <summary>
+    /// Fire-and-forget 3D one-shot of a clip the caller already holds, with per-shot volume, pitch
+    /// and falloff, on the bus for <paramref name="category"/>.
+    /// </summary>
+    /// <remarks>
+    /// The id-based API cannot express any of those three: <see cref="PlayInternal"/> plays every
+    /// pooled sound at volume 1 and pitch 1, and takes its distances off the SO. That is fine for a
+    /// door, which sounds the same every time it opens, and wrong for anything drawn from a bank —
+    /// a footstep needs a different pitch and volume on every step or it reads as a copy-paste.
+    ///
+    /// It also skips the id indirection, which for bank content is pure overhead: footsteps would
+    /// otherwise need ~20 SO_SoundData assets and ~20 inspector drags into <see cref="sounds"/>,
+    /// none of which anything would ever look up by name. Same argument SO_AmbienceEventBank makes.
+    ///
+    /// Uses the shared SFX pool, so it inherits the pool's terms: no handle comes back, and a shot
+    /// can be cut short when every source is busy. Both are correct for a one-shot and wrong for a
+    /// loop — use <see cref="PlayLoop(AudioClip, AudioSource, SO_SoundData.SoundCategory, float)"/>
+    /// for those.
+    /// </remarks>
+    public void PlayClip(AudioClip clip, SO_SoundData.SoundCategory category, Vector3 position,
+                         float volume = 1f, float pitch = 1f,
+                         float minDistance = 1f, float maxDistance = 25f,
+                         AudioRolloffMode rolloff = AudioRolloffMode.Linear)
+    {
+        if (clip == null) return;
+
+        var src = GetFreeSfxSource();
+
+        src.clip = clip;
+        src.outputAudioMixerGroup = GroupFor(category);
+        src.loop = false;
+        src.ignoreListenerPause = false;
+        src.volume = Mathf.Clamp01(volume);
+        src.pitch = Mathf.Max(pitch, 0.01f);
+
+        src.spatialBlend = 1f;
+        src.transform.position = position;
+        src.rolloffMode = rolloff;
+        src.minDistance = minDistance;
+        src.maxDistance = Mathf.Max(maxDistance, minDistance + 0.1f);
+
+        src.Play();
+    }
+
+    /// <summary>Player-bus one-shot of a held clip. Convenience over <see cref="PlayClip"/>.</summary>
+    public void PlayPlayer(AudioClip clip, Vector3 position, float volume = 1f, float pitch = 1f,
+                           float minDistance = 1f, float maxDistance = 25f)
+        => PlayClip(clip, SO_SoundData.SoundCategory.Player, position, volume, pitch,
+                    minDistance, maxDistance);
+
+    /// <summary>Nemesis-bus one-shot of a held clip. Convenience over <see cref="PlayClip"/>.</summary>
+    public void PlayNemesis(AudioClip clip, Vector3 position, float volume = 1f, float pitch = 1f,
+                            float minDistance = 1f, float maxDistance = 25f)
+        => PlayClip(clip, SO_SoundData.SoundCategory.Nemesis, position, volume, pitch,
+                    minDistance, maxDistance);
+
+    /// <summary>SFX-bus one-shot of a held clip. Convenience over <see cref="PlayClip"/>.</summary>
+    public void PlaySFX(AudioClip clip, Vector3 position, float volume = 1f, float pitch = 1f,
+                        float minDistance = 1f, float maxDistance = 25f)
+        => PlayClip(clip, SO_SoundData.SoundCategory.SFX, position, volume, pitch,
+                    minDistance, maxDistance);
+
     public void PlayMusic(string id)
     {
         if (!TryGet(id, out var data)) return;
@@ -307,6 +369,18 @@ public class AudioManager : Singleton<AudioManager>
     /// AudioSource.volume.
     /// </summary>
     public AudioMixerGroup AmbienceGroup => ambienceGroup;
+
+    /// <summary>
+    /// The Player bus. Exposed for the same reason as <see cref="NemesisGroup"/>: components that
+    /// own their own AudioSources route through the mixer without the group being dragged in twice.
+    ///
+    /// Its users are <see cref="FootstepEmitter"/> and <see cref="HiddenBreathing"/>, and they own
+    /// their sources rather than borrowing from the SFX pool for two reasons the pool cannot serve:
+    /// <see cref="PlayInternal"/> hardcodes volume to 1 and never touches pitch — a footstep needs
+    /// both per step, and a pitch left on a shared pooled source would leak into whatever plays on
+    /// it next — and a breathing loop needs a handle it can fade.
+    /// </summary>
+    public AudioMixerGroup PlayerGroup => playerGroup;
 
     /// <summary>
     /// The Music bus. Exposed for the same reason as <see cref="NemesisGroup"/>: NemesisChaseMusic
@@ -435,6 +509,13 @@ public class AudioManager : Singleton<AudioManager>
         src.outputAudioMixerGroup = group;
         src.loop = data.Loop;
         src.volume = 1f; // The final volume is decided by the mixer.
+
+        // Reset, because the pool is shared and PlayClip leaves a per-shot pitch on the source it
+        // borrowed. Without this a footstep at pitch 1.07 detunes whatever plays on that source
+        // next — a door, a pickup — and the symptom (an occasional slightly wrong-sounding door)
+        // points nowhere near the footsteps.
+        src.pitch = 1f;
+
         src.ignoreListenerPause = forceIgnorePause || data.IgnoreListenerPause;
 
         if (position.HasValue)

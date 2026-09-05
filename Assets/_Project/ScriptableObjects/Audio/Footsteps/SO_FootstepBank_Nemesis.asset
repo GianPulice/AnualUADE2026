@@ -1,0 +1,109 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a3d1c94e0b64f8ea1c25d3f60b7a411, type: 3}
+  m_Name: SO_FootstepBank_Nemesis
+  m_EditorClassIdentifier: Assembly-CSharp::SO_FootstepBank
+  surfaces:
+  - surface: 0
+    clips:
+    - {fileID: 8300000, guid: 8b2c56374a14a1d2bbb9348c813b4729, type: 3}
+    - {fileID: 8300000, guid: e0565688cf969dd25b19329c5790c1f3, type: 3}
+    - {fileID: 8300000, guid: b3db365c1bf292585f1079761d9c6930, type: 3}
+    - {fileID: 8300000, guid: 8f0e2a7a9b05eeb6cc29c5d0c8d3fa4a, type: 3}
+    - {fileID: 8300000, guid: 6752cde134a5282b786e622e140fcb63, type: 3}
+    - {fileID: 8300000, guid: da641bf58b0cb7f3d956f1e64247193f, type: 3}
+    - {fileID: 8300000, guid: 785a589fe0e15f2fba85185f02299582, type: 3}
+    - {fileID: 8300000, guid: 60c867cce7b98c09caf1a108603459a8, type: 3}
+    - {fileID: 8300000, guid: 98854c58e8c5fe3994a159dcc8cc3feb, type: 3}
+    - {fileID: 8300000, guid: 9f1ddfa49bbb242ff2e117a2eff34512, type: 3}
+    volume: 1
+    pitchRange: {x: 0.78, y: 0.86}
+    layers:
+      serializedVersion: 2
+      m_Bits: 0
+  - surface: 1
+    clips:
+    - {fileID: 8300000, guid: 97db7cbc5279939f5ff2091603d3e4a0, type: 3}
+    - {fileID: 8300000, guid: 6a974ffcb2f0010fe01a6a77d6154338, type: 3}
+    - {fileID: 8300000, guid: 3a2eafa0c7033df73adbca9e764c8da1, type: 3}
+    - {fileID: 8300000, guid: ba96fd09dbfd032019023153451acdf3, type: 3}
+    - {fileID: 8300000, guid: 61b3513be07923c86c9c16289a7b4905, type: 3}
+    - {fileID: 8300000, guid: 7b8f5657d31aa94706a112a526471354, type: 3}
+    - {fileID: 8300000, guid: e4fb894221d772d633fbd9f5e916b125, type: 3}
+    - {fileID: 8300000, guid: 42a57dc91baee4747a434c6f5ceff143, type: 3}
+    - {fileID: 8300000, guid: 6b41a2d80b0260d47b82a0074336e55d, type: 3}
+    volume: 1
+    pitchRange: {x: 0.97, y: 1.05}
+    layers:
+      serializedVersion: 2
+      m_Bits: 0
+  - surface: 2
+    clips:
+    - {fileID: 8300000, guid: fdae295f2479836d6517d1063316f774, type: 3}
+    - {fileID: 8300000, guid: 68c142ac78af824ab43f010b3dd54ce3, type: 3}
+    - {fileID: 8300000, guid: aac369f0143e98794ad7d4dc456dfa52, type: 3}
+    - {fileID: 8300000, guid: 24a84fddbf19ae5d4c6c9ef8a427a137, type: 3}
+    - {fileID: 8300000, guid: e8963248e3b8baaa0f160962ea6a2d22, type: 3}
+    - {fileID: 8300000, guid: 15d34b4f24a952d4816d84010201598c, type: 3}
+    - {fileID: 8300000, guid: 5d0afd2885cc2c14e206a04e3a5d965e, type: 3}
+    - {fileID: 8300000, guid: 19458667386a2664fa8067efa090514b, type: 3}
+    - {fileID: 8300000, guid: 57ad801ed7b995d1f1364d807fedbd5b, type: 3}
+    volume: 1
+    pitchRange: {x: 0.78, y: 0.86}
+    layers:
+      serializedVersion: 2
+      m_Bits: 0
+  - surface: 3
+    clips:
+    - {fileID: 8300000, guid: 0df375d6384b7914a856eef53ed5057f, type: 3}
+    - {fileID: 8300000, guid: 2a6768ba0697fa547a200a4159e209c7, type: 3}
+    - {fileID: 8300000, guid: 44df4678cbecde884d3370d01923c916, type: 3}
+    - {fileID: 8300000, guid: 89d31a6c69e6fa14ead48e7365213e1d, type: 3}
+    - {fileID: 8300000, guid: da9c09d64dbd79a684ebff7711042eae, type: 3}
+    volume: 1
+    pitchRange: {x: 0.8, y: 0.88}
+    layers:
+      serializedVersion: 2
+      m_Bits: 0
+  - surface: 4
+    clips:
+    - {fileID: 8300000, guid: 8143a9b9501a38d9a87d2ced35ab047f, type: 3}
+    - {fileID: 8300000, guid: a6408b0703deb57a4ee1078e41b28fef, type: 3}
+    - {fileID: 8300000, guid: fa5b9d122bef88378119fa4b0a941b3c, type: 3}
+    - {fileID: 8300000, guid: b39574495b5d321a27f4a554bdd89413, type: 3}
+    - {fileID: 8300000, guid: 892488f62d9fa0c9d8aed542f74453be, type: 3}
+    - {fileID: 8300000, guid: e57f617baff5599e12f9b1c912c33a64, type: 3}
+    - {fileID: 8300000, guid: 254fccc8d2f729c73197244fbf46255c, type: 3}
+    - {fileID: 8300000, guid: 1339106f175d9d83c6ec15422f81f7bc, type: 3}
+    - {fileID: 8300000, guid: 2d81b4a615e47e4b55459e9efb2e92c3, type: 3}
+    - {fileID: 8300000, guid: f916e80f42551b3f353c5c8e0f4fa9c2, type: 3}
+    volume: 1
+    pitchRange: {x: 0.8, y: 0.88}
+    layers:
+      serializedVersion: 2
+      m_Bits: 16
+  - surface: 5
+    clips:
+    - {fileID: 8300000, guid: ca03938ecf7d76fc6dd3d531d0fc4ac6, type: 3}
+    - {fileID: 8300000, guid: 85b9a53edefe0d28bcd8071f89054889, type: 3}
+    - {fileID: 8300000, guid: 0d3933827523786f7ea3e22d0282c502, type: 3}
+    - {fileID: 8300000, guid: ba66d25003731bb007885d4abe71d18b, type: 3}
+    - {fileID: 8300000, guid: a636c5ef6970837b660bc2515d64bc0c, type: 3}
+    volume: 1
+    pitchRange: {x: 0.78, y: 0.86}
+    layers:
+      serializedVersion: 2
+      m_Bits: 0
+  fallbackSurface: 1
+  limpDragClips: []
+  limpDragVolume: 0.5
+  limpDragPitchRange: {x: 0.97, y: 1.03}

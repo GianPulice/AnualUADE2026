@@ -72,14 +72,46 @@ Un GameObject con BoxCollider por área y el componente `AmbienceZone` (el `Rese
 
 El blockout tiene 17 áreas nombradas en 2 pisos. **6 profiles alcanzan** — un `SO_AmbienceProfile` se reutiliza en muchos colliders:
 
-| Profile | Áreas | Carácter |
-|---|---|---|
-| `Amb_Hub_Open` | `ENTRADA`, `HUB_01` | espacio grande y vacío, cola larga |
-| `Amb_Corridor` | `PASILLO_CARGA`, `PASILLO_OESTE`, `PASILLO_PLANTA`, `PASILLO_TECNICO` | resonancia cercana y estrecha |
-| `Amb_Machine` | `BOMBAS`, `ANTESALA_BOMBEO`, `TABLEROS`, `MANTENIMIENTO` | zumbido eléctrico presente, caños |
-| `Amb_Office` | `OFICINA`, `VESTUARIOS`, `SALA_HISTORIA` | seco y silencioso, fluorescentes |
-| `Amb_Vertical` | `ESCALERA_01`, `MONTACARGAS_01`, `PASARELA` | metal, eco vertical |
-| `Amb_Exterior` | `PATIO_CARGA` | viento, `subScale = 0` |
+Los seis existen como assets en `ScriptableObjects/Audio/Ambience/` (junto al `SO_AmbienceEventBank`;
+antes estaban en `Audio/Music/`, que no era su carpeta). `Amb_Pink` es aparte: es el profile de debug
+que usa ruido y subs como bed, no es de ninguna zona.
+
+| Profile | Asset | Áreas | Carácter |
+|---|---|---|---|
+| `Amb_Hub_Open` | `SO_AmbienceProfile` | `ENTRADA`, `HUB_01` | espacio grande y vacío, cola larga |
+| `Amb_Corridor` | `SO_AmbienceProfileCorridor` | `PASILLO_CARGA`, `PASILLO_OESTE`, `PASILLO_PLANTA`, `PASILLO_TECNICO` | resonancia cercana y estrecha |
+| `Amb_Machine` | `SO_AmbienceProfileMachine` | `BOMBAS`, `ANTESALA_BOMBEO`, `TABLEROS`, `MANTENIMIENTO` | zumbido eléctrico presente, caños |
+| `Amb_Office` | `SO_AmbienceProfileOffice` | `OFICINA`, `VESTUARIOS`, `SALA_HISTORIA` | seco y silencioso, fluorescentes |
+| `Amb_Vertical` | `SO_AmbienceProfileVertical` | `ESCALERA_01`, `MONTACARGAS_01`, `PASARELA` | metal, eco vertical |
+| `Amb_Exterior` | `SO_AmbienceProfileExterior` | `PATIO_CARGA` | viento, `subScale = 0` |
+
+**Cómo están diferenciados hoy.** Hay tres clips de bed utilizables en todo el proyecto — el factory
+de 30 s y los dos `PLACEHOLDER` de 37 y 53 s — así que salen tres pares coprimos y nada más:
+30+53 (~26 min de período compuesto) va al Hub, 30+37 (~18,5 min) a Office, y 37+53 (~33 min) lo
+comparten Corridor, Machine y Vertical. Esos tres **suenan a la misma sala** hasta que haya
+grabaciones propias; lo que hoy los separa de verdad es la mezcla:
+
+| | bed | texture | sub | c/u/r | interval |
+|---|---|---|---|---|---|
+| Hub | 0.32 | 1 | 1 | .72/.24/.04 | 1.43 |
+| Corridor | 0.26 | 1.15 | 1.1 | .55/.32/.13 | 0.85 |
+| Machine | 0.40 | 1 | 1 | .60/.30/.10 | 0.80 |
+| Office | 0.22 | 0.7 | 0.6 | .72/.24/.04 | 1.60 |
+| Vertical | 0.30 | 1 | 0.85 | .50/.35/.15 | 0.90 |
+| Exterior | 0.30 | 1.3 | **0** | .65/.30/.05 | 1.20 |
+
+El razonamiento detrás de los valores raros: el `sub` sube en Corridor porque la presión de sala es
+lo que hace claustrofóbico un espacio estrecho, y baja en Vertical porque una escalera está abierta
+hacia arriba y no retiene esa presión. Office es el bed más bajo y el ritmo más vacío del nivel —
+son las salas donde el jugador se para a leer, y un golpe encima de un documento es el beat
+equivocado. Exterior usa el `BrownNoise_20s` como bed en vez de un room tone: ruido pesado en graves
+lee como viento lejano, es el único clip generado que nada más usaba, y un bed de 20 s alcanza acá
+porque un loop se reconoce por su contorno y el ruido no tiene.
+
+Dos cosas que corregí de los que ya existían: `Amb_Hub_Open` tenía **un solo** bed track (el tooltip
+del SO pide dos) y su `rareWeight` en 0.1, cuando la spec §11 dice que el Hub no lleva elementos de
+tensión — quedó en 0.04 con un segundo bed. Y `Amb_Machine` estaba en `eventIntervalScale = 1`, más
+vacío que los pasillos, cuando la spec lo llama el ambiente más denso del juego — quedó en 0.8.
 
 `PATIO_CARGA` es el único con solo objetos `_Mass_` (sin `_Floor_`/`_Ceil_`): es un patio exterior. Necesita su propio bed sin room tone, y sus eventos de aire quieren `requireNavMeshNearby = false`.
 
