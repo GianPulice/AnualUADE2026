@@ -19235,10 +19235,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4391902335897065264, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
-      propertyPath: 'm_Materials.Array.data[0]'
-      value: 
-      objectReference: {fileID: 2100000, guid: 454c0c3d18d35ea499ee347e072f2819, type: 2}
     - target: {fileID: 7332867751031854402, guid: 48f00bc04f7f44348bb5ff1a197a4682, type: 3}
       propertyPath: m_Name
       value: Pelota_A
