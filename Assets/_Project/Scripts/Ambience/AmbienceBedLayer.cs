@@ -213,7 +213,12 @@ public class AmbienceBedLayer : MonoBehaviour
         slot.Active.volume = 0f;
         slot.ActiveTarget = clip != null ? volume : 0f;
 
-        if (clip != null) slot.Active.Play();
+        // isActiveAndEnabled, not just null: a profile can be re-applied while the layer is on its
+        // way out (a zone popping during scene teardown is the case that surfaced this), and
+        // Play() on a source whose GameObject is already disabled only produces a Unity warning.
+        // The clip and the target volume above are still assigned, so if the layer comes back the
+        // slot resumes correctly.
+        if (clip != null && slot.Active.isActiveAndEnabled) slot.Active.Play();
 
         slot.Progress = 0f;
         slot.Duration = duration;

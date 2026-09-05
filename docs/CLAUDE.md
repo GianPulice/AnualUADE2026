@@ -1452,11 +1452,30 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 Both walkers step through **one** component. `FootstepEmitter` fires a footstep every time its
 transform has covered one stride, and `SO_FootstepBank` says which clips that maps to.
 
-**Cadence is distance, not a timer.** That is the whole design. Walk, sprint and crouch cadences
-fall out of the movement code for free; the Nemesis's steps speed up in Chasing without this ever
-reading the FSM or `SO_NemesisMovement`; and steps stop on their own when the walker is blocked by a
-wall, a `NavMeshObstacle` or a zero `Time.timeScale`. A timer has to be kept in step with every
-speed retune and walks on the spot through all three.
+**Two cadence sources, and which one is right depends on the rig.**
+
+`Distance` fires a step every `strideLength` metres. It is what the Nemesis uses, and it is the
+right model there: a `NavMeshAgent` has no footfall events, its steps speed up in Chasing without
+this ever reading the FSM or `SO_NemesisMovement`, and they stop on their own when it is blocked by
+a wall or a `NavMeshObstacle`.
+
+`AnimationEvent` fires on an event in the clip, and it is what the **player** uses. The distance
+model assumes the animation's cadence follows the speed, and this project's Mixamo clips do not:
+`Walking` and `CrouchedWalking` are both 32 frames at 30 fps and play at a fixed rate, so the feet
+land at the same 1.94 steps/s whether the character is moving at 2.5 m/s or crouched at 1.25 m/s.
+Under `Distance` crouching therefore gets half the steps of walking, which is wrong — crouching
+should be the same cadence, only quieter. The events settle it by construction.
+
+The footfall frames are authored in the FBX importers: **Walking 10 and 24, Running 7 and 17**,
+CrouchedWalking copying Walking. Imported clips are read-only as assets but the importer stores
+events in the `.meta`, so no clip had to be duplicated. Unity delivers an AnimationEvent to the
+GameObject owning the Animator, which here is the rig child rather than the root the emitter sits
+on — hence `FootstepAnimationRelay`, whose `Step` is what the clips actually call.
+
+`strideLength` still matters as the Distance fallback and is derived, not guessed: speed divided by
+the clip's real footfall rate. 2.5 / 1.94 = 1.29 m. The first pass shipped 0.85 m, which is 2.94
+steps/s at that speed — a jog cadence under a walk animation, and the first thing playtesting
+caught.
 
 **The teleport guard is load-bearing.** The Nemesis is warped — `NemesisStuckEscape`, the spawn
 placement, `NemesisElevatorLink`. A warp is displacement with no walking in it, so any single-frame
@@ -1478,6 +1497,19 @@ one ended with.
 foot landed, exactly like `DoorInteractable`. That is more correct than a source parented to the
 walker, not just less code: a parented source keeps panning and dopplering as the walker runs past
 the listener, and a footstep belongs where it happened.
+
+**Occlusion lives here and not in the pool.** One `Physics.Linecast` per step from the foot to the
+AudioListener against the Wall layer; a hit drops the step to `occludedVolume`. The pool has no
+occlusion of its own, and without this the Nemesis's steps came through at full rolloff volume from
+anywhere in the level — which is the difference between "the monster is somewhere" and "the monster
+is over there". Wall only, never Ground: occluding on floors is technically true and makes a
+storey's worth of vertical proximity inaudible.
+
+**Overlap is the enemy, and clip length is how it is controlled.** Steps that outlast the gap
+between them stack, and stacked copies of a moving source both clip and smear the localisation.
+The Nemesis at chase speed 3 m/s with a 1.6 m stride steps every 0.53 s, so its clips are trimmed
+to 0.34 s. The first pass had a 1.1 m stride against clips averaging 0.64 s — two voices overlapping
+at all times, reported from playtest as "saturated and not coming from anywhere".
 
 **Neither component generates noise.** Noise here is a sphere the movement states own per gait; a
 second writer to its radius is how a player ends up permanently loud. See *Noise is a sphere, not

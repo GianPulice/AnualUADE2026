@@ -660,7 +660,14 @@ public class NemesisDirector : Singleton<NemesisDirector>
     {
         if (nemesis != null) return true;
 
-        nemesis = FindFirstObjectByType<NemesisStateManager>(FindObjectsInactive.Include);
+        // FindAnyObjectByType and not FindFirstObjectByType: the latter is deprecated because it
+        // orders by instance ID, and that ordering is worth nothing here — a scene only ever has
+        // one Nemesis, so "any" is "the one".
+        //
+        // FindObjectsInactive.Include is load-bearing and must stay: the Nemesis sits in the scene
+        // as a DISABLED GameObject until the first puzzle activates it, so the default (active
+        // only) would find nothing for the whole first stretch of the run.
+        nemesis = FindAnyObjectByType<NemesisStateManager>(FindObjectsInactive.Include);
         return nemesis != null;
     }
 

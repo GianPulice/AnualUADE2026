@@ -35,6 +35,17 @@ public abstract class Singleton<T> : MonoBehaviour where T : MonoBehaviour
 
         if (dontDestroyOnLoad)
         {
+            // DontDestroyOnLoad only accepts ROOT objects. Called on a child, Unity logs
+            // "DontDestroyOnLoad only works for root GameObjects" and does nothing — so the
+            // singleton is destroyed with its scene anyway, which is the exact opposite of what
+            // the caller asked for, and the failure only shows up later as a null Instance after
+            // a scene change.
+            //
+            // Detaching is the fix rather than the warning: a manager that must outlive the scene
+            // cannot stay parented to something that will not. worldPositionStays: true so a
+            // manager that happens to care about its transform does not jump.
+            if (transform.parent != null) transform.SetParent(null, true);
+
             DontDestroyOnLoad(gameObject);
         }
     }

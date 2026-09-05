@@ -238,7 +238,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 236206719962157421}
-  m_Material: {fileID: 13400000, guid: df00322edabc06a44a2e750a49f7210f, type: 2}
+  m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -351,6 +351,63 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &8823410557001220301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
+  bank: {fileID: 11400000, guid: d4b0c7e21a9f4e63b8527ac0f13d6e88, type: 2}
+  bus: 0
+  cadenceSource: 1
+  strideLength: 1.29
+  minSpeed: 0.35
+  teleportThreshold: 1.5
+  minDistance: 2
+  maxDistance: 20
+  volumeScale: 1
+  occlusionEnabled: 1
+  occluderMask:
+    serializedVersion: 2
+    m_Bits: 2048
+  occludedVolume: 0.35
+  probeMask:
+    serializedVersion: 2
+    m_Bits: 4121
+  probeStart: 0.4
+  probeLength: 1.6
+  footOffset: {x: 0, y: 0, z: 0}
+  player: {fileID: 6697063734817033035}
+  crouchVolumeScale: 0.45
+  crouchStrideScale: 0.5
+--- !u!114 &8823410557001220302
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e42b7f6103c4a58bd6e0f28c4713a95, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HiddenBreathing
+  player: {fileID: 6697063734817033035}
+  hiddenLoop: {fileID: 8300000, guid: 29aefd4a1785950439ae61ea8be8e9f2, type: 3}
+  hiddenLoopChestPenalty: {fileID: 8300000, guid: 39568cf3c72da2b44bd4049d26d402fd, type: 3}
+  source: {fileID: 5563071216055759055}
+  volume: 0.8
+  fadeDuration: 0.45
+  spatialBlend: 1
+  minDistance: 3
+  maxDistance: 15
+  outputGroupOverride: {fileID: 0}
 --- !u!1 &267920378832048576
 GameObject:
   m_ObjectHideFlags: 0
@@ -643,7 +700,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.2916563, y: 0.000000028506618, z: -0.0000000086920355, w: 0.95652324}
+  m_LocalRotation: {x: 0.29184094, y: 0, z: 0, w: 0.95646685}
   m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -2085,6 +2142,7 @@ GameObject:
   - component: {fileID: 5315421273758963369}
   - component: {fileID: 1405255475796580707}
   - component: {fileID: 6739866083824345091}
+  - component: {fileID: 8823410557001220304}
   m_Layer: 7
   m_Name: 'HS_CHARA_RIG [New]'
   m_TagString: Untagged
@@ -4049,54 +4107,16 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!114 &8823410557001220301
+--- !u!114 &8823410557001220304
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 236206719962157421}
+  m_GameObject: {fileID: 4796329002958933011}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
+  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
-  bank: {fileID: 11400000, guid: d4b0c7e21a9f4e63b8527ac0f13d6e88, type: 2}
-  bus: 0
-  strideLength: 0.85
-  minSpeed: 0.35
-  teleportThreshold: 1.5
-  minDistance: 2
-  maxDistance: 20
-  volumeScale: 1
-  probeMask:
-    serializedVersion: 2
-    m_Bits: 4121
-  probeStart: 0.4
-  probeLength: 1.6
-  footOffset: {x: 0, y: 0, z: 0}
-  player: {fileID: 6697063734817033035}
-  crouchVolumeScale: 0.45
-  crouchStrideScale: 1.3
---- !u!114 &8823410557001220302
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 236206719962157421}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9e42b7f6103c4a58bd6e0f28c4713a95, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HiddenBreathing
-  player: {fileID: 6697063734817033035}
-  hiddenLoop: {fileID: 8300000, guid: 29aefd4a1785950439ae61ea8be8e9f2, type: 3}
-  hiddenLoopChestPenalty: {fileID: 8300000, guid: 39568cf3c72da2b44bd4049d26d402fd, type: 3}
-  source: {fileID: 5563071216055759055}
-  volume: 0.8
-  fadeDuration: 0.45
-  spatialBlend: 1
-  minDistance: 3
-  maxDistance: 15
-  outputGroupOverride: {fileID: 0}
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
+  emitter: {fileID: 8823410557001220301}

@@ -51,6 +51,23 @@ public class FootstepEmitter : MonoBehaviour
         Nemesis = 1,
     }
 
+    /// <summary>What decides when a step happens. Append only — this is serialized.</summary>
+    public enum ECadence
+    {
+        /// <summary>Ground covered. Right when the animation's cadence follows the speed.</summary>
+        Distance = 0,
+
+        /// <summary>
+        /// An AnimationEvent calling <see cref="Step"/> on the actual footfall frame. Right when it
+        /// does not — which is the case for this project's Mixamo clips: Walking and
+        /// CrouchedWalking are both 32 frames and play at a fixed rate, so the feet land at the
+        /// same cadence whether the character is moving at 2.5 m/s or at 1.25 m/s crouched. Under
+        /// Distance those two get half the steps of each other; under AnimationEvent they match,
+        /// which is what crouching actually looks like.
+        /// </summary>
+        AnimationEvent = 1,
+    }
+
     [Header("Content")]
     [Tooltip("The clips, per surface. Without one this component does nothing and says so once.")]
     [SerializeField] private SO_FootstepBank bank;
@@ -59,9 +76,17 @@ public class FootstepEmitter : MonoBehaviour
     [SerializeField] private EBus bus = EBus.Player;
 
     [Header("Cadence")]
-    [Tooltip("Metres of ground covered per step. Smaller = more steps. 0.8-0.9 reads as a walk on " +
-             "a human-scaled rig; give the Nemesis more so its steps land heavier and further apart.")]
-    [SerializeField, Min(0.1f)] private float strideLength = 0.85f;
+    [Tooltip("Distance = a step every strideLength metres. AnimationEvent = a step whenever the " +
+             "animation calls Step(), which is the only way to land on the actual footfall when " +
+             "the clips play at a fixed rate instead of scaling with speed.")]
+    [SerializeField] private ECadence cadenceSource = ECadence.Distance;
+
+    [Tooltip("Metres of ground covered per step, in Distance mode. Smaller = more steps.\n\n" +
+             "Work it out from the animation, not by ear: speed divided by the clip's real footfall " +
+             "rate. The player's Walking clip is 32 frames at 30 fps with two footfalls, so 1.94 " +
+             "steps/s; at moveSpeed 2.5 that is a 1.29 m stride. Guessing low is what made the " +
+             "first pass sound like a jog.")]
+    [SerializeField, Min(0.1f)] private float strideLength = 1.29f;
 
     [Tooltip("Below this speed (m/s) nothing is walking, so nothing steps. It filters out the " +
              "centimetre of physics jitter a Rigidbody has while standing still, which would " +
@@ -85,6 +110,23 @@ public class FootstepEmitter : MonoBehaviour
              "heavier than the player', not the per-surface one.")]
     [SerializeField, Range(0f, 2f)] private float volumeScale = 1f;
 
+    [Header("Occlusion")]
+    [Tooltip("Attenuate a step when a wall stands between where it landed and the listener.\n\n" +
+             "Without this the Nemesis's steps are audible through the whole level at their full " +
+             "rolloff volume, which is what makes them read as 'always there' instead of as " +
+             "somewhere. NemesisAudio already does this for its breathing loops; one-shots fired " +
+             "through the AudioManager pool get no occlusion of their own, so it lives here.")]
+    [SerializeField] private bool occlusionEnabled = true;
+
+    [Tooltip("What counts as a wall. Wall only — NOT Ground, or every step taken on a floor above " +
+             "or below the listener reads as occluded by the floor between them, which is true but " +
+             "makes vertical proximity impossible to hear.")]
+    [SerializeField] private LayerMask occluderMask;
+
+    [Tooltip("Volume multiplier through a wall. Attenuation, never a cut: 0 would make the monster " +
+             "silent the moment it steps behind a pillar, which is worse information than too loud.")]
+    [SerializeField, Range(0f, 1f)] private float occludedVolume = 0.35f;
+
     [Header("Ground probe")]
     [Tooltip("What counts as a floor worth reading a surface off. Ground + Props + Water + Default " +
              "mirrors the player's own ground mask plus the layers a walkable prop can sit on.")]
@@ -106,9 +148,13 @@ public class FootstepEmitter : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float crouchVolumeScale = 0.45f;
 
-    [Tooltip("Multiplies the stride while crouched. Above 1 = fewer steps, which is what crouching " +
-             "actually sounds like.")]
-    [SerializeField, Min(0.1f)] private float crouchStrideScale = 1.3f;
+    [Tooltip("Multiplies the stride while crouched, in Distance mode only.\n\n" +
+             "0.5 and not something above 1, which is the intuitive-but-wrong answer. Crouching " +
+             "halves the speed but CrouchedWalking is the same 32 frames as Walking, so the feet " +
+             "land at the SAME rate — the character just covers less ground per step. Scaling the " +
+             "stride by the same 0.5 the speed is scaled by is what keeps the two cadences equal. " +
+             "In AnimationEvent mode this is ignored and the clip settles it.")]
+    [SerializeField, Min(0.1f)] private float crouchStrideScale = 0.5f;
 
     // ── Runtime ─────────────────────────────────────────────────────────────
 
@@ -222,6 +268,10 @@ public class FootstepEmitter : MonoBehaviour
             return;
         }
 
+        // In AnimationEvent mode everything above still runs — the teleport guard and the
+        // suppression checks are wanted either way — but the animation decides when a step lands.
+        if (cadenceSource == ECadence.AnimationEvent) return;
+
         if (travelled / dt < minSpeed) return;
 
         distanceAccumulator += travelled;
@@ -267,6 +317,24 @@ public class FootstepEmitter : MonoBehaviour
     }
 
     // ── Playback ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fires one step now. This is the AnimationEvent entry point: put an event on the footfall
+    /// frame of a locomotion clip calling <c>Step</c>.
+    ///
+    /// Unity delivers an AnimationEvent to the GameObject that owns the Animator, which on the
+    /// player is the rig child and not the root this component sits on — hence
+    /// <see cref="FootstepAnimationRelay"/>, which is what the clips actually call.
+    ///
+    /// Does nothing in Distance mode, so flipping <see cref="cadenceSource"/> back does not leave
+    /// the animation firing steps on top of the accumulator.
+    /// </summary>
+    public void Step()
+    {
+        if (cadenceSource != ECadence.AnimationEvent) return;
+        if (IsSuppressed()) return;
+        PlayStep();
+    }
 
     private void PlayStep()
     {
@@ -328,13 +396,47 @@ public class FootstepEmitter : MonoBehaviour
         }
 
         Vector3 at = transform.position + footOffset;
-        float vol = Mathf.Clamp01(volume * CurrentVolumeScale());
+        float vol = Mathf.Clamp01(volume * CurrentVolumeScale() * OcclusionMultiplier(at));
         float pitch = Random.Range(pitchRange.x, pitchRange.y);
 
         if (bus == EBus.Nemesis) manager.PlayNemesis(clip, at, vol, pitch, minDistance, maxDistance);
         else                     manager.PlayPlayer (clip, at, vol, pitch, minDistance, maxDistance);
 
         return bag;
+    }
+
+    /// <summary>
+    /// Cached across every emitter — there is exactly one AudioListener in a scene, and looking it
+    /// up per step from two walkers is a scene scan several times a second for a value that never
+    /// changes. Cleared when the reference goes null, which is what a scene change looks like.
+    /// </summary>
+    private static AudioListener cachedListener;
+
+    /// <summary>
+    /// 1 with a clear line to the listener, <see cref="occludedVolume"/> through a wall.
+    ///
+    /// One linecast per step, so a couple per second per walker — cheap enough to do per shot and
+    /// far more accurate than a per-frame value would need to be, since a footstep is a point in
+    /// time and only the geometry at that instant matters.
+    /// </summary>
+    private float OcclusionMultiplier(Vector3 from)
+    {
+        if (!occlusionEnabled || occluderMask.value == 0) return 1f;
+
+        // FindAnyObjectByType and not FindFirstObjectByType: the latter is deprecated because it
+        // orders by instance ID, and that ordering is worth nothing here — a scene only ever has
+        // one AudioListener, so "any" is "the one".
+        if (cachedListener == null) cachedListener = FindAnyObjectByType<AudioListener>();
+        if (cachedListener == null) return 1f;
+
+        // Lifted off the floor: a ray starting exactly on the ground plane grazes it and can
+        // report the floor itself as the occluder.
+        Vector3 origin = from + Vector3.up * 0.5f;
+
+        return Physics.Linecast(origin, cachedListener.transform.position, occluderMask,
+                                QueryTriggerInteraction.Ignore)
+             ? occludedVolume
+             : 1f;
     }
 
     private Collider ProbeGround()

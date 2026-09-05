@@ -236,6 +236,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1570038605404118868}
   - component: {fileID: 5201496269893057442}
+  - component: {fileID: 8823410557001220305}
   m_Layer: 0
   m_Name: mrZ
   m_TagString: Untagged
@@ -1855,12 +1856,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
   bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
   bus: 1
-  strideLength: 1.1
+  cadenceSource: 1
+  strideLength: 1.6
   minSpeed: 0.35
   teleportThreshold: 2
   minDistance: 2
-  maxDistance: 25
+  maxDistance: 18
   volumeScale: 1
+  occlusionEnabled: 1
+  occluderMask:
+    serializedVersion: 2
+    m_Bits: 2048
+  occludedVolume: 0.35
   probeMask:
     serializedVersion: 2
     m_Bits: 4121
@@ -1869,4 +1876,17 @@ MonoBehaviour:
   footOffset: {x: 0, y: 0, z: 0}
   player: {fileID: 0}
   crouchVolumeScale: 0.45
-  crouchStrideScale: 1.3
+  crouchStrideScale: 0.5
+--- !u!114 &8823410557001220305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2198378287098709486}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
+  emitter: {fileID: 400651606283616958}

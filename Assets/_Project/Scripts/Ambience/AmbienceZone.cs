@@ -56,11 +56,18 @@ public class AmbienceZone : MonoBehaviour
     {
         // If the player was inside and the zone gets disabled, pop manually so the profile is not
         // left applied with nothing to remove it.
-        if (isPlayerInside && controller != null)
+        //
+        // Not during teardown, though. OnDisable also runs while the scene is being unloaded, and
+        // by then the controller's own AudioSources may already be disabled — the pop re-applies
+        // the profile underneath, which tries to Play() them, and Unity logs "Can not play a
+        // disabled audio source" once per bed slot. There is nothing to restore a profile *to* on
+        // a scene that is going away, so the pop is pointless there as well as noisy.
+        if (isPlayerInside && controller != null && controller.isActiveAndEnabled)
         {
             controller.PopProfile(profile);
-            isPlayerInside = false;
         }
+
+        isPlayerInside = false;
     }
 
     private void OnTriggerEnter(Collider other)
