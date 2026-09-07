@@ -138,6 +138,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// </summary>
     public bool IsUsingElevator => elevatorUser != null && elevatorUser.IsTraversing;
 
+    /// <summary>
+    /// It has just given up on a lift and shelved that shaft for its cooldown.
+    ///
+    /// The end of a commitment, reported by the component that ended it. The ladder's "ya se
+    /// comprometió con el montacargas" rung reads it to let go — see that rung for what pinning
+    /// the Nemesis in Traversing on a trip nobody is taking any more looked like.
+    /// </summary>
+    public bool HasGivenUpOnElevator => elevatorUser != null && elevatorUser.HasGivenUpOnElevator;
+
     /// <summary>How full the suspicion meter is, 0 to 1. Read by NemesisDebugHUD - the ladder uses
     /// <see cref="IsSuspicious"/>, which is this against the designer's threshold.</summary>
     public float Awareness => fieldOfView != null ? fieldOfView.Awareness : 0f;
@@ -495,12 +504,42 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Freezing here is also right for the other case that clears this flag — an agent knocked
         // off the NavMesh by a Warp that did not land. Nothing decided would be actionable, and
         // NemesisStuckEscape is what resolves that one.
-        if (!IsAgentReady) return;
-
+        //
+        // WITH ONE EXCEPTION: THE CAPTURE. See CanCaptureWithoutAgent — riding the lift WITH the
+        // Nemesis is a scripted test case, and this freeze is what made it fail.
         if (Decision == null) return;
+        if (!IsAgentReady && !CanCaptureWithoutAgent) return;
 
         RequestState(Decision.Decide());
     }
+
+    /// <summary>
+    /// Whether the ladder must be allowed to run even though the agent is off — which today means
+    /// exactly one thing: the player is within arm's reach and the Nemesis is not already holding
+    /// them.
+    ///
+    /// THIS IS "ME SUBÍ AL MONTACARGAS CON ÉL Y NO ME AGARRÓ".
+    ///
+    /// The priority ladder puts "lo tiene al alcance de la mano" ABOVE "está cruzando el
+    /// montacargas" precisely so a player who rides up with the monster can still be caught, and
+    /// <see cref="NemesisElevatorUser"/>'s own notes lean on that. It never happened: the ride
+    /// switches the agent off, the guard above returned before the ladder was ever walked, and the
+    /// rung that was supposed to win was never even asked. A player could stand in the cabin next
+    /// to it for the whole ascent.
+    ///
+    /// Narrow on purpose, and it has to stay narrow. The freeze above is load-bearing for
+    /// everything else: every OTHER rung reaches for the route oracle or a destination, and both
+    /// are meaningless in the middle of a shaft with no NavMesh under the body. A capture asks
+    /// none of that — <see cref="CanReachPlayerNow"/> is a distance, a height difference and a
+    /// raycast, all of which are as true in a moving cabin as anywhere else.
+    ///
+    /// Excluding the state it is already in matters as much as the predicate: once Catch has been
+    /// entered the ladder has nothing left to add — the capture leaves on its own terms (see the
+    /// top rung) — and re-running it every frame of a ride would only reopen the freeze this is
+    /// meant to poke a single hole in.
+    /// </summary>
+    private bool CanCaptureWithoutAgent =>
+        CurrentStateKey != ENemesisState.Catch && Decision.CanCatchPlayer;
 
     /// <summary>
     /// Whether the player is genuinely within arm's reach: close horizontally, on the same floor,

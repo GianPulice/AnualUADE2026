@@ -422,6 +422,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4146579884416127991}
+  - component: {fileID: 8312962350523370375}
+  - component: {fileID: 7383323924871355308}
+  - component: {fileID: 998012208471940762}
   m_Layer: 6
   m_Name: MontacargasRoot
   m_TagString: Untagged
@@ -444,10 +447,75 @@ Transform:
   m_Children:
   - {fileID: 8124523950277465720}
   - {fileID: 687951836359788732}
+  - {fileID: 4405119832071456302}
   - {fileID: 3980993250033156790}
   - {fileID: 5616784855417769707}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8312962350523370375
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7736780603074074927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6eeb5dc026fdf4b488bc7ae0138ab719, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshLink
+  m_SerializedVersion: 1
+  m_AgentTypeID: 0
+  m_StartPoint: {x: 0, y: 0, z: -2.5}
+  m_EndPoint: {x: 0, y: 0, z: 2.5}
+  m_StartTransform: {fileID: 3980993250033156790}
+  m_EndTransform: {fileID: 5616784855417769707}
+  m_Activated: 1
+  m_Width: 4.52
+  m_CostModifier: 1
+  m_IsOverridingCost: 0
+  m_Bidirectional: 1
+  m_AutoUpdatePosition: 0
+  m_Area: 4
+--- !u!114 &7383323924871355308
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7736780603074074927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a91f21261d47d442a5e152654c8fdcb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisElevatorLink
+  platform: {fileID: 672720782343905976}
+  bottomLanding: {fileID: 3980993250033156790}
+  topLanding: {fileID: 5616784855417769707}
+  ridePoint: {fileID: 7543414350709273888}
+  traversalCost: 5
+  linkWidth: 1.5
+  giveCabinItsOwnNavMesh: 1
+--- !u!114 &998012208471940762
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7736780603074074927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b3fca8de9ab1584fb33ff50265dfeeb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ElevatorCabinNavMesh
+  agentTypeID: 0
+  geometryLayers:
+    serializedVersion: 2
+    m_Bits: 8
+  bakeHeadroom: 3
+  minRegionArea: 1.5
+  boardingInset: 0.9
+  boardingLinkWidth: 1.5
 --- !u!1 &7791698240898696526
 GameObject:
   m_ObjectHideFlags: 0
@@ -462,9 +530,7 @@ GameObject:
   - component: {fileID: 2789039549174507383}
   - component: {fileID: 672720782343905976}
   - component: {fileID: 4851339136926292095}
-  - component: {fileID: 8312962350523370375}
-  - component: {fileID: 7383323924871355308}
-  - component: {fileID: 998012208471940762}
+  - component: {fileID: 4405119832071456223}
   m_Layer: 3
   m_Name: Montacargas
   m_TagString: Untagged
@@ -582,7 +648,7 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: 6f413b141512f5f45a2a019607a2d1a2, type: 2}
   departOnPlayerEnter: 0
   autoReturnToBottom: 1
-  autoReturnDelay: 5
+  autoReturnDelay: 12
 --- !u!65 &4851339136926292095
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -604,7 +670,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 4, z: 1}
   m_Center: {x: 0, y: 2.5, z: 0}
---- !u!114 &8312962350523370375
+--- !u!114 &4405119832071456223
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -613,58 +679,83 @@ MonoBehaviour:
   m_GameObject: {fileID: 7791698240898696526}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6eeb5dc026fdf4b488bc7ae0138ab719, type: 3}
+  m_Script: {fileID: 11500000, guid: 1e3fdca004f2d45fe8abbed571a8abd5, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshLink
-  m_SerializedVersion: 1
-  m_AgentTypeID: 0
-  m_StartPoint: {x: 0, y: 0, z: -2.5}
-  m_EndPoint: {x: 0, y: 0, z: 2.5}
-  m_StartTransform: {fileID: 3980993250033156790}
-  m_EndTransform: {fileID: 5616784855417769707}
-  m_Activated: 1
-  m_Width: 4.52
-  m_CostModifier: 1
-  m_IsOverridingCost: 0
-  m_Bidirectional: 1
-  m_AutoUpdatePosition: 0
-  m_Area: 4
---- !u!114 &7383323924871355308
-MonoBehaviour:
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifier
+  m_SerializedVersion: 0
+  m_OverrideArea: 0
+  m_Area: 0
+  m_OverrideGenerateLinks: 0
+  m_GenerateLinks: 0
+  m_IgnoreFromBuild: 1
+  m_ApplyToChildren: 1
+  m_AffectedAgents: ffffffff
+--- !u!1 &4405119832071456301
+GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7791698240898696526}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3a91f21261d47d442a5e152654c8fdcb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NemesisElevatorLink
-  platform: {fileID: 672720782343905976}
-  bottomLanding: {fileID: 3980993250033156790}
-  topLanding: {fileID: 5616784855417769707}
-  ridePoint: {fileID: 7543414350709273888}
-  traversalCost: 5
-  linkWidth: 1.5
-  giveCabinItsOwnNavMesh: 1
---- !u!114 &998012208471940762
-MonoBehaviour:
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4405119832071456302}
+  - component: {fileID: 4405119832071456303}
+  - component: {fileID: 4405119832071456304}
+  m_Layer: 11
+  m_Name: Colider_Bottom
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4405119832071456302
+Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7791698240898696526}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3b3fca8de9ab1584fb33ff50265dfeeb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ElevatorCabinNavMesh
-  agentTypeID: 0
-  geometryLayers:
+  m_GameObject: {fileID: 4405119832071456301}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.19079971, y: 0.619, z: 2.26}
+  m_LocalScale: {x: 4.570387, y: 1, z: 4.4542828}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4146579884416127991}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &4405119832071456303
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4405119832071456301}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 8
-  bakeHeadroom: 3
-  minRegionArea: 1.5
-  boardingInset: 0.9
-  boardingLinkWidth: 1.5
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 3.5587406, z: 0.030067632}
+  m_Center: {x: 0, y: 1.2793705, z: 0.04520197}
+--- !u!114 &4405119832071456304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4405119832071456301}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 487128a1ce8b0b644ab1070ef509cdfc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ElevatorLandingBarrier
+  elevator: {fileID: 7383323924871355308}
+  barrier: {fileID: 4405119832071456303}
+  invert: 0

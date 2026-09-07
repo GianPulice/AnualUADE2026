@@ -43,6 +43,33 @@ public class NemesisTestConsole : MonoBehaviour
              "rather than a teleport.")]
     [SerializeField, Min(0.5f)] private float warpOffset = 3f;
 
+    [Header("Panel")]
+    [Tooltip("Dock the panel to the RIGHT edge of the screen.\n\n" +
+             "On by default because the F9 debug HUD lives in the top-left corner and this panel " +
+             "used to sit exactly on top of it — the two are meant to be read at the same time: " +
+             "you press a button here and watch the 'regla' row over there change.")]
+    [SerializeField] private bool dockRight = true;
+
+    [Tooltip("Gap between the panel and the screen edge it is docked to.")]
+    [SerializeField, Min(0f)] private float screenMargin = 10f;
+
+    /// <summary>Fixed rather than auto-sized: a panel that resizes as zones come and go is harder
+    /// to click than one that is simply big enough. Grown once already, with the director
+    /// section.</summary>
+    private static readonly Vector2 PanelSize = new Vector2(360f, 560f);
+
+    /// <summary>
+    /// Where the panel goes, and where the closed-state hint goes with it.
+    ///
+    /// The hint has to follow the panel rather than stay put: docked right and hinted left, the
+    /// two halves of the same tool would live in opposite corners, and the hint would be back on
+    /// top of the F9 HUD it was moved away from.
+    /// </summary>
+    private Rect PanelRect => new Rect(
+        dockRight ? Screen.width - PanelSize.x - screenMargin : screenMargin,
+        screenMargin,
+        PanelSize.x, PanelSize.y);
+
     private NemesisStateManager nemesis;
     private bool isOpen;
 
@@ -107,14 +134,25 @@ public class NemesisTestConsole : MonoBehaviour
                 ? $"   ESTADO FIJADO: {nemesis.Decision.PinnedState}  [0 suelta]"
                 : string.Empty;
 
-            GUI.Label(new Rect(10f, 10f, 520f, 20f),
-                      $"[{toggleKey}] Nemesis test console{pinned}");
+            const float hintWidth = 520f;
+            Rect panel = PanelRect;
+
+            // The rect ends where the panel ends and the TEXT is pushed to that same edge, so the
+            // hint reads as belonging to the corner the panel will open in. Left-docked it is the
+            // original top-left label, unchanged.
+            float hintX = dockRight ? panel.xMax - hintWidth : panel.x;
+
+            GUIStyle hintStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = dockRight ? TextAnchor.UpperRight : TextAnchor.UpperLeft,
+            };
+
+            GUI.Label(new Rect(hintX, panel.y, hintWidth, 20f),
+                      $"[{toggleKey}] Nemesis test console{pinned}", hintStyle);
             return;
         }
 
-        // Grown with the director section. Fixed rather than auto-sized because a panel that
-        // resizes as zones come and go is harder to click than one that is simply big enough.
-        GUILayout.BeginArea(new Rect(10f, 10f, 360f, 560f), GUI.skin.box);
+        GUILayout.BeginArea(PanelRect, GUI.skin.box);
         GUILayout.Label("NEMESIS TEST CONSOLE", GUI.skin.box);
 
         DrawStatus();

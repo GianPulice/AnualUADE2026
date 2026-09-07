@@ -116,6 +116,11 @@ public sealed class NemesisDecision
     /// off. A fact about who is driving, not a sensor reading.</summary>
     public bool IsUsingElevator => stateManager.IsUsingElevator;
 
+    /// <summary>It has just given up on a lift and shelved it for the cooldown. Also a fact about
+    /// execution rather than about the world: the component that drives the crossing is reporting
+    /// that this one is over.</summary>
+    public bool HasGivenUpOnElevator => stateManager.HasGivenUpOnElevator;
+
     public bool HasBelief => stateManager.TryGetBelief(out _);
 
     /// <summary>Seconds since either sensor last caught the player. Infinity if neither ever has.
@@ -415,6 +420,7 @@ public sealed class NemesisDecision
             ENemesisPredicate.HearsPlayer => HearsPlayer,
             ENemesisPredicate.IsSuspicious => IsSuspicious,
             ENemesisPredicate.IsUsingElevator => IsUsingElevator,
+            ENemesisPredicate.HasGivenUpOnElevator => HasGivenUpOnElevator,
             ENemesisPredicate.HasBelief => HasBelief,
             ENemesisPredicate.CanCatchPlayer => CanCatchPlayer,
             ENemesisPredicate.RouteToBeliefCrossesFloors => RouteToBeliefCrossesFloors,

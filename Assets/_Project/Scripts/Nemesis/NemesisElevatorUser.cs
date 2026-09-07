@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -65,6 +66,12 @@ public class NemesisElevatorUser : MonoBehaviour
     /// </summary>
     private const float BoardingOpenTimeout = 1f;
 
+    /// <summary>Seconds allowed for the agent to actually stop standing on the shaft link after
+    /// being asked to. Half a second is dozens of frames — long enough that any ordering between
+    /// this continuation and the navigation system's own update resolves, short enough that a
+    /// genuine refusal is reported rather than waited out.</summary>
+    private const float OffLinkTimeout = 0.5f;
+
     private NemesisStateManager stateManager;
     private NavMeshAgent agent;
     private bool isTraversing;
@@ -81,20 +88,84 @@ public class NemesisElevatorUser : MonoBehaviour
     public bool IsTraversing => isTraversing;
 
     /// <summary>
+    /// A shaft has just been given up on and is shelved for its cooldown.
+    ///
+    /// Read by the priority ladder, through <c>NemesisStateManager.HasGivenUpOnElevator</c>, to
+    /// release the Traversing commitment: the two time bounds on that rung measure how long the
+    /// commitment has been held, and cannot tell that there is no longer a trip to hold it to.
+    /// </summary>
+    public bool HasGivenUpOnElevator => abandonedElevator != null && Time.time < abandonedUntil;
+
+    /// <summary>
     /// The elevator most recently given up on, and until when it stays off the menu.
     ///
     /// Abandoning a link is not the same as leaving it: the agent is still standing on it, so
     /// without this the very next Update sees isOnOffMeshLink and starts the whole wait again —
     /// twenty seconds at a time, forever, at the same landing. Nothing else catches it either,
     /// because a traversal deliberately suppresses the stuck watchdog.
+    ///
+    /// While it is set, that shaft's link is SUSPENDED — see <see cref="AbandonElevator"/> for why
+    /// stepping off without suspending it produced the walk-in/walk-out loop, and
+    /// <see cref="RestoreAbandonedElevator"/> for the one place that puts it back.
     /// </summary>
     private NemesisElevatorLink abandonedElevator;
     private float abandonedUntil;
 
-    /// <summary>Reported once per run, not once per attempt: a shaft whose boarding walk does not
-    /// work does not work every twenty seconds for the rest of the session, and a console filling
-    /// up with the same warning is a console nobody reads.</summary>
-    private bool warnedBoardingWalk;
+    /// <summary>
+    /// The last boarding-walk failure already reported, so the same one is not printed every
+    /// twenty seconds for the rest of the session.
+    ///
+    /// Keyed on REASON AND LANDING, not once per run, which is what it used to be. "It failed" was
+    /// never the useful half of that warning — the failure has six possible causes in three
+    /// different inspectors — and the landing belongs in the key for the same reason: the case
+    /// worth seeing is a shaft that fails one way from the bottom and another way from the top,
+    /// and keying on the reason alone would print the first and swallow the second.
+    /// </summary>
+    private readonly HashSet<(EBoardingStep step, Transform landing)> warnedBoardingWalk =
+        new HashSet<(EBoardingStep, Transform)>();
+
+    /// <summary>
+    /// Which step of the walk aboard gave up.
+    ///
+    /// A field rather than a return value because the walk is spread over three async methods and
+    /// UniTask has no <c>out</c>; it is written by whichever step fails and read once, by
+    /// <see cref="WarnBoardingWalkFailed"/>, in the same call chain.
+    /// </summary>
+    private EBoardingStep boardingFailure;
+
+    /// <summary>The ways boarding on foot can fail, each naming what to go and look at.</summary>
+    private enum EBoardingStep
+    {
+        None,
+
+        /// <summary>The shaft reports a cabin NavMesh but the component is gone.</summary>
+        NoCabinNavMesh,
+
+        /// <summary>The cabin floor and this landing's link were never live at the same time
+        /// inside the grace window — the cabin is not parked here, or its bake is empty.</summary>
+        BoardingNeverOpened,
+
+        /// <summary>The agent came off the NavMesh entirely while stepping off the shaft link.
+        /// </summary>
+        AgentLeftTheNavMesh,
+
+        /// <summary>It would not let go of the shaft link, so it could not be steered anywhere.
+        /// </summary>
+        StuckOnTheShaftLink,
+
+        /// <summary>NavMeshAgent.SetDestination refused the boarding point outright: nothing
+        /// walkable near it for this agent type.</summary>
+        DestinationRefused,
+
+        /// <summary>A path was found but it does not reach the cabin — the boarding link is not
+        /// joining the two meshes. THE usual one, and it means the link's ends are on the same
+        /// island or on none.</summary>
+        PathDoesNotReachTheCabin,
+
+        /// <summary>A complete path that never finished being walked. Something is physically in
+        /// the way, or the cabin left while it was walking.</summary>
+        WalkTimedOut,
+    }
 
     private SO_NemesisMovement Movement => stateManager != null ? stateManager.NemesisMovement : null;
     private SO_NemesisData Data => stateManager != null ? stateManager.NemesisData : null;
@@ -145,6 +216,10 @@ public class NemesisElevatorUser : MonoBehaviour
         if (stateManager == null || !stateManager.IsActive) return;
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
+        // Before the agent guards, not after: a shaft whose cooldown has expired has to come back
+        // into pathfinding whether or not the Nemesis happens to be on the mesh this frame.
+        RestoreAbandonedElevator();
+
         if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
         if (!agent.isOnOffMeshLink) return;
 
@@ -161,8 +236,10 @@ public class NemesisElevatorUser : MonoBehaviour
         CancellationToken token = this.GetCancellationTokenOnDestroy();
 
         // Recently given up on: step off the link instead of starting the same doomed wait over.
-        // Doing it here rather than inside the traversal keeps the cooldown from being paid as
-        // another full timeout.
+        //
+        // A safety net now rather than the mechanism. AbandonElevator suspends the shaft link for
+        // the whole cooldown, so an agent should not be able to path onto it at all; this catches
+        // the frame where it was already standing on it when the suspension landed.
         if (elevator != null && IsOnCooldown(elevator))
         {
             LeaveCurrentLink();
@@ -244,6 +321,18 @@ public class NemesisElevatorUser : MonoBehaviour
         ReferenceEquals(elevator, abandonedElevator) && Time.time < abandonedUntil;
 
     /// <summary>
+    /// The FSM is holding the player right now.
+    ///
+    /// It can happen in the middle of a crossing since the capture rung stopped being frozen out
+    /// by the ride (see <c>NemesisStateManager.CanCaptureWithoutAgent</c>), and the two things this
+    /// component does on its way out — reset the gait, put the agent back on a landing — are both
+    /// wrong over a grab in progress.
+    /// </summary>
+    private bool IsCapturing =>
+        stateManager != null &&
+        stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Catch;
+
+    /// <summary>
     /// Takes the agent off the link it is standing on WITHOUT crossing it, and makes it re-path.
     ///
     /// <c>CompleteOffMeshLink()</c> is the wrong call here and was the tempting one: it reports the
@@ -265,14 +354,79 @@ public class NemesisElevatorUser : MonoBehaviour
         if (stateManager != null) stateManager.InvalidateRouteVerdict();
     }
 
-    /// <summary>Puts an elevator off the menu for <see cref="AbandonCooldown"/> seconds and steps
-    /// the agent off its link.</summary>
+    /// <summary>
+    /// Puts an elevator off the menu for <see cref="AbandonCooldown"/> seconds and steps the agent
+    /// off its link.
+    ///
+    /// THE SHAFT LINK GOES OFF WITH IT, and that is the half that was missing. Stepping off is not
+    /// the same as staying off: <see cref="LeaveCurrentLink"/> only refuses THIS crossing, so the
+    /// very next path the FSM asked for went straight back through the same link, the agent stood
+    /// on it again, this method's cooldown branch in Update stepped it off again — and the two
+    /// took turns, every frame, for the whole cooldown. From the outside that is a Nemesis walking
+    /// into the lift, out of it, and back in.
+    ///
+    /// Worse, it was permanent in the other direction. ActivateCurrentOffMeshLink(false) turns the
+    /// link off in the navigation system and nothing ever turned it back on — the cooldown expired
+    /// but the crossing stayed dead, so the shaft quietly stopped existing for the rest of the run.
+    /// Suspending it here as a deliberate, timed decision is what makes
+    /// <see cref="RestoreAbandonedElevator"/> the one place that undoes it.
+    ///
+    /// Suspending it also fixes the decision layer's half of the loop: with the link out of
+    /// pathfinding the route to the belief stops crossing floors, so the ladder falls through to
+    /// Chasing instead of pinning the Nemesis in Traversing on the strength of a lift it has just
+    /// given up on.
+    /// </summary>
     private void AbandonElevator(NemesisElevatorLink elevator)
     {
+        // One shelf, one shaft. A level with two lifts could otherwise overwrite the reference to
+        // the first while it is still suspended, and nothing would ever hand it back.
+        if (abandonedElevator != null && !ReferenceEquals(abandonedElevator, elevator))
+            abandonedElevator.SetShaftLinkActive(true);
+
         abandonedElevator = elevator;
         abandonedUntil = Time.time + AbandonCooldown;
 
+        // In this order: deactivating first would leave LeaveCurrentLink with no current link to
+        // act on, and the agent standing on a crossing it is no longer allowed to take.
         LeaveCurrentLink();
+        elevator.SetShaftLinkActive(false);
+    }
+
+    /// <summary>
+    /// Puts a shelved shaft back into pathfinding once its cooldown has run out.
+    ///
+    /// The counterpart to <see cref="AbandonElevator"/>, and the reason the cooldown is a real
+    /// cooldown rather than a one-way door. Cleared as soon as it fires, so a shaft is restored
+    /// exactly once and <see cref="IsOnCooldown"/> keeps answering false afterwards.
+    ///
+    /// A destroyed elevator (a level torn down mid-cooldown) drops out of the field the same way,
+    /// so the reference cannot keep a dead object alive.
+    /// </summary>
+    private void RestoreAbandonedElevator()
+    {
+        if (abandonedElevator == null)
+        {
+            abandonedElevator = null;   // Clears a Unity-null left by a destroyed elevator.
+            return;
+        }
+
+        if (Time.time < abandonedUntil) return;
+
+        abandonedElevator.SetShaftLinkActive(true);
+        abandonedElevator = null;
+    }
+
+    /// <summary>
+    /// A Nemesis switched off (dormant, captured, scene teardown) mid-cooldown would leave its
+    /// shaft suspended with nothing left running to restore it. The link belongs to the level, not
+    /// to this component, so it has to be handed back on the way out.
+    /// </summary>
+    private void OnDisable()
+    {
+        if (abandonedElevator == null) return;
+
+        abandonedElevator.SetShaftLinkActive(true);
+        abandonedElevator = null;
     }
 
     // ── Plain links ─────────────────────────────────────────────────────────
@@ -401,7 +555,7 @@ public class NemesisElevatorUser : MonoBehaviour
                 // to nothing, a path that never resolved. Reported once, then crossed the old way:
                 // the wall-crossing boarding is ugly, but a Nemesis that cannot change floors at
                 // all is a level the player can walk away from.
-                WarnBoardingWalkFailed(elevator);
+                WarnBoardingWalkFailed(elevator, boarding);
                 boardByWalking = false;
             }
 
@@ -554,8 +708,13 @@ public class NemesisElevatorUser : MonoBehaviour
             // and a Nemesis that resumed a chase at 1.5 m/s would look like it had lost interest.
             // The animation no longer depends on this being right - TickLocomotionAnimation reads
             // the body - but the agent's speed still does.
+            //
+            // NOT OVER A CAPTURE. A player who rode up in the cabin can now be grabbed mid-trip
+            // (see NemesisStateManager.CanCaptureWithoutAgent), and this line runs after it: the
+            // grab animation would be replaced by a run on the spot, with the Nemesis holding
+            // somebody. Catch sets its own gait on entry and owns it until it leaves.
             SO_NemesisMovement movement = Movement;
-            if (stateManager != null && movement != null)
+            if (stateManager != null && movement != null && !IsCapturing)
                 stateManager.SetGait(NemesisStateManager.EGait.Running, movement.ChaseSpeed);
 
             if (stateManager != null)
@@ -622,17 +781,95 @@ public class NemesisElevatorUser : MonoBehaviour
 
     // ── Walking on and off the cabin ────────────────────────────────────────
 
-    private void WarnBoardingWalkFailed(NemesisElevatorLink elevator)
+    private void WarnBoardingWalkFailed(NemesisElevatorLink elevator, Transform boarding)
     {
-        if (warnedBoardingWalk) return;
-        warnedBoardingWalk = true;
+        if (!warnedBoardingWalk.Add((boardingFailure, boarding))) return;
 
         Debug.LogWarning($"[{nameof(NemesisElevatorUser)}] '{name}' could not WALK aboard " +
-                         $"'{elevator.name}' even though its cabin reports a usable NavMesh, so it " +
-                         "boarded the old way — in a straight line, through the landing barrier. " +
-                         "Check that the boarding link's two ends both sit on baked ground: the " +
-                         "landing side needs the level's NavMesh, the cabin side needs the cabin's " +
-                         "own (Show NavMesh in the AI Navigation overlay draws both).", this);
+                         $"'{elevator.name}' from '{boarding.name}', so it boarded the old way — " +
+                         $"in a straight line, through the landing barrier.\n" +
+                         $"WHERE IT GAVE UP: {Explain(boardingFailure)}\n" +
+                         $"{DescribeBoardingGeometry(elevator, boarding)}", this);
+    }
+
+    /// <summary>
+    /// What the failing step means and what to go and look at, in the terms of the thing that is
+    /// actually wrong rather than in the terms of the code that noticed.
+    ///
+    /// This replaces one warning that named all six causes at once and therefore named none: with
+    /// the walk failing for a different reason at each landing, "check that both ends sit on baked
+    /// ground" was true, unhelpful, and the same text either way.
+    /// </summary>
+    private string Explain(EBoardingStep step)
+    {
+        switch (step)
+        {
+            case EBoardingStep.NoCabinNavMesh:
+                return "the shaft reports a cabin NavMesh but the component is missing.";
+
+            case EBoardingStep.BoardingNeverOpened:
+                return $"the cabin floor and this landing's link were never both live within " +
+                       $"{BoardingOpenTimeout}s. Either the cabin is not actually parked at this " +
+                       "landing (check ElevatorCabinNavMesh's door gizmo: green = joined, grey = " +
+                       "not), or the platform still reads as moving.";
+
+            case EBoardingStep.AgentLeftTheNavMesh:
+                return "the agent came off the NavMesh while stepping off the shaft link.";
+
+            case EBoardingStep.StuckOnTheShaftLink:
+                return $"it would not let go of the shaft link within {OffLinkTimeout}s, and an " +
+                       "agent standing on a link it may not auto-traverse cannot be steered " +
+                       "anywhere. Check that the NavMeshLink and NemesisElevatorLink are on the " +
+                       "STATIC root and not on the cabin.";
+
+            case EBoardingStep.DestinationRefused:
+                return "SetDestination refused the boarding point outright — there is no NavMesh " +
+                       "of this agent's type anywhere near it. The cabin's bake came out empty.";
+
+            case EBoardingStep.PathDoesNotReachTheCabin:
+                return "a path was found but it STOPS SHORT of the cabin, which means the " +
+                       "boarding link is not joining the landing's mesh to the cabin's. The two " +
+                       "usual causes: both of the link's ends snapped onto the SAME mesh (they " +
+                       "are within a few centimetres of each other in height, so the cabin-side " +
+                       "end landed on the level's floor instead of the cabin's), or the cabin's " +
+                       "island is not where the door point is.";
+
+            case EBoardingStep.WalkTimedOut:
+                return $"the path was complete but not walked within {BoardingWalkTimeout}s — " +
+                       "something is physically in the way, or the cabin left mid-walk.";
+
+            default:
+                return "no reason was recorded, which is itself a bug.";
+        }
+    }
+
+    /// <summary>
+    /// The three numbers that settle a boarding argument, measured rather than assumed: where the
+    /// door point is, whether anything walkable is under it, and how far apart the link's two ends
+    /// are vertically — which is what decides whether they can snap to the same mesh.
+    /// </summary>
+    private string DescribeBoardingGeometry(NemesisElevatorLink elevator, Transform boarding)
+    {
+        ElevatorCabinNavMesh cabin = elevator.CabinNav;
+        if (cabin == null) return string.Empty;
+
+        Vector3 door = cabin.BoardingPointFor(boarding);
+
+        string doorGround = NavMesh.SamplePosition(door, out NavMeshHit doorHit, 0.6f, NavMesh.AllAreas)
+            ? $"walkable ({doorHit.distance:0.00} m away)"
+            : "NOTHING WALKABLE within 0.6 m";
+
+        string landingGround = NavMesh.SamplePosition(boarding.position, out NavMeshHit landingHit,
+                                                      0.6f, NavMesh.AllAreas)
+            ? $"walkable ({landingHit.distance:0.00} m away)"
+            : "NOTHING WALKABLE within 0.6 m";
+
+        return $"landing '{boarding.name}' at {boarding.position} → {landingGround}\n" +
+               $"cabin door at {door} → {doorGround}\n" +
+               $"vertical gap between the link's two ends: " +
+               $"{Mathf.Abs(door.y - boarding.position.y):0.00} m " +
+               "(under ~0.3 m and both ends can snap to the same mesh, which makes the link a " +
+               "no-op).";
     }
 
     /// <summary>
@@ -653,13 +890,23 @@ public class NemesisElevatorUser : MonoBehaviour
     private async UniTask<bool> WalkAboardAsync(NemesisElevatorLink elevator, Transform boarding,
                                                 CancellationToken token)
     {
+        boardingFailure = EBoardingStep.None;
+
         ElevatorCabinNavMesh cabin = elevator.CabinNav;
-        if (cabin == null) return false;
+        if (cabin == null)
+        {
+            boardingFailure = EBoardingStep.NoCabinNavMesh;
+            return false;
+        }
 
         // The cabin has only just finished arriving, and its floor and this landing's link are
         // restored from ElevatorCabinNavMesh's own Update — which may not have run yet on the
         // frame this resumes. A one-second grace instead of a same-frame verdict.
-        if (!await WaitForBoardingOpenAsync(elevator, boarding, token)) return false;
+        if (!await WaitForBoardingOpenAsync(elevator, boarding, token))
+        {
+            boardingFailure = EBoardingStep.BoardingNeverOpened;
+            return false;
+        }
 
         // THE AGENT HAS TO COME OFF THE SHAFT LINK FIRST, and in this order. An agent standing on
         // a link it may not auto-traverse cannot be steered anywhere: told to keep going, it grinds
@@ -672,13 +919,52 @@ public class NemesisElevatorUser : MonoBehaviour
         LeaveCurrentLink();
         elevator.SetShaftLinkActive(false);
 
-        // One frame for the navigation system to register both.
-        await UniTask.Yield(token);
-
-        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return false;
-        if (agent.isOnOffMeshLink) return false;
+        if (!await WaitUntilOffTheShaftLinkAsync(token)) return false;
 
         return await WalkAgentToAsync(cabin.BoardingPointFor(boarding), token);
+    }
+
+    /// <summary>
+    /// Waits until the agent has actually stopped standing on the shaft link.
+    ///
+    /// It used to be a single <c>UniTask.Yield</c> followed by a same-frame verdict, and that was
+    /// a bet rather than a wait: letting go is not instant, the agent's own state updates in a
+    /// different part of the player loop from this continuation, and one frame is exactly the kind
+    /// of margin that holds until something upstream changes and then silently stops holding.
+    /// When it stopped holding, the whole walk aboard was written off and the Nemesis crossed the
+    /// wall instead — with a warning that blamed the bake.
+    ///
+    /// The request is REPEATED each frame rather than made once. The first
+    /// <c>ActivateCurrentOffMeshLink(false)</c> lands while the link is still live and can be
+    /// overtaken by the path the agent is holding; asking again once the link has actually been
+    /// suspended is what makes it stick. It only ever runs in the frames where the agent has not
+    /// let go yet, so the repetition costs nothing in the normal case.
+    /// </summary>
+    private async UniTask<bool> WaitUntilOffTheShaftLinkAsync(CancellationToken token)
+    {
+        float waited = 0f;
+
+        while (waited < OffLinkTimeout)
+        {
+            // Yielded first, as the single yield this replaces was: the navigation system has to
+            // get a frame to register the step-off that has just been requested.
+            waited += Time.deltaTime;
+            await UniTask.Yield(token);
+
+            if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+            {
+                boardingFailure = EBoardingStep.AgentLeftTheNavMesh;
+                return false;
+            }
+
+            if (!agent.isOnOffMeshLink) return true;
+
+            agent.ActivateCurrentOffMeshLink(false);
+            agent.ResetPath();
+        }
+
+        boardingFailure = EBoardingStep.StuckOnTheShaftLink;
+        return false;
     }
 
     /// <summary>
@@ -760,7 +1046,11 @@ public class NemesisElevatorUser : MonoBehaviour
 
             stateManager.SetGait(NemesisStateManager.EGait.Walking, BoardingSpeed);
 
-            if (!agent.SetDestination(target)) return false;
+            if (!agent.SetDestination(target))
+            {
+                boardingFailure = EBoardingStep.DestinationRefused;
+                return false;
+            }
 
             float waited = 0f;
 
@@ -772,12 +1062,24 @@ public class NemesisElevatorUser : MonoBehaviour
                 waited += Time.deltaTime;
                 await UniTask.Yield(token);
 
-                if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return false;
+                if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+                {
+                    boardingFailure = EBoardingStep.AgentLeftTheNavMesh;
+                    return false;
+                }
+
                 if (agent.pathPending) continue;
-                if (agent.pathStatus != NavMeshPathStatus.PathComplete) return false;
+
+                if (agent.pathStatus != NavMeshPathStatus.PathComplete)
+                {
+                    boardingFailure = EBoardingStep.PathDoesNotReachTheCabin;
+                    return false;
+                }
+
                 if (agent.remainingDistance <= agent.stoppingDistance) return true;
             }
 
+            boardingFailure = EBoardingStep.WalkTimedOut;
             return false;
         }
         finally
@@ -847,6 +1149,13 @@ public class NemesisElevatorUser : MonoBehaviour
     /// </summary>
     private void RestoreAgentOnto(Transform landing)
     {
+        // A capture that started mid-ride is holding the player where the body is standing — in
+        // the cabin. Stepping the agent onto the landing there would tear the Nemesis two metres
+        // out of its own grab animation, so the body's own position is tried first. The cabin's
+        // NavMesh is back by now (ElevatorCabinNavMesh restores it the moment the lift parks), so
+        // this normally lands on the first try; the landing is still the fallback.
+        if (IsCapturing && TryWarpNear(transform.position)) return;
+
         if (landing != null && TryWarpNear(landing.position)) return;
         if (TryWarpNear(transform.position)) return;
 

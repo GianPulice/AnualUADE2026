@@ -68,6 +68,11 @@ MonoBehaviour:
       state: 5
       threshold: 0
       customSeconds: 0
+    - predicate: 11
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
     - predicate: 8
       negate: 0
       state: 0

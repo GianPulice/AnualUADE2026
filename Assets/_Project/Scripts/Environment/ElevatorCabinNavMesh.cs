@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
@@ -294,7 +295,112 @@ public class ElevatorCabinNavMesh : MonoBehaviour
                                    bounds.size.z + sideMargin);
         surface.center = new Vector3(0f, (bakeHeadroom - slabBite) * 0.5f, 0f);
 
-        surface.BuildNavMesh();
+        BuildIgnoringTheLevelBakeMarker();
+    }
+
+    /// <summary>
+    /// Bakes the cabin's floor with the cabin's own "keep me out of the level bake" marker lifted
+    /// for the duration.
+    ///
+    /// THE CABIN HAS TO BE IN EXACTLY ONE NAVMESH, AND IT IS NOT THE LEVEL'S.
+    ///
+    /// The scene's NavMeshSurface collects the whole scene by layer, from Physics Colliders. The
+    /// cabin has a collider, and it sits on a layer that mask includes — so the offline bake
+    /// swallows the cabin floor and freezes a copy of it into the LEVEL's static mesh, at whatever
+    /// height the lift happened to be parked at when somebody pressed Bake. That ghost never
+    /// moves. Two things follow, and both were reported as elevator bugs:
+    ///
+    ///   - Parked at the baked landing, the ghost and this component's island lie on top of each
+    ///     other. Two coincident meshes are two answers to "where is the floor here": a path can
+    ///     resolve on either, boarding stops needing the boarding link at all (so the Nemesis
+    ///     walks in straight through where the barrier is instead of round to the door), and the
+    ///     walk-aboard's own arrival test starts reading the wrong one.
+    ///   - Away from it, the ghost is a slab of walkable NavMesh floating over an open shaft.
+    ///
+    /// The fix belongs in the scene — a <see cref="NavMeshModifier"/> with Ignore From Build on
+    /// the cabin, which is the standard way to say "not part of the static level". But that marker
+    /// is read by EVERY surface, including this one, so left standing it would empty the very bake
+    /// this component exists to produce. Lifting it here is what lets one marker mean "out of the
+    /// level's mesh" without also meaning "out of your own".
+    ///
+    /// Toggling <c>enabled</c> rather than the flag: the package keeps a static list of ACTIVE
+    /// modifiers and builds its markups from that, so disabling is what actually takes a marker
+    /// out of a build. Restored in a finally, because a marker left off would quietly put the
+    /// cabin back into the next bake somebody runs.
+    /// </summary>
+    private void BuildIgnoringTheLevelBakeMarker()
+    {
+        List<NavMeshModifier> lifted = null;
+
+        // Ancestors as well as descendants: Apply To Children means a marker on the shaft root
+        // covers the cabin just as effectively as one on the cabin itself.
+        Lift(platform.GetComponentsInParent<NavMeshModifier>(includeInactive: true), ref lifted);
+        Lift(platform.GetComponentsInChildren<NavMeshModifier>(includeInactive: true), ref lifted);
+
+        try
+        {
+            surface.BuildNavMesh();
+        }
+        finally
+        {
+            if (lifted != null)
+            {
+                for (int i = 0; i < lifted.Count; i++) lifted[i].enabled = true;
+            }
+        }
+
+        WarnIfTheCabinIsInTheLevelBake(lifted != null);
+    }
+
+    /// <summary>Switches off every Ignore From Build marker in a set and records what it switched
+    /// off. A marker on the cabin itself turns up in BOTH walks; the second pass skips it because
+    /// the first already disabled it, which is what keeps a marker from being listed twice.
+    /// </summary>
+    private static void Lift(NavMeshModifier[] candidates, ref List<NavMeshModifier> lifted)
+    {
+        foreach (NavMeshModifier modifier in candidates)
+        {
+            if (modifier == null || !modifier.enabled || !modifier.ignoreFromBuild) continue;
+
+            lifted ??= new List<NavMeshModifier>();
+            lifted.Add(modifier);
+            modifier.enabled = false;
+        }
+    }
+
+    /// <summary>
+    /// Says out loud that the cabin is being baked into the level's static NavMesh, because
+    /// nothing else ever will.
+    ///
+    /// It is the quietest failure in this whole system: the bake succeeds, the console stays
+    /// clean, the cabin's own island still shows up in Show NavMesh, and what you get is a second
+    /// invisible floor that only misbehaves in ways that look like AI bugs. The three facts that
+    /// produce it are each innocuous on their own, live in three different inspectors, and are
+    /// never seen together — which is exactly the shape of thing worth spending a startup check on.
+    ///
+    /// Only asked when no marker was found, and only against surfaces other than this one.
+    /// </summary>
+    private void WarnIfTheCabinIsInTheLevelBake(bool markerFound)
+    {
+        if (markerFound) return;
+
+        int cabinLayerBit = 1 << platform.gameObject.layer;
+
+        foreach (NavMeshSurface other in NavMeshSurface.activeSurfaces)
+        {
+            if (other == null || other == surface) continue;
+            if ((other.layerMask.value & cabinLayerBit) == 0) continue;
+
+            Debug.LogWarning($"[{nameof(ElevatorCabinNavMesh)}] '{name}': the cabin " +
+                             $"('{platform.name}') is on layer " +
+                             $"'{LayerMask.LayerToName(platform.gameObject.layer)}', which " +
+                             $"'{other.name}' bakes — so the level's static NavMesh contains a " +
+                             "frozen copy of this cabin floor, wherever the lift was parked when " +
+                             "it was baked. Add a NavMeshModifier with Ignore From Build to the " +
+                             "cabin and re-bake; this component knows to look past it when " +
+                             "building the cabin's own floor.", this);
+            return;
+        }
     }
 
     /// <summary>
@@ -415,7 +521,10 @@ public class ElevatorCabinNavMesh : MonoBehaviour
     /// </summary>
     private void Update()
     {
-        if (isReady) Refresh();
+        if (!isReady) return;
+
+        Refresh();
+        TickBridgeCheck();
     }
 
     private void Refresh()
@@ -427,13 +536,139 @@ public class ElevatorCabinNavMesh : MonoBehaviour
 
         if (surface.enabled != parked) surface.enabled = parked;
 
-        SetLinkOpen(bottomLink, parked && elevator.IsCabinAtBottom);
-        SetLinkOpen(topLink, parked && !elevator.IsCabinAtBottom);
+        SetLinkOpen(bottomLink, elevator.BottomLanding, bottomDoor, parked && elevator.IsCabinAtBottom);
+        SetLinkOpen(topLink, elevator.TopLanding, topDoor, parked && !elevator.IsCabinAtBottom);
     }
 
-    private static void SetLinkOpen(NavMeshLink link, bool open)
+    private void SetLinkOpen(NavMeshLink link, Transform landing, Transform door, bool open)
     {
-        if (link != null && link.enabled != open) link.enabled = open;
+        if (link == null || link.enabled == open) return;
+
+        link.enabled = open;
+
+        // Every opening is checked, because a link being enabled is not the same as a link being
+        // CONNECTED — see TickBridgeCheck.
+        if (open) ArmBridgeCheck(link, landing, door);
+    }
+
+    // ── Is the link actually bridging? ──────────────────────────────────────
+    //
+    // ENABLED AND CONNECTED ARE TWO DIFFERENT FACTS, and the gap between them is where boarding
+    // was disappearing. A NavMeshLink resolves which NavMesh polygons it joins AT THE MOMENT IT IS
+    // ADDED, and it does not go back and look again. The cabin's floor is a NavMesh instance that
+    // is removed and re-added constantly — every time this component toggles the surface for a
+    // trip, and every time the package notices the cabin's transform has moved — so a link added
+    // against the wrong side of one of those swaps is enabled, drawn, reported open by
+    // IsBoardingOpen, and joins nothing at all.
+    //
+    // What that looked like from the outside: the door gizmo green, no error anywhere, and
+    // NemesisElevatorUser giving up with "a path was found but it STOPS SHORT of the cabin" —
+    // because the path really did stop short. There was no way to tell that from a bad bake.
+    //
+    // So the link is re-registered until a path query says the two ends are genuinely joined. The
+    // retries are frames, not seconds: this only ever runs for a few frames after a cabin parks.
+
+    /// <summary>Frames a freshly opened link is given to come up connected before it is written
+    /// off. Generous enough to outlast any ordering between this component, the package's own
+    /// transform tracking and the navigation update; short enough to be over before the Nemesis
+    /// has finished walking to the landing.</summary>
+    private const int BridgeCheckRetries = 5;
+
+    private NavMeshLink pendingLink;
+    private Transform pendingLanding;
+    private Transform pendingDoor;
+    private int pendingRetries;
+
+    /// <summary>Reported once per landing, not once per opening: a shaft that cannot bridge does
+    /// not bridge on every trip for the rest of the session.</summary>
+    private bool warnedBottomBridge;
+    private bool warnedTopBridge;
+
+    private void ArmBridgeCheck(NavMeshLink link, Transform landing, Transform door)
+    {
+        pendingLink = link;
+        pendingLanding = landing;
+        pendingDoor = door;
+        pendingRetries = BridgeCheckRetries;
+    }
+
+    private void TickBridgeCheck()
+    {
+        if (pendingLink == null) return;
+
+        // Closed again before the check finished — the cabin was called away. Nothing to prove.
+        if (!pendingLink.enabled)
+        {
+            pendingLink = null;
+            return;
+        }
+
+        if (IsBridging(pendingLanding, pendingDoor))
+        {
+            pendingLink = null;
+            return;
+        }
+
+        if (--pendingRetries > 0)
+        {
+            // Re-registering is the whole repair: RemoveLink + AddLink against the NavMesh as it
+            // stands NOW, rather than as it stood on the frame the link happened to be enabled.
+            pendingLink.UpdateLink();
+            return;
+        }
+
+        WarnBridgeFailed(pendingLanding, pendingDoor);
+        pendingLink = null;
+    }
+
+    /// <summary>
+    /// Whether a complete path exists from the landing to the cabin door — the exact question the
+    /// boarding walk is about to ask, asked here where the answer can still be acted on.
+    ///
+    /// A PARTIAL path counts as not bridging, which is the whole point: partial is precisely what
+    /// an unconnected island produces, and it is indistinguishable from success in every other
+    /// measurement (both ends sample as walkable, the link is enabled, the gizmo is green).
+    /// </summary>
+    private bool IsBridging(Transform landing, Transform door)
+    {
+        if (landing == null || door == null) return true;   // Nothing to test; do not spin.
+
+        if (!NavMesh.SamplePosition(landing.position, out NavMeshHit from, 1f, NavMesh.AllAreas)) return false;
+        if (!NavMesh.SamplePosition(door.position, out NavMeshHit to, 1f, NavMesh.AllAreas)) return false;
+
+        NavMeshPath path = bridgeProbe ??= new NavMeshPath();
+
+        return NavMesh.CalculatePath(from.position, to.position, NavMesh.AllAreas, path) &&
+               path.status == NavMeshPathStatus.PathComplete;
+    }
+
+    /// <summary>Reused rather than allocated per check: this runs from Update.</summary>
+    private NavMeshPath bridgeProbe;
+
+    private void WarnBridgeFailed(Transform landing, Transform door)
+    {
+        bool isBottom = landing == elevator.BottomLanding;
+
+        if (isBottom && warnedBottomBridge) return;
+        if (!isBottom && warnedTopBridge) return;
+
+        if (isBottom) warnedBottomBridge = true;
+        else          warnedTopBridge = true;
+
+        Debug.LogError($"[{nameof(ElevatorCabinNavMesh)}] '{name}': the boarding link at " +
+                       $"'{landing.name}' is enabled but joins NOTHING — after " +
+                       $"{BridgeCheckRetries} re-registrations there is still no complete path " +
+                       $"from the landing to the cabin door, so the Nemesis will board in a " +
+                       $"straight line through the barrier.\n" +
+                       $"landing {landing.position} → cabin door {door.position} " +
+                       $"({Vector3.Distance(landing.position, door.position):0.00} m apart, " +
+                       $"{Mathf.Abs(door.position.y - landing.position.y):0.00} m of that vertical)\n" +
+                       "Since re-registering did not help, this is geometry rather than timing. " +
+                       "In order of likelihood: the level's NavMesh reaches INTO the shaft under " +
+                       "the cabin, so both of the link's ends snap to that same floor and the " +
+                       "link becomes a no-op (put an ElevatorLandingBarrier at this landing and " +
+                       "re-bake — the shaft footprint must not be walkable in the static mesh); " +
+                       "or the cabin's own island does not actually cover the door point.", this);
     }
 
     private void OnDrawGizmos()

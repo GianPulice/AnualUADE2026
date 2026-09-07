@@ -148,10 +148,23 @@ public class SO_NemesisPriorities : ScriptableObject
             // once a commitment is made it runs on its own clock instead of being re-justified
             // every frame. The two bounds are what keeps it from becoming a trap - it gives up if
             // the walk drags past ElevatorCommitTime, or if the belief it set out for goes cold.
+            // ... UNLESS THE LIFT HAS ALREADY BEEN GIVEN UP ON. The two time bounds cannot see
+            // that: they measure how long the commitment has been HELD, not whether there is
+            // anything left to hold it to. So a Nemesis that walked to the landing, saw the player
+            // on its own floor and correctly abandoned the trip stayed pinned here anyway - this
+            // rung outranks "lo esta viendo", and an interrupt only skips the hysteresis window,
+            // it does not jump the order. What that looks like is the monster giving up on the
+            // lift, walking off, and drifting back to it without ever entering a chase.
+            //
+            // NemesisElevatorUser raises this the moment it shelves a shaft, and it lasts exactly
+            // as long as that shaft's cooldown - so this is the trip ENDING, reported by the thing
+            // that ended it, rather than a second guess at the same question the two bounds are
+            // already asking badly.
             Rung(NemesisStateManager.ENemesisState.Traversing,
                  "ya se comprometio con el montacargas",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
+                 NemesisCondition.Not(ENemesisPredicate.HasGivenUpOnElevator),
                  NemesisCondition.TimeInStateUnder(ENemesisThreshold.ElevatorCommitTime),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
 
@@ -426,6 +439,11 @@ public enum ENemesisPredicate
     /// <summary>NemesisElevatorUser has a crossing in flight: waiting for the cabin, boarding,
     /// riding or stepping off. Nothing should re-decide the state while this holds.</summary>
     IsUsingElevator,
+
+    /// <summary>NemesisElevatorUser has just GIVEN UP on a lift and shelved it for its cooldown —
+    /// the cabin never came, or the player turned up on this floor. The opposite fact from
+    /// <see cref="IsUsingElevator"/>, and the one that ends a commitment.</summary>
+    HasGivenUpOnElevator,
 }
 
 /// <summary>

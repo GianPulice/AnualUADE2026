@@ -156,6 +156,35 @@ public class FootstepEmitter : MonoBehaviour
              "In AnimationEvent mode this is ignored and the clip settles it.")]
     [SerializeField, Min(0.1f)] private float crouchStrideScale = 0.5f;
 
+    [Tooltip("Multiplies the stride while sprinting, in Distance mode only.\n\n" +
+             "The same correction as the crouch one and it was the missing half of it: crouch " +
+             "keeps the walk clip and changes the speed, sprint changes BOTH — a different clip " +
+             "AND a different speed — so the two do not cancel and a single stride cannot serve " +
+             "both.\n\n" +
+             "Worked out from the clips, not by ear. Neither the Walking nor the Running state " +
+             "has Speed Parameter on, so both play at a FIXED rate however fast the player is " +
+             "actually moving: Walking is 32 frames at 30 fps = 1.87 footfalls/s, Running is 22 " +
+             "frames = 2.73 footfalls/s. At moveSpeed 2.5 that walk rate is the 1.29 m stride " +
+             "above; sprinting at 2.5 x 1.8 = 4.5 m/s the right stride is 4.5 / 2.73 = 1.65 m, " +
+             "which is 1.28 times the walking one.\n\n" +
+             "Left at 1 the audio runs 4.5 / 1.29 = 3.5 steps/s against an animation playing " +
+             "2.73 — about 28% too many steps, which is what a sprint that sounds out of time " +
+             "with the legs is.\n\n" +
+             "Re-derive it if either clip is retimed or the speeds change; in AnimationEvent mode " +
+             "it is ignored and the clip settles it.")]
+    [SerializeField, Min(0.1f)] private float sprintStrideScale = 1.28f;
+
+    /// <summary>
+    /// Speed multiplier above which the player counts as sprinting.
+    ///
+    /// Read off <see cref="PlayerStateManager.SpeedMultiplier"/> rather than an input check or a
+    /// state test, which is the same source <c>CameraSprintEffect</c> uses and for the reason it
+    /// documents: PlayerMovingState raises it above 1 only while the sprint button is actually
+    /// held, so the states that ignore sprint (crouch, hidden, interacting, disabled) need no
+    /// special case here.
+    /// </summary>
+    private const float SprintSpeedMultiplierThreshold = 1.01f;
+
     // ── Runtime ─────────────────────────────────────────────────────────────
 
     private Vector3 lastPosition;
@@ -298,10 +327,24 @@ public class FootstepEmitter : MonoBehaviour
         return player.IsHidden || player.IsDisabled || !player.IsGrounded;
     }
 
+    /// <summary>
+    /// The stride for whatever the player is doing right now.
+    ///
+    /// Crouch and sprint are exclusive by construction — PlayerMovingState never raises the speed
+    /// multiplier above 1 while crouched — so this is an either/or rather than two multipliers
+    /// stacking. Written as one so a future state that somehow held both could not produce a
+    /// stride neither clip was measured for.
+    /// </summary>
     private float CurrentStride()
     {
         float stride = strideLength;
-        if (player != null && player.IsCrouch) stride *= crouchStrideScale;
+
+        if (player != null)
+        {
+            if (player.IsCrouch) stride *= crouchStrideScale;
+            else if (player.SpeedMultiplier > SprintSpeedMultiplierThreshold) stride *= sprintStrideScale;
+        }
+
         return Mathf.Max(stride, 0.1f);
     }
 

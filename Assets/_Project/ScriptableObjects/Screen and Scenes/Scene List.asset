@@ -69,3 +69,13 @@ MonoBehaviour:
     sceneNames:
     - WIRED_Zona1_Blockout
     - LevelUI
+  - label: TestNemesis
+    sceneAssets:
+    - {fileID: 102900000, guid: 72862ea727e57374f958955342b42b1b, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/_Project/Scenes/Dev/NemesisTestbed.unity
+    - Assets/_Project/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - NemesisTestbed
+    - LevelUI

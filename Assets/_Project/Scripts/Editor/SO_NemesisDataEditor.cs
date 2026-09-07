@@ -1,5 +1,6 @@
 using UnityEngine;
 #if UNITY_EDITOR
+using System.Reflection;
 using UnityEditor;
 
 /// <summary>
@@ -52,9 +53,16 @@ public class SO_NemesisDataEditor : Editor
     private static readonly Color TestPointColor = new Color(0.92f, 0.72f, 0.28f);
     private static readonly Color FocusColor = new Color(0.95f, 0.55f, 0.25f);
 
+    /// <summary>
+    /// What the search box holds. Per inspector instance and not persisted: a filter that survived
+    /// a domain reload would have the asset come up half-empty with no obvious reason, which is a
+    /// worse first impression than retyping three letters.
+    /// </summary>
+    private string filter = string.Empty;
+
     public override void OnInspectorGUI()
     {
-        DrawDefaultInspector();
+        DrawFilterableFields();
 
         SO_NemesisData data = (SO_NemesisData)target;
 
@@ -67,6 +75,160 @@ public class SO_NemesisDataEditor : Editor
         PlayerDiagramGUI.SectionHeader("Chequeos");
         DrawChecks(data);
     }
+
+    // Buscador ================================================================================
+    //
+    // This asset carries around ninety fields under twenty headers, which is past the point where
+    // scrolling is a search strategy. Every one of them is reachable by name, by the header it
+    // lives under, or by any word in its tooltip — the tooltips are the richest text on the asset
+    // and the thing you actually remember ("el que decide si cruza pisos"), so leaving them out of
+    // the match would make the box useless for exactly the field you cannot name.
+
+    /// <summary>
+    /// The fields, filtered. With an empty box this is <c>DrawDefaultInspector</c> field for
+    /// field — same order, same headers, same drawers — so nothing is lost by the box existing.
+    /// </summary>
+    private void DrawFilterableFields()
+    {
+        DrawSearchBox();
+
+        string[] terms = filter.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+        bool filtering = terms.Length > 0;
+
+        serializedObject.Update();
+
+        SerializedProperty property = serializedObject.GetIterator();
+        bool enterChildren = true;
+
+        // The header a field falls under is not on the field: it is on whichever field STARTED the
+        // group, so it has to be carried forward as the iteration walks past the ones that follow.
+        string group = "General";
+        string lastDrawnGroup = null;
+
+        int shown = 0;
+        int total = 0;
+
+        while (property.NextVisible(enterChildren))
+        {
+            enterChildren = false;   // Top level only; each field's own drawer owns its children.
+
+            if (property.propertyPath == "m_Script")
+            {
+                if (!filtering)
+                {
+                    using (new EditorGUI.DisabledScope(true)) EditorGUILayout.PropertyField(property);
+                }
+                continue;
+            }
+
+            total++;
+
+            FieldInfo field = FindField(property.name);
+            string header = AttributeOf<HeaderAttribute>(field)?.header;
+            if (!string.IsNullOrEmpty(header)) group = header;
+
+            if (filtering)
+            {
+                if (!Matches(terms, property, field, group)) continue;
+
+                if (lastDrawnGroup != group)
+                {
+                    lastDrawnGroup = group;
+
+                    // A field that carries the [Header] itself already has Unity drawing it as a
+                    // decorator; adding ours on top would print the group name twice.
+                    if (string.IsNullOrEmpty(header))
+                    {
+                        EditorGUILayout.Space(6f);
+                        EditorGUILayout.LabelField(group, EditorStyles.boldLabel);
+                    }
+                }
+            }
+
+            shown++;
+            EditorGUILayout.PropertyField(property, true);
+        }
+
+        serializedObject.ApplyModifiedProperties();
+
+        if (!filtering) return;
+
+        EditorGUILayout.Space(2f);
+
+        if (shown == 0)
+        {
+            EditorGUILayout.HelpBox($"Ningún campo coincide con «{filter}». Se busca en el nombre, " +
+                                    "en el título de la sección y en el texto de ayuda de cada campo.",
+                                    MessageType.Info);
+        }
+        else
+        {
+            EditorGUILayout.LabelField($"{shown} de {total} campos", EditorStyles.miniLabel);
+        }
+    }
+
+    private void DrawSearchBox()
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            EditorGUILayout.LabelField("Buscar campo", GUILayout.Width(90f));
+
+            // The toolbar style over a plain text field only because it reads as a search box at a
+            // glance; nothing below depends on it.
+            filter = EditorGUILayout.TextField(filter, EditorStyles.toolbarSearchField);
+
+            using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(filter)))
+            {
+                if (GUILayout.Button("✕", EditorStyles.miniButton, GUILayout.Width(22f)))
+                {
+                    filter = string.Empty;
+                    GUI.FocusControl(null);
+                }
+            }
+        }
+
+        EditorGUILayout.Space(2f);
+    }
+
+    /// <summary>
+    /// Every term has to match SOMETHING — an AND across terms, an OR across the places looked at.
+    /// That is what makes two words useful: "montacargas tiempo" narrows, where either alone does
+    /// not.
+    /// </summary>
+    private static bool Matches(string[] terms, SerializedProperty property, FieldInfo field,
+                                string group)
+    {
+        string haystack = $"{property.displayName} {property.name} {group} " +
+                          $"{AttributeOf<TooltipAttribute>(field)?.tooltip}";
+
+        foreach (string term in terms)
+        {
+            if (haystack.IndexOf(term, System.StringComparison.OrdinalIgnoreCase) < 0) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The backing field for a serialized property, private ones included — which is all of them
+    /// here. Walks the base types because <c>GetField</c> does not see a private member declared
+    /// on a parent.
+    /// </summary>
+    private FieldInfo FindField(string name)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        for (System.Type type = target.GetType(); type != null; type = type.BaseType)
+        {
+            FieldInfo field = type.GetField(name, flags);
+            if (field != null) return field;
+        }
+
+        return null;
+    }
+
+    private static T AttributeOf<T>(FieldInfo field) where T : System.Attribute =>
+        field != null ? field.GetCustomAttribute<T>() : null;
 
     // Rangos ==================================================================================
 
