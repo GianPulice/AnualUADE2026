@@ -15,10 +15,13 @@ using UnityEngine.AI;
 ///   NemesisTelemetry     the HUD vignettes and the audio's state events
 ///   NemesisStuckEscape   the no-progress watchdog and its warp out
 ///   NemesisLifecycle     dormancy, agent tuning, and every teleport
+///   NemesisLookAround    sweeps the gaze while standing still
+///   NemesisAudio         the per-state breathing and voice loops
 ///
 /// A facade is not a god object: the problem was never that everything could be reached from here,
-/// it was that everything was implemented here. All four are added automatically when missing, so
-/// no existing Nemesis prefab has to be opened and re-saved.
+/// it was that everything was implemented here. All six are added automatically when missing, so
+/// no existing Nemesis prefab has to be opened and re-saved. NemesisElevatorUser is the deliberate
+/// exception — it carries real scene wiring, so it is looked up and never grown.
 /// </summary>
 public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisState>
 {
@@ -42,6 +45,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "poniendo Scan Half Angle en 0 queda inerte y la mirada vuelve a estar pegada al " +
              "frente del cuerpo.")]
     [SerializeField] private NemesisLookAround lookAround;
+
+    [Tooltip("The per-state breathing and voice loops. Added automatically like the five above, " +
+             "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
+             "a state with no entry crossfades the monster to silence. An empty array is a silent " +
+             "Nemesis, not a broken one.\n\n" +
+             "Resolved after the sensors on purpose — see ResolveHierarchyReferences.")]
+    [SerializeField] private NemesisAudio nemesisAudio;
 
     [Tooltip("Opcional. Si el Nemesis lo tiene, la escalera se entera de cuándo está cruzando el " +
              "montacargas y no lo saca de Traversing en el medio. Sin este componente el Nemesis " +
@@ -698,6 +708,24 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     }
 
     /// <summary>
+    /// The tuning <see cref="OverrideData"/>'s callers must restore to: what the Nemesis's numbers
+    /// ARE when nothing is temporarily overriding them.
+    ///
+    /// Today that is just the authored asset and never changes, so reading this is the same as
+    /// reading the asset — which is exactly why it is easy to "simplify" away. Don't.
+    ///
+    /// <see cref="NemesisDirector"/>'s sensory boost is a LOAN: it installs widened senses for the
+    /// length of a pressure request and hands them back. It used to cache the first asset it ever
+    /// saw and restore THAT, which is correct only while nothing else ever changes the tuning
+    /// permanently. The moment something does — the unbuilt difficulty escalation of spec §7.2 is
+    /// the obvious candidate — a cached restore target silently reverts it on the next pressure
+    /// request, and nothing looks broken: the monster keeps behaving, just on numbers from before
+    /// the change. Reading the restore target from here instead is what keeps a permanent change
+    /// and a temporary one composing rather than fighting.
+    /// </summary>
+    public SO_NemesisData BaselineData { get; private set; }
+
+    /// <summary>
     /// Freezes the body where it stands without touching the FSM, or hands it back.
     ///
     /// For <see cref="NemesisDirector"/>'s staged entrance: the Nemesis has arrived and has very
@@ -812,6 +840,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         ResolveHierarchyReferences();
 
+        // Before the validation early-out, so even a Nemesis that fails to start reports a
+        // coherent baseline rather than a null one to anything that asks.
+        BaselineData = nemesisData;
+
         if (!ValidateReferences())
         {
             // Disabled rather than left running, same as PlayerStateManager. Every reference below
@@ -903,6 +935,20 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (fieldOfView == null)      fieldOfView      = GetComponentInChildren<FieldOfView>(true);
         if (fieldOfListening == null) fieldOfListening = GetComponentInChildren<FieldOfListening>(true);
         if (animController == null)   animController   = GetComponentInChildren<Animator>(true);
+
+        // AFTER the sensors, and that ordering is load-bearing.
+        //
+        // Added on the same terms as the six above — it reads its bus off AudioManager and its
+        // occlusion raycast off the sensor, so there is nothing on it a designer could wire wrong.
+        // The content it needs (stateLoops) is authored on the prefab, and an unauthored array is
+        // a silent monster rather than a broken one, so growing the component costs nothing.
+        //
+        // But AddComponent runs NemesisAudio.Awake synchronously, and that Awake asks THIS object
+        // for its FieldOfListening exactly once. Resolved up with lookAround, that read lands
+        // before the line above assigns the field: the audio would come back null, occlusion would
+        // switch itself off, and the monster would be equally loud through every wall in the level
+        // — with nothing in the log to say so.
+        nemesisAudio = ResolveSibling(nemesisAudio);
     }
 
     private T ResolveSibling<T>(T current) where T : Component

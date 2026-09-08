@@ -164,11 +164,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private NemesisRoute[] allRoutes;
     private NemesisStateManager nemesis;
 
-    /// <summary>
-    /// The asset as the designer authored it, kept so the sensory boost can be built from it fresh
-    /// every time and thrown away after. Never written to.
-    /// </summary>
-    private SO_NemesisData authoredData;
+    // The baseline the boost is built from is NOT cached here. It lives on the Nemesis as
+    // NemesisStateManager.BaselineData and is read fresh at both ends of the loan — see
+    // ApplySensoryBoost for why holding onto it broke difficulty escalation.
 
     /// <summary>The live copy carrying the boost, or null when no boost is installed.</summary>
     private SO_NemesisData boostedData;
@@ -470,11 +468,17 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (sensoryBoost <= 1f) return;
         if (!TryResolveNemesis()) return;
 
-        authoredData ??= nemesis.NemesisData;
-        if (authoredData == null) return;
+        // Read fresh every time, never cached with '??='. The boost is a LOAN and this is what it
+        // has to give back — but difficulty escalation replaces what the Nemesis's tuning IS
+        // between one pressure request and the next. Caching the first asset ever seen would make
+        // RemoveSensoryBoost restore a baseline that stopped being current several puzzles ago,
+        // quietly undoing the whole escalation. Nothing would look broken: the monster keeps
+        // behaving, just at the difficulty of the opening room.
+        SO_NemesisData baseline = nemesis.BaselineData;
+        if (baseline == null) return;
 
-        boostedData = Instantiate(authoredData);
-        boostedData.name = authoredData.name + " (director)";
+        boostedData = Instantiate(baseline);
+        boostedData.name = baseline.name + " (director)";
 
         float multiplier = Mathf.Lerp(1f, sensoryBoost, activeIntensity);
         boostedData.ListenRange *= multiplier;
@@ -487,7 +491,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
     {
         if (boostedData == null) return;
 
-        if (nemesis != null && authoredData != null) nemesis.OverrideData(authoredData);
+        // Read now rather than remembered from the install, for the same reason: a puzzle solved
+        // DURING the pressure request has to survive the restore.
+        if (nemesis != null && nemesis.BaselineData != null) nemesis.OverrideData(nemesis.BaselineData);
 
         Destroy(boostedData);
         boostedData = null;

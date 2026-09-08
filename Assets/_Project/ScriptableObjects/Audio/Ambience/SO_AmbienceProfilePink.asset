@@ -16,7 +16,7 @@ MonoBehaviour:
   gizmoColor: {r: 1, g: 0, b: 0.28442144, a: 1}
   bedTracks:
   - {fileID: 8300000, guid: 6b598d8b9347f6347892e9c56c825ea0, type: 3}
-  - {fileID: 8300000, guid: 16512a82ec5151248ba610878bedd57f, type: 3}
+  - {fileID: 8300000, guid: 0a8ce2bbf8369fc4b8d48ddb7c9fd97e, type: 3}
   bedVolume: 0.4
   bedTrackBalance: 0.7
   transitionDuration: 2.5

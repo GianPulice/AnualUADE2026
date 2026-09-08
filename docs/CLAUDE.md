@@ -52,6 +52,7 @@ This is a Unity project. There are no CLI build commands. All compilation, scene
 To run the game from a fresh state, open the `Bootstrap` scene and press Play. Do not press Play from an isolated scene unless you are intentionally testing that scene in isolation.
 
 Additional documentation in `docs/`:
+- `docs/Nemesis-System.md` — the Nemesis for designers and level artists: activation, senses, routes, audio, tuning, how to verify
 - `docs/UI-System.md` — UI architecture, MVC pattern, scene lifecycle, pause system
 - `docs/Ambience-System.md` — ambient audio: the four layers, mixer setup, zone profiles, verification
 - `docs/Materials-System.md` — shaders, vision fog, item highlight, flicker scripts
@@ -94,7 +95,7 @@ real system and the two disagree. The mapping:
 | `CharacterController`, capsule height 0.6, step offset | Rigidbody + `CapsuleCollider`; stance heights are `SO_Movement.StandingHeight` / `CrouchHeight`, and standing up is gated by `HasHeadroomToStand()` |
 | `HidingData` / `ObstacleData` SOs | Do not exist. Create them under `ScriptableScripts/` — tunables belong in an asset, not on the component |
 | `NemesisController.Activate()` | `NemesisStateManager.Activate()`, gated on `NemesisController.activatedByPuzzleId` |
-| `NemesisController.SetDifficultyLevel(n)` | **Does not exist.** The per-module escalation table (Nemesis spec §7.2) is unimplemented |
+| `NemesisController.SetDifficultyLevel(n)` | **Does not exist.** The per-module escalation table (Nemesis spec §7.2) is unimplemented. When it is built, `n` is a **completed puzzle count**, not a module count: `ModuleManager` is the device timers and never advances the story — see *Spec deltas — Nemesis* |
 | `visionRange` / `hearingRange` / `proximityDetectionRange` | `SO_NemesisData.ViewRange` / `ListenRange` / `ProximityDetectionRange` — plus `FocusAngle` and a peripheral awareness band the spec predates |
 | "state X transitions to Y" | States never decide transitions. `NemesisDecision` + `SO_NemesisPriorities` do — see *Nemesis: the decision layer* |
 | "the Hub blocks the Nemesis" (in code) | A NavMesh `Not Walkable` modifier volume. There is no C# side — see *Safe zones* |
@@ -106,7 +107,7 @@ real system and the two disagree. The mapping:
 | `MusicManager` (`SetZone`, `PlayChaseMusic`, `OnEnterHiding`, `OnPuzzleResolved`, stinger source) | **Does not exist.** `NemesisChaseMusic` covers the chase cue only; `AudioManager.PlayMusic(id)` owns one 2D source and has **zero callers** |
 | `AmbientManager` / `DuckAmbience` / `RestoreAmbience` | `AmbienceController` + `AmbienceZone`. The duck hooks are `FadeOutAll` / `FadeInAll` (already used by `NemesisChaseMusic`) and `SetTensionScalars` (no callers) |
 | `ZoneTracker.OnPlayerZoneChanged` / a `ZoneType` enum | **Does not exist.** The project has no notion of "which zone is the player in". The nearest equivalents are two independent trigger push/pop stacks: `AmbienceZone` → `AmbienceController` and `LightZone` → `VisionRangeController` |
-| `FootstepSystem` (player or Nemesis) | **Does not exist.** Nothing in the project plays a footstep. Surface detection, per-surface clip banks and the step interval are all unwritten |
+| `FootstepSystem` (player or Nemesis) | `FootstepEmitter` + `SO_FootstepBank`, one component on both walkers — see *Footsteps and breathing*. The spec's `footstepInterval = distance / speed` is not how either of them is cadenced today: both run on `AnimationEvent` |
 | `AudioMixerSnapshot` (`Paused`, `InHiding`, `NemesisMuffled`, `NemesisClear`) | `MasterMixer.mixer` has exactly one snapshot, the default. Pause ducking is `AudioManager.PauseDuck`, a global multiplier; Nemesis occlusion is `NemesisAudio.occludedVolumeMultiplier`, eased per source. Neither applies a lowpass |
 | `NemesisController.PlayVoiceLine(VoiceLineType)` | **Does not exist.** `NemesisAudio` crossfades one looping clip per state and nothing else |
 | `LightManager`, `ZoneLightController`, the generator | **Do not exist.** No light in the project can be switched on by the player |
@@ -152,10 +153,25 @@ distance checks, and detection being all-or-nothing. Things it asks for that are
 - **Difficulty escalation per module (§7.2).** No `SetDifficultyLevel`, no runtime SO copy. The
   comments in `SO_NemesisData` about "Tier 3.3 hands this a scaled copy" describe the intended
   mechanism (`ScriptableObject.Instantiate`, never write the asset), and `FieldOfListening.SetData`
-  is already the seam for it.
+  is already the seam for it. Two things are settled in advance when it does get built: it counts
+  **puzzles**, not modules (`ModuleManager` is the device timers and never advances the story), and
+  it reads `completedPuzzles.Count` rather than tallying `OnPuzzleCompleted` — `RestoreSnapshot`
+  refills that set without raising the event, so a tally would come back from a late save with an
+  opening-room monster.
 - **A capture cinematic (§5).** `NemesisCatchState` plays out phases and `CaptureFadeView` fades;
-  there is no cinematic. Everything else in the capture chain is wired.
+  there is no cinematic. Everything else in the capture chain is wired. Nor is there a capture
+  **stinger** or an activation cue — §5.5 and §7.1 both ask for one and neither point makes a sound.
 - **`underTableVisionMultiplier` (hiding spec §3).** No field, no reader — see *Hiding spots*.
+
+**`NemesisStateManager.BaselineData` is a trap that has already been disarmed once.** The Director's
+sensory boost is a *loan*: widened senses installed for the length of a pressure request and handed
+back. It used to cache the first `SO_NemesisData` it ever saw and restore that, which is correct
+only for as long as nothing changes the Nemesis's tuning permanently. Escalation (§7.2 above) is
+exactly such a change, and against a cached restore target the first pressure request after a puzzle
+would silently revert the whole progression — with the monster still behaving, so nothing would look
+broken. Both ends of the loan now read `BaselineData` fresh. Today it always returns the authored
+asset, which makes it look like an indirection worth deleting. **It is not. Do not reintroduce a
+cached restore target.**
 
 ### Spec deltas — Player
 
@@ -376,7 +392,7 @@ Both the player and the Nemesis AI use the same generic FSM base:
 
 **Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus `Traversing` and the terminal `Catch` (managed by `NemesisStateManager`). `Traversing` means "getting there needs the freight elevator"; it holds that decision open for `SO_NemesisData.ElevatorCommitTime` even with the player out of sight, because a floor slab breaks line of sight for the whole trip and without it the lift ride was abandoned every time. **Which state the Nemesis is in is not decided by the states themselves** — see *Nemesis: the decision layer* below. Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.1s) and `FieldOfListening.cs`, which occludes sight and sound with *different* masks — a floor blocks sight but only attenuates sound, and that is the Nemesis's only channel to the storey above. Route questions ("reachable? which floor? is the lift on the way?") go through `NemesisPathOracle`, which throttles them; that interval is a stability knob as much as a cost one, since a verdict flipping frame to frame makes the FSM oscillate. `NemesisTelemetry` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set — `Traversing` is deliberately NOT in it, since the player is a storey away and unreachable — and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
 
-**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport), `NemesisLookAround` (sweeps the gaze while standing still). `NemesisElevatorUser` is resolved with `GetComponent` but deliberately **not** auto-added: unlike the others it is a real feature with scene wiring behind it, and a level with no freight elevator should not silently grow one. The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot.
+**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport), `NemesisLookAround` (sweeps the gaze while standing still), `NemesisAudio` (the per-state loops — added **last, after the sensors**, for the reason its own entry gives). `NemesisElevatorUser` is resolved with `GetComponent` but deliberately **not** auto-added: unlike the others it is a real feature with scene wiring behind it, and a level with no freight elevator should not silently grow one. The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot.
 
 Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**; `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it; and no rung of the priority ladder will ever ask for it until you add one, so it is unreachable by default. **Append the new value at the end of the enum** — `SO_NemesisPriorities.asset` stores every rung's target as an integer, so inserting in the middle silently rewrites the designer's whole ladder into a different one.
 
@@ -788,6 +804,14 @@ Beyond the FSM described above:
 - **`NemesisAudio`** — per-state looping audio with crossfades. `stateLoops` is a designer-authored
   array, so **adding a value to `ENemesisState` without an entry crossfades the monster to
   silence**. `NemesisChaseMusic` is separate and driven by `OnChaseStarted/Ended`.
+
+  Auto-added like the other siblings, but **resolved after the sensors and not with them**: its
+  `Awake` asks the state manager for its `FieldOfListening` exactly once, and `AddComponent` runs
+  that `Awake` synchronously — resolved earlier the read lands before the field is assigned, and
+  occlusion silently switches itself off for the whole run. It is also the one sibling that needs
+  **content**: growing the component costs nothing, but an unauthored `stateLoops` is a mute
+  monster, which is why it warns once on `Start` rather than leaving that indistinguishable from a
+  crossfade to silence.
 
 - **`NemesisClusterPatrol`** — patrol is by ZONE, not by waypoint: it picks a cluster of nearby
   waypoints, sweeps it, then moves to one next door, so the monster walks through the level instead
@@ -1452,12 +1476,21 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 Both walkers step through **one** component. `FootstepEmitter` fires a footstep every time its
 transform has covered one stride, and `SO_FootstepBank` says which clips that maps to.
 
-**Two cadence sources, and which one is right depends on the rig.**
+**Two cadence sources, and today both walkers use the same one.**
 
-`Distance` fires a step every `strideLength` metres. It is what the Nemesis uses, and it is the
-right model there: a `NavMeshAgent` has no footfall events, its steps speed up in Chasing without
-this ever reading the FSM or `SO_NemesisMovement`, and they stop on their own when it is blocked by
-a wall or a `NavMeshObstacle`.
+`Distance` fires a step every `strideLength` metres. It is the model the component was written
+around — a `NavMeshAgent` has no footfall events, its steps would speed up in Chasing without this
+ever reading the FSM or `SO_NemesisMovement`, and they stop on their own when it is blocked by a
+wall or a `NavMeshObstacle`. **Nothing in the project uses it.** The Nemesis was moved off it in
+`26f750d` to fix step saturation, and its `strideLength` (1.6) and `crouchStrideScale` have been
+inert ever since: in `AnimationEvent` mode both are ignored.
+
+The consequence is worth knowing before retuning anything. `NemesisController.controller` plays the
+**player's** `Walking`, `Running` and `Idle` clips — those three are the only ones in the project
+carrying a `Step` event — so the monster's cadence is the player's two rates, switched by the
+`Walking`/`Running` bools out of `ApplyGaitToAnimator`. It does not track `SO_NemesisMovement`
+speeds at all. Going back to `Distance` for the Nemesis is a legitimate change and would restore
+that link; it means re-deriving `strideLength` against the chase speed, not guessing it.
 
 `AnimationEvent` fires on an event in the clip, and it is what the **player** uses. The distance
 model assumes the animation's cadence follows the speed, and this project's Mixamo clips do not:
@@ -1653,9 +1686,11 @@ The systems below are **implemented but not connected to anything**. Read this b
   `minDistance` / `maxDistance` / `rolloff`, applied by `PlayInternal` for positioned sounds — pooled
   sources are created in code and otherwise inherit Unity's `maxDistance` of 500, which is audible
   across the level and makes distance useless as information. Defaults match Unity's, so no existing
-  clip changed. Still missing: footsteps, UI audio, and clips for `NemesisAudio` /
-  `NemesisChaseMusic`; the **ambience system** (`_Project/Scripts/Ambience/`) is built but ships with
-  placeholder clips.
+  clip changed. Still missing: UI audio, the capture stinger, the activation cue, and content for
+  `NemesisAudio.stateLoops`; the **ambience system** (`_Project/Scripts/Ambience/`) is built but
+  ships with placeholder clips. `NemesisChaseMusic` is **done** — clip assigned, sitting in
+  `WIRED_Zona1_Blockout`, correctly on the Music bus (it was on the Nemesis bus once, which made it
+  ride the SFX slider) with the `AmbienceController` wired for the duck.
 - **Most of the audio that exists on disk still cannot be played.** `_Project/Audio/` holds ~90
   clips and the project has **16 `SO_SoundData` assets**. Footsteps and hidden breathing now reach
   the game through `SO_FootstepBank` and direct clip references instead — see *Footsteps and

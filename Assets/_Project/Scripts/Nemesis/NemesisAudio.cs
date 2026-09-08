@@ -91,6 +91,28 @@ public class NemesisAudio : MonoBehaviour
 
         sourceA.outputAudioMixerGroup = outputGroup;
         sourceB.outputAudioMixerGroup = outputGroup;
+
+        WarnIfUnauthored();
+    }
+
+    /// <summary>
+    /// Says so, once, when this component will never make a sound.
+    ///
+    /// It exists because NemesisStateManager now grows this component on any Nemesis that lacks
+    /// one. That is the right default — but it turns "there is no audio component" into "there is
+    /// an audio component with nothing in it", and the second failure is the quieter of the two:
+    /// silence is also what a correctly-authored monster does between crossfades, so there is
+    /// nothing to tell the two apart by ear. Authoring stateLoops is a designer task on the
+    /// prefab, and this is the line that says the task is still open.
+    /// </summary>
+    private void WarnIfUnauthored()
+    {
+        foreach (StateLoop loop in stateLoops)
+            if (loop != null && loop.clip != null) return;
+
+        Debug.LogWarning($"[{nameof(NemesisAudio)}] '{name}': stateLoops has no clip in it, so the " +
+                         "Nemesis will be silent in every state. Author one entry per state on the " +
+                         "prefab (Patrolling, Investigating, Chasing, Searching).", this);
     }
 
     // Awake/OnDestroy and not OnEnable/OnDisable, per docs/CLAUDE.md: a static delegate outlives
