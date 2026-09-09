@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
   m_Name: SO_InventoryItem 2
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemID: 1
+  itemID: test_note
   itemName: Test Note
   category: 2
   itemDescription: Placeholder note used for testing the document reader.

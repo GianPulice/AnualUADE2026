@@ -9,7 +9,7 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -6211692202051949099, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
-      propertyPath: m_Enabled
+      propertyPath: materialIndex
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 801768757801768997, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
@@ -128,8 +128,7 @@ PrefabInstance:
       propertyPath: m_Name
       value: InventoryItemFusibleNuevo
       objectReference: {fileID: 0}
-    m_RemovedComponents:
-    - {fileID: -6211692202051949099, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
+    m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []

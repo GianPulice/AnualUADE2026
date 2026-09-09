@@ -69,6 +69,7 @@ public static class NemesisTestSceneBuilder
         BuildSpawnPoints(root.transform, elevator);
         BuildDirector(root.transform, elevator);
         BuildActors(root.transform);
+        BuildManagers();
 
         EnsureFolder("Assets/_Project/Scenes/Dev");
         EditorSceneManager.MarkSceneDirty(scene);
@@ -576,6 +577,25 @@ public static class NemesisTestSceneBuilder
         if (nemesis != null) nemesis.AddComponent<NemesisTestConsole>();
 
         BuildCamera(actors);
+    }
+
+    /// <summary>
+    /// The managers the scene needs to run the capture loop end to end.
+    ///
+    /// Without a CheckpointManager nothing listens to PlayerEvents.OnPlayerCaptured: the player is
+    /// never respawned, NemesisCatchState never receives its respawn notification so it never
+    /// fires NemesisEvents.CaptureResolved, and CaptureFadeView (on the HUDCanvas in LevelUI) is
+    /// left holding a fully black screen for the rest of the run. Catch is one of the states this
+    /// scene exists to exercise, so the manager belongs in it.
+    ///
+    /// It needs no configuration: with playerSpawnPoint empty the manager records where the
+    /// player started the moment it registers, and a capture before any checkpoint sends it back
+    /// there. A root object because CreateSingleton(true) calls DontDestroyOnLoad, which only
+    /// takes roots — parented under Testbed it would detach itself at runtime anyway.
+    /// </summary>
+    private static void BuildManagers()
+    {
+        new GameObject("CheckpointManager", typeof(CheckpointManager));
     }
 
     private static NemesisElevatorLink BuildProps(Transform parent)

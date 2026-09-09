@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
   m_Name: SO_NoteSequence
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemID: 
+  itemID: nota_secuencia
   itemName: Sequence Note
   category: 2
   itemDescription: Note describing the correct panel sequence.

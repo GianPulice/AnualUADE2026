@@ -283,6 +283,19 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &8823410557001220305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2198378287098709486}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
+  emitter: {fileID: 0}
 --- !u!1 &2335836970009676470
 GameObject:
   m_ObjectHideFlags: 0
@@ -1111,6 +1124,7 @@ MonoBehaviour:
   stuckEscape: {fileID: 151019658099850401}
   lifecycle: {fileID: 1161570539962797983}
   lookAround: {fileID: 2070260496085017616}
+  nemesisAudio: {fileID: 0}
   elevatorUser: {fileID: 4677969932427935509}
   nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
   captureGracePeriod: 4
@@ -1207,9 +1221,6 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  onAllSpawnPointsVisible:
-    m_PersistentCalls:
-      m_Calls: []
   stateManager: {fileID: 5253595690117749195}
 --- !u!114 &8379274647524242327
 MonoBehaviour:
@@ -1304,6 +1315,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 127900732f816ce4ebcdb8606f72c96c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisGizmos
+  drawGizmos: 1
   drawVisionCone: 1
   drawCrouchedVisionCone: 1
   drawFocusCone: 1
@@ -1311,6 +1323,7 @@ MonoBehaviour:
   drawHearing: 1
   drawCatchReach: 1
   drawSearchSweep: 1
+  drawRoomSweep: 1
   drawProximityVignette: 0
   arcSegments: 28
   drawLabels: 1
@@ -1329,19 +1342,14 @@ MonoBehaviour:
   eyeLights:
   - {fileID: 1911305753568928611}
   - {fileID: 1266421742240066292}
-  calmColor: {r: 0.541, g: 0.706, b: 0.831, a: 1}
-  alertColor: {r: 1, g: 0.784, b: 0.314, a: 1}
-  huntColor: {r: 1, g: 0.55, b: 0.15, a: 1}
-  catchColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
-  calmIntensity: 1.2
-  huntIntensity: 2.6
-  beamRange: 12
-  huntBeamRangeScale: 1.35
-  fogGlow: {fileID: 7164062614369123315}
-  glowRadius: 9
-  glowClearAmount: 0.05
-  glowIntensityScale: 1.6
-  easeSpeed: 4
+  eyeColor: {r: 1, g: 0.12, b: 0.08, a: 1}
+  intensity: 3.5
+  worldRadius: 0.045
+  minPixelRadius: 3.5
+  facingAngle: 150
+  nearFadeStart: 0
+  nearFadeEnd: 0
+  disableRealLights: 1
 --- !u!114 &6725881323002343902
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1373,6 +1381,42 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NemesisLookAround
   stateManager: {fileID: 5253595690117749195}
   fieldOfView: {fileID: 7262208103517849607}
+--- !u!114 &8823410557001220303
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
+  bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
+  bus: 1
+  cadenceSource: 1
+  strideLength: 1.6
+  minSpeed: 0.35
+  teleportThreshold: 2
+  minDistance: 2
+  maxDistance: 18
+  volumeScale: 1
+  occlusionEnabled: 1
+  occluderMask:
+    serializedVersion: 2
+    m_Bits: 2048
+  occludedVolume: 0.35
+  probeMask:
+    serializedVersion: 2
+    m_Bits: 4121
+  probeStart: 0.4
+  probeLength: 1.6
+  footOffset: {x: 0, y: 0, z: 0}
+  player: {fileID: 0}
+  crouchVolumeScale: 0.45
+  crouchStrideScale: 0.5
+  sprintStrideScale: 1.28
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0
@@ -1482,7 +1526,6 @@ GameObject:
   - component: {fileID: 5433524013248895066}
   - component: {fileID: 1911305753568928611}
   - component: {fileID: 2826639694687843046}
-  - component: {fileID: 7164062614369123315}
   m_Layer: 0
   m_Name: Point Light
   m_TagString: Untagged
@@ -1599,25 +1642,6 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!114 &7164062614369123315
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7540245321651619465}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c4b3a2918f7e6d5c4b3a2f1e0d9c8b7a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FogLightBypass
-  radius: 3
-  overrideAppearance: 0
-  color: {r: 1, g: 0.85, b: 0.6, a: 1}
-  intensity: 1
-  clearAmount: 1
-  lightComponent: {fileID: 0}
-  lightIntensityScale: 1
 --- !u!1 &7616801607348127552
 GameObject:
   m_ObjectHideFlags: 0
@@ -1842,51 +1866,3 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4195913431897697815}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &8823410557001220303
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6133474145954848426}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
-  bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
-  bus: 1
-  cadenceSource: 1
-  strideLength: 1.6
-  minSpeed: 0.35
-  teleportThreshold: 2
-  minDistance: 2
-  maxDistance: 18
-  volumeScale: 1
-  occlusionEnabled: 1
-  occluderMask:
-    serializedVersion: 2
-    m_Bits: 2048
-  occludedVolume: 0.35
-  probeMask:
-    serializedVersion: 2
-    m_Bits: 4121
-  probeStart: 0.4
-  probeLength: 1.6
-  footOffset: {x: 0, y: 0, z: 0}
-  player: {fileID: 0}
-  crouchVolumeScale: 0.45
-  crouchStrideScale: 0.5
---- !u!114 &8823410557001220305
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2198378287098709486}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
-  emitter: {fileID: 400651606283616958}

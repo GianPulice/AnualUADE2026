@@ -100,6 +100,13 @@ public struct VisionFogState
         public static readonly int BypassColor          = Shader.PropertyToID("_FogLightBypassColor");
         public static readonly int BypassAxis           = Shader.PropertyToID("_FogLightBypassAxis");
         public static readonly int BypassCount          = Shader.PropertyToID("_FogLightBypassCount");
+
+        public static readonly int BeaconData           = Shader.PropertyToID("_FogBeaconData");
+        public static readonly int BeaconColor          = Shader.PropertyToID("_FogBeaconColor");
+        public static readonly int BeaconCount          = Shader.PropertyToID("_FogBeaconCount");
+        public static readonly int BeaconDepthBias      = Shader.PropertyToID("_FogBeaconDepthBias");
+        public static readonly int BeaconMaxPixels      = Shader.PropertyToID("_FogBeaconMaxPixels");
+        public static readonly int BeaconFalloff        = Shader.PropertyToID("_FogBeaconFalloff");
     }
 
     // ── Construction ────────────────────────────────────────────────────────

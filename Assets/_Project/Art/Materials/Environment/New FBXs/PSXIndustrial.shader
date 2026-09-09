@@ -59,9 +59,23 @@ Shader "Custom/PSXIndustrial"
         _RustRoughness("Rust Roughness", Range(0, 1)) = 0.95
         _RustMetallic("Rust Metallic", Range(0, 1)) = 0
 
-        [Header(Emision)]
-        // Mismos nombres que ItemPSX_Outline: cualquier codigo que ya maneje
-        // _EmissionIntensity via MaterialPropertyBlock sirve igual sobre estos props.
+        [Header(Tinte de categoria)]
+        // Mismos nombres que ItemPSX_Outline. ItemProximityHighlight exige que el material
+        // declare _TintIntensity Y _EmissionIntensity: si falta una, el MaterialPropertyBlock
+        // escribe en una property inexistente y el highlight no hace nada, en silencio.
+        // Arranca en 0 => ningun material existente cambia de aspecto.
+        _TintColor("Tint Color", Color) = (1, 1, 1, 1)
+        _TintIntensity("Tint Intensity", Range(0, 2)) = 0
+
+        [Header(Emision propia del material)]
+        // La luz que el objeto emite SIEMPRE (foco, indicador, cartel). No la toca nadie
+        // en runtime: es el aspecto que el artista dejo puesto.
+        [HDR] _SelfEmissionColor("Self Emission Color", Color) = (0, 0, 0, 1)
+        _SelfEmissionIntensity("Self Emission Intensity", Range(0, 20)) = 0
+
+        [Header(Emision del highlight)]
+        // La que maneja ItemProximityHighlight por MaterialPropertyBlock. Se SUMA a la propia,
+        // no la reemplaza: un foco resaltado sigue siendo un foco encendido.
         [HDR] _EmissionColor("Emission Color", Color) = (0, 0, 0, 1)
         _EmissionIntensity("Emission Intensity", Range(0, 20)) = 0
 
@@ -104,6 +118,10 @@ Shader "Custom/PSXIndustrial"
             float  _RustLumaBias;
             float  _RustRoughness;
             float  _RustMetallic;
+            float4 _TintColor;
+            float  _TintIntensity;
+            float4 _SelfEmissionColor;
+            float  _SelfEmissionIntensity;
             float4 _EmissionColor;
             float  _EmissionIntensity;
             float  _Cutoff;
@@ -299,7 +317,9 @@ Shader "Custom/PSXIndustrial"
 
                 // 1) Albedo + alpha.
                 half4 baseSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
-                half3 albedo     = baseSample.rgb * _BaseColor.rgb;
+                half3 tinted     = lerp(_BaseColor.rgb, _BaseColor.rgb * _TintColor.rgb,
+                                        saturate(_TintIntensity));
+                half3 albedo     = baseSample.rgb * tinted;
                 half  alpha      = baseSample.a * _BaseColor.a;
 
             #if defined(_ALPHATEST_ON)
@@ -361,7 +381,8 @@ Shader "Custom/PSXIndustrial"
                 surfaceData.specular            = half3(0, 0, 0);
                 surfaceData.smoothness          = smoothness;
                 surfaceData.normalTS            = normalTS;
-                surfaceData.emission            = _EmissionColor.rgb * _EmissionIntensity;
+                surfaceData.emission            = _SelfEmissionColor.rgb * _SelfEmissionIntensity
+                                                + _EmissionColor.rgb * _EmissionIntensity;
                 surfaceData.occlusion           = occlusion;
                 surfaceData.alpha               = alpha;
                 surfaceData.clearCoatMask       = 0.0;

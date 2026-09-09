@@ -28,10 +28,29 @@ public class VisionRangeController : MonoBehaviour
     /// <summary>Must match VISION_FOG_MAX_BYPASS in VisionFog_HLSL.shader.</summary>
     public const int MaxBypassZones = 16;
 
+    /// <summary>Must match VISION_FOG_MAX_BEACONS in VisionFog_HLSL.shader.</summary>
+    public const int MaxBeacons = 8;
+
     [Header("Default config")]
     [Tooltip("Preset applied when the player is not inside any LightZone. " +
              "Usually a 'dark' / oppressive area — LightZones modulate upwards from it.")]
     [SerializeField] private SO_VisionFogConfig defaultConfig;
+
+    [Header("Beacons")]
+    [Tooltip("Tolerancia en metros de la prueba de oclusión de un beacon contra la geometría.\n\n" +
+             "Los ojos del Nemesis están a centímetros de su propia cara: sin esto la malla de la " +
+             "cabeza tapa el punto y no se ve nunca. Subilo sólo si algún beacon parpadea contra " +
+             "su propio modelo; bajarlo lo hace más estricto y evita que se vea a través de una " +
+             "pared muy delgada.")]
+    [SerializeField, Min(0f)] private float beaconDepthBias = 0.25f;
+
+    [Tooltip("Techo del radio en pantalla de un beacon, en píxeles. Es lo que evita que de cerca " +
+             "los ojos sean una mancha que tapa media pantalla.")]
+    [SerializeField, Min(1f)] private float beaconMaxPixels = 26f;
+
+    [Tooltip("Dureza de la caída del beacon. Más alto = núcleo más chico y borde más marcado; " +
+             "más bajo = un halo blando y grande.")]
+    [SerializeField, Min(0.01f)] private float beaconFalloff = 4f;
 
     [Header("Player")]
     [Tooltip("Optional manual assignment, mainly for Timeline preview. If empty, the player " +
@@ -47,12 +66,16 @@ public class VisionRangeController : MonoBehaviour
     // Player light source (optional) and bypass zones registered by their components.
     private FogLightSource _playerLight;
     private static readonly List<FogLightBypass> s_bypassZones = new List<FogLightBypass>(MaxBypassZones);
+    private static readonly List<FogBeacon> s_beacons = new List<FogBeacon>(MaxBeacons);
 
     // Reusable buffers. Unity locks a global array's size on first upload, so these are allocated
     // at full length once and the unused tail is zeroed rather than the array being resized.
     private readonly Vector4[] _bypassData  = new Vector4[MaxBypassZones];
     private readonly Vector4[] _bypassColor = new Vector4[MaxBypassZones];
     private readonly Vector4[] _bypassAxis  = new Vector4[MaxBypassZones]; // xyz = cone axis, w = cos(half); w >= 2 => sphere
+
+    private readonly Vector4[] _beaconData  = new Vector4[MaxBeacons]; // xyz = world pos, w = radius in metres
+    private readonly Vector4[] _beaconColor = new Vector4[MaxBeacons]; // rgb = linear colour * intensity, a = min pixel radius
 
     // Current values (interpolated frame by frame) and where they are heading.
     private VisionFogState _current;
@@ -115,6 +138,7 @@ public class VisionRangeController : MonoBehaviour
             Shader.SetGlobalFloat(VisionFogState.Ids.VisionEnd, 0f); // shader early-out
             Shader.SetGlobalFloat(VisionFogState.Ids.PlayerLightRange, 0f);
             Shader.SetGlobalInt(VisionFogState.Ids.BypassCount, 0);
+            Shader.SetGlobalInt(VisionFogState.Ids.BeaconCount, 0);
             return;
         }
 
@@ -145,6 +169,7 @@ public class VisionRangeController : MonoBehaviour
 
         frame.PushToShader(_player.position, lightPos);
         PushBypassZones(frame);
+        PushBeacons(_player.position);
     }
 
     // ── Public API for LightZones ───────────────────────────────────────────
@@ -212,6 +237,20 @@ public class VisionRangeController : MonoBehaviour
     {
         if (zone == null) return;
         s_bypassZones.Remove(zone);
+    }
+
+    // -- API for FogBeacon --------------------------------------------------
+
+    public static void RegisterBeacon(FogBeacon beacon)
+    {
+        if (beacon == null || s_beacons.Contains(beacon)) return;
+        s_beacons.Add(beacon);
+    }
+
+    public static void UnregisterBeacon(FogBeacon beacon)
+    {
+        if (beacon == null) return;
+        s_beacons.Remove(beacon);
     }
 
     // ── API for VisionFogTrack (Timeline) and the config inspector ──────────
@@ -289,6 +328,55 @@ public class VisionRangeController : MonoBehaviour
         Shader.SetGlobalVectorArray(VisionFogState.Ids.BypassColor, _bypassColor);
         Shader.SetGlobalVectorArray(VisionFogState.Ids.BypassAxis, _bypassAxis);
         Shader.SetGlobalInt(VisionFogState.Ids.BypassCount, count);
+    }
+
+    /// <summary>
+    /// Compacts the active beacons into the shader arrays.
+    ///
+    /// A beacon is NOT a bypass zone, and the difference is the whole point: a bypass zone injects
+    /// light into <c>sceneColor</c> and is then attenuated by the very fog it is trying to punch
+    /// through, so past <c>visionEnd</c> it contributes less than the fog's own in-scattering. A
+    /// beacon is composited AFTER the extinction, so the brightness asked for here is the
+    /// brightness that reaches the screen, in every preset.
+    ///
+    /// It lives in this class for the reason <see cref="VisionFogState"/>'s docstring gives: every
+    /// fog global leaves from one place so the sRGB-to-linear conversion cannot regress. Colours
+    /// go out through <see cref="VisionFogState.ToLinear"/>, same as the bypass arrays.
+    /// </summary>
+    /// <param name="viewerPosition">Where the player is, for each beacon's own facing and distance
+    /// fades. The camera would be marginally more correct, but it moves in LateUpdate under
+    /// Cinemachine and the player does not.</param>
+    private void PushBeacons(Vector3 viewerPosition)
+    {
+        int count = 0;
+        for (int i = 0; i < s_beacons.Count && count < MaxBeacons; i++)
+        {
+            FogBeacon beacon = s_beacons[i];
+            if (beacon == null || !beacon.isActiveAndEnabled) continue;
+            if (!beacon.Resolve(viewerPosition, out Color color, out float intensity, out float minPixels)) continue;
+
+            Vector3 p = beacon.WorldCentre;
+            _beaconData[count] = new Vector4(p.x, p.y, p.z, beacon.WorldRadius);
+
+            Vector4 linear = VisionFogState.ToLinear(color) * intensity;
+            _beaconColor[count] = new Vector4(linear.x, linear.y, linear.z, minPixels);
+
+            count++;
+        }
+
+        for (int i = count; i < MaxBeacons; i++)
+        {
+            _beaconData[i]  = Vector4.zero;
+            _beaconColor[i] = Vector4.zero;
+        }
+
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.BeaconData, _beaconData);
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.BeaconColor, _beaconColor);
+        Shader.SetGlobalInt(VisionFogState.Ids.BeaconCount, count);
+
+        Shader.SetGlobalFloat(VisionFogState.Ids.BeaconDepthBias, beaconDepthBias);
+        Shader.SetGlobalFloat(VisionFogState.Ids.BeaconMaxPixels, beaconMaxPixels);
+        Shader.SetGlobalFloat(VisionFogState.Ids.BeaconFalloff, beaconFalloff);
     }
 
 #if UNITY_EDITOR

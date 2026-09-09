@@ -81,9 +81,11 @@ Material:
     - _RustMetallic: 0.05
     - _RustRoughness: 0.95
     - _RustScale: 11
+    - _SelfEmissionIntensity: 0.0
     - _Surface: 0
     m_Colors:
     - _BaseColor: {r: 0.055, g: 0.05, b: 0.048, a: 1}
+    - _SelfEmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _RustColor: {r: 0.26, g: 0.11, b: 0.05, a: 1}
   m_BuildTextureStacks: []

@@ -3,6 +3,11 @@ using UnityEngine;
 public class PickupInteractable : BaseRangeInteractable
 {
     [Header("Item")]
+    [Tooltip("The item this pickup hands to the inventory. A pickup with no item is INERT: " +
+             "CanInteract() is false, the prompt view finds no info text either and hides " +
+             "completely, so the player gets no message and E does nothing. Base prefabs " +
+             "(NoteFather/Note, InventoryItemFather/InventoryItem) ship empty on purpose — " +
+             "place one of their variants, or assign an item here.")]
     [SerializeField] private SO_InventoryItem itemToPick;
 
     [Header("Audio")]
@@ -20,6 +25,29 @@ public class PickupInteractable : BaseRangeInteractable
     /// to resolve the category automatically without duplicating the dropdown by hand.</summary>
     public SO_InventoryItem Item => itemToPick;
 
+
+    /// <summary>
+    /// Says so when this pickup can never be used.
+    ///
+    /// With no item, <see cref="CanInteractInCloseRange"/> returns false and
+    /// <see cref="BaseRangeInteractable.GetInfoText"/> returns an empty string, so
+    /// <c>InteractionPromptView</c> takes its else branch and fades the prompt out entirely.
+    /// From the player's side the object is simply not interactable, with nothing anywhere
+    /// saying why — which is why this costs an afternoon to find by hand.
+    /// </summary>
+    protected override void Awake()
+    {
+        base.Awake();
+
+        if (itemToPick == null)
+        {
+            Debug.LogWarning(
+                $"[{nameof(PickupInteractable)}] '{name}' has no Item To Pick assigned, so it " +
+                "shows no prompt and does nothing when the player presses E. Assign an " +
+                "SO_InventoryItem, or place one of the prefab variants instead of the base " +
+                "prefab.", this);
+        }
+    }
 
     public override string GetInteractText()
     {

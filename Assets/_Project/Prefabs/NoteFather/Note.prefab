@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 7706458165399549689}
   - component: {fileID: 2820506238401912842}
   - component: {fileID: 7947140177708132941}
+  - component: {fileID: 713258761981259063}
   m_Layer: 6
   m_Name: Note
   m_TagString: Untagged
@@ -68,7 +69,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 9050eb5d88b477e499ff7444127e884e, type: 2}
+  - {fileID: 2100000, guid: e4b7aa5d23f67a8cbd4af9132c7e2648, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -125,4 +126,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f916905751cfdd34387f3ecf14383bc4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
-  itemToPick: {fileID: 0}
+  itemToPick: {fileID: 11400000, guid: 604eea3f25522774995a344ed95dfcbb, type: 2}
+  pickupSoundId: sfx_interaction_nota
+  categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}
+--- !u!114 &713258761981259063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2530198244687189650}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  farTint: 0.25
+  farEmission: 0.15
+  nearTint: 0.4
+  nearEmission: 0.2
+  lerpDuration: 0.3
+  overrideCategory: 0
+  category: 2
+  categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}
+  targetRenderer: {fileID: 0}
+  materialIndex: -1

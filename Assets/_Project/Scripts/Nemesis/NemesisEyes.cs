@@ -2,212 +2,157 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// The Nemesis's eye lights, reachable and drivable from the root.
+/// The Nemesis's eyes. One job: two points of light the player can pick out from across the level,
+/// through the fog.
 ///
-/// The lights themselves sit several levels down the rig, on bones that an animation import can
-/// rename or reparent. Reaching them by dragging references into an inspector means a re-import
-/// silently empties the field; this collects them from its own hierarchy in Awake, the same way
-/// NemesisStateManager resolves the sensors and the Animator, so a rig swap costs nothing.
+/// Not the beam, not the state, not the fog around it. Those were three separate jobs living in
+/// this class and none of them was the one the eyes are actually for.
 ///
-/// SETUP: add it to the Nemesis root. It finds the lights on its own — the two Point Lights on the
-/// head in the current prefab — and nothing has to be wired.
+/// ── HOW IT WORKS ───────────────────────────────────────────────────────────
 ///
-/// WHY IT DRIVES THEM FROM THE STATE
+/// It puts a <see cref="FogBeacon"/> on each eye. A beacon is composited AFTER the fog's
+/// extinction, which is the only place in the pipeline where "make it this bright" survives the
+/// fog. See <see cref="FogBeacon"/> for why the previous approach — a FogLightBypass zone — could
+/// not work at range: its glow is injected BEFORE the extinction, so past <c>visionEnd</c> it
+/// arrives multiplied by ~0.004 and lands under the fog's own in-scattering.
 ///
-/// Because they are the only tell the Nemesis has at a distance. It walks, it stops, it turns
-/// round; from thirty metres down a corridor the silhouette says almost nothing about whether it
-/// has noticed you. The eyes can say it before the audio does.
+/// ── WHAT HAPPENED TO THE SPOT LIGHTS ───────────────────────────────────────
 ///
-/// The COLOUR never changes: the eyes are always the danger red. Whether it has noticed you is
-/// read from how bright and how far the beam reaches — a dim short cone while it patrols, a hard
-/// long one the moment it is coming for you — not from a hue shift. A Nemesis whose eyes turn
-/// friendly blue while it is not looking at you was reading as a mood ring rather than as a
-/// monster, and it also lit the player and the walls in whatever colour the state happened to be.
+/// The two red Spots on the head are kept as the ANCHORS — they are already parented to the head
+/// bone and already sit where the eyes are, so they survive a rig re-import the same way they did
+/// before. The Light components themselves are switched off by default
+/// (<see cref="disableRealLights"/>): at the range they were driven to they lit the corridor red,
+/// which competes with the very thing this is for. Turn the flag off to get them back.
 /// </summary>
 public class NemesisEyes : MonoBehaviour
 {
-    [Header("Lights")]
-    [Tooltip("Leave empty to collect every Light under this object at startup, which is what the " +
-             "prefab expects. Fill it in only to drive a subset.")]
+    [Header("Anchors")]
+    [Tooltip("Dónde están los ojos. Deja la lista vacía para tomar todas las Lights que cuelguen " +
+             "de este objeto, que es lo que el prefab hace: los dos Spots de la cabeza.\n\n" +
+             "Sólo se usa su POSICIÓN y su forward. Las Lights en sí se apagan (ver abajo).")]
     [SerializeField] private List<Light> eyeLights = new List<Light>();
 
-    [Tooltip("El único color de los ojos, en todos los estados. Rojo peligro por la regla del " +
-             "proyecto (rojo = amenaza y nada más). Lo que dice si te vio es la INTENSIDAD y el " +
-             "ALCANCE del haz, no el tono.")]
-    [SerializeField] private Color eyeColor = new Color(0.8f, 0.1f, 0.1f);
+    [Header("Look")]
+    [Tooltip("El color de los ojos. Rojo peligro por la regla del proyecto: rojo = amenaza y " +
+             "nada más.")]
+    [ColorUsage(showAlpha: false, hdr: false)]
+    [SerializeField] private Color eyeColor = new Color(1f, 0.12f, 0.08f);
 
-    [Header("Intensity")]
-    [SerializeField, Min(0f)] private float calmIntensity = 1.2f;
-    [SerializeField, Min(0f)] private float huntIntensity = 2.6f;
+    [Tooltip("Brillo en pantalla. Es absoluto: la niebla no lo toca, así que el mismo número se " +
+             "ve igual a 3 m que a 40 m y con cualquier preset. Arriba de 1 empieza a florecer " +
+             "con el Bloom, que es lo que lo hace leer como una luz.")]
+    [SerializeField, Min(0f)] private float intensity = 3.5f;
 
-    [Header("Beam — where it is looking")]
-    [Tooltip("Alcance del haz, en metros. El prefab venía en 2, que es la razón por la que los " +
-             "ojos no se leían de lejos: el cono moría antes de tocar nada.\n\n" +
-             "Lo que ve el jugador NO es el haz en el aire (no hay volumétrico) sino los DOS " +
-             "óvalos rojos que el cono deja sobre la pared o el piso que el Nemesis está mirando. " +
-             "Ese es el indicador de hacia dónde mira, y se lee desde mucho más lejos que el " +
-             "alcance del haz en sí.\n\n" +
-             "OJO: esto NO cambia lo que el Nemesis ve. La detección es ViewRange en " +
-             "SO_NemesisData (7 m) y es un número totalmente independiente — el haz puede llegar " +
-             "a 15 m sin que el Nemesis te detecte a más de 7.")]
-    [SerializeField, Min(0f)] private float beamRange = 12f;
+    [Tooltip("Tamaño real del ojo en metros. Sólo manda de cerca.")]
+    [SerializeField, Min(0.001f)] private float worldRadius = 0.045f;
 
-    [Tooltip("Multiplica el alcance del haz mientras persigue. Un cono que se estira al " +
-             "detectarte es legible desde lejos incluso sin mirar el color.")]
-    [SerializeField, Min(0.1f)] private float huntBeamRangeScale = 1.35f;
+    [Tooltip("Radio mínimo en píxeles: el piso que impide que a 30 m el ojo caiga en sub-píxel " +
+             "y titile. 3-4 px es un punto nítido.")]
+    [SerializeField, Min(0f)] private float minPixelRadius = 3.5f;
 
-    [Header("Glow through the fog")]
-    [Tooltip("Opcional. El FogLightBypass que hace que los ojos se lean COMO UN RESPLANDOR a " +
-             "través de la niebla, que es lo que te deja reconocer al Nemesis de lejos.\n\n" +
-             "Vacío se busca en esta jerarquía. Si no hay ninguno, los ojos siguen funcionando " +
-             "como luces normales — solo que la niebla se los come a distancia.")]
-    [SerializeField] private FogLightBypass fogGlow;
+    [Header("Cuándo se ven")]
+    [Tooltip("Apertura total en grados dentro de la cual se ven. Fuera de eso el Nemesis te está " +
+             "dando la espalda y no hay ojos que mirar.")]
+    [SerializeField, Range(1f, 360f)] private float facingAngle = 150f;
 
-    [Tooltip("Radio en metros del halo. CHICO a propósito — cerca del ancho de la cabeza.\n\n" +
-             "El bypass es una ESFERA por definición (posición + radio), así que no puede mostrar " +
-             "dirección: con un radio grande el Nemesis se convierte en un farol flotante y tapa " +
-             "justamente el cono que sí dice hacia dónde mira. Su único trabajo acá es que los " +
-             "ojos se ENCUENTREN entre la niebla, como dos puntos. Quién mira hacia dónde lo dice " +
-             "el haz, no esto.")]
-    [SerializeField, Min(0f)] private float glowRadius = 1.8f;
+    [Tooltip("Distancia por debajo de la cual se apagan, en metros. 0 = siempre prendidos.")]
+    [SerializeField, Min(0f)] private float nearFadeStart = 0f;
 
-    [Tooltip("Cuánta niebla DISUELVE el halo. Prácticamente 0 a propósito.\n\n" +
-             "Subirlo hace que el Nemesis camine adentro de una burbuja de aire limpio: se ve " +
-             "mal, y además te REGALA información — verías nítido todo lo que lo rodea.")]
-    [SerializeField, Range(0f, 1f)] private float glowClearAmount = 0.02f;
+    [Tooltip("Distancia a partir de la cual están a brillo completo. Entre ésta y la de arriba " +
+             "hacen un fundido. Se ignora si no es mayor.")]
+    [SerializeField, Min(0f)] private float nearFadeEnd = 0f;
 
-    [Tooltip("Multiplica la intensidad de la Light para el brillo del halo. Por debajo de 1 a " +
-             "propósito: si el halo compite con el haz, gana el halo — es más grande y no tiene " +
-             "forma — y perdés la lectura de hacia dónde mira.")]
-    [SerializeField, Min(0f)] private float glowIntensityScale = 0.45f;
+    [Header("Legacy")]
+    [Tooltip("Apaga las Light reales de la cabeza y deja sólo los puntos.\n\n" +
+             "Estaban puestas como el indicador de hacia dónde mira: dos conos rojos que " +
+             "pintaban óvalos en la pared. Es una feature distinta de ésta y compite con ella. " +
+             "Destildalo para recuperarlas tal como estaban en el prefab.")]
+    [SerializeField] private bool disableRealLights = true;
 
-    [Tooltip("How fast intensity and reach ease towards their target, per second. Snapping reads " +
-             "as a UI element rather than as a light on a creature.")]
-    [SerializeField, Min(0.1f)] private float easeSpeed = 4f;
-
-    private float targetIntensity;
-    private float targetRange;
-    private float currentIntensity;
-    private float currentRange;
+    private readonly List<FogBeacon> _beacons = new List<FogBeacon>();
 
     private void Awake()
     {
+        // Collected rather than dragged in, same reason as before: the lights hang off bones that
+        // an animation re-import can rename or reparent, which silently empties an inspector
+        // reference.
         if (eyeLights.Count == 0) eyeLights.AddRange(GetComponentsInChildren<Light>(true));
-
-        // FogLightBypass and NOT FogLightSource, and the difference is not cosmetic:
-        // VisionRangeController keeps exactly ONE FogLightSource (_playerLight, found with
-        // FindAnyObjectByType), so putting one on the Nemesis would take the slot away from the
-        // player's own module light. Bypass zones are a registered list of up to
-        // VisionRangeController.MaxBypassZones instead, which is what a second glowing thing in
-        // the world is supposed to be.
-        if (fogGlow == null) fogGlow = GetComponentInChildren<FogLightBypass>(true);
 
         if (eyeLights.Count == 0)
         {
-            Debug.LogWarning($"[{nameof(NemesisEyes)}] '{name}' found no Light under it. The eyes " +
-                             "will do nothing — check that the lights are children of this object.",
-                             this);
+            Debug.LogWarning($"[{nameof(NemesisEyes)}] '{name}' found no Light under it to use as " +
+                             "an eye anchor. There will be no eyes — check that the lights are " +
+                             "children of this object.", this);
             enabled = false;
             return;
         }
 
-        // Awake/OnDestroy and not OnEnable/OnDisable, per the project's convention for static
-        // events: a static delegate outlives the GameObject's enabled state, so an enabled-scoped
-        // subscription is a listener that quietly stops listening. Here that would mean the eyes
-        // staying whatever intensity they were when the object was last switched off.
-        NemesisEvents.OnStateChanged += HandleStateChanged;
+        for (int i = 0; i < eyeLights.Count; i++)
+        {
+            Light light = eyeLights[i];
+            if (light == null) continue;
 
-        currentIntensity = targetIntensity = calmIntensity;
-        currentRange = targetRange = beamRange;
-        Apply();
+            if (disableRealLights) light.enabled = false;
+
+            // Get-or-add, then always configure: with one source of truth an authored beacon and a
+            // created one behave the same, instead of the look depending on whether someone had
+            // added the component by hand.
+            if (!light.TryGetComponent(out FogBeacon beacon))
+                beacon = light.gameObject.AddComponent<FogBeacon>();
+
+            beacon.color          = eyeColor;
+            beacon.intensity      = intensity;
+            beacon.worldRadius    = worldRadius;
+            beacon.minPixelRadius = minPixelRadius;
+            beacon.limitByFacing  = true;
+            beacon.facingAngle    = facingAngle;
+            beacon.nearFadeStart  = nearFadeStart;
+            beacon.nearFadeEnd    = nearFadeEnd;
+
+            _beacons.Add(beacon);
+        }
     }
 
-    private void OnDestroy() => NemesisEvents.OnStateChanged -= HandleStateChanged;
-
     /// <summary>
-    /// Turns the eyes on or off wholesale. Called by whatever hides the Nemesis while it is
-    /// dormant — a disabled Light is the one thing that makes it genuinely invisible in the dark,
-    /// where switching the renderers off is not enough on its own.
+    /// Turns the eyes on or off wholesale. Called by <see cref="NemesisLifecycle"/> while the
+    /// Nemesis is dormant — a dormant monster leaving two red dots hanging in the fog would
+    /// announce something that has not spawned yet.
     /// </summary>
     public void SetLightsEnabled(bool value)
     {
+        for (int i = 0; i < _beacons.Count; i++)
+        {
+            if (_beacons[i] != null) _beacons[i].enabled = value;
+        }
+
+        if (disableRealLights) return;
+
         for (int i = 0; i < eyeLights.Count; i++)
         {
             if (eyeLights[i] != null) eyeLights[i].enabled = value;
         }
-
-        // The glow goes with them. A dormant Nemesis leaving a red halo hanging in the fog would
-        // announce a monster that has not spawned yet — and it is a registered bypass zone, so it
-        // would also be eating one of the sixteen slots for nothing.
-        if (fogGlow != null) fogGlow.enabled = value;
     }
 
-    private void HandleStateChanged(NemesisStateManager.ENemesisState state)
+#if UNITY_EDITOR
+    // Retuning in Play Mode without leaving it: the beacons are created in Awake, so an inspector
+    // edit would otherwise not reach them until the next entry.
+    private void OnValidate()
     {
-        switch (state)
+        if (!Application.isPlaying) return;
+
+        for (int i = 0; i < _beacons.Count; i++)
         {
-            case NemesisStateManager.ENemesisState.Catch:
-            case NemesisStateManager.ENemesisState.Chasing:
-            case NemesisStateManager.ENemesisState.Traversing:
-                targetIntensity = huntIntensity;
-                targetRange = beamRange * huntBeamRangeScale;
-                break;
+            FogBeacon beacon = _beacons[i];
+            if (beacon == null) continue;
 
-            case NemesisStateManager.ENemesisState.Investigating:
-            case NemesisStateManager.ENemesisState.Searching:
-                targetIntensity = Mathf.Lerp(calmIntensity, huntIntensity, 0.5f);
-                targetRange = beamRange;
-                break;
-
-            default:
-                targetIntensity = calmIntensity;
-                targetRange = beamRange;
-                break;
+            beacon.color          = eyeColor;
+            beacon.intensity      = intensity;
+            beacon.worldRadius    = worldRadius;
+            beacon.minPixelRadius = minPixelRadius;
+            beacon.facingAngle    = facingAngle;
+            beacon.nearFadeStart  = nearFadeStart;
+            beacon.nearFadeEnd    = nearFadeEnd;
         }
     }
-
-    private void Update()
-    {
-        // Unscaled: the eyes keep easing while a pause menu is up rather than freezing
-        // mid-transition, which would leave them at an intensity that belongs to neither state.
-        float step = easeSpeed * Time.unscaledDeltaTime;
-
-        currentIntensity = Mathf.Lerp(currentIntensity, targetIntensity, step);
-        currentRange = Mathf.Lerp(currentRange, targetRange, step);
-
-        Apply();
-    }
-
-    private void Apply()
-    {
-        for (int i = 0; i < eyeLights.Count; i++)
-        {
-            if (eyeLights[i] == null) continue;
-
-            eyeLights[i].color = eyeColor;
-            eyeLights[i].intensity = currentIntensity;
-
-            // Only Spot lights carry a direction, and these are Spots (22° cone) despite the
-            // GameObjects being named "Point Light". The beam is the whole tell: what the player
-            // reads from across a room is the pair of coloured pools it leaves on whatever the
-            // Nemesis is facing.
-            eyeLights[i].range = currentRange;
-        }
-
-        if (fogGlow == null) return;
-
-        // overrideAppearance on, because the point of this zone is precisely that it does NOT look
-        // like the area's lamps: it is the one light in the level that means "the thing that kills
-        // you is over there".
-        fogGlow.overrideAppearance = true;
-        fogGlow.radius = glowRadius;
-        fogGlow.color = eyeColor;
-        fogGlow.intensity = currentIntensity * glowIntensityScale;
-
-        // Glow high, clear low — the exact case FogLightBypass's own docs call out: "a lamp seen
-        // through heavy fog wants high intensity and low clear". Clearing the fog around the
-        // Nemesis would hand the player a clean view of whatever room it is standing in, which is
-        // the opposite of a warning.
-        fogGlow.clearAmount = glowClearAmount;
-    }
+#endif
 }

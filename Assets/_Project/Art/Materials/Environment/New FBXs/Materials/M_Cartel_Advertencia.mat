@@ -67,7 +67,7 @@ Material:
     - _BumpScale: 1
     - _Cull: 2
     - _Cutoff: 0.5
-    - _EmissionIntensity: 0.12
+    - _EmissionIntensity: 0
     - _HeightNormalEnabled: 0
     - _HeightNormalStrength: 2
     - _Metallic: 0
@@ -81,10 +81,12 @@ Material:
     - _RustMetallic: 0
     - _RustRoughness: 0.95
     - _RustScale: 6
+    - _SelfEmissionIntensity: 0.12
     - _Surface: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissionColor: {r: 1, g: 0.75, b: 0.05, a: 1}
+    - _SelfEmissionColor: {r: 1, g: 0.75, b: 0.05, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _RustColor: {r: 0.35, g: 0.16, b: 0.07, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

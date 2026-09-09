@@ -65,7 +65,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
         // Para tunear los presets sin adivinar. Ninguno de estos modos es un look final.
         // Nombres sin espacios a proposito: el drawer de [Enum] parte la lista por comas y un
         // nombre con espacio queda con el espacio adentro del label.
-        [Enum(Off, 0, Transmittance, 1, OpticalDepth, 2, LightMask, 3, Inscatter, 4, BypassMask, 5, Distance, 6)]
+        [Enum(Off, 0, Transmittance, 1, OpticalDepth, 2, LightMask, 3, Inscatter, 4, BypassMask, 5, Distance, 6, Beacons, 7)]
         _FogDebugView                      ("Debug View", Float) = 0
     }
 
@@ -76,6 +76,9 @@ Shader "Hidden/Custom/VisionFogHLSL"
 
     // Tiene que coincidir con VisionRangeController.MaxBypassZones.
     #define VISION_FOG_MAX_BYPASS 16
+
+    // Tiene que coincidir con VisionRangeController.MaxBeacons.
+    #define VISION_FOG_MAX_BEACONS 8
 
     CBUFFER_START(UnityPerMaterial)
         float _EnableVisionFog;
@@ -127,6 +130,15 @@ Shader "Hidden/Custom/VisionFogHLSL"
     float4 _FogLightBypassColor[VISION_FOG_MAX_BYPASS];  // rgb = color*intensidad (lineal), a = clear 0..1
     float4 _FogLightBypassAxis[VISION_FOG_MAX_BYPASS];   // xyz = eje del cono (norm), w = cos(medio angulo); w >= 2 => esfera
     int    _FogLightBypassCount;
+
+    // ── Beacons ────────────────────────────────────────────────────────────
+    // Un beacon es un punto del mundo que se ve SIEMPRE, con la niebla que sea. Ver vfBeacons().
+    float4 _FogBeaconData[VISION_FOG_MAX_BEACONS];   // xyz = world pos, w = radio en metros
+    float4 _FogBeaconColor[VISION_FOG_MAX_BEACONS];  // rgb = color * intensidad (lineal), a = radio minimo en pixeles
+    int    _FogBeaconCount;
+    float  _FogBeaconDepthBias;   // metros de tolerancia contra la geometria propia
+    float  _FogBeaconMaxPixels;   // techo del radio en pantalla, para que de cerca no tape la cara
+    float  _FogBeaconFalloff;     // dureza de la gaussiana
 
     // ── Noise procedural ───────────────────────────────────────────────────
 
@@ -287,6 +299,78 @@ Shader "Hidden/Custom/VisionFogHLSL"
         return min(k * _LightPreservation, _MaxLightPreservation);
     }
 
+    // ── Beacons ────────────────────────────────────────────────────────────
+    //
+    // Puntos del mundo que la niebla NO apaga. Existen por una sola cosa: que los ojos del
+    // Nemesis se lean desde lejos.
+    //
+    // POR QUE NO ALCANZA UNA BYPASS ZONE. La luz que inyecta una zona se SUMA a sceneColor y
+    // recien despues se multiplica por transmittance — o sea, atraviesa la misma niebla que
+    // quiere perforar. Y pasado _VisionEnd la transmitancia es una CONSTANTE (t satura en 1):
+    // con el preset Dark vale e^-5.43 = 0.0044. Un halo de intensidad 1 termina en 0.004 en
+    // pantalla, por debajo del propio in-scattering de la niebla (0.007). No hay valor de
+    // intensity que lo arregle sin reventar de cerca, y subir clearAmount lo suficiente como para
+    // que se vea limpia el cuarto entero alrededor del monstruo.
+    //
+    // Por eso esto se compone DESPUES de la extincion, que es la unica posicion del pipeline
+    // donde el brillo que pedis es el brillo que ves, en todos los presets.
+    //
+    // Y es SCREEN-SPACE a proposito: el radio se pide en pixeles, asi que dos ojos de 3 cm a 30 m
+    // no caen en sub-pixel y titilan. La oclusion por paredes sale gratis del depth buffer que ya
+    // tenemos muestreado, sin un solo raycast.
+    float3 vfBeacons(float2 uv, float sceneEyeDepth)
+    {
+        float3 acc = 0.0;
+
+        int count = min(_FogBeaconCount, VISION_FOG_MAX_BEACONS);
+        if (count <= 0) return acc;
+
+        // _m11 de la proyeccion es cot(fov/2): cuantos pixeles mide un metro a un metro de la
+        // camara. Dividido por la profundidad del beacon da su radio en pantalla.
+        float pixelsPerMetreAtOne = UNITY_MATRIX_P._m11 * 0.5 * _ScreenParams.y;
+
+        [loop]
+        for (int i = 0; i < count; i++)
+        {
+            float4 beacon = _FogBeaconData[i];
+            if (beacon.w <= 1e-4) continue;   // slot vacio: se saltea antes de la matriz
+
+            float4 cs = mul(UNITY_MATRIX_VP, float4(beacon.xyz, 1.0));
+            if (cs.w <= 1e-4) continue;       // detras de la camara
+
+            // Misma convencion de UV que ComputeWorldSpacePosition() usa en Frag(): esa hace
+            // ComputeClipSpacePosition(), que niega la Y cuando el origen esta arriba. Aca se
+            // hace el camino inverso, asi que la Y se niega igual o los ojos aparecen espejados
+            // en vertical en la mitad de las plataformas.
+            float2 ndc = cs.xy / cs.w;
+            #if UNITY_UV_STARTS_AT_TOP
+                ndc.y = -ndc.y;
+            #endif
+            float2 beaconUV = ndc * 0.5 + 0.5;
+
+            // Oclusion por pixel, no por beacon: se compara contra la profundidad de ESTE pixel,
+            // asi que al asomarte en una esquina el halo lo recorta el borde de la pared en vez
+            // de prenderse y apagarse entero. El bias es para que no lo tape la propia cara del
+            // Nemesis, que esta a centimetros del punto.
+            if (sceneEyeDepth + _FogBeaconDepthBias < cs.w) continue;
+
+            float4 tint = _FogBeaconColor[i];
+
+            // El piso en pixeles (tint.a) es lo que lo mantiene visible de lejos; el techo es lo
+            // que evita que de cerca sea una mancha que tapa media pantalla.
+            float radiusPx = clamp(beacon.w * pixelsPerMetreAtOne / cs.w,
+                                   tint.a, max(_FogBeaconMaxPixels, tint.a));
+
+            float2 dPix = (uv - beaconUV) * _ScreenParams.xy;
+            float  r    = length(dPix) / max(radiusPx, 1e-3);
+            if (r >= 1.0) continue;
+
+            acc += tint.rgb * exp(-r * r * max(_FogBeaconFalloff, 0.01));
+        }
+
+        return acc;
+    }
+
     // ── Fragment ───────────────────────────────────────────────────────────
 
     half4 Frag(Varyings input) : SV_Target
@@ -405,6 +489,12 @@ Shader "Hidden/Custom/VisionFogHLSL"
 
         half3 result = sceneColor * transmittance + _FogColor * inscatter;
 
+        // ── Beacons ────────────────────────────────────────────────────────
+        // DESPUES de la extincion, que es todo el punto: es lo unico del shader a lo que la
+        // niebla no le puede bajar el brillo. Antes del tonemap todavia, asi que el Bloom lo
+        // agarra y el punto se lee como una luz y no como un pixel prendido.
+        result += vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams));
+
         // ── Debug views ────────────────────────────────────────────────────
         if (_FogDebugView > 0.5)
         {
@@ -415,6 +505,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
             if (mode == 4) result = _FogColor * inscatter;
             if (mode == 5) result = half3(saturate(bypassClear), playerClear, 0);
             if (mode == 6) result = frac(distFromPlayer / 10.0).xxx;
+            if (mode == 7) result = vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams));
         }
 
         return half4(result, 1.0);

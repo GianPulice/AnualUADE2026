@@ -66,6 +66,14 @@ public class ItemProximityHighlight : MonoBehaviour
     [Header("Renderer (optional — autodetects the GameObject's)")]
     [SerializeField] private Renderer targetRenderer;
 
+    [Tooltip("Which material slot the highlight writes to. -1 (default) writes to every slot, " +
+             "which is what a single-material item wants. Set it to the slot of the item's body " +
+             "when the same renderer also carries a material that has to keep its own emission " +
+             "— a lamp, a screen, an indicator. A MaterialPropertyBlock applied with no index " +
+             "goes to EVERY slot, so it would flatten that material's emission to this " +
+             "component's value.")]
+    [SerializeField] private int materialIndex = -1;
+
     private static readonly int TintId       = Shader.PropertyToID("_TintIntensity");
     private static readonly int EmissionId   = Shader.PropertyToID("_EmissionIntensity");
     private static readonly int TintColorId  = Shader.PropertyToID("_TintColor");
@@ -203,7 +211,13 @@ public class ItemProximityHighlight : MonoBehaviour
     private void ApplyProps()
     {
         if (targetRenderer == null) return;
-        targetRenderer.GetPropertyBlock(_propBlock);
+
+        bool singleSlot = materialIndex >= 0 &&
+                          materialIndex < targetRenderer.sharedMaterials.Length;
+
+        if (singleSlot) targetRenderer.GetPropertyBlock(_propBlock, materialIndex);
+        else            targetRenderer.GetPropertyBlock(_propBlock);
+
         _propBlock.SetFloat(TintId,      _currentTint);
         _propBlock.SetFloat(EmissionId,  _currentEmission);
         if (_overrideColors)
@@ -211,7 +225,9 @@ public class ItemProximityHighlight : MonoBehaviour
             _propBlock.SetColor(TintColorId, _tintColor);
             _propBlock.SetColor(EmitColorId, _emissionColor);
         }
-        targetRenderer.SetPropertyBlock(_propBlock);
+
+        if (singleSlot) targetRenderer.SetPropertyBlock(_propBlock, materialIndex);
+        else            targetRenderer.SetPropertyBlock(_propBlock);
     }
 
     /// <summary>
@@ -227,7 +243,10 @@ public class ItemProximityHighlight : MonoBehaviour
     {
         if (targetRenderer == null) return;
 
-        Material material = targetRenderer.sharedMaterial;
+        Material[] materials = targetRenderer.sharedMaterials;
+        Material material = materialIndex >= 0 && materialIndex < materials.Length
+            ? materials[materialIndex]
+            : targetRenderer.sharedMaterial;
         if (material == null) return;
 
         if (material.HasProperty(EmissionId) && material.HasProperty(TintId)) return;

@@ -275,8 +275,8 @@ AudioSource:
   SpatializePostEffects: 0
   Priority: 128
   DopplerLevel: 1
-  MinDistance: 1
-  MaxDistance: 500
+  MinDistance: 3
+  MaxDistance: 15
   Pan2D: 0
   rolloffMode: 0
   BypassEffects: 0
@@ -311,7 +311,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0
+      value: 1
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -386,6 +386,7 @@ MonoBehaviour:
   player: {fileID: 6697063734817033035}
   crouchVolumeScale: 0.45
   crouchStrideScale: 0.5
+  sprintStrideScale: 1.28
 --- !u!114 &8823410557001220302
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2210,6 +2211,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.5, y: 1, z: 0.25}
   m_Center: {x: 0, y: 1, z: 0.4}
+--- !u!114 &8823410557001220304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4796329002958933011}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
+  emitter: {fileID: 8823410557001220301}
 --- !u!1 &4831345843929754120
 GameObject:
   m_ObjectHideFlags: 0
@@ -4107,16 +4121,3 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!114 &8823410557001220304
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4796329002958933011}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
-  emitter: {fileID: 8823410557001220301}
