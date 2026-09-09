@@ -26,6 +26,10 @@ using UnityEngine.Events;
 /// LAYOUT panel — changing the pivot does NOT alter the layout (it still fills the parent);
 /// it only moves the scaling origin. It is safe to touch it to choose where the tab is born.
 ///
+/// For a panel that should look like it comes out of a specific widget rather than out of its own
+/// pivot — the note pop-up unfolding from its button, the way a window restores from a taskbar —
+/// assign <see cref="originRect"/> and the panel travels as it grows.
+///
 /// See <see cref="GrowMode"/>: with stretch anchors you must use Scale, because sizeDelta
 /// there is an offset against the parent's edges and not the real width.
 ///
@@ -65,6 +69,12 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     [Tooltip("Minimum axis size while collapsed (SizeDelta mode).")]
     [SerializeField] private float collapsedSize = 0f;
 
+    [Header("Growth origin")]
+    [Tooltip("Optional. If assigned, the panel also TRAVELS from this rect's centre to its authored " +
+             "position while it grows, so it reads as coming out of that widget — the way a window " +
+             "restores from its taskbar button. Leave empty to grow in place from the pivot.")]
+    [SerializeField] private RectTransform originRect;
+
     [Header("Timing / Ease")]
     [SerializeField] private float openDuration  = UITweenDefaults.PanelOpenDuration;
     [SerializeField] private float closeDuration = UITweenDefaults.PanelCloseDuration;
@@ -97,9 +107,12 @@ public class InventoryTabPanelAnimator : MonoBehaviour
     /// <summary>true while an open or close animation is running.</summary>
     public bool IsAnimating { get; private set; }
 
-    private Vector2 expandedSize; // authored final sizeDelta, captured in Awake (SizeDelta mode)
-    private Vector3 baseScale;    // authored final localScale, captured in Awake (Scale mode)
-    private float growT;          // current growth progress (0 = collapsed, 1 = full)
+    private Vector2 expandedSize;   // authored final sizeDelta, captured in Awake (SizeDelta mode)
+    private Vector3 baseScale;      // authored final localScale, captured in Awake (Scale mode)
+    private Vector2 basePosition;   // authored final anchoredPosition, captured in Awake
+    private Vector2 originPosition; // originRect's centre, in this panel's own anchoredPosition space
+    private bool hasOrigin;         // false when originRect is unset or unresolvable
+    private float growT;            // current growth progress (0 = collapsed, 1 = full)
     private bool initialized;
 
     private void Awake() => EnsureInitialized();
@@ -118,6 +131,7 @@ public class InventoryTabPanelAnimator : MonoBehaviour
 
         expandedSize = panelRect.sizeDelta;
         baseScale = panelRect.localScale;
+        basePosition = panelRect.anchoredPosition;
         initialized = true;
 
         WarnIfStretchedWithSizeDelta();
@@ -153,6 +167,10 @@ public class InventoryTabPanelAnimator : MonoBehaviour
         gameObject.SetActive(true); // in case it was deactivated (startHidden or a previous close)
         EnsureInitialized();
         KillTweens();
+
+        // Resolved per open, not cached: the origin widget moves with the layout and with the
+        // aspect ratio, and a stale origin sends the panel flying in from the wrong corner.
+        CaptureOrigin();
 
         IsOpen = true;
         IsAnimating = true;
@@ -222,10 +240,44 @@ public class InventoryTabPanelAnimator : MonoBehaviour
 
     // ── Core ──────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Expresses <see cref="originRect"/>'s centre as an anchoredPosition in the panel's own
+    /// parent, so ApplyGrow can simply Lerp between the two. Silently does nothing when there is
+    /// no origin or no RectTransform parent — the panel then grows in place, as before.
+    /// </summary>
+    private void CaptureOrigin()
+    {
+        hasOrigin = false;
+
+        if (originRect == null) return;
+        if (!(panelRect.parent is RectTransform parent)) return;
+
+        Vector2 local = parent.InverseTransformPoint(originRect.TransformPoint(originRect.rect.center));
+
+        // The point our anchoredPosition is measured from. Using the midpoint of the anchors keeps
+        // this correct for stretched rects too, where min and max differ.
+        Rect pr = parent.rect;
+        Vector2 anchorReference = new Vector2(
+            Mathf.Lerp(pr.xMin, pr.xMax, (panelRect.anchorMin.x + panelRect.anchorMax.x) * 0.5f),
+            Mathf.Lerp(pr.yMin, pr.yMax, (panelRect.anchorMin.y + panelRect.anchorMax.y) * 0.5f));
+
+        // anchoredPosition positions the PIVOT, not the centre, so shift by the gap between them.
+        Rect r = panelRect.rect;
+        Vector2 pivotOffset = new Vector2(
+            (panelRect.pivot.x - 0.5f) * r.width,
+            (panelRect.pivot.y - 0.5f) * r.height);
+
+        originPosition = local - anchorReference + pivotOffset;
+        hasOrigin = true;
+    }
+
     private void ApplyGrow(float t)
     {
         if (panelRect == null) return;
         growT = t;
+
+        if (hasOrigin)
+            panelRect.anchoredPosition = Vector2.Lerp(originPosition, basePosition, t);
 
         bool horizontal = growAxis == GrowAxis.Horizontal || growAxis == GrowAxis.Both;
         bool vertical   = growAxis == GrowAxis.Vertical   || growAxis == GrowAxis.Both;

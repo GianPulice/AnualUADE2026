@@ -665,6 +665,7 @@ GameObject:
   - component: {fileID: 6669055736266329082}
   - component: {fileID: 6061943867018565769}
   - component: {fileID: 3374455880556396507}
+  - component: {fileID: 8082480001225742481}
   m_Layer: 5
   m_Name: BtnApply
   m_TagString: Untagged
@@ -831,6 +832,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &8082480001225742481
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 350617921094274316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 3160689078027429395}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &352542686092657409
 GameObject:
   m_ObjectHideFlags: 0
@@ -1608,6 +1627,7 @@ GameObject:
   - component: {fileID: 4541890984887906096}
   - component: {fileID: 3128934628018403761}
   - component: {fileID: 8692587798294278024}
+  - component: {fileID: 5519221800003186562}
   m_Layer: 5
   m_Name: Tab_Screen
   m_TagString: Untagged
@@ -1775,6 +1795,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &5519221800003186562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 669184934804504331}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 7413692175216546643}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &673868385887617716
 GameObject:
   m_ObjectHideFlags: 0
@@ -5678,6 +5716,7 @@ GameObject:
   - component: {fileID: 8486113761925537477}
   - component: {fileID: 277518831650765433}
   - component: {fileID: 7317140173998153928}
+  - component: {fileID: 4570836519331016820}
   m_Layer: 5
   m_Name: Tab_Controls
   m_TagString: Untagged
@@ -5845,6 +5884,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &4570836519331016820
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2538358865249685446}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 9119691742550113072}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &2538780469351766290
 GameObject:
   m_ObjectHideFlags: 0
@@ -7690,7 +7747,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SettingsController
   view: {fileID: 6850042512716798611}
-  _closeKey: 27
 --- !u!1 &3484340676642026972
 GameObject:
   m_ObjectHideFlags: 0
@@ -8881,6 +8937,7 @@ GameObject:
   - component: {fileID: 4425268421137012478}
   - component: {fileID: 6522852001127567364}
   - component: {fileID: 8225072842981639557}
+  - component: {fileID: 4822068966088209752}
   m_Layer: 5
   m_Name: Tab_Brightness
   m_TagString: Untagged
@@ -9048,6 +9105,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &4822068966088209752
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081900509629479146}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 3219346663128391667}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &4085639284665345597
 GameObject:
   m_ObjectHideFlags: 0
@@ -13445,6 +13520,7 @@ MonoBehaviour:
     panel: {fileID: 6529260435931656420}
     activeIndicator: {fileID: 5523525278464361447}
   _initialTab: 3
+  _rememberLastTab: 1
 --- !u!1 &6326276022485626260
 GameObject:
   m_ObjectHideFlags: 0
@@ -13535,6 +13611,7 @@ GameObject:
   - component: {fileID: 4179984063464718056}
   - component: {fileID: 3874177106232703143}
   - component: {fileID: 2892047345199618857}
+  - component: {fileID: 6959089729249948490}
   m_Layer: 5
   m_Name: Tab_Volume
   m_TagString: Untagged
@@ -13702,6 +13779,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &6959089729249948490
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6350306650676618623}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 5453424063180586344}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &6353657670133521787
 GameObject:
   m_ObjectHideFlags: 0
@@ -17495,6 +17590,7 @@ GameObject:
   - component: {fileID: 5782310137602493164}
   - component: {fileID: 3128576910986569971}
   - component: {fileID: 6700669261811371913}
+  - component: {fileID: 8978956624763049830}
   m_Layer: 5
   m_Name: BackButton
   m_TagString: Untagged
@@ -17641,6 +17737,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &8978956624763049830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8973823844472221836}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 1455989667137456508}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &9141216529452481965
 GameObject:
   m_ObjectHideFlags: 0
@@ -17656,6 +17770,7 @@ GameObject:
   - component: {fileID: 3581017797904959698}
   - component: {fileID: 7084316010986018925}
   - component: {fileID: 5062020370431466543}
+  - component: {fileID: 7287342481761190009}
   m_Layer: 5
   m_Name: BtnReset
   m_TagString: Untagged
@@ -17822,6 +17937,24 @@ MonoBehaviour:
   outEase: 5
   ignoreTimeScale: 1
   settings: {fileID: 0}
+--- !u!114 &7287342481761190009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9141216529452481965}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e7973c1d36ddd4c9d3e65c97ff5aca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonHoverColorSwap
+  target: {fileID: 2526794905314157471}
+  captureNormalFromTarget: 1
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  duration: 0.18
+  ignoreTimeScale: 1
 --- !u!1 &9159214444288351541
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,4 +1,3 @@
-using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,13 +8,15 @@ using UnityEngine.UI;
 /// Responsibilities:
 ///   - Show the empty state until something is selected
 ///   - Populate header, description, metadata and content from the item
-///   - Show the doc panel for Text-type items (handled by the Controller via the ESC stack)
+///   - Own the doc toggle button for Text-type items
 ///   - Expose the discard button
 ///   - Notify the Controller of the discard
 ///
 /// Notes:
 ///   - Audio WIP: structure ready, logic disabled with enableAudioFeatures.
-///   - docPanel is a separate layer handled by ShowDoc/HideDoc.
+///   - The doc pop-up itself is <see cref="DocPanelView"/>, a separate layer. This view only
+///     owns the button that toggles it, because whether the button exists at all depends on
+///     the item's ContentType — which is this view's business.
 ///     The Controller decides when to open/close it (not ShowEmpty nor ShowDetail).
 /// </summary>
 public class ItemDetailView : MonoBehaviour
@@ -54,12 +55,13 @@ public class ItemDetailView : MonoBehaviour
     // ── Doc panel ─────────────────────────────────────────────────────────────
 
     [Header("Doc Panel (Text-type items)")]
-    [Tooltip("Separate panel that opens on top of the detail. Closable with ESC without deselecting the item.")]
-    [SerializeField] private GameObject docPanel;
-    [SerializeField] private TextMeshProUGUI docPanelText;
-    [SerializeField] private ScrollRect docScrollRect;
-    [SerializeField] private RectTransform docViewport;
-    [SerializeField] private Button openDocButton;  // "read document" inside the detail
+    [Tooltip("Pop-up that opens on top of the detail. Closable with ESC without deselecting the item.")]
+    [SerializeField] private DocPanelView docPanel;
+    [Tooltip("Toggles the pop-up. Only visible while a Text-type item is selected.")]
+    [SerializeField] private Button openDocButton;
+    [SerializeField] private TextMeshProUGUI openDocButtonText;
+    [SerializeField] private string openDocLabel = "[ OPEN DOC ]";
+    [SerializeField] private string closeDocLabel = "[ CLOSE DOC ]";
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
 
@@ -83,8 +85,18 @@ public class ItemDetailView : MonoBehaviour
 
     // ── Colors ────────────────────────────────────────────────────────────────
 
-    private static readonly Color MetallicYesColor = new Color(0.53f, 0.13f, 0.13f);
-    private static readonly Color MetallicNoColor = new Color(0.40f, 0.40f, 0.40f);
+    private static readonly Color MetallicYesColor = new Color(0.80f, 0.20f, 0.20f);
+    private static readonly Color MetallicNoColor = new Color(0.88f, 0.88f, 0.88f);
+
+    /// <summary>
+    /// The category colour in the config asset is a saturated fill — it reads as a solid block
+    /// of colour behind the icon and the tag. The detail panel wants the terminal look instead:
+    /// a near-black chip with the category colour surviving only in the label. These two factors
+    /// derive both from the same authored colour, so a category still needs exactly one colour
+    /// in the asset.
+    /// </summary>
+    private const float ChipBackgroundFactor = 0.30f;
+    private const float ChipLabelFactor = 1.65f;
 
     // ── Internal state ────────────────────────────────────────────────────────
 
@@ -94,14 +106,18 @@ public class ItemDetailView : MonoBehaviour
     /// The Controller queries this to know whether ESC should close the doc
     /// before closing the inventory.
     /// </summary>
-    public bool IsDocOpen { get; private set; }
+    public bool IsDocOpen => docPanel != null && docPanel.IsOpen;
 
     // ── Unity ─────────────────────────────────────────────────────────────────
 
     void Awake()
     {
         discardButton?.onClick.AddListener(OnDiscardClicked);
-        openDocButton?.onClick.AddListener(OnOpenDocClicked);
+        openDocButton?.onClick.AddListener(OnDocButtonClicked);
+
+        // The X inside the pop-up routes back through the Controller like ESC does, so there is
+        // a single close path and IsDocOpen can never lie.
+        if (docPanel != null) docPanel.OnCloseRequested += OnDocCloseRequested;
 
         if (enableAudioFeatures)
         {
@@ -111,8 +127,8 @@ public class ItemDetailView : MonoBehaviour
         }
 
         // Clean initial state
-        docPanel?.SetActive(false);
-        IsDocOpen = false;
+        docPanel?.gameObject.SetActive(false);
+        RefreshDocButtonLabel();
     }
 
     void Update()
@@ -123,7 +139,9 @@ public class ItemDetailView : MonoBehaviour
     void OnDestroy()
     {
         discardButton?.onClick.RemoveListener(OnDiscardClicked);
-        openDocButton?.onClick.RemoveListener(OnOpenDocClicked);
+        openDocButton?.onClick.RemoveListener(OnDocButtonClicked);
+
+        if (docPanel != null) docPanel.OnCloseRequested -= OnDocCloseRequested;
 
         if (enableAudioFeatures)
         {
@@ -183,26 +201,31 @@ public class ItemDetailView : MonoBehaviour
     {
         if (docPanel == null) return;
 
-        IsDocOpen = true;
-        docPanel.SetActive(true);
-
-        // Reset the scroll to the top every time it opens
-        if (docScrollRect != null)
-            docScrollRect.verticalNormalizedPosition = 1f;
-        CheckDocScrollNeeded().Forget();
+        docPanel.Open();
+        RefreshDocButtonLabel();
     }
 
     /// <summary>
-    /// Closes the doc panel.
-    /// Called by the Controller via the ESC stack.
+    /// Closes the doc panel through its reverse animation.
+    /// Called by the Controller via the ESC stack, by the toggle button and by the panel's X.
     /// It does NOT deselect the item nor touch detailContentPanel.
     /// </summary>
     public void HideDoc()
     {
         if (docPanel == null) return;
 
-        IsDocOpen = false;
-        docPanel.SetActive(false);
+        docPanel.Close();
+        RefreshDocButtonLabel();
+    }
+
+    /// <summary>
+    /// The one button says what it will do next, so the player never has to guess whether a
+    /// second click re-opens or closes.
+    /// </summary>
+    private void RefreshDocButtonLabel()
+    {
+        if (openDocButtonText == null) return;
+        openDocButtonText.text = IsDocOpen ? closeDocLabel : openDocLabel;
     }
 
     public void StopAudio()
@@ -217,15 +240,27 @@ public class ItemDetailView : MonoBehaviour
     private void PopulateHeader(SO_InventoryItem item)
     {
         CategoryVisuals v = categoryConfig.Get(item.Category);
+        Color chipBackground = Scaled(v.BackgroundColor, ChipBackgroundFactor);
 
         if (iconImage != null && item.ItemIcon != null) iconImage.sprite = item.ItemIcon;
-        if (iconBackground != null) iconBackground.color = v.BackgroundColor;
+        if (iconBackground != null) iconBackground.color = chipBackground;
         // Filename-style header, e.g. "> MECHANICAL_CORE.CMP"
         if (itemNameText != null)
             itemNameText.text = $"> {InventoryTextFormat.MachineName(item.ItemName)}.{v.TagLabel}";
-        if (categoryTagText != null) categoryTagText.text = $"[{v.TagLabel}]";
-        if (categoryTagBackground != null) categoryTagBackground.color = v.BackgroundColor;
+        if (categoryTagText != null)
+        {
+            categoryTagText.text = $"[{v.TagLabel}]";
+            categoryTagText.color = Scaled(v.MainColor, ChipLabelFactor);
+        }
+        if (categoryTagBackground != null) categoryTagBackground.color = chipBackground;
     }
+
+    /// <summary>Multiplies RGB, keeps alpha opaque, clamps. See the chip factors above.</summary>
+    private static Color Scaled(Color c, float factor) => new Color(
+        Mathf.Clamp01(c.r * factor),
+        Mathf.Clamp01(c.g * factor),
+        Mathf.Clamp01(c.b * factor),
+        1f);
 
     private void PopulateDescription(SO_InventoryItem item)
     {
@@ -260,10 +295,10 @@ public class ItemDetailView : MonoBehaviour
         {
             case ItemContentType.Text:
                 // Load the text into the panel (without opening it — the player opens it with the button)
-                if (docPanelText != null)
-                    docPanelText.text = item.TextContent;
+                docPanel?.SetContent(item.ItemName, item.TextContent);
 
                 openDocButton?.gameObject.SetActive(true);
+                RefreshDocButtonLabel();
                 break;
 
             case ItemContentType.Audio:
@@ -281,35 +316,36 @@ public class ItemDetailView : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// The label is fixed, not "DISCARD &lt;item&gt;". The button is now a small fixed-width control
+    /// sitting next to the doc button, and the item name is already spelled out in the header two
+    /// rows above — interpolating it in only guaranteed an overflow on the longer items.
+    /// </summary>
     private void PopulateDiscardButton(SO_InventoryItem item)
     {
         if (discardButtonText != null)
-            discardButtonText.text = $"[ DISCARD {item.ItemName.ToUpper()} ]";
+            discardButtonText.text = "[ DISCARD ]";
     }
 
     // ── Callbacks ─────────────────────────────────────────────────────────────
 
-    private void OnOpenDocClicked()
+    /// <summary>
+    /// One button, both directions. The View notifies the Controller, the Controller registers
+    /// the layer and calls back into ShowDoc()/HideDoc().
+    /// </summary>
+    private void OnDocButtonClicked()
     {
-        // The View notifies the Controller, the Controller registers the layer and calls ShowDoc()
-        InventoryManagerUI.Instance.OpenDocument();
+        if (IsDocOpen) InventoryManagerUI.Instance.CloseDocument();
+        else InventoryManagerUI.Instance.OpenDocument();
     }
+
+    /// <summary>The X inside the pop-up. Same path as ESC.</summary>
+    private void OnDocCloseRequested() => InventoryManagerUI.Instance.CloseDocument();
 
     private void OnDiscardClicked()
     {
         if (currentItem == null) return;
         InventoryManagerUI.Instance.RequestDiscard(currentItem);
-    }
-
-    private async UniTaskVoid CheckDocScrollNeeded()
-    {
-        await UniTask.WaitForEndOfFrame(this);
-
-        if (docScrollRect == null || docViewport == null) return;
-
-        RectTransform content = docScrollRect.content;
-        bool overflows = content.sizeDelta.y > docViewport.rect.height;
-        docScrollRect.vertical = overflows;
     }
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────

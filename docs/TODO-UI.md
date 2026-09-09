@@ -34,8 +34,97 @@ loop de juego no corre**.
 
 - [ ] **Topbar del inventario** — fila ~28px arriba con `// inventario` a la izquierda y `[TAB] cerrar` a la derecha. Spec inventory §2.
 - [ ] **Bottom hint** — fila ~22px abajo con `[E] usar / insertar` y `[ESC] cerrar inventario`. Spec inventory §2.
-- [ ] **Estado vacío del panel de detalle** — texto centrado "Selecciona un item / para ver el detalle" en gris `#222` cuando no hay selección. Spec inventory §5.1.
+- [x] **Estado vacío del panel de detalle** — `Empty State Panel/EmptyStateText`, texto centrado
+      "SELECT AN ITEM / TO SEE THE DETAIL" en `#8A8A8A`. El panel de fondo quedó con alpha 0.
 - [ ] **Borde izquierdo rojo** (`#cc1a1a`, 2px) en item seleccionado de la lista + fondo `#110808`. Hoy el highlight es genérico. Spec inventory §4.3.
+
+### Panel de detalle — pasada visual (hecha)
+
+Realineado contra la referencia visual `inventory_list_hud_wired.html` (misma paleta que el spec
+de inventario, que vive en Drive y no en este repo):
+
+- **Pop-up de nota, no overlay pelado.** `Doc Box` mide 820x560 centrado, borde `#1E1E1E`, fondo
+  `#070707`, con barra de título (`DocTitle` + `CloseDocButton`, la cruz). Abre y cierra con
+  `InventoryTabPanelAnimator` (escala + fade, y la inversa al cerrar).
+- **Toggle en un solo botón.** `OpenDocButton` alterna su label entre `[ OPEN DOC ]` y
+  `[ CLOSE DOC ]` según el estado del panel. Solo aparece con ítems `ContentType.Text`.
+- **Tres formas de cerrar, una sola ruta.** La cruz, el botón y ESC pasan todos por
+  `InventoryManagerUI.CloseDocument()`, así el stack de capas y el label no se desincronizan.
+- **El scroll de notas largas ahora funciona.** `Content` no tenía `ContentSizeFitter`, así que
+  `sizeDelta.y` nunca crecía y `docScrollRect.vertical` jamás se habilitaba. Ahora tiene
+  `VerticalLayoutGroup` + `ContentSizeFitter` (vertical = PreferredSize) y `DocText` dejó de
+  tener autosizing (venía a 72pt).
+- **Chips de categoría por dato.** `ItemDetailView` deriva el fondo oscuro y el color del label de
+  la `MainColor`/`BackgroundColor` de `SO_ItemCategoryConfig` (×0.30 y ×1.65). No hace falta
+  autorear un segundo color por categoría y el asset **no se tocó** — la lista sigue igual.
+- **`Parameter Layout`** tenía `ChildForceExpandHeight` en una caja de 360px para 3 filas de 44:
+  los parámetros salían desparramados. Ahora 150px con spacing 6.
+- **Los dos botones del footer son chicos, del mismo tamaño y anclados a un punto.**
+  `Discard Item Button` a la izquierda y `OpenDocButton` a su derecha, ambos 260x44 anclados a
+  `(0,0)` con pivot `(0,0)` — o sea esquina inferior izquierda del panel, offsets fijos (24 y 300).
+  Anclar a un punto con tamaño fijo es estable en cualquier aspect; lo que no servía era el
+  `sizeDelta.x` fijo **con anclaje al centro**, que hacía que el botón ocupara una fracción
+  distinta del panel según la relación de aspecto. Ver `UI-System.md` §7.5.
+- **`[ DISCARD ]` dejó de interpolar el nombre del ítem.** En un botón de 260px,
+  `$"[ DISCARD {item.ItemName.ToUpper()} ]"` desbordaba con cualquier nombre largo, y el nombre ya
+  está en el header dos filas más arriba.
+- **Botones que invierten color en hover.** `OpenDocButton` va blanco `#E6E6E6` con label
+  `#262626`; al pasar el mouse la `SweepBar` entra en rojo sólido `#CC1A1A` y el label pasa a
+  blanco. `Discard Item Button` hace lo mismo desde su rojo oscuro. Lo hace
+  `ButtonHoverColorSwap`, un componente nuevo aparte de `ButtonHoverSweepEffect`: uno desliza la
+  barra y el otro recolorea un Graphic, y un botón puede querer cualquiera de los dos. Juntos son
+  el botón que invierte.
+- **`ButtonHoverColorSwap` también está en los 7 botones de Settings** (`BtnApply`, `BtnReset`,
+  `BackButton` y los 4 tabs), que tenían el label en `#888888` y se leían mal cuando la barra roja
+  pasaba por debajo. Ahora van a blanco en hover. **No** se puso en Pausa / Result / Win: esos
+  labels ya son `#FFFFFF` y el swap sería un no-op.
+- **El pop-up sale del botón que lo abre.** `InventoryTabPanelAnimator` acepta ahora un
+  `originRect` opcional: si está asignado, el panel además *viaja* desde el centro de ese rect
+  hasta su posición autoral mientras crece, como una ventana que se restaura desde la barra de
+  tareas. En `Doc Box` apunta a `OpenDocButton`, con `collapsedScale 0.08`. El origen se resuelve
+  en cada `Open()`, no se cachea, porque el botón se mueve con el aspect.
+- **El inventario entero abre igual.** `LAYOUT` pasó a `growAxis Both` con `collapsedScale 0.05` y
+  pivot `(0.5, 0)`, así que crece desde el borde inferior. Cambiar el pivot de un rect full-stretch
+  con `sizeDelta (0,0)` no mueve el layout, solo el origen del escalado.
+- **El verde del scroll de la lista** (`#00674A`) pasó a rojo bordo `#5C1622`.
+- **Textos a blanco**: nombre del ítem `#FFFFFF`, descripción `#E0E0E0`, cuerpo de la nota
+  `#E8E8E8`, título del pop-up `#FFFFFF`. Los parámetros dejaron de estar en gris `#666`
+  (`MetallicNoColor` ahora es `#E0E0E0` y `MetallicYesColor` `#CC3333`).
+- **`Doc Box` colgaba de `InventoryObjects` y lo tapaban `ItemsText` y `ModuleList`.** uGUI dibuja
+  por orden de jerarquía; ahora es hijo de `LAYOUT` entre `ModuleList` y `DiscardDialogView`, así
+  que el pop-up cubre todo el inventario y el diálogo de descarte le sigue ganando a él. Los dos
+  padres son full-stretch con `sizeDelta (0,0)`, así que el rect en pantalla no se movió.
+
+### HUD de módulos — "INACTIVE" cortado
+
+`Module Group.prefab` tenía `Module Status` y `Active Module Name (1)` en cajas de **79.17px** a
+20pt con wrapping activo. Share Tech Mono avanza ~10.9px por carácter a ese tamaño, así que entran
+7 y se partían las de 8: `INACTIVE`, `RESOLVED`, `EXPLODED` y también `M2_Chest`. Las dos pasaron a
+**120px de ancho** con `m_TextWrappingMode: 0`, y se les corrió el `anchoredPosition` la mitad del
+ensanche (pivot 0.5) para que el borde izquierdo del texto no se moviera ni un pixel.
+
+Pendiente en esta zona:
+
+- [ ] **Bordes de 1px** en chips y botones. La referencia los tiene; un `Image` de uGUI sin sprite
+      no dibuja borde, así que hace falta un sprite 9-sliced con outline o un nodo extra por chip.
+      Hoy se resuelve solo con fondo.
+- [ ] **Sweep del `CloseDocButton`** — ya tiene `ButtonHoverColorSwap` (la cruz se aclara a blanco)
+      pero no `ButtonHoverSweepEffect` como el resto, porque le faltan el `SweepBar` y el
+      `RectMask2D`.
+- [ ] **Calibrar el gris del cuerpo de la nota.** La referencia usa `#3a3a3a` sobre `#070707`, que
+      a 10px en un browser lee bien pero a pantalla completa queda casi ilegible. Quedó en
+      `#E8E8E8` (`DocText`) tras el pedido de pasar los textos a blanco. Bajarlo solo si en algún
+      momento se prioriza fidelidad al mockup sobre legibilidad.
+- [ ] **Override huérfano en `LevelUI.unity`** — la instancia del prefab fuerza `Doc Box` a
+      `m_IsActive: 1`. Hoy es inerte (el `CanvasGroup` arranca en alpha 0 y `ItemDetailView.Awake`
+      lo desactiva), pero conviene hacerle Revert al override.
+
+> ⛔ **No correr `Tools/UI/Apply Theme To Inventory`.** El sistema de theme
+> (`UIThemeApplier` + `SO_UIThemeConfig` + `UITheme.asset` + `InventoryThemeSetup.cs`) existe pero
+> hoy tiene **cero instancias** de `UIThemeApplier` en todo el proyecto: ningún prefab ni escena lo
+> usa. Se probó sobre el inventario y el resultado no gustó, así que el inventario queda con
+> colores literales a propósito. Los archivos se conservan por si se retoma; la decisión de
+> reactivarlo es de diseño, no un pendiente técnico.
 
 ### Reproductor de audio (mediano)
 
