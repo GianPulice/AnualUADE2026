@@ -4,7 +4,7 @@ public class BasketTrigger : MonoBehaviour
 {
     [SerializeField] private string basketId;
     [SerializeField] private string linkedPuzzleId;
-    [Tooltip("Transform the box (GrabbableBall) is snapped to when the CORRECT ball lands here. " +
+    [Tooltip("Transform the box (PushableBox) is snapped to when the CORRECT ball lands here. " +
              "Only X and Z are used; the box keeps its own Y. Leave empty to fall back to this " +
              "trigger's parent — the intended layout, where the trigger is a child of Canasto_X.")]
     [SerializeField] private Transform snapTarget;
@@ -71,7 +71,7 @@ public class BasketTrigger : MonoBehaviour
         // balls that share the same linkedPuzzleId keep behaving exactly as before.
         if (IsCorrectBallForThisBasket(ball))
         {
-            GrabbableBall grab = ball.GetComponentInParent<GrabbableBall>();
+            PushableBox grab = ball.GetComponentInParent<PushableBox>();
             if (grab != null) grab.LockAtBasket(ResolveSnapTarget());
         }
 

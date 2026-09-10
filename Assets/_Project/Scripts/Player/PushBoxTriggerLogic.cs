@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class PushBoxTriggerLogic : MonoBehaviour
 {
-    [SerializeField] private GrabbableBall Owner;
+    [SerializeField] private PushableBox Owner;
 
     /// <summary>
     /// All three trigger callbacks dereference Owner on the first line, so an unassigned one is a
@@ -11,13 +11,13 @@ public class PushBoxTriggerLogic : MonoBehaviour
     /// </summary>
     private void Awake()
     {
-        if (Owner == null) Owner = GetComponentInParent<GrabbableBall>();
+        if (Owner == null) Owner = GetComponentInParent<PushableBox>();
 
         if (Owner != null) return;
 
         Debug.LogError($"[{nameof(PushBoxTriggerLogic)}] '{name}' has no {nameof(Owner)} and none " +
                        $"was found in its parents. The trigger has been disabled — assign it in " +
-                       $"the inspector, or reparent this object under its GrabbableBall.", this);
+                       $"the inspector, or reparent this object under its PushableBox.", this);
         enabled = false;
     }
 
