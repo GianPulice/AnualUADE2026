@@ -32,6 +32,14 @@ public class SO_UIThemeConfig : ScriptableObject
     public Color BorderStrong;
     public Color Divider;
 
+    [Header("Bevel (Win95-style frames, see UIBevelFrame)")]
+    [Tooltip("Lit edge: top and left of a raised frame, bottom and right of a sunken one.")]
+    public Color BevelLight;
+    [Tooltip("Shaded edge, opposite BevelLight.")]
+    public Color BevelShadow;
+    [Tooltip("Outermost ring of every frame. Black, so every framed element reads as cut out of the panel.")]
+    public Color Outline;
+
     [Header("Text")]
     public Color TextPrimary;
     public Color TextSecondary;
@@ -68,30 +76,43 @@ public class SO_UIThemeConfig : ScriptableObject
         UIThemeRole.AccentBgSubtle => AccentBgSubtle,
         UIThemeRole.AccentBgDeep   => AccentBgDeep,
         UIThemeRole.AccentBorder   => AccentBorder,
+        UIThemeRole.BevelLight     => BevelLight,
+        UIThemeRole.BevelShadow    => BevelShadow,
+        UIThemeRole.Outline        => Outline,
         _ => TextPrimary
     };
 
     // -- Default values (call from the Inspector's context menu) -------------------
 
     /// <summary>
-    /// Fills every field with the values read out of CanvasSettings.prefab and the
-    /// options_menu_v2_wired.html mockup. Use it to get back to the base palette.
+    /// Fills every field with the WIRED base palette. Use it to get back to it after tuning.
+    ///
+    /// The surfaces started out as the greys of CanvasSettings.prefab and were pushed to near-black
+    /// for the inventory redesign: the art notes asked for a black ground rather than grey, with
+    /// tones that go with it. The blacks lean faintly red so they sit with the accent instead of
+    /// reading as neutral grey. CanvasSettings itself does not use this asset, so it still has the
+    /// old greys.
     /// </summary>
     [ContextMenu("Reset to WIRED design values")]
     public void ResetToDesignDefaults()
     {
         // Surfaces
-        SurfaceScreen  = HexToColor("#111111"); // outermost frame
-        SurfacePanel   = HexToColor("#1E1E1E"); // Panel_Brightness / Controls / Screen / Volume
-        SurfaceRaised  = HexToColor("#242424"); // pause box, key badges, raised rows
-        SurfaceFooter  = HexToColor("#1A1A1A"); // Footer, topbar
-        SurfaceTabs    = HexToColor("#191919"); // tab rail
-        Dim            = HexToColor("#222222B2"); // BG_dim — 70% alpha
+        SurfaceScreen  = HexToColor("#000000"); // outermost frame, list and text wells
+        SurfacePanel   = HexToColor("#0B0909"); // window panels
+        SurfaceRaised  = HexToColor("#151111"); // buttons, doc box, raised rows
+        SurfaceFooter  = HexToColor("#080606"); // title bars
+        SurfaceTabs    = HexToColor("#0A0808"); // tab rail
+        Dim            = HexToColor("#000000E0"); // behind the inventory — 88% alpha, black not grey
 
         // Borders
-        BorderHairline = HexToColor("#2E2E2E");
-        BorderStrong   = HexToColor("#3A3A3A"); // idle button border, hover on hairline
-        Divider        = HexToColor("#272727");
+        BorderHairline = HexToColor("#241C1C");
+        BorderStrong   = HexToColor("#3A2E2E"); // scrollbar handles, hover on hairline
+        Divider        = HexToColor("#000000");
+
+        // Bevel
+        BevelLight     = HexToColor("#6B5959"); // must read at a glance on #0B0909, or the bevel is lost
+        BevelShadow    = HexToColor("#000000");
+        Outline        = HexToColor("#000000");
 
         // Text
         TextPrimary    = HexToColor("#E0E0E0");
@@ -153,5 +174,11 @@ public enum UIThemeRole
     AccentHover,
     AccentBgSubtle,
     AccentBgDeep,
-    AccentBorder
+    AccentBorder,
+
+    // Appended, never inserted: UIThemeApplier stores the role as its index, so a value added in
+    // the middle would silently repaint every node that already picked a role after it.
+    BevelLight,
+    BevelShadow,
+    Outline
 }

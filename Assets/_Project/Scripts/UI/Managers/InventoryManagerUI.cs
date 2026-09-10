@@ -181,6 +181,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     {
         if (!isInventoryOpen) return;
 
+        // Tab and ESC peel one layer per press, so by the time they get here nothing is stacked on
+        // top. The title-bar X closes from any depth. The doc pop-up and the discard dialog live
+        // inside LAYOUT, so they vanish with it — but their own state would still say open: the doc
+        // would reappear on the next open, and a pending discard would keep Tab locked out.
+        if (isDiscardOpen) CancelDiscard();
+        if (itemDetailView != null && itemDetailView.IsDocOpen) itemDetailView.HideDoc();
+
         isInventoryOpen = false;
         selectedItem = null;
 

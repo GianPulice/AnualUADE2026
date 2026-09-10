@@ -47,7 +47,9 @@ public class SO_ItemCategoryConfig : ScriptableObject
         Key = new CategoryVisuals
         {
             MainColor          = HexToColor("#801A1A"),
-            BackgroundColor    = HexToColor("#801A1A"),
+            // Behind the row icon. Kept near-black so the ground stays black; the [KEY] tag
+            // text and the selection fill carry the category colour.
+            BackgroundColor    = HexToColor("#3A0C0C"),
             ButtonColor        = HexToColor("#801A1A"),
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
@@ -63,7 +65,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
         Component = new CategoryVisuals
         {
             MainColor          = HexToColor("#1A661A"),
-            BackgroundColor    = HexToColor("#1A661A"),
+            BackgroundColor    = HexToColor("#0C2E0C"),
             ButtonColor        = HexToColor("#1A661A"),
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
@@ -77,7 +79,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
         Note = new CategoryVisuals
         {
             MainColor          = HexToColor("#1A1A80"),
-            BackgroundColor    = HexToColor("#1A1A80"),
+            BackgroundColor    = HexToColor("#0C0C3A"),
             ButtonColor        = HexToColor("#1A1A80"),
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
@@ -92,7 +94,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
         Special = new CategoryVisuals
         {
             MainColor          = HexToColor("#8C5319"),
-            BackgroundColor    = HexToColor("#8C5319"),
+            BackgroundColor    = HexToColor("#3F250B"),
             ButtonColor        = HexToColor("#8C5319"),
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),
@@ -106,7 +108,7 @@ public class SO_ItemCategoryConfig : ScriptableObject
         Default = new CategoryVisuals
         {
             MainColor          = HexToColor("#333333"),
-            BackgroundColor    = HexToColor("#333333"),
+            BackgroundColor    = HexToColor("#171717"),
             ButtonColor        = HexToColor("#333333"),
             TextColor          = HexToColor("#999999"),
             SelectedTextColor  = HexToColor("#E0E0E0"),

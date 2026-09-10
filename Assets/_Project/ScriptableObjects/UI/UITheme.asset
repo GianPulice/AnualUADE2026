@@ -12,21 +12,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7a3f1c9e5b2d4e8a9f0c1d2e3b4a5c6d, type: 3}
   m_Name: UITheme
   m_EditorClassIdentifier: Assembly-CSharp::SO_UIThemeConfig
-  SurfaceScreen: {r: 0.06666667, g: 0.06666667, b: 0.06666667, a: 1}
-  SurfacePanel: {r: 0.11764706, g: 0.11764706, b: 0.11764706, a: 1}
-  SurfaceRaised: {r: 0.14117648, g: 0.14117648, b: 0.14117648, a: 1}
-  SurfaceFooter: {r: 0.101960786, g: 0.101960786, b: 0.101960786, a: 1}
-  SurfaceTabs: {r: 0.09803922, g: 0.09803922, b: 0.09803922, a: 1}
-  Dim: {r: 0.13333334, g: 0.13333334, b: 0.13333334, a: 0.69803923}
-  BorderHairline: {r: 0.18039216, g: 0.18039216, b: 0.18039216, a: 1}
-  BorderStrong: {r: 0.22745098, g: 0.22745098, b: 0.22745098, a: 1}
-  Divider: {r: 0.15294118, g: 0.15294118, b: 0.15294118, a: 1}
-  TextPrimary: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
+  SurfaceScreen: {r: 0.09433961, g: 0.010234959, b: 0.010234959, a: 1}
+  SurfacePanel: {r: 0.09433961, g: 0.09433961, b: 0.09433961, a: 1}
+  SurfaceRaised: {r: 0.16037738, g: 0.035555363, b: 0.035555363, a: 1}
+  SurfaceFooter: {r: 0.3679245, g: 0, b: 0, a: 1}
+  SurfaceTabs: {r: 0.039215688, g: 0.03137255, b: 0.03137255, a: 1}
+  Dim: {r: 0, g: 0, b: 0, a: 0.98039216}
+  BorderHairline: {r: 0.14117648, g: 0.10980392, b: 0.10980392, a: 1}
+  BorderStrong: {r: 0.7169812, g: 0.07102172, b: 0.07102172, a: 1}
+  Divider: {r: 0, g: 0, b: 0, a: 0.11764706}
+  BevelLight: {r: 0.6603774, g: 0.6603774, b: 0.6603774, a: 1}
+  BevelShadow: {r: 0.23584908, g: 0.23584908, b: 0.23584908, a: 1}
+  Outline: {r: 0.4245283, g: 0.4245283, b: 0.4245283, a: 1}
+  TextPrimary: {r: 1, g: 1, b: 1, a: 1}
   TextSecondary: {r: 0.73333335, g: 0.73333335, b: 0.73333335, a: 1}
   TextMuted: {r: 0.53333336, g: 0.53333336, b: 0.53333336, a: 1}
   TextDisabled: {r: 0.33333334, g: 0.33333334, b: 0.33333334, a: 1}
   Accent: {r: 0.8, g: 0.101960786, b: 0.101960786, a: 1}
-  AccentHover: {r: 0.93333334, g: 0.2, b: 0.2, a: 1}
+  AccentHover: {r: 1, g: 0.2971698, b: 0.2971698, a: 1}
   AccentBgSubtle: {r: 0.101960786, g: 0.03137255, b: 0.03137255, a: 1}
   AccentBgDeep: {r: 0.078431375, g: 0.023529412, b: 0.023529412, a: 1}
   AccentBorder: {r: 0.29411766, g: 0.047058824, b: 0.047058824, a: 1}
