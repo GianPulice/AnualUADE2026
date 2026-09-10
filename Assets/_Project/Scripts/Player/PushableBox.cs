@@ -320,5 +320,11 @@ public class PushableBox : BaseRangeInteractable
         }
 
         LeanTween.move(gameObject, to, snapDuration).setEaseOutCubic();
+
+        // The crosshair may still be on this box after the snap starts; without a refresh the UI
+        // keeps advertising the previous prompt (e.g. "stop pushing the box") even though the
+        // box is now locked and CanInteract returns false. Fired after `locked = true` so the
+        // refresh reads the final state, not the transient post-ForceRelease "push" state.
+        InteractionEvents.RequestPromptRefresh();
     }
 }
