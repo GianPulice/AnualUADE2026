@@ -58,15 +58,15 @@ Material:
     - _AlphaClip: 0
     - _Cull: 2
     - _Cutoff: 0.5
-    - _EmissionIntensity: 1
-    - _OutlineIntensity: 0
+    - _EmissionIntensity: 0.25
+    - _OutlineIntensity: 0.12
     - _OutlinePower: 3
-    - _Smoothness: 0.25
+    - _Smoothness: 0.281
     - _Surface: 0
     - _TintIntensity: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _EmissionColor: {r: 0.9150943, g: 0.9150943, b: 0.9150943, a: 1}
     - _OutlineColor: {r: 0, g: 4.915323, b: 5.4033303, a: 1}
     - _TintColor: {r: 0, g: 0.66666687, b: 1, a: 1}
   m_BuildTextureStacks: []

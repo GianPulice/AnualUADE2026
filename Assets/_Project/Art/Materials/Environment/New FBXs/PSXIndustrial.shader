@@ -60,9 +60,9 @@ Shader "Custom/PSXIndustrial"
         _RustMetallic("Rust Metallic", Range(0, 1)) = 0
 
         [Header(Tinte de categoria)]
-        // Mismos nombres que ItemPSX_Outline. ItemProximityHighlight exige que el material
-        // declare _TintIntensity Y _EmissionIntensity: si falta una, el MaterialPropertyBlock
-        // escribe en una property inexistente y el highlight no hace nada, en silencio.
+        // Mismos nombres que ItemPSX_Outline. ItemProximityHighlight trata como shader de highlight
+        // a todo el que declare _EmissionColor Y _EmissionIntensity, y escribe el tinte solo si
+        // ademas declara _TintIntensity.
         // Arranca en 0 => ningun material existente cambia de aspecto.
         _TintColor("Tint Color", Color) = (1, 1, 1, 1)
         _TintIntensity("Tint Intensity", Range(0, 2)) = 0

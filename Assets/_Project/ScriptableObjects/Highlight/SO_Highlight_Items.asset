@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 346e3a7c66438b645b608fad4577dcf1, type: 3}
+  m_Name: SO_Highlight_Items
+  m_EditorClassIdentifier: Assembly-CSharp::SO_HighlightProfile
+  farTint: 0.15
+  farEmission: 0
+  nearTint: 0.4
+  nearEmission: 0.2
+  lerpDuration: 0.3
+  tintColor: {r: 1, g: 1, b: 1, a: 1}
+  emissionColor: {r: 1, g: 0.784, b: 0.314, a: 1}
+  categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}

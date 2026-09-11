@@ -19,21 +19,23 @@ MonoBehaviour:
     TextColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     SelectedBGColor: {r: 0.6509804, g: 0.13333334, b: 0.13333334, a: 1}
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
-    GroupLabel: "// KEYS"
+    GroupLabel: // KEYS
     TagLabel: KEY
+    pickupSoundId: 
     shaderTintColor: {r: 0.5019608, g: 0.101960786, b: 0.101960786, a: 1}
     shaderEmissionColor: {r: 1, g: 0, b: 0, a: 1}
   Component:
-    MainColor: {r: 0.101960786, g: 0.4, b: 0.101960786, a: 1}
+    MainColor: {r: 0.101960786, g: 0.79607844, b: 0.101960786, a: 1}
     BackgroundColor: {r: 0.047058824, g: 0.18039216, b: 0.047058824, a: 1}
-    ButtonColor: {r: 0.101960786, g: 0.4, b: 0.101960786, a: 1}
+    ButtonColor: {r: 0.101960786, g: 0.627451, b: 0.047058824, a: 1}
     TextColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
-    SelectedBGColor: {r: 0.14117648, g: 0.56078434, b: 0.14117648, a: 1}
+    SelectedBGColor: {r: 0.16862746, g: 0.84313726, b: 0.21176471, a: 1}
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
-    GroupLabel: "// COMPONENTS"
+    GroupLabel: // COMPONENTS
     TagLabel: CMP
-    shaderTintColor: {r: 0.101960786, g: 0.4, b: 0.101960786, a: 1}
-    shaderEmissionColor: {r: 0, g: 0.2264151, b: 0.0000000134953915, a: 1}
+    pickupSoundId: 
+    shaderTintColor: {r: 0.15218942, g: 0.7169812, b: 0.15218945, a: 1}
+    shaderEmissionColor: {r: 0.11414205, g: 0.5377358, b: 0.114142075, a: 1}
   Note:
     MainColor: {r: 0.101960786, g: 0.101960786, b: 0.5019608, a: 1}
     BackgroundColor: {r: 0.047058824, g: 0.047058824, b: 0.22745098, a: 1}
@@ -41,8 +43,9 @@ MonoBehaviour:
     TextColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     SelectedBGColor: {r: 0.14117648, g: 0.14117648, b: 0.7019608, a: 1}
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
-    GroupLabel: "// NOTES"
+    GroupLabel: // NOTES
     TagLabel: DOC
+    pickupSoundId: 
     shaderTintColor: {r: 0.13171947, g: 0.27175757, b: 0.754717, a: 1}
     shaderEmissionColor: {r: 0, g: 0.23760088, b: 0.4811321, a: 1}
   Special:
@@ -52,8 +55,9 @@ MonoBehaviour:
     TextColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     SelectedBGColor: {r: 0.7490196, g: 0.4509804, b: 0.14901961, a: 1}
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
-    GroupLabel: "// ESSENTIAL"
+    GroupLabel: // ESSENTIAL
     TagLabel: ESS
+    pickupSoundId: 
     shaderTintColor: {r: 0.54901963, g: 0.3254902, b: 0.09803922, a: 1}
     shaderEmissionColor: {r: 0.8396226, g: 0.42346182, b: 0, a: 1}
   Default:
@@ -63,7 +67,8 @@ MonoBehaviour:
     TextColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     SelectedBGColor: {r: 0.3019608, g: 0.3019608, b: 0.3019608, a: 1}
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
-    GroupLabel: "// OTHER"
+    GroupLabel: // OTHER
     TagLabel: ITM
+    pickupSoundId: 
     shaderTintColor: {r: 0.38679248, g: 0.38679248, b: 0.38679248, a: 1}
     shaderEmissionColor: {r: 0, g: 0, b: 0, a: 1}

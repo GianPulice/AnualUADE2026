@@ -155,6 +155,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupInteractable
   itemToPick: {fileID: 0}
+  pickupSoundId: 
+  categoryConfig: {fileID: 0}
 --- !u!114 &-6211692202051949099
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -167,12 +169,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
-  farTint: 0.25
-  farEmission: 0.15
-  nearTint: 0.4
-  nearEmission: 0.2
-  lerpDuration: 0.3
-  overrideCategory: 0
-  category: 1
-  categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}
-  targetRenderer: {fileID: 0}
+  profile: {fileID: 11400000, guid: 3dd155ece1fb3fc48a29c0061f7e9333, type: 2}

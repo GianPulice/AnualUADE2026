@@ -5,24 +5,21 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Checks that the proximity highlight actually reaches the screen on every interactable in the
+/// Checks that the crosshair highlight actually reaches the screen on every interactable in the
 /// open scene.
 ///
-/// <b>Every failure this looks for is silent.</b> `ItemProximityHighlight` drives its two values
+/// <b>Every failure this looks for is silent.</b> `ItemProximityHighlight` drives its values
 /// through a <see cref="MaterialPropertyBlock"/>, and writing a property the shader does not
-/// declare is a no-op — no error, no warning, no visual difference. So an interactable with a plain
-/// URP/Lit material looks correctly set up in the inspector, runs its lerp every time you look at
-/// it, and does nothing at all. Same for a component pointed at a Renderer with no visible mesh, or
-/// one whose near and far values are equal.
+/// declare is a no-op — no error, no warning, no visual difference. So an interactable whose parts
+/// use a shader with no highlight property looks correctly set up in the inspector, runs its lerp
+/// every time you look at it, and does nothing at all. Same for a highlight with no profile, or a
+/// profile whose near and far values are equal.
 ///
 /// This is the counterpart to <see cref="NemesisSetupValidator"/> and reports the same way: one
 /// warning with everything in it, so the whole scene can be fixed in one pass.
 /// </summary>
 public static class ItemHighlightValidator
 {
-    private static readonly int TintId = Shader.PropertyToID("_TintIntensity");
-    private static readonly int EmissionId = Shader.PropertyToID("_EmissionIntensity");
-
     [MenuItem("Tools/Items/Validate Interactable Highlights")]
     private static void Validate()
     {
@@ -34,8 +31,8 @@ public static class ItemHighlightValidator
 
         if (problems == 0)
         {
-            Debug.Log("[ItemHighlightValidator] All good: every interactable has a proximity " +
-                      "highlight, and every highlight can actually reach its material.");
+            Debug.Log("[ItemHighlightValidator] All good: every interactable has a highlight, and " +
+                      "every part of every highlighted interactable can show it.");
             return;
         }
 
@@ -47,9 +44,8 @@ public static class ItemHighlightValidator
     /// <summary>
     /// Interactables the player can look at but that never respond.
     ///
-    /// Searched down the hierarchy, not just on the object itself: the highlight belongs on
-    /// whatever carries the Renderer, and on a prefab whose mesh is a child that is not the same
-    /// GameObject as the IInteractable.
+    /// Searched down the hierarchy, not just on the object itself: the highlight normally sits on
+    /// the root, but on the freight elevator's ride button it lives on the Visual child.
     /// </summary>
     private static int ReportInteractablesWithoutHighlight(StringBuilder report)
     {
@@ -74,88 +70,94 @@ public static class ItemHighlightValidator
         return problems;
     }
 
-    /// <summary>Highlights that run but cannot produce a visible change.</summary>
+    /// <summary>Highlights that run but cannot produce a visible change, in whole or in part.</summary>
     private static int ReportHighlightsThatCannotShow(StringBuilder report)
     {
         int problems = 0;
 
         foreach (ItemProximityHighlight highlight in FindAll<ItemProximityHighlight>())
         {
-            SerializedObject serialized = new SerializedObject(highlight);
+            string where = Path(highlight.transform);
+            SO_HighlightProfile profile = highlight.Profile;
 
-            Renderer renderer = serialized.FindProperty("targetRenderer").objectReferenceValue as Renderer
-                                ?? highlight.GetComponent<Renderer>();
-
-            if (renderer == null)
+            if (profile == null)
             {
-                report.AppendLine(
-                    $"- '{Path(highlight.transform)}' has an ItemProximityHighlight but no Renderer " +
-                    "on the same GameObject and nothing assigned to Target Renderer, so it has " +
-                    "nothing to tint.");
+                report.AppendLine($"- '{where}' has no SO_HighlightProfile, so it never lights up.");
+                problems++;
+            }
+            else if (Mathf.Approximately(profile.FarTint, profile.NearTint) &&
+                     Mathf.Approximately(profile.FarEmission, profile.NearEmission))
+            {
+                // The lerp runs and lands where it started.
+                report.AppendLine($"- '{where}': profile '{profile.name}' has Near and Far identical, " +
+                                  "so looking at it changes nothing.");
+                problems++;
+            }
+
+            List<Renderer> renderers = ItemProximityHighlight.GatherRenderers(highlight.transform);
+            if (renderers.Count == 0)
+            {
+                report.AppendLine($"- '{where}' has no Renderer under it, so it has nothing to light.");
                 problems++;
                 continue;
             }
 
-            problems += ReportMissingShaderProperties(report, highlight, renderer);
-            problems += ReportFlatValues(report, highlight, serialized);
+            problems += ReportSlots(report, where, renderers);
         }
 
         return problems;
     }
 
     /// <summary>
-    /// The important one. A material whose shader has no <c>_TintIntensity</c> /
-    /// <c>_EmissionIntensity</c> swallows every write the component makes.
-    ///
-    /// Checked against sharedMaterials rather than materials so the inspector is not made to
+    /// The important one. Checked against sharedMaterials so the inspector is not made to
     /// instantiate a material per renderer just to be validated — which would also break the SRP
     /// Batcher the property block exists to preserve.
     /// </summary>
-    private static int ReportMissingShaderProperties(StringBuilder report,
-                                                     ItemProximityHighlight highlight,
-                                                     Renderer renderer)
+    private static int ReportSlots(StringBuilder report, string where, List<Renderer> renderers)
     {
-        Material[] materials = renderer.sharedMaterials;
-        if (materials == null || materials.Length == 0)
+        int lit = 0;
+        var keywordOff = new List<string>();
+        var unsupported = new List<string>();
+
+        foreach (Renderer renderer in renderers)
         {
-            report.AppendLine($"- '{Path(highlight.transform)}': its Renderer has no material.");
-            return 1;
+            foreach (Material material in renderer.sharedMaterials)
+            {
+                if (material == null) continue;
+
+                switch (ItemProximityHighlight.GetSupport(material))
+                {
+                    case ItemProximityHighlight.SlotSupport.HighlightShader:
+                    case ItemProximityHighlight.SlotSupport.EmissionOnly:
+                        lit++;
+                        break;
+                    case ItemProximityHighlight.SlotSupport.EmissionKeywordOff:
+                        AddOnce(keywordOff, material.name);
+                        break;
+                    default:
+                        AddOnce(unsupported, $"{material.name} ({material.shader.name})");
+                        break;
+                }
+            }
         }
 
-        foreach (Material material in materials)
-        {
-            if (material == null) continue;
-            if (material.HasProperty(TintId) && material.HasProperty(EmissionId)) return 0;
-        }
+        if (keywordOff.Count == 0 && unsupported.Count == 0) return 0;
 
-        report.AppendLine(
-            $"- '{Path(highlight.transform)}' uses material '{Describe(materials)}', whose shader " +
-            "declares no _TintIntensity / _EmissionIntensity. The MaterialPropertyBlock writes " +
-            "into nothing and the highlight is invisible — with no error, which is why this is " +
-            "easy to ship. Use ItemPSX_Outline (Materials/Items/) or a material based on it.");
+        report.AppendLine(lit == 0
+            ? $"- '{where}': NONE of its parts can show the highlight."
+            : $"- '{where}': {lit} material slot(s) light up, but some parts stay dark.");
+        if (keywordOff.Count > 0)
+            report.AppendLine("    Emission switched off (URP compiles it out; Tools > Interactables > " +
+                              "Set Up Highlights turns it on): " + string.Join(", ", keywordOff));
+        if (unsupported.Count > 0)
+            report.AppendLine("    Shader has no highlight property at all: " + string.Join(", ", unsupported));
 
         return 1;
     }
 
-    /// <summary>Near and far set to the same number: the lerp runs and lands where it started.</summary>
-    private static int ReportFlatValues(StringBuilder report,
-                                        ItemProximityHighlight highlight,
-                                        SerializedObject serialized)
+    private static void AddOnce(List<string> list, string entry)
     {
-        float farTint = serialized.FindProperty("farTint").floatValue;
-        float nearTint = serialized.FindProperty("nearTint").floatValue;
-        float farEmission = serialized.FindProperty("farEmission").floatValue;
-        float nearEmission = serialized.FindProperty("nearEmission").floatValue;
-
-        if (!Mathf.Approximately(farTint, nearTint)) return 0;
-        if (!Mathf.Approximately(farEmission, nearEmission)) return 0;
-
-        report.AppendLine(
-            $"- '{Path(highlight.transform)}' has Near and Far identical (tint {nearTint:0.##}, " +
-            $"emission {nearEmission:0.##}), so looking at it changes nothing. Puzzle props are " +
-            "allowed a tint of 0 on both, but the emission has to differ or there is no feedback.");
-
-        return 1;
+        if (!list.Contains(entry)) list.Add(entry);
     }
 
     /// <summary>
@@ -170,16 +172,6 @@ public static class ItemHighlightValidator
         }
 
         return true;
-    }
-
-    private static string Describe(IReadOnlyList<Material> materials)
-    {
-        for (int i = 0; i < materials.Count; i++)
-        {
-            if (materials[i] != null) return materials[i].name;
-        }
-
-        return "(none)";
     }
 
     /// <summary>Full hierarchy path, so the object is findable from the console line alone.</summary>

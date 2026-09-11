@@ -510,6 +510,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3097519461228478499}
   - component: {fileID: 4237558627561065639}
+  - component: {fileID: 1292210606673352501}
   m_Layer: 0
   m_Name: Valve
   m_TagString: Untagged
@@ -549,3 +550,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ValveInteractable
   valveData: {fileID: 0}
+--- !u!114 &1292210606673352501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8438275548156035699}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}

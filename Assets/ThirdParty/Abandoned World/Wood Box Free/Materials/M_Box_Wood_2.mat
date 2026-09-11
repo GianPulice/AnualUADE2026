@@ -115,7 +115,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - Emission_Intensity: 0
+    - _EmissionIntensity: 0
     - Vector1_9255287ee6a9482a992533e3b832ac65: 1
     - _AO_Intensity: 1
     - _AddPrecomputedVelocity: 0
@@ -185,12 +185,11 @@ Material:
     - _ZTestTransparent: 4
     - _ZWrite: 1
     m_Colors:
-    - Color_Emission: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _ColorEmission: {r: 0, g: 0, b: 0, a: 0}
     - _ColorMul: {r: 1, g: 1, b: 1, a: 0}
     - _DoubleSidedConstants: {r: 1, g: 1, b: -1, a: 0}
-    - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &904904229715153723

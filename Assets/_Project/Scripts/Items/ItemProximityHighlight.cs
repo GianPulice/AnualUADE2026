@@ -1,158 +1,118 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Lerps the <c>_TintIntensity</c> and <c>_EmissionIntensity</c> parameters of the ItemPSX
-/// shader when the player enters/leaves the interaction radius, following the
-/// "Color &amp; Visual Language" spec (section 2.1).
+/// Lifts the tint and emission of an interactable while the crosshair is on it, following the
+/// "Color &amp; Visual Language" spec (section 2.1) — on every renderer that belongs to it.
 ///
-/// Far state (default): tint 0.15, emission 0.0.
-/// Near state (player in range): tint 0.4, emission 0.2.
-/// Transition: 0.3 second lerp.
+/// Put it on the interactable's ROOT, normally in the Father prefab, so every variant inherits it
+/// with nothing to wire. It drives every Renderer below it that answers to the same
+/// <see cref="IInteractable"/>: a variant that swaps the Father's placeholder cube for a stack of
+/// FBX parts is covered automatically, and so is a part that only switches on later (a socket's
+/// inserted item). Renderers under a DIFFERENT interactable nested below are left to that one.
 ///
-/// Uses MaterialPropertyBlock — does not instance the material, keeps the SRP Batcher.
+/// What it writes, per material slot, through a <see cref="MaterialPropertyBlock"/> (no material
+/// instancing, so shared materials stay shared):
+///   • Highlight shaders — anything that declares <c>_EmissionColor</c> and
+///     <c>_EmissionIntensity</c> (ItemPSX_Outline, PSXIndustrial, the wood box Shader Graph):
+///     emission colour and intensity, plus <c>_TintColor</c>/<c>_TintIntensity</c> when the shader
+///     declares them too.
+///   • URP/Lit-style materials — <c>_EmissionColor</c> only, ADDED to the material's own emission so
+///     a lit panel stays lit. Needs the material's Emission switched on (Tools ▸ Interactables ▸
+///     Set Up Highlights does it); with it off, URP compiles the emission out.
+///   • Anything else is skipped, and Tools ▸ Items ▸ Validate Interactable Highlights lists it.
+/// Written slot by slot, reading the slot's block back first: a per-slot block REPLACES the
+/// renderer-wide one for that slot, so a renderer-wide write would be silently ignored wherever
+/// another script (ElevatorCallPanel, FuseIndicatorLight) already owns a slot.
 ///
-/// Setup:
-///   1. The item's Renderer must use a material with the <c>Shader Graphs/ItemPSX</c> shader
-///      (or any shader exposing the two <c>_TintIntensity</c> and <c>_EmissionIntensity</c>
-///      properties).
-///   2. Attach this component to the item's GameObject (Renderer on the same object, or
-///      assign it manually in <c>targetRenderer</c>).
-///   3. Hook-up is automatic: the component listens to <see cref="InteractionEvents.OnTargetChanged"/>
-///      and when the <c>InteractionManager</c> raycast points at this interactable it moves to
-///      the near state, and back to far when it stops pointing at it. No triggers need to be
-///      wired by hand.
+/// Values and colours come from an <see cref="SO_HighlightProfile"/>, never from the component, so
+/// a family of interactables cannot drift apart one prefab or one scene override at a time.
 ///
-/// For puzzles and interactables without a category tint (spec section 6):
-/// set <c>farTint = 0</c> and <c>nearTint = 0</c> — only the emission glows on approach.
-///
-/// Category/color: if the GameObject has a <see cref="PickupInteractable"/>, the category
-/// (and therefore the tint/emission) resolves itself from its <c>SO_InventoryItem</c> —
-/// there is no need to pick it again here. Use the manual dropdown (by ticking
-/// <c>overrideCategory</c>) only on interactables without an inventory item.
+/// Hook-up is automatic: it listens to <see cref="InteractionEvents.OnTargetChanged"/> and goes
+/// near while the InteractionManager's target is this interactable.
 /// </summary>
-[RequireComponent(typeof(Renderer))]
+[DisallowMultipleComponent]
 public class ItemProximityHighlight : MonoBehaviour
 {
-    [Header("Far state (default)")]
-    [Tooltip("Barely perceptible category tint. Spec: 0.15.")]
-    [SerializeField, Range(0f, 1f)] private float farTint      = 0.15f;
+    /// <summary>What a material slot can do with the highlight.</summary>
+    public enum SlotSupport
+    {
+        /// <summary>No property the highlight can write. The part stays dark.</summary>
+        None,
 
-    [Tooltip("Emission off in the far state. Spec: 0.0.")]
-    [SerializeField, Range(0f, 1f)] private float farEmission  = 0.0f;
+        /// <summary>Declares _EmissionColor and _EmissionIntensity (and maybe the tint pair).</summary>
+        HighlightShader,
 
-    [Header("Near state (player in range)")]
-    [Tooltip("Intensified tint on approach. Spec: 0.4.")]
-    [SerializeField, Range(0f, 1f)] private float nearTint     = 0.4f;
+        /// <summary>URP/Lit-style: _EmissionColor alone, with the emission keyword on.</summary>
+        EmissionOnly,
 
-    [Tooltip("Subtle emission on approach. Spec: 0.2.")]
-    [SerializeField, Range(0f, 1f)] private float nearEmission = 0.2f;
+        /// <summary>URP/Lit-style, but its Emission is switched off, so nothing would show.</summary>
+        EmissionKeywordOff,
+    }
 
-    [Header("Transition")]
-    [Tooltip("Lerp duration in seconds. Spec: 0.3s.")]
-    [SerializeField, Min(0.01f)] private float lerpDuration = 0.3f;
+    private struct Slot
+    {
+        public Renderer    Renderer;
+        public int         Index;
+        public SlotSupport Support;
+        public bool        HasTint;
+        public Color       BaseEmission;
+    }
 
-    [Header("Category tint (ItemPSX §4.4)")]
-    [Tooltip("If there is a PickupInteractable on this same GameObject, the category is taken " +
-             "only from its SO_InventoryItem — there is no need to duplicate it here. Tick this to " +
-             "force the manual category below (e.g. puzzles/props without an inventory item).")]
-    [SerializeField] private bool overrideCategory = false;
-    [Tooltip("Manual category — only used if 'Override Category' is ticked, or if there is no " +
-             "PickupInteractable with an assigned item on this GameObject.")]
-    [SerializeField] private ItemCategory category;
-    [Tooltip("Global category config. Assign the project's SO_ItemCategoryConfig asset.")]
-    [SerializeField] private SO_ItemCategoryConfig categoryConfig;
+    [Tooltip("Far/near values and colours. SO_Highlight_Items on pickups, SO_Highlight_Interactables " +
+             "on puzzle props and devices. Assigned in the Father prefab.")]
+    [SerializeField] private SO_HighlightProfile profile;
 
-    [Header("Renderer (optional — autodetects the GameObject's)")]
-    [SerializeField] private Renderer targetRenderer;
+    private static readonly int TintId      = Shader.PropertyToID("_TintIntensity");
+    private static readonly int EmissionId  = Shader.PropertyToID("_EmissionIntensity");
+    private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
+    private static readonly int EmitColorId = Shader.PropertyToID("_EmissionColor");
+    private const string EmissionKeyword = "_EMISSION";
 
-    [Tooltip("Which material slot the highlight writes to. -1 (default) writes to every slot, " +
-             "which is what a single-material item wants. Set it to the slot of the item's body " +
-             "when the same renderer also carries a material that has to keep its own emission " +
-             "— a lamp, a screen, an indicator. A MaterialPropertyBlock applied with no index " +
-             "goes to EVERY slot, so it would flatten that material's emission to this " +
-             "component's value.")]
-    [SerializeField] private int materialIndex = -1;
-
-    private static readonly int TintId       = Shader.PropertyToID("_TintIntensity");
-    private static readonly int EmissionId   = Shader.PropertyToID("_EmissionIntensity");
-    private static readonly int TintColorId  = Shader.PropertyToID("_TintColor");
-    private static readonly int EmitColorId  = Shader.PropertyToID("_EmissionColor");
-
+    private readonly List<Slot> _slots = new List<Slot>();
+    private MaterialPropertyBlock _block;
+    private IInteractable _owner;
     private Color _tintColor;
     private Color _emissionColor;
+    private float _tint;
+    private float _emission;
+    private Coroutine _lerp;
 
-    // If there is no categoryConfig, the color language lives in the material itself
-    // (mat_item_keys, mat_item_clues, etc.): in that case we do NOT overwrite _TintColor /
-    // _EmissionColor, we only animate their intensities. Without this, the item looked
-    // grey on Play because the else branch in Awake forced grey/black onto the material.
-    private bool _overrideColors;
-
-    private MaterialPropertyBlock _propBlock;
-    private Coroutine _activeLerp;
-    private float _currentTint;
-    private float _currentEmission;
-
-    // This item's interactable (PickupInteractable). Compared against the InteractionManager's
-    // target to know whether the player is looking at it (near state).
-    private IInteractable _selfInteractable;
-
-    // Current proximity state. Avoids restarting the lerp on every item in the scene each
-    // time the InteractionManager changes target (the event is global).
+    // Current state. The target-changed event is global, so without it every highlight in the
+    // scene would restart its lerp each time the crosshair moves between any two objects.
     private bool _isNear;
+
+    public SO_HighlightProfile Profile => profile;
 
     private void Awake()
     {
-        if (targetRenderer == null) targetRenderer = GetComponent<Renderer>();
-        _selfInteractable = GetComponent<IInteractable>() ?? GetComponentInParent<IInteractable>();
-        WarnIfMaterialCannotShowHighlight();
-        _propBlock = new MaterialPropertyBlock();
-        _currentTint = farTint;
-        _currentEmission = farEmission;
+        _owner = GetComponentInParent<IInteractable>(true);
+        _block = new MaterialPropertyBlock();
 
-        if (categoryConfig != null)
+        if (profile == null)
         {
-            CategoryVisuals visuals = categoryConfig.Get(ResolveCategory());
-            _tintColor    = visuals.shaderTintColor;
-            _emissionColor = visuals.shaderEmissionColor;
-            _overrideColors = true;
-        }
-        else
-        {
-            // No config: we respect the colors that come with the material.
-            _overrideColors = false;
+            Debug.LogWarning($"[{nameof(ItemProximityHighlight)}] '{name}' has no " +
+                             $"{nameof(SO_HighlightProfile)}, so it never lights up. Assign one on the " +
+                             "Father prefab (Tools > Interactables > Set Up Highlights).", this);
+            enabled = false;
+            return;
         }
 
-        ApplyProps();
-    }
+        profile.ResolveColors(_owner, out _tintColor, out _emissionColor);
+        CollectSlots();
 
-    /// <summary>
-    /// Effective category of the item. By default it is taken from the <see cref="SO_InventoryItem"/>
-    /// assigned in the <see cref="PickupInteractable"/> on the same GameObject, so the designer
-    /// only sets it once (on the inventory item) and does not have to repeat it here.
-    /// Falls back to the manual dropdown if overridden or if there is no pickup/item assigned
-    /// (e.g. puzzles and interactable props without an SO_InventoryItem).
-    /// </summary>
-    private ItemCategory ResolveCategory()
-    {
-        if (overrideCategory) return category;
-
-        PickupInteractable pickup = GetComponent<PickupInteractable>();
-        if (pickup != null && pickup.Item != null) return pickup.Item.Category;
-
-        return category;
+        _tint     = profile.FarTint;
+        _emission = profile.FarEmission;
+        Apply();
     }
 
     private void OnEnable()  => InteractionEvents.OnTargetChanged += HandleTargetChanged;
     private void OnDisable() => InteractionEvents.OnTargetChanged -= HandleTargetChanged;
 
-    /// <summary>
-    /// Reacts to the <c>InteractionManager</c> target change: if the player's raycast starts
-    /// pointing at this item, lerp to the near state; if it stops pointing at it, to far.
-    /// </summary>
     private void HandleTargetChanged(IInteractable target)
     {
-        bool isTargeted = _selfInteractable != null && ReferenceEquals(target, _selfInteractable);
+        bool isTargeted = _owner != null && ReferenceEquals(target, _owner);
         if (isTargeted == _isNear) return;
 
         _isNear = isTargeted;
@@ -160,101 +120,141 @@ public class ItemProximityHighlight : MonoBehaviour
         else            OnPlayerExitedRange();
     }
 
-    /// <summary>Call when the player enters the item's interaction radius.</summary>
-    public void OnPlayerEnteredRange() => TransitionTo(nearTint, nearEmission);
+    /// <summary>Lerp to the near state.</summary>
+    public void OnPlayerEnteredRange() => TransitionTo(profile.NearTint, profile.NearEmission);
 
-    /// <summary>Call when the player leaves the item's interaction radius.</summary>
-    public void OnPlayerExitedRange() => TransitionTo(farTint, farEmission);
+    /// <summary>Lerp to the far state.</summary>
+    public void OnPlayerExitedRange() => TransitionTo(profile.FarTint, profile.FarEmission);
 
-    /// <summary>Force the far state without animating (e.g. when hiding the item).</summary>
+    /// <summary>Force the far state without animating (e.g. when hiding the object).</summary>
     public void SnapToFar()
     {
-        if (_activeLerp != null) StopCoroutine(_activeLerp);
-        _activeLerp = null;
+        if (profile == null) return;
+        if (_lerp != null) StopCoroutine(_lerp);
+        _lerp = null;
         _isNear = false;
-        _currentTint = farTint;
-        _currentEmission = farEmission;
-        ApplyProps();
+        _tint = profile.FarTint;
+        _emission = profile.FarEmission;
+        Apply();
+    }
+
+    /// <summary>
+    /// The renderers a highlight on <paramref name="root"/> drives: every renderer under it,
+    /// inactive ones included, whose nearest interactable is the same as the root's. Static so the
+    /// validator and the setup tool judge exactly the set the component will use at runtime.
+    /// </summary>
+    public static List<Renderer> GatherRenderers(Transform root)
+    {
+        IInteractable owner = root.GetComponentInParent<IInteractable>(true);
+        var result = new List<Renderer>();
+
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (ReferenceEquals(renderer.GetComponentInParent<IInteractable>(true), owner))
+                result.Add(renderer);
+        }
+
+        return result;
+    }
+
+    /// <summary>What the highlight can do on <paramref name="material"/>.</summary>
+    public static SlotSupport GetSupport(Material material)
+    {
+        if (material == null || !material.HasProperty(EmitColorId)) return SlotSupport.None;
+        if (material.HasProperty(EmissionId)) return SlotSupport.HighlightShader;
+        return material.IsKeywordEnabled(EmissionKeyword) ? SlotSupport.EmissionOnly : SlotSupport.EmissionKeywordOff;
+    }
+
+    private void CollectSlots()
+    {
+        _slots.Clear();
+
+        foreach (Renderer renderer in GatherRenderers(transform))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                SlotSupport support = GetSupport(materials[i]);
+                if (support != SlotSupport.HighlightShader && support != SlotSupport.EmissionOnly) continue;
+
+                _slots.Add(new Slot
+                {
+                    Renderer     = renderer,
+                    Index        = i,
+                    Support      = support,
+                    HasTint      = support == SlotSupport.HighlightShader && materials[i].HasProperty(TintId),
+                    // Captured once: the material asset's own emission, which the highlight adds to
+                    // on URP/Lit instead of replacing.
+                    BaseEmission = support == SlotSupport.EmissionOnly ? materials[i].GetColor(EmitColorId) : Color.black,
+                });
+            }
+        }
+
+        if (_slots.Count == 0)
+        {
+            Debug.LogWarning($"[{nameof(ItemProximityHighlight)}] '{name}': none of its materials can " +
+                             "show the highlight, so looking at it changes nothing. Run Tools > Items > " +
+                             "Validate Interactable Highlights for the list.", this);
+        }
     }
 
     private void TransitionTo(float targetTint, float targetEmission)
     {
-        if (!isActiveAndEnabled) return;
-        if (_activeLerp != null) StopCoroutine(_activeLerp);
-        _activeLerp = StartCoroutine(LerpRoutine(targetTint, targetEmission));
+        if (!isActiveAndEnabled || profile == null) return;
+        if (_lerp != null) StopCoroutine(_lerp);
+        _lerp = StartCoroutine(LerpRoutine(targetTint, targetEmission));
     }
 
     private IEnumerator LerpRoutine(float targetTint, float targetEmission)
     {
-        float startTint     = _currentTint;
-        float startEmission = _currentEmission;
-        float elapsed = 0f;
+        float startTint     = _tint;
+        float startEmission = _emission;
+        float duration      = profile.LerpDuration;
+        float elapsed       = 0f;
 
-        while (elapsed < lerpDuration)
+        while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / lerpDuration);
+            float t = Mathf.Clamp01(elapsed / duration);
             // SmoothStep so the "breathing" does not feel linear/mechanical.
             float eased = t * t * (3f - 2f * t);
-            _currentTint     = Mathf.Lerp(startTint,     targetTint,     eased);
-            _currentEmission = Mathf.Lerp(startEmission, targetEmission, eased);
-            ApplyProps();
+            _tint     = Mathf.Lerp(startTint,     targetTint,     eased);
+            _emission = Mathf.Lerp(startEmission, targetEmission, eased);
+            Apply();
             yield return null;
         }
 
-        _currentTint = targetTint;
-        _currentEmission = targetEmission;
-        ApplyProps();
-        _activeLerp = null;
+        _tint = targetTint;
+        _emission = targetEmission;
+        Apply();
+        _lerp = null;
     }
 
-    private void ApplyProps()
+    private void Apply()
     {
-        if (targetRenderer == null) return;
-
-        bool singleSlot = materialIndex >= 0 &&
-                          materialIndex < targetRenderer.sharedMaterials.Length;
-
-        if (singleSlot) targetRenderer.GetPropertyBlock(_propBlock, materialIndex);
-        else            targetRenderer.GetPropertyBlock(_propBlock);
-
-        _propBlock.SetFloat(TintId,      _currentTint);
-        _propBlock.SetFloat(EmissionId,  _currentEmission);
-        if (_overrideColors)
+        foreach (Slot slot in _slots)
         {
-            _propBlock.SetColor(TintColorId, _tintColor);
-            _propBlock.SetColor(EmitColorId, _emissionColor);
+            // A part destroyed at runtime (a consumed pickup's child, a swapped visual).
+            if (slot.Renderer == null) continue;
+
+            slot.Renderer.GetPropertyBlock(_block, slot.Index);
+
+            if (slot.Support == SlotSupport.HighlightShader)
+            {
+                if (slot.HasTint)
+                {
+                    _block.SetFloat(TintId,      _tint);
+                    _block.SetColor(TintColorId, _tintColor);
+                }
+                _block.SetFloat(EmissionId,  _emission);
+                _block.SetColor(EmitColorId, _emissionColor);
+            }
+            else
+            {
+                _block.SetColor(EmitColorId, slot.BaseEmission + _emissionColor * _emission);
+            }
+
+            slot.Renderer.SetPropertyBlock(_block, slot.Index);
         }
-
-        if (singleSlot) targetRenderer.SetPropertyBlock(_propBlock, materialIndex);
-        else            targetRenderer.SetPropertyBlock(_propBlock);
-    }
-
-    /// <summary>
-    /// Says so when the material cannot render this highlight at all.
-    ///
-    /// A MaterialPropertyBlock write to a property the shader does not declare is a silent no-op:
-    /// the component runs its lerp on every look and the object never changes. That failure is
-    /// invisible in the inspector, in the profiler and in the console, which is why it gets a line
-    /// of its own here. Tools > Items > Validate Interactable Highlights finds the same thing
-    /// across the whole scene without entering Play mode.
-    /// </summary>
-    private void WarnIfMaterialCannotShowHighlight()
-    {
-        if (targetRenderer == null) return;
-
-        Material[] materials = targetRenderer.sharedMaterials;
-        Material material = materialIndex >= 0 && materialIndex < materials.Length
-            ? materials[materialIndex]
-            : targetRenderer.sharedMaterial;
-        if (material == null) return;
-
-        if (material.HasProperty(EmissionId) && material.HasProperty(TintId)) return;
-
-        Debug.LogWarning(
-            $"[{nameof(ItemProximityHighlight)}] '{name}' uses material '{material.name}', whose " +
-            "shader has no _TintIntensity / _EmissionIntensity. The proximity highlight will do " +
-            "nothing at all — the property block writes into a property that does not exist. Use " +
-            "ItemPSX_Outline (Materials/Items/) or a material based on it.", this);
     }
 }

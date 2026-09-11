@@ -230,16 +230,33 @@ Todos arrancan con `_TintIntensity = 0.15` y `_EmissionIntensity = 0` → estado
 
 ### 5.3 `ItemProximityHighlight.cs`
 
-MonoBehaviour que se pega al GameObject del item. Es la cabeza del sistema.
+MonoBehaviour que resalta un interactuable mientras la mira apunta a él. Es la cabeza del sistema.
 
-**Cuándo cambia los valores**:
-- `OnPlayerEnteredRange()` → lerp de `0.15 → 0.4` (tint) y `0.0 → 0.2` (emission) en 0.3s.
-- `OnPlayerExitedRange()` → lerp inverso.
+**Dónde va**: en la **raíz del interactuable, en el prefab Father** (`InventoryItemFather`, `SocketFather`, `ValveFather`), así todas las variantes lo heredan sin tocar nada. Los interactuables sin Father (`PanelElectrico`, `Box_A/B/C`) lo llevan en su propio prefab; el botón del montacargas, en `RideButton/Visual`. `Tools ▸ Interactables ▸ Set Up Highlights` deja todo eso armado y se puede volver a correr.
+
+**Qué resalta**: todos los `Renderer` debajo de él — inactivos incluidos, p. ej. el ítem insertado de un socket — cuyo `IInteractable` más cercano es el mismo que el del componente. Un interactuable anidado más abajo se resalta con su propio componente.
+
+**Qué escribe, slot por slot, por `MaterialPropertyBlock`** (sin instanciar materiales):
+
+| Material del slot | Qué hace |
+|---|---|
+| Declara `_EmissionColor` y `_EmissionIntensity` (`ItemPSX_Outline`, `PSXIndustrial`, el Shader Graph `SH_AW_PBR_ORM` de las cajas de madera) | Emisión y su color; tint y su color solo si además declara `_TintIntensity`. |
+| URP/Lit (tiene `_EmissionColor`) con Emission encendida | **Suma** `color × intensidad` a la emisión propia del material: un panel encendido sigue encendido. |
+| URP/Lit con Emission apagada | Nada — URP compila la emisión afuera. `Set Up Highlights` la enciende en negro (sin cambio visual). |
+| Cualquier otro (p. ej. Shader Graphs de terceros) | Nada. El validador lo lista. |
+
+Se escribe por slot, leyendo antes el block de ese slot, porque un block por slot **reemplaza** al del renderer entero: escrito a nivel renderer quedaría ignorado donde otro script ya maneja un slot (`ElevatorCallPanel`, `FuseIndicatorLight`).
+
+**De dónde salen los valores**: de un `SO_HighlightProfile` compartido, nunca del componente — así una familia entera no se desincroniza prefab por prefab ni por overrides de escena.
+
+| Perfil | Lo usan | Far → near | Color |
+|---|---|---|---|
+| `SO_Highlight_Items` | Items recogibles | tint 0.15 → 0.4, emisión 0 → 0.2 (spec §2.1) | El de la categoría del ítem (`categoryConfig` = `ItemCategory.asset`) |
+| `SO_Highlight_Interactables` | Sockets, válvulas, panel eléctrico, cajas-pelota, botón del montacargas | tint 0 → 0, emisión 0 → 0.15 (spec §6) | Uno solo para todos, `#E0E0E0` (el "seleccionado" de la UI) |
 
 **Cómo está implementado**:
 - Coroutine con `SmoothStep` para que la transición sea sigmoide, no lineal. Hace que el "respirar" se sienta orgánico, no mecánico.
-- `MaterialPropertyBlock` para escribir las dos propiedades. Cada item tiene su estado independiente sin instanciar el material.
-- `SnapToFar()` opcional para forzar estado lejano sin animación (útil al ocultar el item o resetear estado).
+- `SnapToFar()` opcional para forzar estado lejano sin animación (útil al ocultar el objeto o resetear estado).
 
 **Cómo se acopla al sistema de interactuables**:
 
@@ -439,7 +456,7 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. |
 | Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. |
 | Sin waypoints, mapa, partículas sobre items | El sistema tampoco los implementa. |
-| Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Defaults exactos en `ItemProximityHighlight.cs`. Editables en Inspector si se necesita afinar por item. |
+| Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Valores de `SO_Highlight_Items` (items). Los puzzles y dispositivos usan `SO_Highlight_Interactables` (solo emisión, §5.3). Se afinan en el asset, no por item. |
 | Cuatro categorías con hex específicos | 4 materiales preset, cada uno con el hex exacto del spec sec 4.4. |
 | Estilo PSX (sin PBR realista) | Smoothness baja en todos los materiales. Filtro PS1 (§7) aplica encima como efecto final. |
 | Scanlines/dither/glitch con toggle de accesibilidad | `_EnableScanlines` / `_EnableDither` vía `PS1EffectApplier` + PlayerPrefs; glitch VHS vía `GlitchController` + `Settings_VHSGlitch` (spec §6.10). |
@@ -462,9 +479,9 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 5. Bajá `Light.range` en runtime → el hueco se achica (valida la degradación futura de §2.5.1).
 
 **Items**:
-1. Cubo con `ItemPsx.mat` + `ItemProximityHighlight`.
-2. Sin player cerca: el cubo se ve casi negro/gris con tinte azulado apenas perceptible.
-3. Al entrar al radio (`OnPlayerEnteredRange()`): el cubo "respira" — gana tinte más visible y emisión sutil. Transición 0.3s.
+1. Cubo con `ItemPsx.mat` + `PickupInteractable` + `ItemProximityHighlight` con perfil `SO_Highlight_Items`.
+2. Sin apuntarlo: el cubo se ve casi negro/gris con tinte azulado apenas perceptible.
+3. Al apuntarlo con la mira (`OnPlayerEnteredRange()`): el cubo "respira" — gana tinte más visible y emisión sutil. Transición 0.3s.
 4. (Outline) Subir `_OutlineIntensity` en runtime sobre un cubo y una esfera → el borde sigue la forma en ambos, confirmando que funciona en cualquier mesh.
 5. Verificar en Profiler que el SRP Batcher está activo y NO se instancia el material.
 
@@ -486,7 +503,8 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | El hueco de la linterna no aparece | Falta `FogLightSource` en la Light del player, o `playerLightRange`/`Light.range` en 0 | Agregar el componente y verificar `useLightComponent` + range. |
 | `.mat` muestra "Hidden/InternalErrorShader" | GUID del `.meta` del shader mal formado o colisión | Revisar el GUID/fileID del YAML (para `.shader` es `fileID: 4800000`). |
 | El glitch VHS nunca dispara | `Settings_VHSGlitch` en 0 o `Ps1 Material` sin asignar en el `GlitchController` | Setear la key a 1 y arrastrar `PS1Effect.mat`. |
-| Items siempre brillan al máximo | El `ItemProximityHighlight` no está pegado, o `farEmission` está en >0 | Verificar el componente + valores. |
+| Items siempre brillan al máximo | El perfil tiene `farEmission` > 0 | Revisar el `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
+| Un interactuable no reacciona a la mira, o solo parte de él | Sin `ItemProximityHighlight`, sin perfil, o piezas con un shader sin propiedades de highlight | `Tools ▸ Items ▸ Validate Interactable Highlights` dice cuál y por qué. |
 | Material instanciado por cada item (rompe batcher) | El script no usa `MaterialPropertyBlock` | Verificar que esté usando `GetPropertyBlock/SetPropertyBlock`. |
 
 ---
@@ -519,7 +537,8 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Quiero cambiar... | Editar... |
 |---|---|
 | Color de un item de categoría | El `.mat` correspondiente (`mat_item_keys` etc.). |
-| Velocidad de la transición lejano↔próximo | `ItemProximityHighlight.lerpDuration` en Inspector. |
+| Velocidad de la transición lejano↔próximo | `lerpDuration` del `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
+| Color / intensidad del resaltado de puzzles y dispositivos | `SO_Highlight_Interactables.asset` — uno solo para todos. |
 | Activar/afinar el outline de un puzzle | `_OutlineColor` / `_OutlineIntensity` / `_OutlinePower` en el `.mat` del interactuable (solo puzzles §4.7, ver §5.4). |
 | Color / rango de la niebla de una zona | El `SO_VisionFogConfig` de esa zona (`fogColor`, `visionStart`, `visionEnd`). |
 | Sensación de opresión de la niebla sin tocar el rango | `SO_VisionFogConfig.densityPower` (1 = base, >1 = más cerrado). |
