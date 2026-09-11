@@ -108,6 +108,135 @@ public static class InventoryScenePreview
         InternalEditorUtility.RepaintAllViews();
     }
 
+    // -- Play Mode -------------------
+    // The edit-mode copy above never runs its components, so it cannot show anything that only
+    // exists at runtime — the CRT tube, the selection transition. These two drive the REAL inventory
+    // instead; they need Play Mode with Data (InventoryManager) and LevelUI (InventoryManagerUI) loaded.
+
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Open With Sample Items", priority = 50)]
+    public static void OpenInPlayMode()
+    {
+        if (!InventoryManager.Exists || !InventoryManagerUI.Exists)
+        {
+            Debug.LogWarning("[InventoryScenePreview] Needs Play Mode with the Data and LevelUI scenes loaded.");
+            return;
+        }
+
+        foreach (SO_InventoryItem item in LoadSampleItems())
+            if (!InventoryManager.Instance.HasItem(item)) InventoryManager.Instance.AddItem(item);
+
+        // Run In Background is off in Player Settings, so an unfocused editor stops the player loop:
+        // the open tween would never finish and the tube would never render. On for this session only.
+        Application.runInBackground = true;
+
+        InventoryManagerUI.Instance.OpenInventory();
+    }
+
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Select Next Item", priority = 51)]
+    public static void SelectNextInPlayMode()
+    {
+        if (!InventoryManager.Exists || !InventoryManagerUI.Exists) return;
+
+        IReadOnlyList<SO_InventoryItem> items = InventoryManager.Instance.GetAllItems();
+        if (items.Count == 0) return;
+
+        int current = -1;
+        for (int i = 0; i < items.Count; i++)
+            if (items[i] == InventoryManagerUI.Instance.SelectedItem) current = i;
+
+        InventoryManagerUI.Instance.SelectItem(items[(current + 1) % items.Count]);
+    }
+
+    /// <summary>
+    /// Saves what the CRT tube shows to &lt;project&gt;/Temp/InventoryPreview/play_crt.png, plus the
+    /// flat UI texture under it as play_ui.png.
+    ///
+    /// It re-draws the tube itself — the presenter's UI texture through the presenter's own screen
+    /// material — instead of grabbing the Game view: ScreenCapture only writes when the Game view
+    /// repaints, which an unfocused editor may not do for a long while. There is no world in a blit,
+    /// so the tube goes over a flat stand-in colour.
+    /// </summary>
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Capture PNG", priority = 52)]
+    public static void CaptureInPlayMode()
+    {
+        // Private on purpose: at runtime nobody but the presenter has business with them.
+        const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
+
+        CanvasCRTPresenter presenter = Object.FindFirstObjectByType<CanvasCRTPresenter>(FindObjectsInactive.Include);
+        if (presenter == null)
+        {
+            Debug.LogWarning("[InventoryScenePreview] No CanvasCRTPresenter in the loaded scenes.");
+            return;
+        }
+
+        if (!presenter.IsPresenting)
+        {
+            GameObject content = typeof(CanvasCRTPresenter).GetField("content", Private)?.GetValue(presenter) as GameObject;
+            string contentState = content == null ? "none" : $"{content.name} activeInHierarchy={content.activeInHierarchy}";
+            Debug.LogWarning($"[InventoryScenePreview] The presenter is not showing: enabled={presenter.enabled}, " +
+                             $"activeInHierarchy={presenter.gameObject.activeInHierarchy}, content={contentState}.");
+            return;
+        }
+        RenderTexture ui = typeof(CanvasCRTPresenter).GetField("target", Private)?.GetValue(presenter) as RenderTexture;
+        RawImage screen = typeof(CanvasCRTPresenter).GetField("screen", Private)?.GetValue(presenter) as RawImage;
+        if (ui == null || screen == null)
+        {
+            Debug.LogWarning("[InventoryScenePreview] The presenter has no texture or screen yet.");
+            return;
+        }
+
+        string folder = Path.GetFullPath("Temp/InventoryPreview");
+        Directory.CreateDirectory(folder);
+
+        RenderTexture tube = RenderTexture.GetTemporary(ui.width, ui.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        RenderTexture previous = RenderTexture.active;
+
+        RenderTexture.active = tube;
+        GL.Clear(true, true, new Color(0.32f, 0.30f, 0.27f, 1f));
+        Graphics.Blit(ui, tube, screen.material);   // the material's own blend composites it over the clear
+
+        SavePng(tube, Path.Combine(folder, "play_crt.png"));
+        SavePng(ui, Path.Combine(folder, "play_ui.png"));
+
+        RenderTexture.active = previous;
+        RenderTexture.ReleaseTemporary(tube);
+        Debug.Log($"[InventoryScenePreview] Captured the tube to {folder}");
+    }
+
+    private static void SaveThroughTube(RenderTexture flat, Material tube, string path)
+    {
+        RenderTexture output = RenderTexture.GetTemporary(flat.width, flat.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        RenderTexture previous = RenderTexture.active;
+
+        RenderTexture.active = output;
+        GL.Clear(true, true, new Color(0.32f, 0.30f, 0.27f, 1f));   // what shows past the tube's corners
+        Graphics.Blit(flat, output, tube);
+
+        SavePng(output, path);
+
+        RenderTexture.active = previous;
+        RenderTexture.ReleaseTemporary(output);
+    }
+
+    private static void SavePng(RenderTexture source, string path)
+    {
+        RenderTexture previous = RenderTexture.active;
+        RenderTexture.active = source;
+
+        Texture2D pixels = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
+        pixels.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+        pixels.Apply();
+
+        RenderTexture.active = previous;
+        File.WriteAllBytes(path, pixels.EncodeToPNG());
+        Object.DestroyImmediate(pixels);
+    }
+
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Open With Sample Items", true)]
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Select Next Item", true)]
+    [MenuItem("Tools/UI/Inventory/Preview/Play Mode: Capture PNG", true)]
+    private static bool IsPlaying() => Application.isPlaying;
+
     [MenuItem("Tools/UI/Inventory/Preview/Remove", priority = 33)]
     public static void Remove()
     {
@@ -179,6 +308,11 @@ public static class InventoryScenePreview
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllBytes(path, pixels.EncodeToPNG());
             Object.DestroyImmediate(pixels);
+
+            // The same frame through the tube, as the game shows it. CanvasCRTPresenter never runs in
+            // edit mode, so its material is applied here by hand — exactly the blit it does at runtime.
+            Material tube = AssetDatabase.LoadAssetAtPath<Material>(InventoryCRTSetup.MaterialPath);
+            if (tube != null) SaveThroughTube(target, tube, Path.ChangeExtension(path, null) + "_crt.png");
         }
         finally
         {

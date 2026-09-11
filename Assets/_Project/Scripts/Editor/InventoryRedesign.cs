@@ -8,16 +8,18 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Shared plumbing for the inventory redesign tools — <see cref="InventoryCloseButtonSetup"/>,
-/// <see cref="InventoryThemeSetup"/>, <see cref="InventoryFrameSetup"/> and
-/// <see cref="InventoryTextOutlineSetup"/>: where the assets live, and how a prefab gets opened,
-/// edited and saved without a scene.
+/// <see cref="InventoryThemeSetup"/>, <see cref="InventoryFrameSetup"/>,
+/// <see cref="InventoryTextOutlineSetup"/>, <see cref="InventorySurfaceSetup"/>,
+/// <see cref="InventorySelectionTransitionSetup"/> and <see cref="InventoryCRTSetup"/>: where the
+/// assets live, and how a prefab gets opened, edited and saved without a scene.
 ///
 /// The tools edit the prefab ASSETS directly, so nothing has to be selected and they can be run
 /// from the menu or over MCP. The price is that there is no Ctrl+Z — git is the undo. They refuse
 /// to touch a prefab that is open in Prefab Mode, because the open stage and the asset would drift.
 ///
-/// Every tool only adds and configures, and finds its own earlier work before adding more, so any
-/// of them can be run twice.
+/// Every tool adds and configures, and finds its own earlier work before adding more, so any of them
+/// can be run twice. The one removal is InventoryCRTSetup taking out the PSX overlay an earlier
+/// version of these tools added.
 /// </summary>
 public static class InventoryRedesign
 {
@@ -38,6 +40,10 @@ public static class InventoryRedesign
         InventoryThemeSetup.Apply();
         InventoryFrameSetup.Apply();
         InventoryTextOutlineSetup.Apply();
+        InventorySurfaceSetup.Apply();
+        // After the frames: it re-seats the detail panel's BevelFrame on top of its own overlays.
+        InventorySelectionTransitionSetup.Apply();
+        InventoryCRTSetup.Apply();
     }
 
     public static T LoadRequired<T>(string path) where T : UnityEngine.Object
