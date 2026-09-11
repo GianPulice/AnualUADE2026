@@ -59,6 +59,24 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
         InventoryEvents.ItemAdded(item);
     }
 
+    /// <summary>
+    /// Adds an item that was NOT picked up from the world (a puzzle reward, a scripted grant, etc.).
+    /// Fires <see cref="InventoryEvents.OnItemAdded"/> as usual so existing inventory UI updates,
+    /// and additionally fires <see cref="InventoryEvents.OnItemAutoAdded"/> so a dedicated notice
+    /// UI can show a "'name' added to inventory" line only for automatic grants.
+    /// </summary>
+    public void AddItemAuto(SO_InventoryItem item)
+    {
+        if (item == null)
+        {
+            Debug.LogWarning("[InventoryManager] AddItemAuto: item is null.");
+            return;
+        }
+
+        AddItem(item);
+        InventoryEvents.ItemAutoAdded(item);
+    }
+
     public void DiscardItem(SO_InventoryItem item)
     {
         if (!ValidateItemExists(item, "DiscardItem")) return;

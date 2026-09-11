@@ -308,7 +308,7 @@ GameObject:
   - component: {fileID: 6114506311072273757}
   - component: {fileID: 2968853137236767436}
   m_Layer: 0
-  m_Name: Pelota_C
+  m_Name: Box_C
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -464,7 +464,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57ccef442899fe54c9976e0a9511cdda, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GrabbableBall
+  playerTag: Player
   snapDuration: 3
+  config: {fileID: 11400000, guid: 02b1fbc297a34be4a9e0e219defec93b, type: 2}
+  grabPrompt: Press 'E' to push the box
+  releasePrompt: Press 'E' to stop pushing the box
 --- !u!208 &2968853137236767436
 NavMeshObstacle:
   m_ObjectHideFlags: 0

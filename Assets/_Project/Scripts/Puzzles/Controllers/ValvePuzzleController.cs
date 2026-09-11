@@ -31,7 +31,7 @@ public class ValvePuzzleController : MonoBehaviour
 
         if (valvePuzzleData.RewardItem != null)
         {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(valvePuzzleData.RewardItem);
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(valvePuzzleData.RewardItem);
             else Debug.LogWarning($"[{nameof(ValvePuzzleController)}] No InventoryManager — the " +
                                   $"reward '{valvePuzzleData.RewardItem.name}' for " +
                                   $"'{valvePuzzleData.PuzzleId}' was not granted.", this);

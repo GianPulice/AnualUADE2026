@@ -52,7 +52,7 @@ public class PuzzleController : MonoBehaviour
 
         if (puzzleData.RewardItem != null)
         {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(puzzleData.RewardItem);
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(puzzleData.RewardItem);
             else Debug.LogWarning($"[{nameof(PuzzleController)}] No InventoryManager — the reward " +
                                   $"'{puzzleData.RewardItem.name}' for '{puzzleData.PuzzleId}' was " +
                                   $"not granted.", this);

@@ -15,7 +15,7 @@ public class PuzzleReward : MonoBehaviour
             return;
         }
 
-        InventoryManager.Instance.AddItem(rewardItem);
+        InventoryManager.Instance.AddItemAuto(rewardItem);
         Debug.Log($"Reward obtained: {rewardItem.ItemName}");
     }
 }

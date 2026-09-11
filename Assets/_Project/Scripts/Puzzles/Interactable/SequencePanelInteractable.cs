@@ -174,7 +174,7 @@ public class SequencePanelInteractable : BaseRangeInteractable
 
         if (sequenceData.RewardItem != null)
         {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(sequenceData.RewardItem);
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(sequenceData.RewardItem);
             else Debug.LogWarning($"[{nameof(SequencePanelInteractable)}] No InventoryManager — " +
                                   $"the reward '{sequenceData.RewardItem.name}' for " +
                                   $"'{sequenceData.PuzzleId}' was not granted.", this);

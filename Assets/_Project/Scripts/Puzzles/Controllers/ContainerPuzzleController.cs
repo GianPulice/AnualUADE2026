@@ -34,7 +34,7 @@ public class ContainerPuzzleController : MonoBehaviour
 
         if (containerPuzzleData.RewardItem != null)
         {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItem(containerPuzzleData.RewardItem);
+            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(containerPuzzleData.RewardItem);
             else Debug.LogWarning($"[{nameof(ContainerPuzzleController)}] No InventoryManager — the " +
                                   $"reward '{containerPuzzleData.RewardItem.name}' for " +
                                   $"'{containerPuzzleData.PuzzleId}' was not granted.", this);

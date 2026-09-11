@@ -31,6 +31,12 @@ public class InteractionManager : Singleton<InteractionManager>
     private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
+    // While non-null, this replaces the crosshair raycast as the active target. Used by
+    // interactables that latch on once picked up (a push box the player is currently pushing) so
+    // E keeps working even if the camera swings and the reticle slides off the mesh. Cleared
+    // with ClearForcedInteractable(this) so a stale owner cannot steal the lock.
+    private IInteractable forcedInteractable;
+
     // Cooldown between E presses to avoid double activations.
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
@@ -82,7 +88,9 @@ public class InteractionManager : Singleton<InteractionManager>
 
     private void UpdateCurrentInteractable()
     {
-        IInteractable detected = RaycastForInteractable();
+        IInteractable detected = forcedInteractable != null
+            ? forcedInteractable
+            : RaycastForInteractable();
 
         if (detected != lastInteractable)
         {
@@ -92,6 +100,54 @@ public class InteractionManager : Singleton<InteractionManager>
             InteractionEvents.TargetChanged(currentInteractable);
         }
     }
+
+    /// <summary>
+    /// Pins <paramref name="target"/> as the active interactable until <see cref="ClearForcedInteractable"/>
+    /// is called with the same reference. Used by interactables that own the interaction until the
+    /// player explicitly ends it — a push box being pushed keeps responding to E even if the crosshair
+    /// slides off it. Passing null is equivalent to clearing.
+    /// </summary>
+    /// <summary>
+    /// Pins <paramref name="target"/> as the active interactable until <see cref="ClearForcedInteractable"/>
+    /// is called with the same reference. Used by interactables that own the interaction until the
+    /// player explicitly ends it — a push box being pushed keeps responding to E even if the crosshair
+    /// slides off it. Passing null is equivalent to clearing.
+    ///
+    /// Does NOT touch <c>lastInteractable</c>: the natural diff in the next Update fires
+    /// TargetChanged only when the target actually changes. If the pinned target is the same as
+    /// what the player was already looking at (typical when grabbing a box you were aiming at),
+    /// the caller should follow up with <see cref="InteractionEvents.RequestPromptRefresh"/> to
+    /// refresh the prompt text — the target did not change, only its state did.
+    /// </summary>
+    public void SetForcedInteractable(IInteractable target)
+    {
+        forcedInteractable = target;
+    }
+
+    /// <summary>
+    /// Clears the forced target only if it is still <paramref name="owner"/>. Prevents a stale caller
+    /// that lost ownership (e.g. the box was locked into its basket in the meantime) from unpinning
+    /// a different, currently-forced interactable.
+    /// </summary>
+    /// <summary>
+    /// Clears the forced target only if it is still <paramref name="owner"/>. Prevents a stale caller
+    /// that lost ownership (e.g. the box was locked into its basket in the meantime) from unpinning
+    /// a different, currently-forced interactable.
+    ///
+    /// Deliberately leaves <c>lastInteractable</c> alone so the next Update's raycast fires
+    /// TargetChanged(null) if the crosshair is no longer on the previously-pinned target, and
+    /// stays silent when it still is. In the "still on it" case the caller should also fire
+    /// <see cref="InteractionEvents.RequestPromptRefresh"/> to update the prompt text for the
+    /// new state of the same interactable (e.g. "push" → "stop pushing").
+    /// </summary>
+    public void ClearForcedInteractable(IInteractable owner)
+    {
+        if (owner == null || ReferenceEquals(forcedInteractable, owner))
+        {
+            forcedInteractable = null;
+        }
+    }
+
 
     private IInteractable RaycastForInteractable()
     {
