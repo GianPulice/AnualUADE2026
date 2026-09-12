@@ -230,6 +230,27 @@ public class AudioManager : Singleton<AudioManager>
         PlayInternal(data, voiceGroup ?? GroupFor(data.Category), null, forceIgnorePause: true);
     }
 
+    /// <summary>
+    /// One-shot on an external AudioSource, configured from the SO by id. Used when the sound has
+    /// to sit on a specific GameObject (e.g. the moving portón in <see cref="PuzzleGate"/>) so its
+    /// world position is the emitter's transform, not a coordinate passed by the caller.
+    /// </summary>
+    public void PlayOneShotOn(string id, AudioSource src)
+    {
+        if (src == null) { Debug.LogWarning("[AudioManager] PlayOneShotOn without an AudioSource."); return; }
+        if (!TryGet(id, out var data)) return;
+
+        src.clip = data.Clip;
+        src.outputAudioMixerGroup = GroupFor(data.Category);
+        src.loop = false;
+        src.ignoreListenerPause = data.IgnoreListenerPause;
+        src.spatialBlend = 1f;
+        src.rolloffMode = data.Rolloff;
+        src.minDistance = data.MinDistance;
+        src.maxDistance = data.MaxDistance;
+        src.Play();
+    }
+
     /// <summary>Loads the clip + mixer group into an external AudioSource and starts it on loop.</summary>
     public void PlayLoop(string id, AudioSource src)
     {

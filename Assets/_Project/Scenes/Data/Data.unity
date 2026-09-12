@@ -245,6 +245,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d33b2c8598be0161c9ca1214a6e1021f, type: 2}
   - {fileID: 11400000, guid: 378235e52847deb629a9c2ee00527dd7, type: 2}
   - {fileID: 11400000, guid: 992b37bfc7815ce1457b3e7b4ee7ad11, type: 2}
+  - {fileID: 11400000, guid: 9a1fd07d0b288ae448de82980e1c50a6, type: 2}
 --- !u!4 &201702926
 Transform:
   m_ObjectHideFlags: 0
@@ -710,6 +711,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VisionRangeController
   defaultConfig: {fileID: 11400000, guid: 3937456cb1428fa4899c9fca5ba4b725, type: 2}
+  beaconDepthBias: 0.25
+  beaconMaxPixels: 26
+  beaconFalloff: 4
   playerOverride: {fileID: 0}
 --- !u!1 &1454750779
 GameObject:
