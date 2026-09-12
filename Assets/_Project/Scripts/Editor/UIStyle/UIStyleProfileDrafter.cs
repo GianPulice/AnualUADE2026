@@ -22,7 +22,7 @@ using Style = UIBevelFrame.BevelStyle;
 ///   Settings tab rail              → SurfaceTabs, no frame (the tabs sit flush on it)
 ///   scroll view, input field       → SurfaceScreen, Sunken
 ///   slider                         → track SurfaceScreen Sunken, fill Accent, handle BorderStrong Raised
-///   toggle                         → box SurfaceScreen Sunken, check Accent
+///   toggle                         → box SurfaceScreen Sunken, check TextPrimary (red on the dark box is lost)
 ///   dropdown                       → SurfaceRaised Raised; list SurfaceScreen Sunken
 ///   scrollbar                      → SurfaceRaised, handle BorderStrong Raised
 ///   title text (by name or size)   → Oswald, TextPrimary — never a "// header", which stays mono
@@ -247,7 +247,7 @@ public static class UIStyleProfileDrafter
 
             if (toggle.graphic != null)
             {
-                Theme(toggle.graphic.transform, UIThemeRole.Accent);
+                Theme(toggle.graphic.transform, UIThemeRole.TextPrimary);
                 claimed.Add(toggle.graphic.transform);
             }
         }
@@ -320,7 +320,7 @@ public static class UIStyleProfileDrafter
             if (item == null) return;
             claimed.Add(item.transform);
             ClaimTheme(item.targetGraphic, UIThemeRole.SurfaceRaised);
-            ClaimTheme(item.graphic, UIThemeRole.Accent);
+            ClaimTheme(item.graphic, UIThemeRole.TextPrimary);
         }
 
         private void DraftInput(Transform node, TMP_InputField input)

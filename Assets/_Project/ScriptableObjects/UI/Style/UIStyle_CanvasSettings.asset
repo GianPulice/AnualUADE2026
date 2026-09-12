@@ -117,17 +117,11 @@ MonoBehaviour:
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_CRT/Toggle_CRT/Background
     role: 0
     preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_CRT/Toggle_CRT/Background/Checkmark
-    role: 13
-    preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_CRT/Toggle_CRT/Label
     role: 11
     preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_Dither/Toggle_Dither/Background
     role: 0
-    preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_Dither/Toggle_Dither/Background/Checkmark
-    role: 13
     preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_Dither/Toggle_Dither/Label
     role: 11
@@ -176,9 +170,6 @@ MonoBehaviour:
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Controls/Row_InvertY/Toggle_Invert/Background
     role: 0
     preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Controls/Row_InvertY/Toggle_Invert/Background/Checkmark
-    role: 13
-    preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_Resolution/Label
     role: 9
     preserveAlpha: 0
@@ -201,10 +192,6 @@ MonoBehaviour:
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_Resolution/Dropdown_Resolution/Template/Viewport/Content/Item/Item
       Background
     role: 2
-    preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_Resolution/Dropdown_Resolution/Template/Viewport/Content/Item/Item
-      Checkmark
-    role: 13
     preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_Resolution/Dropdown_Resolution/Template/Scrollbar
     role: 2
@@ -236,10 +223,6 @@ MonoBehaviour:
       Background
     role: 2
     preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_WindowMode/Dropdown_WindowMode/Template/Viewport/Content/Item/Item
-      Checkmark
-    role: 13
-    preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_WindowMode/Dropdown_WindowMode/Template/Scrollbar
     role: 2
     preserveAlpha: 0
@@ -270,10 +253,6 @@ MonoBehaviour:
       Background
     role: 2
     preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_FPSLimit/Dropdown_FPSLimit/Template/Viewport/Content/Item/Item
-      Checkmark
-    role: 13
-    preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_FPSLimit/Dropdown_FPSLimit/Template/Scrollbar
     role: 2
     preserveAlpha: 0
@@ -289,9 +268,6 @@ MonoBehaviour:
     preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_VSync/Toggle_VSync/Background
     role: 0
-    preserveAlpha: 0
-  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_VSync/Toggle_VSync/Background/Checkmark
-    role: 13
     preserveAlpha: 0
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Volume/Row_Master/Label
     role: 9
@@ -381,6 +357,30 @@ MonoBehaviour:
     role: 1
     preserveAlpha: 0
   - path: SettingsRoot/TopBar/TitleText
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_CRT/Toggle_CRT/Background/Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness/Row_Dither/Toggle_Dither/Background/Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Controls/Row_InvertY/Toggle_Invert/Background/Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_VSync/Toggle_VSync/Background/Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_Resolution/Dropdown_Resolution/Template/Viewport/Content/Item/Item
+      Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_WindowMode/Dropdown_WindowMode/Template/Viewport/Content/Item/Item
+      Checkmark
+    role: 9
+    preserveAlpha: 0
+  - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen/Row_FPSLimit/Dropdown_FPSLimit/Template/Viewport/Content/Item/Item
+      Checkmark
     role: 9
     preserveAlpha: 0
   flatFills:
@@ -586,15 +586,19 @@ MonoBehaviour:
   signalPanels:
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Brightness
     trigger: 0
+    fullScreenOverlays: 0
     typewriters: []
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Controls
     trigger: 0
+    fullScreenOverlays: 0
     typewriters: []
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Screen
     trigger: 0
+    fullScreenOverlays: 0
     typewriters: []
   - path: SettingsRoot/Body/ContentColumn/PanelsHost/Panel_Volume
     trigger: 0
+    fullScreenOverlays: 0
     typewriters: []
   crt:
     enabled: 1
