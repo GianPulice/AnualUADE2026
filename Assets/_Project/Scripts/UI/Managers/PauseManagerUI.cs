@@ -43,6 +43,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
         view.OnContinueClicked += HandleContinue;
         view.OnSettingsClicked += HandleSettings;
+        view.OnMainMenuClicked += HandleMainMenu;
         view.OnExitClicked     += HandleExit;
     }
 
@@ -54,6 +55,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
         view.OnContinueClicked -= HandleContinue;
         view.OnSettingsClicked -= HandleSettings;
+        view.OnMainMenuClicked -= HandleMainMenu;
         view.OnExitClicked     -= HandleExit;
     }
     private void HandlePauseStateChanged(PauseState state)
@@ -98,7 +100,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
     {
         // "Continue" only unpauses. If there was a modal open underneath (e.g. SequencePanel),
         // the player goes back to that modal — we do NOT close it. To get cleanly back to
-        // gameplay they have to close the modal manually or use "Exit to menu".
+        // gameplay they have to close the modal manually or use "Main Menu".
         PauseManager.RequestUnpause();
     }
 
@@ -113,7 +115,17 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
         SettingsController.Instance.OpenScreen();
     }
 
+    /// <summary>Quits the game, the same way the main menu's Exit does.</summary>
     private void HandleExit()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
+    private void HandleMainMenu()
     {
         // The flag stops HandlePauseStateChanged: the RequestUnpause calls below would fire a
         // CloseSafe() that competes with CloseAll(). It is released at the end of the method,

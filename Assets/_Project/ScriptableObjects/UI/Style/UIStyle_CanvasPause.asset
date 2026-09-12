@@ -42,11 +42,18 @@ MonoBehaviour:
   - path: BG/Panel
     role: 0
     preserveAlpha: 0
+  - path: LayoutGroup/ButtonMainMenu
+    role: 2
+    preserveAlpha: 0
+  - path: LayoutGroup/ButtonMainMenu/Text (TMP)
+    role: 9
+    preserveAlpha: 0
   flatFills:
   - LayoutGroup/ButtonContinue
   - LayoutGroup/ButtonSettings
   - LayoutGroup/ButtonExit
   - BG
+  - LayoutGroup/ButtonMainMenu
   frames:
   - path: LayoutGroup/ButtonContinue
     style: 0
@@ -55,6 +62,9 @@ MonoBehaviour:
     style: 0
     pressable: 1
   - path: LayoutGroup/ButtonExit
+    style: 0
+    pressable: 1
+  - path: LayoutGroup/ButtonMainMenu
     style: 0
     pressable: 1
   minWellPadding: 8
