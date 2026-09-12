@@ -43,7 +43,6 @@ GameObject:
   - component: {fileID: 4678342084709284386}
   - component: {fileID: 2172284652876069278}
   - component: {fileID: -464517558709616331}
-  - component: {fileID: 5405741228895794217}
   - component: {fileID: 4968626413543492079}
   m_Layer: 6
   m_Name: Door
@@ -152,27 +151,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!65 &5405741228895794217
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8438275548156035699}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 2.5, y: 5, z: 0.5}
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &4968626413543492079
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -189,3 +167,6 @@ MonoBehaviour:
   hinge: {fileID: 4228250354980065986}
   openAngle: 90
   openDuration: 0.6
+  nemesisCanOpen: 1
+  nemesisCanForceLocked: 1
+  autoCarveNavMesh: 1

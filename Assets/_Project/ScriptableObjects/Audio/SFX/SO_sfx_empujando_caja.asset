@@ -15,7 +15,7 @@ MonoBehaviour:
   id: sfx_empujando_caja
   category: 0
   clip: {fileID: 8300000, guid: 316efd5f1f22cbf46bf46059572be90d, type: 3}
-  loop: 0
+  loop: 1
   ignoreListenerPause: 0
   minDistance: 1
   maxDistance: 500
