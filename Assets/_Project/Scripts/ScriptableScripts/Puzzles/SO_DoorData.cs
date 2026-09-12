@@ -10,7 +10,15 @@ public class SO_DoorData : ScriptableObject
     /// the player can hear the NEMESIS use one, and that only works if it is the same sound
     /// everywhere. A door that needs its own (a heavy shutter, a hatch) overrides it.
     /// </summary>
-    public const string DefaultOpenSoundId = "sfx_interaction_puerta_abrir";
+    public const string DefaultOpenSoundId = "sfx_interaction_abrir_puerta";
+
+    /// <summary>
+    /// Played by every door that has no <see cref="closeSoundId"/> of its own. Same reasoning as
+    /// <see cref="DefaultOpenSoundId"/>: the shared sound is what makes hearing another actor close
+    /// a door around the corner useful, so it has to be identical everywhere unless a door has a
+    /// deliberate override.
+    /// </summary>
+    public const string DefaultCloseSoundId = "sfx_interaction_cerrar_puerta";
 
     [SerializeField] private string doorId;
     [SerializeField] private SO_InventoryItem requiredKey;
@@ -45,6 +53,7 @@ public class SO_DoorData : ScriptableObject
     public string OpenSoundId =>
         string.IsNullOrWhiteSpace(openSoundId) ? DefaultOpenSoundId : openSoundId;
 
-    /// <summary>No fallback: an unset close sound means silence, not the default open sound.</summary>
-    public string CloseSoundId => closeSoundId;
+    /// <summary>The door's own close sound, or the shared default when it has none.</summary>
+    public string CloseSoundId =>
+        string.IsNullOrWhiteSpace(closeSoundId) ? DefaultCloseSoundId : closeSoundId;
 }

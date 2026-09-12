@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -35,6 +36,22 @@ public class PushableBox : BaseRangeInteractable
     [SerializeField] private string releasePrompt = "Press 'E' to stop pushing the box";
 
     private Rigidbody rb;
+
+    // Dedicated source for the "empujando_caja" loop — owned here rather than borrowed from the
+    // AudioManager's shared pool so it can be paused/resumed the exact moment the box's own
+    // velocity crosses the movement threshold, without another SFX in the pool ever hearing it.
+    private AudioSource pushLoopSource;
+    // World-space position of the box on the previous FixedUpdate — used to tell "actually moving"
+    // from "grabbed but stuck against a wall / AFK", which is Rigidbody.linearVelocity's job on
+    // paper but not in practice: kinematic snaps and micro-jitter both feed noise back into it.
+    private Vector3 lastPushPos;
+    // Cached so LockAtBasket can silence the push loop the FRAME the box lands on the basket, and
+    // guarantee the "colocar_caja" sound plays with no overlap of the pushing sound underneath.
+    private bool pushSoundPlaying;
+    // Minimum XZ movement per second below which the box counts as still. Squared to avoid a
+    // sqrt on every FixedUpdate; 0.01 m/s is small enough that a genuine push (0.5–1.5 m/s in
+    // this project) reads as moving without the noise of physics jitter tripping it.
+    private const float PushMoveThresholdSqr = 0.01f * 0.01f;
     // Authored side anchors — one Transform per face, read from the PushBoxTriggerLogic children
     // on Awake. Used ONLY as latch positions; their trigger callbacks no longer gate interaction.
     private Transform[] sideAnchors;
@@ -64,6 +81,17 @@ public class PushableBox : BaseRangeInteractable
         base.Awake();
         rb = GetComponent<Rigidbody>();
         CacheSideAnchors();
+        EnsurePushLoopSource();
+    }
+
+    // The loop source rides on the box so it inherits the box's world position (the sound is 3D).
+    // Created here rather than authored on the prefab so no existing box prefab needs re-saving.
+    private void EnsurePushLoopSource()
+    {
+        pushLoopSource = gameObject.AddComponent<AudioSource>();
+        pushLoopSource.playOnAwake = false;
+        pushLoopSource.loop = true;
+        pushLoopSource.spatialBlend = 1f;
     }
 
     // The four PushBoxTriggerLogic children stay on the prefab: their transforms are the authored
@@ -106,6 +134,134 @@ public class PushableBox : BaseRangeInteractable
         InteractionEvents.RequestPromptRefresh();
     }
 
+
+    // Reads the box's XZ displacement since the last physics step. When it is above the movement
+    // threshold and the box is grabbed, the push loop plays; otherwise it stops. In FixedUpdate
+    // rather than Update because the position we compare against is the physics-driven position,
+    // which is what Rigidbody-based pushing writes. Locked boxes get no sound — LockAtBasket
+    // owns the crossover from "empujando" to "colocar".
+    private void FixedUpdate()
+    {
+        if (!isGrabbed || locked)
+        {
+            if (pushSoundPlaying) StopPushSound();
+            return;
+        }
+
+        Vector3 delta = transform.position - lastPushPos;
+        delta.y = 0f;
+        float perSecondSqr = delta.sqrMagnitude / Mathf.Max(Time.fixedDeltaTime * Time.fixedDeltaTime, 1e-8f);
+        // Gate on the player's forward axis too: pressing E snaps the player onto the box's
+        // anchor with a 0.2s Slerp (PlayerBoxInteractingState.animTimer), and that snap nudges the
+        // box a few centimetres even though the player never pressed W. Without this gate the
+        // push loop would fire under the "grab" chirp on every latch. Reading the same axis the
+        // push state itself reads (Input.GetAxisRaw "Vertical") keeps the two in step: the loop
+        // sounds exactly while the player is actively driving forward.
+        bool pressingForward = Input.GetAxisRaw("Vertical") > 0f;
+        bool moving = pressingForward && perSecondSqr > PushMoveThresholdSqr;
+        lastPushPos = transform.position;
+
+        if (moving && !pushSoundPlaying) StartPushSound();
+        else if (!moving && pushSoundPlaying) StopPushSound();
+    }
+
+    // Length of the Slerp in PlayerBoxInteractingState.animTimer. Kept as a local constant
+    // instead of read from the player state because that field is private, and the value has
+    // been fixed since the state was written — if it ever moves, both places want the same tweak.
+    private const float SnapCollisionSuppressSeconds = 0.2f;
+
+    // Turns off every Collider-pair between the box and the player, waits out the snap, and turns
+    // them back on. Uses Physics.IgnoreCollision instead of layers so the box's own collision
+    // with walls, floors and other props stays untouched. The pairs are re-enabled from a
+    // captured list because relying on GetComponentsInChildren at the end would miss any collider
+    // that has since been disabled or destroyed.
+    private IEnumerator SuppressPlayerCollisionForSnap(PlayerStateManager snapPlayer)
+    {
+        if (snapPlayer == null) yield break;
+
+        Collider[] playerCols = snapPlayer.GetComponentsInChildren<Collider>(includeInactive: false);
+        Collider[] boxCols = GetComponentsInChildren<Collider>(includeInactive: false);
+
+        foreach (Collider p in playerCols)
+        {
+            if (p == null || p.isTrigger) continue;
+            foreach (Collider b in boxCols)
+            {
+                if (b == null || b.isTrigger) continue;
+                Physics.IgnoreCollision(p, b, true);
+            }
+        }
+
+        // Pin the box in place for the length of the snap.
+        //
+        // Kinematic + IgnoreCollision was not enough on its own — the box still drifted a few
+        // centimetres when the player's transform-driven snap slid it into a collider the
+        // physics engine had not yet caught up with. Freezing every constraint on the rigidbody
+        // AND hard-writing the transform back on every physics step during the snap guarantees
+        // zero movement regardless of the cause: contact from another prop, residual velocity,
+        // depenetration solver, anything. Both are restored at the end.
+        RigidbodyConstraints originalConstraints = RigidbodyConstraints.None;
+        bool wasKinematic = false;
+        Vector3 pinnedPos = transform.position;
+        Quaternion pinnedRot = transform.rotation;
+        if (rb != null)
+        {
+            wasKinematic = rb.isKinematic;
+            originalConstraints = rb.constraints;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
+
+        // Hold pose over the length of the snap. WaitForFixedUpdate rather than WaitForSeconds
+        // so the pin runs on the same timeline as the physics step that could otherwise nudge
+        // the box, and so the transform write below actually cancels penetration resolution
+        // from that step. The seconds-based deadline is compared against real time.
+        float pinDeadline = Time.time + SnapCollisionSuppressSeconds;
+        while (Time.time < pinDeadline && !locked)
+        {
+            yield return new WaitForFixedUpdate();
+            if (rb != null)
+            {
+                rb.position = pinnedPos;
+                rb.rotation = pinnedRot;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+        }
+
+        // Restore only if LockAtBasket has not already taken over the rigidbody. It sets its own
+        // kinematic + zeroed-velocity state on purpose (see LockAtBasket) and any writeback here
+        // would undo that mid-snap onto the basket.
+        if (rb != null && !locked)
+        {
+            rb.constraints = originalConstraints;
+            rb.isKinematic = wasKinematic;
+        }
+
+        foreach (Collider p in playerCols)
+        {
+            if (p == null || p.isTrigger) continue;
+            foreach (Collider b in boxCols)
+            {
+                if (b == null || b.isTrigger) continue;
+                Physics.IgnoreCollision(p, b, false);
+            }
+        }
+    }
+
+    private void StartPushSound()
+    {
+        if (pushLoopSource == null || !AudioManager.Exists) return;
+        AudioManager.Instance.PlayLoop("sfx_empujando_caja", pushLoopSource);
+        pushSoundPlaying = true;
+    }
+
+    private void StopPushSound()
+    {
+        if (pushLoopSource != null && pushLoopSource.isPlaying) pushLoopSource.Stop();
+        pushSoundPlaying = false;
+    }
 
     // ── IInteractable ───────────────────────────────────────────────────────
 
@@ -195,6 +351,14 @@ public class PushableBox : BaseRangeInteractable
         rb.mass = 1;
         player.IsInteracting = true;
 
+        // Suspend player↔box collision for the length of the 0.2s snap animation in
+        // PlayerBoxInteractingState. During that snap the player's collider slides onto the
+        // anchor, and any residual contact used to visibly nudge the box (mass 1 → box moves) or,
+        // when we kept the box heavy, shove the player back instead. Neither read as
+        // "interacting" — the whole point is that pressing E must not move anything on screen.
+        // Restored after the snap so the normal push physics takes over on the first W.
+        StartCoroutine(SuppressPlayerCollisionForSnap(player));
+
         Vector3 tempDir = new Vector3(transform.position.x - anchor.position.x, 0f,
                                       transform.position.z - anchor.position.z).normalized;
         player.SetPlayerPositionAndDirection(anchor.position, tempDir);
@@ -203,6 +367,14 @@ public class PushableBox : BaseRangeInteractable
         // moves off the mesh while pushing. Cleared on Release / ForceRelease / LockAtBasket.
         if (InteractionManager.Exists)
             InteractionManager.Instance.SetForcedInteractable(this);
+
+        // One-shot "grabbed the box" chirp. Distinct from the push loop below, which only kicks
+        // in once the box is actually moving.
+        if (AudioManager.Exists) AudioManager.Instance.PlaySFX("sfx_interaction_box", transform.position);
+
+        // Reset the movement sampler so the first FixedUpdate after grabbing does not see a huge
+        // delta between "wherever the box was last frame" and its current position.
+        lastPushPos = transform.position;
 
         // The target did not change (still this box) but its state did (isGrabbed flipped), so
         // fire a prompt-only refresh. Without this the UI would keep advertising the previous
@@ -218,6 +390,8 @@ public class PushableBox : BaseRangeInteractable
 
         if (InteractionManager.Exists)
             InteractionManager.Instance.ClearForcedInteractable(this);
+
+        StopPushSound();
 
         // Same reason as in Grab: same target, different state, so the prompt text has to be
         // re-read. The next Update's raycast will fire TargetChanged(null) on its own if the
@@ -237,6 +411,8 @@ public class PushableBox : BaseRangeInteractable
 
         if (InteractionManager.Exists)
             InteractionManager.Instance.ClearForcedInteractable(this);
+
+        StopPushSound();
     }
 
     // Nearest cached anchor to the player in the XZ plane. Y is ignored because the box is a
@@ -293,6 +469,14 @@ public class PushableBox : BaseRangeInteractable
         }
 
         if (isGrabbed) ForceRelease();
+
+        // Silence the push loop the same frame the box lands on the basket, so it does not bleed
+        // under the "colocar_caja" one-shot. ForceRelease above does not touch it, and even if it
+        // did the ordering matters: stop first, then play, otherwise the loop's own Stop could
+        // race the one-shot on the shared bus.
+        StopPushSound();
+        if (AudioManager.Exists)
+            AudioManager.Instance.PlaySFX("sfx_colocar_caja", transform.position);
 
         locked = true;
 

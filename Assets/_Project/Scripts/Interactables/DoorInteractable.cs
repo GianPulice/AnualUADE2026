@@ -174,13 +174,18 @@ public void OpenDoor()
 
         Vector3? openerPos = ResolvePlayerPosition();
         openedSign = ResolveOpenSign(openerPos);
-        StartCoroutine(AnimateOpen());
 
         // Only sing the "unlocked" chime the first time a door that actually HAD a lock is
         // defeated. A door with no required key was never locked, so there is nothing to unlock,
         // and a re-open reuses the swing animation without touching the lock state either.
-        if (firstUnlock && doorData != null && doorData.RequiredKey != null && AudioManager.Exists)
+        // When it plays, the regular open sound is suppressed for this swing — the two clips
+        // overlapping was the whole point of the report; the unlock chime already carries the
+        // "the door just gave" moment on its own.
+        bool playUnlockSound = firstUnlock && doorData != null && doorData.RequiredKey != null;
+        if (playUnlockSound && AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_interaction_puerta_desbloqueada", transform.position);
+
+        StartCoroutine(AnimateOpen(suppressOpenSound: playUnlockSound));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door opened: {logId} (openedSign={openedSign}, opener={(openerPos.HasValue ? openerPos.Value.ToString("F2") : "null")})", this);
@@ -235,7 +240,7 @@ public void OpenDoor()
         if (nemesis != null) nemesisOpenerPos = nemesis.transform.position;
         else nemesisOpenerPos = ResolvePlayerPosition();
         openedSign = ResolveOpenSign(nemesisOpenerPos);
-        StartCoroutine(AnimateOpen());
+        StartCoroutine(AnimateOpen(suppressOpenSound: false));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"[Nemesis] Door forced open: {logId}", this);
@@ -253,13 +258,17 @@ public void CloseDoor()
     }
 
 
-private IEnumerator AnimateOpen()
+private IEnumerator AnimateOpen(bool suppressOpenSound)
     {
         // Emitted HERE and not in OpenDoor, because AnimateOpen is the single point both
         // routes pass through: the player's OpenDoor and the Nemesis's TryOpenForNemesis.
         // Hung off OpenDoor it would stay silent for the monster, which is the one case
         // the sound exists for.
-        PlayDoorSound(doorData != null ? doorData.OpenSoundId : SO_DoorData.DefaultOpenSoundId);
+        // suppressOpenSound is set by the player's first-unlock path, where the "puerta
+        // desbloqueada" chime is playing already and stacking the open sound on top is what
+        // the bug report was about.
+        if (!suppressOpenSound)
+            PlayDoorSound(doorData != null ? doorData.OpenSoundId : SO_DoorData.DefaultOpenSoundId);
 
         yield return AnimateHinge(hingeClosedLocalRot,
                                   hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f));
@@ -269,7 +278,7 @@ private IEnumerator AnimateOpen()
 
 private IEnumerator AnimateClose()
     {
-        PlayDoorSound(doorData != null ? doorData.CloseSoundId : string.Empty);
+        PlayDoorSound(doorData != null ? doorData.CloseSoundId : SO_DoorData.DefaultCloseSoundId);
 
         yield return AnimateHinge(hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f),
                                   hingeClosedLocalRot);

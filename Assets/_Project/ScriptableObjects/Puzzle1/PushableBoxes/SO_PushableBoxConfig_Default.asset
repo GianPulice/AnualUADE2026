@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f775937ca5a5bbf47b2346a6cda630fd, type: 3}
   m_Name: SO_PushableBoxConfig_Default
   m_EditorClassIdentifier: Assembly-CSharp::SO_PushableBoxConfig
-  maxGrabDistance: 0.5
+  maxGrabDistance: 1.25
   outOfRangePrompt: Get closer to push

@@ -169,6 +169,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         AutoSelectFirstItem();
 
+        if (AudioManager.Exists) AudioManager.Instance.PlaySFX("sfx_abrir_inventario");
+
         InventoryEvents.InventoryToggled(true);
     }
 
@@ -200,6 +202,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         // Stop the recording audio
         //  itemDetailView?.StopAudio();
+
+        if (AudioManager.Exists) AudioManager.Instance.PlaySFX("sfx_cerrar_inventario");
 
         InventoryEvents.InventoryToggled(false);
     }
