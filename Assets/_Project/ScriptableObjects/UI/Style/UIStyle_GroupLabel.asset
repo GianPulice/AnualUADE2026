@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8913cf3cb9af59468c6e9cae74c699b, type: 3}
+  m_Name: UIStyle_GroupLabel
+  m_EditorClassIdentifier: Assembly-CSharp-Editor::SO_UIStyleProfile
+  prefab: {fileID: 8440519385709284247, guid: a40b7486ff89ef646bff531ecf264676, type: 3}
+  theme:
+  - path: 
+    role: 11
+    preserveAlpha: 0
+  frames: []
+  minWellPadding: 0
+  restyleTexts: 1
+  titleTexts: []
+  untouchedTexts: []
+  surfaceMaterial: {fileID: 0}
+  animatedSurfaces: []
+  signalPanels: []
+  crt:
+    enabled: 0
+    contentPath: 
+    useVisibility: 0
+    visibilityPath: 
+    material: {fileID: 0}

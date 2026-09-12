@@ -23,7 +23,8 @@ public class CRTWarpedRaycaster : GraphicRaycaster
     protected override void Awake()
     {
         base.Awake();
-        presenter = GetComponent<CanvasCRTPresenter>();
+        // In the parents too: a dropdown's open list is a canvas of its own under the presented one.
+        presenter = GetComponentInParent<CanvasCRTPresenter>(true);
         ownCanvas = GetComponent<Canvas>();
     }
 

@@ -119,12 +119,11 @@ Pendiente en esta zona:
       `m_IsActive: 1`. Hoy es inerte (el `CanvasGroup` arranca en alpha 0 y `ItemDetailView.Awake`
       lo desactiva), pero conviene hacerle Revert al override.
 
-> ⛔ **No correr `Tools/UI/Apply Theme To Inventory`.** El sistema de theme
-> (`UIThemeApplier` + `SO_UIThemeConfig` + `UITheme.asset` + `InventoryThemeSetup.cs`) existe pero
-> hoy tiene **cero instancias** de `UIThemeApplier` en todo el proyecto: ningún prefab ni escena lo
-> usa. Se probó sobre el inventario y el resultado no gustó, así que el inventario queda con
-> colores literales a propósito. Los archivos se conservan por si se retoma; la decisión de
-> reactivarlo es de diseño, no un pendiente técnico.
+> El look de la UI (tema, bordes Win95, fuentes con contorno, fondos animados, transición, tubo CRT)
+> se aplica con **perfiles de estilo**: un `SO_UIStyleProfile` por prefab en
+> `ScriptableObjects/UI/Style/`, aplicado con `Tools/UI/Style/Apply All Profiles`. Un perfil nuevo
+> sale de `Tools/UI/Style/Draft Profile From Prefab` y se revisa antes de aplicar. Ver
+> `Scripts/Editor/UIStyle/UIStyleTools.cs`.
 
 ### Reproductor de audio (mediano)
 

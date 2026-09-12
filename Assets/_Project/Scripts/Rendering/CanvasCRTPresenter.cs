@@ -19,7 +19,8 @@ using UnityEngine.UI;
 ///     <see cref="rendererIndex"/>, a URP renderer without them.
 ///   - Clicks must land where things are seen, not where they sit in the texture: that is
 ///     <see cref="CRTWarpedRaycaster"/>, which asks <see cref="TryUnwarp"/>.
-///   - Nothing renders while <see cref="content"/> is hidden, so a closed inventory costs nothing.
+///   - Nothing renders while <see cref="content"/> is hidden, or while <see cref="visibility"/> is at
+///     alpha 0, so a closed inventory — or a result screen waiting at alpha 0 — costs nothing.
 /// </summary>
 [RequireComponent(typeof(Canvas))]
 [DisallowMultipleComponent]
@@ -28,6 +29,10 @@ public class CanvasCRTPresenter : MonoBehaviour
 {
     [Tooltip("Rendered only while this is active in the hierarchy — the inventory's LAYOUT. Empty = always.")]
     [SerializeField] private GameObject content;
+
+    [Tooltip("Optional. Rendered only while this group is active with alpha above zero — for screens " +
+             "that stay active and hide by alpha (Result, Win). Empty = content alone decides.")]
+    [SerializeField] private CanvasGroup visibility;
 
     [Tooltip("CRT material for the screen. UIPSXSettingsApplier makes the runtime copy.")]
     [SerializeField] private Material screenMaterial;
@@ -132,7 +137,8 @@ public class CanvasCRTPresenter : MonoBehaviour
     {
         if (!built) return;
 
-        bool show = content == null || content.activeInHierarchy;
+        bool show = (content == null || content.activeInHierarchy) &&
+                    (visibility == null || (visibility.gameObject.activeInHierarchy && visibility.alpha > 0f));
         if (show) EnsureTarget();
         SetPresenting(show);
     }

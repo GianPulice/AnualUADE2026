@@ -1,31 +1,28 @@
 #if UNITY_EDITOR
 using System.Linq;
 using System.Text;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 /// <summary>
-/// Puts the inventory behind the CRT tube:
+/// CRT step: puts the canvas behind the tube —
 ///   - UI_Renderer.asset: a copy of PC_Renderer with its features stripped, appended to every
-///     pipeline asset below, so the UI camera renders like the world does minus PS1 and the fog.
-///   - <see cref="CanvasCRTPresenter"/> on the canvas root, pointed at LAYOUT and InventoryPSX.mat.
-///   - <see cref="CRTWarpedRaycaster"/> in place of the root's GraphicRaycaster.
-///
-/// It also deletes LAYOUT/PSXOverlay, the multiply overlay the previous pass added: the tube does
-/// everything it did and more, and both at once would stripe the UI twice. That node is the only
-/// thing any of the redesign tools removes, and only because a redesign tool put it there.
+///     pipeline asset below, so the UI camera renders like the world does minus PS1 and the fog;
+///   - <see cref="CanvasCRTPresenter"/> on the canvas root, pointed at the profile's content,
+///     visibility group and material;
+///   - <see cref="CRTWarpedRaycaster"/> in place of the root's GraphicRaycaster, so clicks land where
+///     things are seen on the curved screen.
 ///
 /// The renderer index has to exist on whichever pipeline asset the quality level picks, which is why
 /// it goes on all of them, and why a mismatch between them is reported as an error.
 ///
-/// USAGE: Tools / UI / Inventory / Add CRT Screen. See <see cref="InventoryRedesign"/>.
+/// Turning the tube off in a profile does not remove a presenter already on the prefab; it is reported.
 /// </summary>
-public static class InventoryCRTSetup
+public static class UIStyleCRT
 {
-    public const string MaterialPath = "Assets/_Project/Art/Materials/UI/InventoryPSX.mat";
-
     private const string SourceRendererPath = "Assets/_Project/Settings/PC_Renderer.asset";
     private const string UIRendererPath = "Assets/_Project/Settings/UI_Renderer.asset";
 
@@ -35,40 +32,44 @@ public static class InventoryCRTSetup
         "Assets/_Project/Settings/Mobile_RPAsset.asset",
     };
 
-    private const string ContentPath = "LAYOUT";
-    private const string OldOverlayPath = "LAYOUT/PSXOverlay";
-
-    [MenuItem("Tools/UI/Inventory/Add CRT Screen", priority = 17)]
-    public static void Apply()
+    public static void Apply(UIStyleContext ctx, int rendererIndex)
     {
-        Material material = InventoryRedesign.LoadRequired<Material>(MaterialPath);
-        if (material == null) return;
-
-        StringBuilder report = new StringBuilder();
-        int rendererIndex = EnsureUIRenderer(report);
-        if (rendererIndex < 0)
+        SO_UIStyleProfile.CRTSettings crt = ctx.Profile.crt;
+        if (!crt.enabled)
         {
-            Debug.LogError($"[InventoryCRTSetup] No UI renderer, nothing changed.\n{report}");
+            if (ctx.Root.GetComponent<CanvasCRTPresenter>() != null)
+                ctx.Report.AppendLine("  crt: off in the profile, but the prefab has a CanvasCRTPresenter — left as is.");
             return;
         }
 
-        InventoryRedesign.EditPrefab(InventoryRedesign.CanvasPrefab, root =>
+        if (crt.material == null)
         {
-            RemoveOldOverlay(root, report);
+            ctx.Report.AppendLine("  SKIPPED crt — the profile has no material.");
+            return;
+        }
 
-            Transform content = InventoryRedesign.Find(root, ContentPath, report);
-            if (content == null) return;
+        GameObject content = string.IsNullOrEmpty(crt.contentPath) ? null : ctx.Find(crt.contentPath).gameObject;
 
-            ConfigurePresenter(root, content.gameObject, material, rendererIndex);
-            SwapRaycaster(root, report);
-        });
+        CanvasGroup visibility = null;
+        if (crt.useVisibility)
+        {
+            visibility = ctx.Find(crt.visibilityPath).GetComponent<CanvasGroup>();
+            if (visibility == null)
+                ctx.Report.AppendLine($"  NO VISIBILITY — '{crt.visibilityPath}' has no CanvasGroup; the tube will render whenever the content is active.");
+        }
 
-        Debug.Log($"[InventoryCRTSetup] Done — UI camera renderer index {rendererIndex}.\n{report}");
+        ConfigurePresenter(ctx.Root, content, visibility, crt.material, rendererIndex);
+        SwapRaycaster(ctx.Root, ctx.Report);
+        WarpDropdownLists(ctx);
+
+        ctx.Report.AppendLine($"  crt: content '{(content != null ? crt.contentPath : "(always)")}', " +
+                              $"visibility '{(visibility != null ? crt.visibilityPath : "(none)")}', " +
+                              $"material {crt.material.name}, renderer {rendererIndex}");
     }
 
     // -- Renderer -------------------
 
-    private static int EnsureUIRenderer(StringBuilder report)
+    public static int EnsureUIRenderer(StringBuilder report)
     {
         UniversalRendererData renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(UIRendererPath);
 
@@ -96,12 +97,10 @@ public static class InventoryCRTSetup
             }
 
             int at = AddRenderer(pipeline, renderer);
-            report.AppendLine($"  {path}: UI renderer at index {at}");
-
             if (index < 0) index = at;
             else if (at != index)
-                Debug.LogError($"[InventoryCRTSetup] The UI renderer is at index {index} in one pipeline " +
-                               $"asset and {at} in {path}; the presenter holds a single index. Line them up by hand.");
+                Debug.LogError($"[UIStyle] The UI renderer is at index {index} in one pipeline asset and {at} " +
+                               $"in {path}; the presenter holds a single index. Line them up by hand.");
         }
 
         return index;
@@ -146,22 +145,13 @@ public static class InventoryCRTSetup
 
     // -- Prefab -------------------
 
-    private static void RemoveOldOverlay(GameObject root, StringBuilder report)
+    private static void ConfigurePresenter(GameObject root, GameObject content, CanvasGroup visibility, Material material, int rendererIndex)
     {
-        Transform old = root.transform.Find(OldOverlayPath);
-        if (old == null) return;
-
-        Object.DestroyImmediate(old.gameObject);
-        report.AppendLine($"  removed {OldOverlayPath} (the tube replaces it)");
-    }
-
-    private static void ConfigurePresenter(GameObject root, GameObject content, Material material, int rendererIndex)
-    {
-        CanvasCRTPresenter presenter = root.GetComponent<CanvasCRTPresenter>();
-        if (presenter == null) presenter = root.AddComponent<CanvasCRTPresenter>();
+        CanvasCRTPresenter presenter = UIStyleTools.GetOrAdd<CanvasCRTPresenter>(root);
 
         SerializedObject serialized = new SerializedObject(presenter);
         serialized.FindProperty("content").objectReferenceValue = content;
+        serialized.FindProperty("visibility").objectReferenceValue = visibility;
         serialized.FindProperty("screenMaterial").objectReferenceValue = material;
         serialized.FindProperty("rendererIndex").intValue = rendererIndex;
         serialized.ApplyModifiedPropertiesWithoutUndo();
@@ -187,6 +177,32 @@ public static class InventoryCRTSetup
         raycaster.blockingObjects = blocking;
 
         report.AppendLine("  GraphicRaycaster replaced by CRTWarpedRaycaster");
+    }
+
+    /// <summary>
+    /// A dropdown's open list is a canvas of its own, built at runtime from the template with a
+    /// GraphicRaycaster that knows nothing of the tube: items near the edges would answer where they
+    /// sit, not where they are seen. TMP_Dropdown keeps whatever Canvas and GraphicRaycaster the
+    /// template already has, so a CRTWarpedRaycaster on the template carries over to every list.
+    /// </summary>
+    private static void WarpDropdownLists(UIStyleContext ctx)
+    {
+        int warped = 0;
+        foreach (TMP_Dropdown dropdown in ctx.Root.GetComponentsInChildren<TMP_Dropdown>(true))
+        {
+            if (dropdown.template == null) continue;
+
+            GameObject template = dropdown.template.gameObject;
+            if (template.GetComponent<CRTWarpedRaycaster>() != null) continue;
+
+            UIStyleTools.GetOrAdd<Canvas>(template);   // TMP sets its sorting when the list opens
+            GraphicRaycaster plain = template.GetComponent<GraphicRaycaster>();
+            if (plain != null) Object.DestroyImmediate(plain);
+            template.AddComponent<CRTWarpedRaycaster>();
+            warped++;
+        }
+
+        if (warped > 0) ctx.Report.AppendLine($"  crt: {warped} dropdown list(s) given a CRTWarpedRaycaster");
     }
 }
 #endif

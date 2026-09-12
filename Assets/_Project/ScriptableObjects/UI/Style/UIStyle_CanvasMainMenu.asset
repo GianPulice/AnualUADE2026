@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8913cf3cb9af59468c6e9cae74c699b, type: 3}
+  m_Name: UIStyle_CanvasMainMenu
+  m_EditorClassIdentifier: Assembly-CSharp-Editor::SO_UIStyleProfile
+  prefab: {fileID: 8708401499548345423, guid: 9a6b7d9e0c9c3d5428ab4ee6d2718202, type: 3}
+  revertNestedStyleOverrides: 1
+  theme:
+  - path: Layout/TITLE
+    role: 9
+    preserveAlpha: 0
+  - path: Layout
+    role: 5
+    preserveAlpha: 1
+  - path: Layout/VerticalGroup/ButtonExit
+    role: 16
+    preserveAlpha: 0
+  - path: Layout/VerticalGroup/ButtonExit/Text (TMP)
+    role: 13
+    preserveAlpha: 0
+  flatFills: []
+  frames: []
+  minWellPadding: 8
+  restyleTexts: 1
+  titleTexts:
+  - Layout/TITLE
+  untouchedTexts: []
+  surfaceMaterial: {fileID: 2100000, guid: d5f0a8c2e7b94163a8d2c6f1b09e4a57, type: 2}
+  animatedSurfaces: []
+  signalPanels:
+  - path: Layout
+    trigger: 0
+    typewriters: []
+  crt:
+    enabled: 1
+    contentPath: 
+    useVisibility: 1
+    visibilityPath: 
+    material: {fileID: 2100000, guid: b83e5d0a6c1f47e29d4a7b3c15f0e8d2, type: 2}
