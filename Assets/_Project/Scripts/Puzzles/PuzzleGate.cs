@@ -19,7 +19,6 @@ public class PuzzleGate : MonoBehaviour
     private const string OpenSoundId = "sfx_porton_abriendose";
 
     private Transform door;
-    private AudioSource audioSource;
     private AnimationCurve openCurve;
     private Vector3 closedLocalPosition;
     private Coroutine openRoutine;
@@ -30,13 +29,6 @@ public class PuzzleGate : MonoBehaviour
         // el propio transform funciona como fallback para configuraciones planas.
         Transform child = transform.Find("Door");
         door = child != null ? child : transform;
-
-        // AudioSource local al Door: el sonido sale literalmente del GameObject visible del
-        // portón, así no depende de que la posición world sea la esperada — y además acompaña al
-        // mesh mientras sube. El AudioManager lo configura por id con la data del SO al reproducir.
-        audioSource = door.GetComponent<AudioSource>();
-        if (audioSource == null) audioSource = door.gameObject.AddComponent<AudioSource>();
-        audioSource.playOnAwake = false;
 
         openCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
         closedLocalPosition = door.localPosition;
@@ -72,11 +64,10 @@ public class PuzzleGate : MonoBehaviour
 
     private IEnumerator OpenRoutine()
     {
-        // Reproduce sobre el AudioSource local del Door: el sonido sale del GameObject visible
-        // del portón sin importar qué posición tenga el root del prefab, y sigue a la puerta
-        // mientras sube. El AudioManager configura el clip, mixer group y distancias del SO.
+        // Sonido 3D anclado en la posición del portón — mismo patrón que DoorInteractable.
+        // Requiere que el root del prefab y el hijo Door estén alineados con el mesh visible.
         if (AudioManager.Exists)
-            AudioManager.Instance.PlayOneShotOn(OpenSoundId, audioSource);
+            AudioManager.Instance.PlaySFX(OpenSoundId, transform.position);
 
         Vector3 from = door.localPosition;
         Vector3 to = closedLocalPosition + Vector3.up * OpenHeight;
