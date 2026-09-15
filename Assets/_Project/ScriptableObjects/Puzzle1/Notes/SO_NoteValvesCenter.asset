@@ -10,18 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
-  m_Name: SO_NoteValves
+  m_Name: SO_NoteValvesCenter
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: nota_valvulas
   itemName: Valve Note
   category: 2
-  itemDescription: Note describing the valve configuration.
+  itemDescription: Warning!
   itemIcon: {fileID: 0}
   isMetallic: 0
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
   contentType: 0
-  textContent: 
+  textContent: 'NEVER touch the valve in the center.
+
+'
   audioClip: {fileID: 0}
   targetID: 
