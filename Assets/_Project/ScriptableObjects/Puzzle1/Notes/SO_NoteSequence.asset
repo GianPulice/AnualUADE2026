@@ -23,7 +23,7 @@ MonoBehaviour:
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
-  contentType: 0
+  contentType: 1
   textContent: '3 workers died at the factory after 1 serious incident where 4 gas
     tanks exploded on the 2nd floor.
 

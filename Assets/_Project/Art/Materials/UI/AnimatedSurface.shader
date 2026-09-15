@@ -8,6 +8,9 @@
 //
 // Premultiplied output (Blend One OneMinusSrcAlpha), so it is correct both drawn straight to the
 // screen and drawn into CanvasCRTPresenter's texture.
+//
+// Animated with _UnscaledTime (pushed by UnscaledShaderTime), never _Time: Unity's _Time follows
+// Time.timeScale, and these panels are the pause, settings and inventory screens — all shown paused.
 
 Shader "WIRED/UI/Animated Surface"
 {
@@ -116,6 +119,10 @@ Shader "WIRED/UI/Animated Surface"
             float4 _NoiseDrift;
             float _SweepAmount, _SweepWidth, _SweepPeriod;
 
+            // Global, from UnscaledShaderTime. Keep it out of Properties: a material property of the same
+            // name would shadow the global and freeze the pattern again.
+            float _UnscaledTime;
+
             float Hash(float2 p)
             {
                 return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
@@ -161,16 +168,16 @@ Shader "WIRED/UI/Animated Surface"
                 float2 p = IN.vertex.xy * (1080.0 / _ScreenParams.y);
 
                 // Drifting grid.
-                float2 g = frac((p + _Time.y * _GridScroll.xy) / _GridSize) * _GridSize;
+                float2 g = frac((p + _UnscaledTime * _GridScroll.xy) / _GridSize) * _GridSize;
                 float grid = (g.x < _GridLine || g.y < _GridLine) ? 1.0 : 0.0;
 
                 // Slow noise, two octaves.
-                float2 q = p / _NoiseScale + _Time.y * _NoiseDrift.xy;
+                float2 q = p / _NoiseScale + _UnscaledTime * _NoiseDrift.xy;
                 float noise = ValueNoise(q) * 0.65 + ValueNoise(q * 2.3 + 17.0) * 0.35;
 
                 // A soft diagonal band crossing the screen once every _SweepPeriod seconds.
                 float diagonal = (p.x + p.y) / 3000.0;
-                float phase = frac(_Time.y / _SweepPeriod) * 1.4 - 0.2;
+                float phase = frac(_UnscaledTime / _SweepPeriod) * 1.4 - 0.2;
                 float sweep = 1.0 - smoothstep(0.0, _SweepWidth / 3000.0, abs(diagonal - phase));
 
                 float pattern = saturate(grid * _GridAmount + noise * _NoiseAmount + sweep * _SweepAmount);

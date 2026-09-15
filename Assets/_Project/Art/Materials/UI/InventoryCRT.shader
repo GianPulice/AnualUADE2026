@@ -13,6 +13,10 @@
 //   _WarpStrength                            (read by CanvasCRTPresenter for the click mapping)
 //   _EnableScanlines, _EnableDither          (driven from the player's Settings by UIPSXSettingsApplier)
 //   _ScanlineIntensity, _ScanlineCount       (same formula and defaults as the world's PS1 pass)
+//   _UnscaledTime                            (global clock pushed by UnscaledShaderTime)
+//
+// Animated with _UnscaledTime, never _Time: Unity's _Time follows Time.timeScale, and the pause,
+// settings and inventory screens this tube draws all run with the game paused.
 //
 // The texture is PREMULTIPLIED: the UI camera clears to transparent and the UI blends over it, so
 // every channel already carries its alpha. Hence Blend One OneMinusSrcAlpha, and every brightening
@@ -143,6 +147,10 @@ Shader "WIRED/UI/Inventory CRT"
             float _GrainIntensity, _GrainFPS, _FlickerIntensity;
             float _VignetteIntensity, _VignetteStart, _VignetteEnd;
 
+            // Global, from UnscaledShaderTime. Keep it out of Properties: a material property of the same
+            // name would shadow the global and freeze the tube again.
+            float _UnscaledTime;
+
             // Bayer 4x4 — the same ordered-dither matrix as the world pass.
             static const float Bayer4x4[16] =
             {
@@ -189,10 +197,10 @@ Shader "WIRED/UI/Inventory CRT"
                 float2 uv = CRTWarpUV(IN.texcoord, _WarpStrength, aspect);
 
                 // 2) Wobble — a slow horizontal ripple; the tube is never quite still.
-                uv.x += sin(uv.y * _WobbleFrequency + _Time.y * _WobbleSpeed) * _WobbleAmount * texel.x;
+                uv.x += sin(uv.y * _WobbleFrequency + _UnscaledTime * _WobbleSpeed) * _WobbleAmount * texel.x;
 
                 // 3) Glitch — now and then one horizontal band slips sideways for a step.
-                float step = floor(_Time.y * _GlitchRate);
+                float step = floor(_UnscaledTime * _GlitchRate);
                 float band = floor(uv.y * 36.0);
                 if (Hash(float2(band, step)) < _GlitchChance)
                     uv.x += (Hash(float2(step, band + 13.0)) - 0.5) * 2.0 * _GlitchAmount * texel.x;
@@ -233,11 +241,11 @@ Shader "WIRED/UI/Inventory CRT"
                     shade *= 1.0 - _ScanlineIntensity * (0.5 - 0.5 * sin(IN.texcoord.y * _ScanlineCount * UNITY_PI));
 
                 // 7) Refresh bar — a soft brighter band rolling down the tube.
-                float roll = frac(IN.texcoord.y + _Time.y * _RollSpeed);
+                float roll = frac(IN.texcoord.y + _UnscaledTime * _RollSpeed);
                 shade *= 1.0 + _RollIntensity * (1.0 - smoothstep(0.0, _RollWidth, abs(roll - 0.5)));
 
                 // 8) Grain, stepped like tape noise rather than fizzing every frame, and a faint flicker.
-                float frame = floor(_Time.y * _GrainFPS);
+                float frame = floor(_UnscaledTime * _GrainFPS);
                 shade *= 1.0 - _GrainIntensity * Hash(floor(IN.vertex.xy / 2.0) + frame * 17.0);
                 shade *= 1.0 - _FlickerIntensity * Hash(float2(frame, 3.7));
 

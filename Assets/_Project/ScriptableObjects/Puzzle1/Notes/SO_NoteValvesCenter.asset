@@ -21,7 +21,7 @@ MonoBehaviour:
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
-  contentType: 0
+  contentType: 1
   textContent: 'NEVER touch the valve in the center.
 
 '

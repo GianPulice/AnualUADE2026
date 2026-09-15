@@ -21,7 +21,7 @@ MonoBehaviour:
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
-  contentType: 0
+  contentType: 1
   textContent: 'Turn it 2 or 3 times, and it should open.
 
 '
