@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8727048203017392849}
   - component: {fileID: 6479990232537779812}
   - component: {fileID: 1072743807518838324}
+  - component: {fileID: -4989231045000483989}
   m_Layer: 0
   m_Name: BarrelOil
   m_TagString: Untagged
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.0071749995, y: 0.007174998, z: 0.009999998}
   m_Center: {x: 0, y: 0, z: 0.004999999}
+--- !u!208 &-4989231045000483989
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4818749612752425578}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.004, y: 0.004, z: 0.0050000004}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0.0050000004}
+  m_TimeToStationary: 0.5

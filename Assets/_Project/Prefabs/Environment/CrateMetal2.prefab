@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 834190989748800048}
   - component: {fileID: 1283704684139998037}
   - component: {fileID: 8005862286020883094}
+  - component: {fileID: 6012066647620733969}
   m_Layer: 0
   m_Name: CrateMetal2
   m_TagString: Untagged
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.01, y: 0.009999998, z: 0.014999997}
   m_Center: {x: 0, y: 0, z: 0.0074999984}
+--- !u!208 &6012066647620733969
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6854290269254644337}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.0050000004, y: 0.0050000004, z: 0.007}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0.007}
+  m_TimeToStationary: 0.5

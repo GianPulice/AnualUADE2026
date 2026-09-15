@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 1843353318654195443}
   - component: {fileID: 1152832641639724465}
   - component: {fileID: -2437169119759216094}
+  - component: {fileID: 1925449645845317043}
   m_Layer: 0
   m_Name: Crate
   m_TagString: Untagged
@@ -112,3 +113,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.0135, y: 0.009999998, z: 0.008999999}
   m_Center: {x: 0, y: 0, z: 0.0044999993}
+--- !u!208 &1925449645845317043
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2186902185082458688}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.007, y: 0.0050000004, z: 0.004}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0.004}
+  m_TimeToStationary: 0.5
