@@ -178,18 +178,27 @@ También pendiente en la capa de mundo (no es UI pero bloquea el testeo de puzzl
 ## 🎯 Document Reader
 
 Cambios aplicados:
-- ✅ NO pausa el juego (sale del UIStateManager).
-- ✅ Auto-close al cambiar el target de interacción.
+- ✅ Se abre solo al **agarrar** una nota (`PickupInteractable` → `Open(SO_InventoryItem)`), para todo item con `ContentType = Text`. Desactivable por pickup con `openReaderOnPickup`.
+- ✅ **Modo lectura congela el juego** (`PausesGame` true mientras esté abierto así) y bloquea la pausa. Ver UI-System §10.4.
+- ✅ Hoja de 650×850 centrada sobre un dim: es el Doc Box del inventario clonado a tamaño página — mismo `InventorySurface`, mismo `UIBevelFrame`, misma header bar, mismo tubo CRT. El `DocPanelView` del inventario queda intacto.
+- ✅ Cierra con ESC, con la X de la header o clickeando fuera de la hoja.
+- ✅ Lectura in situ (`Open(SO_DocumentData)` desde `NoteInteractable`): sigue sin pausar y con auto-close al cambiar el target.
 
 Detalles diferidos:
 
-- [ ] **Sorting order del Canvas** — verificar que la pausa quede VISIBLE encima del documento cuando se aprieta ESC durante la lectura. Spec implícito: la pausa es overlay global.
+- [ ] **Sorting order del Canvas** — el reader ordena en 60 y la pausa en 1, así que la pausa NO se ve encima. Hoy se resuelve bloqueando la pausa en modo lectura; si alguna vez hace falta que se vea encima, hay que subir el sorting order del canvas de pausa, no bajar el del reader.
 - [ ] **Indicador visual de reproducción** si el documento incluye audio (futuro, cuando haya audio en documents).
+- [ ] **Sonido de apertura** — `openSoundId` en el controller está vacío; hay `sfx_puzzle_document_read_01/02` sin usar.
 
 ---
 
 ## 🖱️ Interaction Prompt
 
+- [x] **Ventana Win95 + línea de comando de fósforo + 3 tipos de mensaje** (común / ítem / global). Ver
+      `UI-System.md` · Interaction Prompt. El texto de `PickupInteractable` pasó de "Press 'E' to pick up X"
+      a "Pick up X": la tecla ahora se dibuja.
+- [ ] **Borrar `Scripts/Editor/UIStyle/InteractionPromptWindowBuilder.cs`** una vez commiteado el prefab. Es un
+      builder de un solo uso; el prefab es la fuente de verdad.
 - [ ] **Renombrar `IInteractable.GetInteractText()` → `GetPromptText()`** para alinear con spec interaction §1.1. Cambio cosmético, alto número de archivos afectados.
 - [ ] **Priorizar por dot product de mirada** cuando hay múltiples interactables solapados. Spec interaction §10. El comportamiento actual depende del orden de registro.
 
@@ -268,5 +277,5 @@ Estado real:
 - [x] **`PauseManager.OnEnable/OnDisable` con InputAction** — resuelto con `pauseActionHandler` cached. Lambda ya no se pierde en `-=`.
 - [ ] **Editor setup `SequencePanelUISetup.cs`** — depende del refactor reciente del View (BaseScreenView). El `SetPrivateField` ya busca en jerarquía de bases. Si se vuelve a romper, considerar dropear el editor setup y construir el prefab manualmente.
 - [x] **`PausesGame` en IModalUI** — propiedad agregada a la interfaz. `UIStateManager.ApplyModalEnvironment` solo pone `timeScale = 0` si alguna modal en el stack declara `PausesGame = true`. `DocumentReader` integrado al sistema con `PausesGame = false` (tiempo corre, input bloqueado).
-  - ⚠️ **Caveat abierto**: `DocumentReaderController` tiene `ConsumesEscape = true` + `BlocksPause = false`. ESC cierra el documento, pero el `PauseManager` puede disparar en el mismo frame (race condition). Si aparece en testing, cambiar a `BlocksPause = true`.
+  - ✅ **Caveat cerrado en modo lectura**: `BlocksPause` pasó a ser `isOpen && pausesWhileOpen`, así que la nota que se abre al agarrarla se come el ESC sin que la pausa dispare en el mismo frame. En lectura in situ (`NoteInteractable`) sigue en `false` a propósito — ahí el mundo corre y la pausa tiene que andar. Ver UI-System §10.4.
 - [x] **`GameResultManager.ResetSession()` en flujo real** — se llama ahora en `MainMenuController.HandleNewGame()`. Pendiente: agregar el mismo llamado en `SaveSlotsController` cuando se implemente Load Game.

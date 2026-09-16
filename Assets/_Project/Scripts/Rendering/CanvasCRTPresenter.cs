@@ -59,6 +59,14 @@ public class CanvasCRTPresenter : MonoBehaviour
     /// <summary>True while the canvas is shown through the tube — and so is warped.</summary>
     public bool IsPresenting => built && enabled && screenCanvas != null && screenCanvas.enabled;
 
+    /// <summary>
+    /// The CRT material actually on screen: the runtime copy <see cref="UIPSXSettingsApplier"/> makes,
+    /// never the asset, so anything written here is thrown away with the scene. For effects that drive
+    /// the tube itself — <c>UISignalStaticBurst</c> tearing it during a burst. Null before Awake, and
+    /// whenever the presenter has no material to work with.
+    /// </summary>
+    public Material ScreenMaterial => screen != null ? screen.material : null;
+
     // -- Unity -------------------
 
     private void Awake()

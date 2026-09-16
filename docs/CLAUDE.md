@@ -418,6 +418,7 @@ Communication between systems in different scenes uses **static C# events**. Key
 | `NemesisEvents.OnStateChanged` | NemesisTelemetry | NemesisAudio, NemesisEyes |
 | `NemesisEvents.OnCaptureResolved` | NemesisCatchState | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager | InteractionPromptView |
+| `InteractionEvents.OnGlobalMessage` | any system, via `RaiseGlobalMessage` | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed/Consumed` | InventoryManager | InteractionPromptView, ModuleHUDView |
 | `UIStateManager.OnModalPushed/Popped` | UIStateManager | (subscribers as needed) |
 
@@ -590,10 +591,13 @@ Two gaps against the spec, both intentional for now:
   still playing over the gameplay scene is the failure mode, and restarting from the beginning on
   reselect is the specified behaviour, not a bug.
 - **Two document paths exist and they are not interchangeable.** An item with `ContentType.Text`
-  shows its text in the inventory's doc panel and can be re-read forever; a `NoteInteractable`
-  opens `DocumentReaderController` with an `SO_DocumentData` and never enters the inventory. Spec
-  §11 wants the notes to be held items, which is the first path. Choose one per piece of paper —
-  wiring both means the same note exists twice with two different texts to keep in sync.
+  goes to the inventory, is put in front of the player on the spot by `DocumentReaderController`
+  (reading mode: the game freezes until they dismiss the sheet), and can be re-read forever from
+  the inventory's doc panel; a `NoteInteractable` opens the same reader with an `SO_DocumentData`,
+  with the world still running, and never enters the inventory. Spec §11 wants the notes to be held
+  items, which is the first path — and it is the only one any note in the project actually uses.
+  Choose one per piece of paper — wiring both means the same note exists twice with two different
+  texts to keep in sync.
 
 **Category is data, not a switch.** `SO_ItemCategoryConfig` holds, per category, the UI colours,
 the group label, the tag, the pickup sound (`[SoundId]`, used when `PickUpInteractable` names none

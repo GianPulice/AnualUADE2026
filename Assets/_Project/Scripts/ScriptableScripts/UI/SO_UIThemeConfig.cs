@@ -27,6 +27,12 @@ public class SO_UIThemeConfig : ScriptableObject
     [Tooltip("Full-screen dim behind a modal. Carries its own alpha.")]
     public Color Dim;
 
+    [Tooltip("Black level of a powered CRT tube: the ground of a canvas shown through " +
+             "CanvasCRTPresenter. Not pure black on purpose — the tube's scanlines, vignette, roll bar " +
+             "and grain are all multiplicative, so on #000000 they have nothing to act on and the " +
+             "screen reads as a black rectangle instead of a switched-on set.")]
+    public Color SurfaceTube;
+
     [Header("Borders")]
     public Color BorderHairline;
     public Color BorderStrong;
@@ -64,6 +70,7 @@ public class SO_UIThemeConfig : ScriptableObject
         UIThemeRole.SurfaceFooter  => SurfaceFooter,
         UIThemeRole.SurfaceTabs    => SurfaceTabs,
         UIThemeRole.Dim            => Dim,
+        UIThemeRole.SurfaceTube    => SurfaceTube,
         UIThemeRole.BorderHairline => BorderHairline,
         UIThemeRole.BorderStrong   => BorderStrong,
         UIThemeRole.Divider        => Divider,
@@ -103,6 +110,7 @@ public class SO_UIThemeConfig : ScriptableObject
         SurfaceFooter  = HexToColor("#080606"); // title bars
         SurfaceTabs    = HexToColor("#0A0808"); // tab rail
         Dim            = HexToColor("#000000E0"); // behind the inventory — 88% alpha, black not grey
+        SurfaceTube    = HexToColor("#0A0A0A"); // CRT ground: lifted just enough for the tube to breathe
 
         // Borders
         BorderHairline = HexToColor("#241C1C");
@@ -180,5 +188,6 @@ public enum UIThemeRole
     // the middle would silently repaint every node that already picked a role after it.
     BevelLight,
     BevelShadow,
-    Outline
+    Outline,
+    SurfaceTube
 }

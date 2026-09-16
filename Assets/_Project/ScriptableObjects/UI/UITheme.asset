@@ -18,6 +18,7 @@ MonoBehaviour:
   SurfaceFooter: {r: 0.3679245, g: 0, b: 0, a: 1}
   SurfaceTabs: {r: 0.039215688, g: 0.03137255, b: 0.03137255, a: 1}
   Dim: {r: 0, g: 0, b: 0, a: 0.98039216}
+  SurfaceTube: {r: 0.103773594, g: 0.103773594, b: 0.103773594, a: 1}
   BorderHairline: {r: 0.14117648, g: 0.10980392, b: 0.10980392, a: 1}
   BorderStrong: {r: 0.7169812, g: 0.07102172, b: 0.07102172, a: 1}
   Divider: {r: 0, g: 0, b: 0, a: 0.11764706}

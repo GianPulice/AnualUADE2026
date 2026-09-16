@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public class SocketInteractable : BaseRangeInteractable
+public class SocketInteractable : BaseRangeInteractable, IPromptPresentation
 {
     [SerializeField] private SO_SocketData socketData;
 
@@ -22,6 +22,13 @@ public class SocketInteractable : BaseRangeInteractable
 
     public string SocketId => socketData != null ? socketData.SocketId : string.Empty;
     public string LinkedPuzzleId => socketData != null ? socketData.LinkedPuzzleId : string.Empty;
+
+    // -- IPromptPresentation -------------------
+    // Inserting is an item interaction too, so the prompt shows the item the socket is asking
+    // for. That icon is the answer to "which one of the three do I need here".
+    public InteractionPromptKind Kind => InteractionPromptKind.Item;
+    public Sprite PromptIcon =>
+        socketData != null && socketData.RequiredItem != null ? socketData.RequiredItem.ItemIcon : null;
 
     public override string GetInteractText()
     {

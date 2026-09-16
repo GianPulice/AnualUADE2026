@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class PickupInteractable : BaseRangeInteractable
+public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
 {
     [Header("Item")]
     [Tooltip("The item this pickup hands to the inventory. A pickup with no item is INERT: " +
@@ -21,9 +21,21 @@ public class PickupInteractable : BaseRangeInteractable
              "explicit Pickup Sound Id above is used.")]
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
 
+    [Header("Reading")]
+    [Tooltip("Put the note in front of the player the moment it is picked up, for items that " +
+             "carry a document (Content Type = Text). Turn it off for a note that should only be " +
+             "readable from the inventory.")]
+    [SerializeField] private bool openReaderOnPickup = true;
+
     /// <summary>Item assigned to this pickup. Read by <see cref="ItemProximityHighlight"/>
     /// to resolve the category automatically without duplicating the dropdown by hand.</summary>
     public SO_InventoryItem Item => itemToPick;
+
+    // -- IPromptPresentation -------------------
+    // The prompt shows this as an item: its own title bar and the item's icon in the well, so
+    // taking something off the floor does not look like opening a door.
+    public InteractionPromptKind Kind => InteractionPromptKind.Item;
+    public Sprite PromptIcon => itemToPick != null ? itemToPick.ItemIcon : null;
 
 
     /// <summary>
@@ -52,8 +64,8 @@ public class PickupInteractable : BaseRangeInteractable
     public override string GetInteractText()
     {
         return itemToPick != null
-            ? $"Press 'E' to pick up {itemToPick.ItemName}"
-            : "Press 'E' to pick up";
+            ? $"Pick up {itemToPick.ItemName}"
+            : "Pick up";
     }
 
     protected override bool CanInteractInCloseRange()
@@ -75,12 +87,40 @@ public class PickupInteractable : BaseRangeInteractable
         PlayPickupSound();
 
         InventoryManager.Instance.AddItem(itemToPick);
+        TryOpenReader();
         Destroy(gameObject);
     }
 
     public override bool IsRepeatable()
     {
         return false;
+    }
+
+    /// <summary>
+    /// Puts the note the player has just taken in front of them, on a frozen game.
+    ///
+    /// Content Type is the gate, not the category: it is the field that says "this item carries a
+    /// document", and it is the same one <see cref="ItemDetailView"/> reads to decide whether the
+    /// inventory gets an OPEN DOC button. A key filed under Note with no text stays silent.
+    ///
+    /// Called before Destroy(gameObject) — which is only queued until the end of the frame anyway.
+    /// The reader lives on the LevelUI canvas and does not care that this object is going away.
+    /// </summary>
+    private void TryOpenReader()
+    {
+        if (!openReaderOnPickup) return;
+        if (itemToPick.ContentType != ItemContentType.Text) return;
+        if (string.IsNullOrWhiteSpace(itemToPick.TextContent)) return;
+
+        if (DocumentReaderController.Instance == null)
+        {
+            Debug.LogWarning($"[{nameof(PickupInteractable)}] No DocumentReaderController in the " +
+                             $"loaded scenes (it lives on LevelUI), so '{itemToPick.ItemName}' " +
+                             "went to the inventory without being read.", this);
+            return;
+        }
+
+        DocumentReaderController.Instance.Open(itemToPick);
     }
 
     /// <summary>

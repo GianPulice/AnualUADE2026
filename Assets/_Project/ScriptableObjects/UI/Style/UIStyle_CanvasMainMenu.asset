@@ -19,7 +19,7 @@ MonoBehaviour:
     role: 9
     preserveAlpha: 0
   - path: Layout
-    role: 5
+    role: 21
     preserveAlpha: 1
   - path: Layout/VerticalGroup/ButtonExit
     role: 16

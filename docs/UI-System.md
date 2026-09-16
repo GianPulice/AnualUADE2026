@@ -94,7 +94,8 @@ Cada uno de estos controllers:
    no deben tener un `Update()` con `GetKeyDown(KeyCode.Escape)`.
 
 Ejemplos en el código:
-- `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable`.
+- `DocumentReaderController.Instance.Open(inventoryItem)` — invocado desde `PickupInteractable` al levantar una nota (modo lectura: congela el juego).
+- `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable` (lectura in situ: el mundo sigue corriendo).
 - `SequencePanelUIController.Instance.Open(panel)` — invocado desde `SequencePanelInteractable`.
 - `SettingsController.Instance.OpenScreen()` — invocado desde `PauseManagerUI.HandleSettings()` y `MainMenuController.HandleSettings()`.
 - `InventoryManagerUI.Instance.OpenInventory()` — invocado desde su propio `HandleInput()` con Tab.
@@ -471,8 +472,10 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 ### 10.3 ~~GameResultManager — estado estático persistente~~ ✅ Resuelto
 `GameResultManager.ResetSession()` se llama ahora en `MainMenuController.HandleNewGame()` antes de empujar el grupo de gameplay. **Pendiente**: cuando se implemente Load Game en `SaveSlotsController`, ese flujo también debe llamar `ResetSession()` antes de cargar la partida guardada.
 
-### 10.4 DocumentReader — race condition ESC con PauseManager
-`DocumentReaderController` tiene `ConsumesEscape = true` y `BlocksPause = false`. Cuando ESC se presiona con el documento abierto, el `UIStateManager` cierra el documento **y** el `PauseManager` puede disparar en el mismo frame (porque `IsBlockingPause` es `false`). Resultado posible: documento se cierra y el menú de pausa se abre en la misma pulsación. Si esto molesta en testing, cambiar a `BlocksPause = true` en `DocumentReaderController`.
+### 10.4 ~~DocumentReader — race condition ESC con PauseManager~~ ✅ Resuelto en modo lectura
+`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. El canvas del reader ordena en 60 y el de pausa en 1, con lo cual un menú de pausa abierto encima se dibujaría **debajo** de la hoja — invisible pero comiéndose el input; y el juego ya está congelado, así que la pausa no aportaría nada.
+
+**Sigue abierto en lectura in situ** (`Open(SO_DocumentData)`, desde `NoteInteractable`): ahí el mundo sigue corriendo y la pausa tiene que poder abrirse, así que `BlocksPause` queda en `false` y la race condition original aplica igual. Hoy no hay ninguna `NoteInteractable` colocada en ninguna escena, así que no se manifiesta.
 
 ---
 
@@ -488,8 +491,32 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisEyes |
 | `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
+| `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje global | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
 | `InventoryEvents.OnModuleTimerTick/StateChanged/Exploded` | timers de módulos | ModuleHUDView |
+
+### Interaction Prompt — ventana Win95 y tipos de mensaje
+
+El prompt es una ventana chica al estilo Win95 (`Window` con `UIBevelFrame` Raised, barra de título, fondo
+animado) con una línea de comando de fósforo adentro: `> TEXTO_`, en mayúsculas, tipeada con
+`TMPTypewriterReveal` y con un cursor `_` que parpadea en rojo (`#CC1A1A`, el acento del tema).
+
+Muestra **tres tipos** en el mismo slot, cada uno ligeramente distinto:
+
+| Tipo | Título | Slot izquierdo | Entrada |
+|---|---|---|---|
+| Común (puertas, válvulas, paneles, notas) | `C:WIREDINTERACT.EXE` | keycap `E` | desde abajo |
+| Ítem (recoger / insertar) | `C:WIREDITEM.DAT` | keycap `E` + pozo Sunken con el ícono del ítem | desde abajo |
+| Global (mensajes del sistema) | `C:WIREDSYSTEM.MSG` | pozo con glifo `!`, sin tecla | desde la izquierda, se va sola |
+
+- El tipo lo declara el interactable con la interfaz **opcional** `IPromptPresentation` (`Kind` + `PromptIcon`).
+  Hoy la implementan `PickupInteractable` y `SocketInteractable`; lo que no la implemente es Común.
+- Los mensajes globales se publican con `InteractionEvents.RaiseGlobalMessage(texto, segundos)`. El aviso de
+  auto-pickup ("X added to inventory") es su primer uso. Si hay un modal abierto, el mensaje queda diferido
+  hasta que se cierre.
+- El estado "info" (`GetInfoText`) conserva el tipo pero va en gris y sin tecla.
+- **La barra de título NO está en el perfil de estilo**: la pinta la view según el tipo, y un `UIThemeApplier`
+  la repintaría en `OnEnable`. El resto del prompt lo estila `UIStyle_InteractionCanvas.asset`.
 
 ---
 
@@ -497,7 +524,7 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 
 Para entender un pattern específico, leer estos archivos como modelo:
 
-- **Controller persistente con static Instance + IModalUI no-pausante**: `DocumentReaderController.cs` — ejemplo de `PausesGame = false` (tiempo corre, input bloqueado).
+- **Controller persistente con static Instance + IModalUI cuyo `PausesGame` depende de cómo se abrió**: `DocumentReaderController.cs` — la misma modal congela el juego en modo lectura y lo deja correr en lectura in situ. Las flags de `IModalUI` son propiedades, no constantes: el `UIStateManager` las relee en cada Push/Pop.
 - **Controller con InjectDependencies + apertura por evento estático**: `WinController.cs`, `ResultScreenController.cs`.
 - **Presentación por datos en vez de por subclase**: `ResultPresentation.cs` — un preset serializado por `GameState` en lugar de un controller por pantalla.
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
