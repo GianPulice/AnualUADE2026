@@ -26,18 +26,30 @@ public static class InteractionPromptWindowBuilder
     private const string PrefabPath  = "Assets/_Project/Prefabs/UI/Inventory/InteractionCanvas.prefab";
     private const string ProfilePath = "Assets/_Project/ScriptableObjects/UI/Style/UIStyle_InteractionCanvas.asset";
 
-    // The window is a fixed size: every slot position below is a constant against it, which is what
-    // lets the view move the message by plain insets instead of a layout group.
+    // Only what the prefab shows in the editor: at runtime the view sizes the window to each line. Every
+    // slot below is a constant against the window's left edge and vertical centre, which is what lets
+    // the view move the message by plain insets and size the window around it in the same call.
     private const float WindowWidth    = 560f;
-    private const float WindowHeight   = 96f;
+    private const float WindowHeight   = 96f;   // minWindowHeight on the view
     private const float TitleBarHeight = 24f;
+    private const float TitleTextRight = 60f;
     private const float KeyCapX        = 12f;
     private const float KeyCapWidth    = 36f;
     private const float KeyCapHeight   = 32f;
-    private const float IconWellX      = 56f;
+    private const float IconWellX      = 56f;   // behind the key cap; the view moves it to KeyCapX without one
     private const float IconWellSize   = 40f;
     private const float MessageInset   = 60f;   // textInsetBase + keySlotWidth on the view
     private const float MessageRight   = 16f;
+
+    // A frame ring takes 4 units a side, so the caps are sized for the glyph left inside them: the old
+    // 18x14 left a 10x6 hole where nothing read as a minus or a cross. They centre 2 units low, on the
+    // part of the title bar the window's own frame does not cover.
+    private const float CapWidth       = 22f;
+    private const float CapHeight      = 18f;
+    private const float CapY           = -2f;
+    private const float GlyphThickness = 2f;
+    private const float MinusLength    = 10f;
+    private const float CrossLength    = 12f;   // turned 45°, it spans ~10 units: the hole is 14x10
 
     // Kept from the prefab as authored: the prompt sits on the left, above centre. Only the X gets a
     // margin, because a bevelled window flush against the screen edge reads as half off-screen.
@@ -85,6 +97,9 @@ public static class InteractionPromptWindowBuilder
         RectTransform promptRect = (RectTransform)promptRoot;
         promptRect.sizeDelta = new Vector2(WindowWidth, WindowHeight);
         promptRect.anchoredPosition = new Vector2(PromptX, promptRect.anchoredPosition.y);
+        // Pivot on the top edge, so a line that wraps grows the window downwards. Moved without
+        // moving the window: the offset makes up for the pivot, and is zero once it is already there.
+        MovePivot(promptRect, new Vector2(0f, 1f));
 
         // -- window + title bar
         RectTransform window = Ensure("Window", promptRoot);
@@ -98,14 +113,20 @@ public static class InteractionPromptWindowBuilder
         RectTransform titleText = Ensure("TitleText", titleBar);
         UIStyleTools.Stretch(titleText);
         titleText.offsetMin = new Vector2(8f, 0f);
-        titleText.offsetMax = new Vector2(-56f, 0f);
+        titleText.offsetMax = new Vector2(-TitleTextRight, 0f);
         TextMeshProUGUI titleLabel = Label(titleText, @"C:\WIRED\INTERACT.EXE", 14f,
                                            TextAlignmentOptions.MidlineLeft, theme.TextSecondary);
 
         // Decorative only: the two caps of a Win95 title bar. They are not Buttons, so the frames
         // step will not try to give them press feedback.
         RectTransform minimise = TitleCap("TitleButtonMin", titleBar, -30f, theme);
-        RectTransform close    = TitleCap("TitleButtonClose", titleBar, -8f, theme);
+        RectTransform close    = TitleCap("TitleButtonClose", titleBar, -6f, theme);
+
+        // Glyphs drawn as bars rather than typed: at this size the mono font's "-" and "X" come out a
+        // hairline thin, and the hyphen sits at the font's own height rather than mid-cap.
+        GlyphBar("Glyph", minimise, MinusLength, 0f, theme);
+        GlyphBar("GlyphA", close, CrossLength, 45f, theme);
+        GlyphBar("GlyphB", close, CrossLength, -45f, theme);
 
         // -- body
         RectTransform body = Ensure("Body", window);
@@ -178,19 +199,20 @@ public static class InteractionPromptWindowBuilder
         Wire(serialized, "promptText", message, report);
         Wire(serialized, "typewriter", typewriter, report);
         Wire(serialized, "slide", promptRoot.GetComponent<UISlideTransition>(), report);
+        Wire(serialized, "promptRoot", promptRect, report);
 
         // Written out rather than left to the field initialisers: those only run when the component
         // is first created, and this one already exists in the prefab — a newly added field would
         // otherwise come back deserialized with the class defaults instead of this look.
         WriteVariant(serialized, "commonVariant", @"C:\WIRED\INTERACT.EXE",
                      UIThemeRole.SurfaceFooter, UIThemeRole.TextSecondary,
-                     showKey: true, blinkCursor: true, SlideDirection.FromBottom, report);
+                     showKey: true, showPrefix: true, blinkCursor: true, SlideDirection.FromBottom, report);
         WriteVariant(serialized, "itemVariant", @"C:\WIRED\ITEM.DAT",
                      UIThemeRole.SurfaceFooter, UIThemeRole.TextSecondary,
-                     showKey: true, blinkCursor: true, SlideDirection.FromBottom, report);
+                     showKey: true, showPrefix: true, blinkCursor: true, SlideDirection.FromBottom, report);
         WriteVariant(serialized, "globalVariant", @"C:\WIRED\SYSTEM.MSG",
                      UIThemeRole.BevelLight, UIThemeRole.SurfaceScreen,
-                     showKey: false, blinkCursor: false, SlideDirection.FromLeft, report);
+                     showKey: false, showPrefix: false, blinkCursor: false, SlideDirection.FromLeft, report);
 
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
@@ -237,6 +259,9 @@ public static class InteractionPromptWindowBuilder
             Theme(body + "/InteractionMessageText", UIThemeRole.TextPrimary),
             Theme(titleBar + "/TitleButtonMin", UIThemeRole.SurfaceRaised),
             Theme(titleBar + "/TitleButtonClose", UIThemeRole.SurfaceRaised),
+            Theme(titleBar + "/TitleButtonMin/Glyph", UIThemeRole.TextPrimary),
+            Theme(titleBar + "/TitleButtonClose/GlyphA", UIThemeRole.TextPrimary),
+            Theme(titleBar + "/TitleButtonClose/GlyphB", UIThemeRole.TextPrimary),
         };
 
         profile.flatFills = new List<string>
@@ -326,11 +351,39 @@ public static class InteractionPromptWindowBuilder
         rt.anchorMin = new Vector2(1f, 0.5f);
         rt.anchorMax = new Vector2(1f, 0.5f);
         rt.pivot = new Vector2(1f, 0.5f);
-        rt.sizeDelta = new Vector2(18f, 14f);
-        rt.anchoredPosition = new Vector2(x, 0f);
+        rt.sizeDelta = new Vector2(CapWidth, CapHeight);
+        rt.anchoredPosition = new Vector2(x, CapY);
         rt.localScale = Vector3.one;
         Paint(rt, theme.SurfaceRaised);
         return rt;
+    }
+
+    /// <summary>
+    /// One bar of a cap's glyph, centred and turned by <paramref name="angle"/>. Placed before the
+    /// cap's BevelFrame, which has to stay the last sibling.
+    /// </summary>
+    private static void GlyphBar(string name, RectTransform cap, float length, float angle, SO_UIThemeConfig theme)
+    {
+        RectTransform rt = Ensure(name, cap);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(length, GlyphThickness);
+        rt.anchoredPosition = Vector2.zero;
+        rt.localRotation = Quaternion.Euler(0f, 0f, angle);
+        rt.localScale = Vector3.one;
+        Paint(rt, theme.TextPrimary);
+
+        Transform frame = cap.Find(UIStyleTools.FrameName);
+        if (frame != null) frame.SetAsLastSibling();
+    }
+
+    /// <summary>Changes the pivot and shifts the position by the same amount, so the rect stays put.</summary>
+    private static void MovePivot(RectTransform rt, Vector2 pivot)
+    {
+        Vector2 shift = Vector2.Scale(pivot - rt.pivot, rt.rect.size);
+        rt.pivot = pivot;
+        rt.anchoredPosition += shift;
     }
 
     private static Image Paint(RectTransform rt, Color color)
@@ -367,7 +420,7 @@ public static class InteractionPromptWindowBuilder
     /// <summary>Fills one of the view's three PromptVariant blocks.</summary>
     private static void WriteVariant(SerializedObject serialized, string field, string title,
                                      UIThemeRole titleBarRole, UIThemeRole titleTextRole,
-                                     bool showKey, bool blinkCursor, SlideDirection enter,
+                                     bool showKey, bool showPrefix, bool blinkCursor, SlideDirection enter,
                                      StringBuilder report)
     {
         SerializedProperty variant = serialized.FindProperty(field);
@@ -381,6 +434,7 @@ public static class InteractionPromptWindowBuilder
         variant.FindPropertyRelative("titleBarRole").enumValueIndex = (int)titleBarRole;
         variant.FindPropertyRelative("titleTextRole").enumValueIndex = (int)titleTextRole;
         variant.FindPropertyRelative("showKey").boolValue = showKey;
+        variant.FindPropertyRelative("showPrefix").boolValue = showPrefix;
         variant.FindPropertyRelative("blinkCursor").boolValue = blinkCursor;
         variant.FindPropertyRelative("enterDirection").enumValueIndex = (int)enter;
     }

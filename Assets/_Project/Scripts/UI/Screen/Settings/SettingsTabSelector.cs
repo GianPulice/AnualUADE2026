@@ -24,7 +24,7 @@ public class SettingsTabSelector : MonoBehaviour
     {
         public Button button;
         public GameObject panel;
-        [Tooltip("Optional: GameObject enabled only while this tab is selected (e.g. the wireframe's red bar).")]
+        [Tooltip("Optional: GameObject enabled only while this tab is selected (e.g. the white highlight behind the label).")]
         public GameObject activeIndicator;
     }
 

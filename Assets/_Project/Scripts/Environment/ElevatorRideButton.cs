@@ -38,6 +38,13 @@ public class ElevatorRideButton : BaseRangeInteractable
 
     private bool isConfigured;
 
+    /// <summary>
+    /// What the prompt was last drawn from — player aboard, cabin free — or null while the crosshair
+    /// is on something else. Those two flags are everything CanInteract and both texts read, so a
+    /// change in either is a change in what the prompt has to say. See <see cref="LateUpdate"/>.
+    /// </summary>
+    private (bool aboard, bool available)? promptState;
+
     protected override void Awake()
     {
         base.Awake();
@@ -63,7 +70,7 @@ public class ElevatorRideButton : BaseRangeInteractable
         isConfigured && platform.IsPlayerAboard && platform.IsAvailable;
 
     public override string GetInteractText() =>
-        isConfigured ? "Operate freight elevator" : string.Empty;
+        isConfigured ? "Operate forklift" : string.Empty;
 
     /// <summary>
     /// Carries the "why not" for the two refusals, which is the whole reason this button reads as
@@ -74,7 +81,7 @@ public class ElevatorRideButton : BaseRangeInteractable
     {
         if (!isConfigured)               return string.Empty;
         if (!platform.IsPlayerAboard)    return "Step onto the platform first.";
-        return platform.IsAvailable ? string.Empty : "Freight elevator in use.";
+        return platform.IsAvailable ? string.Empty : "Forklift in use.";
     }
 
     /// <summary>Repeatable: a lift you can only ride once is a lift that strands you upstairs.</summary>
@@ -95,5 +102,37 @@ public class ElevatorRideButton : BaseRangeInteractable
     {
         if (string.IsNullOrWhiteSpace(id) || !AudioManager.Exists) return;
         AudioManager.Instance.PlaySFX(id, transform.position);
+    }
+
+    // ── Prompt ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Re-draws the prompt when the button's answer changes under the crosshair — the same watch as
+    /// PushableBox's range check and ElevatorCallPanel's. The prompt only re-reads a target when the
+    /// target itself changes, and a rider keeps looking at this button while its answer changes: the
+    /// press makes it refuse for the whole trip, and stepping off turns that into "step onto the
+    /// platform first". Without it the window kept offering "Operate forklift" with its [E] for the
+    /// entire ride.
+    ///
+    /// LateUpdate so it sees this frame's target, and a press InteractionManager.Update has just
+    /// handled. Only while this button is the target: the refresh is global and redraws whatever
+    /// the crosshair is on.
+    /// </summary>
+    private void LateUpdate()
+    {
+        if (!isConfigured) return;
+
+        if (!InteractionManager.Exists ||
+            !ReferenceEquals(InteractionManager.Instance.CurrentInteractable, this))
+        {
+            promptState = null;
+            return;
+        }
+
+        (bool aboard, bool available) state = (platform.IsPlayerAboard, platform.IsAvailable);
+        if (promptState == state) return;
+
+        promptState = state;
+        InteractionEvents.RequestPromptRefresh();
     }
 }

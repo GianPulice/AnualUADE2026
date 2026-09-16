@@ -39,6 +39,15 @@ MonoBehaviour:
   - path: PromptRoot/Window/TitleBar/TitleButtonClose
     role: 2
     preserveAlpha: 0
+  - path: PromptRoot/Window/TitleBar/TitleButtonMin/Glyph
+    role: 9
+    preserveAlpha: 0
+  - path: PromptRoot/Window/TitleBar/TitleButtonClose/GlyphA
+    role: 9
+    preserveAlpha: 0
+  - path: PromptRoot/Window/TitleBar/TitleButtonClose/GlyphB
+    role: 9
+    preserveAlpha: 0
   flatFills:
   - PromptRoot/Window
   - PromptRoot/Window/TitleBar

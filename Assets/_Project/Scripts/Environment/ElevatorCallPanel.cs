@@ -105,6 +105,12 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
     private bool isConfigured;
 
+    /// <summary>
+    /// The state the prompt was last drawn for, or null while the crosshair is on something else.
+    /// See <see cref="RefreshPromptOnStateChange"/>.
+    /// </summary>
+    private PanelState? promptState;
+
     private MovingPlatform Platform => elevator != null ? elevator.Platform : null;
 
     /// <summary>
@@ -209,9 +215,9 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
         switch (State)
         {
-            case PanelState.CabinPresent: return "Freight elevator is here";
-            case PanelState.Busy:         return "Freight elevator in use";
-            default:                      return "Call freight elevator";
+            case PanelState.CabinPresent: return "Forklift is here";
+            case PanelState.Busy:         return "Forklift in use";
+            default:                      return "Call forklift";
         }
     }
 
@@ -278,9 +284,18 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
     // ── Feedback ────────────────────────────────────────────────────────────
 
-    private void Update()
+    // LateUpdate, not Update: the ItemProximityHighlight on the prefab root also writes
+    // _EmissionColor on the panel's slot, and its lerp is a coroutine, which runs after every Update.
+    // From Update the lamp would show the highlight's colour instead of the state for the whole
+    // transition each time the crosshair came or went. LateUpdate is the last write before the frame
+    // renders, so the lamp always shows the state and the highlight is left to the lever. The prompt
+    // watch gains from it too: it sees this frame's target, and a press InteractionManager.Update
+    // has just handled, instead of catching them a frame late.
+    private void LateUpdate()
     {
         if (!isConfigured) return;
+
+        RefreshPromptOnStateChange();
 
         // Unscaled: the panel stays readable behind a paused menu, the same choice the UI views
         // make. It drives nothing but colour, so there is no gameplay to freeze.
@@ -290,6 +305,33 @@ public class ElevatorCallPanel : BaseRangeInteractable
             : 1f;
 
         ApplyFeedback(pulse);
+    }
+
+    /// <summary>
+    /// Re-draws the prompt when the state changes under the crosshair — the same watch as
+    /// PushableBox's range check. The prompt only re-reads a target when the target itself changes,
+    /// and this panel changes while the player stands there looking at it: the press turns Callable
+    /// into Busy on the spot, and the cabin arriving turns Busy into CabinPresent. Without it the
+    /// window kept offering "Call forklift" with its [E] for the whole trip, on a panel that
+    /// refuses the press.
+    ///
+    /// Only while this panel is the target: the refresh is global and redraws whatever the crosshair
+    /// is on.
+    /// </summary>
+    private void RefreshPromptOnStateChange()
+    {
+        if (!InteractionManager.Exists ||
+            !ReferenceEquals(InteractionManager.Instance.CurrentInteractable, this))
+        {
+            promptState = null;
+            return;
+        }
+
+        PanelState state = State;
+        if (promptState == state) return;
+
+        promptState = state;
+        InteractionEvents.RequestPromptRefresh();
     }
 
     private void ApplyFeedback(float intensity)

@@ -19,17 +19,17 @@ MonoBehaviour:
     role: 4
     preserveAlpha: 0
   - path: SettingsRoot/Body/TabsColumn/Tab_Brightness/ActiveIndicator_B
-    role: 13
-    preserveAlpha: 0
+    role: 9
+    preserveAlpha: 1
   - path: SettingsRoot/Body/TabsColumn/Tab_Controls/ActiveIndicator_C
-    role: 13
-    preserveAlpha: 0
+    role: 9
+    preserveAlpha: 1
   - path: SettingsRoot/Body/TabsColumn/Tab_Screen/ActiveIndicator_S
-    role: 13
-    preserveAlpha: 0
+    role: 9
+    preserveAlpha: 1
   - path: SettingsRoot/Body/TabsColumn/Tab_Volume/ActiveIndicator_V
-    role: 13
-    preserveAlpha: 0
+    role: 9
+    preserveAlpha: 1
   - path: SettingsRoot/TopBar/BackButton
     role: 2
     preserveAlpha: 0

@@ -129,7 +129,7 @@ public class SO_UIThemeConfig : ScriptableObject
         TextDisabled   = HexToColor("#555555");
 
         // Accent — the only chromatic color in the whole UI
-        Accent         = HexToColor("#CC1A1A"); // ActiveIndicator_*, selected row bar
+        Accent         = HexToColor("#CC1A1A"); // selected row bar
         AccentHover    = HexToColor("#EE3333");
         AccentBgSubtle = HexToColor("#1A0808"); // selected row background
         AccentBgDeep   = HexToColor("#140606"); // BtnApply background

@@ -14,10 +14,12 @@ using UnityEngine.UI;
 ///   Item   — picking something up or putting it in a socket. Adds the item's icon in a sunken well.
 ///   Global — the game talking rather than the thing being looked at (see
 ///            <see cref="InteractionEvents.OnGlobalMessage"/>). Inverted title bar, "!" glyph, no
-///            key cap, no cursor, and it slides in from the side and leaves on its own.
+///            key cap, no "> " prefix, no cursor, and it slides in from the side and leaves on its own.
 ///
 /// Which kind a target uses comes from the optional <see cref="IPromptPresentation"/>; anything that
 /// does not implement it is Common.
+///
+/// The window is sized to its line, not the line to the window — see <see cref="FitWindow"/>.
 ///
 /// The title bar is painted here from <see cref="SO_UIThemeConfig"/> rather than by a
 /// UIThemeApplier: the applier repaints on enable and would overwrite the per-kind colour. Every
@@ -34,6 +36,9 @@ public class InteractionPromptView : BaseScreenView
         public UIThemeRole titleTextRole = UIThemeRole.TextSecondary;
         [Tooltip("Show the [E] key cap. Off for messages the player cannot answer.")]
         public bool showKey = true;
+        [Tooltip("Start the line with the command prefix. Off for messages the game says on its own: " +
+                 "the prefix marks a line waiting for input, and those only report.")]
+        public bool showPrefix = true;
         [Tooltip("Blinking terminal cursor at the end of the line.")]
         public bool blinkCursor = true;
         public SlideDirection enterDirection = SlideDirection.FromBottom;
@@ -75,11 +80,15 @@ public class InteractionPromptView : BaseScreenView
         titleBarRole = UIThemeRole.BevelLight,
         titleTextRole = UIThemeRole.SurfaceScreen,
         showKey = false,
+        showPrefix = false,
         blinkCursor = false,
         enterDirection = SlideDirection.FromLeft,
     };
 
     [Header("Layout")]
+    [Tooltip("Resized to fit the line. Its pivot is on the top edge, so a line that wraps grows the " +
+             "window downwards and the title bar stays put.")]
+    [SerializeField] private RectTransform promptRoot;
     [Tooltip("Left margin of the message when no slot is shown. Canvas units.")]
     [SerializeField] private float textInsetBase = 16f;
     [Tooltip("Extra left margin taken by the key cap.")]
@@ -87,6 +96,13 @@ public class InteractionPromptView : BaseScreenView
     [Tooltip("Extra left margin taken by the icon well.")]
     [SerializeField] private float iconSlotWidth = 48f;
     [SerializeField] private float textInsetRight = 16f;
+    [Tooltip("Space above and below a line that wraps past what the minimum height holds.")]
+    [SerializeField] private float textInsetVertical = 16f;
+    [Tooltip("Widest the window gets. A longer line wraps and the window grows taller instead.")]
+    [SerializeField] private float maxWindowWidth = 760f;
+    [Tooltip("Height of a one-row window, and the least it ever gets, so the key cap and the icon " +
+             "well always fit.")]
+    [SerializeField] private float minWindowHeight = 96f;
 
     [Header("Auto-pickup notice")]
     [Tooltip("Format of the global message shown when an item is granted to the inventory WITHOUT " +
@@ -115,9 +131,14 @@ public class InteractionPromptView : BaseScreenView
     private string pendingMessage;
     private float pendingSeconds;
 
+    // Stand-in for "no limit" when asking TMP how much room a line wants. TMP's own large value: an
+    // infinity would leak into its arithmetic.
+    private const float Unbounded = 32767f;
+
     // The line without its cursor. Kept so the blink can rewrite the label without re-running the
     // typewriter — see the replay rule below.
     private string currentBody = string.Empty;
+    private bool prefixEnabled = true;
     private bool cursorEnabled;
     private bool cursorOn = true;
     private float cursorTimer;
@@ -193,7 +214,15 @@ public class InteractionPromptView : BaseScreenView
     private void HandlePromptRefreshRequested()
     {
         if (showingGlobal) return;
-        RefreshDisplay(animate: false);
+
+        // A refresh may bring the window back, not only redraw it in place. A target whose state
+        // has nothing to say hides it, and when that state changes under the crosshair the refresh is
+        // the only thing that fires — the elevator call panel going from "cabin here" to "call it",
+        // a door the crosshair found mid-swing. Only while the window is off screen, so refreshing
+        // one already up does not restart its fade, and never under a modal, which covers the prompt
+        // (see HandleModalPushed).
+        bool mayAppear = !visible && !(UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
+        RefreshDisplay(animate: mayAppear);
     }
 
     private void HandleTargetChanged(IInteractable target)
@@ -481,6 +510,7 @@ public class InteractionPromptView : BaseScreenView
         }
         if (glyphLabel != null) glyphLabel.gameObject.SetActive(showGlyph);
 
+        prefixEnabled = variant.showPrefix;
         cursorEnabled = variant.blinkCursor;
         cursorOn = true;
         cursorTimer = 0f;
@@ -490,17 +520,66 @@ public class InteractionPromptView : BaseScreenView
 
     /// <summary>
     /// Slides the message right by exactly the slots that are visible. Plain insets rather than a
-    /// LayoutGroup: the window is a fixed size, so the three positions are constants, and a
-    /// content-driven layout would start resizing a single-line label.
+    /// LayoutGroup, which would only resolve at the end of the frame: <see cref="FitWindow"/> sizes
+    /// the window from these insets straight away, and the slide measures the window for its
+    /// off-screen start in the same call.
+    ///
+    /// The icon well moves up into the key cap's place when there is no key cap. Left where it is
+    /// authored — behind the key cap — it would sit on top of the start of the message.
     /// </summary>
     private void LayOutMessage(bool showKey, bool showWell)
     {
+        if (iconWell != null && keyCapRoot != null)
+        {
+            RectTransform well = (RectTransform)iconWell.transform;
+            float firstSlot = ((RectTransform)keyCapRoot.transform).anchoredPosition.x;
+            well.anchoredPosition = new Vector2(firstSlot + (showKey ? keySlotWidth : 0f), well.anchoredPosition.y);
+        }
+
         if (promptText == null) return;
 
         float left = textInsetBase + (showKey ? keySlotWidth : 0f) + (showWell ? iconSlotWidth : 0f);
         RectTransform rt = promptText.rectTransform;
         rt.offsetMin = new Vector2(left, rt.offsetMin.y);
         rt.offsetMax = new Vector2(-textInsetRight, rt.offsetMax.y);
+    }
+
+    /// <summary>
+    /// Sizes the window to its line: as wide as the line is on one row, and once that passes
+    /// <see cref="maxWindowWidth"/> the line wraps and the window grows taller instead. Never
+    /// narrower than its title needs, never shorter than <see cref="minWindowHeight"/>.
+    ///
+    /// Measured on the whole line, cursor included — TMP's preferred values ignore
+    /// maxVisibleCharacters — so the window takes its final size at once and the typewriter fills
+    /// it, instead of the frame stretching letter by letter.
+    /// </summary>
+    private void FitWindow()
+    {
+        if (promptRoot == null || promptText == null) return;
+
+        RectTransform message = promptText.rectTransform;
+        float insets = message.offsetMin.x - message.offsetMax.x;
+
+        // One unit to spare: a label exactly as wide as its line can still wrap the last word on rounding.
+        float oneRow = Mathf.Ceil(promptText.GetPreferredValues(Unbounded, Unbounded).x) + 1f;
+        float minWidth = TitleWidth();
+        float width = Mathf.Clamp(oneRow + insets, minWidth, Mathf.Max(minWidth, maxWindowWidth));
+
+        // Asked at the width the line really gets, so a clamped line reports every row it wraps to.
+        float rows = promptText.GetPreferredValues(width - insets, Unbounded).y;
+        float titleHeight = titleBar != null ? titleBar.rectTransform.rect.height : 0f;
+        float height = Mathf.Max(minWindowHeight, Mathf.Ceil(titleHeight + rows + 2f * textInsetVertical));
+
+        promptRoot.sizeDelta = new Vector2(width, height);
+    }
+
+    /// <summary>The narrowest window whose title still clears the caps on its right.</summary>
+    private float TitleWidth()
+    {
+        if (titleText == null) return 0f;
+
+        RectTransform title = titleText.rectTransform;
+        return Mathf.Ceil(titleText.GetPreferredValues(Unbounded, Unbounded).x) + title.offsetMin.x - title.offsetMax.x;
     }
 
     /// <summary>
@@ -511,7 +590,7 @@ public class InteractionPromptView : BaseScreenView
     {
         if (promptText == null) return;
 
-        string body = commandPrefix + (uppercase ? message.ToUpperInvariant() : message);
+        string body = (prefixEnabled ? commandPrefix : string.Empty) + (uppercase ? message.ToUpperInvariant() : message);
         bool replay = forceReplay || body != currentBody;
 
         currentBody = body;
@@ -519,6 +598,7 @@ public class InteractionPromptView : BaseScreenView
         cursorOn = true;
         cursorTimer = 0f;
         RenderLine();
+        FitWindow();
 
         if (replay && typewriter != null) typewriter.Play();
     }

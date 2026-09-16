@@ -165,6 +165,7 @@ GameObject:
   - component: {fileID: 2786146867966260536}
   - component: {fileID: -3876723809554544833}
   - component: {fileID: 3068398595949556944}
+  - component: {fileID: 4819326057731285946}
   m_Layer: 6
   m_Name: ElevatorCallSwitch
   m_TagString: Untagged
@@ -233,6 +234,19 @@ MonoBehaviour:
   pressTriggerName: Pressed
   callAcceptedSoundId: 
   callRefusedSoundId: sfx_secuencia_incorrecta_panel_electrico
+--- !u!114 &4819326057731285946
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3138963313164810456}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &3140267854124341348
 GameObject:
   m_ObjectHideFlags: 0

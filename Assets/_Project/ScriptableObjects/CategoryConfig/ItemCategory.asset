@@ -21,7 +21,7 @@ MonoBehaviour:
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
     GroupLabel: // KEYS
     TagLabel: KEY
-    pickupSoundId: 
+    pickupSoundId: sfx_interaction_key
     shaderTintColor: {r: 0.5019608, g: 0.101960786, b: 0.101960786, a: 1}
     shaderEmissionColor: {r: 1, g: 0, b: 0, a: 1}
   Component:
@@ -45,7 +45,7 @@ MonoBehaviour:
     SelectedTextColor: {r: 0.8784314, g: 0.8784314, b: 0.8784314, a: 1}
     GroupLabel: // NOTES
     TagLabel: DOC
-    pickupSoundId: 
+    pickupSoundId: sfx_interaction_nota
     shaderTintColor: {r: 0.13171947, g: 0.27175757, b: 0.754717, a: 1}
     shaderEmissionColor: {r: 0, g: 0.23760088, b: 0.4811321, a: 1}
   Special:
