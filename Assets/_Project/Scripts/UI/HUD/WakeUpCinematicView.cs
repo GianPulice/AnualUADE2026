@@ -10,6 +10,8 @@ using UnityEngine;
 ///   4. The pan is timed to reach the default framing on the frame ARC_01a ends, which is also the
 ///      frame the controller gives movement back.
 ///   5. The input hint (<see cref="InputHintView"/>) shows after ARC_01a or after ARC_01b (<see cref="hintMoment"/>).
+///   6. At any point until control comes back, the skip key (<see cref="SO_WakeUpCinematicConfig"/>)
+///      jumps to the end and cuts both lines. <see cref="WakeUpSkipPromptView"/> tells the player.
 ///
 /// Everything is keyed to the line's own timing (pages are spread over its speaking time, see
 /// <see cref="ArchitectLinePages"/>), so recording a voice clip or retiming the bank re-syncs the
@@ -100,6 +102,12 @@ public class WakeUpCinematicView : MonoBehaviour
 
     private void Update()
     {
+        if ((state == State.Covering || state == State.Playing) && SkipPressed())
+        {
+            Skip();
+            return;
+        }
+
         switch (state)
         {
             case State.Covering:
@@ -163,6 +171,33 @@ public class WakeUpCinematicView : MonoBehaviour
         SetOpen(Mathf.Clamp01(openCurve.Evaluate(progress)), Mathf.Lerp(startDim, 0f, progress));
 
         if (progress >= 1f) SetVisible(false);
+    }
+
+    // Legacy input, like WakeUpCameraPan: the project runs both input backends.
+    private static bool SkipPressed()
+    {
+        ArchitectVoiceController voice = ArchitectVoiceController.Instance;
+        SO_WakeUpCinematicConfig config = voice != null ? voice.WakeUpConfig : null;
+        if (config != null && !config.Skippable) return false;
+        if (PauseManager.IsGameplayInputBlocked) return false;
+
+        return Input.GetKeyDown(config != null ? config.SkipKey : KeyCode.F);
+    }
+
+    /// <summary>
+    /// Jumps to the end: the camera lands on its end framing, control comes back and neither wake-up
+    /// line keeps playing. The hint still shows, since the player has not moved yet.
+    /// </summary>
+    private void Skip()
+    {
+        // Skipped before the eyes opened: the player is still lying down.
+        if (!eyesOpening) FireStandUp();
+
+        // The cinematic ends first, so the LineEnded(interrupted) the skip raises finds it already Off.
+        EndCinematic(showHint: true);
+
+        ArchitectVoiceController voice = ArchitectVoiceController.Instance;
+        if (voice != null) voice.SkipWakeUp();
     }
 
     private void EndCinematic(bool showHint)

@@ -32,6 +32,9 @@ public class ArchitectVoiceController : MonoBehaviour
     [Tooltip("Plays the wake-up when the level starts. Off to skip it while testing.")]
     [SerializeField] private bool playWakeUpOnStart = true;
 
+    [Tooltip("Turns the cinematic off and sets its skip key. Both this and playWakeUpOnStart must be on for it to play.")]
+    [SerializeField] private SO_WakeUpCinematicConfig wakeUpConfig;
+
     [Tooltip("Seconds after the level starts before ARC_01a, so the scene fade-in finishes first.")]
     [SerializeField, Min(0f)] private float wakeUpDelay = 1.5f;
 
@@ -86,7 +89,10 @@ public class ArchitectVoiceController : MonoBehaviour
     public bool IsSpeaking => currentLine != null;
 
     /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts.</summary>
-    public bool PlaysWakeUpOnStart => playWakeUpOnStart;
+    public bool PlaysWakeUpOnStart => playWakeUpOnStart && (wakeUpConfig == null || wakeUpConfig.CinematicEnabled);
+
+    /// <summary>May be null: the cinematic then plays and can be skipped with the default key.</summary>
+    public SO_WakeUpCinematicConfig WakeUpConfig => wakeUpConfig;
 
     /// <summary>The wake-up already finished, was cut, or was skipped because it has no text.</summary>
     public bool IsWakeUpDone => wakeUpDone;
@@ -144,7 +150,7 @@ public class ArchitectVoiceController : MonoBehaviour
         if (bank == null)
             Debug.LogWarning($"[{nameof(ArchitectVoiceController)}] No line bank assigned. The Architect stays silent.", this);
 
-        if (playWakeUpOnStart) wakeUpCountdown = wakeUpDelay;
+        if (PlaysWakeUpOnStart) wakeUpCountdown = wakeUpDelay;
         else wakeUpDone = true;
     }
 
@@ -216,6 +222,32 @@ public class ArchitectVoiceController : MonoBehaviour
 
         Play(line, moduleLabel);
         return true;
+    }
+
+    /// <summary>
+    /// Cuts the wake-up wherever it is: during the delay before ARC_01a, during ARC_01a, or during
+    /// ARC_01b. Neither line plays afterwards and the player gets control back. Does nothing once
+    /// the wake-up is done.
+    /// </summary>
+    public void SkipWakeUp()
+    {
+        if (wakeUpDone) return;
+
+        wakeUpCountdown = -1f;
+        deferred.RemoveAll(r => r.Id == ArchitectLineID.WakeUpMoment1 || r.Id == ArchitectLineID.WakeUpMoment2);
+
+        if (IsSpeaking && (currentLine.id == ArchitectLineID.WakeUpMoment1 || currentLine.id == ArchitectLineID.WakeUpMoment2))
+        {
+            StopCurrent(interrupted: true);   // Releases the lock and marks the wake-up done.
+        }
+        else
+        {
+            if (chained.HasValue && chained.Value.Id == ArchitectLineID.WakeUpMoment2) chained = null;
+            ReleaseWakeUpLock();
+            wakeUpDone = true;
+        }
+
+        Log("Wake-up skipped.");
     }
 
     /// <summary>A context line: plays once per run, however many times it is triggered.</summary>

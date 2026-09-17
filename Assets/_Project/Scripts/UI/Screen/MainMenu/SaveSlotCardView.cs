@@ -40,8 +40,19 @@ public class SaveSlotCardView : MonoBehaviour
 
     private void Awake()
     {
-        if (_actionButton != null)
-            _actionButton.onClick.AddListener(() => OnSlotClicked?.Invoke(_slotIndex));
+        if (_actionButton == null) return;
+
+        _actionButton.onClick.AddListener(() =>
+        {
+            UISounds.PlayRandom(UISounds.SaveConfirm);
+            OnSlotClicked?.Invoke(_slotIndex);
+        });
+
+        // Cards are instantiated at runtime, so UICanvasSounds never sees them. No click sound:
+        // the confirmation above is the click.
+        UISelectableSound sound = _actionButton.GetComponent<UISelectableSound>();
+        if (sound == null) sound = _actionButton.gameObject.AddComponent<UISelectableSound>();
+        sound.Configure(UISounds.SaveSlotHover, null);
     }
 
     private void OnDestroy()

@@ -3452,6 +3452,7 @@ GameObject:
   - component: {fileID: 4212701657678655343}
   - component: {fileID: 8010535732044321670}
   - component: {fileID: 1167932771881382320}
+  - component: {fileID: 610649220929198544}
   m_Layer: 5
   m_Name: Inventory Canvas
   m_TagString: Untagged
@@ -11045,3 +11046,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
+--- !u!114 &610649220929198544
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2811414775119278927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 213bfc36dec040c6bafd30ad703ec04f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UICanvasSounds
+  noClick:
+  - {fileID: 2028610808998962777}

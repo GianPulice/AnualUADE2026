@@ -279,6 +279,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         }
 
         InventoryManager.Instance.DiscardItem(toDiscard);
+        UISounds.Play(UISounds.ItemDiscard);
         InventoryEvents.DiscardConfirmed(toDiscard);
     }
 

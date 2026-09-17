@@ -10539,6 +10539,7 @@ GameObject:
   - component: {fileID: 8162875492466831537}
   - component: {fileID: 1802388570521215096}
   - component: {fileID: 8008341305423104863}
+  - component: {fileID: 403880082545602447}
   m_Layer: 5
   m_Name: CanvasSettings
   m_TagString: Untagged
@@ -24986,3 +24987,18 @@ MonoBehaviour:
   theme: {fileID: 11400000, guid: 9c1d7e3b5a2f4068d3c7b1e5a9f2064c, type: 2}
   role: 9
   preserveAlpha: 0
+--- !u!114 &403880082545602447
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3483866002741315073}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 213bfc36dec040c6bafd30ad703ec04f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UICanvasSounds
+  noClick:
+  - {fileID: 6760178084892582885}
+  - {fileID: 8163861947298376035}

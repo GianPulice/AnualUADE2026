@@ -62,7 +62,14 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     void Awake()
     {
         if (selectButton != null)
+        {
             selectButton.onClick.AddListener(OnButtonClicked);
+
+            // Rows are instantiated at runtime, so UICanvasSounds never sees them.
+            UISelectableSound sound = selectButton.GetComponent<UISelectableSound>();
+            if (sound == null) sound = selectButton.gameObject.AddComponent<UISelectableSound>();
+            sound.Configure(UISounds.Hover, UISounds.ItemSelect);
+        }
 
         if (selectionFillImage != null)
         {

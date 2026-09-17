@@ -55,6 +55,7 @@ public static class ArchitectVoiceSetup
     {
         AddWakeUpPageBreak();
         WireCinematicHud();
+        WireWakeUpConfigAndSkipPrompt();
         WireCameraPan();
         WireCrosshair();
         AssetDatabase.SaveAssets();
@@ -123,6 +124,84 @@ public static class ArchitectVoiceSetup
         {
             PrefabUtility.UnloadPrefabContents(root);
         }
+    }
+
+    private const string WakeUpConfigPath = "Assets/_Project/ScriptableObjects/Architect/SO_WakeUpCinematicConfig.asset";
+    private const string SkipPromptName = "WakeUpSkipPrompt";
+
+    /// <summary>
+    /// Creates SO_WakeUpCinematicConfig, assigns it to the controller if it has none, and adds the
+    /// "[Press F to skip]" text at the bottom right of HUDCanvas, as the last child so it draws over
+    /// the cinematic's black.
+    /// </summary>
+    private static void WireWakeUpConfigAndSkipPrompt()
+    {
+        EnsureFolder("Assets/_Project/ScriptableObjects/Architect");
+        SO_WakeUpCinematicConfig config = AssetDatabase.LoadAssetAtPath<SO_WakeUpCinematicConfig>(WakeUpConfigPath);
+        if (config == null)
+        {
+            config = ScriptableObject.CreateInstance<SO_WakeUpCinematicConfig>();
+            AssetDatabase.CreateAsset(config, WakeUpConfigPath);
+        }
+
+        GameObject root = PrefabUtility.LoadPrefabContents(HudPath);
+        try
+        {
+            bool changed = false;
+
+            ArchitectVoiceController controller = root.GetComponentInChildren<ArchitectVoiceController>(true);
+            if (controller == null)
+            {
+                Debug.LogWarning($"[ArchitectVoiceSetup] No {nameof(ArchitectVoiceController)} in {HudPath}. Run Tools ▸ Architect ▸ Setup first.");
+            }
+            else if (controller.WakeUpConfig == null)
+            {
+                Set(controller, "wakeUpConfig", config);
+                changed = true;
+            }
+
+            if (root.transform.Find(SkipPromptName) == null)
+            {
+                BuildSkipPrompt(root.transform, config);
+                changed = true;
+            }
+
+            if (changed) PrefabUtility.SaveAsPrefabAsset(root, HudPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void BuildSkipPrompt(Transform parent, SO_WakeUpCinematicConfig config)
+    {
+        TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        SO_UIThemeConfig theme = AssetDatabase.LoadAssetAtPath<SO_UIThemeConfig>(UIStyleTools.ThemePath);
+
+        // Root: bottom right, fixed size (a one-line box never scales in width), clear of the subtitle.
+        RectTransform root = NewRect(SkipPromptName, parent);
+        root.anchorMin = root.anchorMax = new Vector2(1f, 0f);
+        root.pivot = new Vector2(1f, 0f);
+        root.anchoredPosition = new Vector2(-40f, 40f);
+        root.sizeDelta = new Vector2(320f, 44f);
+        root.SetAsLastSibling();
+        AddGroup(root.gameObject).alpha = 0f;
+
+        // Just the text, loose on screen: no panel behind it.
+        RectTransform labelRect = NewRect("Label", root);
+        Stretch(labelRect);
+        labelRect.offsetMin = new Vector2(16f, 0f);
+        labelRect.offsetMax = new Vector2(-16f, 0f);
+        TextMeshProUGUI label = labelRect.gameObject.AddComponent<TextMeshProUGUI>();
+        StyleText(label, font, null, 24f, SubtitleGrey);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.alignment = TextAlignmentOptions.Center;
+        label.text = config != null ? config.SkipPromptText : "[Press F to skip]";
+        Theme(label, theme, UIThemeRole.TextSecondary);
+
+        WakeUpSkipPromptView view = root.gameObject.AddComponent<WakeUpSkipPromptView>();
+        Set(view, "label", label);
     }
 
     private static RectTransform NewBlack(string name, Transform parent)

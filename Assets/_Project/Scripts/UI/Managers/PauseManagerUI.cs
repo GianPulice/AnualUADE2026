@@ -63,9 +63,15 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
         if (_isTransitioning) return;
 
         if (state == PauseState.Paused)
+        {
+            UISounds.Play(UISounds.PauseOpen);
             OpenSafe().Forget();
+        }
         else
+        {
+            UISounds.Play(UISounds.PauseClose);
             CloseSafe().Forget();
+        }
     }
 
     protected override void OnBeforeOpen()

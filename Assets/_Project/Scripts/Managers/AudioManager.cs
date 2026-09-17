@@ -224,6 +224,28 @@ public class AudioManager : Singleton<AudioManager>
         PlayInternal(data, uiGroup ?? GroupFor(data.Category), null, forceIgnorePause: true);
     }
 
+    /// <summary>
+    /// 2D one-shot of a held clip on the UI bus, audible while paused. For layers built in code
+    /// (e.g. the hover static) that have no SO_SoundData and need their own volume and pitch.
+    /// </summary>
+    public void PlayUIClip(AudioClip clip, float volume = 1f, float pitch = 1f)
+    {
+        if (clip == null) return;
+
+        var src = GetFreeSfxSource();
+
+        src.clip = clip;
+        src.outputAudioMixerGroup = uiGroup ?? GroupFor(SO_SoundData.SoundCategory.UI);
+        src.loop = false;
+        src.ignoreListenerPause = true;
+        src.volume = Mathf.Clamp01(volume);
+        src.pitch = Mathf.Max(pitch, 0.01f);
+        src.spatialBlend = 0f;
+        src.transform.localPosition = Vector3.zero;
+
+        src.Play();
+    }
+
     public void PlayVoice(string id)
     {
         if (!TryGet(id, out var data)) return;
