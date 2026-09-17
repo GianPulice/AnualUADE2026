@@ -19,9 +19,9 @@ MonoBehaviour:
   size: 0.25
   minScreenHeight: 0.05
   heightOffset: 0.05
-  interval: 2.8
-  intervalJitter: 0.8
-  flashDuration: 0.55
+  interval: 2
+  intervalJitter: 0.75
+  flashDuration: 0.65
   scaleCurve:
     serializedVersion: 2
     m_Curve:
