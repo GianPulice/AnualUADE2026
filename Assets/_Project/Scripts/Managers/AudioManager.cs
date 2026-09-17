@@ -389,6 +389,12 @@ public class AudioManager : Singleton<AudioManager>
     /// </summary>
     public AudioMixerGroup MusicGroup => musicGroup;
 
+    /// <summary>
+    /// The Voice bus. Exposed for <see cref="ArchitectVoiceController"/>, which owns a 2D AudioSource
+    /// of its own: it has to cut a line mid-way (ARC_10 interrupts) and know when a line ends.
+    /// </summary>
+    public AudioMixerGroup VoiceGroup => voiceGroup;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — setters
     // ──────────────────────────────────────────────────────────────────────────

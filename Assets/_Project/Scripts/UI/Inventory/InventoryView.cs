@@ -137,7 +137,11 @@ public class InventoryView : MonoBehaviour
 
     private async UniTaskVoid CheckScrollNeeded()
     {
-        await UniTask.WaitForEndOfFrame(this);
+        // UniTask.WaitForEndOfFrame(MonoBehaviour) is coroutine-backed under the hood — it calls
+        // StartCoroutine on the instance passed in, which throws if that GameObject is inactive
+        // by the time this runs (e.g. the inventory closed the same frame it was refreshed).
+        // PlayerLoopTiming.LastPostLateUpdate is UniTask's own equivalent with no such dependency.
+        await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
 
         RectTransform content = itemListContainer as RectTransform;
 

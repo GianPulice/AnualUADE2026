@@ -559,8 +559,8 @@ MonoBehaviour:
   playerTag: Player
   snapDuration: 3
   config: {fileID: 11400000, guid: 02b1fbc297a34be4a9e0e219defec93b, type: 2}
-  grabPrompt: Press 'E' to push the box
-  releasePrompt: Press 'E' to stop pushing the box
+  grabPrompt: Push the box
+  releasePrompt: Stop Pushing the box
 --- !u!208 &2420889440149244450
 NavMeshObstacle:
   m_ObjectHideFlags: 0

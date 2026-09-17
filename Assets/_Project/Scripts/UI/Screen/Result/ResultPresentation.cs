@@ -20,7 +20,9 @@ public class ResultPresentation
     [Tooltip("Large title. Empty = no title (the GameObject is switched off).")]
     [SerializeField] private string _title = string.Empty;
 
-    [SerializeField] private Color _titleColor = Color.white;
+    [Tooltip("Theme token for the title. Goes through the title's UIThemeApplier, so it follows " +
+             "UITheme.asset like the rest of the UI instead of holding a literal colour.")]
+    [SerializeField] private UIThemeRole _titleRole = UIThemeRole.TextPrimary;
 
     [Tooltip("Tint of the background overlay. Alpha 0 = pure black background with no tint.")]
     [SerializeField] private Color _vignetteColor = new Color(0f, 0f, 0f, 0f);
@@ -31,10 +33,15 @@ public class ResultPresentation
     [Tooltip("Show time and resolved modules.")]
     [SerializeField] private bool _showStats;
 
+    [Tooltip("Seconds the screen takes to fade in. Short for a plain result; long for GameOver, " +
+             "which arrives right after the explosion cinematic and should rise slowly out of it.")]
+    [SerializeField, Min(0f)] private float _fadeInDuration = 0.3f;
+
     public GameState State       => _state;
     public string   Title        => _title;
-    public Color    TitleColor   => _titleColor;
+    public UIThemeRole TitleRole => _titleRole;
     public Color    VignetteColor => _vignetteColor;
     public bool     ShowRetry    => _showRetry;
     public bool     ShowStats    => _showStats;
+    public float    FadeInDuration => _fadeInDuration;
 }

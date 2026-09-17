@@ -219,7 +219,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 ## Cómo verificar
 
-**Escena de pruebas**: `Tools > Nemesis > Build Nemesis Test Scene` arma una desde cero, o abrí `Scenes/Dev/NemesisTestbed.unity`.
+**Escena de pruebas**: abrí `Scenes/Dev/NemesisTestbed.unity`.
 
 **En Play:**
 
@@ -230,7 +230,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 **Gizmos** (`NemesisGizmos`, con el Nemesis seleccionado): dibuja los dos conos de visión a escala, el radio de oído, los tres radios de ruido del jugador por paso, el punto predicho, el de flanqueo y el de intercepción.
 
-**Validación de nivel**: `Tools > Nemesis > Validate Navigation Setup` reporta geometría que se quedó afuera del bake. `Tools > Nemesis > Repair Layer Masks` arregla máscaras mal puestas.
+**Validación de nivel**: `Tools > Nemesis > Validate Navigation Setup` reporta geometría que se quedó afuera del bake y máscaras mal puestas.
 
 ---
 

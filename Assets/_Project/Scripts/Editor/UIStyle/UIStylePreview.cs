@@ -23,7 +23,7 @@ using UnityEngine.UI;
 ///
 /// Edit mode runs no Awake, so the copy is put in the state the game would show
 /// (<see cref="ForceRuntimeState"/>). Screen-specific states — the inventory's items, its doc — are
-/// the business of hooks like InventoryScenePreview.
+/// not set here.
 ///
 /// A render in an editor preview scene was tried first and dropped: URP draws nothing for a UI
 /// canvas that lives there, so every shot came out blank.

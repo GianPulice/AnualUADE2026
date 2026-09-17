@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_abrir_inventario
   category: 0
-  clip: {fileID: 8300000, guid: d109a5ca9c9b5a142a7c7e9d41442394, type: 3}
+  clip: {fileID: 8300000, guid: 1aa604d92a17a554da90873dfb855324, type: 3}
   loop: 0
   ignoreListenerPause: 0
   minDistance: 1

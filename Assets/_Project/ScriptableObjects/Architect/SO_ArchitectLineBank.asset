@@ -1,0 +1,179 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 717e86be55928e64babae4e462e265ea, type: 3}
+  m_Name: SO_ArchitectLineBank
+  m_EditorClassIdentifier: Assembly-CSharp::SO_ArchitectLineBank
+  lines:
+  - id: 0
+    category: 0
+    variants:
+    - There's a device on your body. | Three modules. One timer at a time. When it
+      hits zero, it goes off.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 1
+    category: 0
+    variants:
+    - 'The rules are simple: solve it, disarm it, get out.'
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 2
+    category: 0
+    variants:
+    - You're not alone in the complex anymore. And there's more than time to worry
+      about now.
+    clips: []
+    alert: '> CONTAINMENT BREACH'
+    playsOverMenus: 0
+  - id: 3
+    category: 0
+    variants:
+    - You made it. You're the first.
+    clips: []
+    alert: '> {0} DISARMED'
+    playsOverMenus: 1
+  - id: 4
+    category: 1
+    variants:
+    - Industrial sector. Three parts of the system to bring back online. Once all
+      three are up, you can move on.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 5
+    category: 1
+    variants:
+    - Down here you'll have to think a little harder before it goes off.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 6
+    category: 1
+    variants:
+    - Module disarmed. The gate is open. The complex goes on.
+    clips: []
+    alert: '> M1 DISARMED'
+    playsOverMenus: 0
+  - id: 7
+    category: 1
+    variants:
+    - Two modules down. One left.
+    clips: []
+    alert: '> M2 DISARMED'
+    playsOverMenus: 0
+  - id: 8
+    category: 1
+    variants:
+    - Someone was here before you. They left something for whoever came next.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 9
+    category: 2
+    variants:
+    - You're running out of time.
+    - Almost.
+    - Tick Tack, Tick Tack.
+    clips: []
+    alert: '> {0} CRITICAL'
+    playsOverMenus: 0
+  - id: 10
+    category: 2
+    variants:
+    - The legs. Every step from now on will remind you.
+    clips: []
+    alert: '> {0} DETONATED'
+    playsOverMenus: 0
+  - id: 11
+    category: 2
+    variants:
+    - The chest. Breathing will cost you more than it used to.
+    clips: []
+    alert: '> {0} DETONATED'
+    playsOverMenus: 0
+  - id: 12
+    category: 2
+    variants:
+    - The head. What you see won't always be real from now on.
+    clips: []
+    alert: '> {0} DETONATED'
+    playsOverMenus: 0
+  - id: 13
+    category: 2
+    variants:
+    - You made it in time.
+    - Good.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 14
+    category: 2
+    variants:
+    - Too close.
+    - That was a mistake.
+    - You moved when you shouldn't have.
+    - Predictable.
+    - Obvious from the moment you walked into that room.
+    - It doesn't miss.
+    - It always gets there.
+    - It's been doing this a long time.
+    - This has happened before.
+    - Plenty made that same call.
+    - That's usually how it ends.
+    - Curious. Not where I expected.
+    - Did you see it coming?
+    - This is part of the process.
+    - Interesting. Almost.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 15
+    category: 2
+    variants:
+    - You got this far. That's already more than most.
+    clips: []
+    alert: 
+    playsOverMenus: 1
+  - id: 16
+    category: 3
+    variants:
+    - It's close. Very close.
+    - It can hear you.
+    - Don't move.
+    - It already knows you're there.
+    - That sound you made was a mistake.
+    - It's two rooms away.
+    - Don't look at it. It won't help.
+    - Still.
+    - It doesn't like loud noises.
+    - It learns the routes. Change yours.
+    - It doesn't tolerate being ignored.
+    - If you lose sight of it, it doesn't lose sight of you.
+    - It doesn't run. It doesn't need to.
+    - You're not the first to stand there.
+    - Others got this far. None of them made it past that point.
+    - This place has a memory.
+    - You're taking longer than expected.
+    - Interesting. That wasn't the obvious route.
+    - I'm watching you.
+    - Notice you're breathing differently? That's normal.
+    - The device is working perfectly.
+    - That sound you hear is the timer. You'll get used to it.
+    - When it goes off, it doesn't hurt right away.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  readingCharsPerSecond: 14
+  minLineDuration: 2
+  holdAfterLine: 0.6

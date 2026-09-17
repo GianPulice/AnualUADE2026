@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public class SocketInteractable : BaseRangeInteractable, IPromptPresentation
+public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IPuzzleInteractable
 {
     [SerializeField] private SO_SocketData socketData;
 

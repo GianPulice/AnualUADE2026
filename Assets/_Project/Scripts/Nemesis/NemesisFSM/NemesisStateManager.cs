@@ -1185,6 +1185,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // the first time it is asked.
         MarkStateEntered();
         CurrentState.EnterState();
+
+        NemesisEvents.Activated();
     }
 
     /// <summary>

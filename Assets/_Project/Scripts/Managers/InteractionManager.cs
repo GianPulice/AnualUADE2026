@@ -179,6 +179,7 @@ public class InteractionManager : Singleton<InteractionManager>
         bool wasRepeatable = interactableToUse.IsRepeatable();
 
         interactableToUse.Interact();
+        InteractionEvents.Interacted(interactableToUse);
 
         if (!wasRepeatable)
         {

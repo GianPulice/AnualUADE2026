@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class SequenceButtonInteractable : MonoBehaviour, IInteractable
+public class SequenceButtonInteractable : MonoBehaviour, IInteractable, IPuzzleInteractable
 {
     [SerializeField] private SequencePanelInteractable panel;
     [SerializeField] private int buttonId;

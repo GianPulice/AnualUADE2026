@@ -27,6 +27,11 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     [Tooltip("Verbose logging for the module lifecycle. Turn off in shipping builds.")]
     [SerializeField] private bool debugLog = true;
 
+    [Tooltip("Editor and development builds only: explodes a module right away, to test the explosion " +
+             "sequence without waiting out a timer. Takes the active module; with none active, forces " +
+             "the next module that was never activated. None = off.")]
+    [SerializeField] private KeyCode debugExplodeKey = KeyCode.F8;
+
     private readonly List<ModuleRuntime> runtimes = new List<ModuleRuntime>();
     private ModuleRuntime activeRuntime;
     private float sessionTime;
@@ -81,8 +86,43 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0)
             sessionTime += Time.unscaledDeltaTime;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (debugExplodeKey != KeyCode.None && Input.GetKeyDown(debugExplodeKey)) DebugExplodeNow();
+#endif
+
         TickActive();
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Goes through the same Explode a timer reaching zero uses, so every listener (penalty,
+    /// explosion sequence, Architect, game over on the last one) reacts as in a real run. With no
+    /// module active, the next never-activated one is forced active first, skipping the
+    /// prerequisite chain: testing the second module should not mean solving the first.
+    /// </summary>
+    [ContextMenu("Debug: Explode Module Now")]
+    private void DebugExplodeNow()
+    {
+        if (activeRuntime == null)
+        {
+            ModuleRuntime next = runtimes.Find(r => !r.HasBeenActivated);
+            if (next == null)
+            {
+                Debug.LogWarning("[ModuleManager] Debug explode: no module left to explode.");
+                return;
+            }
+
+            next.HasBeenActivated = true;
+            next.Status = ModuleStatus.Active;
+            next.IsTimerRunning = true;
+            activeRuntime = next;
+            ModuleEvents.RaiseStateChanged(next);
+        }
+
+        Log($"Debug explode: '{activeRuntime.ModuleID}'.");
+        Explode(activeRuntime);
+    }
+#endif
 
     // ── Public API — called by triggers, puzzles, skill-checks, player ──────────────────
 
@@ -293,10 +333,10 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         ModuleEvents.RaiseExploded(target);
         ModuleEvents.RaiseStateChanged(target);
 
-        CheckGameOver();
+        CheckGameOver(target);
     }
 
-    private void CheckGameOver()
+    private void CheckGameOver(ModuleRuntime lastExploded)
     {
         if (gameOverReported) return;
         if (runtimes.Count == 0) return;
@@ -304,7 +344,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
         gameOverReported = true;
         ModuleEvents.RaiseAllModulesExploded();
-        GameResultManager.ReportGameOver(sessionTime, GetResolvedCount());
+        GameResultManager.ReportGameOver(sessionTime, GetResolvedCount(), lastExploded);
         Log("All modules exploded — GameOver reported.");
     }
 

@@ -12,6 +12,7 @@ public class PlayerCameraController : MonoBehaviour
     private CinemachineOrbitalFollow cinemachineOrbitalFollow;
     private CinemachineRotationComposer cinemachineRotationComposer;
     private CinemachineInputAxisController cinemachineInputAxisController;
+    private WakeUpCameraPan wakeUpPan;
 
     // The transform the rig orbits around and aims at ("Placeholder forward direction"). It sits
     // at standing head height and never moved, which is the whole bug this dip fixes: crouching
@@ -38,6 +39,7 @@ public class PlayerCameraController : MonoBehaviour
         cinemachineOrbitalFollow = GetComponent<CinemachineOrbitalFollow>();
         cinemachineRotationComposer = GetComponent<CinemachineRotationComposer>();
         cinemachineInputAxisController = GetComponent<CinemachineInputAxisController>();
+        wakeUpPan = GetComponent<WakeUpCameraPan>();
         AplyConfig();
         CachePivot();
     }
@@ -47,10 +49,13 @@ public class PlayerCameraController : MonoBehaviour
         // Ahead of the input guard below on purpose: the pivot has to keep tracking the stance
         // even on a rig without an input controller.
         UpdateCrouchPivot();
+        UpdateShoulderOffset();
 
-        // When a modal UI is open or the game is paused, we do not read camera input.
+        // When a modal UI is open or the game is paused, we do not read camera input. Nor while the
+        // wake-up cinematic drives the rig (WakeUpCameraPan): the player's mouse would fight the pan.
         if (cinemachineInputAxisController == null) return;
-        bool shouldEnable = !PauseManager.IsGameplayInputBlocked;
+        bool gameplayActive = !PauseManager.IsGameplayInputBlocked;
+        bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
 
@@ -58,7 +63,7 @@ public class PlayerCameraController : MonoBehaviour
         // When there IS a UI open, the UIStateManager owns the cursor (it releases it),
         // which is why we only force it while gameplay input is active. Doing it every
         // frame also recovers the lock if the OS dropped it (alt-tab, click outside window).
-        if (shouldEnable)
+        if (gameplayActive)
         {
             if (Cursor.lockState != CursorLockMode.Locked) Cursor.lockState = CursorLockMode.Locked;
             if (Cursor.visible) Cursor.visible = false;
@@ -71,6 +76,17 @@ public class PlayerCameraController : MonoBehaviour
         cinemachineOrbitalFollow.VerticalAxis.Range = new Vector2(-cameraConfig.MaxVerticalAngle, cameraConfig.MaxVerticalAngle);
         Vector3 temp = cameraConfig.ShoulderOffset;
         cinemachineRotationComposer.TargetOffset.Set(temp.x, temp.y, temp.z);
+    }
+
+    /// <summary>
+    /// The wake-up cinematic frames the player from straight behind, not over the shoulder, and
+    /// hands the shoulder offset back gradually (<see cref="WakeUpCameraPan.ShoulderWeight"/>).
+    /// Only on a rig that has the pan; any other rig keeps the offset AplyConfig set once.
+    /// </summary>
+    private void UpdateShoulderOffset()
+    {
+        if (wakeUpPan == null || cinemachineRotationComposer == null || cameraConfig == null) return;
+        cinemachineRotationComposer.TargetOffset = cameraConfig.ShoulderOffset * wakeUpPan.ShoulderWeight;
     }
 
     /// <summary>
@@ -115,6 +131,16 @@ public class PlayerCameraController : MonoBehaviour
         float target = crouching ? standingPivotHeight - drop : standingPivotHeight;
 
         Vector3 local = pivot.localPosition;
+
+        // The wake-up cinematic raises the pivot from the floor to the head on its own timing:
+        // placed exactly, no damping, or the rise would lag behind a pan synced to the voice line.
+        if (wakeUpPan != null && wakeUpPan.TryGetPivotOffset(out float wakeUpOffset))
+        {
+            local.y = standingPivotHeight + wakeUpOffset;
+            pivotVelocity = 0f;
+            pivot.localPosition = local;
+            return;
+        }
 
         // Scaled deltaTime on purpose: while paused the framing holds wherever it was, same as
         // CameraSprintEffect.

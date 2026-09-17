@@ -8,7 +8,7 @@ using UnityEngine;
 /// On interact, it opens the SequencePanelUIController UI. The puzzle logic lives here;
 /// the UI is only view + input.
 /// </summary>
-public class SequencePanelInteractable : BaseRangeInteractable
+public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteractable
 {
     [Header("Puzzle data")]
     [SerializeField] private SO_SequencePuzzleData sequenceData;

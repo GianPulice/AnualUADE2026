@@ -34,7 +34,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     [Tooltip("What the player slides along instead of stopping dead against. Ground + Wall + " +
              "Props.\n\n" +
              "Empty means no deflection at all, which is the pre-fix behaviour: you press into a " +
-             "crate and stick to it. Tools > Nemesis > Repair Layer Masks fills this in.")]
+             "crate and stick to it. Tools > Nemesis > Validate Navigation Setup reports it.")]
     [SerializeField] private LayerMask obstacleMask;
 
     [Tooltip("What stops the player from standing back up out of a crouch. Leave empty to fall " +

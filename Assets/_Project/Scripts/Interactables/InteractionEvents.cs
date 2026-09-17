@@ -5,6 +5,12 @@ public static class InteractionEvents
     public static event Action<IInteractable> OnTargetChanged;
     public static void TargetChanged(IInteractable newTarget) => OnTargetChanged?.Invoke(newTarget);
 
+    // The player pressed interact on a target that accepted it (raised after Interact ran). For
+    // systems that react to player activity rather than to one object, like the Architect's
+    // inactivity timer.
+    public static event Action<IInteractable> OnInteracted;
+    public static void Interacted(IInteractable interactable) => OnInteracted?.Invoke(interactable);
+
     // Fired by an interactable when its own state changes and the currently displayed prompt
     // would go stale (e.g. a door that just opened needs to advertise "Close" instead of
     // "Open" without waiting for the player to look away and back).

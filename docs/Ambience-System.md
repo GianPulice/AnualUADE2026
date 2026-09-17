@@ -8,7 +8,7 @@ INCOMODIDAD SUBCONSC.   Pink noise + 17 Hz + drone 32 Hz
 EVENTOS DEL EDIFICIO    One-shots 3D aleatorios con silencios largos
 ```
 
-Código en `Assets/_Project/Scripts/Ambience/`, ScriptableObjects en `Assets/_Project/Scripts/ScriptableScripts/Ambience/`, herramienta de editor en `Assets/_Project/Scripts/Editor/AmbienceToneBaker.cs`.
+Código en `Assets/_Project/Scripts/Ambience/`, ScriptableObjects en `Assets/_Project/Scripts/ScriptableScripts/Ambience/`.
 
 ---
 
@@ -16,11 +16,7 @@ Código en `Assets/_Project/Scripts/Ambience/`, ScriptableObjects en `Assets/_Pr
 
 ### 1. Mixer
 
-```
-Tools > Audio > Create or Update Master Mixer
-```
-
-Crea 4 sub-grupos bajo `Ambience`: **Bed**, **Events**, **Texture**, **Sub**. Después, a mano en `Assets/_Project/ScriptableObjects/Audio/MasterMixer.mixer`:
+El mixer ya tiene 4 sub-grupos bajo `Ambience`: **Bed**, **Events**, **Texture**, **Sub**. A mano en `Assets/_Project/ScriptableObjects/Audio/MasterMixer.mixer`:
 
 | Grupo | Fader | Efectos |
 |---|---|---|
@@ -35,11 +31,7 @@ Crea 4 sub-grupos bajo `Ambience`: **Bed**, **Events**, **Texture**, **Sub**. De
 
 ### 2. Clips generados
 
-```
-Tools > Audio > Bake Ambience Texture Clips
-```
-
-Genera en `Assets/_Project/Audio/Ambience/Generated/`:
+Ya generados en `Assets/_Project/Audio/Ambience/Generated/`:
 
 | Archivo | Uso |
 |---|---|

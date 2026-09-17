@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public class ValveInteractable : BaseRangeInteractable
+public class ValveInteractable : BaseRangeInteractable, IPuzzleInteractable
 {
     [SerializeField] private SO_ValveData valveData;
 

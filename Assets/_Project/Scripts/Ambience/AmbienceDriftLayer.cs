@@ -17,7 +17,7 @@ using UnityEngine.Audio;
 ///     changes nothing, it is too quiet to be worth a voice.
 ///   17 Hz — room pressure. Below the roughly 20 Hz hearing floor and reproduced by almost no
 ///     consumer hardware, which is why the baked clip carries a quiet 34 Hz partial: without it the
-///     track is literally silent on most devices. See AmbienceToneBaker.
+///     track is literally silent on most devices.
 ///   32 Hz drone — this is the one that actually carries the perceptible weight, because it is the
 ///     lowest range laptop speakers and earbuds have any chance with.
 ///

@@ -146,6 +146,7 @@ GameObject:
   - component: {fileID: 5563071216055759055}
   - component: {fileID: 8823410557001220301}
   - component: {fileID: 8823410557001220302}
+  - component: {fileID: 4138418862034583676}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -409,6 +410,20 @@ MonoBehaviour:
   minDistance: 3
   maxDistance: 15
   outputGroupOverride: {fileID: 0}
+--- !u!114 &4138418862034583676
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53ae4dadaf09cd4498aea20afccf988e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ModuleExplosionSequence
+  config: {fileID: 11400000, guid: 69e9d57e45672a440a39f07eb659a259, type: 2}
+  cameraAnchorOverride: {fileID: 0}
 --- !u!1 &267920378832048576
 GameObject:
   m_ObjectHideFlags: 0
@@ -686,6 +701,7 @@ GameObject:
   - component: {fileID: 8297827854600459647}
   - component: {fileID: 6846287691701151233}
   - component: {fileID: 4823901756230984512}
+  - component: {fileID: 6776761930762992951}
   m_Layer: 7
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -701,13 +717,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.29184094, y: 0, z: 0, w: 0.95646685}
+  m_LocalRotation: {x: 0.29187393, y: 0.00031557278, z: -0.000096313604, w: 0.9564568}
   m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 6866595372486211810}
-  m_LocalEulerAnglesHint: {x: 0, y: -3.855, z: 0}
+  m_LocalEulerAnglesHint: {x: 33.94, y: 0, z: 0}
 --- !u!114 &1884531062299343120
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1012,6 +1028,72 @@ MonoBehaviour:
   _sprintFovBoost: 6
   _easeInTime: 0.3
   _easeOutTime: 0.5
+--- !u!114 &6776761930762992951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088243688451712710}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ddf507bbb9cd4041bcded6d1f8bd706, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WakeUpCameraPan
+  endHorizontal: -3
+  endVertical: 10
+  startAngle: 145
+  startVertical: -35
+  startPivotDrop: 1.3
+  orbitEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  riseEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  shoulderBlendDuration: 1.2
 --- !u!1 &1234706075858165138
 GameObject:
   m_ObjectHideFlags: 0

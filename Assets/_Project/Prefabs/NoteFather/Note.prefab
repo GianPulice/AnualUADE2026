@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 2820506238401912842}
   - component: {fileID: 7947140177708132941}
   - component: {fileID: 713258761981259063}
+  - component: {fileID: 3565910660813946330}
   m_Layer: 6
   m_Name: Note
   m_TagString: Untagged
@@ -144,6 +145,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
   profile: {fileID: 11400000, guid: 3dd155ece1fb3fc48a29c0061f7e9333, type: 2}
+--- !u!114 &3565910660813946330
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2530198244687189650}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ffc32281c441e4b4d2742d5d2fc96a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemGlint
+  profile: {fileID: 11400000, guid: 3ae22aa9310af8148b0bab1f6135dee4, type: 2}
+  offset: {x: 0, y: 0, z: 0}
 --- !u!1 &8764958585245553677
 GameObject:
   m_ObjectHideFlags: 0

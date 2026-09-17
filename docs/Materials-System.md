@@ -59,7 +59,9 @@ Assets/
 │   │   ├─ mat_item_special.mat                       ← Especiales    (#1A237E)
 │   │   ├─ ItemPSX.shadergraph                        ← original (referencia, no se toca)
 │   │   ├─ ItemPSX_Outline.shader                     ← NUEVO: HLSL Lit + outline opt-in
-│   │   └─ ItemPsx.mat                                ← apunta a ItemPSX_Outline.shader
+│   │   ├─ ItemPsx.mat                                ← apunta a ItemPSX_Outline.shader
+│   │   ├─ ItemGlint.shader                           ← estrella del destello (§5.5), unlit aditivo
+│   │   └─ mat_item_glint.mat                         ← forma de la estrella (lo crea Set Up Item Glints)
 │   ├─ VisionFog.hlsl                                  ← Custom function HLSL (EXTENDIDO)
 │   └─ Post Process/
 │       ├─ Fullscreen_VisionFog.shadergraph           ← grafo fullscreen del fog
@@ -72,7 +74,11 @@ Assets/
     │   ├─ MonitorFlicker.cs                          ← pulso 0.2 Hz
     │   └─ FlickerLight.cs                            ← curve-driven, fluorescente
     ├─ Items/
-    │   └─ ItemProximityHighlight.cs                  ← lerp tint+emission por proximidad
+    │   ├─ ItemProximityHighlight.cs                  ← lerp tint+emission por proximidad
+    │   └─ ItemGlint.cs                               ← destello de lejos, estilo Resident Evil (§5.5)
+    ├─ ScriptableScripts/Interactables/
+    │   ├─ SO_HighlightProfile.cs                     ← valores del highlight (§5.3)
+    │   └─ SO_GlintProfile.cs                         ← timing/tamaño/color/rango del destello (§5.5)
     ├─ ScriptableScripts/Rendering/
     │   └─ SO_VisionFogConfig.cs                       ← preset de niebla por zona
     └─ Rendering/
@@ -310,6 +316,34 @@ Al usar la normal mundial + view direction, el borde se ilumina en la silueta de
 
 > ⚠️ **Regla del spec (§4.3 / §4.6.1 del handoff)**: WIRED **no usa outlines de items** — el feedback de proximidad es tint+emisión sutil, no un rim. Por eso `_OutlineIntensity` viene en **0**: el material lo instala pero apagado. Solo se debe subir manualmente en el subset donde el color language lo justifica (puzzles / decorativos interactuables del §4.7), y con visto bueno de GD. Subir el outline sobre un item recogible de las 4 categorías (§5.2) **rompe el spec**.
 
+### 5.5 `ItemGlint.cs` — Destello de lejos (estilo Resident Evil)
+
+Una estrella de 4 puntas que parpadea sobre cada item recogible cada ~3 s, para que un objeto tirado en un rincón oscuro se vea desde el otro lado de la habitación. Es el complemento **de lejos** del highlight de §5.3, que actúa **de cerca**: los dos nunca se ven a la vez.
+
+**Dónde va**: en la raíz del pickup, en los Father (`InventoryItemFather/InventoryItem`, `NoteFather/Note`), así las variantes lo heredan. `Tools ▸ Interactables ▸ Set Up Item Glints` crea `mat_item_glint.mat` y `ScriptableObjects/Highlight/SO_Glint_Items.asset` si faltan, agrega el componente a todo prefab de `Prefabs/` con `PickupInteractable` en la raíz que no sea variante de otro pickup, y a los pickups armados a mano en las escenas abiertas (esas escenas quedan sucias para guardar). Se puede volver a correr.
+
+**Cuándo se ve** (todo sale del perfil):
+
+| Condición | Resultado |
+|---|---|
+| Player más cerca que `hideWithin` (2.5 m = alcance de interacción) | Apagado: manda el highlight. Hace fade sobre `fadeBand`. |
+| Player más lejos que `maxDistance` (12 m) | Apagado, con el mismo fade. |
+| La mira apunta al item (`InteractionEvents.OnTargetChanged`) | Fade out en `targetFadeTime` (0.12 s). |
+| Pickup sin item (`CanInteract()` = false) | Nunca brilla: no hay nada que encontrar. |
+| Item recogido (destruido) o desactivado | Deja de dibujarse solo (se dibuja desde `Update`). |
+
+**Color**: blanco mezclado con el **tono** del color de la categoría (`ItemCategory.asset → shaderEmissionColor`, el mismo que usa el highlight): llave roja, componente verde, nota azul, especial naranja. `categoryTint` (0.45) dice cuánto; se toma solo el tono, llevado a brillo máximo, así el azul oscuro de las notas tiñe igual que el rojo puro de las llaves. "Otro" (sin color) queda blanco.
+
+**Cómo está implementado**:
+- **Sin GameObject hijo**: se dibuja con `Graphics.RenderMesh` y un `MaterialPropertyBlock` (color, alpha, rotación). Un quad hijo sería un `Renderer` más bajo el interactuable, y el highlight maneja —y su validador juzga— todos los renderers de abajo.
+- **Billboard en el shader** (`ItemGlint.shader`): el script solo pasa posición y escala; el vertex arma el quad mirando a cámara. La estrella nace en el centro de los renderers del item, así que el shader la **desliza hacia la cámara** (`_CameraPull`, 0.3 m) sobre la línea de visión: sale del mesh del propio item sin cambiar de lugar ni de tamaño en pantalla. `ZTest LEqual` sin `ZWrite`: las paredes la tapan.
+- **Estrella procedural**: sin textura. Forma en el material (`_RayThinness`, `_RayFalloff`, `_CoreSize`, `_PixelGrid`); también acepta un sprite propio (`_UseSprite` + `_MainTex`).
+- **Tamaño mínimo en pantalla** (`minScreenHeight`, 4.5 % del alto): el filtro PS1 (§7) se queda con un texel por bloque de 256 filas, y una estrella de pocas filas titila al mover la cámara. De lejos crece en mundo para no bajar de ese piso.
+- Queue `Transparent+50`: la niebla y el PS1 (ambos `BeforeRenderingPostProcessing`) le caen encima como a todo lo demás. La niebla deja pasar píxeles brillantes (`lightPreservation`), así que un destello más allá de `visionEnd` puede verse como un punto en la oscuridad — si delata items de más, bajar `maxDistance`.
+- Primer destello de cada item sorteado dentro de un intervalo entero, y `intervalJitter` en cada uno: items puestos juntos no parpadean al unísono.
+
+**Tunear en Play**: click derecho sobre el componente ▸ **Glint Now** dispara uno ya (igual respeta `hideWithin`: alejarse primero). Con el item seleccionado, el gizmo marca dónde nace la estrella y las esferas de `hideWithin` y `maxDistance`. Si la estrella cae en un lugar raro en un item puntual, `offset` en el componente la corre.
+
 ---
 
 ## 6. Sistema de vision fog (post-process atmosférico)
@@ -455,7 +489,7 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Componentes usa marrón oscuro (`#4E342E`), no ámbar puro. |
 | Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. |
 | Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. |
-| Sin waypoints, mapa, partículas sobre items | El sistema tampoco los implementa. |
+| Sin waypoints, mapa, partículas sobre items | No hay waypoints ni mapa. **Excepción pedida**: el destello estilo Resident Evil de §5.5 — una estrella que parpadea sobre el pickup cada ~3 s, solo de lejos (se apaga al entrar al alcance de interacción). No es un sistema de partículas ni un marcador permanente; si GD lo objeta, se saca quitando `ItemGlint` de los Father. |
 | Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Valores de `SO_Highlight_Items` (items). Los puzzles y dispositivos usan `SO_Highlight_Interactables` (solo emisión, §5.3). Se afinan en el asset, no por item. |
 | Cuatro categorías con hex específicos | 4 materiales preset, cada uno con el hex exacto del spec sec 4.4. |
 | Estilo PSX (sin PBR realista) | Smoothness baja en todos los materiales. Filtro PS1 (§7) aplica encima como efecto final. |
@@ -484,6 +518,13 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 3. Al apuntarlo con la mira (`OnPlayerEnteredRange()`): el cubo "respira" — gana tinte más visible y emisión sutil. Transición 0.3s.
 4. (Outline) Subir `_OutlineIntensity` en runtime sobre un cubo y una esfera → el borde sigue la forma en ambos, confirmando que funciona en cualquier mesh.
 5. Verificar en Profiler que el SRP Batcher está activo y NO se instancia el material.
+
+**Destello de items** (§5.5):
+1. `Tools ▸ Interactables ▸ Set Up Item Glints` una vez; el log lista qué creó y a qué prefabs lo agregó.
+2. En Play, a más de 3.5 m de un item: cada ~3 s aparece la estrella, teñida con el color de su categoría.
+3. Caminar hacia él: se apaga antes de que aparezca el prompt `[E]`. Apuntarlo con la mira desde el borde del rango: se apaga en ~0.1 s.
+4. Poner una pared entre la cámara y el item: la estrella queda tapada.
+5. Recogerlo: no queda ninguna estrella flotando.
 
 **Filtro PS1**:
 1. Seleccionar `PS1Effect.mat` en Play y togglear cada `_EnableXxx` → dither / scanlines / RGB shift aparecen o desaparecen en tiempo real.
@@ -539,6 +580,8 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Color de un item de categoría | El `.mat` correspondiente (`mat_item_keys` etc.). |
 | Velocidad de la transición lejano↔próximo | `lerpDuration` del `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
 | Color / intensidad del resaltado de puzzles y dispositivos | `SO_Highlight_Interactables.asset` — uno solo para todos. |
+| Frecuencia / tamaño / rango / cuánto color de categoría tiene el destello de items | `SO_Glint_Items.asset` (`ScriptableObjects/Highlight/`), ver §5.5. |
+| Forma de la estrella del destello (rayos, núcleo, pixelado) | `mat_item_glint.mat` (`Art/Materials/Items/`). |
 | Activar/afinar el outline de un puzzle | `_OutlineColor` / `_OutlineIntensity` / `_OutlinePower` en el `.mat` del interactuable (solo puzzles §4.7, ver §5.4). |
 | Color / rango de la niebla de una zona | El `SO_VisionFogConfig` de esa zona (`fogColor`, `visionStart`, `visionEnd`). |
 | Sensación de opresión de la niebla sin tocar el rango | `SO_VisionFogConfig.densityPower` (1 = base, >1 = más cerrado). |

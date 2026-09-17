@@ -57,16 +57,50 @@ public static class GameResultManager
     /// </summary>
     public static event Action OnSaveDeleteRequested;
 
-    public static void ReportGameOver(float time, int resolvedModules)
+    /// <summary>
+    /// Optional defeat presentation (the explosion cinematic). When set, ReportGameOver lets it
+    /// play first and only raises the result when it calls back. Null = immediate, as before.
+    /// </summary>
+    public static IGameOverPresenter GameOverPresenter { get; set; }
+
+    /// <param name="cause">
+    /// The module whose explosion ended the run, so the presenter knows what to frame. Null when
+    /// the defeat does not come from a single module.
+    /// </param>
+    public static void ReportGameOver(float time, int resolvedModules, ModuleRuntime cause = null)
     {
         if (_resultReported) return;
+
+        // Flagged BEFORE the presentation, not after: while the cinematic plays, a capture or the
+        // all-exploded path could report again and the run would end twice.
         _resultReported = true;
 
+        if (GameOverPresenter != null)
+        {
+            GameOverPresenter.PresentGameOver(cause, () => CommitGameOver(time, resolvedModules));
+            return;
+        }
+
+        CommitGameOver(time, resolvedModules);
+    }
+
+    private static void CommitGameOver(float time, int resolvedModules)
+    {
         OnSaveDeleteRequested?.Invoke();
 
         _model.SetResult(GameState.GameOver, time, resolvedModules);
         OnGameResult?.Invoke(_model);
     }
+
+    /// <summary>
+    /// Whether the explosion that was just raised ends the run. Valid inside an
+    /// <see cref="ModuleEvents.OnExploded"/> handler: ModuleManager marks the module Exploded
+    /// before raising the event, so the count already includes it.
+    /// </summary>
+    public static bool ExplosionEndsRun =>
+        GameOverOnFirstExplosion ||
+        (ModuleManager.Exists && ModuleManager.Instance.TotalModules > 0 &&
+         ModuleManager.Instance.GetExplodedCount() >= ModuleManager.Instance.TotalModules);
 
     // -- PROVISIONAL loop closure ---
     /// <summary>
@@ -95,12 +129,14 @@ public static class GameResultManager
         // Stats come from the same place as the all-exploded flow, so the GameOver screen shows
         // the same time and resolved-module count either way.
         ModuleManager modules = ModuleManager.Instance;
-        ReportGameOver(modules.SessionTime, modules.GetResolvedCount());
+        ReportGameOver(modules.SessionTime, modules.GetResolvedCount(), runtime);
     }
 
     /// <summary>Call when loading the gameplay scene to allow a new result to be reported.</summary>
     public static void ResetSession()
     {
+        // GameOverPresenter is NOT cleared here: the presenter lives in the scene and registers
+        // and unregisters itself in OnEnable/OnDisable.
         _resultReported = false;
         _model = new GameResultModel();
         _model.Initialize();

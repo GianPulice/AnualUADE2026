@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 5405741228895794217}
   - component: {fileID: 8221545152509093141}
   - component: {fileID: -6211692202051949099}
+  - component: {fileID: 4660031569741939696}
   m_Layer: 6
   m_Name: InventoryItem
   m_TagString: Untagged
@@ -157,6 +158,7 @@ MonoBehaviour:
   itemToPick: {fileID: 0}
   pickupSoundId: 
   categoryConfig: {fileID: 0}
+  openReaderOnPickup: 1
 --- !u!114 &-6211692202051949099
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -170,3 +172,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
   profile: {fileID: 11400000, guid: 3dd155ece1fb3fc48a29c0061f7e9333, type: 2}
+--- !u!114 &4660031569741939696
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8438275548156035699}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ffc32281c441e4b4d2742d5d2fc96a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemGlint
+  profile: {fileID: 11400000, guid: 3ae22aa9310af8148b0bab1f6135dee4, type: 2}
+  offset: {x: 0, y: 0, z: 0}

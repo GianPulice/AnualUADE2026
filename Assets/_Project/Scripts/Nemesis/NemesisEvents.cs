@@ -20,6 +20,7 @@ public static class NemesisEvents
         OnProximityChanged = null;
         OnStateChanged = null;
         OnCaptureResolved = null;
+        OnActivated = null;
     }
 
     // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
@@ -54,9 +55,16 @@ public static class NemesisEvents
     /// </summary>
     public static event Action OnCaptureResolved;
 
+    /// <summary>
+    /// The Nemesis woke up from dormancy and started patrolling. Raised once per run, after the
+    /// spawn warp; a deferred spawn (no safe spot yet) raises it when it finally appears.
+    /// </summary>
+    public static event Action OnActivated;
+
     public static void ChaseStarted()                    => OnChaseStarted?.Invoke();
     public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
     public static void CaptureResolved()                 => OnCaptureResolved?.Invoke();
+    public static void Activated()                       => OnActivated?.Invoke();
 }

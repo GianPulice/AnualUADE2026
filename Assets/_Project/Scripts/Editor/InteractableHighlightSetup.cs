@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
@@ -22,12 +23,19 @@ using UnityEngine;
 ///      them, when their emission colour is black: nothing changes on screen, it only stops URP
 ///      compiling the emission out. Materials with a colour set but emission off, or embedded in an
 ///      FBX, are listed instead of touched.
+///
+/// Set Up Item Glints does the same for <see cref="ItemGlint"/>, the far-away glint on pickups, from
+/// the same idea: on the Father, so every variant has it.
 /// </summary>
 public static class InteractableHighlightSetup
 {
     public const string ProfileFolder    = "Assets/_Project/ScriptableObjects/Highlight";
     public const string ItemsProfilePath = ProfileFolder + "/SO_Highlight_Items.asset";
     public const string PropsProfilePath = ProfileFolder + "/SO_Highlight_Interactables.asset";
+    public const string GlintProfilePath = ProfileFolder + "/SO_Glint_Items.asset";
+    private const string GlintMaterialPath = "Assets/_Project/Art/Materials/Items/mat_item_glint.mat";
+    private const string GlintShaderName   = "WIRED/Items/Item Glint";
+    private const string PrefabFolder      = "Assets/_Project/Prefabs";
     private const string CategoryConfigPath = "Assets/_Project/ScriptableObjects/CategoryConfig/ItemCategory.asset";
     private const string LogTag = "[InteractableHighlightSetup]";
 
@@ -152,15 +160,165 @@ public static class InteractableHighlightSetup
         }
     }
 
-    private static bool AssignIfEmpty(ItemProximityHighlight highlight, SO_HighlightProfile profile)
+    /// <summary>Fills the component's <c>profile</c> field when it is empty. A set one is kept.</summary>
+    private static bool AssignIfEmpty(Component component, ScriptableObject profile)
     {
-        var so = new SerializedObject(highlight);
+        var so = new SerializedObject(component);
         SerializedProperty property = so.FindProperty("profile");
         if (property.objectReferenceValue != null) return false;
 
         property.objectReferenceValue = profile;
         so.ApplyModifiedPropertiesWithoutUndo();
         return true;
+    }
+
+    // ── Item glints ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Puts <see cref="ItemGlint"/> on every pickup, with the same re-runnable steps as the highlight:
+    ///   1. Creates mat_item_glint and SO_Glint_Items if they are missing. Existing ones are never
+    ///      overwritten — the material is where the star's shape is tuned, the profile its timing.
+    ///   2. Adds the glint to every pickup prefab under Prefabs/ that is not a variant of another
+    ///      pickup prefab, so Fathers get it and their variants inherit it.
+    ///   3. Adds it to the pickups placed straight in the open scenes, the ones that come from no
+    ///      prefab. Those scenes are left dirty, to be saved by hand.
+    /// </summary>
+    [MenuItem("Tools/Interactables/Set Up Item Glints")]
+    private static void SetUpGlints()
+    {
+        var log = new StringBuilder();
+
+        Material material = LoadOrCreateGlintMaterial(log);
+        if (material == null) return;
+
+        SO_GlintProfile profile = LoadOrCreateGlintProfile(material, log);
+
+        foreach (string path in FindPickupPrefabRoots()) AddGlintToPrefab(path, profile, log);
+        AddGlintInOpenScenes(profile, log);
+
+        AssetDatabase.SaveAssets();
+        Debug.Log($"{LogTag} Glints done.\n{log}");
+    }
+
+    private static Material LoadOrCreateGlintMaterial(StringBuilder log)
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<Material>(GlintMaterialPath);
+        if (existing != null) return existing;
+
+        Shader shader = Shader.Find(GlintShaderName);
+        if (shader == null)
+        {
+            Debug.LogError($"{LogTag} Shader '{GlintShaderName}' not found (Art/Materials/Items/ItemGlint.shader). " +
+                           "Check the Console for shader compile errors, then run this again.");
+            return null;
+        }
+
+        var material = new Material(shader) { name = "mat_item_glint" };
+        AssetDatabase.CreateAsset(material, GlintMaterialPath);
+        log.AppendLine($"Created {GlintMaterialPath}");
+        return material;
+    }
+
+    private static SO_GlintProfile LoadOrCreateGlintProfile(Material material, StringBuilder log)
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<SO_GlintProfile>(GlintProfilePath);
+        if (existing != null) return existing;
+
+        if (!AssetDatabase.IsValidFolder(ProfileFolder))
+            AssetDatabase.CreateFolder("Assets/_Project/ScriptableObjects", "Highlight");
+
+        // Every other value keeps the defaults written in SO_GlintProfile.
+        var profile = ScriptableObject.CreateInstance<SO_GlintProfile>();
+        AssetDatabase.CreateAsset(profile, GlintProfilePath);
+
+        var so = new SerializedObject(profile);
+        so.FindProperty("material").objectReferenceValue = material;
+        so.FindProperty("categoryConfig").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<SO_ItemCategoryConfig>(CategoryConfigPath);
+        so.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(profile);
+
+        log.AppendLine($"Created {GlintProfilePath}");
+        return profile;
+    }
+
+    /// <summary>
+    /// Prefabs with a <see cref="PickupInteractable"/> on their root, minus the variants of another
+    /// one: those inherit the glint from it (InventoryItemFather, NoteFather).
+    /// </summary>
+    private static List<string> FindPickupPrefabRoots()
+    {
+        var pickups = new List<string>();
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { PrefabFolder }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset != null && asset.GetComponent<PickupInteractable>() != null) pickups.Add(path);
+        }
+
+        var pickupSet = new HashSet<string>(pickups);
+        return pickups.Where(path => !DerivesFrom(path, pickupSet)).ToList();
+    }
+
+    private static void AddGlintToPrefab(string path, SO_GlintProfile profile, StringBuilder log)
+    {
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            var glint = root.GetComponent<ItemGlint>();
+            bool added = glint == null;
+            if (added) glint = root.AddComponent<ItemGlint>();
+
+            bool assigned = AssignIfEmpty(glint, profile);
+            if (!added && !assigned)
+            {
+                log.AppendLine($"Already glints: {path}");
+                return;
+            }
+
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+            log.AppendLine($"{(added ? "Added glint" : "Assigned glint profile")}: {path}");
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    /// <summary>
+    /// Pickups built in the scene rather than placed from a prefab. A pickup that comes from a prefab
+    /// is left to the prefab pass above, and reported if it still has none.
+    /// </summary>
+    private static void AddGlintInOpenScenes(SO_GlintProfile profile, StringBuilder log)
+    {
+        PickupInteractable[] pickups = Object.FindObjectsByType<PickupInteractable>(FindObjectsInactive.Include);
+
+        foreach (PickupInteractable pickup in pickups)
+        {
+            var glint = pickup.GetComponent<ItemGlint>();
+            if (glint != null)
+            {
+                if (!PrefabUtility.IsPartOfPrefabInstance(glint) && AssignIfEmpty(glint, profile))
+                {
+                    EditorSceneManager.MarkSceneDirty(pickup.gameObject.scene);
+                    log.AppendLine($"Assigned glint profile in scene '{pickup.gameObject.scene.name}': {pickup.name}");
+                }
+                continue;
+            }
+
+            if (PrefabUtility.IsPartOfPrefabInstance(pickup))
+            {
+                string source = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(pickup);
+                log.AppendLine($"  NOT touched, comes from '{source}', which has no glint (outside " +
+                               $"{PrefabFolder}?): {pickup.name}");
+                continue;
+            }
+
+            glint = Undo.AddComponent<ItemGlint>(pickup.gameObject);
+            AssignIfEmpty(glint, profile);
+            EditorSceneManager.MarkSceneDirty(pickup.gameObject.scene);
+            log.AppendLine($"Added glint in scene '{pickup.gameObject.scene.name}' (save the scene): {pickup.name}");
+        }
     }
 
     /// <summary>
@@ -171,7 +329,7 @@ public static class InteractableHighlightSetup
     {
         var rootSet = new HashSet<string>(roots);
         var prefabs = new List<string>(roots);
-        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/_Project/Prefabs" }))
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { PrefabFolder }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (!rootSet.Contains(path) && DerivesFrom(path, rootSet)) prefabs.Add(path);

@@ -51,26 +51,6 @@ public static class NemesisSetupValidator
     /// </summary>
     private static readonly string[] OcclusionLayerNames = { "Default", "Ground", "Wall", "Props" };
 
-    /// <summary>
-    /// Scene roots whose whole subtree belongs on a given layer, for
-    /// <see cref="MigratePropLayers"/>.
-    ///
-    /// By name and not by reference because these are scene objects and this is a static editor
-    /// class; by root and not per object because the blockout has ~200 of them and the grouping
-    /// already exists in the Hierarchy. Missing roots are skipped silently — not every scene has
-    /// every group.
-    /// </summary>
-    private static readonly (string Root, string Layer)[] LayerMigrations =
-    {
-        ("---- PROPS SUELTOS ----", "Props"),
-        ("WIRED_ZONA_02_PROPS",     "Props"),
-        ("VISUAL_MASS",             "Props"),
-
-        // Stairs were on Default, which is outside the bake mask — so the Nemesis could not use
-        // them at all and the camera clipped through them.
-        ("STAIRS",                  "Ground"),
-    };
-
     [MenuItem("Tools/Nemesis/Validate Navigation Setup")]
     private static void Validate()
     {
@@ -92,135 +72,7 @@ public static class NemesisSetupValidator
         }
 
         Debug.LogWarning($"[NemesisSetupValidator] {problems} problem(s):\n\n{report}\n" +
-                         "Tools > Nemesis > Repair Layer Masks fixes the masks, and Tools > " +
-                         "Nemesis > Migrate Prop Layers moves the scene objects. The NavMesh has " +
-                         "to be rebaked afterwards.");
-    }
-
-    [MenuItem("Tools/Nemesis/Repair Layer Masks")]
-    private static void RepairMasks()
-    {
-        int nav = BuildMask(NavLayerNames);
-        int occlusion = BuildMask(OcclusionLayerNames);
-
-        if (nav == 0 || occlusion == 0)
-        {
-            Debug.LogError("[NemesisSetupValidator] Some of the Ground/Wall/Props layers do not " +
-                           "exist in this project. Create them in Project Settings > Tags and " +
-                           "Layers before repairing anything.");
-            return;
-        }
-
-        int fixedCount = 0;
-
-        foreach (NavMeshSurface surface in FindAll<NavMeshSurface>())
-        {
-            if ((surface.layerMask.value & nav) == nav) continue;
-
-            Undo.RecordObject(surface, "Repair NavMeshSurface mask");
-            surface.layerMask = surface.layerMask.value | nav;
-            EditorUtility.SetDirty(surface);
-            fixedCount++;
-        }
-
-        // The sensors live on a prefab, so the prefab is repaired rather than each instance:
-        // otherwise every Nemesis in the scene ends up with an override and the next one spawned
-        // is born broken again.
-        fixedCount += RepairSerializedMask<FieldOfView>("obstacleMask", occlusion);
-        fixedCount += RepairSerializedMask<FieldOfListening>("obstacleMask", occlusion);
-
-        // Same mask, same problem, two other systems. The camera clipped through floors because
-        // its CollideAgainst was missing Ground; the interaction raycast reached through walls
-        // because its blockingLayers was Default alone.
-        fixedCount += RepairSerializedMask<CinemachineDeoccluder>("CollideAgainst", occlusion);
-        fixedCount += RepairDecolliderMask(occlusion);
-        fixedCount += RepairInteractionBlockingMask(occlusion);
-
-        // The player's wall-slide cast asks the same question again. It ships empty on the
-        // existing prefab (a field added after the fact deserialises to Nothing), and empty means
-        // no deflection at all — the player sticks to every crate, which is the bug it was added
-        // to fix. Filling it in here is what stops that from being a silent regression.
-        fixedCount += RepairSerializedMask<PlayerStateManager>("obstacleMask", occlusion);
-
-        Debug.Log($"[NemesisSetupValidator] {fixedCount} mask(s) repaired. IMPORTANT: rebake the " +
-                  "NavMesh (Navigation window > Bake) — the mask defines what geometry goes into " +
-                  "the bake, but it does not rebake on its own.");
-    }
-
-    /// <summary>
-    /// Moves whole Hierarchy subtrees onto the layer they belong to, per
-    /// <see cref="LayerMigrations"/>.
-    ///
-    /// Exists because the alternative is ~200 objects by hand, which is how they ended up on
-    /// Default in the first place. Idempotent: an object already on the right layer is skipped, so
-    /// running it twice is free and running it after adding new props only touches the new ones.
-    /// </summary>
-    [MenuItem("Tools/Nemesis/Migrate Prop Layers")]
-    private static void MigratePropLayers()
-    {
-        StringBuilder report = new StringBuilder();
-        int totalMoved = 0;
-
-        foreach ((string rootName, string layerName) in LayerMigrations)
-        {
-            int layer = LayerMask.NameToLayer(layerName);
-            if (layer < 0)
-            {
-                report.AppendLine($"- Layer '{layerName}' does not exist — '{rootName}' skipped. " +
-                                  "Create it in Project Settings > Tags and Layers.");
-                continue;
-            }
-
-            GameObject root = FindSceneObjectByName(rootName);
-            if (root == null) continue;   // Not every scene has every group.
-
-            Undo.RegisterFullObjectHierarchyUndo(root, "Migrate prop layers");
-
-            int moved = ApplyLayerRecursively(root.transform, layer);
-            totalMoved += moved;
-
-            if (moved > 0) report.AppendLine($"- '{rootName}' -> {layerName}: {moved} object(s).");
-        }
-
-        if (totalMoved == 0 && report.Length == 0)
-        {
-            Debug.Log("[NemesisSetupValidator] Nothing to migrate: every configured root is " +
-                      "already on its layer (or is not in this scene).");
-            return;
-        }
-
-        Debug.Log($"[NemesisSetupValidator] {totalMoved} object(s) moved:\n\n{report}\n" +
-                  "Now run Tools > Nemesis > Repair Layer Masks and rebake the NavMesh.");
-    }
-
-    /// <summary>Assigns a layer to a transform and everything under it. Returns how many objects
-    /// actually changed, so the report can stay quiet when there was nothing to do.</summary>
-    private static int ApplyLayerRecursively(Transform root, int layer)
-    {
-        int moved = 0;
-
-        if (root.gameObject.layer != layer)
-        {
-            root.gameObject.layer = layer;
-            EditorUtility.SetDirty(root.gameObject);
-            moved++;
-        }
-
-        for (int i = 0; i < root.childCount; i++)
-            moved += ApplyLayerRecursively(root.GetChild(i), layer);
-
-        return moved;
-    }
-
-    private static GameObject FindSceneObjectByName(string name)
-    {
-        foreach (GameObject go in FindAll<GameObject>())
-        {
-            // Scene objects only: FindObjectsByType does not return assets, but a prefab open in
-            // Prefab Mode would show up here and must not be rewritten by a scene migration.
-            if (go.name == name && go.scene.IsValid()) return go;
-        }
-        return null;
+                         "Fix the masks and layers listed above, then rebake the NavMesh.");
     }
 
     // ── Checks ──────────────────────────────────────────────────────────────
@@ -299,8 +151,7 @@ public static class NemesisSetupValidator
         report.AppendLine($"- NavMeshSurface '{surface.name}': {count} enabled, non-trigger " +
                           $"collider(s) sit on layers it does not bake — e.g. " +
                           $"{string.Join(", ", examples)}. The Nemesis will walk through all of " +
-                          "them. Move them to Props/Ground (Tools > Nemesis > Migrate Prop " +
-                          "Layers) or add their layer to Include Layers.");
+                          "them. Move them to Props/Ground or add their layer to Include Layers.");
         return 1;
     }
 
@@ -701,104 +552,6 @@ public static class NemesisSetupValidator
         SerializedObject serialized = new SerializedObject(target);
         SerializedProperty property = serialized.FindProperty(fieldName);
         return property != null ? property.intValue : 0;
-    }
-
-    /// <summary>
-    /// ORs a mask into a serialised LayerMask field on every instance of a component.
-    ///
-    /// Through SerializedObject and not the public property because most of these fields are
-    /// private, and a mask is scene wiring rather than API — the same reasoning as
-    /// <see cref="GetMask"/>. It also means one method covers the sensors and the Deoccluder
-    /// despite them having nothing else in common.
-    /// </summary>
-    private static int RepairSerializedMask<T>(string fieldName, int required) where T : Component
-    {
-        int fixedCount = 0;
-
-        foreach (T component in FindAll<T>())
-        {
-            SerializedObject serialized = new SerializedObject(component);
-            SerializedProperty property = serialized.FindProperty(fieldName);
-            if (property == null) continue;
-
-            int merged = property.intValue | required;
-            if (merged == property.intValue) continue;
-
-            property.intValue = merged;
-            serialized.ApplyModifiedProperties();
-            fixedCount++;
-        }
-
-        return fixedCount;
-    }
-
-    /// <summary>
-    /// The Decollider's mask is nested (<c>Decollision.ObstacleLayers</c>), so it cannot go through
-    /// <see cref="RepairSerializedMask{T}"/>, which takes a top-level field name.
-    ///
-    /// It is also the one component here that gets ENABLED rather than merely repaired: it ships
-    /// switched off, and it is what recovers a camera that is already inside geometry — the case
-    /// the Deoccluder cannot help with, because by then there is no clear shot left to preserve.
-    /// </summary>
-    private static int RepairDecolliderMask(int required)
-    {
-        int fixedCount = 0;
-
-        foreach (CinemachineDecollider decollider in FindAll<CinemachineDecollider>())
-        {
-            SerializedObject serialized = new SerializedObject(decollider);
-            SerializedProperty property =
-                serialized.FindProperty("Decollision.ObstacleLayers");
-
-            bool changed = false;
-
-            if (property != null && (property.intValue | required) != property.intValue)
-            {
-                property.intValue |= required;
-                changed = true;
-            }
-
-            SerializedProperty enabled = serialized.FindProperty("m_Enabled");
-            if (enabled != null && !enabled.boolValue)
-            {
-                enabled.boolValue = true;
-                changed = true;
-            }
-
-            if (!changed) continue;
-
-            serialized.ApplyModifiedProperties();
-            fixedCount++;
-        }
-
-        return fixedCount;
-    }
-
-    /// <summary>
-    /// Repairs the interaction raycast's blocking mask on the SO asset rather than on a scene
-    /// object: <see cref="InteractionManager"/> reads it from there, so fixing an instance would
-    /// fix nothing.
-    /// </summary>
-    private static int RepairInteractionBlockingMask(int required)
-    {
-        int fixedCount = 0;
-
-        foreach (SO_InteractionManager config in FindAllAssets<SO_InteractionManager>())
-        {
-            SerializedObject serialized = new SerializedObject(config);
-            SerializedProperty property = serialized.FindProperty("blockingLayers");
-            if (property == null) continue;
-
-            int merged = property.intValue | required;
-            if (merged == property.intValue) continue;
-
-            property.intValue = merged;
-            serialized.ApplyModifiedProperties();
-            EditorUtility.SetDirty(config);
-            fixedCount++;
-        }
-
-        return fixedCount;
     }
 
     // Sin FindObjectsSortMode: el overload que lo recibe quedó obsoleto en Unity 6.4.

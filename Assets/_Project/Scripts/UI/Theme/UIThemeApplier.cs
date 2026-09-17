@@ -50,6 +50,19 @@ public class UIThemeApplier : MonoBehaviour
 
     // -- Public API -------------------
 
+    public UIThemeRole Role => role;
+
+    /// <summary>
+    /// Switches the role at runtime and repaints. For screens that change face per state (the
+    /// result screen's title): setting Graphic.color directly would be overwritten by this
+    /// component's own OnEnable the moment the screen is shown.
+    /// </summary>
+    public void SetRole(UIThemeRole newRole)
+    {
+        role = newRole;
+        Apply();
+    }
+
     /// <summary>Writes the token color into the Graphic. Safe to call repeatedly.</summary>
     public void Apply()
     {

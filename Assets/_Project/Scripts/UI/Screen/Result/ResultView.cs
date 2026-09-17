@@ -48,8 +48,12 @@ public class ResultView : BaseResultView
             _titleText.gameObject.SetActive(hasTitle);
             if (hasTitle)
             {
-                _titleText.text  = presentation.Title;
-                _titleText.color = presentation.TitleColor;
+                _titleText.text = presentation.Title;
+
+                // Through the applier: a direct Graphic.color would be repainted by the applier's
+                // OnEnable as soon as ShowAsync activates the screen.
+                if (_titleText.TryGetComponent(out UIThemeApplier titleTheme))
+                    titleTheme.SetRole(presentation.TitleRole);
             }
         }
 
@@ -57,6 +61,9 @@ public class ResultView : BaseResultView
         if (_vignetteImage != null) _vignetteImage.color = presentation.VignetteColor;
 
         SetRetryVisible(presentation.ShowRetry);
+
+        // BaseScreenView.ShowAsync reads this, so it has to be set before Open().
+        fadeDuration = presentation.FadeInDuration;
     }
 
     public override void SetData(GameResultModel model)
