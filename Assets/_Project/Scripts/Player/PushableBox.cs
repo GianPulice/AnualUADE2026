@@ -84,6 +84,34 @@ public class PushableBox : BaseRangeInteractable
         EnsurePushLoopSource();
     }
 
+    private void OnEnable()  => PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
+    private void OnDisable() => PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+
+    /// <summary>
+    /// Let go the instant the Nemesis grabs the player.
+    ///
+    /// Nothing else does. IsInteracting is only ever cleared by <see cref="Release"/>, which needs
+    /// an E press on a box the player is no longer standing next to, so a capture mid-push used to
+    /// leave it stuck on. CheckpointManager then teleports the player to the checkpoint and hands
+    /// control back, the FSM leaves Disabled for Idle — and PlayerIdleState reads that stale
+    /// IsInteracting and drops straight back into PlayerBoxInteractingState. That state re-runs its
+    /// 0.2s snap towards NextPosition, the anchor beside this box on the other side of the level,
+    /// dragging the player back out of the checkpoint locked in the push animation with no way out:
+    /// the release needs the box, and the box is out of grab range.
+    ///
+    /// The box was left just as wrong — still grabbed, still mass 1, still pinned as the forced
+    /// interactable — which is why this releases rather than just clearing the player's flag.
+    ///
+    /// Hung off the capture and not CheckpointManager.OnRespawned because the defeat fallback never
+    /// respawns, and a box still latched there would carry its state into the next run. The other
+    /// things that set IsDisabled (the Architect's lines, the module explosion) deliberately do NOT
+    /// release: they never move the player, so resuming the push afterwards is correct.
+    /// </summary>
+    private void HandlePlayerCaptured(PlayerStateManager captured)
+    {
+        if (isGrabbed) ForceRelease();
+    }
+
     // The loop source rides on the box so it inherits the box's world position (the sound is 3D).
     // Created here rather than authored on the prefab so no existing box prefab needs re-saving.
     private void EnsurePushLoopSource()

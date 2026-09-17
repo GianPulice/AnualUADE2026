@@ -129,6 +129,40 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool ChestPenaltyActive => SprintPenaltyFactor < 1f;
     public bool HeadPenaltyActive => IsBlindnessActive;
 
+    // ── Injured locomotion (M1) ─────────────────────────────────────────────────
+    //
+    // The legs penalty already slows the player down; these two clips are what make it read on
+    // screen. Once M1 explodes the normal Walking/Running clips are replaced in place by their
+    // limping versions, for the rest of the run.
+    //
+    // The swap goes through an AnimatorOverrideController and NOT through a second
+    // AnimatorController, because assigning Animator.runtimeAnimatorController rebinds the
+    // Animator: every parameter drops back to its default and the state machine restarts from the
+    // default state. isCrouch / isPushing / isTrapped are written once on state enter and would be
+    // silently lost, and the character would pop back to Idle mid-stride. Overriding the clips of a
+    // controller the Animator is ALREADY running changes neither.
+
+    [Tooltip("Limping walk that replaces the Walking clip once the legs module (M1) explodes. " +
+             "Leave empty to keep the healthy animation — the speed penalty still applies.")]
+    [SerializeField] private AnimationClip injuredWalkClip;
+
+    [Tooltip("Limping run that replaces the Running clip once the legs module (M1) explodes. " +
+             "Leave empty to keep the healthy animation — the speed penalty still applies.")]
+    [SerializeField] private AnimationClip injuredRunClip;
+
+    // Names of the ORIGINAL clips inside Walking.fbx / Running.fbx, which is what an
+    // AnimatorOverrideController keys on — not the names of the Animator states that play them.
+    private const string WALK_CLIP_NAME = "Walking";
+    private const string RUN_CLIP_NAME = "Running";
+    private const string LEGS_HURT_PARAM = "isLegsHurt";
+
+    /// <summary>
+    /// The override controller wrapped around the Animator's own controller in Awake, so the clip
+    /// swap later costs no rebind. Null when no injured clip is wired up, in which case the
+    /// Animator keeps running the original controller untouched.
+    /// </summary>
+    private AnimatorOverrideController clipOverrides;
+
     /// <summary>Base move speed after applying the legs penalty. States multiply by their own
     /// SpeedMultiplier on top (1 walk, 1.5 sprint, crouchSpeedMultiplier crouch).</summary>
     public float EffectiveMoveSpeed => movement != null ? movement.MoveSpeed * MoveSpeedPenaltyFactor : 0f;
@@ -157,6 +191,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             enabled = false;
             return;
         }
+
+        SetupClipOverrides();
 
         InitializeStates();
 
@@ -618,7 +654,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         {
             case PenaltyType.Legs:
                 MoveSpeedPenaltyFactor = Mathf.Clamp01(data.CojeraMultiplier);
-                // TODO(anim): swap the AnimatorController to the 'Limping' clip when we have it.
+                ApplyInjuredLocomotion();
                 break;
 
             case PenaltyType.Chest:
@@ -633,5 +669,62 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                 // ModuleEvents.OnExploded directly and filters by PenaltyType.Head.
                 break;
         }
+    }
+
+    /// <summary>
+    /// Wraps the Animator's controller in an AnimatorOverrideController that starts out overriding
+    /// nothing, so it behaves exactly like the original asset. <see cref="ApplyPenalty"/> can then
+    /// drop the injured clips in later without ever touching runtimeAnimatorController — see the
+    /// note above <see cref="injuredWalkClip"/> for why that distinction matters.
+    ///
+    /// Skipped entirely when neither clip is wired up, so a scene that has not been set up yet runs
+    /// on the untouched controller instead of a wrapper that could never do anything.
+    /// </summary>
+    private void SetupClipOverrides()
+    {
+        if (injuredWalkClip == null && injuredRunClip == null) return;
+        if (animController == null || animController.runtimeAnimatorController == null) return;
+
+        RuntimeAnimatorController source = animController.runtimeAnimatorController;
+        clipOverrides = new AnimatorOverrideController(source) { name = source.name + " (runtime)" };
+        animController.runtimeAnimatorController = clipOverrides;
+    }
+
+    /// <summary>
+    /// Replaces the walk and run clips with their limping versions. Idempotent — re-applying the
+    /// same override is a no-op, so a second Legs penalty (or a debug tool replaying one) cannot
+    /// stack or restart anything.
+    /// </summary>
+    private void ApplyInjuredLocomotion()
+    {
+        if (clipOverrides == null) return;
+
+        if (injuredWalkClip != null) OverrideClip(WALK_CLIP_NAME, injuredWalkClip);
+        if (injuredRunClip != null) OverrideClip(RUN_CLIP_NAME, injuredRunClip);
+
+        // Nothing in PlayerController branches on this today — the clip override is what changes
+        // the animation. It is set anyway because the parameter already exists for exactly this
+        // case, and a future layer or transition that wants to ask "is the player limping?" should
+        // read the Animator rather than reach back into this component.
+        if (animController != null) animController.SetBool(LEGS_HURT_PARAM, true);
+    }
+
+    /// <summary>
+    /// Points <paramref name="originalName"/> at <paramref name="replacement"/>, warning instead of
+    /// failing quietly when the controller has no clip by that name. The indexer accepts an unknown
+    /// key without complaint, so renaming the clip inside Walking.fbx would otherwise just stop the
+    /// limp from ever appearing, with nothing in the console to say why.
+    /// </summary>
+    private void OverrideClip(string originalName, AnimationClip replacement)
+    {
+        if (clipOverrides[originalName] == null)
+        {
+            Debug.LogWarning($"[Player] '{clipOverrides.runtimeAnimatorController.name}' has no clip " +
+                             $"named '{originalName}', so '{replacement.name}' will never play. Was the " +
+                             $"clip inside the source FBX renamed?", this);
+            return;
+        }
+
+        clipOverrides[originalName] = replacement;
     }
 }
