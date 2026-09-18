@@ -16,7 +16,7 @@ MonoBehaviour:
   farEmission: 0
   nearTint: 0
   nearEmission: 0.15
-  litEmissionScale: 3
+  litEmissionScale: 1
   lerpDuration: 0.3
   tintColor: {r: 1, g: 1, b: 1, a: 1}
   emissionColor: {r: 0.878, g: 0.878, b: 0.878, a: 1}

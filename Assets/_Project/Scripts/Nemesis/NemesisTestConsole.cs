@@ -92,9 +92,13 @@ public class NemesisTestConsole : MonoBehaviour
 
     private void Update()
     {
+        // Editor only, like F8: a Development Build handed to testers must not let F10 or the
+        // number keys pin the Nemesis into a state.
+#if UNITY_EDITOR
         if (Input.GetKeyDown(toggleKey)) isOpen = !isOpen;
 
         HandlePinKeys();
+#endif
     }
 
     /// <summary>

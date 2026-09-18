@@ -82,6 +82,12 @@ public class NemesisDebugHUD : MonoBehaviour
     {
         stateManager = GetComponent<NemesisStateManager>();
 
+#if !UNITY_EDITOR
+        // Editor only, like the other debug keys: the prefab ships with visible ticked, and in a
+        // build there is no F9 to turn it back off.
+        visible = false;
+#endif
+
         // NemesisStateManager adds this itself during its own Awake when the prefab is missing it,
         // so by the time any Update runs it exists — but script order between two components on
         // one object is not guaranteed, so this is re-resolved lazily where it is read.
@@ -98,7 +104,9 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private void Update()
     {
+#if UNITY_EDITOR
         if (Input.GetKeyDown(toggleKey)) visible = !visible;
+#endif
         if (!visible || stateManager == null) return;
 
         TrackState();

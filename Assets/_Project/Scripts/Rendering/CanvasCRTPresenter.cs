@@ -44,6 +44,12 @@ public class CanvasCRTPresenter : MonoBehaviour
     [Tooltip("Bilinear keeps the curvature smooth; Point keeps text pixel-sharp but steps along the curve.")]
     [SerializeField] private FilterMode filterMode = FilterMode.Bilinear;
 
+    [Tooltip("Keeps the screen black behind the tube while the canvas is fully shown. For a canvas that " +
+             "must hide everything under it — the loading screen: the tube's glitch bands slide the " +
+             "picture sideways, and without this the slivers they open at the edges show the world, or " +
+             "mid-load, nothing at all. Off for menus, which let the world show round the tube.")]
+    [SerializeField] private bool opaqueBackdrop;
+
     private static readonly int PropWarp = Shader.PropertyToID("_WarpStrength");
 
     // Far from anything the world camera could see; the canvas follows its camera there.
@@ -53,6 +59,7 @@ public class CanvasCRTPresenter : MonoBehaviour
     private Camera uiCamera;
     private Canvas screenCanvas;
     private RawImage screen;
+    private Image backdrop;
     private RenderTexture target;
     private bool built;
 
@@ -149,6 +156,10 @@ public class CanvasCRTPresenter : MonoBehaviour
                     (visibility == null || (visibility.gameObject.activeInHierarchy && visibility.alpha > 0f));
         if (show) EnsureTarget();
         SetPresenting(show);
+
+        // Only at full opacity: mid-fade the tube itself is see-through, and a solid black under it
+        // would turn the fade into a cut.
+        if (backdrop != null) backdrop.enabled = show && (visibility == null || visibility.alpha >= 1f);
     }
 
     private void SetPresenting(bool on)
@@ -160,7 +171,7 @@ public class CanvasCRTPresenter : MonoBehaviour
     private void BuildCamera()
     {
         GameObject go = new GameObject($"{name} (CRT Camera)");
-        SceneManager.MoveGameObjectToScene(go, gameObject.scene);
+        MoveToOwnScene(go);
         go.transform.position = CameraPosition;
 
         uiCamera = go.AddComponent<Camera>();
@@ -195,7 +206,7 @@ public class CanvasCRTPresenter : MonoBehaviour
     private void BuildScreen()
     {
         GameObject go = new GameObject($"{name} (CRT Screen)", typeof(RectTransform));
-        SceneManager.MoveGameObjectToScene(go, gameObject.scene);
+        MoveToOwnScene(go);
         go.layer = gameObject.layer;
 
         screenCanvas = go.AddComponent<Canvas>();
@@ -205,19 +216,47 @@ public class CanvasCRTPresenter : MonoBehaviour
         screenCanvas.sortingOrder = canvas.sortingOrder;
         screenCanvas.enabled = false;
 
-        GameObject imageGo = new GameObject("Screen", typeof(RectTransform));
-        imageGo.layer = go.layer;
-        RectTransform rt = (RectTransform)imageGo.transform;
-        rt.SetParent(go.transform, false);
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
+        // Built first, so it draws under the tube.
+        if (opaqueBackdrop)
+        {
+            backdrop = AddFullScreenChild(go, "Backdrop").AddComponent<Image>();
+            backdrop.color = Color.black;
+            backdrop.raycastTarget = false;
+            backdrop.enabled = false;
+        }
 
+        GameObject imageGo = AddFullScreenChild(go, "Screen");
         screen = imageGo.AddComponent<RawImage>();
         screen.raycastTarget = false;   // clicks go to the source canvas, through CRTWarpedRaycaster
         screen.material = screenMaterial;
         imageGo.AddComponent<UIPSXSettingsApplier>();
+    }
+
+    private static GameObject AddFullScreenChild(GameObject parent, string childName)
+    {
+        GameObject child = new GameObject(childName, typeof(RectTransform));
+        child.layer = parent.layer;
+
+        RectTransform rt = (RectTransform)child.transform;
+        rt.SetParent(parent.transform, false);
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        return child;
+    }
+
+    /// <summary>
+    /// Puts a GameObject built here in this canvas's own scene, so it goes when the canvas goes. A
+    /// canvas that outlives scene loads — the loading screen, a child of ScreenManager — sits in the
+    /// DontDestroyOnLoad scene, and the way into that one is DontDestroyOnLoad, not
+    /// MoveGameObjectToScene.
+    /// </summary>
+    private void MoveToOwnScene(GameObject go)
+    {
+        Scene scene = gameObject.scene;
+        if (scene.buildIndex == -1 && scene.name == "DontDestroyOnLoad") DontDestroyOnLoad(go);
+        else SceneManager.MoveGameObjectToScene(go, scene);
     }
 
     private void EnsureTarget()

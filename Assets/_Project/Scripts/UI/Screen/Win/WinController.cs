@@ -1,8 +1,18 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-public class WinController : BaseScreenController<WinView, GameResultModel>
+public class WinController : BaseScreenController<WinView, GameResultModel>, IModalUI
 {
+    // -- IModalUI -------------------
+    // Same reason as ResultScreenController: without a modal on the stack PlayerCameraController
+    // re-locks the cursor every frame, so the win screen came up with no mouse to click its
+    // buttons, and ESC opened the pause menu over it. Time.timeScale stays hand-managed here.
+    public string ModalId => "Win";
+    public bool ConsumesEscape => false;
+    public bool BlocksPause   => true;
+    public bool PausesGame    => false;
+    public void RequestClose() { }
+
     [Header("Event Channels")]
     [SerializeField] private ScreenEventChannel _screenChannel;
 
@@ -44,12 +54,17 @@ public class WinController : BaseScreenController<WinView, GameResultModel>
     protected override void OnBeforeOpen()
     {
         Time.timeScale = 0f;
+
+        // Frees the cursor and stops PlayerCameraController from re-locking it.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+
         view.SetData(model);
     }
 
     protected override void OnBeforeClose()
     {
         Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
     private void HandleGameResult(GameResultModel incomingModel)
@@ -71,6 +86,7 @@ public class WinController : BaseScreenController<WinView, GameResultModel>
     private void HandleMainMenu()
     {
         Time.timeScale = 1f;
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
 
         // Push alone, no Clear All first: the push already unloads the level, behind the loading
         // screen. A Clear All would unload it straight away, in view, before the fade even starts.

@@ -90,7 +90,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0)
             sessionTime += Time.unscaledDeltaTime;
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // Editor only: a Development Build handed to testers must not let F8 blow up a module.
+#if UNITY_EDITOR
         if (debugExplodeKey != KeyCode.None && Input.GetKeyDown(debugExplodeKey)) DebugExplodeNow();
 #endif
 
@@ -187,8 +188,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
     /// <summary>
     /// Marks a module as Resolved. Called by <see cref="PuzzleController.CompletePuzzle"/> when the
-    /// associated puzzle finishes. If the module had already exploded, the penalty stays applied —
-    /// only the state changes to Resolved.
+    /// associated puzzle finishes. If the module had already exploded it is left Exploded: the
+    /// penalty stays and it never counts as resolved.
     /// </summary>
     public void ResolveModule(string moduleId)
     {
@@ -205,15 +206,19 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
             return;
         }
 
-        bool hadExploded = target.Status == ModuleStatus.Exploded;
+        // Exploded is terminal: finishing the puzzle late still opens its doors (PuzzleStateManager
+        // records it), but the module stays failed in the HUD, the win count and the Architect.
+        if (target.Status == ModuleStatus.Exploded)
+        {
+            Log($"ResolveModule('{moduleId}') ignored: already Exploded — stays unresolved.");
+            return;
+        }
 
         target.IsTimerRunning = false;
         target.Status = ModuleStatus.Resolved;
         if (activeRuntime == target) activeRuntime = null;
 
-        Log(hadExploded
-            ? $"Module '{moduleId}' resolved after having exploded — penalty stays."
-            : $"Module '{moduleId}' resolved on time — no penalty.");
+        Log($"Module '{moduleId}' resolved on time — no penalty.");
 
         ModuleEvents.RaiseStateChanged(target);
     }
@@ -335,6 +340,10 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         Log($"Module '{target.ModuleID}' EXPLODED. Applying penalty '{target.Data.Penalty}'.");
 
         ModuleEvents.RaiseExploded(target);
+
+        // With an explosion cinematic in the scene, it raises this itself once it has played.
+        if (!ModuleEvents.PenaltyPresenterActive) ModuleEvents.RaisePenaltyApplied(target);
+
         ModuleEvents.RaiseStateChanged(target);
 
         CheckGameOver(target);

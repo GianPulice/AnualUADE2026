@@ -30,12 +30,12 @@ public class BlindnessOverlayView : MonoBehaviour
 
     private void OnEnable()
     {
-        ModuleEvents.OnExploded += HandleModuleExploded;
+        ModuleEvents.OnPenaltyApplied += HandleModuleExploded;
     }
 
     private void OnDisable()
     {
-        ModuleEvents.OnExploded -= HandleModuleExploded;
+        ModuleEvents.OnPenaltyApplied -= HandleModuleExploded;
     }
 
     private void OnDestroy()

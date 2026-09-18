@@ -221,8 +221,26 @@ public class ElevatorCallPanel : BaseRangeInteractable
         }
     }
 
-    public override string GetInfoText() =>
-        State == PanelState.Busy ? "Wait for it to come free." : string.Empty;
+    /// <summary>
+    /// The greyed-out line the prompt shows while the panel cannot be pressed. CabinPresent used to
+    /// return nothing here — its "Forklift is here" lives in GetInteractText, which the prompt only
+    /// draws when the press is allowed — so a panel with the cabin already at its landing said
+    /// nothing at all. Which landing it is comes from isBottomPanel, so each panel names its floor.
+    /// </summary>
+    public override string GetInfoText()
+    {
+        if (!isConfigured) return string.Empty;
+
+        switch (State)
+        {
+            case PanelState.CabinPresent:
+                return isBottomPanel ? "Forklift is already down here." : "Forklift is already up here.";
+            case PanelState.Busy:
+                return "Forklift in use. Wait for it to come free.";
+            default:
+                return string.Empty;
+        }
+    }
 
     /// <summary>Repeatable: a call button that works once is a call button that softlocks the
     /// floor the second time.</summary>

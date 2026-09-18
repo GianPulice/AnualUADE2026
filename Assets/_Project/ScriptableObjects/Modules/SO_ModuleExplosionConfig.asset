@@ -22,6 +22,7 @@ MonoBehaviour:
   shakeAmplitude: 0.08
   shakeDuration: 0.35
   shakeFrequency: 28
+  cinematicOnPenalty: 1
   cameraMoveDuration: 0.8
   cameraDistance: 2.2
   cameraHeight: 0.35

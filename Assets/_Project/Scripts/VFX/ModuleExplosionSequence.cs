@@ -9,8 +9,9 @@ using UnityEngine;
 ///
 /// Two cases:
 ///   - The explosion does NOT end the run (a penalty, see GameResultManager.ExplosionEndsRun):
-///     the effect plays on the body part the module belongs to, with the sound and a camera
-///     shake, and gameplay carries on.
+///     the same camera shot as the defeat plays (SO_ModuleExplosionConfig.CinematicOnPenalty),
+///     then the view blends back to the gameplay rig and the player gets control again. With the
+///     option off, the effect just plays in place with the sound and a shake.
 ///   - The explosion ENDS the run: this component is the registered
 ///     <see cref="IGameOverPresenter"/>, so ReportGameOver hands it the run instead of opening the
 ///     GameOver screen on the same frame. It locks the player, takes the camera to a shot of the
@@ -39,7 +40,15 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     private CinemachineCamera defeatCamera;
     private CinemachineImpulseSource impulseSource;
     private CancellationTokenSource sequenceCts;
+
+    /// <summary>A cinematic (penalty or defeat) owns the camera and the player right now.</summary>
     private bool isPlaying;
+
+    /// <summary>The run-ending shot has been handed the run. Stays true: there is only one.</summary>
+    private bool playingDefeat;
+
+    /// <summary>This component disabled the player, so it is the one that re-enables it.</summary>
+    private bool lockedPlayer;
 
     private bool warnedNoSfx, warnedNoVfx, warnedNoBrain;
 
@@ -56,6 +65,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     {
         GameResultManager.GameOverPresenter = this;
         ModuleEvents.OnExploded += HandleModuleExploded;
+
+        // From here on this component decides WHEN a penalty lands (after its cinematic), so
+        // ModuleManager stops raising OnPenaltyApplied on the explosion frame.
+        ModuleEvents.PenaltyPresenterActive = true;
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
     }
 
@@ -65,6 +78,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
             GameResultManager.GameOverPresenter = null;
 
         ModuleEvents.OnExploded -= HandleModuleExploded;
+        ModuleEvents.PenaltyPresenterActive = false;
         PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
 
         // Cancelling runs the sequence's finally, which still commits the result.
@@ -73,6 +87,8 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         sequenceCts = null;
 
         PopModal();
+        UnlockPlayer();
+        isPlaying = false;
         if (defeatCamera != null) Destroy(defeatCamera.gameObject);
     }
 
@@ -85,58 +101,126 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // The run-ending explosion is played by PresentGameOver, with the cinematic around it.
         // Checked here and not there because the two arrive in either order depending on which
         // path reported the GameOver.
-        if (GameResultManager.ExplosionEndsRun(runtime)) return;
+        //
+        // Its penalty lands straight away: the run is over, nobody will see the limp, and
+        // holding it back would only leave it unapplied if the result screen tore this down.
+        if (GameResultManager.ExplosionEndsRun(runtime))
+        {
+            ModuleEvents.RaisePenaltyApplied(runtime);
+            return;
+        }
+
+        // Same camera shot as the defeat, then back to gameplay. Skipped (plain effect in place)
+        // when turned off in the config, or when another cinematic is already on screen.
+        if (config != null && config.CinematicOnPenalty && !isPlaying)
+        {
+            RestartSequenceToken();
+            RunPenaltySequence(runtime, sequenceCts.Token).Forget();
+            return;
+        }
 
         Transform focus = FindFocusBone(runtime);
         Vector3 at = focus != null ? focus.position : FallbackFocus();
         PlayExplosion(at);
+        ModuleEvents.RaisePenaltyApplied(runtime);
+    }
+
+    private async UniTaskVoid RunPenaltySequence(ModuleRuntime cause, CancellationToken token)
+    {
+        isPlaying = true;
+
+        try
+        {
+            await PlayShot(cause, token);
+
+            // Destroying the shot camera hands the view back to the gameplay rig through the
+            // brain's default blend (the cut set in BeginDefeatCamera is restored two frames in).
+            // Control only comes back once that blend has landed: moving while the camera is still
+            // flying home reads as the game having left the player behind.
+            ReleaseShotCamera();
+            await WaitForBlendBack(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disabled or unloaded mid-cinematic. The finally still hands control back.
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e, this);
+        }
+        finally
+        {
+            ReleaseShotCamera();
+            UnlockPlayer();
+            PopModal();
+            isPlaying = false;
+
+            // Last, with the camera home and control back: this is what starts the limp or the
+            // blindness. In the finally so a cancelled shot (scene unload) still applies it.
+            ModuleEvents.RaisePenaltyApplied(cause);
+        }
+    }
+
+    private void ReleaseShotCamera()
+    {
+        if (defeatCamera != null) Destroy(defeatCamera.gameObject);
+        defeatCamera = null;
+    }
+
+    /// <summary>
+    /// Waits for the brain to finish blending back to the gameplay camera. Bounded, so a blend that
+    /// never reports done (a custom blend asset, a brain swapped mid-shot) cannot keep the player
+    /// locked.
+    /// </summary>
+    private async UniTask WaitForBlendBack(CancellationToken token)
+    {
+        const float MaxBlendWait = 3f;
+
+        // Destroy lands at the end of the frame: the blend only starts on the next one.
+        await UniTask.Yield(PlayerLoopTiming.Update, token);
+
+        CinemachineBrain brain = CinemachineBrain.ActiveBrainCount > 0 ? CinemachineBrain.GetActiveBrain(0) : null;
+        if (brain == null) return;
+
+        float waited = 0f;
+        while (brain != null && brain.IsBlending && waited < MaxBlendWait)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
+            waited += Time.unscaledDeltaTime;
+        }
     }
 
     // ── Run-ending explosion (IGameOverPresenter) ────────────────────────────────────────
 
     public void PresentGameOver(ModuleRuntime cause, Action commit)
     {
-        if (isPlaying)
+        if (playingDefeat)
         {
             // Already presenting: the first commit ends the run, a second one would be dropped by
             // GameResultManager anyway.
             return;
         }
 
-        sequenceCts?.Cancel();
-        sequenceCts?.Dispose();
-        sequenceCts = new CancellationTokenSource();
+        playingDefeat = true;
 
+        // NOT a restart of the token: a penalty cinematic still on screen is left to finish (see
+        // RunDefeatSequence), and cancelling it here would race its cleanup against this shot.
+        if (sequenceCts == null) sequenceCts = new CancellationTokenSource();
         RunDefeatSequence(cause, commit, sequenceCts.Token).Forget();
     }
 
     private async UniTaskVoid RunDefeatSequence(ModuleRuntime cause, Action commit, CancellationToken token)
     {
-        isPlaying = true;
         bool committed = false;
 
         try
         {
-            LockPlayer();
-            PushModal();
+            // A penalty cinematic can still be on screen (two explosions close together). It used
+            // to be `if (isPlaying) return;` here, which dropped the commit and never ended the run.
+            if (isPlaying) await UniTask.WaitWhile(() => isPlaying, PlayerLoopTiming.Update, token);
 
-            Transform focus = FindFocusBone(cause);
-            CinemachineBrain brain = FindBrain();
-
-            if (brain != null && config != null)
-            {
-                BeginDefeatCamera(brain);
-                await MoveCameraToShot(brain, focus, token);
-                await Wait(config.PreExplosionHold, token);
-            }
-
-            Vector3 at = focus != null ? focus.position : FallbackFocus();
-            float effectDuration = PlayExplosion(at);
-
-            float wait = config != null
-                ? Mathf.Min(effectDuration, config.MaxEffectWait) + config.PostExplosionHold
-                : 0f;
-            await Wait(wait, token);
+            isPlaying = true;
+            await PlayShot(cause, token);
         }
         catch (OperationCanceledException)
         {
@@ -157,18 +241,67 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
             }
 
             // After the commit: the result screen has pushed its own modal by now, so popping
-            // this one does not hand the cursor back to gameplay for a frame.
+            // this one does not hand the cursor back to gameplay for a frame. The player stays
+            // locked and the shot camera stays up: the result screen covers them.
             PopModal();
         }
     }
 
     // ── Steps ────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The shot both cases share: lock the player, take the camera to the body part, explode, and
+    /// wait for the effect. What happens afterwards is the caller's: the penalty hands control
+    /// back, the defeat commits the result.
+    /// </summary>
+    private async UniTask PlayShot(ModuleRuntime cause, CancellationToken token)
+    {
+        LockPlayer();
+        PushModal();
+
+        Transform focus = FindFocusBone(cause);
+        CinemachineBrain brain = FindBrain();
+
+        if (brain != null && config != null)
+        {
+            BeginDefeatCamera(brain);
+            await MoveCameraToShot(brain, focus, token);
+            await Wait(config.PreExplosionHold, token);
+        }
+
+        Vector3 at = focus != null ? focus.position : FallbackFocus();
+        float effectDuration = PlayExplosion(at);
+
+        float wait = config != null
+            ? Mathf.Min(effectDuration, config.MaxEffectWait) + config.PostExplosionHold
+            : 0f;
+        await Wait(wait, token);
+    }
+
+    private void RestartSequenceToken()
+    {
+        sequenceCts?.Cancel();
+        sequenceCts?.Dispose();
+        sequenceCts = new CancellationTokenSource();
+    }
+
     private void LockPlayer()
     {
         // IsDisabled drives the FSM into PlayerDisabledState (no movement, locomotion cleared) and
         // makes OnCaptured a no-op, so the Nemesis cannot start a respawn under the cinematic.
-        if (player != null) player.IsDisabled = true;
+        //
+        // Only taken when it was free, and only then given back (UnlockPlayer): a player already
+        // disabled by something else (a capture, the wake-up) must not be freed by this shot.
+        if (player == null || player.IsDisabled) return;
+        player.IsDisabled = true;
+        lockedPlayer = true;
+    }
+
+    private void UnlockPlayer()
+    {
+        if (!lockedPlayer) return;
+        lockedPlayer = false;
+        if (player != null) player.IsDisabled = false;
     }
 
     /// <returns>Seconds the effect lasts (0 when there is none).</returns>

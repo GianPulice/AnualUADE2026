@@ -21,9 +21,27 @@ public static class ModuleEvents
     /// <summary>All modules have exploded — game over will be reported next frame.</summary>
     public static event Action OnAllModulesExploded;
 
+    /// <summary>
+    /// The exploded module's penalty takes effect on the player (limp, blindness, sprint loss).
+    ///
+    /// Separate from <see cref="OnExploded"/> because the two no longer happen on the same frame:
+    /// with an explosion cinematic on screen the player must not start limping, or go blind, while
+    /// the camera is still showing the blast. The cinematic raises this once control is handed back;
+    /// with no cinematic, ModuleManager raises it right after OnExploded. Exactly once per explosion.
+    /// </summary>
+    public static event Action<ModuleRuntime> OnPenaltyApplied;
+
+    /// <summary>
+    /// Set by the explosion presentation (ModuleExplosionSequence) while it is alive: it then owns
+    /// raising <see cref="OnPenaltyApplied"/>, and ModuleManager does not. False = ModuleManager
+    /// raises it itself, so a scene without the presentation still gets its penalties.
+    /// </summary>
+    public static bool PenaltyPresenterActive { get; set; }
+
     // ── Invokers (kept internal so only the manager can raise) ─────────────────────────
     internal static void RaiseStateChanged(ModuleRuntime m) => OnStateChanged?.Invoke(m);
     internal static void RaiseTimerTick(ModuleRuntime m) => OnTimerTick?.Invoke(m);
     internal static void RaiseExploded(ModuleRuntime m) => OnExploded?.Invoke(m);
     internal static void RaiseAllModulesExploded() => OnAllModulesExploded?.Invoke();
+    internal static void RaisePenaltyApplied(ModuleRuntime m) => OnPenaltyApplied?.Invoke(m);
 }

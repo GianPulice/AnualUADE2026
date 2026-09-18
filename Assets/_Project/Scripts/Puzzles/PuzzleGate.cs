@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Portón que se abre — traslada un Transform hacia arriba — cuando un puzzle dado se marca como
+/// Portón que se abre — sube el hijo "Door" y a la vez lleva su escala Z a openScaleZ — cuando un puzzle dado se marca como
 /// completado en <see cref="PuzzleStateManager"/>. Un mismo prefab se reutiliza por escena
 /// cambiando sólo el <c>puzzleId</c> en el inspector.
 /// </summary>
@@ -10,8 +10,15 @@ public class PuzzleGate : MonoBehaviour
 {
     [SerializeField, PuzzleId] private string puzzleId;
 
-    private const float OpenHeight = 3f;
-    private const float OpenDuration = 7f;
+    // Con el portón abierto el hijo "Door" sube openHeight y su escala Z llega a openScaleZ, las
+    // dos cosas a la vez sobre la misma curva y en openDuration segundos.
+    [Header("Apertura")]
+    [Tooltip("Cuánto sube el hijo \"Door\" (en su espacio local) con el portón abierto.")]
+    [SerializeField] private float openHeight = 3f;
+    [Tooltip("Escala Z final del hijo \"Door\" con el portón abierto. X e Y no se tocan.")]
+    [SerializeField] private float openScaleZ = 4f;
+    [Tooltip("Segundos que tarda en abrir. Posición y escala terminan juntas.")]
+    [SerializeField, Min(0.01f)] private float openDuration = 7f;
 
     // Id del SO_SoundData registrado en el AudioManager (mismo nombre del asset). Si se renombra
     // el asset hay que actualizar esta constante — un typo compila igual y el AudioManager loguea
@@ -21,6 +28,7 @@ public class PuzzleGate : MonoBehaviour
     private Transform door;
     private AnimationCurve openCurve;
     private Vector3 closedLocalPosition;
+    private Vector3 closedLocalScale;
     private Coroutine openRoutine;
 
     private void Awake()
@@ -32,6 +40,7 @@ public class PuzzleGate : MonoBehaviour
 
         openCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
         closedLocalPosition = door.localPosition;
+        closedLocalScale = door.localScale;
     }
 
     private void Start()
@@ -40,7 +49,8 @@ public class PuzzleGate : MonoBehaviour
         if (PuzzleStateManager.Exists &&
             PuzzleStateManager.Instance.IsPuzzleCompleted(puzzleId))
         {
-            door.localPosition = closedLocalPosition + Vector3.up * OpenHeight;
+            door.localPosition = OpenPosition();
+            door.localScale = OpenScale();
         }
     }
 
@@ -69,19 +79,29 @@ public class PuzzleGate : MonoBehaviour
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX(OpenSoundId, transform.position);
 
-        Vector3 from = door.localPosition;
-        Vector3 to = closedLocalPosition + Vector3.up * OpenHeight;
+        // Posición y escala comparten el mismo t: arrancan y terminan juntas, en openDuration.
+        Vector3 fromPosition = door.localPosition;
+        Vector3 toPosition = OpenPosition();
+        Vector3 fromScale = door.localScale;
+        Vector3 toScale = OpenScale();
 
         float elapsed = 0f;
-        while (elapsed < OpenDuration)
+        while (elapsed < openDuration)
         {
             elapsed += Time.deltaTime;
-            float t = openCurve.Evaluate(Mathf.Clamp01(elapsed / OpenDuration));
-            door.localPosition = Vector3.LerpUnclamped(from, to, t);
+            float t = openCurve.Evaluate(Mathf.Clamp01(elapsed / openDuration));
+            door.localPosition = Vector3.LerpUnclamped(fromPosition, toPosition, t);
+            door.localScale = Vector3.LerpUnclamped(fromScale, toScale, t);
             yield return null;
         }
 
-        door.localPosition = to;
+        door.localPosition = toPosition;
+        door.localScale = toScale;
         openRoutine = null;
     }
+
+    private Vector3 OpenPosition() => closedLocalPosition + Vector3.up * openHeight;
+
+    private Vector3 OpenScale() =>
+        new Vector3(closedLocalScale.x, closedLocalScale.y, openScaleZ);
 }

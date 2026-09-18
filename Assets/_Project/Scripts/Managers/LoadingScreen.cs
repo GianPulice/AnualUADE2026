@@ -19,7 +19,7 @@ public static class LoadingScreen
     /// The loading screen stays up at least this long, in real seconds. If unloading and loading
     /// took less, the rest is waited out on the loading screen; if it took longer, nothing extra.
     /// </summary>
-    public const float MinimumDuration = 6f;
+    public const float MinimumDuration = 7.5f;
 
     /// <summary>True while the loading screen is covering a scene change.</summary>
     public static bool IsLoading { get; private set; }

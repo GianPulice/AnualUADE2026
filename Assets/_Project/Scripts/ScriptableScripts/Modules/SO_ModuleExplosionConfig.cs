@@ -36,8 +36,13 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     [SerializeField, Min(0f)] private float shakeDuration = 0.35f;
     [SerializeField, Min(0f)] private float shakeFrequency = 28f;
 
-    [Header("Defeat cinematic (only when the explosion ends the run)")]
-    [Tooltip("Seconds the camera takes to travel from the gameplay framing to the defeat shot.")]
+    [Header("Cinematic")]
+    [Tooltip("On = every module explosion plays the camera shot, not only the one that ends the run. " +
+             "A penalty shot hands control back when it finishes. Off = penalties just play the " +
+             "effect in place with a shake; the run-ending shot always plays.")]
+    [SerializeField] private bool cinematicOnPenalty = true;
+
+    [Tooltip("Seconds the camera takes to travel from the gameplay framing to the explosion shot.")]
     [SerializeField, Min(0f)] private float cameraMoveDuration = 0.8f;
 
     [Tooltip("Distance from the body part to the camera, in metres.")]
@@ -53,7 +58,8 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     [Tooltip("Seconds to hold on the shot after the camera arrives, before the explosion.")]
     [SerializeField, Min(0f)] private float preExplosionHold = 0.25f;
 
-    [Tooltip("Seconds to hold after the effect has fully played, before the GameOver screen.")]
+    [Tooltip("Seconds to hold after the effect has fully played, before the GameOver screen (or, " +
+             "for a penalty, before the camera goes back to the player).")]
     [SerializeField, Min(0f)] private float postExplosionHold = 0.6f;
 
     [Tooltip("Upper bound for the wait on the effect, so a looping or misconfigured prefab can " +
@@ -69,6 +75,7 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     public float ShakeDuration => shakeDuration;
     public float ShakeFrequency => shakeFrequency;
 
+    public bool CinematicOnPenalty => cinematicOnPenalty;
     public float CameraMoveDuration => cameraMoveDuration;
     public float CameraDistance => cameraDistance;
     public float CameraHeight => cameraHeight;

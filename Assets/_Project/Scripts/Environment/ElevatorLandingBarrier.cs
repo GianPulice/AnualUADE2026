@@ -89,7 +89,17 @@ public class ElevatorLandingBarrier : MonoBehaviour
 
     private void Refresh()
     {
-        bool cabinHere = elevator.IsCabinOnSameSideAs(transform.position);
+        // PARKED here, not just nearer this landing than the other one. IsCabinOnSameSideAs
+        // splits the shaft at its midpoint, so on its own it opened the top landing while the
+        // cabin was still half a storey below (on the way up) or had already sunk half a storey
+        // (on the way down) — the player walked through and fell down the shaft. The bottom
+        // landing has the same window, it just has no drop to show it.
+        //
+        // IsTravelling and not IsMoving: during StartDelay the cabin is still at the landing, and
+        // switching the collider on then would pop it inside a player standing in the doorway.
+        MovingPlatform platform = elevator.Platform;
+        bool parked = platform == null || !platform.IsTravelling;
+        bool cabinHere = parked && elevator.IsCabinOnSameSideAs(transform.position);
 
         // Solid while the cabin is AWAY: that is the state the player has to be protected from.
         bool solid = invert ? cabinHere : !cabinHere;

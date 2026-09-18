@@ -140,14 +140,14 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     //
     // These factors are multiplied into the movement calculations in Moving/Crouch. They stay at
     // 1 while the corresponding module has not exploded, so the player moves normally. When a
-    // module explodes, the ModuleManager fires ModuleEvents.OnExploded and ApplyPenalty routes
+    // module explodes, ModuleEvents.OnPenaltyApplied fires (after the explosion cinematic) and ApplyPenalty routes
     // the effect into the correct factor. Effects are permanent for the rest of the run — there
     // is no method to clear them by design (spec §1.1).
     //
     // Legs (M1): MoveSpeedPenaltyFactor drops to cojeraMultiplier (e.g. 0.6 → 40% slower).
     // Chest (M2): SprintPenaltyFactor drops by sprintReduction (e.g. 0.25 → sprint 25% weaker).
     // Head (M3): sets IsBlindnessActive true; the overlay itself is driven by
-    //            BlindnessOverlayView, which listens to ModuleEvents.OnExploded on its own.
+    //            BlindnessOverlayView, which listens to ModuleEvents.OnPenaltyApplied on its own.
 
     public float MoveSpeedPenaltyFactor { get; private set; } = 1f;
     public float SprintPenaltyFactor { get; private set; } = 1f;
@@ -245,7 +245,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // enabled = false, and Unity then never calls OnEnable — the subscription would be
         // skipped while OnDisable still ran the '-=', which is the classic asymmetric-handler
         // bug. OnDestroy always runs, so this pair cannot come apart.
-        ModuleEvents.OnExploded += HandleModuleExploded;
+        ModuleEvents.OnPenaltyApplied += HandleModuleExploded;
     }
 
     /// <summary>
@@ -353,7 +353,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // Safe even when Awake bailed out at ValidateReferences and never subscribed: '-=' on a
         // handler that was never added is a no-op.
-        ModuleEvents.OnExploded -= HandleModuleExploded;
+        ModuleEvents.OnPenaltyApplied -= HandleModuleExploded;
     }
     public override void Start()
     {
@@ -430,6 +430,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             wantsToStand = false;
         }
 
+        // Debug keys, Editor only: in a build Y froze the player and R hid them from the Nemesis.
+#if UNITY_EDITOR
         // Hidden state testing
         if (Input.GetKeyDown(KeyCode.R))
         {
@@ -443,6 +445,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             if (isDisabled) isDisabled = false;
             else isDisabled = true;
         }
+#endif
     }
     /// <summary>How far above the pivot the ground probe starts. High enough to clear a step the
     /// player is already standing on, low enough to stay inside the capsule.</summary>
@@ -706,7 +709,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             case PenaltyType.Head:
                 IsBlindnessActive = true;
                 // The overlay itself is BlindnessOverlayView's job — it subscribes to
-                // ModuleEvents.OnExploded directly and filters by PenaltyType.Head.
+                // ModuleEvents.OnPenaltyApplied directly and filters by PenaltyType.Head.
                 break;
         }
     }

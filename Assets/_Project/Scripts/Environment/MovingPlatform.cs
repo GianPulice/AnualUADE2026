@@ -121,6 +121,10 @@ public class MovingPlatform : MonoBehaviour
     /// <summary>Travelling right now (or waiting out StartDelay before setting off).</summary>
     public bool IsMoving => state == State.Moving || state == State.Waiting;
 
+    /// <summary>Physically travelling. Unlike <see cref="IsMoving"/>, false during StartDelay,
+    /// when the cabin is still standing at its landing.</summary>
+    public bool IsTravelling => state == State.Moving;
+
     /// <summary>Reached the far end and waiting for the passenger to step off.</summary>
     public bool HasArrived => state == State.WaitingForExit;
 
@@ -281,7 +285,42 @@ public class MovingPlatform : MonoBehaviour
     /// handed out would never come back and the player would count as grounded in mid-air for the
     /// rest of the run.
     /// </summary>
-    private void OnDisable() => SetPassengerPlayer(null);
+    private void OnDisable()
+    {
+        CheckpointManager.OnRespawned -= HandlePlayerRespawned;
+        SetPassengerPlayer(null);
+    }
+
+    private void OnEnable() => CheckpointManager.OnRespawned += HandlePlayerRespawned;
+
+    /// <summary>
+    /// The player was captured and teleported to a checkpoint. Nothing about that tells the cabin:
+    /// a player disabled by the capture and moved by TeleportTo is not guaranteed an
+    /// OnTriggerExit, so a cabin they were caught in kept them registered — WaitingForExit for a
+    /// passenger who was gone, the panels reading "Forklift in use" and the player still flagged
+    /// as carried (grounded by the cabin, not by the floor they respawned on).
+    ///
+    /// Only undoes what belongs to the dead run. A trip in progress is left to finish: an empty
+    /// trip releases itself on arrival.
+    /// </summary>
+    private void HandlePlayerRespawned(Checkpoint checkpoint)
+    {
+        passengerRb = null;
+        SetPassengerPlayer(null);
+
+        // A Nemesis that stopped existing, or was switched off, is not getting off on its own.
+        extraPassengers.RemoveAll(p => p == null || !p.gameObject.activeInHierarchy);
+
+        // Safety net. NemesisElevatorUser ends its crossing on the same event and releases the
+        // claim from its finally, a frame later; the platform does not wait for that.
+        claimOwner = null;
+
+        if (IsOccupied()) return;
+
+        // A departure the player had asked for and will never ride.
+        if (state == State.Waiting) state = State.Idle;
+        else ReleaseAfterRide();   // No-op unless parked in WaitingForExit.
+    }
 
     // ── API for passengers driven from code (the Nemesis) ───────────────────
 

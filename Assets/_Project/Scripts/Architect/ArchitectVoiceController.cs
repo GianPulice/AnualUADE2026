@@ -545,7 +545,23 @@ public class ArchitectVoiceController : MonoBehaviour
             TriggerContext(ArchitectLineID.ContextFirstNote);
     }
 
-    private void HandlePuzzleCompleted(string _) => inactivityTimer = 0f;
+    private void HandlePuzzleCompleted(string puzzleId)
+    {
+        inactivityTimer = 0f;
+
+        // An exploded module never turns Resolved, so HandleModuleStateChanged cannot see the last
+        // module's puzzle being finished late. ARC_03 still belongs to that moment.
+        if (!ModuleManager.Exists) return;
+        IReadOnlyList<ModuleRuntime> all = ModuleManager.Instance.GetAllModules();
+        if (all.Count == 0) return;
+
+        ModuleRuntime last = all[all.Count - 1];
+        if (last.Status != ModuleStatus.Exploded || last.Data == null ||
+            last.Data.AssociatedPuzzleId != puzzleId) return;
+        if (!resolvedHandled.Add(last.ModuleID)) return;
+
+        TriggerLine(ArchitectLineID.GameEnd, last.ModuleLogLabel);
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────
 

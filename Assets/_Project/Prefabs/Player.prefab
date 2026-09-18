@@ -521,7 +521,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5030385609773921283}
-  - {fileID: 2084047916685922222}
   m_Father: {fileID: 7544607312764937001}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &902804161862019012
@@ -720,7 +719,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1088243688451712710}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.29187393, y: 0.00031557278, z: -0.000096313604, w: 0.9564568}
+  m_LocalRotation: {x: 0.29133973, y: -7.95962e-11, z: 4.334698e-11, w: 0.95661974}
   m_LocalPosition: {x: 0, y: 2.8918493, z: -1.9214401}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -1894,6 +1893,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1454485209215094758}
+  - {fileID: 2084047916685922222}
   m_Father: {fileID: 7544607312764937001}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3370111470990093288
@@ -3595,31 +3595,31 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.17
+      value: 0.1695
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.085
+      value: 0.0928
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7071068
+      value: 0.818376
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.7071068
+      value: 0.57468325
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: 0.0000000037252894
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: 0.000000013504174
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: 70.155
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
@@ -3632,11 +3632,11 @@ PrefabInstance:
     - target: {fileID: -2859109400176981367, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 1e2b7e61b61359e409ff0ad6a134518b, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: -895306380916907690, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 1e2b7e61b61359e409ff0ad6a134518b, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_Name
       value: LED_Cabeza
@@ -3654,6 +3654,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2914129010863009349}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6247248734483726336}
   m_SourcePrefab: {fileID: 100100000, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
 --- !u!4 &1390610160532254833 stripped
 Transform:
@@ -3672,7 +3675,7 @@ Light:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1731528770518690507}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
   m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
@@ -3738,7 +3741,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1731528770518690507}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 21b282e6fd7138c4cbf0fdeb9d92e32b, type: 2}
   m_CullingMode: 0
@@ -3781,17 +3784,38 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!114 &6247248734483726336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1731528770518690507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b3663f3b1aa41d782fa18f59650e7c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ModuleLED
+  module: {fileID: 11400000, guid: db6fe32667d0a804a941e960dc0ba95c, type: 2}
+  ledLight: {fileID: 9184021725946286587}
+  blinkAnimator: {fileID: 2547326504092224050}
+  renderers: []
+  activeMaterial: {fileID: 2100000, guid: 1e2b7e61b61359e409ff0ad6a134518b, type: 2}
+  offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
+  resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
+  resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
+  resolvedLightIntensity: 1.5
 --- !u!1001 &1974476544131229765
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 8721911089312673663}
+    m_TransformParent: {fileID: 4617701421794439683}
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.27272728
+      value: 0.2727272
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalScale.y
@@ -3803,52 +3827,52 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.07
+      value: 0.0382
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.18
+      value: 0.2152
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 0.0421
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7071068
+      value: 0.20389009
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: 0.66722494
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: 0.7035535
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0.7071068
+      value: 0.13510078
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: 4.702
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: 152.046
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
+      value: 85.793
       objectReference: {fileID: 0}
     - target: {fileID: -2859109400176981367, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: ffc27677862e5b94b9157e70272db3b9, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: -895306380916907690, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: ffc27677862e5b94b9157e70272db3b9, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_Name
       value: LED_PiernaDer
@@ -3866,6 +3890,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5866652287437027259}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6461490027912528896}
   m_SourcePrefab: {fileID: 100100000, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
 --- !u!1 &1704566439496996116 stripped
 GameObject:
@@ -3879,7 +3906,7 @@ Light:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1704566439496996116}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
   m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
@@ -3974,7 +4001,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1704566439496996116}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 21b282e6fd7138c4cbf0fdeb9d92e32b, type: 2}
   m_CullingMode: 0
@@ -3988,6 +4015,27 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &6461490027912528896
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1704566439496996116}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b3663f3b1aa41d782fa18f59650e7c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ModuleLED
+  module: {fileID: 11400000, guid: ebe3d6a27c9860946b3db79d50da63d9, type: 2}
+  ledLight: {fileID: 8141954018953312529}
+  blinkAnimator: {fileID: 5866652287437027259}
+  renderers: []
+  activeMaterial: {fileID: 2100000, guid: ffc27677862e5b94b9157e70272db3b9, type: 2}
+  offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
+  resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
+  resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
+  resolvedLightIntensity: 1.5
 --- !u!4 &2084047916685922222 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
@@ -4015,15 +4063,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.005
+      value: 0.0053
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.016
+      value: 0.0182
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.093
+      value: 0.0997
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_LocalRotation.w
@@ -4056,11 +4104,11 @@ PrefabInstance:
     - target: {fileID: -2859109400176981367, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 59bfd39a77fd8ff41901e441da4963da, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: -895306380916907690, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 59bfd39a77fd8ff41901e441da4963da, type: 2}
+      objectReference: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
     - target: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       propertyPath: m_Name
       value: LED_Pecho
@@ -4078,6 +4126,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5994885487365438147}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5409128019937777664}
   m_SourcePrefab: {fileID: 100100000, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
 --- !u!4 &7272080451730204536 stripped
 Transform:
@@ -4096,7 +4147,7 @@ Light:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8043514734470806978}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
   m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
@@ -4162,7 +4213,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8043514734470806978}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 21b282e6fd7138c4cbf0fdeb9d92e32b, type: 2}
   m_CullingMode: 0
@@ -4205,3 +4256,24 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!114 &5409128019937777664
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8043514734470806978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b3663f3b1aa41d782fa18f59650e7c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ModuleLED
+  module: {fileID: 11400000, guid: 4d22063d83df3d74ebc3345f10687fa5, type: 2}
+  ledLight: {fileID: 3789438466116516116}
+  blinkAnimator: {fileID: 1935221253927042738}
+  renderers: []
+  activeMaterial: {fileID: 2100000, guid: 59bfd39a77fd8ff41901e441da4963da, type: 2}
+  offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
+  resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
+  resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
+  resolvedLightIntensity: 1.5

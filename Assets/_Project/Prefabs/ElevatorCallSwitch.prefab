@@ -246,7 +246,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
-  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
+  profile: {fileID: 11400000, guid: e2fb48a747282d54fbcb9764c1cc2a02, type: 2}
 --- !u!1 &3140267854124341348
 GameObject:
   m_ObjectHideFlags: 0

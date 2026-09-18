@@ -1,5 +1,6 @@
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,11 +13,12 @@ using UnityEngine.UI;
 ///
 /// Layout of the prefab:
 ///   root     — Canvas on top of everything + the CanvasGroup faded here. Its child "Black" is the
-///              full-screen black image.
-///   content  — the loading visuals. Hidden while fading to black, shown while loading, and faded
-///              out together with the black on the way back. Replace what is inside it (the
-///              placeholder progress slider) with the final loading visuals; nothing here depends
-///              on what it contains.
+///              full-screen black image. Shown through the CRT tube (CanvasCRTPresenter) like every
+///              other screen.
+///   content  — the loading visuals: the Mystify screensaver (MystifyScreensaver), a Win95 status
+///              window with the progress bar, and the signal static the other screens have. Hidden
+///              while fading to black, shown while loading, and faded out together with the black on
+///              the way back. Nothing here depends on what it contains.
 /// </summary>
 [RequireComponent(typeof(Canvas), typeof(CanvasGroup))]
 public class LoadingScreenView : MonoBehaviour
@@ -27,15 +29,19 @@ public class LoadingScreenView : MonoBehaviour
     [Tooltip("The loading visuals shown on top of the black while loading.")]
     [SerializeField] private GameObject content;
 
-    [Tooltip("Optional. Fills from 0 to 1 over the loading time. Can be removed along with the " +
-             "placeholder visuals.")]
+    [Tooltip("Optional. Fills from 0 to 1 over the loading time.")]
     [SerializeField] private Slider progressSlider;
+
+    [Tooltip("Optional. Shows the same progress as a percentage.")]
+    [SerializeField] private TMP_Text progressLabel;
 
     [Tooltip("Seconds to fade to black, and to fade back out of it.")]
     [SerializeField, Min(0f)] private float fadeDuration = 0.5f;
 
     /// <summary>Most a single frame may advance a fade, in seconds (a 30 fps frame).</summary>
     private const float MaxFadeStep = 1f / 30f;
+
+    private int shownPercent = -1;
 
     private void Reset()
     {
@@ -82,7 +88,15 @@ public class LoadingScreenView : MonoBehaviour
     /// <param name="progress">0 to 1.</param>
     public void SetProgress(float progress)
     {
-        if (progressSlider != null) progressSlider.value = Mathf.Clamp01(progress);
+        progress = Mathf.Clamp01(progress);
+        if (progressSlider != null) progressSlider.value = progress;
+        if (progressLabel == null) return;
+
+        // Rewritten only when the number changes: this runs every frame of the load.
+        int percent = Mathf.FloorToInt(progress * 100f);
+        if (percent == shownPercent) return;
+        shownPercent = percent;
+        progressLabel.text = percent + "%";
     }
 
     private async UniTask FadeAsync(float target, CancellationToken token)

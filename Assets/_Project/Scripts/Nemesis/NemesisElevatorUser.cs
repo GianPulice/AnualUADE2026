@@ -77,6 +77,23 @@ public class NemesisElevatorUser : MonoBehaviour
     private bool isTraversing;
 
     /// <summary>
+    /// One per crossing, linked to the destroy token. Exists so a capture can end the crossing it
+    /// interrupts: with only the destroy token, a Nemesis that grabbed the player while waiting for
+    /// the cabin kept its claim on the platform for the rest of that wait (up to twenty seconds),
+    /// and the panels read "Forklift in use" across the whole respawn.
+    /// </summary>
+    private CancellationTokenSource crossingCts;
+
+    /// <summary>The crossing was cut short by a capture or a respawn, not given up on. Keeps the
+    /// shaft out of the abandon cooldown: the lift did nothing wrong.</summary>
+    private bool crossingInterrupted;
+
+    /// <summary>The body is aboard a cabin that has been asked to move. A capture in this window is
+    /// NOT allowed to cancel the crossing — stepping off mid-shaft is a fall, and the grab would be
+    /// torn out of its animation — so it is left to the respawn to end it.</summary>
+    private bool isRiding;
+
+    /// <summary>
     /// A lift crossing is in flight: waiting for the cabin, boarding, riding, or stepping off.
     ///
     /// Public because the decision ladder needs it. While this is true the Nemesis's body is being
@@ -214,6 +231,11 @@ public class NemesisElevatorUser : MonoBehaviour
     {
         if (isTraversing) return;
         if (stateManager == null || !stateManager.IsActive) return;
+
+        // Holding the player. A crossing cancelled by the capture leaves the agent standing on the
+        // shaft link, and without this the next frame would start the same crossing over, claim
+        // the platform again, and undo the cancellation.
+        if (IsCapturing) return;
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
         // Before the agent guards, not after: a shaft whose cooldown has expired has to come back
@@ -233,7 +255,11 @@ public class NemesisElevatorUser : MonoBehaviour
             ? owner.GetComponent<NemesisElevatorLink>()
             : null;
 
-        CancellationToken token = this.GetCancellationTokenOnDestroy();
+        // Safe to dispose: this line is only reached with no crossing in flight (isTraversing).
+        crossingCts?.Dispose();
+        crossingCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
+        crossingInterrupted = false;
+        CancellationToken token = crossingCts.Token;
 
         // Recently given up on: step off the link instead of starting the same doomed wait over.
         //
@@ -283,7 +309,10 @@ public class NemesisElevatorUser : MonoBehaviour
             if (hold) agent.velocity = Vector3.zero;
         }
 
-        if (stateManager == null) return;
+        // Not over a capture: Catch set the grab gait on entry and owns it. A crossing cancelled by
+        // that capture runs this from its finally, a frame later, and would put a walk on top of
+        // the grab.
+        if (stateManager == null || IsCapturing) return;
 
         if (hold) stateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
         else      stateManager.SetGait(NemesisStateManager.EGait.Walking, BoardingSpeed);
@@ -421,8 +450,42 @@ public class NemesisElevatorUser : MonoBehaviour
     /// shaft suspended with nothing left running to restore it. The link belongs to the level, not
     /// to this component, so it has to be handed back on the way out.
     /// </summary>
+    private void OnEnable()
+    {
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
+        CheckpointManager.OnRespawned += HandlePlayerRespawned;
+    }
+
+    /// <summary>
+    /// Ends a crossing that is still only waiting for, walking onto or stepping off the cabin. The
+    /// finally in <see cref="TraverseElevatorAsync"/> then releases the claim and the passenger
+    /// registration on the next frame, instead of whenever the wait happened to time out.
+    /// </summary>
+    private void HandlePlayerCaptured(PlayerStateManager player)
+    {
+        if (!isRiding) CancelCrossing();
+    }
+
+    /// <summary>
+    /// The player is back at a checkpoint: whatever crossing survived the capture (the one ridden
+    /// with the player aboard) has nothing left to do. The respawn is behind the capture fade, so
+    /// putting the body back on a landing here is not seen.
+    /// </summary>
+    private void HandlePlayerRespawned(Checkpoint checkpoint) => CancelCrossing();
+
+    private void CancelCrossing()
+    {
+        if (!isTraversing || crossingCts == null || crossingCts.IsCancellationRequested) return;
+
+        crossingInterrupted = true;
+        crossingCts.Cancel();
+    }
+
     private void OnDisable()
     {
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        CheckpointManager.OnRespawned -= HandlePlayerRespawned;
+
         if (abandonedElevator == null) return;
 
         abandonedElevator.SetShaftLinkActive(true);
@@ -608,7 +671,9 @@ public class NemesisElevatorUser : MonoBehaviour
                 return;
             }
 
+            isRiding = true;
             await WaitUntilTripEndsAsync(platform, token);
+            isRiding = false;
 
             // The trip did not finish inside the timeout. Stepping off HERE means stepping off at
             // whatever height the cabin happens to have reached, which is not a floor — this is the
@@ -655,6 +720,8 @@ public class NemesisElevatorUser : MonoBehaviour
         }
         finally
         {
+            isRiding = false;
+
             if (platform != null)
             {
                 platform.RemovePassenger(transform);
@@ -688,7 +755,12 @@ public class NemesisElevatorUser : MonoBehaviour
             // Unconditional rather than guarded on "did it board": LeaveCurrentLink no-ops when
             // the agent is not on a link, so the mid-ride cancellation case — where the warp above
             // has already taken it off — costs nothing and cannot be forgotten.
-            if (!completed) AbandonElevator(elevator);
+            //
+            // Except when a capture or a respawn cut it short: the lift did nothing wrong, and a
+            // shelved shaft would keep the Nemesis off it for the whole cooldown after the
+            // respawn. The link is left alone too — Update does not restart a crossing while
+            // Catch holds the player, and RepositionAfterCapture's warp takes the agent off it.
+            if (!completed && !crossingInterrupted) AbandonElevator(elevator);
 
             // Restored only on a trip that worked, and only after the abandon above — which resets
             // the path on purpose. Disabling an agent clears its destination, so without this a
