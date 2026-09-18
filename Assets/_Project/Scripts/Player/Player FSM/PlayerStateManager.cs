@@ -192,6 +192,13 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             return;
         }
 
+        // The box collider is the push hitbox and only belongs on while PlayerBoxInteractingState
+        // runs (it enables it on enter, disables it on exit). Left on, it sticks out ~0.2m past
+        // the capsule in front of the chest, where the obstacle CapsuleCast in ApplyMoveVelocity
+        // cannot see it: that box hits walls and props first, with default friction and square
+        // corners, and the player snags on them instead of sliding.
+        boxColl.enabled = false;
+
         SetupClipOverrides();
 
         InitializeStates();
