@@ -16,7 +16,7 @@ MonoBehaviour:
   itemName: New Fuse
   category: 1
   itemDescription: Fuse needed to power up the SP1 fuse box.
-  itemIcon: {fileID: 0}
+  itemIcon: {fileID: 21300000, guid: b680f7c4f42a93c439af8df32b5fc0a5, type: 3}
   isMetallic: 1
   isConsumable: 1
   consumeDescription: Consumed when inserted into the fuse box.

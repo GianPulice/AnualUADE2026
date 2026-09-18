@@ -40,7 +40,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 51.983414, y: -13.3793}
-  m_SizeDelta: {x: 203.9669, y: 73.2414}
+  m_SizeDelta: {x: 203.9669, y: 64}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &6792315499122831316
 MonoBehaviour:
@@ -85,19 +85,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2473991179983099151}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 5773535371784046898}
-        m_TargetAssemblyTypeName: ItemSlotView, Assembly-CSharp
-        m_MethodName: OnButtonClicked
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 1
+      m_Calls: []
 --- !u!114 &2473991179983099151
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -145,7 +133,7 @@ MonoBehaviour:
   itemNameText: {fileID: 3095537033270969536}
   iconImage: {fileID: 3356977643065295645}
   iconBackground: {fileID: 7010770333448369795}
-  rowCharWidth: 28
+  rowCharWidth: 40
   selectionFillImage: {fileID: 2473991179983099151}
   fillDuration: 0.45
   alphaDuration: 0.15
@@ -196,7 +184,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 30.162903, y: 30.1629}
+  m_SizeDelta: {x: 52, y: 52}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &1434804237932542261
 CanvasRenderer:
@@ -361,8 +349,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 50, y: 0}
-  m_SizeDelta: {x: 400, y: 27.457}
+  m_AnchoredPosition: {x: 72, y: 0}
+  m_SizeDelta: {x: 820, y: 46}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &3482134212254112865
 CanvasRenderer:
@@ -421,8 +409,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 24
-  m_fontSizeBase: 24
+  m_fontSize: 36
+  m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -438,7 +426,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_TextWrappingMode: 1
+  m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -515,8 +503,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 26.857903, y: 25.3557}
+  m_AnchoredPosition: {x: 3, y: 0}
+  m_SizeDelta: {x: 46, y: 44}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &833569410614872014
 CanvasRenderer:

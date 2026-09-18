@@ -15,6 +15,10 @@ MonoBehaviour:
   vfxPrefab: {fileID: 5100745892234323378, guid: d72acce61187c2943bb0b0686d0576de, type: 3}
   sfxClip: {fileID: 8300000, guid: 12107e97671818c43ac388832be7426e, type: 3}
   sfxVolume: 0.35
+  extraSfxLayers:
+  - clip: {fileID: 8300000, guid: b7040f7081d13ea4292205a925c5e8ae, type: 3}
+    volume: 0.7
+    delay: 0
   shakeAmplitude: 0.08
   shakeDuration: 0.35
   shakeFrequency: 28

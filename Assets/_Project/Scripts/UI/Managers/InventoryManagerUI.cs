@@ -39,22 +39,19 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     // (PauseManager.IsGameplayInputBlocked), not from timeScale, so nothing here has to change for
     // it. Module timers and the Nemesis carry on, which is the point.
     public bool PausesGame    => false;
-    // RequestClose handles ALL inventory layers (discard dialog -> doc -> selection -> inventory).
+    // RequestClose handles ALL inventory layers (doc -> selection -> inventory).
     public void RequestClose() => HandleCancelInput();
 
     [Header("Views")]
     [SerializeField] private InventoryView inventoryView;
     [SerializeField] private ItemDetailView itemDetailView;
-    [SerializeField] private DiscardDialogView discardDialogView;
     [SerializeField] private InventoryTabPanelAnimator panelAnimator;
 
     // -- Internal state -------------------
 
     private bool isInventoryOpen = false;
-    private bool isDiscardOpen = false;
 
     private SO_InventoryItem selectedItem = null;
-    private SO_InventoryItem pendingDiscard = null;
     private SO_InventoryItem currentSelectedItem;
 
     // -- Unity -------------------
@@ -86,7 +83,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     {
         inventoryView?.SetVisible(false);
         itemDetailView?.ShowEmpty();
-        discardDialogView?.Hide();
     }
 
     private void SubscribeToEvents()
@@ -94,9 +90,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.OnItemAdded += HandleItemAdded;
         InventoryEvents.OnItemRemoved += HandleItemRemoved;
         InventoryEvents.OnItemSelected += HandleItemSelected;
-        InventoryEvents.OnDiscardRequested += HandleDiscardRequested;
-        InventoryEvents.OnDiscardConfirmed += HandleDiscardConfirmed;
-        InventoryEvents.OnDiscardCancelled += HandleDiscardCancelled;
     }
 
     private void UnsubscribeFromEvents()
@@ -104,9 +97,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         InventoryEvents.OnItemRemoved -= HandleItemRemoved;
         InventoryEvents.OnItemSelected -= HandleItemSelected;
-        InventoryEvents.OnDiscardRequested -= HandleDiscardRequested;
-        InventoryEvents.OnDiscardConfirmed -= HandleDiscardConfirmed;
-        InventoryEvents.OnDiscardCancelled -= HandleDiscardCancelled;
     }
 
     // ------------------ Input ------------------ To be removed once the Input System is integrated
@@ -116,7 +106,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // Closing with ESC is governed by UIStateManager (UI/Exit action -> RequestClose).
         // Here we only handle Tab to open/close the inventory.
 
-        if (!Input.GetKeyDown(toggleKey) || isDiscardOpen) return;
+        if (!Input.GetKeyDown(toggleKey)) return;
 
         if (isInventoryOpen)
         {
@@ -151,7 +141,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     /// Opens the inventory:
     ///   - Cursor enabled and visible
     ///   - List refreshed
-    ///   - First item auto-selected if there are any
+    ///   - Nothing selected: the player picks an item by hand, and only then the detail pop-up unfolds
     /// </summary>
     public void OpenInventory()
     {
@@ -167,7 +157,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         else inventoryView?.SetVisible(true);
         RefreshItemList();
 
-        AutoSelectFirstItem();
+        // Clean slate: no leftover highlight and the pop-up folded.
+        ClearSelection();
 
         if (AudioManager.Exists) AudioManager.Instance.PlaySFX("sfx_abrir_inventario");
 
@@ -184,10 +175,9 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (!isInventoryOpen) return;
 
         // Tab and ESC peel one layer per press, so by the time they get here nothing is stacked on
-        // top. The title-bar X closes from any depth. The doc pop-up and the discard dialog live
-        // inside LAYOUT, so they vanish with it — but their own state would still say open: the doc
-        // would reappear on the next open, and a pending discard would keep Tab locked out.
-        if (isDiscardOpen) CancelDiscard();
+        // top. The title-bar X closes from any depth. The doc pop-up lives inside LAYOUT, so it
+        // vanishes with it — but its own state would still say open, and it would reappear on the
+        // next open.
         if (itemDetailView != null && itemDetailView.IsDocOpen) itemDetailView.HideDoc();
 
         isInventoryOpen = false;
@@ -223,74 +213,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.ItemSelected(item);
     }
 
-    private void AutoSelectFirstItem()
-    {
-        if (!InventoryManager.Exists)
-        {
-            itemDetailView?.ShowEmpty();
-            return;
-        }
-
-        IReadOnlyList<SO_InventoryItem> allItems = InventoryManager.Instance.GetAllItems();
-
-        if (allItems.Count > 0)
-        {
-            SelectItem(allItems[0]);
-        }
-        else
-        {
-            // Empty list: show the empty state in the detail panel
-            itemDetailView?.ShowEmpty();
-        }
-    }
-
-    // ── Discard ───────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Called by ItemDetailView when the discard button is pressed.
-    /// It does NOT remove the item — it only asks for confirmation.
-    /// </summary>
-    public void RequestDiscard(SO_InventoryItem item)
-    {
-        if (item == null) return;
-
-        pendingDiscard = item;
-        isDiscardOpen = true;
-
-        InventoryEvents.DiscardRequested(item);
-    }
-
-    /// <summary>Called by DiscardDialogView on confirm.</summary>
-    public void ConfirmDiscard()
-    {
-        if (pendingDiscard == null) return;
-
-        SO_InventoryItem toDiscard = pendingDiscard;
-        pendingDiscard = null;
-        isDiscardOpen = false;
-
-        if (!InventoryManager.Exists)
-        {
-            // Raising DiscardConfirmed anyway would tell the whole UI an item is gone that is in
-            // fact still held, leaving every view out of sync with the real inventory.
-            Debug.LogWarning($"[{nameof(InventoryManagerUI)}] No InventoryManager — discarding " +
-                             $"'{toDiscard.ItemName}' had no effect.", this);
-            return;
-        }
-
-        InventoryManager.Instance.DiscardItem(toDiscard);
-        UISounds.Play(UISounds.ItemDiscard);
-        InventoryEvents.DiscardConfirmed(toDiscard);
-    }
-
-    /// <summary>Called by DiscardDialogView on cancel, or by ESC.</summary>
-    public void CancelDiscard()
-    {
-        pendingDiscard = null;
-        isDiscardOpen = false;
-        InventoryEvents.DiscardCancelled();
-    }
-
     // -- Event handlers --------------------
 
     private void HandleItemAdded(SO_InventoryItem item)
@@ -305,9 +227,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // If the removed item was the selected one, clear the detail panel
         if (selectedItem == item)
         {
-            selectedItem = null;
-            itemDetailView?.ShowEmpty();
-            AutoSelectFirstItem();
+            ClearSelection();
         }
     }
 
@@ -316,29 +236,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         itemDetailView?.ShowDetail(item);
     }
 
-    private void HandleDiscardRequested(SO_InventoryItem item)
-    {
-        discardDialogView?.Show(item);
-    }
-
-    private void HandleDiscardConfirmed(SO_InventoryItem item)
-    {
-        discardDialogView?.Hide();
-    }
-
-    private void HandleDiscardCancelled()
-    {
-        discardDialogView?.Hide();
-    }
-
     private void HandleCancelInput()
     {
-        if (isDiscardOpen)
-        {
-            CancelDiscard();
-            return;
-        }
-
         if (itemDetailView != null && itemDetailView.IsDocOpen)
         {
             itemDetailView.HideDoc();
@@ -354,13 +253,20 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         CloseInventory();
     }
 
-    private void ClearSelection()
+    /// <summary>
+    /// Drops the selection: no highlighted row, pop-up folded. Called by ESC and by clicking the
+    /// selected row again. An open doc belongs to the item, so it goes with it.
+    /// </summary>
+    public void ClearSelection()
     {
+        if (itemDetailView != null && itemDetailView.IsDocOpen) itemDetailView.HideDoc();
+
+        selectedItem = null;
         currentSelectedItem = null;
 
         InventoryEvents.ItemSelected(null);
 
-        inventoryView.HighlightItem(null);
+        inventoryView?.HighlightItem(null);
     }
 
     // -- Helpers --------------------

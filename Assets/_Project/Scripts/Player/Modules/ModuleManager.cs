@@ -11,7 +11,8 @@ using UnityEngine;
 ///  • Tick the active module's timer with unscaledDeltaTime, so it keeps counting while the
 ///    inventory pauses the game.
 ///  • Detect explosion, raise <see cref="ModuleEvents.OnExploded"/>, apply penalty via the
-///    player, and report game over via <see cref="GameResultManager"/> when all modules explode.
+///    player, and report game over via <see cref="GameResultManager"/> when the explosion ends
+///    the run (see <see cref="SO_GameOverRules"/>).
 ///
 /// Lives as a Singleton (DontDestroyOnLoad) hosted in the Data scene alongside InventoryManager
 /// and PuzzleStateManager. Designers control everything through <see cref="SO_ModulesConfig"/> —
@@ -22,6 +23,9 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     [Header("Config")]
     [Tooltip("Ordered list of modules for this run. Designers edit this asset — the manager only reads it.")]
     [SerializeField] private SO_ModulesConfig config;
+
+    [Tooltip("Which explosion ends the run. Empty = GameOver only when every module has exploded.")]
+    [SerializeField] private SO_GameOverRules gameOverRules;
 
     [Header("Debug")]
     [Tooltip("Verbose logging for the module lifecycle. Turn off in shipping builds.")]
@@ -336,16 +340,31 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         CheckGameOver(target);
     }
 
+    /// <summary>
+    /// Whether this explosion ends the run, per <see cref="gameOverRules"/>. Valid from inside an
+    /// <see cref="ModuleEvents.OnExploded"/> handler: the module is already marked Exploded.
+    /// </summary>
+    public bool ExplosionEndsRun(ModuleRuntime exploded)
+    {
+        if (exploded == null || runtimes.Count == 0) return false;
+
+        int explodedCount = GetExplodedCount();
+        if (gameOverRules == null) return explodedCount >= runtimes.Count;
+        return gameOverRules.EndsRun(exploded.Data, explodedCount, runtimes.Count);
+    }
+
     private void CheckGameOver(ModuleRuntime lastExploded)
     {
         if (gameOverReported) return;
-        if (runtimes.Count == 0) return;
-        if (GetExplodedCount() < runtimes.Count) return;
+        if (!ExplosionEndsRun(lastExploded)) return;
 
         gameOverReported = true;
-        ModuleEvents.RaiseAllModulesExploded();
+        bool allExploded = GetExplodedCount() >= runtimes.Count;
+        if (allExploded) ModuleEvents.RaiseAllModulesExploded();
         GameResultManager.ReportGameOver(sessionTime, GetResolvedCount(), lastExploded);
-        Log("All modules exploded — GameOver reported.");
+        Log(allExploded
+            ? "All modules exploded — GameOver reported."
+            : $"Fatal module '{lastExploded.ModuleID}' exploded — GameOver reported.");
     }
 
     private int IndexOf(ModuleData data)

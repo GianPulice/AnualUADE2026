@@ -85,7 +85,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // The run-ending explosion is played by PresentGameOver, with the cinematic around it.
         // Checked here and not there because the two arrive in either order depending on which
         // path reported the GameOver.
-        if (GameResultManager.ExplosionEndsRun) return;
+        if (GameResultManager.ExplosionEndsRun(runtime)) return;
 
         Transform focus = FindFocusBone(runtime);
         Vector3 at = focus != null ? focus.position : FallbackFocus();
@@ -196,13 +196,6 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
 
     private void PlaySfx(Vector3 at)
     {
-        if (config == null || config.SfxClip == null)
-        {
-            WarnOnce(ref warnedNoSfx, "No explosion SFX clip assigned in the config. The explosion " +
-                                      "plays silently.");
-            return;
-        }
-
         if (!AudioManager.Exists)
         {
             WarnOnce(ref warnedNoSfx, "There is no AudioManager in the scene. The explosion plays " +
@@ -210,7 +203,35 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
             return;
         }
 
-        AudioManager.Instance.PlaySFX(config.SfxClip, at, config.SfxVolume);
+        if (config == null || config.SfxClip == null)
+        {
+            WarnOnce(ref warnedNoSfx, "No explosion SFX clip assigned in the config. The explosion " +
+                                      "plays without its main sound.");
+        }
+        else
+        {
+            AudioManager.Instance.PlaySFX(config.SfxClip, at, config.SfxVolume);
+        }
+
+        // The extra layers play in parallel, each on its own pooled source.
+        if (config == null || config.ExtraSfxLayers == null) return;
+
+        foreach (SO_ModuleExplosionConfig.SfxLayer layer in config.ExtraSfxLayers)
+        {
+            if (layer.clip == null) continue;
+
+            if (layer.delay <= 0f) AudioManager.Instance.PlaySFX(layer.clip, at, layer.volume);
+            else PlayLayerDelayed(layer, at).Forget();
+        }
+    }
+
+    private async UniTaskVoid PlayLayerDelayed(SO_ModuleExplosionConfig.SfxLayer layer, Vector3 at)
+    {
+        // Unscaled, like the rest of the cinematic: the result screen sets timeScale to 0.
+        await UniTask.Delay(TimeSpan.FromSeconds(layer.delay), DelayType.UnscaledDeltaTime,
+                            PlayerLoopTiming.Update, this.GetCancellationTokenOnDestroy());
+
+        if (AudioManager.Exists) AudioManager.Instance.PlaySFX(layer.clip, at, layer.volume);
     }
 
     private void Shake()

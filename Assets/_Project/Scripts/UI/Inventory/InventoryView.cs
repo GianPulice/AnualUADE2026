@@ -163,6 +163,13 @@ public class InventoryView : MonoBehaviour
 
     private void OnSlotClicked(SO_InventoryItem item)
     {
+        // Clicking the row that is already selected deselects it and folds the detail pop-up.
+        if (InventoryManagerUI.Instance.SelectedItem == item)
+        {
+            InventoryManagerUI.Instance.ClearSelection();
+            return;
+        }
+
         HighlightItem(item);
         InventoryManagerUI.Instance.SelectItem(item);
     }

@@ -461,7 +461,7 @@ public class ArchitectVoiceController : MonoBehaviour
         if (runtime == null) return;
         explodedModules.Add(runtime.ModuleID);
 
-        if (GameResultManager.ExplosionEndsRun)
+        if (GameResultManager.ExplosionEndsRun(runtime))
         {
             TriggerLine(ArchitectLineID.GameOver);
             return;

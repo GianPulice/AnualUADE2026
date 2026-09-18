@@ -93,44 +93,13 @@ public static class GameResultManager
     }
 
     /// <summary>
-    /// Whether the explosion that was just raised ends the run. Valid inside an
+    /// Whether the explosion that was just raised ends the run, per the SO_GameOverRules on
+    /// ModuleManager (which reports the GameOver itself). Valid inside an
     /// <see cref="ModuleEvents.OnExploded"/> handler: ModuleManager marks the module Exploded
     /// before raising the event, so the count already includes it.
     /// </summary>
-    public static bool ExplosionEndsRun =>
-        GameOverOnFirstExplosion ||
-        (ModuleManager.Exists && ModuleManager.Instance.TotalModules > 0 &&
-         ModuleManager.Instance.GetExplodedCount() >= ModuleManager.Instance.TotalModules);
-
-    // -- PROVISIONAL loop closure ---
-    /// <summary>
-    /// PROVISIONAL: while the per-module penalty loop is not closed, the first module that reaches
-    /// 0 ends the run with the GameOver screen. Set to false to go back to the designed rule —
-    /// GameOver only when every module has exploded, which ModuleManager reports on its own.
-    /// </summary>
-    public static bool GameOverOnFirstExplosion { get; set; } = true;
-
-    /// <summary>
-    /// Same pattern as <see cref="HookSessionReset"/>: -= then += so a domain-reload-disabled
-    /// enter into Play mode does not leave a duplicated subscription on the static bus.
-    /// </summary>
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void HookModuleExplosions()
-    {
-        ModuleEvents.OnExploded -= HandleModuleExploded;
-        ModuleEvents.OnExploded += HandleModuleExploded;
-    }
-
-    private static void HandleModuleExploded(ModuleRuntime runtime)
-    {
-        if (!GameOverOnFirstExplosion) return;
-        if (!ModuleManager.Exists) return;
-
-        // Stats come from the same place as the all-exploded flow, so the GameOver screen shows
-        // the same time and resolved-module count either way.
-        ModuleManager modules = ModuleManager.Instance;
-        ReportGameOver(modules.SessionTime, modules.GetResolvedCount(), runtime);
-    }
+    public static bool ExplosionEndsRun(ModuleRuntime exploded) =>
+        ModuleManager.Exists && ModuleManager.Instance.ExplosionEndsRun(exploded);
 
     /// <summary>Call when loading the gameplay scene to allow a new result to be reported.</summary>
     public static void ResetSession()

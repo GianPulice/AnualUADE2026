@@ -20,20 +20,11 @@ MonoBehaviour:
   - path: LAYOUT/DecorationObjects/Inventario Fondo
     role: 1
     preserveAlpha: 0
-  - path: LAYOUT/DecorationObjects/Avance Modulos fondo
+  - path: LAYOUT/InventoryObjects/Item Selection
     role: 1
     preserveAlpha: 0
-  - path: LAYOUT/DecorationObjects/Divisiones Inventario/Inventario Division
-    role: 8
-    preserveAlpha: 0
-  - path: LAYOUT/DecorationObjects/Divisiones Inventario/Inventario Division (1)
-    role: 8
-    preserveAlpha: 0
-  - path: LAYOUT/DecorationObjects/Divisiones Inventario/Inventario Division (2)
-    role: 8
-    preserveAlpha: 0
-  - path: LAYOUT/DecorationObjects/Divisiones Inventario/Inventario Division (3)
-    role: 8
+  - path: LAYOUT/DecorationObjects/Avance Modulos fondo
+    role: 1
     preserveAlpha: 0
   - path: LAYOUT/DecorationObjects/Divisiones Inventario/Inventario Division (4)
     role: 8
@@ -62,23 +53,11 @@ MonoBehaviour:
   - path: LAYOUT/InventoryObjects/Item Selection/Item Description
     role: 10
     preserveAlpha: 0
-  - path: LAYOUT/InventoryObjects/Item Selection/Discard Item Button
-    role: 16
-    preserveAlpha: 0
-  - path: LAYOUT/InventoryObjects/Item Selection/Discard Item Button/DiscardText
-    role: 13
-    preserveAlpha: 0
   - path: LAYOUT/InventoryObjects/Item Selection/OpenDocButton
     role: 2
     preserveAlpha: 0
   - path: LAYOUT/InventoryObjects/Item Selection/OpenDocButton/Text (TMP)
     role: 9
-    preserveAlpha: 0
-  - path: LAYOUT/InventoryObjects/Item Selection/Empty State Panel
-    role: 1
-    preserveAlpha: 0
-  - path: LAYOUT/InventoryObjects/Item Selection/Empty State Panel/EmptyStateText
-    role: 11
     preserveAlpha: 0
   - path: LAYOUT/InventoryObjects/CloseInventoryButton
     role: 2
@@ -137,27 +116,6 @@ MonoBehaviour:
   - path: LAYOUT/Doc Box/Scroll View/Scrollbar Vertical/Sliding Area/Handle
     role: 7
     preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView
-    role: 1
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/DiscardText
-    role: 9
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/wARNINGText
-    role: 13
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/ButtonConfirm
-    role: 16
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/ButtonConfirm/Text (TMP)
-    role: 13
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/ButtonCancel
-    role: 2
-    preserveAlpha: 0
-  - path: LAYOUT/DiscardDialogView/ButtonCancel/Text (TMP)
-    role: 9
-    preserveAlpha: 0
   frames:
   - path: LAYOUT/DecorationObjects/Inventario Fondo
     style: 0
@@ -166,9 +124,6 @@ MonoBehaviour:
     style: 0
     pressable: 0
   - path: LAYOUT/Doc Box
-    style: 0
-    pressable: 0
-  - path: LAYOUT/DiscardDialogView
     style: 0
     pressable: 0
   - path: LAYOUT/InventoryObjects/InventoryScroll
@@ -186,9 +141,6 @@ MonoBehaviour:
   - path: LAYOUT/Doc Box/Scroll View
     style: 1
     pressable: 0
-  - path: LAYOUT/InventoryObjects/Item Selection/Discard Item Button
-    style: 0
-    pressable: 1
   - path: LAYOUT/InventoryObjects/Item Selection/OpenDocButton
     style: 0
     pressable: 1
@@ -196,12 +148,6 @@ MonoBehaviour:
     style: 0
     pressable: 1
   - path: LAYOUT/Doc Box/Header/CloseDocButton
-    style: 0
-    pressable: 1
-  - path: LAYOUT/DiscardDialogView/ButtonConfirm
-    style: 0
-    pressable: 1
-  - path: LAYOUT/DiscardDialogView/ButtonCancel
     style: 0
     pressable: 1
   - path: LAYOUT/InventoryObjects/InventoryScroll/Scrollbar Vertical/Sliding Area/Handle
@@ -222,7 +168,7 @@ MonoBehaviour:
   - LAYOUT/DecorationObjects/Inventario Fondo
   - LAYOUT/DecorationObjects/Avance Modulos fondo
   - LAYOUT/Doc Box
-  - LAYOUT/DiscardDialogView
+  - LAYOUT/InventoryObjects/Item Selection
   signalPanels:
   - path: LAYOUT/InventoryObjects/Item Selection
     trigger: 1

@@ -11,7 +11,7 @@ public class InventoryEvents : MonoBehaviour
     /// can filter cleanly without inspecting the world state.</summary>
     public static event Action<SO_InventoryItem> OnItemAutoAdded;
 
-    /// <summary>An item was removed from the inventory (by discarding or consuming).</summary>
+    /// <summary>An item was removed from the inventory (consumed or taken by a puzzle).</summary>
     public static event Action<SO_InventoryItem> OnItemRemoved;
 
     /// <summary>The player selected an item in the list. Populate the detail panel.</summary>
@@ -19,17 +19,6 @@ public class InventoryEvents : MonoBehaviour
 
     /// <summary>A consumable item was used by interacting with a world object.</summary>
     public static event Action<SO_InventoryItem> OnItemConsumed;
-
-    // ------------------ Discard ------------------
-
-    /// <summary>The player pressed "discard". Open the confirmation dialog.</summary>
-    public static event Action<SO_InventoryItem> OnDiscardRequested;
-
-    /// <summary>The player confirmed the discard. Remove the item for good.</summary>
-    public static event Action<SO_InventoryItem> OnDiscardConfirmed;
-
-    /// <summary>The player cancelled the discard (ESC or the cancel button).</summary>
-    public static event Action OnDiscardCancelled;
 
     // ------------------ UI ------------------
 
@@ -42,10 +31,6 @@ public class InventoryEvents : MonoBehaviour
     public static void ItemRemoved(SO_InventoryItem item) => OnItemRemoved?.Invoke(item);
     public static void ItemSelected(SO_InventoryItem item) => OnItemSelected?.Invoke(item);
     public static void ItemConsumed(SO_InventoryItem item) => OnItemConsumed?.Invoke(item);
-
-    public static void DiscardRequested(SO_InventoryItem item) => OnDiscardRequested?.Invoke(item);
-    public static void DiscardConfirmed(SO_InventoryItem item) => OnDiscardConfirmed?.Invoke(item);
-    public static void DiscardCancelled() => OnDiscardCancelled?.Invoke();
 
     public static void InventoryToggled(bool isOpen) => OnInventoryToggled?.Invoke(isOpen);
 }

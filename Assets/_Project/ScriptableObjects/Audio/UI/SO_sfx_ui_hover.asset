@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_ui_hover
   category: 4
-  clip: {fileID: 8300000, guid: 1aaaf1d8d9f891f44801d8f5402cbfa0, type: 3}
+  clip: {fileID: 8300000, guid: ac27a035cd00fc745a51e5f92cfe3408, type: 3}
   loop: 0
   ignoreListenerPause: 1
   minDistance: 1

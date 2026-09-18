@@ -18,6 +18,19 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     [Tooltip("Low on purpose: the explosion is meant to be SEEN more than heard.")]
     [SerializeField, Range(0f, 1f)] private float sfxVolume = 0.35f;
 
+    [System.Serializable]
+    public struct SfxLayer
+    {
+        public AudioClip clip;
+        [Range(0f, 1f)] public float volume;
+        [Tooltip("Seconds after the explosion. 0 = exactly with it.")]
+        [Min(0f)] public float delay;
+    }
+
+    [Tooltip("Extra sounds played together with the explosion SFX (the headshot, for instance). " +
+             "Each has its own volume and an optional delay. An empty clip is skipped.")]
+    [SerializeField] private SfxLayer[] extraSfxLayers = System.Array.Empty<SfxLayer>();
+
     [Header("Camera shake")]
     [SerializeField, Min(0f)] private float shakeAmplitude = 0.08f;
     [SerializeField, Min(0f)] private float shakeDuration = 0.35f;
@@ -50,6 +63,7 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     public ExplosionVFX VfxPrefab => vfxPrefab;
     public AudioClip SfxClip => sfxClip;
     public float SfxVolume => sfxVolume;
+    public SfxLayer[] ExtraSfxLayers => extraSfxLayers;
 
     public float ShakeAmplitude => shakeAmplitude;
     public float ShakeDuration => shakeDuration;

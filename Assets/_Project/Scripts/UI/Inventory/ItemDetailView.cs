@@ -3,17 +3,22 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// VIEW of the right-hand detail panel for the selected item.
+/// VIEW of the detail pop-up for the selected item.
+///
+/// The pop-up sits in the bottom-right corner of the inventory, unfolds out of that corner when an
+/// item is selected and folds back into it when the selection is cleared. Its height follows the
+/// description: the prefab drives it with a VerticalLayoutGroup + ContentSizeFitter, so a one-line
+/// description gets a short pop-up and a long one a tall one.
 ///
 /// Responsibilities:
-///   - Show the empty state until something is selected
+///   - Stay folded until something is selected
 ///   - Populate header, description, metadata and content from the item
 ///   - Own the doc toggle button for Text-type items
-///   - Expose the discard button
-///   - Notify the Controller of the discard
+///   - Unfold / fold the pop-up
 ///
 /// Notes:
 ///   - Audio WIP: structure ready, logic disabled with enableAudioFeatures.
+///   - There is no discard: items leave the inventory only through the world (puzzles, consumption).
 ///   - The doc pop-up itself is <see cref="DocPanelView"/>, a separate layer. This view only
 ///     owns the button that toggles it, because whether the button exists at all depends on
 ///     the item's ContentType — which is this view's business.
@@ -23,13 +28,14 @@ public class ItemDetailView : MonoBehaviour
 {
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
 
-    // ── Root panels ───────────────────────────────────────────────────────────
+    // ── Pop-up ──────────────────────────────────────────────────────────────
 
-    [Header("Empty state (no selection)")]
-    [Tooltip("Select an item / to see the detail")]
-    [SerializeField] private GameObject emptyStatePanel;
-    [Tooltip("All the real content")]
-    [SerializeField] private GameObject detailContentPanel;
+    [Header("Pop-up")]
+    [Tooltip("Panel that unfolds when an item is selected. Defaults to this RectTransform. It grows " +
+             "out of its PIVOT, so pivot (1, 0) makes it come out of the bottom-right corner.")]
+    [SerializeField] private RectTransform popupRect;
+    [SerializeField] private float popupOpenDuration = UITweenDefaults.PanelOpenDuration;
+    [SerializeField] private float popupCloseDuration = UITweenDefaults.PanelCloseDuration;
 
     // ── Header ────────────────────────────────────────────────────────────────
 
@@ -77,12 +83,6 @@ public class ItemDetailView : MonoBehaviour
     [SerializeField] private TextMeshProUGUI audioTimeText;
     [SerializeField] private AudioSource audioSource;
 
-    // ── Discard ───────────────────────────────────────────────────────────────
-
-    [Header("Discard button")]
-    [SerializeField] private Button discardButton;
-    [SerializeField] private TextMeshProUGUI discardButtonText;
-
     // ── Colors ────────────────────────────────────────────────────────────────
 
     private static readonly Color MetallicYesColor = new Color(0.80f, 0.20f, 0.20f);
@@ -112,7 +112,6 @@ public class ItemDetailView : MonoBehaviour
 
     void Awake()
     {
-        discardButton?.onClick.AddListener(OnDiscardClicked);
         openDocButton?.onClick.AddListener(OnDocButtonClicked);
 
         // The X inside the pop-up routes back through the Controller like ESC does, so there is
@@ -128,6 +127,8 @@ public class ItemDetailView : MonoBehaviour
 
         // Clean initial state
         docPanel?.gameObject.SetActive(false);
+        EnsurePopup();
+        SetPopupScale(0f);
         RefreshDocButtonLabel();
     }
 
@@ -138,7 +139,7 @@ public class ItemDetailView : MonoBehaviour
 
     void OnDestroy()
     {
-        discardButton?.onClick.RemoveListener(OnDiscardClicked);
+        if (popupRect != null) LeanTween.cancel(popupRect.gameObject);
         openDocButton?.onClick.RemoveListener(OnDocButtonClicked);
 
         if (docPanel != null) docPanel.OnCloseRequested -= OnDocCloseRequested;
@@ -153,15 +154,14 @@ public class ItemDetailView : MonoBehaviour
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// No selection. It only toggles the root panels.
+    /// No selection. Folds the pop-up back into its corner.
     /// It does NOT touch docPanel — the Controller closes it first via HideDoc() if it was open.
     /// </summary>
     public void ShowEmpty()
     {
         currentItem = null;
 
-        emptyStatePanel?.SetActive(true);
-        detailContentPanel?.SetActive(false);
+        HidePopup();
 
         if (enableAudioFeatures) StopAudio();
     }
@@ -182,14 +182,12 @@ public class ItemDetailView : MonoBehaviour
 
         if (enableAudioFeatures) StopAudio();
 
-        emptyStatePanel?.SetActive(false);
-        detailContentPanel?.SetActive(true);
-
         PopulateHeader(item);
         PopulateDescription(item);
         PopulateMetadata(item);
         PopulateContent(item);
-        PopulateDiscardButton(item);
+
+        ShowPopup();
     }
 
     /// <summary>
@@ -208,7 +206,7 @@ public class ItemDetailView : MonoBehaviour
     /// <summary>
     /// Closes the doc panel through its reverse animation.
     /// Called by the Controller via the ESC stack, by the toggle button and by the panel's X.
-    /// It does NOT deselect the item nor touch detailContentPanel.
+    /// It does NOT deselect the item nor fold the pop-up.
     /// </summary>
     public void HideDoc()
     {
@@ -227,6 +225,52 @@ public class ItemDetailView : MonoBehaviour
         if (openDocButtonText == null) return;
         openDocButtonText.text = IsDocOpen ? closeDocLabel : openDocLabel;
     }
+
+    // ── Pop-up ──────────────────────────────────────────────────────────────
+
+    private void EnsurePopup()
+    {
+        if (popupRect == null) popupRect = (RectTransform)transform;
+    }
+
+    /// <summary>
+    /// Unfolds from wherever the pop-up is, so reselecting mid-fold picks up from there instead of
+    /// snapping shut first. Already open, it is a no-op — changing items only swaps the content,
+    /// which ItemSelectionTransitionTrigger animates.
+    /// </summary>
+    private void ShowPopup()
+    {
+        EnsurePopup();
+        TweenPopup(1f, popupOpenDuration, UITweenDefaults.PanelOpenEase);
+    }
+
+    private void HidePopup()
+    {
+        EnsurePopup();
+        TweenPopup(0f, popupCloseDuration, UITweenDefaults.PanelCloseEase);
+    }
+
+    /// <summary>
+    /// Scale, not SetActive: the pop-up stays active so ItemSelectionTransitionTrigger, which lives
+    /// on it, keeps listening to the selection. At scale 0 it draws nothing and catches no clicks.
+    /// </summary>
+    private void TweenPopup(float target, float duration, LeanTweenType ease)
+    {
+        LeanTween.cancel(popupRect.gameObject);
+
+        float from = popupRect.localScale.x;
+        if (Mathf.Approximately(from, target)) { SetPopupScale(target); return; }
+
+        // Inactive (the inventory is closed): no frames will tick the tween, so land at once.
+        if (!popupRect.gameObject.activeInHierarchy) { SetPopupScale(target); return; }
+
+        LeanTween.value(popupRect.gameObject, from, target, duration)
+            .setOnUpdate(SetPopupScale)
+            .setEase(ease)
+            .setIgnoreTimeScale(true);
+    }
+
+    private void SetPopupScale(float s) => popupRect.localScale = new Vector3(s, s, 1f);
 
     public void StopAudio()
     {
@@ -316,17 +360,6 @@ public class ItemDetailView : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// The label is fixed, not "DISCARD &lt;item&gt;". The button is now a small fixed-width control
-    /// sitting next to the doc button, and the item name is already spelled out in the header two
-    /// rows above — interpolating it in only guaranteed an overflow on the longer items.
-    /// </summary>
-    private void PopulateDiscardButton(SO_InventoryItem item)
-    {
-        if (discardButtonText != null)
-            discardButtonText.text = "[ DISCARD ]";
-    }
-
     // ── Callbacks ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -341,12 +374,6 @@ public class ItemDetailView : MonoBehaviour
 
     /// <summary>The X inside the pop-up. Same path as ESC.</summary>
     private void OnDocCloseRequested() => InventoryManagerUI.Instance.CloseDocument();
-
-    private void OnDiscardClicked()
-    {
-        if (currentItem == null) return;
-        InventoryManagerUI.Instance.RequestDiscard(currentItem);
-    }
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
 

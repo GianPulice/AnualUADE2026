@@ -16,7 +16,7 @@ MonoBehaviour:
   itemName: Mechanical Core
   category: 1
   itemDescription: Component obtained by solving Sub-Puzzle 2.
-  itemIcon: {fileID: 0}
+  itemIcon: {fileID: 21300000, guid: 076f1decf9618bc4c857e9e1efb3f275, type: 3}
   isMetallic: 1
   isConsumable: 1
   consumeDescription: Consumed when inserted into the Central Hub.
