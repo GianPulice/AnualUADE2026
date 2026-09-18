@@ -159,9 +159,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
     // ── Injured locomotion (M1) ─────────────────────────────────────────────────
     //
-    // The legs penalty already slows the player down; these two clips are what make it read on
-    // screen. Once M1 explodes the normal Walking/Running clips are replaced in place by their
-    // limping versions, for the rest of the run.
+    // The legs penalty already slows the player down; these clips are what make it read on
+    // screen. Once M1 explodes the normal Idle/Walking/Running clips are replaced in place by their
+    // injured versions, for the rest of the run.
     //
     // The swap goes through an AnimatorOverrideController and NOT through a second
     // AnimatorController, because assigning Animator.runtimeAnimatorController rebinds the
@@ -169,6 +169,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     // default state. isCrouch / isPushing / isTrapped are written once on state enter and would be
     // silently lost, and the character would pop back to Idle mid-stride. Overriding the clips of a
     // controller the Animator is ALREADY running changes neither.
+
+    [Tooltip("Hurt idle that replaces the Idle clip once the legs module (M1) explodes. " +
+             "Leave empty to keep the healthy animation.")]
+    [SerializeField] private AnimationClip injuredIdleClip;
 
     [Tooltip("Limping walk that replaces the Walking clip once the legs module (M1) explodes. " +
              "Leave empty to keep the healthy animation — the speed penalty still applies.")]
@@ -178,8 +182,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
              "Leave empty to keep the healthy animation — the speed penalty still applies.")]
     [SerializeField] private AnimationClip injuredRunClip;
 
-    // Names of the ORIGINAL clips inside Walking.fbx / Running.fbx, which is what an
+    // Names of the ORIGINAL clips inside Idle.fbx / Walking.fbx / Running.fbx, which is what an
     // AnimatorOverrideController keys on — not the names of the Animator states that play them.
+    private const string IDLE_CLIP_NAME = "Idle";
     private const string WALK_CLIP_NAME = "Walking";
     private const string RUN_CLIP_NAME = "Running";
     private const string LEGS_HURT_PARAM = "isLegsHurt";
@@ -717,7 +722,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// </summary>
     private void SetupClipOverrides()
     {
-        if (injuredWalkClip == null && injuredRunClip == null) return;
+        if (injuredIdleClip == null && injuredWalkClip == null && injuredRunClip == null) return;
         if (animController == null || animController.runtimeAnimatorController == null) return;
 
         RuntimeAnimatorController source = animController.runtimeAnimatorController;
@@ -726,14 +731,15 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
 
     /// <summary>
-    /// Replaces the walk and run clips with their limping versions. Idempotent — re-applying the
-    /// same override is a no-op, so a second Legs penalty (or a debug tool replaying one) cannot
+    /// Replaces the idle, walk and run clips with their injured versions. Idempotent — re-applying
+    /// the same override is a no-op, so a second Legs penalty (or a debug tool replaying one) cannot
     /// stack or restart anything.
     /// </summary>
     private void ApplyInjuredLocomotion()
     {
         if (clipOverrides == null) return;
 
+        if (injuredIdleClip != null) OverrideClip(IDLE_CLIP_NAME, injuredIdleClip);
         if (injuredWalkClip != null) OverrideClip(WALK_CLIP_NAME, injuredWalkClip);
         if (injuredRunClip != null) OverrideClip(RUN_CLIP_NAME, injuredRunClip);
 

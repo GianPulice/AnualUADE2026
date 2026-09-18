@@ -205,6 +205,7 @@ MonoBehaviour:
     m_Bits: 1
   groundAngleLimit: 45
   isInteracting: 0
+  injuredIdleClip: {fileID: -203655887218126122, guid: c7d68d6e65d15564ab968fed4202ca53, type: 3}
   injuredWalkClip: {fileID: -203655887218126122, guid: 27c22d277ff5f254aa4284e74f73bee4, type: 3}
   injuredRunClip: {fileID: -203655887218126122, guid: 3ecb139a23356f04884b4ec1d51d431b, type: 3}
 --- !u!54 &8279488126507840101
@@ -1027,7 +1028,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraSprintEffect
   _sprintDistance: 1.25
-  _sprintFovBoost: 6
   _easeInTime: 0.3
   _easeOutTime: 0.5
 --- !u!114 &6776761930762992951
