@@ -179,14 +179,14 @@ public class PushableBox : BaseRangeInteractable
         Vector3 delta = transform.position - lastPushPos;
         delta.y = 0f;
         float perSecondSqr = delta.sqrMagnitude / Mathf.Max(Time.fixedDeltaTime * Time.fixedDeltaTime, 1e-8f);
-        // Gate on the player's forward axis too: pressing E snaps the player onto the box's
-        // anchor with a 0.2s Slerp (PlayerBoxInteractingState.animTimer), and that snap nudges the
-        // box a few centimetres even though the player never pressed W. Without this gate the
-        // push loop would fire under the "grab" chirp on every latch. Reading the same axis the
-        // push state itself reads (Input.GetAxisRaw "Vertical") keeps the two in step: the loop
-        // sounds exactly while the player is actively driving forward.
-        bool pressingForward = Input.GetAxisRaw("Vertical") > 0f;
-        bool moving = pressingForward && perSecondSqr > PushMoveThresholdSqr;
+        // Gate on the push input too: pressing E snaps the player onto the box's anchor with a
+        // 0.2s Slerp (PlayerBoxInteractingState.animTimer), and that snap nudges the box a few
+        // centimetres even though the player never pressed a direction. Without this gate the
+        // push loop would fire under the "grab" chirp on every latch. Reading the direction the
+        // push state itself resolved keeps the two in step: the loop sounds exactly while the
+        // player is actively driving the box, whichever of the four ways.
+        bool pressingPush = player != null && player.PushDirection != Vector3.zero;
+        bool moving = pressingPush && perSecondSqr > PushMoveThresholdSqr;
         lastPushPos = transform.position;
 
         if (moving && !pushSoundPlaying) StartPushSound();
@@ -377,6 +377,7 @@ public class PushableBox : BaseRangeInteractable
 
         isGrabbed = true;
         rb.mass = 1;
+        player.SetPushedBox(rb);
         player.IsInteracting = true;
 
         // Suspend player↔box collision for the length of the 0.2s snap animation in
@@ -412,7 +413,11 @@ public class PushableBox : BaseRangeInteractable
 
     private void Release()
     {
-        if (player != null) player.IsInteracting = false;
+        if (player != null)
+        {
+            player.IsInteracting = false;
+            player.ClearPushedBox(rb);
+        }
         isGrabbed = false;
         if (rb != null) rb.mass = 1000;
 
@@ -433,7 +438,11 @@ public class PushableBox : BaseRangeInteractable
     // still need isGrabbed / mass / forced-interactable in a sane state.
     private void ForceRelease()
     {
-        if (player != null) player.IsInteracting = false;
+        if (player != null)
+        {
+            player.IsInteracting = false;
+            player.ClearPushedBox(rb);
+        }
         isGrabbed = false;
         if (rb != null) rb.mass = 1000;
 

@@ -108,6 +108,34 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         if (ReferenceEquals(carrier, platform)) carrier = null;
     }
 
+    // ── Box pushing ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Rigidbody of the box the player is holding, or null. Set by <see cref="PushableBox"/> on
+    /// grab and cleared on release. PlayerBoxInteractingState needs it because only a forward push
+    /// moves the box by contact — pulling it back or sliding it sideways means driving the box
+    /// directly, alongside the player.
+    /// </summary>
+    public Rigidbody PushedBox { get; private set; }
+
+    /// <summary>Called by <see cref="PushableBox"/> when the player grabs it.</summary>
+    public void SetPushedBox(Rigidbody box) => PushedBox = box;
+
+    /// <summary>
+    /// Called by <see cref="PushableBox"/> on release. Ignores a box that is not the one held, same
+    /// reasoning as <see cref="ClearCarrier"/>.
+    /// </summary>
+    public void ClearPushedBox(Rigidbody box)
+    {
+        if (ReferenceEquals(PushedBox, box)) PushedBox = null;
+    }
+
+    /// <summary>
+    /// World-space direction PlayerBoxInteractingState is moving the box this frame, or zero when
+    /// it is not. PushableBox gates its push loop sound on it.
+    /// </summary>
+    public Vector3 PushDirection { get; set; }
+
     // ── Module penalties ────────────────────────────────────────────────────────
     //
     // These factors are multiplied into the movement calculations in Moving/Crouch. They stay at
