@@ -156,14 +156,8 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         await UniTask.CompletedTask;
     }
 
-    private void HandleExit()
-    {
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
-    }
+    // Through the ScreenManager so quitting gets the same fade and loading screen as a scene change.
+    private void HandleExit() => ScreenManager.RequestQuit();
     private async UniTask UnloadBootstrapAsync()
     {
         // Replace "Bootstrap" with the exact name of your scene if it differs

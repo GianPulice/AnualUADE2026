@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_interaction_puerta_desbloqueada
   category: 0
-  clip: {fileID: 8300000, guid: daccdbd65f56553469694308370032c8, type: 3}
+  clip: {fileID: 8300000, guid: 43ae5b0769c5c4c4886204676307a6d6, type: 3}
   loop: 0
   ignoreListenerPause: 0
   minDistance: 1

@@ -71,12 +71,11 @@ public class WinController : BaseScreenController<WinView, GameResultModel>
     private void HandleMainMenu()
     {
         Time.timeScale = 1f;
-        _screenChannel.RaiseClearAll();
+
+        // Push alone, no Clear All first: the push already unloads the level, behind the loading
+        // screen. A Clear All would unload it straight away, in view, before the fade even starts.
         _screenChannel.RaisePushScreen(_mainMenuGroup);
     }
 
-    private void HandleExit()
-    {
-        Application.Quit();
-    }
+    private void HandleExit() => ScreenManager.RequestQuit();
 }

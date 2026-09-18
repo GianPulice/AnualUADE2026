@@ -152,6 +152,7 @@ MonoBehaviour:
   sceneLoader: {fileID: 180851289}
   screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
   sceneDatabase: {fileID: 11400000, guid: 5faacc4365d5d784a85988543f3ac151, type: 2}
+  loadingScreenPrefab: {fileID: 1059317834440484851, guid: e5ac2b65ba9e4ee4482e2d1e5873d3b4, type: 3}
 --- !u!4 &180851288
 Transform:
   m_ObjectHideFlags: 0
@@ -407,6 +408,7 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: 924026ff0bcc96e4c9f217138ac0f4bb, type: 2}
   gameOverRules: {fileID: 11400000, guid: 1a85864743244c6cb3497e79eea4d4c1, type: 2}
   debugLog: 1
+  debugExplodeKey: 289
 --- !u!4 &649174280
 Transform:
   m_ObjectHideFlags: 0

@@ -162,7 +162,11 @@ public class ArchitectVoiceController : MonoBehaviour
             // behind it during the delay either, not only once ARC_01a is playing.
             LockPlayerForWakeUp();
 
-            wakeUpCountdown -= Time.unscaledDeltaTime;
+            // Held while the loading screen is still covering the level: the scene is live behind
+            // it, and counting down here would start ARC_01a (and read its first page) where
+            // nobody can see it. The delay only starts once the level is being revealed.
+            if (!LoadingScreen.IsLoading) wakeUpCountdown -= Time.unscaledDeltaTime;
+
             if (wakeUpCountdown < 0f && !TriggerLine(ArchitectLineID.WakeUpMoment1))
             {
                 // No line in the bank, or blocked and queued: in the first case the run must not

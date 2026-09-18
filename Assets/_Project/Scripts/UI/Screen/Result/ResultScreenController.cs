@@ -157,7 +157,8 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
             return;
         }
 
-        _screenChannel.RaiseClearAll();
+        // Push alone, no Clear All first: the push already unloads the level, behind the loading
+        // screen. A Clear All would unload it straight away, in view, before the fade even starts.
         _screenChannel.RaisePushScreen(_mainMenuGroup);
     }
 }

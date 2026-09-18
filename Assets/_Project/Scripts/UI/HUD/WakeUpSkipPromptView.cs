@@ -36,9 +36,12 @@ public class WakeUpSkipPromptView : MonoBehaviour
         ArchitectVoiceController voice = ArchitectVoiceController.Instance;
         SO_WakeUpCinematicConfig config = voice != null ? voice.WakeUpConfig : null;
 
+        // Not while loading: the skip is off then (WakeUpCinematicView), and holding the prompt
+        // back lets its fade-in play in view instead of finishing behind the loading screen.
         bool show = WakeUpCinematicEvents.IsCameraLocked
                     && (config == null || config.Skippable)
-                    && !PauseManager.IsGameplayInputBlocked;
+                    && !PauseManager.IsGameplayInputBlocked
+                    && !LoadingScreen.IsLoading;
 
         if (!show)
         {

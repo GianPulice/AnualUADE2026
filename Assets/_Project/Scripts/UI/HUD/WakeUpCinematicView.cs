@@ -181,6 +181,10 @@ public class WakeUpCinematicView : MonoBehaviour
         if (config != null && !config.Skippable) return false;
         if (PauseManager.IsGameplayInputBlocked) return false;
 
+        // The cinematic is already set up behind the loading screen, but a skip there would throw
+        // away a cinematic the player never got to see.
+        if (LoadingScreen.IsLoading) return false;
+
         return Input.GetKeyDown(config != null ? config.SkipKey : KeyCode.F);
     }
 

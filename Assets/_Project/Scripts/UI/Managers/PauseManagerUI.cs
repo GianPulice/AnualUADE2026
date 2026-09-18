@@ -122,14 +122,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
     }
 
     /// <summary>Quits the game, the same way the main menu's Exit does.</summary>
-    private void HandleExit()
-    {
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
-    }
+    private void HandleExit() => ScreenManager.RequestQuit();
 
     private void HandleMainMenu()
     {
