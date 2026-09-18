@@ -72,6 +72,9 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
         return string.Empty;
     }
 
+    /// <summary>Solved: the panel never opens again.</summary>
+    public override bool IsFinished() => isCompleted;
+
     protected override bool CanInteractInCloseRange()
     {
         if (sequenceData == null) return false;

@@ -32,6 +32,14 @@ public class SO_HighlightProfile : ScriptableObject
 
     [SerializeField, Range(0f, 2f)] private float nearEmission = 0.15f;
 
+    [Tooltip("Multiplies the emission on plain URP/Lit materials only (the highlight shaders are " +
+             "left alone). The same number reads very differently on the two: measured on screen, " +
+             "0.15 lifts a PSXIndustrial valve by well over 100% but a URP/Lit socket by a few " +
+             "percent, which is why the core and regulator sockets and the electric panel looked " +
+             "like they had no highlight at all. Raise it until a URP/Lit prop answers the " +
+             "crosshair about as clearly as the valves do.")]
+    [SerializeField, Min(0f)] private float litEmissionScale = 1f;
+
     [Header("Transition")]
     [Tooltip("Seconds between far and near, SmoothStep-eased.")]
     [SerializeField, Min(0.01f)] private float lerpDuration = 0.3f;
@@ -56,6 +64,7 @@ public class SO_HighlightProfile : ScriptableObject
     public float NearTint     => nearTint;
     public float NearEmission => nearEmission;
     public float LerpDuration => lerpDuration;
+    public float LitEmissionScale => litEmissionScale;
 
     /// <summary>
     /// The colours for <paramref name="owner"/>: its item category's when this profile follows

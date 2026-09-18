@@ -30,4 +30,10 @@ public class SequenceButtonInteractable : MonoBehaviour, IInteractable, IPuzzleI
     {
         return true;
     }
+
+    /// <summary>Done when its panel is: a solved sequence takes no more presses.</summary>
+    public bool IsFinished()
+    {
+        return panel != null && panel.IsFinished();
+    }
 }

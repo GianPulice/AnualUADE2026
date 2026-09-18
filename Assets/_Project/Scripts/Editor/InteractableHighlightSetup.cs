@@ -10,9 +10,9 @@ using UnityEngine;
 /// prepares the materials under them so the highlight can reach them.
 ///
 /// Why from the Fathers: a variant inherits the component together with its profile, so a new
-/// socket or valve made from its Father lights up with no extra step, in the same colour as the
-/// rest. Puzzle props that were never made from a Father (the electric panel, the three push boxes)
-/// get it on their own prefab.
+/// socket, valve or door made from its Father lights up with no extra step, in the same colour as
+/// the rest. Puzzle props that were never made from a Father (the electric panel, the three push
+/// boxes) get it on their own prefab.
 ///
 /// Every step is skipped when already done, so it is safe to re-run:
 ///   1. Creates the two shared profiles (SO_Highlight_Items / SO_Highlight_Interactables) if they
@@ -52,6 +52,11 @@ public static class InteractableHighlightSetup
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_A.prefab",
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_B.prefab",
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_C.prefab",
+        // Every door (DoorMetalRed, DoorWhite, DoorWood, Puerta_SP3) is a variant of this one. Its
+        // highlight points at SO_Highlight_Doors, not the shared props profile: the big flat door
+        // leaves read far brighter than a socket at the same values and washed out to white. The
+        // profile is only ever filled in when empty, so re-running this keeps it.
+        "Assets/_Project/Prefabs/DoorFather/Door.prefab",
     };
 
     /// <summary>Carries its highlight on a child already (RideButton/Visual); only needs a profile.</summary>

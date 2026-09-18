@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 346e3a7c66438b645b608fad4577dcf1, type: 3}
-  m_Name: SO_Highlight_Interactables
+  m_Name: SO_Highlight_Doors
   m_EditorClassIdentifier: Assembly-CSharp::SO_HighlightProfile
   farTint: 0
   farEmission: 0
   nearTint: 0
   nearEmission: 0.15
-  litEmissionScale: 6
+  litEmissionScale: 2
   lerpDuration: 0.3
   tintColor: {r: 1, g: 1, b: 1, a: 1}
   emissionColor: {r: 0.878, g: 0.878, b: 0.878, a: 1}

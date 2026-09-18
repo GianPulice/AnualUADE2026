@@ -302,6 +302,9 @@ public class PushableBox : BaseRangeInteractable
     // everything, and while grabbed it stays available so E always releases. Otherwise it also
     // demands the player be closer than the config's MaxGrabDistance so the auto-slide onto the
     // anchor does not read as a teleport across the room.
+    /// <summary>Locked into its basket: it can never be grabbed again.</summary>
+    public override bool IsFinished() => locked;
+
     protected override bool CanInteractInCloseRange()
     {
         if (locked) return false;

@@ -47,6 +47,9 @@ public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IP
         return string.Empty;
     }
 
+    /// <summary>A filled socket has nothing more to take.</summary>
+    public override bool IsFinished() => IsInserted;
+
     protected override bool CanInteractInCloseRange()
     {
         if (socketData == null) return false;

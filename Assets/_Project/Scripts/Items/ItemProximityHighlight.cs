@@ -19,8 +19,10 @@ using UnityEngine;
 ///     emission colour and intensity, plus <c>_TintColor</c>/<c>_TintIntensity</c> when the shader
 ///     declares them too.
 ///   • URP/Lit-style materials — <c>_EmissionColor</c> only, ADDED to the material's own emission so
-///     a lit panel stays lit. Needs the material's Emission switched on (Tools ▸ Interactables ▸
-///     Set Up Highlights does it); with it off, URP compiles the emission out.
+///     a lit panel stays lit, and scaled by <see cref="SO_HighlightProfile.LitEmissionScale"/>. Needs
+///     the material's Emission switched on (Tools ▸ Interactables ▸ Set Up Highlights does it);
+///     with it off, URP compiles the emission out. One with an _EmissionMap would mask the added
+///     emission to the map's few glowing spots, so it brightens <c>_BaseColor</c> instead.
 ///   • Anything else is skipped, and Tools ▸ Items ▸ Validate Interactable Highlights lists it.
 /// Written slot by slot, reading the slot's block back first: a per-slot block REPLACES the
 /// renderer-wide one for that slot, so a renderer-wide write would be silently ignored wherever
@@ -30,7 +32,9 @@ using UnityEngine;
 /// a family of interactables cannot drift apart one prefab or one scene override at a time.
 ///
 /// Hook-up is automatic: it listens to <see cref="InteractionEvents.OnTargetChanged"/> and goes
-/// near while the InteractionManager's target is this interactable.
+/// near while the InteractionManager's target is this interactable — unless the interactable is
+/// finished (<see cref="IInteractable.IsFinished"/>): a filled socket or a solved panel no longer
+/// lights up, even while the player keeps looking at it.
 /// </summary>
 [DisallowMultipleComponent]
 public class ItemProximityHighlight : MonoBehaviour
@@ -58,6 +62,12 @@ public class ItemProximityHighlight : MonoBehaviour
         public SlotSupport Support;
         public bool        HasTint;
         public Color       BaseEmission;
+
+        // URP/Lit with an _EmissionMap: the map decides WHERE the material emits, so emission
+        // added here is masked to those spots and the rest of the part never lights up. Those slots
+        // brighten their base colour instead (see Apply).
+        public bool        EmissionMasked;
+        public Color       BaseColor;
     }
 
     [Tooltip("Far/near values and colours. SO_Highlight_Items on pickups, SO_Highlight_Interactables " +
@@ -68,6 +78,8 @@ public class ItemProximityHighlight : MonoBehaviour
     private static readonly int EmissionId  = Shader.PropertyToID("_EmissionIntensity");
     private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
     private static readonly int EmitColorId = Shader.PropertyToID("_EmissionColor");
+    private static readonly int EmitMapId   = Shader.PropertyToID("_EmissionMap");
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private const string EmissionKeyword = "_EMISSION";
 
     private readonly List<Slot> _slots = new List<Slot>();
@@ -82,6 +94,10 @@ public class ItemProximityHighlight : MonoBehaviour
     // Current state. The target-changed event is global, so without it every highlight in the
     // scene would restart its lerp each time the crosshair moves between any two objects.
     private bool _isNear;
+
+    // Whether the crosshair is on this interactable, kept apart from _isNear: a targeted
+    // interactable that is finished (IInteractable.IsFinished) stays dark.
+    private bool _isTargeted;
 
     public SO_HighlightProfile Profile => profile;
 
@@ -112,12 +128,35 @@ public class ItemProximityHighlight : MonoBehaviour
 
     private void HandleTargetChanged(IInteractable target)
     {
-        bool isTargeted = _owner != null && ReferenceEquals(target, _owner);
-        if (isTargeted == _isNear) return;
+        _isTargeted = _owner != null && ReferenceEquals(target, _owner);
+        Refresh();
+    }
 
-        _isNear = isTargeted;
-        if (isTargeted) OnPlayerEnteredRange();
-        else            OnPlayerExitedRange();
+    // Only while targeted: that is the one moment finishing can change what shows — the socket
+    // filled or the panel solved while the player is still looking at it. Untargeted highlights
+    // are dark already and cost nothing here.
+    private void Update()
+    {
+        if (_isTargeted) Refresh();
+    }
+
+    /// <summary>Near while targeted and not finished, far otherwise.</summary>
+    private void Refresh()
+    {
+        bool shouldBeNear = _isTargeted && !IsOwnerFinished();
+        if (shouldBeNear == _isNear) return;
+
+        _isNear = shouldBeNear;
+        if (shouldBeNear) OnPlayerEnteredRange();
+        else              OnPlayerExitedRange();
+    }
+
+    // The owner can be destroyed under us (a pickup is, the frame it is taken); Unity's null
+    // check on the component catches that where the interface reference alone would not.
+    private bool IsOwnerFinished()
+    {
+        if (_owner is Object unityObject && unityObject == null) return true;
+        return _owner != null && _owner.IsFinished();
     }
 
     /// <summary>Lerp to the near state.</summary>
@@ -133,6 +172,7 @@ public class ItemProximityHighlight : MonoBehaviour
         if (_lerp != null) StopCoroutine(_lerp);
         _lerp = null;
         _isNear = false;
+        _isTargeted = false;
         _tint = profile.FarTint;
         _emission = profile.FarEmission;
         Apply();
@@ -177,6 +217,11 @@ public class ItemProximityHighlight : MonoBehaviour
                 SlotSupport support = GetSupport(materials[i]);
                 if (support != SlotSupport.HighlightShader && support != SlotSupport.EmissionOnly) continue;
 
+                bool masked = support == SlotSupport.EmissionOnly &&
+                              materials[i].HasProperty(EmitMapId) &&
+                              materials[i].GetTexture(EmitMapId) != null &&
+                              materials[i].HasProperty(BaseColorId);
+
                 _slots.Add(new Slot
                 {
                     Renderer     = renderer,
@@ -186,6 +231,8 @@ public class ItemProximityHighlight : MonoBehaviour
                     // Captured once: the material asset's own emission, which the highlight adds to
                     // on URP/Lit instead of replacing.
                     BaseEmission = support == SlotSupport.EmissionOnly ? materials[i].GetColor(EmitColorId) : Color.black,
+                    EmissionMasked = masked,
+                    BaseColor      = masked ? materials[i].GetColor(BaseColorId) : Color.white,
                 });
             }
         }
@@ -249,9 +296,21 @@ public class ItemProximityHighlight : MonoBehaviour
                 _block.SetFloat(EmissionId,  _emission);
                 _block.SetColor(EmitColorId, _emissionColor);
             }
+            else if (slot.EmissionMasked)
+            {
+                // Its own emission is left exactly as authored (the map keeps glowing where it
+                // should); the whole part gets brighter through its base colour instead, by the
+                // same amount the emission would have added. Alpha untouched.
+                Color lifted = slot.BaseColor * (1f + _emission * profile.LitEmissionScale);
+                lifted.a = slot.BaseColor.a;
+                _block.SetColor(BaseColorId, lifted);
+            }
             else
             {
-                _block.SetColor(EmitColorId, slot.BaseEmission + _emissionColor * _emission);
+                // Scaled: URP/Lit needs far more emission than the highlight shaders to read the
+                // same on screen. See SO_HighlightProfile.LitEmissionScale.
+                _block.SetColor(EmitColorId,
+                                slot.BaseEmission + _emissionColor * (_emission * profile.LitEmissionScale));
             }
 
             slot.Renderer.SetPropertyBlock(_block, slot.Index);

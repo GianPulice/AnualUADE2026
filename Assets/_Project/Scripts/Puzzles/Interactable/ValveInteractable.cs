@@ -96,18 +96,29 @@ private IEnumerator InitializeValveState()
         return valveData.PromptText;
     }
 
+    /// <summary>
+    /// Finished once the puzzle it belongs to is solved — the valve is locked in place from then
+    /// on. Mid-turn is not finished: that is CanInteract's "not right now".
+    /// </summary>
+    public override bool IsFinished() => IsLinkedPuzzleCompleted();
+
 protected override bool CanInteractInCloseRange()
     {
         if (valveData == null) return false;
 
         if (rotationRoutine != null) return false;
 
-        if (!string.IsNullOrWhiteSpace(valveData.LinkedPuzzleId) &&
-            PuzzleStateManager.Exists &&
-            PuzzleStateManager.Instance.IsPuzzleCompleted(valveData.LinkedPuzzleId))
-            return false;
+        if (IsLinkedPuzzleCompleted()) return false;
 
         return true;
+    }
+
+    private bool IsLinkedPuzzleCompleted()
+    {
+        return valveData != null &&
+               !string.IsNullOrWhiteSpace(valveData.LinkedPuzzleId) &&
+               PuzzleStateManager.Exists &&
+               PuzzleStateManager.Instance.IsPuzzleCompleted(valveData.LinkedPuzzleId);
     }
 
 protected override void OnInteract()

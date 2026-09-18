@@ -33,4 +33,10 @@ public abstract class BaseRangeInteractable : MonoBehaviour, IInteractable
     public virtual void OnInteractAttemptBlocked() { }
 
     public abstract bool IsRepeatable();
+
+    /// <summary>
+    /// Default: never finished. Override only where the interaction can be used up for good — see
+    /// <see cref="IInteractable.IsFinished"/>. Doors, lifts and notes can always be used again.
+    /// </summary>
+    public virtual bool IsFinished() => false;
 }
