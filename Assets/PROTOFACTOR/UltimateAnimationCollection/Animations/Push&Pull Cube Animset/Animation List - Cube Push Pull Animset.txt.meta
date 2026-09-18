@@ -1,8 +1,7 @@
 fileFormatVersion: 2
-guid: 10fc4df2da32a41aaa32d77bc913491c
-NativeFormatImporter:
+guid: 9515bd30c50b75943aaca655fdcb8085
+TextScriptImporter:
   externalObjects: {}
-  mainObjectFileID: 0
   userData: 
   assetBundleName: 
   assetBundleVariant: 
@@ -11,5 +10,6 @@ AssetOrigin:
   productId: 218482
   packageName: 'ANIMSET: PUSH & PULL CUBE'
   packageVersion: 1.631
-  assetPath: Assets/_Project/Settings/SampleSceneProfile.asset
+  assetPath: Assets/PROTOFACTOR/UltimateAnimationCollection/Animations/Push&Pull
+    Cube Animset/Animation List - Cube Push Pull Animset.txt
   uploadId: 948390
