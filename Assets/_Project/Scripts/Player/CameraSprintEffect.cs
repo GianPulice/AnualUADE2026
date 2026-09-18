@@ -3,12 +3,17 @@ using UnityEngine;
 
 /// <summary>
 /// Pulls the camera away from the player and widens the lens while sprinting, so the extra speed
-/// reads on screen and not only in the run animation.
+/// reads on screen and not only in the run animation — and narrows the lens while crouching.
 ///
 /// Drives <c>CinemachineOrbitalFollow.RadialAxis</c>, which Cinemachine applies as a plain
 /// multiplier over the orbit spline. Scaling <c>Orbits</c> instead would look identical but
 /// invalidates Cinemachine's spline cache, and rebuilding it allocates three arrays — every frame,
 /// for an effect that changes every frame.
+///
+/// This is the only thing that writes the lens FOV after Start, and it has to stay that way: it
+/// writes every frame, so a second component setting the FOV would just be overwritten. The walk,
+/// sprint and crouch FOVs themselves live in <see cref="SO_CameraConfig"/>, read through the
+/// <see cref="PlayerCameraController"/> on the same rig.
 ///
 /// Place this on the same GameObject as the CinemachineOrbitalFollow (the player's camera rig).
 /// </summary>
@@ -20,10 +25,6 @@ public class CameraSprintEffect : MonoBehaviour
              "1 disables the pull back.")]
     [SerializeField, Min(1f)] private float _sprintDistance = 1.25f;
 
-    [Header("Lens")]
-    [Tooltip("Degrees added to the configured field of view while sprinting. 0 disables the kick.")]
-    [SerializeField, Min(0f)] private float _sprintFovBoost = 6f;
-
     [Header("Response")]
     [Tooltip("Roughly how long the camera takes to settle into the sprint framing.")]
     [SerializeField, Min(0f)] private float _easeInTime = 0.3f;
@@ -34,22 +35,20 @@ public class CameraSprintEffect : MonoBehaviour
 
     private CinemachineOrbitalFollow _orbital;
     private CinemachineCamera _camera;
+    private PlayerCameraController _controller;
     private PlayerStateManager _player;
 
-    // The FOV the rig is meant to sit at. Captured on the first LateUpdate and not in Start
-    // because PlayerCameraController pushes SO_CameraConfig's FOV from its own Start, and the
-    // order between two Start() calls is undefined. Every Start() of the frame has already run
-    // by the first LateUpdate, so the value read here is the configured one.
-    private float _baseFov;
-    private bool _baseFovCaptured;
-
     private float _sprint01;
-    private float _damperVelocity;
+    private float _sprintVelocity;
+
+    private float _crouch01;
+    private float _crouchVelocity;
 
     private void Awake()
     {
-        _orbital = GetComponent<CinemachineOrbitalFollow>();
-        _camera  = GetComponent<CinemachineCamera>();
+        _orbital    = GetComponent<CinemachineOrbitalFollow>();
+        _camera     = GetComponent<CinemachineCamera>();
+        _controller = GetComponent<PlayerCameraController>();
     }
 
     // The registry rather than GetComponentInParent: the rig happens to be parented under the
@@ -62,39 +61,48 @@ public class CameraSprintEffect : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!_baseFovCaptured)
-        {
-            _baseFov = _camera != null ? _camera.Lens.FieldOfView : 0f;
-            _baseFovCaptured = true;
-        }
+        SO_CameraConfig config = _controller != null ? _controller.Config : null;
 
         // SpeedMultiplier is the runtime truth for sprinting: PlayerMovingState raises it above 1
         // only while the sprint button is held, and crouching drives it below 1. Reading the state
         // instead of the button keeps this component out of the input layer, and the framing stays
         // put in the states that ignore sprint (crouch, hidden, interacting, disabled).
         bool sprinting = _player != null && _player.SpeedMultiplier > 1.01f;
-        float target = sprinting ? 1f : 0f;
+        float sprintTarget = sprinting ? 1f : 0f;
+
+        // IsCrouch and not SpeedMultiplier, same flag PlayerCameraController dips the pivot on, so
+        // the zoom and the dip start on the same frame and use the same damping.
+        bool crouching = _player != null && _player.IsCrouch;
+        float crouchTarget = crouching ? 1f : 0f;
+        float crouchTime = config != null ? config.CrouchPivotDamping : _easeInTime;
 
         // Scaled deltaTime on purpose: while paused the framing holds wherever it was.
-        _sprint01 = Mathf.SmoothDamp(_sprint01, target, ref _damperVelocity,
-                                     sprinting ? _easeInTime : _easeOutTime,
-                                     Mathf.Infinity, Time.deltaTime);
+        _sprint01 = Ease(_sprint01, sprintTarget, ref _sprintVelocity,
+                         sprinting ? _easeInTime : _easeOutTime);
+        _crouch01 = Ease(_crouch01, crouchTarget, ref _crouchVelocity, crouchTime);
+
+        ApplyFraming(config);
+    }
+
+    private static float Ease(float current, float target, ref float velocity, float time)
+    {
+        current = Mathf.SmoothDamp(current, target, ref velocity, time, Mathf.Infinity, Time.deltaTime);
 
         // SmoothDamp only ever approaches its target, so settle it by hand. Besides keeping the
-        // rig from idling a hair away from its authored distance, this stops the writes below:
+        // rig from idling a hair away from its authored framing, this stops the radial writes:
         // Cinemachine reads a changing axis value as user input, so a value that never quite
         // arrives would hold the axis in "being touched" forever and suppress auto-recentering
         // if the rig is ever configured to use it (all three axes have it off today).
-        if (Mathf.Abs(target - _sprint01) < 0.001f)
+        if (Mathf.Abs(target - current) < 0.001f)
         {
-            _sprint01 = target;
-            _damperVelocity = 0f;
+            current = target;
+            velocity = 0f;
         }
 
-        ApplyFraming();
+        return current;
     }
 
-    private void ApplyFraming()
+    private void ApplyFraming(SO_CameraConfig config)
     {
         // The radial axis clamps itself to its own Range, so a rig left at the default [1, 1]
         // would silently swallow the whole effect.
@@ -102,7 +110,16 @@ public class CameraSprintEffect : MonoBehaviour
         _orbital.RadialAxis.Range.y = Mathf.Max(_orbital.RadialAxis.Range.y, _sprintDistance);
         _orbital.RadialAxis.Value   = Mathf.Lerp(1f, _sprintDistance, _sprint01);
 
-        if (_camera != null)
-            _camera.Lens.FieldOfView = _baseFov + _sprintFovBoost * _sprint01;
+        // Without a config there is nothing to ease between, so the lens is left as it is.
+        if (_camera == null || config == null) return;
+
+        // Walk is the resting FOV and sprint / crouch are pulls away from it. Summed rather than
+        // lerped in sequence because both can be partway at once — going straight from a sprint
+        // into a crouch eases one out while the other eases in, with no jump in between.
+        // Read off the asset every frame so the three FOVs can be tuned live in Play mode.
+        float walk = config.WalkFov;
+        _camera.Lens.FieldOfView = walk
+                                 + (config.SprintFov - walk) * _sprint01
+                                 + (config.CrouchFov - walk) * _crouch01;
     }
 }

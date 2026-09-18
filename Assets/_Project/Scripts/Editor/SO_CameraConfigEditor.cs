@@ -110,12 +110,13 @@ public class SO_CameraConfigEditor : Editor
         Vector2 cameraPos = new Vector2(playerX - rig.OrbitRadius * px,
                                         crouchPivotScreenY - rig.OrbitHeight * px);
         Vector2 aimPos = new Vector2(playerX, crouchPivotScreenY);
-        DrawFovCone(cameraPos, aimPos, config.Fov);
+        // Crouch FOV and not walk: everything else in this diagram is the crouched framing.
+        DrawFovCone(cameraPos, aimPos, config.CrouchFov);
 
         PlayerDiagramGUI.Box(new Rect(cameraPos.x - 6f, cameraPos.y - 4.5f, 12f, 9f),
                              PlayerDiagramGUI.Accent);
         PlayerDiagramGUI.Text(new Rect(cameraPos.x - 70f, cameraPos.y - 20f, 140f, 14f),
-                              $"camara  FOV {config.Fov:0}°", PlayerDiagramGUI.Accent,
+                              $"camara  FOV {config.CrouchFov:0}°", PlayerDiagramGUI.Accent,
                               TextAnchor.MiddleCenter);
 
         DrawPivotMarker(playerX, standingPivotScreenY, PlayerDiagramGUI.Standing,

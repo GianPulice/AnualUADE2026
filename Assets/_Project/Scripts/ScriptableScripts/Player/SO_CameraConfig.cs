@@ -1,17 +1,35 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Authoring data for the player's Cinemachine rig. Read by
-/// <see cref="PlayerCameraController"/>, which lives on the FreeLook Camera.
+/// <see cref="PlayerCameraController"/> and <see cref="CameraSprintEffect"/>, which live on the
+/// FreeLook Camera.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_CameraConfig", menuName = "Scriptable Objects/SO_CameraConfig")]
 public class SO_CameraConfig : ScriptableObject
 {
+    // The three FOVs are absolute and not offsets from each other, so the asset reads as what the
+    // player actually sees in each stance. CameraSprintEffect eases between them; the ease times
+    // are CameraSprintEffect's own for sprint and Crouch Pivot Damping for crouch, so the crouch
+    // zoom lands together with the camera dip.
     [Header("Lens")]
-    [Tooltip("Field of view in degrees. Pushed onto the CinemachineCamera on Start. " +
-             "CameraSprintEffect adds its own boost on top of this while sprinting.")]
+    [Tooltip("Field of view in degrees while walking or standing still. Pushed onto the " +
+             "CinemachineCamera on Start, and the FOV the camera eases back to whenever the " +
+             "player is neither sprinting nor crouching. Tweakable live in Play mode.")]
     [Range(30f, 120f)]
-    [SerializeField] private float fov = 72f;
+    [FormerlySerializedAs("fov")]
+    [SerializeField] private float walkFov = 72f;
+
+    [Tooltip("Field of view in degrees while sprinting. Wider than walking so the extra speed " +
+             "reads on screen. Tweakable live in Play mode.")]
+    [Range(30f, 120f)]
+    [SerializeField] private float sprintFov = 78f;
+
+    [Tooltip("Field of view in degrees while crouching. Narrower than walking, so the frame " +
+             "closes in while sneaking. Tweakable live in Play mode.")]
+    [Range(30f, 120f)]
+    [SerializeField] private float crouchFov = 64f;
 
     [Header("Framing")]
     [Tooltip("Over-the-shoulder offset of the aim point, in metres. X moves the character " +
@@ -46,7 +64,9 @@ public class SO_CameraConfig : ScriptableObject
              "(OrbitalFollow's Position/Rotation Damping). Changing this does nothing.")]
     [SerializeField] private float cameraSmoothing = 0.2f;
 
-    public float Fov { get => fov; set => fov = value; }
+    public float WalkFov { get => walkFov; set => walkFov = value; }
+    public float SprintFov { get => sprintFov; set => sprintFov = value; }
+    public float CrouchFov { get => crouchFov; set => crouchFov = value; }
     public Vector3 ShoulderOffset { get => shoulderOffset; set => shoulderOffset = value; }
     public float MaxVerticalAngle { get => maxVerticalAngle; set => maxVerticalAngle = value; }
     public float CrouchPivotDrop { get => crouchPivotDrop; set => crouchPivotDrop = value; }

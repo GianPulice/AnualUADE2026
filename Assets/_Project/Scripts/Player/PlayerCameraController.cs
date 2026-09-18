@@ -25,6 +25,9 @@ public class PlayerCameraController : MonoBehaviour
 
     private PlayerStateManager player;
 
+    /// <summary>The config this rig is authored from. CameraSprintEffect reads its FOVs here.</summary>
+    public SO_CameraConfig Config => cameraConfig;
+
     // The registry rather than GetComponentInParent: the rig is parented under the player today,
     // but the same lookup keeps working if it is ever pulled out of the character hierarchy.
     private void OnEnable()  => PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
@@ -72,7 +75,7 @@ public class PlayerCameraController : MonoBehaviour
 
     void AplyConfig()
     {
-        cinemachineCamera.Lens.FieldOfView = cameraConfig.Fov;
+        cinemachineCamera.Lens.FieldOfView = cameraConfig.WalkFov;
         cinemachineOrbitalFollow.VerticalAxis.Range = new Vector2(-cameraConfig.MaxVerticalAngle, cameraConfig.MaxVerticalAngle);
         Vector3 temp = cameraConfig.ShoulderOffset;
         cinemachineRotationComposer.TargetOffset.Set(temp.x, temp.y, temp.z);
