@@ -7,8 +7,8 @@ using UnityEngine;
 /// (Scene view). They used to hold two copies of the same cast that had to be kept in step by
 /// hand, which is exactly how a gizmo starts lying about the range it is supposed to measure.
 ///
-/// Three rules it enforces, all of which the single combined cast from the camera got wrong on a
-/// third person rig:
+/// Four rules it enforces, the first three of which the single combined cast from the camera got
+/// wrong on a third person rig:
 ///
 /// 1. AIM comes from the crosshair. The cast is built with <c>ViewportPointToRay</c> through the
 ///    reticle's own viewport point, so it survives lens shift, a physical camera, an ultrawide
@@ -21,6 +21,14 @@ using UnityEngine;
 /// 3. OCCLUSION is solid geometry only, and it is judged from that same start point. Interaction
 ///    volumes may be triggers — which is what lets a door's interaction box stop being a wall that
 ///    seals its own doorway — while walls and props stay solid and still block.
+///
+/// 4. CLOSE RANGE works. Starting exactly at the player breaks down when the player is pressed
+///    against something at an angle: the start lands INSIDE the crate or door, or already past the
+///    one beside them, and a single sweep never reports a collider it starts inside — the player
+///    had to swing the camera around until the start happened to fall outside it. So the solid pass
+///    uses the multi-hit query, which does report it, and when nothing is found ahead of the player
+///    the probe falls back to the last <see cref="SO_InteractionManager.CloseRangeLead"/> metres
+///    before them.
 /// </summary>
 public static class InteractionProbe
 {
@@ -45,23 +53,44 @@ public static class InteractionProbe
         hit = default;
 
         if (camera == null || config == null) return null;
-        if (!TryBuildCast(camera, player, config, out Ray cast, out float reach)) return null;
+        if (!TryBuildCast(camera, player, config, out Ray cast, out float reach, out float along))
+            return null;
 
         float radius = config.CastRadius;
+        Transform self = player != null ? player.transform : null;
+
+        // What is in front of the player always wins. Only when there is nothing there does the
+        // probe look at what the player is standing beside or backed into (rule 4) — otherwise a
+        // crate right behind the player, between them and the camera, would steal the prompt from
+        // the one they are facing, which in the box puzzle is most of the time.
+        IInteractable ahead = FindAhead(cast, radius, reach, config, self, out hit);
+        if (ahead != null) return ahead;
+
+        float lead = Mathf.Min(config.CloseRangeLead, along);
+        if (lead <= 0f) return null;
+
+        Ray sweep = new Ray(cast.origin - cast.direction * lead, cast.direction);
+        return FindBesidePlayer(sweep, radius, lead, config, self, out hit);
+    }
+
+    /// <summary>
+    /// The crosshair target from the player onwards: rules 1 to 3. <paramref name="cast"/> starts
+    /// at the player.
+    /// </summary>
+    private static IInteractable FindAhead(Ray cast, float radius, float reach,
+                                           SO_InteractionManager config, Transform self,
+                                           out RaycastHit hit)
+    {
+        hit = default;
 
         // Pass A — interaction volumes. QueryTriggerInteraction.Collide on purpose: an interaction
         // box has no business being solid, and the ones that are solid still show up here.
         IInteractable target = NearestInteractable(cast, radius, reach, config.InteractableLayers,
-                                                   out RaycastHit targetHit);
+                                                   self, out RaycastHit targetHit);
 
         // Pass B — solid geometry, the only thing allowed to occlude.
-        bool blocked = Physics.SphereCast(cast, radius, out RaycastHit blockerHit, reach,
-                                          config.BlockingLayers, QueryTriggerInteraction.Ignore);
-
-        // A zero distance means the cast started inside that collider, which physics reports with
-        // a meaningless point and normal. It happens when the player is clipped a few centimetres
-        // into a wall, and treating it as occlusion would make interaction cut out exactly there.
-        if (blocked && blockerHit.distance <= 0f) blocked = false;
+        bool blocked = NearestBlocker(cast, radius, reach, config.BlockingLayers, self,
+                                      out RaycastHit blockerHit);
 
         if (target == null)
         {
@@ -80,15 +109,72 @@ public static class InteractionProbe
         // Something solid stands in front of the volume — unless it IS the interactable. A door's
         // leaf mesh sits on Default and is unavoidably a hair in front of the trigger box wrapped
         // around it; letting an object occlude itself would make every such door unusable.
-        if (blocked &&
-            blockerHit.distance < targetHit.distance - OcclusionEpsilon &&
-            !ReferenceEquals(Resolve(blockerHit.collider), target))
+        if (blocked && blockerHit.distance < targetHit.distance - OcclusionEpsilon)
         {
-            return null;
+            IInteractable front = Resolve(blockerHit.collider);
+            if (!ReferenceEquals(front, target))
+            {
+                // What is in front is itself an interactable on a solid layer (a crate, a door
+                // leaf): that, not the volume behind it, is what the crosshair is on.
+                if (front == null) return null;
+
+                hit = blockerHit;
+                return front;
+            }
         }
 
         hit = targetHit;
         return target;
+    }
+
+    /// <summary>
+    /// Rule 4: the interactable the player is pressed against or standing beside, found by
+    /// sweeping the last <paramref name="lead"/> metres of the crosshair line BEFORE the player.
+    /// Of those, the one nearest the player wins, so a prop further back towards the camera never
+    /// beats the one the player is actually touching. Plain geometry here does not occlude, same
+    /// as it never did in front of the player's start (rule 3).
+    /// </summary>
+    private static IInteractable FindBesidePlayer(Ray sweep, float radius, float lead,
+                                                  SO_InteractionManager config, Transform self,
+                                                  out RaycastHit hit)
+    {
+        hit = default;
+        IInteractable best = null;
+        float bestDistance = float.NegativeInfinity;
+
+        // Triggers are only wanted on the interactable layers; on the solid ones they are audio
+        // zones, push-box side anchors and the like.
+        CollectNearestToPlayer(sweep, radius, lead, config.InteractableLayers,
+                               QueryTriggerInteraction.Collide, self, ref best, ref bestDistance, ref hit);
+        CollectNearestToPlayer(sweep, radius, lead, config.BlockingLayers,
+                               QueryTriggerInteraction.Ignore, self, ref best, ref bestDistance, ref hit);
+
+        return best;
+    }
+
+    private static void CollectNearestToPlayer(Ray sweep, float radius, float lead, LayerMask layers,
+                                               QueryTriggerInteraction triggers, Transform self,
+                                               ref IInteractable best, ref float bestDistance,
+                                               ref RaycastHit bestHit)
+    {
+        int count = Physics.SphereCastNonAlloc(sweep, radius, Buffer, lead, layers, triggers);
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit candidate = Buffer[i];
+
+            // Zero is "the sweep started inside it": a metre back towards the camera, nowhere near
+            // the player, and with no usable hit point.
+            if (candidate.distance <= 0f || candidate.distance <= bestDistance) continue;
+            if (IsSelf(candidate.collider, self)) continue;
+
+            IInteractable resolved = Resolve(candidate.collider);
+            if (resolved == null) continue;
+
+            best = resolved;
+            bestDistance = candidate.distance;
+            bestHit = candidate;
+        }
     }
 
     /// <summary>
@@ -98,8 +184,18 @@ public static class InteractionProbe
     public static bool TryBuildCast(Camera camera, PlayerStateManager player,
                                     SO_InteractionManager config, out Ray cast, out float reach)
     {
+        return TryBuildCast(camera, player, config, out cast, out reach, out _);
+    }
+
+    /// <param name="along">How far along the crosshair ray, from the camera, the player sits —
+    /// i.e. how much room there is to start the sweep earlier without starting behind the lens.</param>
+    private static bool TryBuildCast(Camera camera, PlayerStateManager player,
+                                     SO_InteractionManager config, out Ray cast, out float reach,
+                                     out float along)
+    {
         cast = default;
         reach = 0f;
+        along = 0f;
 
         if (camera == null || config == null) return false;
 
@@ -112,7 +208,7 @@ public static class InteractionProbe
         // into "arm's length from the character" instead of "distance from the lens", and it also
         // drops everything between the camera and the player out of the query for free: their own
         // body, and the wall the Deoccluder pinched the camera into when they backed up to it.
-        float along = Mathf.Max(0f, Vector3.Dot(anchor - crosshairRay.origin, crosshairRay.direction));
+        along = Mathf.Max(0f, Vector3.Dot(anchor - crosshairRay.origin, crosshairRay.direction));
 
         cast = new Ray(crosshairRay.origin + crosshairRay.direction * along, crosshairRay.direction);
         reach = config.InteractionDistance;
@@ -144,10 +240,13 @@ public static class InteractionProbe
     /// centimetres further along.
     /// </summary>
     private static IInteractable NearestInteractable(Ray cast, float radius, float reach,
-                                                     LayerMask layers, out RaycastHit nearest)
+                                                     LayerMask layers, Transform self,
+                                                     out RaycastHit nearest)
     {
         nearest = default;
 
+        // The multi-hit query and not SphereCast: it reports a collider the sweep STARTS inside
+        // (at distance 0), where the single-hit one silently skips it.
         int count = Physics.SphereCastNonAlloc(cast, radius, Buffer, reach, layers,
                                                QueryTriggerInteraction.Collide);
 
@@ -158,6 +257,7 @@ public static class InteractionProbe
         {
             RaycastHit candidate = Buffer[i];
             if (candidate.distance >= bestDistance) continue;
+            if (IsSelf(candidate.collider, self)) continue;
 
             IInteractable resolved = Resolve(candidate.collider);
             if (resolved == null) continue;
@@ -168,6 +268,51 @@ public static class InteractionProbe
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Nearest solid hit that counts, or false.
+    ///
+    /// The multi-hit query and not SphereCast, because of what happens when the player stands
+    /// pressed against a solid interactable (a crate, a door leaf): the cast starts INSIDE its
+    /// collider. SphereCast skips such a collider without a word, which is the "have to swing the
+    /// camera around before E works" bug; the multi-hit query reports it at distance 0.
+    ///
+    /// Distance 0 is then kept only for an interactable. Anything else the cast starts inside is
+    /// skipped: physics gives it a meaningless point and normal, and a player clipped a few
+    /// centimetres into a wall must not lose interaction exactly there.
+    /// </summary>
+    private static bool NearestBlocker(Ray cast, float radius, float reach, LayerMask layers,
+                                       Transform self, out RaycastHit nearest)
+    {
+        nearest = default;
+
+        int count = Physics.SphereCastNonAlloc(cast, radius, Buffer, reach, layers,
+                                               QueryTriggerInteraction.Ignore);
+
+        bool found = false;
+        float bestDistance = float.PositiveInfinity;
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit candidate = Buffer[i];
+            if (candidate.distance >= bestDistance) continue;
+            if (IsSelf(candidate.collider, self)) continue;
+
+            if (candidate.distance <= 0f && Resolve(candidate.collider) == null) continue;
+
+            found = true;
+            bestDistance = candidate.distance;
+            nearest = candidate;
+        }
+
+        return found;
+    }
+
+    /// <summary>The player's own colliders never block and are never a target.</summary>
+    private static bool IsSelf(Collider collider, Transform self)
+    {
+        return self != null && collider != null && collider.transform.IsChildOf(self);
     }
 
     /// <summary>

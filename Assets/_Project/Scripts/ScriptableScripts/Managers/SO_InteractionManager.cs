@@ -31,6 +31,13 @@ public class SO_InteractionManager : ScriptableObject
              "floor, valves) forgiving without losing directionality. 0 makes it a plain ray.")]
     [SerializeField, Min(0f)] private float castRadius = 0.1f;
 
+    [Tooltip("Metres BEFORE the player (along the crosshair line) searched when nothing is found " +
+             "ahead of them. Catches the interactable the player is pressed against or standing " +
+             "beside, whose collider the cast would otherwise start inside or already past. Only " +
+             "a fallback: whatever is ahead of the player always wins. Roughly the size of the " +
+             "biggest prop you can stand against; 0 turns the fallback off.")]
+    [SerializeField, Min(0f)] private float closeRangeLead = 1f;
+
     [Tooltip("Fallback height above the player's pivot used as the reach origin when the player " +
              "has no CapsuleCollider to read. With one, the capsule's own centre is used, so the " +
              "origin follows the crouch automatically.")]
@@ -41,5 +48,6 @@ public class SO_InteractionManager : ScriptableObject
     public LayerMask BlockingLayers => blockingLayers;
     public Vector2 CrosshairViewportPoint => crosshairViewportPoint;
     public float CastRadius => castRadius;
+    public float CloseRangeLead => closeRangeLead;
     public float FallbackOriginHeight => fallbackOriginHeight;
 }
