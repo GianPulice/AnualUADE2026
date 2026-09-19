@@ -715,6 +715,18 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
 
     /// <summary>
+    /// Switches to the injured animations for this penalty right away, without applying the
+    /// gameplay penalty itself. Called by ModuleExplosionSequence on the frame the explosion VFX
+    /// goes off on the body, so the idle turns hurt exactly when the hit is seen; the speed factor
+    /// still lands later through <see cref="ApplyPenalty"/>. Idempotent, so that later call re-applies
+    /// nothing visible.
+    /// </summary>
+    public void ShowInjuredAnimation(PenaltyType type)
+    {
+        if (type == PenaltyType.Legs) ApplyInjuredLocomotion();
+    }
+
+    /// <summary>
     /// Wraps the Animator's controller in an AnimatorOverrideController that starts out overriding
     /// nothing, so it behaves exactly like the original asset. <see cref="ApplyPenalty"/> can then
     /// drop the injured clips in later without ever touching runtimeAnimatorController — see the

@@ -38,6 +38,36 @@ public class MystifyScreensaver : MonoBehaviour
              "thick they look: 360 is 3 px at 1080p. The width follows the RawImage's aspect.")]
     [SerializeField, Range(120, 1080)] private int rows = 360;
 
+    [Header("Random look per show")]
+    [Tooltip("On every show, the shape / trail / motion / line / colour-rate values are rolled inside " +
+             "the ranges below on the runtime copy. Brightness, Saturation, Background, the render queue " +
+             "and the GI flags are never touched: they stay as authored on the material. Off = the " +
+             "material's values are used as they are, only the seed changes.")]
+    [SerializeField] private bool randomizeLook = true;
+
+    [SerializeField] private Vector2Int polygonsRange = new Vector2Int(1, 4);
+    [SerializeField] private Vector2Int cornersRange = new Vector2Int(3, 6);
+    [SerializeField] private Vector2Int echoesRange = new Vector2Int(3, 12);
+    [SerializeField] private Vector2 echoSpacingRange = new Vector2(0.03f, 0.15f);
+    [SerializeField] private Vector2 echoFadeRange = new Vector2(0f, 0.8f);
+    [Tooltip("Rolled min corner speed. The max speed is min + a roll of Speed Spread.")]
+    [SerializeField] private Vector2 speedMinRange = new Vector2(0.06f, 0.2f);
+    [SerializeField] private Vector2 speedSpreadRange = new Vector2(0.05f, 0.2f);
+    [SerializeField] private Vector2 marginRange = new Vector2(0f, 0.05f);
+    [SerializeField] private Vector2 lineWidthRange = new Vector2(1f, 2f);
+    [SerializeField] private Vector2 colorCycleRange = new Vector2(1f, 6f);
+
+    private static readonly int PropPolygons    = Shader.PropertyToID("_Polygons");
+    private static readonly int PropCorners     = Shader.PropertyToID("_Corners");
+    private static readonly int PropEchoes      = Shader.PropertyToID("_Echoes");
+    private static readonly int PropEchoSpacing = Shader.PropertyToID("_EchoSpacing");
+    private static readonly int PropEchoFade    = Shader.PropertyToID("_EchoFade");
+    private static readonly int PropSpeedMin    = Shader.PropertyToID("_SpeedMin");
+    private static readonly int PropSpeedMax    = Shader.PropertyToID("_SpeedMax");
+    private static readonly int PropMargin      = Shader.PropertyToID("_Margin");
+    private static readonly int PropLineWidth   = Shader.PropertyToID("_LineWidth");
+    private static readonly int PropColorCycle  = Shader.PropertyToID("_ColorCycle");
+
     private RawImage image;
     private Material runtime;
     private RenderTexture target;
@@ -102,7 +132,44 @@ public class MystifyScreensaver : MonoBehaviour
 
         // Below 2^24: the shader reads the seed back out of a float, exact only up to there.
         runtime.SetFloat(PropSeed, Rng.Next(1, 1 << 24));
+        if (randomizeLook) RandomizeLook();
         startedAt = Time.unscaledTime;
+    }
+
+    /// <summary>
+    /// Rolls the tunable look on the runtime copy, clamped to the shader's own property ranges.
+    /// Only the properties listed here change: Brightness, Saturation, Background, render queue and
+    /// GI stay exactly as the material asset has them.
+    /// </summary>
+    private void RandomizeLook()
+    {
+        runtime.SetFloat(PropPolygons, RollInt(polygonsRange, 1, 4));
+        runtime.SetFloat(PropCorners, RollInt(cornersRange, 3, 6));
+        runtime.SetFloat(PropEchoes, RollInt(echoesRange, 1, 16));
+        runtime.SetFloat(PropEchoSpacing, Roll(echoSpacingRange, 0.01f, 0.3f));
+        runtime.SetFloat(PropEchoFade, Roll(echoFadeRange, 0f, 1f));
+
+        float speedMin = Roll(speedMinRange, 0f, 1f);
+        runtime.SetFloat(PropSpeedMin, speedMin);
+        runtime.SetFloat(PropSpeedMax, Mathf.Clamp(speedMin + Roll(speedSpreadRange, 0f, 1f), speedMin, 1f));
+
+        runtime.SetFloat(PropMargin, Roll(marginRange, 0f, 0.2f));
+        runtime.SetFloat(PropLineWidth, Roll(lineWidthRange, 0.5f, 4f));
+        runtime.SetFloat(PropColorCycle, Roll(colorCycleRange, 0.25f, 20f));
+    }
+
+    private static float Roll(Vector2 range, float min, float max)
+    {
+        float lo = Mathf.Clamp(Mathf.Min(range.x, range.y), min, max);
+        float hi = Mathf.Clamp(Mathf.Max(range.x, range.y), min, max);
+        return lo + (float)Rng.NextDouble() * (hi - lo);
+    }
+
+    private static int RollInt(Vector2Int range, int min, int max)
+    {
+        int lo = Mathf.Clamp(Mathf.Min(range.x, range.y), min, max);
+        int hi = Mathf.Clamp(Mathf.Max(range.x, range.y), min, max);
+        return Rng.Next(lo, hi + 1);   // inclusive
     }
 
     // -- Render target -------------------

@@ -121,7 +121,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
 
         Transform focus = FindFocusBone(runtime);
         Vector3 at = focus != null ? focus.position : FallbackFocus();
-        PlayExplosion(at);
+        PlayExplosion(at, runtime);
         ModuleEvents.RaisePenaltyApplied(runtime);
     }
 
@@ -270,7 +270,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         }
 
         Vector3 at = focus != null ? focus.position : FallbackFocus();
-        float effectDuration = PlayExplosion(at);
+        float effectDuration = PlayExplosion(at, cause);
 
         float wait = config != null
             ? Mathf.Min(effectDuration, config.MaxEffectWait) + config.PostExplosionHold
@@ -305,9 +305,17 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     }
 
     /// <returns>Seconds the effect lasts (0 when there is none).</returns>
-    private float PlayExplosion(Vector3 at)
+    private float PlayExplosion(Vector3 at, ModuleRuntime cause)
     {
         float duration = 0f;
+
+        // Same frame as the VFX: the body reads as hurt the moment the hit is seen, not only once
+        // the cinematic is over and the gameplay penalty lands.
+        if (player != null && cause != null && cause.Data != null)
+            player.ShowInjuredAnimation(cause.Data.Penalty);
+
+        // Same frame too: the module's LED turns red with the blast, not when the state changed.
+        if (cause != null) ModuleEvents.RaiseExplosionShown(cause);
 
         if (config != null && config.VfxPrefab != null)
         {

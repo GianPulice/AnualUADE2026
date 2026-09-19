@@ -3678,7 +3678,7 @@ Light:
   m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
+  m_Color: {r: 1, g: 0.6, b: 0.05, a: 1}
   m_Intensity: 3.5
   m_Range: 1.6
   m_SpotAngle: 30
@@ -3800,11 +3800,15 @@ MonoBehaviour:
   ledLight: {fileID: 9184021725946286587}
   blinkAnimator: {fileID: 2547326504092224050}
   renderers: []
-  activeMaterial: {fileID: 2100000, guid: 1e2b7e61b61359e409ff0ad6a134518b, type: 2}
+  activeMaterial: {fileID: 2100000, guid: 2f17293ac47d4dc8b6935143d94b64a8, type: 2}
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
   resolvedLightIntensity: 1.5
+  explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
+  explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
+  explodedLightIntensity: 1.5
+  castLightWhenSteady: 0
 --- !u!1001 &1974476544131229765
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3909,7 +3913,7 @@ Light:
   m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
+  m_Color: {r: 1, g: 0.6, b: 0.05, a: 1}
   m_Intensity: 3.5
   m_Range: 1.6
   m_SpotAngle: 30
@@ -4031,11 +4035,15 @@ MonoBehaviour:
   ledLight: {fileID: 8141954018953312529}
   blinkAnimator: {fileID: 5866652287437027259}
   renderers: []
-  activeMaterial: {fileID: 2100000, guid: ffc27677862e5b94b9157e70272db3b9, type: 2}
+  activeMaterial: {fileID: 2100000, guid: 2f17293ac47d4dc8b6935143d94b64a8, type: 2}
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
   resolvedLightIntensity: 1.5
+  explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
+  explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
+  explodedLightIntensity: 1.5
+  castLightWhenSteady: 0
 --- !u!4 &2084047916685922222 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
@@ -4150,7 +4158,7 @@ Light:
   m_Enabled: 0
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 1, g: 0.06, b: 0.06, a: 1}
+  m_Color: {r: 1, g: 0.6, b: 0.05, a: 1}
   m_Intensity: 3.5
   m_Range: 1.6
   m_SpotAngle: 30
@@ -4272,8 +4280,12 @@ MonoBehaviour:
   ledLight: {fileID: 3789438466116516116}
   blinkAnimator: {fileID: 1935221253927042738}
   renderers: []
-  activeMaterial: {fileID: 2100000, guid: 59bfd39a77fd8ff41901e441da4963da, type: 2}
+  activeMaterial: {fileID: 2100000, guid: 2f17293ac47d4dc8b6935143d94b64a8, type: 2}
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
   resolvedLightIntensity: 1.5
+  explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
+  explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
+  explodedLightIntensity: 1.5
+  castLightWhenSteady: 0

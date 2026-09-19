@@ -4,13 +4,17 @@ using UnityEngine;
 /// Drives one LED on the player's rig from the status of its own module, independently of the
 /// other LEDs:
 ///   • Inactive → off (the default until that module's countdown starts)
-///   • Active   → the red blink (LED_Parpadeo Animator + its original material)
+///   • Active   → the orange-yellow blink (LED_Parpadeo Animator + LED_Naranja)
 ///   • Resolved → steady green
-///   • Exploded → off
+///   • Exploded → steady red, from the frame the explosion VFX goes off (not the state change)
+///
+/// The colours are the LED's own emissive materials (LED_Naranja / LED_Verde / LED_Rojo),
+/// untextured: the button textures are solid red and would tint any colour back to red. The Light
+/// only glows for the steady ones when castLightWhenSteady is on.
 ///
 /// The blink Animator writes _EmissionColor through renderer property blocks and the Light's
 /// intensity every frame, so it is disabled outside Active and the blocks are cleared before a
-/// material swap — otherwise the last animated red would bleed over the off/green materials.
+/// material swap — otherwise the last animated orange would bleed over the off/green/red materials.
 ///
 /// Polls the status each frame instead of only listening to <see cref="ModuleEvents"/>: a session
 /// reset or a loaded save rebuilds the runtimes without raising OnStateChanged.
@@ -27,7 +31,7 @@ public class ModuleLED : MonoBehaviour
     [SerializeField] private Renderer[] renderers;
 
     [Header("Materials")]
-    [Tooltip("Blinking red, used while Active. Empty = the material the renderers start with.")]
+    [Tooltip("Blinking orange-yellow, used while Active. Empty = the material the renderers start with.")]
     [SerializeField] private Material activeMaterial;
     [SerializeField] private Material offMaterial;
     [SerializeField] private Material resolvedMaterial;
@@ -36,9 +40,26 @@ public class ModuleLED : MonoBehaviour
     [SerializeField] private Color resolvedLightColor = new Color(0.1f, 1f, 0.25f, 1f);
     [SerializeField] private float resolvedLightIntensity = 1.5f;
 
+    [Header("Exploded light")]
+    [Tooltip("Material shown once this module has exploded. Empty = the off material.")]
+    [SerializeField] private Material explodedMaterial;
+    [SerializeField] private Color explodedLightColor = new Color(1f, 0.06f, 0.06f, 1f);   // red
+    [SerializeField] private float explodedLightIntensity = 1.5f;
+
+    [Tooltip("Off = the green and yellow states only light up the LED itself (its emissive " +
+             "material), with no glow cast around the player. On = the Light is also tinted and on.")]
+    [SerializeField] private bool castLightWhenSteady = false;
+
     private Color activeLightColor;
     private float activeLightIntensity;
     private ModuleStatus? shownStatus;
+
+    // The Active → Exploded switch waits for the blast to be SEEN (ModuleEvents.OnExplosionShown):
+    // with a cinematic the camera first travels to the body part, and the LED going red before the
+    // VFX reads as a spoiler. Bounded so a presentation that never plays the VFX cannot freeze it.
+    private const float MaxWaitForExplosionVfx = 10f;
+    private bool explosionShown;
+    private float explodedAt = -1f;
 
     private void Awake()
     {
@@ -59,16 +80,43 @@ public class ModuleLED : MonoBehaviour
 
     private void OnEnable()
     {
+        ModuleEvents.OnExplosionShown += HandleExplosionShown;
         shownStatus = null;
         Refresh();
     }
 
+    private void OnDisable()
+    {
+        ModuleEvents.OnExplosionShown -= HandleExplosionShown;
+    }
+
     private void Update() => Refresh();
+
+    private void HandleExplosionShown(ModuleRuntime runtime)
+    {
+        if (module == null || runtime == null || runtime.ModuleID != module.ModuleID) return;
+        explosionShown = true;
+        Refresh();   // Same frame as the VFX.
+    }
 
     private void Refresh()
     {
         ModuleStatus status = CurrentStatus();
         if (shownStatus == status) return;
+
+        // Keep blinking until the explosion is on screen. Only from Active: an LED enabled on an
+        // already exploded module (loaded save, session reset) shows red straight away. With no
+        // presentation in the scene nobody raises OnExplosionShown, so it switches at once.
+        if (status == ModuleStatus.Exploded && shownStatus == ModuleStatus.Active &&
+            ModuleEvents.PenaltyPresenterActive && !explosionShown)
+        {
+            if (explodedAt < 0f) explodedAt = Time.unscaledTime;
+            if (Time.unscaledTime - explodedAt < MaxWaitForExplosionVfx) return;
+        }
+
+        explodedAt = -1f;
+        if (status != ModuleStatus.Exploded) explosionShown = false;
+
         shownStatus = status;
         Apply(status);
     }
@@ -106,11 +154,22 @@ public class ModuleLED : MonoBehaviour
                 {
                     ledLight.color = resolvedLightColor;
                     ledLight.intensity = resolvedLightIntensity;
-                    ledLight.enabled = true;
+                    ledLight.enabled = castLightWhenSteady;
                 }
                 break;
 
-            default: // Inactive, Exploded
+            case ModuleStatus.Exploded:
+                StopBlink();
+                SetMaterial(explodedMaterial != null ? explodedMaterial : offMaterial);
+                if (ledLight != null)
+                {
+                    ledLight.color = explodedLightColor;
+                    ledLight.intensity = explodedLightIntensity;
+                    ledLight.enabled = castLightWhenSteady;
+                }
+                break;
+
+            default: // Inactive
                 StopBlink();
                 SetMaterial(offMaterial);
                 if (ledLight != null) ledLight.enabled = false;

@@ -31,13 +31,14 @@ MonoBehaviour:
   playerLightRange: 4.4
   playerLightClear: 0.94
   playerLightFalloff: 2
-  playerLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
+  playerLightColor: {r: 1, g: 0.6745283, b: 0.6745283, a: 1}
   playerLightTint: 1
   playerLightInjection: 0.04
   bypassFalloff: 2
   bypassDefaultColor: {r: 1, g: 0.85, b: 0.6, a: 1}
   bypassDefaultIntensity: 1
   bypassDefaultClear: 1
+  bypassPlayerFade: 1
   transitionDuration: 5
   silhouetteMode: 3
   densityPower: 0.25

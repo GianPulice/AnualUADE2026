@@ -38,10 +38,19 @@ public static class ModuleEvents
     /// </summary>
     public static bool PenaltyPresenterActive { get; set; }
 
+    /// <summary>
+    /// The explosion VFX of this module has just gone off on screen. Raised by the presentation
+    /// (ModuleExplosionSequence) on the frame the effect spawns, which with a cinematic is well after
+    /// <see cref="OnExploded"/>: anything that should change "when the blast is seen" (the LED
+    /// turning red) waits for this instead of the state change.
+    /// </summary>
+    public static event Action<ModuleRuntime> OnExplosionShown;
+
     // ── Invokers (kept internal so only the manager can raise) ─────────────────────────
     internal static void RaiseStateChanged(ModuleRuntime m) => OnStateChanged?.Invoke(m);
     internal static void RaiseTimerTick(ModuleRuntime m) => OnTimerTick?.Invoke(m);
     internal static void RaiseExploded(ModuleRuntime m) => OnExploded?.Invoke(m);
     internal static void RaiseAllModulesExploded() => OnAllModulesExploded?.Invoke();
     internal static void RaisePenaltyApplied(ModuleRuntime m) => OnPenaltyApplied?.Invoke(m);
+    internal static void RaiseExplosionShown(ModuleRuntime m) => OnExplosionShown?.Invoke(m);
 }
