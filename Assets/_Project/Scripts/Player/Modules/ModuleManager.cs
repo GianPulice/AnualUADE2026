@@ -229,8 +229,29 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     /// </summary>
     public void ApplyTimePenalty(float seconds)
     {
-        if (activeRuntime == null || !activeRuntime.IsTimerRunning) return;
-        activeRuntime.TimeRemaining = Mathf.Max(0f, activeRuntime.TimeRemaining - seconds);
+        if (activeRuntime == null || !activeRuntime.IsTimerRunning || seconds <= 0f) return;
+
+        float before = activeRuntime.TimeRemaining;
+        activeRuntime.TimeRemaining = Mathf.Max(0f, before - seconds);
+
+        float applied = activeRuntime.TimeRemaining - before;
+        if (applied < 0f) ModuleEvents.RaiseTimeAdjusted(activeRuntime, applied);
+    }
+
+    /// <summary>
+    /// Give seconds back to the active module's timer, capped at its full duration. The reward side
+    /// of <see cref="ApplyTimePenalty"/> — a perfect skill check hit uses it. Ignored with no module
+    /// running, so it can never revive an exploded one.
+    /// </summary>
+    public void ApplyTimeBonus(float seconds)
+    {
+        if (activeRuntime == null || !activeRuntime.IsTimerRunning || seconds <= 0f) return;
+
+        float before = activeRuntime.TimeRemaining;
+        activeRuntime.TimeRemaining = Mathf.Min(activeRuntime.Data.TimerDuration, before + seconds);
+
+        float applied = activeRuntime.TimeRemaining - before;
+        if (applied > 0f) ModuleEvents.RaiseTimeAdjusted(activeRuntime, applied);
     }
 
     /// <summary>

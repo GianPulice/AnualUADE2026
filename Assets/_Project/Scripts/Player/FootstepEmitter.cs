@@ -98,6 +98,14 @@ public class FootstepEmitter : MonoBehaviour
              "step (chase speed at a bad frame rate) and below the shortest warp.")]
     [SerializeField, Min(0.1f)] private float teleportThreshold = 1.5f;
 
+    [Tooltip("Shortest time allowed between two steps, in seconds. A second step inside this " +
+             "window is dropped.\n\n" +
+             "Backstop for WIR-023: whatever makes two steps land a few frames apart (a crossfade " +
+             "whose weights sit right at 0.5, a state re-entered on its footfall frame) is heard as " +
+             "a click, never as walking. The fastest real gap is the limp run's drag-to-step, about " +
+             "0.2 s at full playback speed, so 0.12 cannot eat a real footfall.")]
+    [SerializeField, Min(0f)] private float minStepInterval = 0.12f;
+
     [Header("3D falloff")]
     [SerializeField, Min(0f)] private float minDistance = 2f;
 
@@ -192,6 +200,9 @@ public class FootstepEmitter : MonoBehaviour
 
     /// <summary>Alternates step / drag while the legs penalty is active. Reset when it is not.</summary>
     private bool limpDragNext;
+
+    /// <summary>Time.time of the last step played, for <see cref="minStepInterval"/>.</summary>
+    private float lastStepTime = float.NegativeInfinity;
 
     private bool warned;
 
@@ -372,14 +383,23 @@ public class FootstepEmitter : MonoBehaviour
     /// Does nothing in Distance mode, so flipping <see cref="cadenceSource"/> back does not leave
     /// the animation firing steps on top of the accumulator.
     /// </summary>
-    public void Step()
+    /// <param name="dragFoot">
+    /// True when the footfall is the hurt leg's in an injured clip (tagged
+    /// <see cref="FootstepAnimationRelay.DragTag"/>): it plays the limp drag instead of a step.
+    /// The tag only exists on the injured clips, so healthy locomotion never drags.
+    /// </param>
+    public void Step(bool dragFoot = false)
     {
         if (cadenceSource != ECadence.AnimationEvent) return;
         if (IsSuppressed()) return;
-        PlayStep();
+        PlayStep(dragFoot);
     }
 
-    private void PlayStep()
+    /// <param name="dragFoot">
+    /// Animation-driven: whether this footfall is the limping leg's. Null in Distance mode, which
+    /// has no feet to ask and falls back to alternating step / drag while the legs penalty holds.
+    /// </param>
+    private void PlayStep(bool? dragFoot = null)
     {
         if (bank == null)
         {
@@ -387,21 +407,32 @@ public class FootstepEmitter : MonoBehaviour
             return;
         }
 
+        // unscaled would keep counting through a pause; scaled is the clock the animation runs on.
+        if (Time.time - lastStepTime < minStepInterval) return;
+        lastStepTime = Time.time;
+
         Collider ground = ProbeGround();
 
         // The limp is an alternation, not a replacement: step, drag, step, drag. Only the drag half
         // comes out of the limp clips; the other half is a normal step on whatever is underfoot.
-        bool legsPenalty = player != null && player.LegsPenaltyActive;
-        if (!legsPenalty) limpDragNext = false;
-
-        if (legsPenalty && limpDragNext && bank.HasLimpDrag)
+        bool drag;
+        if (dragFoot.HasValue)
         {
-            limpDragNext = false;
+            drag = dragFoot.Value;
+        }
+        else
+        {
+            bool legsPenalty = player != null && player.LegsPenaltyActive;
+            if (!legsPenalty) limpDragNext = false;
+            drag = legsPenalty && limpDragNext;
+            limpDragNext = legsPenalty && !drag;
+        }
+
+        if (drag && bank.HasLimpDrag)
+        {
             limpBag = Emit(bank.LimpDragClips, limpBag, bank.LimpDragVolume, bank.LimpDragPitchRange);
             return;
         }
-
-        if (legsPenalty) limpDragNext = true;
 
         SO_FootstepBank.SurfaceEntry entry = bank.Resolve(ground);
         if (entry == null)

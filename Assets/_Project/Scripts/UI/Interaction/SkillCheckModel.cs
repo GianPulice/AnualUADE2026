@@ -17,11 +17,11 @@ public class SkillCheckModel : BaseScreenModel
 
     public void Configure(SO_SkillCheckData data)
     {
-        NeedleSpeed      = data.needleSpeed;
-        SuccessZoneStart = data.successZoneStartAngle;
-        SuccessZoneWidth = data.initialSuccessZoneWidth;
-        _widthIncrement  = data.successZoneWidthIncrement;
-        TotalChecks      = data.totalChecks;
+        //NeedleSpeed      = data.needleSpeed;
+        //SuccessZoneStart = data.successZoneStartAngle;
+        //SuccessZoneWidth = data.initialSuccessZoneWidth;
+        //_widthIncrement  = data.successZoneWidthIncrement;
+        //TotalChecks      = data.totalChecks;
         CurrentCheck     = 0;
         IsComplete       = false;
         IsInitialized    = true;

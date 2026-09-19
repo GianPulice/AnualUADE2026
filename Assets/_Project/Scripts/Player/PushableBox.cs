@@ -52,6 +52,25 @@ public class PushableBox : BaseRangeInteractable
     // sqrt on every FixedUpdate; 0.01 m/s is small enough that a genuine push (0.5–1.5 m/s in
     // this project) reads as moving without the noise of physics jitter tripping it.
     private const float PushMoveThresholdSqr = 0.01f * 0.01f;
+
+    // Push-loop shaping. The box's speed dips below the threshold for a physics step or two on
+    // every bump, corner or change of direction; stopping on the first dip and restarting the
+    // clip from zero on the next push is what made the loop stutter. So the loop only goes quiet
+    // after the box has been still for PushStopGraceSeconds, fades instead of cutting (a hard
+    // Stop clicks), and pauses rather than stops so the next push resumes mid-clip.
+    private const float PushStopGraceSeconds = 0.15f;
+    private const float PushFadeSeconds = 0.1f;
+    // Pitch follows the box's actual speed as a fraction of SO_Movement.BoxPushSpeed, so a box
+    // grinding against a wall sounds heavier than one sliding freely at full speed.
+    private const float PushPitchMin = 0.9f;
+    private const float PushPitchMax = 1.05f;
+    private const float PushPitchChangePerSecond = 1f;
+    // SO_SoundData.Volume as PlayLoop left it on the source; the fade scales from it.
+    private float pushLoopBaseVolume = 1f;
+    private float pushLoopFade;
+    private float pushLoopTargetPitch = 1f;
+    private float lastPushMovingTime = float.NegativeInfinity;
+    private bool pushLoopPaused;
     // Authored side anchors — one Transform per face, read from the PushBoxTriggerLogic children
     // on Awake. Used ONLY as latch positions; their trigger callbacks no longer gate interaction.
     private Transform[] sideAnchors;
@@ -84,8 +103,30 @@ public class PushableBox : BaseRangeInteractable
         EnsurePushLoopSource();
     }
 
-    private void OnEnable()  => PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
-    private void OnDisable() => PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+    private void OnEnable()
+    {
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
+        ModuleEvents.OnExploded += HandleModuleExploded;
+    }
+
+    private void OnDisable()
+    {
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        ModuleEvents.OnExploded -= HandleModuleExploded;
+    }
+
+    /// <summary>
+    /// Let go when a module explodes, too. The explosion cinematic locks the player and swings the
+    /// camera onto the body, and resuming a push out of it left the latch half-broken (the snap
+    /// towards the anchor re-ran from wherever the shot left the player). After the explosion the
+    /// player is simply standing next to the box, free to grab it again.
+    /// </summary>
+    private void HandleModuleExploded(ModuleRuntime runtime)
+    {
+        if (!isGrabbed) return;
+        ForceRelease();
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     /// <summary>
     /// Let go the instant the Nemesis grabs the player.
@@ -103,9 +144,10 @@ public class PushableBox : BaseRangeInteractable
     /// interactable — which is why this releases rather than just clearing the player's flag.
     ///
     /// Hung off the capture and not CheckpointManager.OnRespawned because the defeat fallback never
-    /// respawns, and a box still latched there would carry its state into the next run. The other
-    /// things that set IsDisabled (the Architect's lines, the module explosion) deliberately do NOT
-    /// release: they never move the player, so resuming the push afterwards is correct.
+    /// respawns, and a box still latched there would carry its state into the next run. The
+    /// Architect's lines, which also set IsDisabled, deliberately do NOT release: they never move
+    /// the player, so resuming the push afterwards is correct. The module explosion does release —
+    /// see <see cref="HandleModuleExploded"/>.
     /// </summary>
     private void HandlePlayerCaptured(PlayerStateManager captured)
     {
@@ -146,6 +188,8 @@ public class PushableBox : BaseRangeInteractable
     // the distance math entirely.
     private void Update()
     {
+        TickPushLoop();
+
         if (isGrabbed || locked) { lastGrabInRange = null; return; }
 
         if (!InteractionManager.Exists) return;
@@ -189,8 +233,18 @@ public class PushableBox : BaseRangeInteractable
         bool moving = pressingPush && perSecondSqr > PushMoveThresholdSqr;
         lastPushPos = transform.position;
 
-        if (moving && !pushSoundPlaying) StartPushSound();
-        else if (!moving && pushSoundPlaying) StopPushSound();
+        if (moving)
+        {
+            lastPushMovingTime = Time.time;
+            float pushCap = Mathf.Max(player.Movement != null ? player.Movement.BoxPushSpeed : 0f, 0.01f);
+            float speed01 = Mathf.Clamp01(Mathf.Sqrt(perSecondSqr) / pushCap);
+            pushLoopTargetPitch = Mathf.Lerp(PushPitchMin, PushPitchMax, speed01);
+            if (!pushSoundPlaying) StartPushSound();
+        }
+        else if (pushSoundPlaying && Time.time - lastPushMovingTime > PushStopGraceSeconds)
+        {
+            StopPushSound();
+        }
     }
 
     // Length of the Slerp in PlayerBoxInteractingState.animTimer. Kept as a local constant
@@ -278,17 +332,66 @@ public class PushableBox : BaseRangeInteractable
         }
     }
 
+    // pushSoundPlaying is the loop's target ("should be audible"); TickPushLoop moves the actual
+    // volume toward it. A push that resumes while the loop is still fading out just reverses the
+    // fade, one that resumes after it went quiet unpauses, and only the very first push (or the
+    // first after a hard stop) loads the clip.
     private void StartPushSound()
     {
-        if (pushLoopSource == null || !AudioManager.Exists) return;
-        AudioManager.Instance.PlayLoop("sfx_empujando_caja", pushLoopSource);
+        if (pushLoopSource == null) return;
+
+        if (pushLoopPaused)
+        {
+            pushLoopSource.UnPause();
+            pushLoopPaused = false;
+        }
+        else if (!pushLoopSource.isPlaying)
+        {
+            if (!AudioManager.Exists) return;
+            AudioManager.Instance.PlayLoop("sfx_empujando_caja", pushLoopSource);
+            if (!pushLoopSource.isPlaying) return; // Unknown id or missing clip; AudioManager logged it.
+
+            pushLoopBaseVolume = pushLoopSource.volume;
+            pushLoopFade = 0f;
+            pushLoopSource.volume = 0f;
+            pushLoopSource.pitch = pushLoopTargetPitch;
+            // Random entry point so every fresh push does not open on the same attack.
+            if (pushLoopSource.clip != null)
+                pushLoopSource.time = Random.Range(0f, pushLoopSource.clip.length);
+        }
+
         pushSoundPlaying = true;
     }
 
-    private void StopPushSound()
+    /// <param name="immediate">Cut with no fade. Only for LockAtBasket, where the loop must be
+    /// gone before the "colocar_caja" one-shot starts.</param>
+    private void StopPushSound(bool immediate = false)
     {
-        if (pushLoopSource != null && pushLoopSource.isPlaying) pushLoopSource.Stop();
         pushSoundPlaying = false;
+        if (!immediate || pushLoopSource == null) return;
+
+        pushLoopSource.Stop();
+        pushLoopSource.volume = 0f;
+        pushLoopFade = 0f;
+        pushLoopPaused = false;
+    }
+
+    // Runs every frame, grabbed or not, so a fade-out started by Release still completes.
+    private void TickPushLoop()
+    {
+        if (pushLoopSource == null || !pushLoopSource.isPlaying) return;
+
+        float target = pushSoundPlaying ? 1f : 0f;
+        pushLoopFade = Mathf.MoveTowards(pushLoopFade, target, Time.deltaTime / PushFadeSeconds);
+        pushLoopSource.volume = pushLoopBaseVolume * pushLoopFade;
+        pushLoopSource.pitch = Mathf.MoveTowards(pushLoopSource.pitch, pushLoopTargetPitch,
+                                                 PushPitchChangePerSecond * Time.deltaTime);
+
+        if (!pushSoundPlaying && pushLoopFade <= 0f)
+        {
+            pushLoopSource.Pause();
+            pushLoopPaused = true;
+        }
     }
 
     // ── IInteractable ───────────────────────────────────────────────────────
@@ -514,7 +617,7 @@ public class PushableBox : BaseRangeInteractable
         // under the "colocar_caja" one-shot. ForceRelease above does not touch it, and even if it
         // did the ordering matters: stop first, then play, otherwise the loop's own Stop could
         // race the one-shot on the shared bus.
-        StopPushSound();
+        StopPushSound(immediate: true);
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_colocar_caja", transform.position);
 

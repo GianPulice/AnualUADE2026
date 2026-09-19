@@ -74,6 +74,7 @@ public class PauseManager : Singleton<PauseManager>
     private void TryToggleFromInput()
     {
         if (IsPaused) return;   // if already paused, closing goes through UI/Exit.
+        if (ScreenManager.IsInputLocked) return;
 
         // No player in the loaded scenes means there is no gameplay to pause. An ESC on the main
         // menu (Player/Pause is enabled the whole run) or during a scene load would otherwise
@@ -91,10 +92,12 @@ public class PauseManager : Singleton<PauseManager>
 
     /// <summary>
     /// True when gameplay must ignore player input (movement, camera, interaction).
-    /// Blocks both while paused and while any modal UI is open.
+    /// Blocks while paused, while any modal UI is open and during a scene change.
     /// </summary>
     public static bool IsGameplayInputBlocked
-        => (Exists && Instance.IsPaused) || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
+        => (Exists && Instance.IsPaused)
+        || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen)
+        || ScreenManager.IsInputLocked;
     public void Pause() => model.Pause();
     public void Unpause() => model.Unpause();
     public void Toggle() => model.Toggle();

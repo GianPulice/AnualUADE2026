@@ -3,6 +3,8 @@ using System.Threading;
 using UnityEngine;
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public class ScreenManager : Singleton<ScreenManager>
 {
@@ -36,6 +38,17 @@ public class ScreenManager : Singleton<ScreenManager>
 
     /// <summary>True while a scene change (or the quit sequence) is running.</summary>
     public bool IsTransitioning => isTransitioning;
+
+    /// <summary>
+    /// True while a scene change is running: every player input — UI, pause, inventory, movement —
+    /// must be ignored. Static so input code can ask without checking the manager exists.
+    /// </summary>
+    public static bool IsInputLocked => Exists && instance.isTransitioning;
+
+    // While true, Update switches off every EventSystem it finds, including the ones in scenes
+    // that finish loading mid-transition, so no hover, click or navigation reaches any canvas.
+    private bool uiInputLocked;
+    private readonly List<EventSystem> lockedEventSystems = new List<EventSystem>();
 
     /// <summary>
     /// Unloads and reloads the active group. Used by the Retry button on the defeat screen.
@@ -94,7 +107,7 @@ public class ScreenManager : Singleton<ScreenManager>
 
         try
         {
-            await RunBehindLoadingScreenAsync(UnloadAllGroupsAsync, revealAfter: false);
+            await RunBehindLoadingScreenAsync(UnloadAllGroupsAsync, revealAfter: false, exiting: true);
         }
         finally
         {
@@ -158,6 +171,8 @@ public class ScreenManager : Singleton<ScreenManager>
             screenChannel.OnPopScreenRequested -= OnPopScreenRequestedWrapper;
             screenChannel.OnClearAllScreensRequested -= OnClearAllRequestedWrapper;
         }
+
+        SceneManager.sceneLoaded -= OnSceneLoadedWhileLocked;
     }
 
     // ── Wrappers (receive the events from MainMenuController) ──
@@ -257,7 +272,7 @@ public class ScreenManager : Singleton<ScreenManager>
     /// A failure inside <paramref name="work"/> is logged and the sequence still finishes, so an
     /// exception can never leave the game behind a black screen with IsLoading stuck on.
     /// </summary>
-    private async UniTask RunBehindLoadingScreenAsync(Func<UniTask> work, bool revealAfter)
+    private async UniTask RunBehindLoadingScreenAsync(Func<UniTask> work, bool revealAfter, bool exiting = false)
     {
         if (loadingScreen == null)
         {
@@ -268,7 +283,35 @@ public class ScreenManager : Singleton<ScreenManager>
         // This object is DontDestroyOnLoad, so this only fires when the game itself shuts down.
         CancellationToken token = this.GetCancellationTokenOnDestroy();
 
+        // From the first frame of the fade: the canvases underneath (the pause menu on the way
+        // out) would otherwise keep answering hovers and clicks through the loading screen.
+        SetUIInputLocked(true);
+        try
+        {
+            await RunLoadingSequenceAsync(work, revealAfter, exiting, token);
+        }
+        finally
+        {
+            SetUIInputLocked(false);
+        }
+    }
+
+    /// <summary>
+    /// How long the quit screen stays up, in real seconds, power-off included — much shorter than
+    /// a scene change's <see cref="LoadingScreen.MinimumDuration"/>: there is nothing to wait for.
+    /// </summary>
+    private const float QuitScreenDuration = 3f;
+
+    private async UniTask RunLoadingSequenceAsync(Func<UniTask> work, bool revealAfter, bool exiting,
+                                                  CancellationToken token)
+    {
         await loadingScreen.FadeToBlackAsync(token);
+
+        // Quitting has its own look (EXITING, Starfield, CRT power-off) and its own, shorter length.
+        loadingScreen.SetExitMode(exiting);
+        float minimumDuration = exiting
+            ? Mathf.Max(0f, QuitScreenDuration - loadingScreen.PowerOffDuration)
+            : LoadingScreen.MinimumDuration;
 
         loadingScreen.SetProgress(0f);
         loadingScreen.SetContentVisible(true);
@@ -286,12 +329,12 @@ public class ScreenManager : Singleton<ScreenManager>
             float elapsed = Time.realtimeSinceStartup - startTime;
             bool workDone = workTask.Status != UniTaskStatus.Pending;
 
-            if (workDone && elapsed >= LoadingScreen.MinimumDuration) break;
+            if (workDone && elapsed >= minimumDuration) break;
 
             // The bar tracks the minimum time. While the scenes are still loading it stops just
             // short of full, so a load that runs past the minimum reads as "almost there" rather
             // than as a full bar that is stuck.
-            float progress = elapsed / LoadingScreen.MinimumDuration;
+            float progress = minimumDuration > 0f ? elapsed / minimumDuration : 1f;
             loadingScreen.SetProgress(workDone ? progress : Mathf.Min(progress, 0.95f));
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);
@@ -300,10 +343,58 @@ public class ScreenManager : Singleton<ScreenManager>
         await workTask;
         loadingScreen.SetProgress(1f);
 
+        if (exiting) await loadingScreen.PowerOffAsync(token);
+
         if (!revealAfter) return;
 
         LoadingScreen.SetLoading(false);
         await loadingScreen.FadeFromBlackAsync(token);
+    }
+
+    // ── UI input lock ──
+
+    private void SetUIInputLocked(bool locked)
+    {
+        if (uiInputLocked == locked) return;
+        uiInputLocked = locked;
+
+        if (locked)
+        {
+            // sceneLoaded fires after the new scene's OnEnables and before its first Update, so a
+            // freshly loaded EventSystem is off before it can process a single frame of input.
+            SceneManager.sceneLoaded += OnSceneLoadedWhileLocked;
+            DisableActiveEventSystems();
+            return;
+        }
+
+        SceneManager.sceneLoaded -= OnSceneLoadedWhileLocked;
+        foreach (EventSystem eventSystem in lockedEventSystems)
+        {
+            // Null when its scene was unloaded during the transition.
+            if (eventSystem != null) eventSystem.enabled = true;
+        }
+        lockedEventSystems.Clear();
+    }
+
+    private void OnSceneLoadedWhileLocked(Scene scene, LoadSceneMode mode) => DisableActiveEventSystems();
+
+    private void Update()
+    {
+        if (uiInputLocked) DisableActiveEventSystems();
+    }
+
+    /// <summary>
+    /// EventSystem.current is the first enabled one, and null once none is left. Disabling one
+    /// deactivates its input module, which sends the pointer-exit to whatever was hovered.
+    /// </summary>
+    private void DisableActiveEventSystems()
+    {
+        EventSystem eventSystem;
+        while ((eventSystem = EventSystem.current) != null)
+        {
+            eventSystem.enabled = false;
+            lockedEventSystems.Add(eventSystem);
+        }
     }
 
     private static async UniTask RunSafely(Func<UniTask> work)

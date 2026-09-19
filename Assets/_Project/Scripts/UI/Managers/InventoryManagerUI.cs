@@ -107,6 +107,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // Here we only handle Tab to open/close the inventory.
 
         if (!Input.GetKeyDown(toggleKey)) return;
+        if (ScreenManager.IsInputLocked) return;
 
         if (isInventoryOpen)
         {
@@ -127,7 +128,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
             // as long as the inventory stayed open; that one is gone now that the inventory does
             // not touch timeScale. The guard stays for the plainer reason: being grabbed is not a
             // moment the player gets to go rummaging through their bag.
-            if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsDisabled) return;
+            // Nor while lying on the floor or getting up.
+            if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsImmobilized) return;
 
             // Only opens if there is no other modal on top (pause, panel, doc...).
             if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;

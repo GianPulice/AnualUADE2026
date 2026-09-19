@@ -38,7 +38,9 @@ public class WakeUpSkipPromptView : MonoBehaviour
 
         // Not while loading: the skip is off then (WakeUpCinematicView), and holding the prompt
         // back lets its fade-in play in view instead of finishing behind the loading screen.
-        bool show = WakeUpCinematicEvents.IsCameraLocked
+        // Also for as long as the player is still getting up: the stand-up can outlast ARC_01a,
+        // and F still cuts it.
+        bool show = (WakeUpCinematicEvents.IsCameraLocked || WakeUpCinematicView.IsPlayerWakingUp())
                     && (config == null || config.Skippable)
                     && !PauseManager.IsGameplayInputBlocked
                     && !LoadingScreen.IsLoading;

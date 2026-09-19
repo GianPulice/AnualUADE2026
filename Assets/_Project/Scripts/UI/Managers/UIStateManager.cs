@@ -77,6 +77,7 @@ public class UIStateManager : Singleton<UIStateManager>
     private void OnExitPressed()
     {
         if (stack.Count == 0) return;
+        if (ScreenManager.IsInputLocked) return;
         if (topPushedFrame == Time.frameCount) return;
         IModalUI top = stack.Peek();
         if (top == null) return;
@@ -115,6 +116,30 @@ public class UIStateManager : Singleton<UIStateManager>
     }
 
     public IModalUI Peek() => stack.Count > 0 ? stack.Peek() : null;
+
+    /// <summary>
+    /// True if at least one open modal has an id outside <paramref name="ignoredIds"/>. With an
+    /// empty or null list it is exactly <see cref="IsAnyModalOpen"/>. Lets a HUD element stay on
+    /// screen over a specific modal (the module timer over the skill check) and still hide for the
+    /// rest.
+    /// </summary>
+    public bool IsAnyModalOpenExcept(IReadOnlyList<string> ignoredIds)
+    {
+        if (stack.Count == 0) return false;
+        if (ignoredIds == null || ignoredIds.Count == 0) return true;
+
+        foreach (IModalUI m in stack)
+        {
+            if (m == null) continue;
+            bool ignored = false;
+            for (int i = 0; i < ignoredIds.Count; i++)
+            {
+                if (ignoredIds[i] == m.ModalId) { ignored = true; break; }
+            }
+            if (!ignored) return true;
+        }
+        return false;
+    }
 
     public bool Contains(IModalUI modal)
     {

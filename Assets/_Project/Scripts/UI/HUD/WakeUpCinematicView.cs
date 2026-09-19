@@ -53,11 +53,6 @@ public class WakeUpCinematicView : MonoBehaviour
     [Tooltip("Used only when ARC_01a has no page break: seconds on black before the eyes open.")]
     [SerializeField, Min(0f)] private float fallbackBlackHold = 2.5f;
 
-    [Header("Player")]
-    [Tooltip("Animator trigger fired on the player when the eyes open. Skipped if the controller " +
-             "has no trigger with this name.")]
-    [SerializeField] private string standUpTrigger = "standUp";
-
     [Header("Input hint")]
     [SerializeField] private HintMoment hintMoment = HintMoment.AfterWakeUp1;
     [SerializeField] private bool hintEnabled = true;
@@ -71,6 +66,7 @@ public class WakeUpCinematicView : MonoBehaviour
     private float lineDuration;
     private float openStart;
     private bool eyesOpening;
+    private bool standUpFired;
 
     private void Awake()
     {
@@ -108,6 +104,14 @@ public class WakeUpCinematicView : MonoBehaviour
             return;
         }
 
+        // ARC_01a can end before the (long) stand-up does: the skip still cuts what is left of it,
+        // and the hint below then shows on the next frame.
+        if (state == State.WaitingForHint && IsPlayerWakingUp() && SkipPressed())
+        {
+            PlayerRegistry.Current.SkipStandUp();
+            return;
+        }
+
         switch (state)
         {
             case State.Covering:
@@ -121,8 +125,7 @@ public class WakeUpCinematicView : MonoBehaviour
                 break;
 
             case State.WaitingForHint:
-                ArchitectVoiceController v = ArchitectVoiceController.Instance;
-                if (v == null || (v.IsWakeUpDone && !v.IsSpeaking)) ShowHint();
+                if (IsHintMomentReached() && PlayerCanMove()) ShowHint();
                 break;
         }
     }
@@ -160,7 +163,7 @@ public class WakeUpCinematicView : MonoBehaviour
         if (!eyesOpening)
         {
             eyesOpening = true;
-            FireStandUp();
+            standUpFired = false;
 
             // Measured from now and not from openStart: if this frame came late, the pan still has
             // to land on the line's last frame, not after it.
@@ -170,7 +173,18 @@ public class WakeUpCinematicView : MonoBehaviour
         float progress = Mathf.Clamp01((elapsed - openStart) / eyeOpenDuration);
         SetOpen(Mathf.Clamp01(openCurve.Evaluate(progress)), Mathf.Lerp(startDim, 0f, progress));
 
-        if (progress >= 1f) SetVisible(false);
+        if (progress >= 1f)
+        {
+            SetVisible(false);
+
+            // Once the eyes are fully open, so the whole stand-up is seen, not half of it behind
+            // the lids and the dim.
+            if (!standUpFired)
+            {
+                standUpFired = true;
+                FireStandUp();
+            }
+        }
     }
 
     // Legacy input, like WakeUpCameraPan: the project runs both input backends.
@@ -194,8 +208,9 @@ public class WakeUpCinematicView : MonoBehaviour
     /// </summary>
     private void Skip()
     {
-        // Skipped before the eyes opened: the player is still lying down.
-        if (!eyesOpening) FireStandUp();
+        // Lying down or halfway up: straight to the end of the stand-up, control comes back now.
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player != null) player.SkipStandUp();
 
         // The cinematic ends first, so the LineEnded(interrupted) the skip raises finds it already Off.
         EndCinematic(showHint: true);
@@ -215,8 +230,32 @@ public class WakeUpCinematicView : MonoBehaviour
             return;
         }
 
-        if (hintMoment == HintMoment.AfterWakeUp1) ShowHint();
-        else state = State.WaitingForHint;
+        // Not shown here even for AfterWakeUp1: ARC_01a can end while the player is still getting
+        // up, and "move" on screen while it cannot is a lie. WaitingForHint holds it until the
+        // player is actually free — right away after a skip, which drops the stand-up.
+        state = State.WaitingForHint;
+    }
+
+    private bool IsHintMomentReached()
+    {
+        if (hintMoment == HintMoment.AfterWakeUp1) return true;
+
+        ArchitectVoiceController voice = ArchitectVoiceController.Instance;
+        return voice == null || (voice.IsWakeUpDone && !voice.IsSpeaking);
+    }
+
+    /// <summary>The player is still in the level-start stand-up.</summary>
+    public static bool IsPlayerWakingUp()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        return player != null && player.IsWakeUpStandingUp;
+    }
+
+    /// <summary>Standing, not locked by the wake-up, not mid stand-up: the player can move.</summary>
+    private static bool PlayerCanMove()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        return player == null || !player.IsImmobilized;
     }
 
     private void ShowHint()
@@ -225,20 +264,14 @@ public class WakeUpCinematicView : MonoBehaviour
         if (hintEnabled) InputHintEvents.Show(hint);
     }
 
+    /// <summary>
+    /// The player has been lying on the floor since the camera was locked (it picks that up on its
+    /// own) and gets up now, during the pan.
+    /// </summary>
     private void FireStandUp()
     {
         PlayerStateManager player = PlayerRegistry.Current;
-        Animator animator = player != null ? player.AnimController : null;
-        if (animator == null || string.IsNullOrEmpty(standUpTrigger)) return;
-
-        foreach (AnimatorControllerParameter parameter in animator.parameters)
-        {
-            if (parameter.name == standUpTrigger && parameter.type == AnimatorControllerParameterType.Trigger)
-            {
-                animator.SetTrigger(standUpTrigger);
-                return;
-            }
-        }
+        if (player != null) player.PlayStandUp(PlayerStateManager.EStandUp.Init);
     }
 
     /// <param name="open">0 = lids meet in the middle, 1 = lids off screen.</param>

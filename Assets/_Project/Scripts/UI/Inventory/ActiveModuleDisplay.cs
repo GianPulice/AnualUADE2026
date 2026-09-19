@@ -1,34 +1,53 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ActiveModuleDisplay — the left circular panel with the main timer
+//  ActiveModuleDisplay — the circle around the inventory's main timer
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// VIEW of the active module's circular display (upper left panel).
-/// Shows the formatted timer and the "Active Module" label.
+/// Drains the inventory's timer circle (upper left panel) with the active module's remaining time.
+///
+/// It drives itself off <see cref="ModuleEvents"/>: nothing ever called the old UpdateDisplay, so
+/// the circle sat full forever. Only the fill is its job — the texts next to it belong to
+/// <see cref="ActiveModuleTimerView"/>, and writing them from here as well gave them two owners.
+///
+/// Subscribed in OnEnable/OnDisable on purpose, like <see cref="ModuleHUDView"/>: the panel is
+/// hidden with the inventory, and it re-reads the manager every time it comes back, so nothing
+/// that happened while closed is lost.
 /// </summary>
 public class ActiveModuleDisplay : MonoBehaviour
 {
-    [Header("Texts")]
-    [Tooltip("00:00")][SerializeField] private TextMeshProUGUI timerText;
-    [Tooltip("Time Left")][SerializeField] private TextMeshProUGUI timeLabelText;
-    [Tooltip("ID of the active module")][SerializeField] private TextMeshProUGUI moduleIdText;
-
     [Header("Circular image / radial fill")]
     [SerializeField] private Image radialFill;               // Image with FillMethod = Radial360
 
-    public void UpdateDisplay(ModuleRuntime module)
+    private void OnEnable()
     {
-        if (timerText != null)
-            timerText.text = module.FormattedTime;
+        ModuleEvents.OnTimerTick += HandleModuleChanged;
+        ModuleEvents.OnStateChanged += HandleModuleChanged;
+        ModuleEvents.OnTimeAdjusted += HandleTimeAdjusted;
+        Refresh();
+    }
 
-        if (moduleIdText != null)
-            moduleIdText.text = module.ModuleID;
+    private void OnDisable()
+    {
+        ModuleEvents.OnTimerTick -= HandleModuleChanged;
+        ModuleEvents.OnStateChanged -= HandleModuleChanged;
+        ModuleEvents.OnTimeAdjusted -= HandleTimeAdjusted;
+    }
 
-        if (radialFill != null)
-            radialFill.fillAmount = module.TimerProgress;
+    private void Start() => Refresh(); // the manager may come up after the first OnEnable
+
+    private void HandleModuleChanged(ModuleRuntime _) => Refresh();
+    private void HandleTimeAdjusted(ModuleRuntime _, float __) => Refresh();
+
+    private void Refresh()
+    {
+        if (radialFill == null) return;
+
+        // Exists rather than 'Instance == null': the property logs a warning every time it is read
+        // while null.
+        ModuleRuntime active = ModuleManager.Exists ? ModuleManager.Instance.GetActiveModule() : null;
+        radialFill.fillAmount = active != null ? active.TimerProgress : 0f;
     }
 }

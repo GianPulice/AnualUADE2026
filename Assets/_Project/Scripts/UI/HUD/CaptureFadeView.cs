@@ -55,6 +55,16 @@ public class CaptureFadeView : MonoBehaviour
              "an entry to leave that overlay running through the capture.")]
     [SerializeField] private List<GameObject> overlaysHiddenDuringCapture = new List<GameObject>();
 
+    /// <summary>
+    /// The screen has fully cleared at the respawn point after a capture. The player gets up off
+    /// the floor from here (<see cref="PlayerStateManager.PlayStandUp"/>): static, because the
+    /// player lives in another scene.
+    /// </summary>
+    public static event Action OnCaptureRevealed;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => OnCaptureRevealed = null;
+
     private CancellationTokenSource fadeCts;
 
     private void Reset()
@@ -148,7 +158,9 @@ public class CaptureFadeView : MonoBehaviour
     /// The overlays come back while the screen is still black, so neither is seen popping in.
     /// </summary>
     private void HandleCaptureResolved() =>
-        FadeTo(0f, fadeOutDuration, blackHoldDuration, beforeFade: () => SetOverlaysActive(true)).Forget();
+        FadeTo(0f, fadeOutDuration, blackHoldDuration,
+               beforeFade: () => SetOverlaysActive(true),
+               afterFade: () => OnCaptureRevealed?.Invoke()).Forget();
 
     /// <summary>
     /// The run ended instead of respawning: CheckpointManager had nowhere to send the player and

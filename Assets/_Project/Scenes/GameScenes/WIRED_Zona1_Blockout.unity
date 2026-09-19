@@ -8842,6 +8842,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: -60.569
       objectReference: {fileID: 0}
+    - target: {fileID: 7947140177708132941, guid: 7b55962cf44588d48b30528020420adb, type: 3}
+      propertyPath: itemToPick
+      value: 
+      objectReference: {fileID: 11400000, guid: 0ca500b3864fc3545addc74900afcb4b, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -42188,18 +42192,6 @@ PrefabInstance:
     m_TransformParent: {fileID: 1393245714}
     m_Modifications:
     - target: {fileID: 407055922268624865, guid: d8ed5726b407c064a86e541bb92599fb, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 0.25052667
-      objectReference: {fileID: 0}
-    - target: {fileID: 407055922268624865, guid: d8ed5726b407c064a86e541bb92599fb, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0.25052667
-      objectReference: {fileID: 0}
-    - target: {fileID: 407055922268624865, guid: d8ed5726b407c064a86e541bb92599fb, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 0.25052667
-      objectReference: {fileID: 0}
-    - target: {fileID: 407055922268624865, guid: d8ed5726b407c064a86e541bb92599fb, type: 3}
       propertyPath: m_LocalPosition.x
       value: 2.39
       objectReference: {fileID: 0}
@@ -51585,6 +51577,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7947140177708132941, guid: 7b55962cf44588d48b30528020420adb, type: 3}
+      propertyPath: itemToPick
+      value: 
+      objectReference: {fileID: 11400000, guid: 604eea3f25522774995a344ed95dfcbb, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
