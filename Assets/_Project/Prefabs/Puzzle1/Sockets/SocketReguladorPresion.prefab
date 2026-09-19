@@ -558,27 +558,27 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: 777c3d9b487334e4c83a1b09d061af19, type: 2}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.25
+      value: 0.25052667
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.25
+      value: 0.25052667
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.25
+      value: 0.25052667
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: 2.39
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 0.213
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 7.792422
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalRotation.w
@@ -586,15 +586,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -634,7 +634,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: socketData
-      value:
+      value: 
       objectReference: {fileID: 11400000, guid: 2f71e973b1c668846be2fc8c636f3d4e, type: 2}
     - target: {fileID: 7825961739477075812, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
       propertyPath: insertSoundId
@@ -681,7 +681,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 3097519461228478499, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
   m_PrefabInstance: {fileID: 3412249388824156098}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &7300000000000000001 stripped
+--- !u!1 &6503330192908146097 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8438275548156035699, guid: cd6008bb80ecace44b2c1950ced26594, type: 3}
   m_PrefabInstance: {fileID: 3412249388824156098}
@@ -692,13 +692,15 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7300000000000000001}
+  m_GameObject: {fileID: 6503330192908146097}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7c3e5a91d4b24f6e8a0b1c2d3e4f5a61, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SocketEmissionShift
   targets:
+  - renderer: {fileID: 7429892969275764251}
+    materialIndex: 0
   - renderer: {fileID: 191762714939621114}
     materialIndex: 0
   - renderer: {fileID: 4071517598198558164}
@@ -707,7 +709,7 @@ MonoBehaviour:
     materialIndex: 0
   - renderer: {fileID: 3149547417759040508}
     materialIndex: 0
-  insertedColor: {r: 30.6, g: 294, b: 67.4, a: 1}
+  insertedColor: {r: 0, g: 1367.1202, b: 0, a: 1}
   fadeDuration: 1.2
   flickerCount: 2
-  flickerDuration: 0.12
+  flickerDuration: 0.25

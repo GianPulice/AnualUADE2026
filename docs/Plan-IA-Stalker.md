@@ -13,6 +13,12 @@
 > La guía de armado ([§14](#14-cómo-se-arma-en-unity)) se relevó el 15/09/2026 leyendo escena,
 > prefabs y assets como YAML, sin conector MCP de Unity: lo marcado *verificar en el editor* no se
 > pudo abrir.
+>
+> **Revisado el 19/09/2026 contra `6703f9d`** (48 commits después). El Nemesis casi no cambió y nada
+> del plan se construyó. Se corrigieron tres datos que ya estaban mal (`patrolWaitVariance`,
+> `stateLoops`, radios de ruido) y se incorporaron cambios de diseño posteriores: M2 es módulo fatal,
+> la captura pausa el timer, se borró `NemesisTestSceneBuilder`, hay estados nuevos del jugador
+> (levantarse, empujar la caja). Se agregó el [§15](#15-bajadas-entre-pisos) (bajadas entre pisos).
 
 ---
 
@@ -33,6 +39,7 @@
 12. [Valores iniciales](#12-valores-iniciales)
 13. [Casos de prueba](#13-casos-de-prueba)
 14. [Cómo se arma en Unity](#14-cómo-se-arma-en-unity)
+15. [Bajadas entre pisos](#15-bajadas-entre-pisos)
 
 ---
 
@@ -50,7 +57,7 @@ Lo que falta se concentra en cinco agujeros:
 |---|---|---|
 | 1 | **Escondites.** El lado jugador no existe. El lado Nemesis es binario (escondido = ciego) y, con los lockers del proyecto, **inmunidad total** — ver [§3.3](#33-hallazgo-con-los-lockers-actuales-esconderse-es-inmunidad-total). | Bloquea el feature |
 | 2 | **Nadie cuenta los hábitos del jugador.** No hay ninguna contra-jugada. Es el anti-cheese entero. | Alta |
-| 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. | Alta, existe ya |
+| 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. Sigue siéndolo con M1 (3.6 m/s), y M2 ya no lo acorta porque es el módulo fatal ([C4](#c4--el-loop-alrededor-de-un-obstáculo-el-bug-de-la-mesa-de-dimitrescu)). | Alta, existe ya |
 | 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. Y en Zona1 hoy está **desactivado**, sin zonas ni disparadores ([§14.1](#141-el-director-hoy-estado-en-zona1)). | Media — pero sin esto el anti-cheese frustra |
 | 5 | **Escalada por progreso** (spec Nemesis §7.2) sin hacer. | Media, diferida por diseño |
 
@@ -71,8 +78,8 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 | 3 | La detección es un acumulador | 🟡 | Banda periférica de 170° que llena `Awareness`; foco de 80° instantáneo a propósito (es un peldaño *interrupt*); agachado ×0.5 de alcance. | **Escondido es un `return` temprano**: 0 o todo. Sin término de luz. |
 | 4 | Administrar la tensión, no maximizarla | ❌ | `NemesisDirector` aplica presión cuando se la piden (`puzzleTriggers`, `RequestPressure`). | No hay medidor, ni estados de ritmo, ni retirada. El único alivio es la gracia post-captura (4 s) y que la búsqueda se agote (15 s). |
 | 5 | Nada guionado para el "cuándo" y el "dónde" | 🟡 | Patrulla por ruleta, cúmulos, satélites; spawn y entrada muestreados. | Los disparadores del Director son siempre "al completar el puzzle". Aceptable: el *qué* puede ser fijo. |
-| 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint. | **`patrolWaitVariance` está en 0 en el asset**: la espera en cada waypoint es un metrónomo. Se arregla con un número. |
-| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución. | `NemesisAudio.stateLoops` vacío (sin respiración ni voz), sin cue de activación. La música de persecución delata el estado interno — ver D5. |
+| 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint. | `patrolWaitVariance` está en 0.25 en el asset (el 0 es el default del código): la espera en cada waypoint varía 1.25–1.75 s, poco para que no se note el ritmo. Se arregla con un número. |
+| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución. | `NemesisAudio.stateLoops` está cargado **sólo en la instancia de Zona1** (respiración de patrulla, búsqueda y persecución para Patrolling / Investigating / Chasing / Searching); faltan `Catch` y `Traversing`, y el prefab y la testbed no lo tienen. Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (ahora existe `NemesisEvents.OnActivated` para engancharlo). La música de persecución delata el estado interno — ver D5. |
 | 8 | Legibilidad por encima de inteligencia | ✅ | `SearchPauseTime` + `NemesisLookAround`; el HUD F9 muestra el peldaño ganador. | Las contra-jugadas nuevas tienen que **verse** (regla R3). |
 | 9 | Anti-cheese con comportamiento | ❌ | Nada cuenta hábitos. | Todo [§4](#4-catálogo-de-cheeses-de-wired) y [§5](#5-hábitos-del-jugador-y-contra-jugadas). |
 | 10 | Detectar el estancamiento | 🟡 | `NemesisStuckEscape` (cuerpo trabado: repath → warp). `NemesisPursuit` predice e intercepta. | Nadie mide "persigo pero no acorto". Ver C4. |
@@ -87,7 +94,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 
 | El análisis propone | En WIRED es | Diferencias que importan |
 |---|---|---|
-| `NoiseEmitter` + `HearingSensor` | `PlayerStateManager.AudioEmitingZone` (esfera en la capa `DetectableAudio`, radios agachado 1 / caminando 2 / corriendo 6, apagada en quieto) + `FieldOfListening` | El ruido **dura**, no es un evento: tiene que vivir más de 0.1 s o cae entre dos barridos. Alcance = radio × `NoiseRangeScale` (2.5), tope `ListenRange` (15), ×0.6 por pared, ×0.75 por piso, distancia medida sobre el NavMesh. |
+| `NoiseEmitter` + `HearingSensor` | `PlayerStateManager.AudioEmitingZone` (esfera en la capa `DetectableAudio`, radios agachado 1 / caminando 4 / corriendo 10 en `SO_PlayerMovement`, apagada en quieto; 1 / 2 / 6 son los defaults del código, no lo que corre) + `FieldOfListening` | El ruido **dura**, no es un evento: tiene que vivir más de 0.1 s o cae entre dos barridos. Alcance = radio × `NoiseRangeScale` (2.5), tope `ListenRange` (15): agachado 2.5 m, caminando 10 m, corriendo 15 m (tope). ×0.8 por pared, ×0.75 por piso, distancia medida sobre el NavMesh. |
 | `StalkerBlackboard` | La creencia de `NemesisStateManager`: `TryGetBelief(out pos, out fromSight)`, `BeliefAge`; más `FieldOfView.Awareness` y `LastKnownVelocity` | Usa el sensor **más fresco** y dice si la creencia viene de la vista o del oído. El análisis no tiene esa distinción y acá es central (el barrido de habitación sólo se compromete con una creencia de vista). |
 | `VisionSensor`, 4 conos | `FieldOfView`: foco 80° (Normal/Focused), periferia 170° con acumulador (Peripheral), `minDistance` 1 m (Close), proximidad extrema 1.5 m (rompe `Hidden`) | Equivalente funcional. Además muestrea pies, centro y cabeza. |
 | `PlayerVisibilityState` | `PlayerStateManager.IsCrouch` / `IsHidden` | `IsHidden` es un bool suelto. Hace falta saber **en qué** escondite (§3.1). |
@@ -106,6 +113,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 - El detector de persecución estancada (`NemesisChaseProgress`).
 - El medidor de tensión y el ritmo (`NemesisTension`, junto al Director).
 - La escalada por puzzles (spec §7.2).
+- Las bajadas entre pisos (`NemesisDropLink`, [§15](#15-bajadas-entre-pisos)) y sus animaciones.
 
 ### 2.3 Lo que no conviene copiar
 
@@ -122,7 +130,9 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
   diseñados, el montacargas ya cumple el rol de "otra superficie", y un monstruo invisible que se
   mueve en línea recta choca con la regla del Director: todo lo que hace el Nemesis tiene que tener
   explicación en pantalla. Si algún día se diseñan ductos, es otro proyecto. Lo que acá hace de
-  "irse a los ductos" es la **retirada** del [§6](#6-director-tensión-y-ritmo).
+  "irse a los ductos" es la **retirada** del [§6](#6-director-tensión-y-ritmo). Las bajadas
+  entre pisos del [§15](#15-bajadas-entre-pisos) **no** son ductos: el Nemesis nunca deja de estar
+  en el NavMesh, se ve bajar y se oye caer.
 - **Modificadores por luz y por linterna.** La luz no es un input de detección (la niebla de visión
   afecta lo que ve el jugador, no lo que ve el Nemesis) y el jugador no puede apagar su luz. Esto se
   suma cuando se construya el spec de Luz §4, no antes.
@@ -154,9 +164,15 @@ La forma está decidida en `docs/CLAUDE.md` › *Hiding spots*. Resumen:
 - La respiración pasa por el emisor que ya existe: pulsos de `AudioEmitingZone` cada 3 s; `F`
   aguanta; soltar `F` exhala con un pulso más grande. Todo pulso dura más de 0.1 s y el emisor
   vuelve a como lo dejaron los estados de movimiento.
+  **El lado audio ya existe:** `HiddenBreathing` (en `Player.prefab`) toca el loop de respiración
+  mientras `IsHidden`, con variante para la penalidad de M2, y a propósito no hace ruido para el
+  Nemesis. La Fase 1 lo reusa tal cual y sólo agrega los pulsos de detección y la `F`.
 - Todo modificador por escondite se deshace en **todas** las salidas: salir normal, captura,
   checkpoint, descarga de escena.
-- Se borra la tecla `R` (`PlayerStateManager.cs:358`).
+- `HidingSpot.CanInteract()` da `false` con `PlayerStateManager.IsImmobilized` (capturado,
+  cinemática de despertar, levantándose) y en `PlayerBoxInteractingState` (empujando la caja).
+  Estos estados son posteriores al spec.
+- Se borra la tecla `R` (`PlayerStateManager.cs:521`).
 
 **Lo que el anti-cheese necesita y el spec no pide:**
 
@@ -270,7 +286,8 @@ Normal ──(usos repetidos)──▶ Sospechoso ──(más usos)──▶ Que
 
 "Quemado" es la destrucción de coberturas de Requiem. El escondite no se apaga por código invisible:
 **el Nemesis lo rompe**, a la vista o dejando la evidencia (la puerta en el piso). `CanInteract()`
-pasa a `false` y se cambia el modelo. La persistencia va en el tracker de hábitos, no en
+pasa a `false`, `IsFinished()` (nuevo en `IInteractable`, lo usa el prompt) a `true`, y se cambia
+el modelo. La persistencia va en el tracker de hábitos, no en
 `PuzzleStateManager` — ver D3.
 
 ---
@@ -285,8 +302,9 @@ se aprende igual que el cheese.
 ### C1 — El escondite eterno
 - **Qué hace:** se esconde y espera hasta que el Nemesis se va.
 - **Por qué funciona:** la búsqueda dura 15 s y después patrulla. Nunca vuelve a propósito.
-- **Mitigante que ya existe:** los timers de módulo corren mientras estás escondido. Pero sólo si
-  hay un módulo activo; entre módulos esconderse es gratis.
+- **Mitigante que ya existe:** los timers de módulo corren mientras estás escondido (sólo se
+  pausan durante una captura, desde el agarre hasta que el jugador se levanta). Pero sólo si hay un
+  módulo activo; entre módulos esconderse es gratis.
 - **Señal:** búsquedas que terminan sin encontrarlo con el jugador escondido dentro del radio de
   barrido.
 - **Contra-jugada:** (1) *sensibilidad creciente* (Mr. X): la siguiente búsqueda en esa zona dura
@@ -325,8 +343,11 @@ se aprende igual que el cheese.
      salida probable, fuera de tu vista, a esperar (Zone Defense).
   3. *Desbloqueado* (≥ 2 estancamientos): las persecuciones siguientes arrancan ya con la
      penalización del rastro.
-- **Nunca** subir la velocidad del Nemesis para arreglarlo: el análisis lo prohíbe, se nota, y
-  además la penalización de módulo M2 (menos sprint) ya acorta esa diferencia por diseño.
+- **Nunca** subir la velocidad del Nemesis para arreglarlo: el análisis lo prohíbe y se nota.
+  **Las penalidades de módulo no lo resuelven:** M2 (menos sprint) es hoy el módulo fatal
+  (`SO_GameOverRules`: `useFatalModule = 1`, `fatalModule = M2_Chest`), así que nunca se aplica como
+  penalidad; y M1 (`walkAndRunSpeedPercent` 80) deja el sprint en 4.5 × 0.8 = **3.6 m/s**, todavía
+  más rápido que el Nemesis. El loop sigue abierto en toda la partida.
 
 ### C5 — El umbral del Hub
 - **Qué hace:** se para en la puerta del Hub mirando al Nemesis, que no puede entrar, y sale cuando
@@ -350,6 +371,9 @@ se aprende igual que el cheese.
 ### C7 — Montacargas de ida y vuelta *(vigilar)*
 - Subir y bajar para cortar la persecución. El claim, el compromiso de 12 s y el enfriamiento de 10 s
   ya lo acotan. Si aparece en playtest: emboscada en el landing de llegada en vez de perseguir.
+  Las bajadas del [§15](#15-bajadas-entre-pisos) lo cierran en un sentido: si el jugador baja en el
+  montacargas, el Nemesis puede bajar por una bajada sin esperar la cabina. Para subir sigue
+  necesitando el montacargas o las escaleras.
 
 ### C8 — Espiar con la cámara en tercera persona *(no es cheese de IA)*
 - La cámara orbital va a unos 3.4 m detrás del personaje y deja ver por encima de coberturas y
@@ -430,6 +454,11 @@ Un monstruo que aprende y nunca afloja hace que el jugador abandone (análisis �
 tensión se administra, no se maximiza). Hoy los únicos respiros son la gracia post-captura y el fin
 de la búsqueda. Si se suman contra-jugadas sin un Relax, el juego se vuelve más difícil y peor.
 
+Y cada captura cuesta: `captureModuleTimePenalty` (30 s) se descuenta de los timers de módulo, y con
+M2 como módulo fatal esos segundos acercan el Game Over. Toda contra-jugada que convierte un escape
+en una captura (Nivel A, `CheckHidingSpots`, emboscadas) gasta ese recurso. Por eso el Relax va
+**antes** de la Fase 6, sin excepción.
+
 **Ojo:** todo esto supone un Director andando, y en `WIRED_Zona1_Blockout` está desactivado desde
 que se agregó. Activarlo es un paso sin código de la Fase 0
 ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)).
@@ -448,6 +477,10 @@ Un componente de un solo propósito: calcula un float. No decide nada.
 
 **No decae** mientras hay `Chasing` o `Catch` (la regla de Left 4 Dead: sin esto el medidor baja en
 plena persecución y el Director vuelve a apretar antes de tiempo).
+
+**Arranca con `NemesisEvents.OnActivated`**, no con la carga del nivel: antes de eso el Nemesis está
+dormido (cinemática de despertar, `activatedByPuzzleId`) y `quietTimeout` contaría un silencio que
+es de diseño.
 
 ### 6.3 Estados de ritmo
 
@@ -537,6 +570,7 @@ Siguiendo al análisis (§12.2), la escalada mueve sentidos y tiempos, **nunca l
 | `NemesisChaseProgress` | Medir progreso de la persecución; expone `IsChaseStagnant` | Elegir la ruta (eso sigue siendo `NemesisPursuit`) |
 | `NemesisTension` | Calcular el medidor y el estado de ritmo | Aplicar palancas (eso sigue siendo `NemesisDirector`) |
 | `NoisePulse` | Emitir una esfera de ruido en un punto por un tiempo | Decidir cuándo |
+| `NemesisDropLink` | Configurar una bajada de un solo sentido y describirla (alto, tipo, dirección) | Cruzarla (eso sigue siendo `NemesisElevatorUser`); decidir cuándo usarla (eso es el costo de área y la escalera) |
 
 `NemesisHidingAwareness` y `NemesisChaseProgress` son hermanos del facade, como `NemesisPathOracle`:
 se agregan solos y el estado los consulta a través de `NemesisStateManager`.
@@ -549,9 +583,11 @@ Orden recomendado. La Fase 4 no depende de los escondites y arregla un cheese qu
 puede ir en paralelo con la 1.
 
 ### Fase 0 — Ajustes sin código
-- `patrolWaitVariance` → ~0.6 en `SO_NemesisData.asset` (hoy 0: metrónomo).
-- Autorar `NemesisAudio.stateLoops` (los clips ya están en `Audio/SFX/Nemesis/`). La respiración del
-  Nemesis es el tell de la emboscada (C1): sin eso, esa contra-jugada es invisible.
+- `patrolWaitVariance` → ~0.6 en `SO_NemesisData.asset` (hoy 0.25).
+- Completar `NemesisAudio.stateLoops`: ya tiene Patrolling / Investigating / Chasing / Searching en
+  la instancia de Zona1; faltan `Catch` y `Traversing` (hoy callan). Pasarlo de la instancia de la
+  escena a `Nemesis.prefab`, para que la testbed y cualquier escena nueva no lo tengan mudo. La
+  respiración del Nemesis es el tell de la emboscada (C1).
 - Decidir D5 (música de persecución).
 - Activar el Director en Zona1, con zonas de presión y disparadores por puzzle
   ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)).
@@ -564,7 +600,7 @@ puede ir en paralelo con la 1.
 - `CurrentHidingSpot`, `HidingEvents`, `ApproachPoint`, `SpotId`.
 - Limpieza en todas las salidas; se borra la tecla `R`.
 - **Verificación:** los casos del spec; con F10, el Nemesis no te ve; la respiración se oye a la
-  distancia de los gizmos; después de salir el emisor queda como estaba (caminar vuelve a sonar a 2).
+  distancia de los gizmos; después de salir el emisor queda como estaba (caminar vuelve a sonar a 4).
 
 ### Fase 2 — El Nemesis sabe de escondites
 - `NemesisHidingAwareness`: Nivel A (visto entrando) y Nivel B (visibilidad residual por tipo).
@@ -584,8 +620,9 @@ puede ir en paralelo con la 1.
 ### Fase 4 — Persecución estancada *(independiente)*
 - `NemesisChaseProgress`, predicado `IsChaseStagnant`, penalización del rastro en `NemesisPursuit`,
   soltar y emboscar.
-- Agregar una columna o una mesa aislada a `NemesisTestSceneBuilder` para tener el test de la mesa
-  siempre a mano.
+- Autorar a mano una columna o una mesa aislada en `Scenes/Dev/NemesisTestbed.unity`, para tener el
+  test de la mesa siempre a mano. (`NemesisTestSceneBuilder` se borró el 17/09; la testbed ya no se
+  regenera, así que lo que se agregue queda.) Rebakear el NavMesh de la testbed.
 - **Verificación:** caso 7.
 
 ### Fase 5 — Tensión y ritmo
@@ -601,10 +638,22 @@ puede ir en paralelo con la 1.
 ### Fase 7 — Escalada por puzzles
 - Spec §7.2 con el mecanismo ya decidido (§7).
 
+### Fase 8 — Bajadas entre pisos *(independiente)*
+- Detalle completo en el [§15](#15-bajadas-entre-pisos). Tiene tres partes, y cada una se puede
+  mergear sola:
+  1. **Sin código:** apagar *Generate Links*, rebakear y medir qué links automáticos se pierden
+     (§15.2).
+  2. **Código:** `NemesisDropLink`, la rama de bajada en `NemesisElevatorUser`, `CrossedDrop` en
+     `NemesisNav.NavRoute`, validador y gizmos (§15.4). Funciona con animaciones de placeholder.
+  3. **Arte:** las animaciones del §15.5 y el setup del Animator.
+- **Verificación:** casos 12–16 del [§13](#13-casos-de-prueba).
+
 **Por qué en este orden:** la 1 es prerrequisito. La 2 cierra el agujero de inmunidad, sin el cual
 esconderse rompe el juego. La 3 va antes que la 6 para que los umbrales salgan de datos. La 5 va
-antes que la 6 porque contra-jugadas sin Relax frustran. La 4 es independiente y arregla algo que
-hoy ya se puede explotar.
+antes que la 6 porque contra-jugadas sin Relax frustran (y cada captura de más le cuesta 30 s de
+módulo al jugador). La 4 es independiente y arregla algo que hoy ya se puede explotar. La 8 también
+es independiente: puede ir apenas termine la Fase 0, y conviene que llegue antes de la 6, porque
+`ZoneDefense` y la emboscada de C7 la pueden aprovechar.
 
 ---
 
@@ -627,7 +676,13 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 - **El Hub es `Not Walkable` y no tiene lado C# que lo bloquee.** Un trigger que sólo informa está
   permitido.
 - **Las cuatro máscaras de "qué es sólido" tienen que coincidir.** No se arregla §3.3 cambiando una
-  sola.
+  sola. Desde el 17/09 ya no existen *Repair Layer Masks* ni *Migrate Prop Layers*: *Validate
+  Navigation Setup* avisa y el arreglo se hace a mano.
+- **Todo NavMeshLink lo cruza `NemesisElevatorUser`** (apaga `autoTraverseOffMeshLink`). Un tipo de
+  link nuevo es una rama ahí, no un segundo componente que también mire `isOnOffMeshLink`.
+- **Todo teletransporte pasa por `NemesisStateManager.WarpTo`**, también la recuperación de una
+  bajada cortada por un respawn. (El aterrizaje normal no es un warp: cierra el link con
+  `CompleteOffMeshLink`, como el link simple.)
 - **Todo valor tuneable tiene dónde verse:** `SO_NemesisDataEditor`, `NemesisGizmos`, F9.
 - **Nada depende de la cámara del jugador.**
 
@@ -637,7 +692,7 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 
 | # | Pregunta | Recomendación |
 |---|---|---|
-| D1 | Cuando te encuentra escondido, ¿captura directa o te saca y arranca una persecución? | **Captura** (la captura ya es un costo, no un Game Over). El margen del jugador está **antes**: ver al Nemesis acercarse desde adentro y decidir salir corriendo antes de que abra. |
+| D1 | Cuando te encuentra escondido, ¿captura directa o te saca y arranca una persecución? | **Captura** (la captura es un costo, no un Game Over). El margen del jugador está **antes**: ver al Nemesis acercarse desde adentro y decidir salir corriendo antes de que abra. **A revisar con playtest:** desde el 18/09 la captura pesa más, porque son 30 s de timer de módulo y M2 es fatal (§6.1). Si en la Fase 3 las capturas desde escondite resultan frecuentes, la alternativa es sacarlo y arrancar una persecución (el costo pasa a ser el riesgo, no el timer). |
 | D2 | ¿El Nemesis puede romper escondites para siempre? | Sí, con evidencia visible. Necesita arte: el locker roto. |
 | D3 | ¿Lo aprendido sobrevive a la captura y al checkpoint? | Sí. Por eso vive en el tracker y no en `PuzzleStateManager`, que se revierte con el checkpoint. Se resetea con New Game. |
 | D4 | ¿Los hábitos decaen? | Sí, lento (del orden de minutos sin repetirlo). |
@@ -645,6 +700,10 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D6 | Espiar con la cámara orbital (C8). | Aceptarlo, como la mayoría de los juegos en tercera persona. Si molesta, se ajusta la cámara, no la IA. |
 | D7 | ¿Locker con visibilidad residual (Nivel B) o ciego salvo proximidad? | Residual y baja. Si no, "riesgo medio" (spec) y "riesgo bajo" (container) son lo mismo. |
 | D8 | ¿Va a haber dificultad seleccionable? | Si la hay, se escalan sentidos y umbrales de desbloqueo, nunca la velocidad (análisis §12.2). |
+| D9 | Bajadas: ¿el jugador también puede usarlas? | **No, salvo las que diseño quiera compartir.** Si el jugador puede bajar por el mismo hueco, es una ruta de escape de ida que el Nemesis también tiene, y eso está bien. Pero entonces tiene que ser una decisión de nivel, no algo que pase porque falta una baranda. Las que son sólo del Nemesis llevan baranda o collider de jugador. |
+| D10 | ¿*Generate Links* sigue prendido en la NavMeshSurface de Zona1? | **Apagarlo** y autorar cada link (§15.2). Un link generado es una bajada o un salto sin animación, sin validar y en lugares que nadie eligió. |
+| D11 | ¿Bajadas en patrulla o sólo cazando? | **Cazando** (`Chasing`, `Traversing`, `Searching` hacia una creencia), por costo de link alto en patrulla. Una patrulla que se tira por el hueco cada ronda deja de asustar a la tercera vez. |
+| D12 | ¿El Director puede usar una bajada como entrada tipo Mr. X? | Sí, más adelante: la entrada ya muestrea puntos fuera de vista a 10–22 m. Una variante "cae por el hueco de la zona presionada" es un candidato más, no un sistema nuevo. Fuera del alcance de la Fase 8. |
 
 ---
 
@@ -665,9 +724,15 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Penalización del rastro en `NemesisPursuit` | ×0.2 al peso del waypoint | RE4R (Flanker) |
 | `SustainPeak` / `Relax` | 3–5 s / 30–45 s | Left 4 Dead (GDC 2009) |
 | `quietTimeout` (sensibilidad creciente) | 90 s sin contacto | Mr. X; ajustar al tamaño del nivel |
-| `patrolWaitVariance` | 0.6 s | `docs/CLAUDE.md` |
+| `patrolWaitVariance` | 0.6 s (hoy 0.25) | `docs/CLAUDE.md` |
+| Bajadas: alto mínimo / máximo | 1.5 m / 5 m (verificar el alto real entre `PISO_01` y `PISO_02` en el editor) | Debajo de 1.5 m lo cubre `agentClimb`/escalón; arriba de 5 m un humanoide no cae sin consecuencias |
+| Bajadas: umbral salto corto ↔ descolgarse | 2.5 m (= `FloorHeightThreshold`) | Mismo número que ya separa "otro piso" de "desnivel" |
+| Bajadas: costo del link | 2 cazando / 20 en patrulla (D11) | Más barato que el montacargas (10) al cazar |
+| Bajadas: recuperación al aterrizar | 0.6–0.9 s (la duración del clip) | La ventana del jugador; menos se siente injusto |
+| Bajadas: enfriamiento por link | 8 s | Que no suba por la escalera y vuelva a tirarse en loop |
 
-Referencias del proyecto para calibrar: jugador 2.5 m/s (agachado 1.25, corriendo 4.5); Nemesis
+Referencias del proyecto para calibrar: jugador 2.5 m/s (agachado 1.25, corriendo 4.5; con M1
+2.0 / 3.6); ruido del jugador agachado 2.5 m / caminando 10 m / corriendo 15 m (tope); Nemesis
 patrulla 2.75 / investiga 2.5 / persigue 3.0 / busca 2.75; vista 7 m, foco 80°, periferia 170°;
 oído 15 m de tope; proximidad extrema 1.5 m; alcance de captura 1 m; búsqueda 15 s; gracia de
 persecución 2.5 s.
@@ -691,7 +756,12 @@ En `Scenes/Dev/NemesisTestbed` (F9 HUD, F10 consola) y después en `WIRED_Zona1_
 | 8 | Cuatro usos del mismo locker estando cazado. | Lo rompe: puerta arrancada, el locker ya no ofrece `[E]`. |
 | 9 | Persecución larga que termina en escape. | La tensión no baja durante `Chasing`; al terminar, `PeakFade` → `Relax`, y la patrulla se va lejos durante 30–45 s. Si te lo cruzás igual, te persigue. |
 | 10 | Te capturan con contadores altos y hacés respawn. | Los contadores **no** vuelven atrás con el checkpoint. New Game los pone en cero. |
-| 11 | Salís del escondite durante una captura, un checkpoint o una descarga de escena. | El emisor, la cámara y los modificadores vuelven a lo normal; `CurrentHidingSpot` queda en `null`. |
+| 11 | Salís del escondite durante una captura, un checkpoint o una descarga de escena. | El emisor, la cámara y los modificadores vuelven a lo normal; `CurrentHidingSpot` queda en `null`. En la captura, `CurrentHidingSpot` se limpia **antes** de la animación de levantarse (`EStandUp.AfterCapture`), que siempre pone al jugador de pie. |
+| 12 | Te persigue en `PISO_02`, bajás por la escalera o el montacargas. Hay una bajada entre los dos. | Pasa a `Traversing` (`RouteToBeliefCrossesFloors` ahora también ve bajadas), va al borde, anticipa (se ve y se oye), cae, aterriza con recuperación y sigue en `Chasing`. F9 muestra el link. |
+| 13 | Estás en `PISO_01`, él en `PISO_01`, y la única bajada es de arriba hacia abajo. | Nunca intenta subir por la bajada: el link es de un solo sentido. Usa escalera o montacargas. |
+| 14 | Llega una captura o un respawn mientras está en el aire (forzarlo desde F10). | La caída termina igual; nada se cancela a mitad del salto. El respawn lo pone en tierra. |
+| 15 | Parado justo abajo del punto de aterrizaje. | Cae igual, **no** te agarra en el aire; la captura sólo puede empezar después de la recuperación. |
+| 16 | Patrullando, sin creencia. | No usa la bajada (costo de patrulla), salvo que no exista otra ruta al waypoint. |
 
 ---
 
@@ -783,7 +853,7 @@ setup.
 | `SO_DirectorPacing` (asset nuevo, en `ScriptableObjects/Nemesis/`) | Referenciado desde el Director | Peso de cada entrada del medidor, velocidad de decaimiento, umbrales de pico y de fade, `SustainPeak` 3–5 s, `Relax` 30–45 s, `quietTimeout` 90 s, intensidad de la retirada. Va en un SO y no en el componente para poder cambiar el ritmo por nivel o por dificultad (D8) sin tocar la escena. |
 | Zonas de presión | Las mismas del 14.2 | Que cubran lo jugable (14.2, paso 2). La retirada reusa `RequestPressure` sobre la zona más lejana por NavMesh. |
 | "El jugador ve al Nemesis" | Código | Raycast desde la cabeza del jugador al pecho del Nemesis contra el mismo `obstacleMask` (6153). **No usa la cámara.** |
-| Trigger informativo del Hub (C5, `SafeZoneEscape`) | Un GameObject **aparte**, hijo de `Safe Area`, con un `BoxCollider` trigger que cubra el Hub | Capa **`Ignore Raycast`**, no `Props`. `Props` está en las máscaras de obstáculo, `Queries Hit Triggers` está prendido en `DynamicsManager` y los raycasts de visión no pasan `QueryTriggerInteraction`: un trigger en `Props` taparía la visión hacia el Hub. Sólo informa presencia; no bloquea nada. |
+| Trigger informativo del Hub (C5, `SafeZoneEscape`) | Un GameObject **aparte**, hijo de `Safe Area`, con un `BoxCollider` trigger que cubra el Hub | Capa **`Ignore Raycast`**, no `Props`. `Props` está en las máscaras de obstáculo, `Queries Hit Triggers` está prendido en `DynamicsManager` y los raycasts de visión no pasan `QueryTriggerInteraction`: un trigger en `Props` taparía la visión hacia el Hub. Sólo informa presencia; no bloquea nada. El patrón de código ya existe: `ZoneTrigger` / `ArchitectZoneTrigger` (trigger + tag `Player`). Revisar en qué capa quedaron los de Zona1 antes de copiarlos. |
 | F9 | `NemesisDebugHUD` | La fila de ritmo del §6.4: estado, tensión, tiempo restante, zona activa. |
 
 ### 14.4 Dónde va cada pieza nueva del plan
@@ -797,6 +867,7 @@ setup.
 | `PlayerHabitTracker` | 3 | Escena `Data`, junto a `PuzzleStateManager`, `ModuleManager` e `InventoryManager` (los otros `ISessionResettable`) | `Singleton` persistente que se registra en `GameSession`: así sobrevive a la captura y al checkpoint y se resetea con New Game (D3). Referencia a `SO_CounterplayRules`. | — |
 | `SO_CounterplayRules` | 3 | `ScriptableObjects/Nemesis/` | Las filas del §5.2. | Un umbral en 0, o un `chanceAtUnlock` fuera de 0..1. |
 | `NemesisAmbushPoint` | 6 | En el nivel: GameObjects vacíos cerca de las salidas probables (del Hub, de las habitaciones con escondites), mirando hacia la salida | Posición y orientación. | Fuera del NavMesh, dentro del Hub, o con línea de visión directa desde la salida que vigila (tiene que esperar fuera de la vista). |
+| `NemesisDropLink` + `NavMeshLink` | 8 | En el nivel: un GameObject estático por bajada, bajo un contenedor `Drop Links` (§15.6) | Hijos `TopEdge` y `BottomLanding`; tipo (auto por alto); costo; enfriamiento. | Ver la lista del §15.6. |
 
 ### 14.5 Mejoras chicas de editor para hacer en el camino
 
@@ -806,3 +877,221 @@ setup.
 - Que *Validate Navigation Setup* reporte: el Director apagado habiendo zonas o disparadores; zonas
   que no tocan ningún waypoint de ruta; centros dentro de un volumen `Not Walkable`; disparadores
   con un `zoneId` que no existe.
+
+---
+
+## 15. Bajadas entre pisos
+
+> Agregado el 19/09/2026. Nada de esto está construido. Relevado contra `6703f9d` leyendo código,
+> escena y `ProjectSettings` como texto; lo marcado *verificar en el editor* no se pudo abrir.
+
+### 15.1 Qué es y para qué
+
+El Nemesis puede **bajar** de `PISO_02` a `PISO_01` por puntos que diseño elige: un hueco en el
+piso, una baranda rota o el borde de una pasarela. Salta si es bajo y se descuelga si es alto. Es
+**de un solo sentido**: para subir sigue usando el montacargas o las escaleras.
+
+Para qué sirve, en términos de este plan:
+
+- **Principio 11 (el NavMesh expresa personalidad).** Hoy el Nemesis se mueve entre pisos como el
+  jugador, o peor (espera la cabina). Una bajada es algo que el jugador no puede hacer, y eso lo
+  hace sentir otra cosa.
+- **Cierra C7 en un sentido.** Bajar en el montacargas deja de cortar la persecución. El jugador
+  gana distancia, pero no se lleva la cabina como escudo.
+- **Da puntos de emboscada verticales** para `ZoneDefense` (Fase 6) sin inventar movimiento nuevo.
+
+Y lo que **no** es:
+
+- No son ductos (§2.3). El Nemesis está siempre en el NavMesh, se lo ve bajar y se lo oye caer.
+- No es un atajo invisible. Toda bajada tiene anticipación (se ve y se oye antes de caer) y
+  recuperación al aterrizar (la ventana del jugador).
+- No es una forma de subir. Trepar necesita otras animaciones y otra lógica de visibilidad, y queda
+  fuera.
+
+### 15.2 Lo que ya hay y lo que se rompe si se hace ingenuamente
+
+| Qué | Estado hoy | Consecuencia para las bajadas |
+|---|---|---|
+| Quién cruza los links | `NemesisElevatorUser` apaga `autoTraverseOffMeshLink` y cruza **todos** los links: los de montacargas con la secuencia completa, el resto con `TraverseSimpleLinkAsync` (interpolación lineal a `linkTraversalSpeed` 2.5 m/s, sin animación). | La bajada es una **rama nueva ahí**, no un componente que también mire `isOnOffMeshLink` (§10). Hoy una bajada ya "funcionaría": el Nemesis se deslizaría en diagonal por el aire caminando. |
+| Links generados | La NavMeshSurface de Zona1 tiene **`m_GenerateLinks: 1`**, con `ledgeDropHeight` 1.5 m y `maxJumpAcrossDistance` 2 m (`ProjectSettings/NavMeshAreas.asset`). | Ya existen links que nadie autoró: caídas de hasta 1.5 m y saltos de hasta 2 m en cualquier borde que cumpla. Se cruzan con la interpolación lineal. *Verificar en el editor cuántos hay* (Navigation → *Show NavMesh* con *Show Links*). D10: apagarlo. |
+| Áreas | 0 Walkable, 1 Not Walkable, 2 Jump, 3 `NemesisAvoid` (sin uso), 4 `Forklift`; **5–7 libres**. | Las bajadas van en un área propia (5, `NemesisDrop`) para poder cambiarles el costo según lo que esté haciendo (D11). |
+| ¿La bajada cuenta como "otro piso"? | `NemesisNav.NavRoute.CrossesLink` es `CrossedElevator != null`: **sólo ve el montacargas**. Es lo único que consume `NemesisPathOracle.IsAcrossFloors`. | Sin cambio, una ruta por bajada no activa `RouteToBeliefCrossesFloors`: el Nemesis queda en `Chasing`, el piso le corta la vista en el borde y a los 2.5 s de gracia pasa a `Searching`… del piso de arriba. Es el mismo bug por el que existe `Traversing`. |
+| Captura durante un link | `HandlePlayerCaptured` cancela el cruce salvo `isRiding` (dentro de la cabina). Un link simple **se cancela**. | Cancelar una bajada a mitad de camino deja al Nemesis colgado en el aire. En el aire, la bajada tiene que ser tan intocable como `isRiding`. |
+| Protecciones que ya sirven | `IsTraversing` alimenta `IsUsingElevator` (predicado), que ya frena la entrada Mr. X (`NemesisDirector.cs:538`) y la escalera. `PushStuckSuppression` apaga el watchdog de `NemesisStuckEscape`. | Se reusan sin cambios. El nombre `IsUsingElevator` queda corto, pero **no se renombra**: el predicado se guarda como entero en el asset y el nombre sólo cambiaría el código. |
+| Animator | `NemesisController.controller` tiene tres estados: **Idle, Patrol, Chase**. `isCatching` existe como parámetro pero **ninguna transición lo usa**: hoy no hay animación de captura. Root motion apagado en `Nemesis.prefab`. | Todo lo del §15.5 es nuevo. Con root motion apagado, las animaciones van **in place** y el código mueve el cuerpo. |
+| Grafo de rutas | `NemesisRouteGraph` agrupa waypoints en islas probando caminos desde cada nodo al representante de la isla. | Un link de un solo sentido hace que "A llega a B" deje de implicar "B llega a A". Mientras cada bajada tenga vuelta (escalera o montacargas), las islas no cambian. **Una bajada sin vuelta rompe el grafo**: el validador lo tiene que prohibir (§15.6). |
+
+### 15.3 Diseño
+
+**Dos tipos, elegidos por altura** (no por un campo que alguien pueda poner mal):
+
+| Tipo | Alto | Cómo se ve |
+|---|---|---|
+| `Hop` (salto corto) | 1.5 – 2.5 m | Se para en el borde, flexiona y salta hacia adelante. |
+| `Hang` (descolgarse) | 2.5 – 5 m | Se da vuelta de espaldas al hueco, apoya las manos, se cuelga, se suelta y cae agachado. |
+
+El corte en 2.5 m es `FloorHeightThreshold`: el mismo número que ya separa "otro piso" de "un
+desnivel". Por encima de 5 m no se autora una bajada; *verificar en el editor* el alto real entre
+`PISO_01` y `PISO_02`. Si pasa de 5 m, sólo se puede bajar a una pasarela o entrepiso intermedio.
+
+**Fases de una bajada** (dentro de `TraverseDropAsync`, igual que el montacargas tiene las suyas):
+
+| # | Fase | Qué pasa | ¿Se cancela con una captura? |
+|---|---|---|---|
+| 1 | Llegar al borde | El agente camina hasta `TopEdge` con su gait normal. Es lo único que hace el NavMesh. | Sí (todavía está en el piso). |
+| 2 | Alinearse | Gira hasta mirar la dirección del link (≤ 0.3 s, `turnSpeed` del montacargas). | Sí. |
+| 3 | Anticipar | Clip de anticipación. Suena un gruñido y el golpe de manos en la baranda (clips `sfx_nemesis_voice_*`, hoy sin uso). **Es el tell:** desde abajo, el jugador lo ve asomarse. | Sí: en esta fase todavía no se tiró. |
+| 4 | En el aire | Arco parabólico de `TopEdge` a `BottomLanding` (horizontal lineal y vertical con gravedad). Clip de caída en loop, o el tramo de salto de `Hop`. Flag `isDropping`. | **No.** Igual que `isRiding`. |
+| 5 | Aterrizar | Clip de impacto. Golpe fuerte, que es un evento de animación que dispara el sonido de aterrizaje. `CompleteOffMeshLink()`. | **No.** |
+| 6 | Recuperarse | Termina el clip de impacto (0.6–0.9 s) con el agente quieto. **No puede capturar** (`CanReachPlayerNow` da `false` mientras `isDropping` o recuperando). Es la ventana del jugador. | — |
+| 7 | Salir | Se suelta el cuerpo; el estado activo pone su gait al volver, igual que después del montacargas. | — |
+
+**En el FSM no hay estado nuevo**, por la misma razón que en el §3.5. `Traversing` ya hace
+exactamente esto: mantener la decisión de ir a otro piso aunque el piso le corte la vista. Sólo hay
+que avisarle que una bajada también es cruzar pisos (`CrossedDrop` en `NavRoute`, §15.4). La
+bajada es corta, así que `ElevatorCommitTime` (12 s) le sobra y no hace falta un umbral propio.
+
+**Costo según lo que esté haciendo (D11).** El link va en el área `NemesisDrop` y
+`NemesisStateManager` ajusta `agent.SetAreaCost(NemesisDrop, …)` al cambiar de estado:
+
+- barato (≈ 2) en `Chasing`, `Traversing`, `Searching` e `Investigating`;
+- caro (≈ 20) en `Patrolling`.
+
+Es el mismo lugar donde ya se escribe la velocidad del agente: un estado configura el cuerpo, no
+decide nada. En patrulla sigue pudiendo usar la bajada si es la única ruta a un waypoint.
+
+**Reglas de juego limpio:**
+
+- **Nunca agarra en el aire ni al aterrizar.** Si el jugador está justo abajo, cae igual, se
+  recupera y recién ahí puede entrar a `Catch`. Aterrizar encima del jugador y agarrarlo en el mismo
+  frame es el tipo de muerte que se siente como un bug.
+- **Enfriamiento por link** (8 s): no vuelve a tirarse por la misma bajada hasta que pase. Evita
+  "sube por la escalera, se tira, sube, se tira" si el jugador hace un loop entre pisos. Se
+  implementa igual que el enfriamiento del montacargas: suspender el link para este agente.
+- **Nada depende de la cámara.** El tell es el mundo (anticipación y sonido), no un corte de cámara.
+- **El Hub no se toca.** Ninguna bajada aterriza dentro del Hub ni a menos de 3 m de su puerta
+  (con el Hub `Not Walkable` no podría, pero un aterrizaje pegado a la puerta fabrica C5).
+
+**Respawn o dormido a mitad de la bajada:** `CheckpointManager.OnRespawned` cancela como hoy, y el
+`finally` deja al Nemesis sobre el NavMesh con `WarpTo(BottomLanding)` (con la búsqueda de tierra
+de `AgentRecoveryRadius` si hace falta). Pasa detrás del fade de captura, así que no se ve.
+
+### 15.4 Código
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `NemesisDropLink` (nuevo) | `Scripts/Nemesis/`, `[RequireComponent(typeof(NavMeshLink))]` | Espejo de `NemesisElevatorLink`: en `Awake` configura su `NavMeshLink` desde `TopEdge` y `BottomLanding` con `bidirectional = false`, área `NemesisDrop`, ancho y costo. Calcula `Height` y `Kind` (`Hop` / `Hang`) y expone `FacingDirection`. Mantiene una lista estática `Active`, como el montacargas, para `NemesisNav`. `EDropKind` sólo se agrega al final. |
+| Rama en `NemesisElevatorUser.Update` | Donde hoy se elige entre montacargas y link simple | Si `data.owner` tiene `NemesisDropLink` → `TraverseDropAsync(drop, token)`. Si no, sigue igual. Con esta tercera rama el nombre del componente queda chico; renombrarlo a `NemesisLinkTraverser` es opcional y aparte (el GUID no cambia si se renombra con el `.meta`). |
+| `TraverseDropAsync` | `NemesisElevatorUser` | Las fases del §15.3. `isDropping` se agrega a la condición de `HandlePlayerCaptured` junto a `isRiding`. Push/Pop de la supresión del watchdog, como el link simple. Arco con un `MoveTransformAlongArcAsync` hermano de `MoveTransformToAsync`. |
+| Animación | `NemesisStateManager` | Método `PlayTraversal(EDropPhase)` que hace `CrossFade` al estado por nombre, **con `HasState` y fallback** (si falta el estado, la bajada se hace igual, sin animación): el patrón de `PlayerStateManager.TryGetStandUpState`. No se agregan valores a `EGait`: la bajada no es un gait. Al salir, `ApplyGaitToAnimator` retoma el control. |
+| `NavRoute.CrossedDrop` | `NemesisNav` | Campo nuevo al final del struct. `FindCrossedDrop(path)` usa la misma técnica que `FindCrossedElevator` (las esquinas del camino tocan `TopEdge` **y** `BottomLanding`). `CrossesLink => CrossedElevator != null \|\| CrossedDrop != null`. Con eso `IsAcrossFloors` y `RouteToBeliefCrossesFloors` cubren las bajadas sin tocar la escalera. Actualizar el doc-comment del predicado ("freight elevator" → "elevator or drop"). |
+| `CanReachPlayerNow` | `NemesisStateManager` | Primer `return false` si `elevatorUser.IsDroppingOrRecovering`. |
+| Costo por estado | `NemesisStateManager`, en el cambio de estado | `SetAreaCost` del §15.3. Los dos costos van al final de `SO_NemesisMovement`. |
+| Tuning | Al final de `SO_NemesisMovement` | Gravedad del arco, duración mínima en el aire, velocidad de giro al alinear, nombres de los estados del Animator (con defaults). Al final de `SO_NemesisData`: enfriamiento por link. **Editor, gizmos y F9** (§10). |
+| `NemesisGizmos` | — | El arco de cada bajada, coloreado por tipo; el radio libre de aterrizaje; una bajada en enfriamiento, en gris. |
+| F9 | `NemesisDebugHUD` | Una línea mientras dura: `DROP Hang 3.8 m · fase Anticipar · 0.4 s`. |
+| Validador | `NemesisSetupValidator` | La lista del §15.6. |
+
+### 15.5 Animaciones
+
+Todas **in place** (root motion apagado en el prefab; al bajar de Mixamo, tildar *In Place*
+cuando esté la opción), en el rig del Nemesis y con los bones renombrados si el FBX viene con otro
+prefijo. Eso último es el problema que ya resolvió `PlayerStandUpSetup` (bones `mixamorig8:*` contra
+`mixamorig:*`), y conviene un `NemesisTraversalAnimSetup` hermano: una herramienta de editor
+idempotente que arregla las rutas de los clips y agrega los estados al controller.
+
+**Para las bajadas:**
+
+| # | Estado del Animator | Tipo | Duración aprox. | Loop | Qué tiene que mostrar | Eventos de animación | Buscar en Mixamo (referencia) |
+|---|---|---|---|---|---|---|---|
+| A1 | `Drop Look` | los dos | 0.5–0.8 s | no | Se detiene en el borde, inclina el torso y mira hacia abajo. **Es el tell**: tiene que leerse desde el piso de abajo. | gruñido | *Looking Down*, *Standing Look Around* |
+| A2 | `Hop Takeoff` | `Hop` | 0.3–0.5 s | no | Flexiona y se impulsa hacia adelante y abajo. | — | *Jump Down*, *Jumping Down* |
+| A3 | `Hang Turn` | `Hang` | 0.6–0.9 s | no | Se da vuelta de espaldas al hueco, se agacha y apoya las manos en el borde. | golpe de manos | *Climbing Down Wall*, *Crouch To Hang* |
+| A4 | `Hang Release` | `Hang` | 0.3–0.5 s | no | Colgado de las manos, se suelta. | — | *Hanging Idle* → *Drop From Ledge* |
+| A5 | `Fall Loop` | los dos | — | **sí** | En el aire, brazos abiertos y piernas preparadas. Cubre cualquier alto: el código decide cuánto dura. | — | *Falling Idle* |
+| A6 | `Land Heavy` | los dos | 0.6–0.9 s | no | Cae agachado, apoya una mano y se levanta. **Su duración es la ventana del jugador** (§12). | impacto al contacto (sonido + pasos), fin de recuperación | *Hard Landing*, *Falling To Landing* |
+| A7 | `Land Roll` *(opcional)* | `Hop` en `Chasing` | 0.5–0.7 s | no | Rueda o amortigua y sale corriendo. Variante más rápida para que un salto corto no frene tanto una persecución. | impacto | *Falling To Roll* |
+
+Transiciones:
+
+- Se entra **por código** (`CrossFade`, 0.1–0.15 s) a A1, después A2 o A3→A4, después A5, después
+  A6/A7. Sin parámetros nuevos en el controller: el orden lo pone `TraverseDropAsync`, no el grafo.
+- A6/A7 salen por *exit time* a `Idle`, y desde ahí `isWalking` / `isRunning` llevan a la
+  locomoción, como ya pasa.
+- A5 no tiene *exit time*: lo corta el código cuando el arco toca el piso.
+- Los pasos y el impacto van por eventos de animación, porque así ya funcionan los pasos del
+  Nemesis (`FootstepEmitter` con `AnimationEvent`, ver `docs/CLAUDE.md` › *Footsteps and
+  breathing*).
+
+**Sonido** (la animación sola no alcanza, porque desde abajo el jugador lo oye antes de verlo):
+gruñido en A1 (`sfx_nemesis_voice_*`, hoy sin uso), golpe de manos en A3, impacto fuerte en A6 con
+más volumen que un paso de persecución. Todo en 3D por el bus del Nemesis, como `NemesisAudio`.
+Nada de esto pasa por `DetectableAudio`: esa capa es lo que el Nemesis oye, no lo que hace.
+
+**Otras animaciones que el plan ya pide y que tampoco existen** (para tener el inventario en un
+solo lugar; el Animator de hoy no tiene más que Idle / Patrol / Chase):
+
+| Estado | Fase del plan | Para qué |
+|---|---|---|
+| `Catch` (agarre) | ya debería existir | `isCatching` está en el controller sin transición: hoy la captura no se anima. |
+| `Search Look` | 2 | La pausa de `SearchPauseTime` al revisar un punto; hoy la pausa es `Idle` más `NemesisLookAround`. |
+| `Check Locker` (abrir la puerta) | 2 | Nivel A y Nivel C en un locker. |
+| `Check Under Table` (agacharse a mirar) | 2 | Nivel C en una mesa. |
+| `Pull Out` (sacar al jugador del escondite) | 2 | La fase nueva de `Catch` (§3.5). Va en par con una del jugador. |
+| `Break Locker` (arrancar la puerta) | 6 | Escondite quemado (§3.6, D2). Necesita además el modelo del locker roto. |
+| `Ambush Idle` (quieto, respirando, mirando una salida) | 6 | `ExitAmbush` y `ZoneDefense`: esperar sin parecer trabado. |
+
+Del lado del jugador: entrar y salir de cada tipo de escondite (0.5–0.8 s, §3.1) y ser sacado del
+locker (en par con `Pull Out`).
+
+### 15.6 Cómo se arma en Unity
+
+1. **Apagar los links automáticos (D10).** En la NavMeshSurface de Zona1, *Generate Links* en off,
+   y rebakear. Antes de apagarlos, mirar con *Show Links* dónde había links: cualquier lugar donde el
+   Nemesis dependía de un salto automático para no quedar trabado pasa a ser una bajada autorada, o
+   se arregla la geometría. Repetir en `NemesisTestbed`.
+2. **El área.** En *Navigation → Areas*, índice 5 → `NemesisDrop`, con costo 1: el costo real lo
+   pone el código por estado.
+3. **Una bajada.** Bajo un contenedor `---- NAV ---- / Drop Links` (estático):
+   ```
+   Drop_<lugar>           ← NemesisDropLink + NavMeshLink. Estático. Escala 1.
+   |-- TopEdge            ← sobre el NavMesh de arriba, a 0.3–0.5 m del borde, con el eje Z
+   |                         apuntando al vacío (es la dirección en que mira al anticipar)
+   \-- BottomLanding      ← sobre el NavMesh de abajo, a 0.8–1.5 m de la vertical del borde
+                             (el arco necesita avance horizontal; justo abajo se ve como un
+                             ascensor)
+   ```
+   Los extremos del `NavMeshLink` se pisan en `Awake` desde los dos hijos, como en el montacargas;
+   lo que se cargue a mano en el inspector se ignora.
+4. **Que el jugador no la use** (D9), salvo que sea compartida a propósito: baranda o collider de
+   jugador en el borde. En la capa del jugador, no en `Props`, para no tapar la visión del Nemesis
+   hacia abajo.
+5. **Testbed.** Agregar un entrepiso con una bajada `Hop` y otra `Hang`, más una escalera de vuelta,
+   en `Scenes/Dev/NemesisTestbed.unity`, para probar los casos 12–16 sin cargar el nivel.
+
+**Qué tiene que avisar *Validate Navigation Setup*:**
+
+| Problema | Por qué importa |
+|---|---|
+| `TopEdge` o `BottomLanding` fuera del NavMesh (`SamplePosition` a 0.3 m) | El link no se registra y la bajada no existe. |
+| Alto fuera de 1.5–5 m | Debajo lo cubre el escalón; encima es irreal. |
+| `BottomLanding` sin camino de vuelta a `TopEdge` (escalera o montacargas) | Rompe las islas de `NemesisRouteGraph` (§15.2) y puede dejar al Nemesis atrapado abajo. |
+| El arco choca con geometría (`CapsuleCast` por tramos contra la máscara de oclusión) | Atravesaría una viga en el aire. |
+| Radio libre de 1 m alrededor de `BottomLanding` con colliders sólidos | Aterriza adentro de una caja. |
+| `BottomLanding` dentro de un volumen `Not Walkable` o a menos de 3 m de la puerta del Hub | C5 fabricado por el nivel. |
+| `bidirectional` prendido en el `NavMeshLink` | El agente intentaría "subir" por una bajada. |
+| *Generate Links* prendido en alguna NavMeshSurface | Vuelven los links sin autorar (D10). |
+| Estados del §15.5 que faltan en el controller | La bajada anda igual pero sin animación; avisar, no fallar. |
+
+### 15.7 Riesgos
+
+- **Links automáticos de los que el nivel depende sin saberlo.** Si apagar *Generate Links* deja un
+  rincón sin salida para el Nemesis, `NemesisStuckEscape` lo va a sacar con warps y eso se ve. Por
+  eso el paso 1 del §15.6 empieza mirando dónde estaban.
+- **Que el jugador no entienda por qué lo alcanzó.** Una bajada que el jugador nunca vio usar
+  parece trampa. Aplica la regla R3: la primera bajada de la partida debería pasar con el jugador en
+  rango de verla u oírla. Puede ser un disparador del Director (`stageEntrance` con una variante de
+  bajada, D12) o, más simple, ubicar la primera bajada en un lugar de paso obligado.
+- **Abuso desde abajo.** El jugador se queda debajo de la bajada para que el Nemesis caiga y
+  esquivarlo durante la recuperación. Es legítimo, porque es leer al enemigo. Si se vuelve dominante,
+  se acorta la recuperación, nunca se quita.

@@ -268,6 +268,26 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// SpeedMultiplier on top (1 walk, 1.5 sprint, crouchSpeedMultiplier crouch).</summary>
     public float EffectiveMoveSpeed => movement != null ? movement.MoveSpeed * MoveSpeedPenaltyFactor : 0f;
 
+    // ── Locomotion cadence ──────────────────────────────────────────────────────
+
+    [Header("Locomotion cadence")]
+    [Tooltip("Playback speed range of the walk / run / crouch-walk clips. They play at " +
+             "(actual speed / the gait's target speed), clamped to this, so the legs — and the " +
+             "footsteps, which are events on the footfall frames — keep time with how fast the " +
+             "player really moves. 1 at a steady gait. The floor keeps a player pressing into a " +
+             "wall from moonwalking in slow motion; the ceiling is headroom, a player rarely " +
+             "outruns its own target.")]
+    [SerializeField] private Vector2 locomotionAnimSpeedRange = new Vector2(0.6f, 1.3f);
+
+    [Tooltip("How fast the playback speed follows the velocity (1/s). Higher = snappier.")]
+    [SerializeField, Min(0.1f)] private float locomotionAnimSpeedSharpness = 10f;
+
+    // Float, default 1, driving the Speed Multiplier of Walking, Running and Crouched Walking.
+    private const string LOCOMOTION_SPEED_PARAM = "locomotionSpeed";
+    private static readonly int LocomotionSpeedHash = Animator.StringToHash(LOCOMOTION_SPEED_PARAM);
+    private bool hasLocomotionSpeedParam;
+    private float locomotionAnimSpeed = 1f;
+
     public enum EPlayerState
     {
         Idle,
@@ -301,6 +321,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         boxColl.enabled = false;
 
         SetupClipOverrides();
+        hasLocomotionSpeedParam = HasAnimatorParameter(LOCOMOTION_SPEED_PARAM, AnimatorControllerParameterType.Float);
 
         InitializeStates();
 
@@ -451,6 +472,53 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         else InputUpdate();
         CheckGround();
         base.Update();
+        UpdateLocomotionAnimSpeed();
+    }
+
+    /// <summary>
+    /// Plays Walking / Running / Crouched Walking (and the injured clips standing in for them)
+    /// at the rate the player is actually covering ground, relative to the speed that gait is
+    /// meant to run at. Written after the state update, so it reads the velocity this frame's
+    /// state just applied.
+    ///
+    /// This is what makes the footsteps follow the player's speed. The steps are AnimationEvents
+    /// on the footfall frames, so they come exactly as fast as the legs do — and with the clips
+    /// at a fixed rate the legs did not care how fast the player moved: accelerating out of idle,
+    /// pressing into a wall, or sprinting with the chest penalty all walked at the clip's one
+    /// cadence. Scaling playback by actual / nominal speed fixes the legs and the sound together.
+    ///
+    /// Nominal is the target speed of the current gait (legs and chest penalties included), so
+    /// at a steady walk, run or limp the ratio is 1 and the clips look exactly as authored.
+    /// </summary>
+    private void UpdateLocomotionAnimSpeed()
+    {
+        if (!hasLocomotionSpeedParam) return;
+
+        float target = 1f;
+        float nominal = EffectiveMoveSpeed * speedMultiplier;
+        if (nominal > 0.01f && isGrounded)
+        {
+            Vector3 v = rigBody.linearVelocity;
+            v.y = 0f;
+            target = Mathf.Clamp(v.magnitude / nominal, locomotionAnimSpeedRange.x, locomotionAnimSpeedRange.y);
+        }
+
+        // Smoothed: the Rigidbody's velocity jitters frame to frame against geometry, and the
+        // cadence should not.
+        float k = 1f - Mathf.Exp(-locomotionAnimSpeedSharpness * Time.deltaTime);
+        locomotionAnimSpeed = Mathf.Lerp(locomotionAnimSpeed, target, k);
+        animController.SetFloat(LocomotionSpeedHash, locomotionAnimSpeed);
+    }
+
+    private bool HasAnimatorParameter(string paramName, AnimatorControllerParameterType type)
+    {
+        if (animController == null || animController.runtimeAnimatorController == null) return false;
+        foreach (AnimatorControllerParameter p in animController.parameters)
+            if (p.name == paramName && p.type == type) return true;
+
+        Debug.LogWarning($"[Player] The Animator has no {type} parameter '{paramName}', so the " +
+                         "walk/run clips play at a fixed rate whatever the player's speed.", this);
+        return false;
     }
     private void InitializeStates()
     {

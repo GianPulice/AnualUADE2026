@@ -15,6 +15,14 @@ public static class ModuleEvents
     /// <summary>Active module's timer ticked. Fires every frame while a module is Active.</summary>
     public static event Action<ModuleRuntime> OnTimerTick;
 
+    /// <summary>
+    /// The active module's timer jumped by a discrete amount outside the regular countdown: a skill
+    /// check miss (negative) or a perfect hit (positive). The delta is what was actually applied after
+    /// clamping, so a view can print it as is. Also raised while the timer is paused, where no
+    /// <see cref="OnTimerTick"/> will follow to show the new value.
+    /// </summary>
+    public static event Action<ModuleRuntime, float> OnTimeAdjusted;
+
     /// <summary>A module reached zero. Fired once per module, right before OnStateChanged with Exploded.</summary>
     public static event Action<ModuleRuntime> OnExploded;
 
@@ -49,6 +57,7 @@ public static class ModuleEvents
     // ── Invokers (kept internal so only the manager can raise) ─────────────────────────
     internal static void RaiseStateChanged(ModuleRuntime m) => OnStateChanged?.Invoke(m);
     internal static void RaiseTimerTick(ModuleRuntime m) => OnTimerTick?.Invoke(m);
+    internal static void RaiseTimeAdjusted(ModuleRuntime m, float delta) => OnTimeAdjusted?.Invoke(m, delta);
     internal static void RaiseExploded(ModuleRuntime m) => OnExploded?.Invoke(m);
     internal static void RaiseAllModulesExploded() => OnAllModulesExploded?.Invoke();
     internal static void RaisePenaltyApplied(ModuleRuntime m) => OnPenaltyApplied?.Invoke(m);

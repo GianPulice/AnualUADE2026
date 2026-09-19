@@ -69,11 +69,11 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
     {
         UIStateManager.Instance.Push(this);
         SubscribeModel();
-        view.Initialize(
-            model.SuccessZoneStart,
-            model.SuccessZoneWidth,
-            model.TotalChecks,
-            _activeData.flashDuration);
+        //view.Initialize(
+        //    model.SuccessZoneStart,
+        //    model.SuccessZoneWidth,
+        //    model.TotalChecks,
+        //    _activeData.flashDuration);
         _isRunning = true;
     }
 
@@ -117,7 +117,7 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
         // Exists rather than 'Instance == null': the property logs a warning of its own every time
         // it is read while null.
         if (!ModuleManager.Exists) return;
-        ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
+       // ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
     }
 
     private void HandleCheckSuccess() { }

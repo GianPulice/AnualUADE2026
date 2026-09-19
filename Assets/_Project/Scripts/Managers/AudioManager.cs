@@ -189,8 +189,8 @@ public class AudioManager : Singleton<AudioManager>
     /// <remarks>
     /// NOT usable for ambient loops. It borrows a source from the shared SFX pool, so it returns
     /// no handle (there is no StopAmbience), it can be cut mid-clip when the pool runs dry, and
-    /// PlayInternal hardcodes volume = 1f while never touching pitch, rolloffMode or
-    /// min/maxDistance. Looping and positioned ambience is owned by AmbienceController and its
+    /// PlayInternal only applies the SO's fixed volume, pins pitch to 1 and, for a 2D sound,
+    /// never touches rolloffMode or min/maxDistance. Looping and positioned ambience is owned by AmbienceController and its
     /// layers, which create their own AudioSources and route them through
     /// <see cref="AmbienceGroup"/>.
     /// </remarks>
@@ -262,6 +262,13 @@ public class AudioManager : Singleton<AudioManager>
         src.outputAudioMixerGroup = GroupFor(data.Category);
         src.loop = true;
         src.ignoreListenerPause = data.IgnoreListenerPause;
+        src.volume = data.Volume;
+
+        // Same 3D range as the pooled path. Only meaningful when the caller made the source 3D;
+        // the SO defaults match Unity's, so a loop whose SO was never tuned sounds as before.
+        src.rolloffMode = data.Rolloff;
+        src.minDistance = data.MinDistance;
+        src.maxDistance = data.MaxDistance;
         src.Play();
     }
 
@@ -271,7 +278,7 @@ public class AudioManager : Singleton<AudioManager>
     /// </summary>
     /// <remarks>
     /// The id-based API cannot express any of those three: <see cref="PlayInternal"/> plays every
-    /// pooled sound at volume 1 and pitch 1, and takes its distances off the SO. That is fine for a
+    /// pooled sound at the SO's fixed volume and pitch 1, and takes its distances off the SO. That is fine for a
     /// door, which sounds the same every time it opens, and wrong for anything drawn from a bank —
     /// a footstep needs a different pitch and volume on every step or it reads as a copy-paste.
     ///
@@ -334,7 +341,7 @@ public class AudioManager : Singleton<AudioManager>
         musicSource.clip = data.Clip;
         musicSource.outputAudioMixerGroup = musicGroup;
         musicSource.loop = data.Loop;
-        musicSource.volume = 1f; // Volume is governed by the mixer.
+        musicSource.volume = data.Volume; // Per-clip trim; the Music volume is applied by the mixer on top.
         musicSource.Play();
     }
 
@@ -398,7 +405,7 @@ public class AudioManager : Singleton<AudioManager>
     ///
     /// Its users are <see cref="FootstepEmitter"/> and <see cref="HiddenBreathing"/>, and they own
     /// their sources rather than borrowing from the SFX pool for two reasons the pool cannot serve:
-    /// <see cref="PlayInternal"/> hardcodes volume to 1 and never touches pitch — a footstep needs
+    /// <see cref="PlayInternal"/> uses one fixed volume per SO and pins pitch to 1 — a footstep needs
     /// both per step, and a pitch left on a shared pooled source would leak into whatever plays on
     /// it next — and a breathing loop needs a handle it can fade.
     /// </summary>
@@ -536,7 +543,7 @@ public class AudioManager : Singleton<AudioManager>
         src.clip = data.Clip;
         src.outputAudioMixerGroup = group;
         src.loop = data.Loop;
-        src.volume = 1f; // The final volume is decided by the mixer.
+        src.volume = data.Volume; // Per-clip trim; the category volume is applied by the mixer on top.
 
         // Reset, because the pool is shared and PlayClip leaves a per-shot pitch on the source it
         // borrowed. Without this a footstep at pitch 1.07 detunes whatever plays on that source
