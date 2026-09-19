@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: regulador_presion
   itemName: Pressure Regulator
-  category: 1
+  category: 3
   itemDescription: Component obtained by solving Sub-Puzzle 3.
   itemIcon: {fileID: 21300000, guid: 076f1decf9618bc4c857e9e1efb3f275, type: 3}
   isMetallic: 1
@@ -25,3 +25,4 @@ MonoBehaviour:
   textContent: 
   audioClip: {fileID: 0}
   targetID: socket_regulador_presion
+  worldPickupPrefab: {fileID: 2043345857581216448, guid: 16b51811505b7b94aa1fab7222ee4518, type: 3}

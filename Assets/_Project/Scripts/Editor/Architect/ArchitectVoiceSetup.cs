@@ -327,16 +327,16 @@ public static class ArchitectVoiceSetup
             "The rules are simple: solve it, disarm it, get out.");
         yield return L(ArchitectLineID.NemesisReleased, M, "> CONTAINMENT BREACH", false,
             "You're not alone in the complex anymore. And there's more than time to worry about now.");
-        yield return L(ArchitectLineID.GameEnd, M, "> {0} DISARMED", true,
+        yield return L(ArchitectLineID.GameEnd, M, "<color=#2EB847>> {0} DISARMED</color>", true,
             "You made it. You're the first.");
 
         yield return L(ArchitectLineID.ContextZone1, C, "", false,
             "Industrial sector. Three parts of the system to bring back online. Once all three are up, you can move on.");
         yield return L(ArchitectLineID.ContextZone2, C, "", false,
             "Down here you'll have to think a little harder before it goes off.");
-        yield return L(ArchitectLineID.ContextCentral1, C, "> M1 DISARMED", false,
+        yield return L(ArchitectLineID.ContextCentral1, C, "<color=#2EB847>> M1 DISARMED</color>", false,
             "Module disarmed. The gate is open. The complex goes on.");
-        yield return L(ArchitectLineID.ContextCentral2, C, "> M2 DISARMED", false,
+        yield return L(ArchitectLineID.ContextCentral2, C, "<color=#2EB847>> M2 DISARMED</color>", false,
             "Two modules down. One left.");
         yield return L(ArchitectLineID.ContextFirstNote, C, "", false,
             "Someone was here before you. They left something for whoever came next.");

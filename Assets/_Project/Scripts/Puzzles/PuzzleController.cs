@@ -3,6 +3,8 @@ using UnityEngine;
 public class PuzzleController : MonoBehaviour
 {
     [SerializeField] private SO_PuzzleData puzzleData;
+    [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
+    [SerializeField] private Transform rewardDropPoint;
 
     private PuzzleState currentState;
 
@@ -50,13 +52,7 @@ public class PuzzleController : MonoBehaviour
                              $"'{puzzleData.PuzzleId}' was not recorded, so nothing gated behind " +
                              $"it will open.", this);
 
-        if (puzzleData.RewardItem != null)
-        {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(puzzleData.RewardItem);
-            else Debug.LogWarning($"[{nameof(PuzzleController)}] No InventoryManager — the reward " +
-                                  $"'{puzzleData.RewardItem.name}' for '{puzzleData.PuzzleId}' was " +
-                                  $"not granted.", this);
-        }
+        PuzzleRewardDelivery.Deliver(puzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Puzzle completed: {puzzleData.PuzzleId}");
     }

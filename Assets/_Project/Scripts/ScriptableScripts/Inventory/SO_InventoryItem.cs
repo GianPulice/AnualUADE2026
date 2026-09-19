@@ -57,6 +57,11 @@ public class SO_InventoryItem : ScriptableObject
     [Tooltip("ID of the world object this item is used with (door, socket, etc.).")]
     private string targetID;
 
+    [SerializeField]
+    [Tooltip("Pickup prefab that puts this item in the world. Used when a puzzle reward cannot go " +
+             "to the inventory (one-Special-at-a-time rule) and is left on the floor instead.")]
+    private PickupInteractable worldPickupPrefab;
+
 
 
     // -- Item Properties ───────────────────────────────────────────────────────────────
@@ -82,6 +87,7 @@ public class SO_InventoryItem : ScriptableObject
     public string TextContent => contentType == ItemContentType.Text ? textContent : null;
     public AudioClip AudioClip => contentType == ItemContentType.Audio ? audioClip : null;
     public string TargetID => targetID;
+    public PickupInteractable WorldPickupPrefab => worldPickupPrefab;
 
 }
 public enum ItemContentType

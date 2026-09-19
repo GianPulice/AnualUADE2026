@@ -3,6 +3,8 @@ using UnityEngine;
 public class ValvePuzzleController : MonoBehaviour
 {
     [SerializeField] private SO_ValvePuzzleData valvePuzzleData;
+    [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
+    [SerializeField] private Transform rewardDropPoint;
 
     public string PuzzleId => valvePuzzleData != null ? valvePuzzleData.PuzzleId : string.Empty;
 
@@ -29,13 +31,7 @@ public class ValvePuzzleController : MonoBehaviour
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
 
-        if (valvePuzzleData.RewardItem != null)
-        {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(valvePuzzleData.RewardItem);
-            else Debug.LogWarning($"[{nameof(ValvePuzzleController)}] No InventoryManager — the " +
-                                  $"reward '{valvePuzzleData.RewardItem.name}' for " +
-                                  $"'{valvePuzzleData.PuzzleId}' was not granted.", this);
-        }
+        PuzzleRewardDelivery.Deliver(valvePuzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
     }

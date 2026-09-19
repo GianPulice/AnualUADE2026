@@ -12,6 +12,8 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
 {
     [Header("Puzzle data")]
     [SerializeField] private SO_SequencePuzzleData sequenceData;
+    [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
+    [SerializeField] private Transform rewardDropPoint;
 
     [Header("Panel configuration")]
     [Tooltip("Number of numbered keys the UI shows: IDs run from 1 to buttonCount. " +
@@ -175,13 +177,7 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
                              $"completing '{sequenceData.PuzzleId}' was not recorded, so nothing " +
                              $"gated behind it will open.", this);
 
-        if (sequenceData.RewardItem != null)
-        {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(sequenceData.RewardItem);
-            else Debug.LogWarning($"[{nameof(SequencePanelInteractable)}] No InventoryManager — " +
-                                  $"the reward '{sequenceData.RewardItem.name}' for " +
-                                  $"'{sequenceData.PuzzleId}' was not granted.", this);
-        }
+        PuzzleRewardDelivery.Deliver(sequenceData.RewardItem, rewardDropPoint, this);
 
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");

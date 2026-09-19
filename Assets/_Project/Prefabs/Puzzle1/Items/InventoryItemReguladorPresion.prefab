@@ -55,10 +55,10 @@ PrefabInstance:
     - target: {fileID: 8221545152509093141, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
       propertyPath: itemToPick
       value: 
-      objectReference: {fileID: 11400000, guid: 295ff2b7bf839e24db19d08b2eef82c6, type: 2}
+      objectReference: {fileID: 11400000, guid: d3906647a151b8340a108eb835d9e2a4, type: 2}
     - target: {fileID: 8438275548156035699, guid: 3db094aa7d9194e47a653d3fc0b89932, type: 3}
       propertyPath: m_Name
-      value: InventoryItemNucleoMecanico 1
+      value: InventoryItemReguladorPresion
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
