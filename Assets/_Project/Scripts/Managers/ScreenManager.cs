@@ -107,7 +107,7 @@ public class ScreenManager : Singleton<ScreenManager>
 
         try
         {
-            await RunBehindLoadingScreenAsync(UnloadAllGroupsAsync, revealAfter: false);
+            await RunBehindLoadingScreenAsync(UnloadAllGroupsAsync, revealAfter: false, exiting: true);
         }
         finally
         {
@@ -272,7 +272,7 @@ public class ScreenManager : Singleton<ScreenManager>
     /// A failure inside <paramref name="work"/> is logged and the sequence still finishes, so an
     /// exception can never leave the game behind a black screen with IsLoading stuck on.
     /// </summary>
-    private async UniTask RunBehindLoadingScreenAsync(Func<UniTask> work, bool revealAfter)
+    private async UniTask RunBehindLoadingScreenAsync(Func<UniTask> work, bool revealAfter, bool exiting = false)
     {
         if (loadingScreen == null)
         {
@@ -288,7 +288,7 @@ public class ScreenManager : Singleton<ScreenManager>
         SetUIInputLocked(true);
         try
         {
-            await RunLoadingSequenceAsync(work, revealAfter, token);
+            await RunLoadingSequenceAsync(work, revealAfter, exiting, token);
         }
         finally
         {
@@ -296,9 +296,22 @@ public class ScreenManager : Singleton<ScreenManager>
         }
     }
 
-    private async UniTask RunLoadingSequenceAsync(Func<UniTask> work, bool revealAfter, CancellationToken token)
+    /// <summary>
+    /// How long the quit screen stays up, in real seconds, power-off included — much shorter than
+    /// a scene change's <see cref="LoadingScreen.MinimumDuration"/>: there is nothing to wait for.
+    /// </summary>
+    private const float QuitScreenDuration = 3f;
+
+    private async UniTask RunLoadingSequenceAsync(Func<UniTask> work, bool revealAfter, bool exiting,
+                                                  CancellationToken token)
     {
         await loadingScreen.FadeToBlackAsync(token);
+
+        // Quitting has its own look (EXITING, Starfield, CRT power-off) and its own, shorter length.
+        loadingScreen.SetExitMode(exiting);
+        float minimumDuration = exiting
+            ? Mathf.Max(0f, QuitScreenDuration - loadingScreen.PowerOffDuration)
+            : LoadingScreen.MinimumDuration;
 
         loadingScreen.SetProgress(0f);
         loadingScreen.SetContentVisible(true);
@@ -316,12 +329,12 @@ public class ScreenManager : Singleton<ScreenManager>
             float elapsed = Time.realtimeSinceStartup - startTime;
             bool workDone = workTask.Status != UniTaskStatus.Pending;
 
-            if (workDone && elapsed >= LoadingScreen.MinimumDuration) break;
+            if (workDone && elapsed >= minimumDuration) break;
 
             // The bar tracks the minimum time. While the scenes are still loading it stops just
             // short of full, so a load that runs past the minimum reads as "almost there" rather
             // than as a full bar that is stuck.
-            float progress = elapsed / LoadingScreen.MinimumDuration;
+            float progress = minimumDuration > 0f ? elapsed / minimumDuration : 1f;
             loadingScreen.SetProgress(workDone ? progress : Mathf.Min(progress, 0.95f));
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);
@@ -329,6 +342,8 @@ public class ScreenManager : Singleton<ScreenManager>
 
         await workTask;
         loadingScreen.SetProgress(1f);
+
+        if (exiting) await loadingScreen.PowerOffAsync(token);
 
         if (!revealAfter) return;
 
