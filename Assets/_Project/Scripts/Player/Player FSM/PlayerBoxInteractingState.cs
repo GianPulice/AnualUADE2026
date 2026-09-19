@@ -53,6 +53,15 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     private const float PushBlendDamp = 0.1f;
     private Vector2 pushBlendTarget;
 
+    // BoxColl never collides with the grabbed box. It sits in front of the body right where the
+    // box's face is, so the two overlap once latched and the solver keeps shoving them apart: that
+    // shove threw the player backwards, which made a pull clearly faster than a push and skewed the
+    // two slides as well. DriveBox already keeps the pair together, so the contact did nothing but
+    // make the four directions travel at different speeds. BoxColl still collides with everything
+    // else. Kept up every frame while latched, because PushableBox re-enables every player/box pair
+    // when its grab-snap suppression ends.
+    private Collider[] boxSolidColliders;
+
     public PlayerBoxInteractingState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -82,6 +91,45 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         pushBlendTarget = Vector2.zero;
         playerStateManager.AnimController.SetFloat(PushXHash, 0f);
         playerStateManager.AnimController.SetFloat(PushYHash, 0f);
+
+        CacheBoxSolidColliders();
+        BackSnapTargetOffBoxFace();
+    }
+
+    /// <summary>
+    /// Moves the grab snap's target back so BoxColl's front edge rests on the box face instead of
+    /// inside it. The push animations are aligned to that distance: it is where the BoxColl/box
+    /// contact used to hold the player before the two stopped colliding (see the note on
+    /// <see cref="boxSolidColliders"/>). The side anchors sit closer than that — and not all at the
+    /// same distance — so without this the hands and head sink into the box. Only ever moves the
+    /// target back, like the contact did; an anchor already far enough is left alone.
+    /// </summary>
+    private void BackSnapTargetOffBoxFace()
+    {
+        BoxCollider boxColl = playerStateManager.BoxColl;
+        if (boxCollider == null || boxColl == null) return;
+
+        Vector3 direction = playerStateManager.NextDirection;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f) return;
+        direction.Normalize();
+
+        // How far BoxColl's front edge reaches ahead of the player's pivot, along the body's forward.
+        Transform collTransform = boxColl.transform;
+        Vector3 frontEdge = collTransform.TransformPoint(boxColl.center + Vector3.forward * (boxColl.size.z * 0.5f));
+        Vector3 reach = frontEdge - playerStateManager.transform.position;
+        reach.y = 0f;
+        float reachAhead = Vector3.Dot(reach, playerStateManager.PlayerBody.forward);
+
+        // How far the box face is from the snap target, measured at the box's mid height.
+        Vector3 target = playerStateManager.NextPosition;
+        Vector3 origin = new Vector3(target.x, boxCollider.bounds.center.y, target.z);
+        if (!boxCollider.Raycast(new Ray(origin, direction), out RaycastHit hit, 5f)) return;
+
+        float gap = reachAhead - hit.distance;
+        if (gap <= 0f) return;
+
+        playerStateManager.SetPlayerPositionAndDirection(target - direction * gap, playerStateManager.NextDirection);
     }
 
     public override void ExitState()
@@ -100,6 +148,8 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
             Vector3 v = box.linearVelocity;
             box.linearVelocity = new Vector3(0f, v.y, 0f);
         }
+        SetBoxCollIgnoresBox(false);
+        boxSolidColliders = null;
         box = null;
         boxCollider = null;
     }
@@ -136,6 +186,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                     boxOffset = box.position - playerStateManager.RigBody.position;
                     hasBoxOffset = true;
                 }
+                SetBoxCollIgnoresBox(true);
 
                 Vector3 pushDir = ReadPushDirection();
 
@@ -206,6 +257,34 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
             case Back:    return -forward;
             case Right:   return right;
             default:      return -right;
+        }
+    }
+
+    private void CacheBoxSolidColliders()
+    {
+        boxSolidColliders = null;
+        if (box == null) return;
+
+        Collider[] all = box.GetComponentsInChildren<Collider>();
+        int solid = 0;
+        for (int i = 0; i < all.Length; i++) if (!all[i].isTrigger) solid++;
+
+        boxSolidColliders = new Collider[solid];
+        for (int i = 0, j = 0; i < all.Length; i++)
+        {
+            if (!all[i].isTrigger) boxSolidColliders[j++] = all[i];
+        }
+    }
+
+    /// <summary>See the note on <see cref="boxSolidColliders"/>.</summary>
+    private void SetBoxCollIgnoresBox(bool ignore)
+    {
+        Collider boxColl = playerStateManager.BoxColl;
+        if (boxColl == null || boxSolidColliders == null) return;
+
+        for (int i = 0; i < boxSolidColliders.Length; i++)
+        {
+            if (boxSolidColliders[i] != null) Physics.IgnoreCollision(boxColl, boxSolidColliders[i], ignore);
         }
     }
 
