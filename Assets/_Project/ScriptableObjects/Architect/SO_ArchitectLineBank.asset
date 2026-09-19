@@ -41,7 +41,7 @@ MonoBehaviour:
     variants:
     - You made it. You're the first.
     clips: []
-    alert: '> {0} DISARMED'
+    alert: '<color=#2EB847>> {0} DISARMED</color>'
     playsOverMenus: 1
   - id: 4
     category: 1
@@ -63,14 +63,14 @@ MonoBehaviour:
     variants:
     - Module disarmed. The gate is open. The complex goes on.
     clips: []
-    alert: '> M1 DISARMED'
+    alert: '<color=#2EB847>> M1 DISARMED</color>'
     playsOverMenus: 0
   - id: 7
     category: 1
     variants:
     - Two modules down. One left.
     clips: []
-    alert: '> M2 DISARMED'
+    alert: '<color=#2EB847>> M2 DISARMED</color>'
     playsOverMenus: 0
   - id: 8
     category: 1
