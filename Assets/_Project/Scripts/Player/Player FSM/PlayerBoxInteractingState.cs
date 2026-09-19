@@ -44,6 +44,15 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     // Contacts with a normal steeper than this are floor or ramp and never block a push.
     private const float FloorNormalY = 0.7f;
 
+    // Drive the directional push blend tree (Pushing state): pushY is +1 forward / -1 pull,
+    // pushX is +1 right / -1 left, both in the player's local frame. Damped so switching direction
+    // cross-fades instead of popping. The last direction is kept while idle, so easing back into
+    // PushIdle never slides the pose through a different direction on the way.
+    private static readonly int PushXHash = Animator.StringToHash("pushX");
+    private static readonly int PushYHash = Animator.StringToHash("pushY");
+    private const float PushBlendDamp = 0.1f;
+    private Vector2 pushBlendTarget;
+
     public PlayerBoxInteractingState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -69,6 +78,10 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         boxCollider = box != null ? box.GetComponent<BoxCollider>() : null;
         hasBoxOffset = false;
         playerStateManager.PushDirection = Vector3.zero;
+
+        pushBlendTarget = Vector2.zero;
+        playerStateManager.AnimController.SetFloat(PushXHash, 0f);
+        playerStateManager.AnimController.SetFloat(PushYHash, 0f);
     }
 
     public override void ExitState()
@@ -150,6 +163,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                 Vector3 move = pushDir * playerStateManager.CurrentVelocity;
                 playerStateManager.RigBody.linearVelocity = move + Vector3.down;
                 DriveBox(move);
+                UpdatePushBlend(pushDir);
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
         }
@@ -193,6 +207,22 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
             case Right:   return right;
             default:      return -right;
         }
+    }
+
+    /// <summary>
+    /// Feeds the push direction, in the body's local frame, to the Pushing blend tree.
+    /// </summary>
+    private void UpdatePushBlend(Vector3 pushDir)
+    {
+        if (pushDir != Vector3.zero)
+        {
+            Transform body = playerStateManager.PlayerBody;
+            pushBlendTarget = new Vector2(Vector3.Dot(pushDir, body.right), Vector3.Dot(pushDir, body.forward));
+        }
+
+        Animator anim = playerStateManager.AnimController;
+        anim.SetFloat(PushXHash, pushBlendTarget.x, PushBlendDamp, Time.deltaTime);
+        anim.SetFloat(PushYHash, pushBlendTarget.y, PushBlendDamp, Time.deltaTime);
     }
 
     private void Track(int direction, bool held)
