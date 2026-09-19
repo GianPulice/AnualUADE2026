@@ -22,7 +22,10 @@ using UnityEngine;
 ///     a lit panel stays lit, and scaled by <see cref="SO_HighlightProfile.LitEmissionScale"/>. Needs
 ///     the material's Emission switched on (Tools ▸ Interactables ▸ Set Up Highlights does it);
 ///     with it off, URP compiles the emission out. One with an _EmissionMap would mask the added
-///     emission to the map's few glowing spots, so it brightens <c>_BaseColor</c> instead.
+///     emission to the map's few glowing spots, so it brightens <c>_BaseColor</c> instead — unless
+///     the profile has an <see cref="SO_HighlightProfile.OverlayMaterial"/> (only SO_Highlight_Cores
+///     does): then a single-material part gets that additive layer on top while lit, so the whole
+///     part glows and fades in and out whatever the room's light, with its own emission untouched.
 ///   • Anything else is skipped, and Tools ▸ Items ▸ Validate Interactable Highlights lists it.
 /// Written slot by slot, reading the slot's block back first: a per-slot block REPLACES the
 /// renderer-wide one for that slot, so a renderer-wide write would be silently ignored wherever
@@ -70,6 +73,15 @@ public class ItemProximityHighlight : MonoBehaviour
         public Color       BaseColor;
     }
 
+    // A masked, single-material renderer highlighted through the profile's overlay layer.
+    private struct Overlay
+    {
+        public Renderer   Renderer;
+        public Material[] Original;
+        public Material[] WithOverlay;
+        public bool       Attached;
+    }
+
     [Tooltip("Far/near values and colours. SO_Highlight_Items on pickups, SO_Highlight_Interactables " +
              "on puzzle props and devices. Assigned in the Father prefab.")]
     [SerializeField] private SO_HighlightProfile profile;
@@ -80,9 +92,11 @@ public class ItemProximityHighlight : MonoBehaviour
     private static readonly int EmitColorId = Shader.PropertyToID("_EmissionColor");
     private static readonly int EmitMapId   = Shader.PropertyToID("_EmissionMap");
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int OverlayColorId = Shader.PropertyToID("_OverlayColor");
     private const string EmissionKeyword = "_EMISSION";
 
     private readonly List<Slot> _slots = new List<Slot>();
+    private readonly List<Overlay> _overlays = new List<Overlay>();
     private MaterialPropertyBlock _block;
     private IInteractable _owner;
     private Color _tintColor;
@@ -222,6 +236,15 @@ public class ItemProximityHighlight : MonoBehaviour
                               materials[i].GetTexture(EmitMapId) != null &&
                               materials[i].HasProperty(BaseColorId);
 
+                if (masked && CanTakeOverlay(renderer))
+                {
+                    var withOverlay = new Material[materials.Length + 1];
+                    materials.CopyTo(withOverlay, 0);
+                    withOverlay[materials.Length] = profile.OverlayMaterial;
+                    _overlays.Add(new Overlay { Renderer = renderer, Original = materials, WithOverlay = withOverlay });
+                    continue;
+                }
+
                 _slots.Add(new Slot
                 {
                     Renderer     = renderer,
@@ -237,12 +260,26 @@ public class ItemProximityHighlight : MonoBehaviour
             }
         }
 
-        if (_slots.Count == 0)
+        if (_slots.Count == 0 && _overlays.Count == 0)
         {
             Debug.LogWarning($"[{nameof(ItemProximityHighlight)}] '{name}': none of its materials can " +
                              "show the highlight, so looking at it changes nothing. Run Tools > Items > " +
                              "Validate Interactable Highlights for the list.", this);
         }
+    }
+
+    // Opt-in per profile (only SO_Highlight_Cores has an overlay material). An extra material
+    // draws the renderer's LAST submesh, so it only covers the whole part when there is exactly
+    // one material over a one-submesh mesh; anything else keeps the base-colour lift.
+    private bool CanTakeOverlay(Renderer renderer)
+    {
+        if (profile.OverlayMaterial == null) return false;
+        if (renderer.sharedMaterials.Length != 1) return false;
+
+        Mesh mesh = renderer is SkinnedMeshRenderer skinned
+            ? skinned.sharedMesh
+            : renderer.TryGetComponent(out MeshFilter filter) ? filter.sharedMesh : null;
+        return mesh != null && mesh.subMeshCount == 1;
     }
 
     private void TransitionTo(float targetTint, float targetEmission)
@@ -314,6 +351,37 @@ public class ItemProximityHighlight : MonoBehaviour
             }
 
             slot.Renderer.SetPropertyBlock(_block, slot.Index);
+        }
+
+        ApplyOverlays();
+    }
+
+    // The layer is attached only while there is something to show, so at rest the renderer is
+    // exactly as authored (no extra draw call, nothing on top of SocketEmissionShift's colour).
+    // It fades from black, so attaching and detaching never shows as a jump.
+    private void ApplyOverlays()
+    {
+        bool lit = _emission > 0f;
+        Color color = _emissionColor * (_emission * profile.LitEmissionScale);
+        color.a = 0f;
+
+        for (int i = 0; i < _overlays.Count; i++)
+        {
+            Overlay overlay = _overlays[i];
+            if (overlay.Renderer == null) continue;
+
+            if (lit != overlay.Attached)
+            {
+                overlay.Renderer.sharedMaterials = lit ? overlay.WithOverlay : overlay.Original;
+                overlay.Attached = lit;
+                _overlays[i] = overlay;
+            }
+            if (!lit) continue;
+
+            int index = overlay.WithOverlay.Length - 1;
+            overlay.Renderer.GetPropertyBlock(_block, index);
+            _block.SetColor(OverlayColorId, color);
+            overlay.Renderer.SetPropertyBlock(_block, index);
         }
     }
 }

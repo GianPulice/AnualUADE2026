@@ -488,6 +488,7 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Rojo solo para peligro | Solo `mat_luz_emergencia_emissive` tiene rojo. Ningún material de item ni de UI lo usa. |
 | Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Componentes usa marrón oscuro (`#4E342E`), no ámbar puro. |
 | Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. |
+| Verde solo para "módulo alimentado / núcleo colocado" | Solo `SocketEmissionShift` (zona emisiva de las estaciones de núcleo al insertar la pieza, HDR `(0.25, 2.4, 0.55)`). No usar en otro lado. |
 | Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. |
 | Sin waypoints, mapa, partículas sobre items | No hay waypoints ni mapa. **Excepción pedida**: el destello estilo Resident Evil de §5.5 — una estrella que parpadea sobre el pickup cada ~3 s, solo de lejos (se apaga al entrar al alcance de interacción). No es un sistema de partículas ni un marcador permanente; si GD lo objeta, se saca quitando `ItemGlint` de los Father. |
 | Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Valores de `SO_Highlight_Items` (items). Los puzzles y dispositivos usan `SO_Highlight_Interactables` (solo emisión, §5.3). Se afinan en el asset, no por item. |

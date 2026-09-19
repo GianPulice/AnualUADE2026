@@ -59,12 +59,19 @@ public class SO_HighlightProfile : ScriptableObject
              "from its item's category instead of the two colours above.")]
     [SerializeField] private SO_ItemCategoryConfig categoryConfig;
 
+    [Tooltip("Only on SO_Highlight_Cores: mat_highlight_overlay (WIRED/Highlight Overlay), drawn on " +
+             "top of URP/Lit parts whose emission is masked by an Emission Map, so the whole part " +
+             "glows and fades smoothly without touching its own emission. Empty (every other " +
+             "profile): those parts brighten their base colour instead.")]
+    [SerializeField] private Material overlayMaterial;
+
     public float FarTint      => farTint;
     public float FarEmission  => farEmission;
     public float NearTint     => nearTint;
     public float NearEmission => nearEmission;
     public float LerpDuration => lerpDuration;
     public float LitEmissionScale => litEmissionScale;
+    public Material OverlayMaterial => overlayMaterial;
 
     /// <summary>
     /// The colours for <paramref name="owner"/>: its item category's when this profile follows

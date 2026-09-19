@@ -68,9 +68,29 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
             : "Pick up";
     }
 
+    /// <summary>
+    /// Why a Special cannot be taken yet (one-Special-at-a-time rule), naming the one in hand.
+    /// Non-empty info text is also what keeps the prompt visible while E is refused.
+    /// </summary>
+    public override string GetInfoText()
+    {
+        if (itemToPick == null || !InventoryManager.Exists) return string.Empty;
+
+        InventoryManager inventory = InventoryManager.Instance;
+        if (inventory.CanCarry(itemToPick)) return string.Empty;
+
+        SO_InventoryItem carried = inventory.CarriedSpecial;
+        return carried != null && inventory.SpecialItemRules != null
+            ? string.Format(inventory.SpecialItemRules.BlockedPickupFormat, carried.ItemName)
+            : string.Empty;
+    }
+
     protected override bool CanInteractInCloseRange()
     {
-        return itemToPick != null;
+        if (itemToPick == null) return false;
+
+        // No manager: let OnInteract run so its own warning explains why nothing happened.
+        return !InventoryManager.Exists || InventoryManager.Instance.CanCarry(itemToPick);
     }
 
     protected override void OnInteract()

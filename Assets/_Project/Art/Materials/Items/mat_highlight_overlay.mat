@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: UI_Mystify
-  m_Shader: {fileID: 4800000, guid: 7c3e91a2d45b4f8e9a1b6c0d2e4f7a93, type: 3}
+  m_Name: mat_highlight_overlay
+  m_Shader: {fileID: 4800000, guid: 4b8d2e6f1a3c47d59e0f7a1b2c3d4e51, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -24,23 +24,8 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
-    m_Floats:
-    - _Brightness: 1
-    - _Clock: 0
-    - _ColorCycle: 2.5
-    - _Corners: 4
-    - _EchoFade: 0
-    - _EchoSpacing: 0.065
-    - _Echoes: 6
-    - _LineWidth: 1.5
-    - _Margin: 0.025
-    - _Polygons: 4
-    - _Saturation: 1
-    - _Seed: 1
-    - _SpeedMax: 0.35
-    - _SpeedMin: 0.15
+    m_Floats: []
     m_Colors:
-    - _Background: {r: 0, g: 0, b: 0, a: 1}
-    - _TargetSize: {r: 640, g: 360, b: 0, a: 0}
+    - _OverlayColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

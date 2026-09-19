@@ -7,6 +7,10 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     [Header("Initial data (optional, for testing)")]
     [SerializeField] private List<SO_InventoryItem> initialItems = new List<SO_InventoryItem>();
 
+    [Header("Rules")]
+    [Tooltip("One-Special-at-a-time rule for the hub cores. Empty = no limit.")]
+    [SerializeField] private SO_SpecialItemRules specialItemRules;
+
     // The internal list. Private — the outside world only reads through GetAllItems().
     private List<SO_InventoryItem> items = new List<SO_InventoryItem>();
 
@@ -44,6 +48,25 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
        items.Any(i => i.IsMetallic);
     public List<string> GetItemIDs() =>
         items.Select(i => i.ItemID).ToList();
+
+    public SO_SpecialItemRules SpecialItemRules => specialItemRules;
+
+    /// <summary>The Special item currently carried, or null.</summary>
+    public SO_InventoryItem CarriedSpecial =>
+        items.FirstOrDefault(i => i.Category == ItemCategory.Special);
+
+    /// <summary>
+    /// False only when <see cref="SO_SpecialItemRules.LimitOneSpecialAtATime"/> is on, the item is
+    /// a Special and another Special is already carried. Checked by the pickups and by
+    /// <see cref="PuzzleRewardDelivery"/>; <see cref="AddItem"/> itself does not enforce it.
+    /// </summary>
+    public bool CanCarry(SO_InventoryItem item)
+    {
+        if (item == null) return false;
+        if (specialItemRules == null || !specialItemRules.LimitOneSpecialAtATime) return true;
+        if (item.Category != ItemCategory.Special) return true;
+        return CarriedSpecial == null;
+    }
 
     // -- Mutation (only through these methods) ----------
     public void AddItem(SO_InventoryItem item)

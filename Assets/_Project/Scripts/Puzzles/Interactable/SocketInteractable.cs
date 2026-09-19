@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -15,6 +16,15 @@ public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IP
              "AudioManager.sounds). Leave empty to skip audio on this socket.")]
     [SoundId]
     [SerializeField] private string insertSoundId = string.Empty;
+
+    /// <summary>The player just put the item in (animate). Not raised by a load or a rollback.</summary>
+    public event Action Inserted;
+
+    /// <summary>
+    /// The saved state was re-read a few seconds after load (see SyncInsertedVisual): true when the
+    /// socket is already filled. Snap to the matching look, no animation.
+    /// </summary>
+    public event Action<bool> InsertedStateSynced;
 
     public bool IsInserted =>
         socketData != null && PuzzleStateManager.Exists &&
@@ -81,6 +91,8 @@ public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IP
         if (!string.IsNullOrEmpty(insertSoundId) && AudioManager.Exists)
             AudioManager.Instance.PlaySFX(insertSoundId, transform.position);
 
+        Inserted?.Invoke();
+
         NotifyLinkedPuzzle();
 
         Debug.Log($"Socket inserted: {socketData.SocketId}");
@@ -125,8 +137,7 @@ public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IP
 protected override void Awake()
     {
         base.Awake();
-        if (insertedVisual != null)
-            StartCoroutine(SyncInsertedVisual());
+        StartCoroutine(SyncInsertedVisual());
     }
 
     private IEnumerator SyncInsertedVisual()
@@ -134,5 +145,6 @@ protected override void Awake()
         yield return new WaitForSeconds(3);
         if (insertedVisual != null)
             insertedVisual.SetActive(IsInserted);
+        InsertedStateSynced?.Invoke(IsInserted);
     }
 }

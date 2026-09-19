@@ -3,6 +3,8 @@ using UnityEngine;
 public class ContainerPuzzleController : MonoBehaviour
 {
     [SerializeField] private SO_ContainerPuzzleData containerPuzzleData;
+    [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
+    [SerializeField] private Transform rewardDropPoint;
 
     public string PuzzleId => containerPuzzleData != null ? containerPuzzleData.PuzzleId : string.Empty;
     public SO_ContainerPuzzleData PuzzleData => containerPuzzleData;
@@ -32,13 +34,7 @@ public class ContainerPuzzleController : MonoBehaviour
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
 
-        if (containerPuzzleData.RewardItem != null)
-        {
-            if (InventoryManager.Exists) InventoryManager.Instance.AddItemAuto(containerPuzzleData.RewardItem);
-            else Debug.LogWarning($"[{nameof(ContainerPuzzleController)}] No InventoryManager — the " +
-                                  $"reward '{containerPuzzleData.RewardItem.name}' for " +
-                                  $"'{containerPuzzleData.PuzzleId}' was not granted.", this);
-        }
+        PuzzleRewardDelivery.Deliver(containerPuzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Container puzzle completed: {containerPuzzleData.PuzzleId}");
     }
