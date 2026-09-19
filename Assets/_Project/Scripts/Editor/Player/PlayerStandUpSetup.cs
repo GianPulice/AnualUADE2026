@@ -75,15 +75,24 @@ public static class PlayerStandUpSetup
         public string StateName;
         public Vector3 StatePosition;
         public float Speed;
+        public bool TrimSettle;
+        public float Blend;
     }
 
     // State names must match PlayerStateManager.initStandUpState / captureStandUpState.
-    // The capture one plays 30% faster: at 1x it drags right after the reveal.
+    // The capture one plays 30% faster: at 1x it drags right after the reveal. It is also cut where
+    // the body is up (TrimSettle): its last ~1.7s is a barely visible settle, and the player was left
+    // standing there with no control. A longer blend into Idle covers the part that was cut.
     private static readonly StandUp[] StandUps =
     {
-        new StandUp { FbxName = "Init Stand Up", StateName = "Init Stand Up", StatePosition = new Vector3(-20f, 520f, 0f), Speed = 1f },
-        new StandUp { FbxName = "Standing Up",   StateName = "Standing Up",   StatePosition = new Vector3(240f, 520f, 0f), Speed = 1.3f },
+        new StandUp { FbxName = "Init Stand Up", StateName = "Init Stand Up", StatePosition = new Vector3(-20f, 520f, 0f), Speed = 1f,   TrimSettle = false, Blend = BlendSeconds },
+        new StandUp { FbxName = "Standing Up",   StateName = "Standing Up",   StatePosition = new Vector3(240f, 520f, 0f), Speed = 1.3f, TrimSettle = true,  Blend = 0.35f },
     };
+
+    // TrimSettle: the clip ends at the first moment after which the Hips never again move more than
+    // this many metres in any SettleWindow — the body has finished rising, only a sway is left.
+    private const float SettleHipsTravel = 0.015f;
+    private const float SettleWindow = 0.25f;
 
     [MenuItem("Tools/Player/Setup Stand-Up Animations")]
     public static void Setup()
@@ -167,10 +176,24 @@ public static class PlayerStandUpSetup
             AnimationUtility.SetEditorCurve(clip, binding, AnimationUtility.GetEditorCurve(source, sourceBinding));
         }
 
-        WriteHipsCurves(clip, source, hipsCurves, idleHips, standUp.FbxName);
+        // Where the clip ends: the source's own end, or where the body is up when trimming. The Hips
+        // are lined up with Idle at THAT frame, so a trimmed clip still hands over without a slide.
+        float end = source.length;
+        if (standUp.TrimSettle)
+        {
+            end = FindSettleTime(hipsCurves, source.length);
+            Debug.Log($"[PlayerStandUpSetup] '{standUp.FbxName}': cut at {end:F2}s of {source.length:F2}s, " +
+                      "where the body has finished rising.");
+        }
+
+        WriteHipsCurves(clip, source, hipsCurves, idleHips, standUp.FbxName, end);
+        if (end < source.length - 0.001f) TruncateClip(clip, end);
 
         AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(source);
         settings.loopTime = false;
+        // The source's range, not the copy's: a trimmed clip must not be stretched back to it.
+        settings.startTime = 0f;
+        settings.stopTime = end;
         AnimationUtility.SetAnimationClipSettings(clip, settings);
 
         if (unbound.Count > 0)
@@ -187,7 +210,8 @@ public static class PlayerStandUpSetup
     /// or lower, and shifted on X/Z so the last frame sits where Idle's first frame does.
     /// </summary>
     private static void WriteHipsCurves(AnimationClip clip, AnimationClip source,
-                                        Dictionary<string, AnimationCurve> hipsCurves, Vector3 idleHips, string label)
+                                        Dictionary<string, AnimationCurve> hipsCurves, Vector3 idleHips, string label,
+                                        float end)
     {
         hipsCurves.TryGetValue("m_LocalPosition.x", out AnimationCurve x);
         hipsCurves.TryGetValue("m_LocalPosition.y", out AnimationCurve y);
@@ -195,7 +219,6 @@ public static class PlayerStandUpSetup
         if (x == null && y == null && z == null) return;
 
         string hipsPath = FindHipsPath(source);
-        float end = source.length;
         Vector3 endHips = new Vector3(x != null ? x.Evaluate(end) : 0f,
                                       y != null ? y.Evaluate(end) : 0f,
                                       z != null ? z.Evaluate(end) : 0f);
@@ -221,6 +244,59 @@ public static class PlayerStandUpSetup
         SetHipsCurve(clip, hipsPath, "m_LocalPosition.x", x, scale, shift.x);
         SetHipsCurve(clip, hipsPath, "m_LocalPosition.y", y, scale, 0f);
         SetHipsCurve(clip, hipsPath, "m_LocalPosition.z", z, scale, shift.z);
+    }
+
+    /// <summary>
+    /// First time after which the Hips never move more than <see cref="SettleHipsTravel"/> in any
+    /// <see cref="SettleWindow"/>, scanning back from the end. The clip's length when they never
+    /// settle, or when there are no Hips curves to read.
+    /// </summary>
+    private static float FindSettleTime(Dictionary<string, AnimationCurve> hipsCurves, float length)
+    {
+        hipsCurves.TryGetValue("m_LocalPosition.x", out AnimationCurve x);
+        hipsCurves.TryGetValue("m_LocalPosition.y", out AnimationCurve y);
+        hipsCurves.TryGetValue("m_LocalPosition.z", out AnimationCurve z);
+        if (x == null && y == null && z == null) return length;
+
+        Vector3 At(float t) => new Vector3(x != null ? x.Evaluate(t) : 0f,
+                                           y != null ? y.Evaluate(t) : 0f,
+                                           z != null ? z.Evaluate(t) : 0f);
+
+        const float step = 1f / 30f;
+        float settled = length;
+
+        for (float t = length - SettleWindow; t >= 0f; t -= step)
+        {
+            // Path length over the window, not start-to-end distance: a sway that returns to where
+            // it started still counts as moving.
+            float travel = 0f;
+            for (float s = t; s < t + SettleWindow; s += step) travel += (At(s + step) - At(s)).magnitude;
+
+            if (travel > SettleHipsTravel) break;
+            settled = t;
+        }
+
+        return settled;
+    }
+
+    /// <summary>Cuts every curve of <paramref name="clip"/> at <paramref name="end"/>, keeping the pose there.</summary>
+    private static void TruncateClip(AnimationClip clip, float end)
+    {
+        foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(clip))
+        {
+            AnimationCurve curve = AnimationUtility.GetEditorCurve(clip, binding);
+            float last = curve.Evaluate(end);
+
+            var keys = new List<Keyframe>();
+            foreach (Keyframe key in curve.keys)
+            {
+                if (key.time < end - 0.0001f) keys.Add(key);
+            }
+            keys.Add(new Keyframe(end, last));
+
+            var cut = new AnimationCurve(keys.ToArray()) { preWrapMode = curve.preWrapMode, postWrapMode = curve.postWrapMode };
+            AnimationUtility.SetEditorCurve(clip, binding, cut);
+        }
     }
 
     private static void SetHipsCurve(AnimationClip clip, string path, string property, AnimationCurve curve,
@@ -323,7 +399,7 @@ public static class PlayerStandUpSetup
         toIdle.hasExitTime = true;
         toIdle.exitTime = ExitTime;
         toIdle.hasFixedDuration = true;
-        toIdle.duration = BlendSeconds;
+        toIdle.duration = standUp.Blend;
 
         EditorUtility.SetDirty(state);
     }

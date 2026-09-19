@@ -227,8 +227,8 @@ MonoBehaviour:
   progressLabel: {fileID: 5870342196651120804}
   fadeDuration: 0.5
   titleLabel: {fileID: 5870342196651120704}
-  loadingTitle: LOADING
-  exitingTitle: EXITING
+  loadingTitle: LOADING...
+  exitingTitle: EXITING...
   loadingOnly:
   - {fileID: 5870342196651120301}
   exitOnly:
@@ -1024,7 +1024,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: LOADING
+  m_text: LOADING...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
   m_sharedMaterial: {fileID: 2100000, guid: 6b1854f4f0f85ab4598922608cfacd44, type: 2}

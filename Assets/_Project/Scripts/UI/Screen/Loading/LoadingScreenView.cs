@@ -41,8 +41,8 @@ public class LoadingScreenView : MonoBehaviour
     [Header("Exit mode (quitting the game)")]
     [Tooltip("Title of the status window. Reads loadingTitle on scene changes, exitingTitle on quit.")]
     [SerializeField] private TMP_Text titleLabel;
-    [SerializeField] private string loadingTitle = "LOADING";
-    [SerializeField] private string exitingTitle = "EXITING";
+    [SerializeField] private string loadingTitle = "LOADING...";
+    [SerializeField] private string exitingTitle = "EXITING...";
 
     [Tooltip("Shown on scene changes only — the Mystify screensaver.")]
     [SerializeField] private GameObject[] loadingOnly;
