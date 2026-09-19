@@ -77,6 +77,7 @@ public class UIStateManager : Singleton<UIStateManager>
     private void OnExitPressed()
     {
         if (stack.Count == 0) return;
+        if (ScreenManager.IsInputLocked) return;
         if (topPushedFrame == Time.frameCount) return;
         IModalUI top = stack.Peek();
         if (top == null) return;

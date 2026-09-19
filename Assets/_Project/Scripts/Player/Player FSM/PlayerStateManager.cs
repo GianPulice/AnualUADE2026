@@ -363,7 +363,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
-        InputUpdate();
+        // During a scene change the level is already running behind the loading screen: keys
+        // pressed there must not walk the player off before it is revealed.
+        if (ScreenManager.IsInputLocked) inputDir = Vector3.zero;
+        else InputUpdate();
         CheckGround();
         base.Update();
     }

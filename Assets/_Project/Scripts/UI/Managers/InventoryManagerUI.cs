@@ -107,6 +107,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         // Here we only handle Tab to open/close the inventory.
 
         if (!Input.GetKeyDown(toggleKey)) return;
+        if (ScreenManager.IsInputLocked) return;
 
         if (isInventoryOpen)
         {

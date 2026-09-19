@@ -3,6 +3,8 @@ using System.Threading;
 using UnityEngine;
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public class ScreenManager : Singleton<ScreenManager>
 {
@@ -36,6 +38,17 @@ public class ScreenManager : Singleton<ScreenManager>
 
     /// <summary>True while a scene change (or the quit sequence) is running.</summary>
     public bool IsTransitioning => isTransitioning;
+
+    /// <summary>
+    /// True while a scene change is running: every player input — UI, pause, inventory, movement —
+    /// must be ignored. Static so input code can ask without checking the manager exists.
+    /// </summary>
+    public static bool IsInputLocked => Exists && instance.isTransitioning;
+
+    // While true, Update switches off every EventSystem it finds, including the ones in scenes
+    // that finish loading mid-transition, so no hover, click or navigation reaches any canvas.
+    private bool uiInputLocked;
+    private readonly List<EventSystem> lockedEventSystems = new List<EventSystem>();
 
     /// <summary>
     /// Unloads and reloads the active group. Used by the Retry button on the defeat screen.
@@ -158,6 +171,8 @@ public class ScreenManager : Singleton<ScreenManager>
             screenChannel.OnPopScreenRequested -= OnPopScreenRequestedWrapper;
             screenChannel.OnClearAllScreensRequested -= OnClearAllRequestedWrapper;
         }
+
+        SceneManager.sceneLoaded -= OnSceneLoadedWhileLocked;
     }
 
     // ── Wrappers (receive the events from MainMenuController) ──
@@ -268,6 +283,21 @@ public class ScreenManager : Singleton<ScreenManager>
         // This object is DontDestroyOnLoad, so this only fires when the game itself shuts down.
         CancellationToken token = this.GetCancellationTokenOnDestroy();
 
+        // From the first frame of the fade: the canvases underneath (the pause menu on the way
+        // out) would otherwise keep answering hovers and clicks through the loading screen.
+        SetUIInputLocked(true);
+        try
+        {
+            await RunLoadingSequenceAsync(work, revealAfter, token);
+        }
+        finally
+        {
+            SetUIInputLocked(false);
+        }
+    }
+
+    private async UniTask RunLoadingSequenceAsync(Func<UniTask> work, bool revealAfter, CancellationToken token)
+    {
         await loadingScreen.FadeToBlackAsync(token);
 
         loadingScreen.SetProgress(0f);
@@ -304,6 +334,52 @@ public class ScreenManager : Singleton<ScreenManager>
 
         LoadingScreen.SetLoading(false);
         await loadingScreen.FadeFromBlackAsync(token);
+    }
+
+    // ── UI input lock ──
+
+    private void SetUIInputLocked(bool locked)
+    {
+        if (uiInputLocked == locked) return;
+        uiInputLocked = locked;
+
+        if (locked)
+        {
+            // sceneLoaded fires after the new scene's OnEnables and before its first Update, so a
+            // freshly loaded EventSystem is off before it can process a single frame of input.
+            SceneManager.sceneLoaded += OnSceneLoadedWhileLocked;
+            DisableActiveEventSystems();
+            return;
+        }
+
+        SceneManager.sceneLoaded -= OnSceneLoadedWhileLocked;
+        foreach (EventSystem eventSystem in lockedEventSystems)
+        {
+            // Null when its scene was unloaded during the transition.
+            if (eventSystem != null) eventSystem.enabled = true;
+        }
+        lockedEventSystems.Clear();
+    }
+
+    private void OnSceneLoadedWhileLocked(Scene scene, LoadSceneMode mode) => DisableActiveEventSystems();
+
+    private void Update()
+    {
+        if (uiInputLocked) DisableActiveEventSystems();
+    }
+
+    /// <summary>
+    /// EventSystem.current is the first enabled one, and null once none is left. Disabling one
+    /// deactivates its input module, which sends the pointer-exit to whatever was hovered.
+    /// </summary>
+    private void DisableActiveEventSystems()
+    {
+        EventSystem eventSystem;
+        while ((eventSystem = EventSystem.current) != null)
+        {
+            eventSystem.enabled = false;
+            lockedEventSystems.Add(eventSystem);
+        }
     }
 
     private static async UniTask RunSafely(Func<UniTask> work)
