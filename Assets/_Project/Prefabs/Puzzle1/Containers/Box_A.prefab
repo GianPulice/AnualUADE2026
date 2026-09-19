@@ -399,6 +399,7 @@ GameObject:
   - component: {fileID: 6114506311072273757}
   - component: {fileID: 2420889440149244450}
   - component: {fileID: 1747171329713888281}
+  - component: {fileID: 2110428187826664429}
   m_Layer: 0
   m_Name: Box_A
   m_TagString: Untagged
@@ -590,6 +591,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
   profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
+--- !u!114 &2110428187826664429
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7332867751031854402}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 57b6cb01ce45f744e99e5dcf25d2472c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxSymbolSignalLoss
+  symbolRenderer: {fileID: 5960225152767099931}
+  noiseResolution: 24
+  emissionStrength: 0.35
+  heightHysteresis: 0.05
 --- !u!1 &8671121699634703305
 GameObject:
   m_ObjectHideFlags: 0
