@@ -156,7 +156,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     public override void UpdateState()
     {
-        if (playerStateManager.IsDisabled)
+        if (playerStateManager.IsImmobilized)
         {
             NextState = PlayerStateManager.EPlayerState.Disabled;
         }

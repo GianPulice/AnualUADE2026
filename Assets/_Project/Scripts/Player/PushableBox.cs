@@ -84,8 +84,30 @@ public class PushableBox : BaseRangeInteractable
         EnsurePushLoopSource();
     }
 
-    private void OnEnable()  => PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
-    private void OnDisable() => PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+    private void OnEnable()
+    {
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
+        ModuleEvents.OnExploded += HandleModuleExploded;
+    }
+
+    private void OnDisable()
+    {
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        ModuleEvents.OnExploded -= HandleModuleExploded;
+    }
+
+    /// <summary>
+    /// Let go when a module explodes, too. The explosion cinematic locks the player and swings the
+    /// camera onto the body, and resuming a push out of it left the latch half-broken (the snap
+    /// towards the anchor re-ran from wherever the shot left the player). After the explosion the
+    /// player is simply standing next to the box, free to grab it again.
+    /// </summary>
+    private void HandleModuleExploded(ModuleRuntime runtime)
+    {
+        if (!isGrabbed) return;
+        ForceRelease();
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     /// <summary>
     /// Let go the instant the Nemesis grabs the player.
@@ -103,9 +125,10 @@ public class PushableBox : BaseRangeInteractable
     /// interactable — which is why this releases rather than just clearing the player's flag.
     ///
     /// Hung off the capture and not CheckpointManager.OnRespawned because the defeat fallback never
-    /// respawns, and a box still latched there would carry its state into the next run. The other
-    /// things that set IsDisabled (the Architect's lines, the module explosion) deliberately do NOT
-    /// release: they never move the player, so resuming the push afterwards is correct.
+    /// respawns, and a box still latched there would carry its state into the next run. The
+    /// Architect's lines, which also set IsDisabled, deliberately do NOT release: they never move
+    /// the player, so resuming the push afterwards is correct. The module explosion does release —
+    /// see <see cref="HandleModuleExploded"/>.
     /// </summary>
     private void HandlePlayerCaptured(PlayerStateManager captured)
     {

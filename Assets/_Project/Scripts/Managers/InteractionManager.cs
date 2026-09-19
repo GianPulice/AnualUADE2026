@@ -52,8 +52,10 @@ public class InteractionManager : Singleton<InteractionManager>
     {
         RefreshCamera();
 
-        // If a modal UI is open or the game is paused, we do not process interactions.
-        if (PauseManager.IsGameplayInputBlocked)
+        // If a modal UI is open or the game is paused, we do not process interactions. Nor while
+        // the player is lying on the floor or getting up.
+        if (PauseManager.IsGameplayInputBlocked ||
+            (PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp))
         {
             if (currentInteractable != null)
             {

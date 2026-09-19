@@ -98,6 +98,9 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
 
     private void HandleModuleExploded(ModuleRuntime runtime)
     {
+        // First, whichever path follows: nothing may cover the explosion.
+        CloseGameplayUI();
+
         // The run-ending explosion is played by PresentGameOver, with the cinematic around it.
         // Checked here and not there because the two arrive in either order depending on which
         // path reported the GameOver.
@@ -256,6 +259,8 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     /// </summary>
     private async UniTask PlayShot(ModuleRuntime cause, CancellationToken token)
     {
+        // Again here: PresentGameOver can arrive before OnExploded.
+        CloseGameplayUI();
         LockPlayer();
         PushModal();
 
@@ -569,6 +574,26 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         if (seconds <= 0f) return UniTask.CompletedTask;
         return UniTask.Delay(TimeSpan.FromSeconds(seconds), DelayType.UnscaledDeltaTime,
                              PlayerLoopTiming.Update, token);
+    }
+
+    /// <summary>
+    /// Closes the gameplay screens that would hide the explosion: the inventory, the electrical
+    /// (sequence) panel and the document reader. Each goes through its own close, the same one its
+    /// button uses, so nothing is left half-open — an unfinished panel sequence resets, exactly as
+    /// when the player closes it by hand. Before the shot's own modal is pushed, so the inventory
+    /// is not stuck under it unable to close (its Tab only closes it when it is on top).
+    ///
+    /// The pause menu is not touched: it stops the module timer, so nothing explodes under it.
+    /// </summary>
+    private static void CloseGameplayUI()
+    {
+        if (InventoryManagerUI.Exists) InventoryManagerUI.Instance.CloseInventory();
+
+        SequencePanelUIController panel = SequencePanelUIController.Instance;
+        if (panel != null && panel.IsOpen) panel.RequestClose();
+
+        DocumentReaderController reader = DocumentReaderController.Instance;
+        if (reader != null && reader.IsOpen) reader.RequestClose();
     }
 
     private void PushModal()

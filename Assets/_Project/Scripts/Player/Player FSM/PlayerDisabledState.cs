@@ -65,10 +65,11 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
     public override void UpdateState()
     {
         // No longer terminal. CheckpointManager clears IsDisabled once it has moved the player
-        // back to the active checkpoint, and that is the signal to hand control back.
+        // back to the active checkpoint, and that is the signal to hand control back — once the
+        // stand-up that follows (if any) has played to its end.
         // Idle rather than the pre-capture state on purpose: the player has been teleported, so
         // resuming a crouch or a box interaction from the old position makes no sense.
-        if (!playerStateManager.IsDisabled)
+        if (!playerStateManager.IsImmobilized)
         {
             NextState = PlayerStateManager.EPlayerState.Idle;
         }

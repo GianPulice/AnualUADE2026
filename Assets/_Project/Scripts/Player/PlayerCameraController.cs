@@ -58,7 +58,9 @@ public class PlayerCameraController : MonoBehaviour
         // wake-up cinematic drives the rig (WakeUpCameraPan): the player's mouse would fight the pan.
         if (cinemachineInputAxisController == null) return;
         bool gameplayActive = !PauseManager.IsGameplayInputBlocked;
-        bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked;
+        // Nor while the player gets up off the floor: nothing but pause until the clip ends.
+        bool standingUp = PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp;
+        bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked && !standingUp;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
 

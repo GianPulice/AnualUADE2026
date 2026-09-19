@@ -72,6 +72,71 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
 
+    /// <summary>
+    /// True while the player cannot act: disabled (captured, wake-up, explosion) or lying down /
+    /// getting up. The FSM states go to Disabled on this, not on <see cref="IsDisabled"/> alone.
+    /// </summary>
+    public bool IsImmobilized => isDisabled || IsStandingUp;
+
+    // ── Stand-up animations ─────────────────────────────────────────────────────
+    //
+    // Two ways the player gets up off the floor: at the start of the level, during the wake-up
+    // cinematic's camera pan, and at the checkpoint after the Nemesis caught it. Both go through
+    // the same two steps — HoldLyingPose (on the first frame of the clip, behind a black screen)
+    // and PlayStandUp (once the screen is revealed) — and keep the player immobilized until the
+    // clip has played to its last frame. Pause stays available throughout.
+    //
+    // The states are added to PlayerController by Tools > Player > Setup Stand-Up Animations. With
+    // a controller that does not have them, nothing here locks the player: everything behaves as
+    // it did before the stand-ups existed.
+
+    public enum EStandUp
+    {
+        Init,           // Start of the level, with the wake-up cinematic.
+        AfterCapture,   // At the checkpoint, after the Nemesis caught the player.
+    }
+
+    private enum EStandUpPhase { None, Lying, Playing }
+
+    [Header("Stand-up animations")]
+    [Tooltip("Animator state played when the player gets up at the start of the level, during the " +
+             "wake-up cinematic's camera pan.")]
+    [SerializeField] private string initStandUpState = "Init Stand Up";
+
+    [Tooltip("Animator state played when the player gets up at the checkpoint after a capture.")]
+    [SerializeField] private string captureStandUpState = "Standing Up";
+
+    [Tooltip("Seconds after the Nemesis finishes repositioning before the capture stand-up starts " +
+             "on its own, in case the capture fade never reports the reveal (no LevelUI loaded).")]
+    [SerializeField, Min(0f)] private float captureStandUpFallback = 2.5f;
+
+    [Tooltip("Scenes where the player gets up at the start of the level (the one New Game loads). " +
+             "Anywhere else it starts standing, so test scenes do not wait for the whole clip. The " +
+             "capture stand-up plays in every scene.")]
+    [SerializeField] private string[] initStandUpScenes = { "WIRED_Zona1_Blockout" };
+
+    [Tooltip("Seconds a stand-up may run past the end of its clip before control is handed back " +
+             "anyway. Safety net only: normally control comes back on the clip's last frame.")]
+    [SerializeField, Min(1f)] private float standUpTimeout = 3f;
+
+    private EStandUpPhase standUpPhase = EStandUpPhase.None;
+    private EStandUp standUpKind;
+    private int standUpStateHash;
+    private float standUpElapsed;
+    private float standUpClipSeconds;
+    private float captureFallbackAt = -1f;
+    private bool initStandUpHandled;
+
+    // True while this player holds a ModuleManager.PauseTicking from a capture: from the grab,
+    // through the black screen and the respawn, until the stand-up ends and control is back.
+    private bool captureTimerPaused;
+
+    /// <summary>True while the player is lying on the floor or getting up.</summary>
+    public bool IsStandingUp => standUpPhase != EStandUpPhase.None;
+
+    /// <summary>True during the level-start stand-up only — the one the wake-up skip can cut.</summary>
+    public bool IsWakeUpStandingUp => IsStandingUp && standUpKind == EStandUp.Init;
+
     // ── Moving floors ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -189,6 +254,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private const string RUN_CLIP_NAME = "Running";
     private const string LEGS_HURT_PARAM = "isLegsHurt";
 
+    // Animator state the stand-ups hand over to, and the one skipping jumps to.
+    private const string IDLE_STATE_NAME = "Idle";
+
     /// <summary>
     /// The override controller wrapped around the Animator's own controller in Awake, so the clip
     /// swap later costs no rebind. Null when no injured clip is wired up, in which case the
@@ -246,6 +314,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // skipped while OnDisable still ran the '-=', which is the classic asymmetric-handler
         // bug. OnDestroy always runs, so this pair cannot come apart.
         ModuleEvents.OnPenaltyApplied += HandleModuleExploded;
+        CaptureFadeView.OnCaptureRevealed += HandleCaptureRevealed;
+        NemesisEvents.OnCaptureResolved += HandleCaptureResolved;
     }
 
     /// <summary>
@@ -354,6 +424,12 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // Safe even when Awake bailed out at ValidateReferences and never subscribed: '-=' on a
         // handler that was never added is a no-op.
         ModuleEvents.OnPenaltyApplied -= HandleModuleExploded;
+        CaptureFadeView.OnCaptureRevealed -= HandleCaptureRevealed;
+        NemesisEvents.OnCaptureResolved -= HandleCaptureResolved;
+
+        // ModuleManager outlives the level: a player unloaded mid-capture must not leave the
+        // module timer frozen for the next one.
+        ReleaseCaptureTimerPause();
     }
     public override void Start()
     {
@@ -361,11 +437,17 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
     public override void Update()
     {
+        TickStandUp();
+
+        // Control is back after a capture: the module timer runs again from here.
+        if (captureTimerPaused && !IsImmobilized) ReleaseCaptureTimerPause();
+
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
         // During a scene change the level is already running behind the loading screen: keys
-        // pressed there must not walk the player off before it is revealed.
-        if (ScreenManager.IsInputLocked) inputDir = Vector3.zero;
+        // pressed there must not walk the player off before it is revealed. Same while lying on
+        // the floor or getting up.
+        if (ScreenManager.IsInputLocked || IsStandingUp) inputDir = Vector3.zero;
         else InputUpdate();
         CheckGround();
         base.Update();
@@ -678,8 +760,207 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         if (isDisabled) return;
 
+        // Caught again while still getting up: the new capture owns the player from here.
+        EndStandUp();
+
+        // The seconds spent grabbed, on the black screen and getting up are not the player's to
+        // lose: the active module's timer stops until control comes back (see Update). The
+        // capture penalty itself is still applied at the respawn, by CheckpointManager.
+        if (!captureTimerPaused && ModuleManager.Exists)
+        {
+            ModuleManager.Instance.PauseTicking();
+            captureTimerPaused = true;
+        }
+
         isDisabled = true;
         PlayerEvents.PlayerCaptured(this);
+    }
+
+    private void ReleaseCaptureTimerPause()
+    {
+        if (!captureTimerPaused) return;
+        captureTimerPaused = false;
+        if (ModuleManager.Exists) ModuleManager.Instance.ResumeTicking();
+    }
+
+    // ── Stand-up ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Puts the player on the first frame of the stand-up clip — lying on the floor — and locks it
+    /// there until <see cref="PlayStandUp"/>. Call it while the screen is still black.
+    /// </summary>
+    /// <returns>False when the controller has no state for this stand-up (setup tool not run):
+    /// the player is then left exactly as it was, unlocked.</returns>
+    public bool HoldLyingPose(EStandUp kind)
+    {
+        if (kind == EStandUp.Init && !PlaysInitStandUpHere()) return false;
+        if (!TryGetStandUpState(kind, out int hash)) return false;
+
+        standUpKind = kind;
+        standUpStateHash = hash;
+        standUpPhase = EStandUpPhase.Lying;
+        standUpElapsed = 0f;
+        captureFallbackAt = -1f;
+
+        // Gets up standing, whatever stance the player was caught in.
+        isCrouch = false;
+        wantsToStand = false;
+        inputDir = Vector3.zero;
+        currentVelocity = 0f;
+        if (rigBody != null)
+        {
+            rigBody.linearVelocity = Vector3.zero;
+            rigBody.angularVelocity = Vector3.zero;
+        }
+
+        animController.Play(standUpStateHash, 0, 0f);
+        return true;
+    }
+
+    /// <summary>
+    /// Plays the stand-up from its first frame. Control comes back on its last frame. Lies the
+    /// player down first if <see cref="HoldLyingPose"/> was not called; a stand-up of the same kind
+    /// already playing is left alone.
+    /// </summary>
+    public void PlayStandUp(EStandUp kind)
+    {
+        if (standUpPhase == EStandUpPhase.Playing && standUpKind == kind) return;
+        if ((standUpPhase == EStandUpPhase.None || standUpKind != kind) && !HoldLyingPose(kind)) return;
+
+        standUpPhase = EStandUpPhase.Playing;
+        standUpElapsed = 0f;
+        standUpClipSeconds = 0f;
+        captureFallbackAt = -1f;
+        animController.Play(standUpStateHash, 0, 0f);
+    }
+
+    /// <summary>
+    /// Drops the stand-up and puts the player straight into Idle with control back — the wake-up
+    /// cinematic's skip.
+    ///
+    /// Idle directly, not Play(standUp, 1f): an exit-time transition only fires when the state's
+    /// time crosses it, and a state jumped straight onto its end never crosses it — the rig stayed
+    /// frozen on the stand-up's last frame, walking included.
+    /// </summary>
+    public void SkipStandUp()
+    {
+        if (!IsStandingUp) return;
+        EndStandUp();
+        PlayIdle(0f);
+    }
+
+    private void PlayIdle(float blendSeconds)
+    {
+        int idle = Animator.StringToHash(IDLE_STATE_NAME);
+        if (!animController.HasState(0, idle)) return;
+
+        if (blendSeconds > 0f) animController.CrossFadeInFixedTime(idle, blendSeconds, 0);
+        else animController.Play(idle, 0, 0f);
+    }
+
+    private void EndStandUp()
+    {
+        standUpPhase = EStandUpPhase.None;
+        captureFallbackAt = -1f;
+    }
+
+    /// <summary>Whether the player's own scene is one where the level starts with it lying down.</summary>
+    private bool PlaysInitStandUpHere()
+    {
+        if (initStandUpScenes == null) return false;
+
+        string sceneName = gameObject.scene.name;
+        foreach (string allowed in initStandUpScenes)
+        {
+            if (allowed == sceneName) return true;
+        }
+        return false;
+    }
+
+    private bool TryGetStandUpState(EStandUp kind, out int hash)
+    {
+        string stateName = kind == EStandUp.Init ? initStandUpState : captureStandUpState;
+        hash = Animator.StringToHash(stateName);
+
+        if (animController != null && animController.runtimeAnimatorController != null &&
+            !string.IsNullOrEmpty(stateName) && animController.HasState(0, hash))
+            return true;
+
+        Debug.LogWarning($"[Player] The Animator has no state '{stateName}', so the player does not " +
+                         "play that stand-up. Run Tools > Player > Setup Stand-Up Animations.", this);
+        return false;
+    }
+
+    private void TickStandUp()
+    {
+        // The wake-up cinematic locks the camera from the black screen on. A flag and not an
+        // event, so it is picked up whichever of the two scenes (player / LevelUI) loads first.
+        if (!initStandUpHandled && WakeUpCinematicEvents.IsCameraLocked)
+        {
+            initStandUpHandled = true;
+            HoldLyingPose(EStandUp.Init);
+        }
+
+        switch (standUpPhase)
+        {
+            case EStandUpPhase.Lying:
+                // Held on frame 0: the state's only way out is its exit-time transition.
+                animController.Play(standUpStateHash, 0, 0f);
+
+                // The cinematic ended without ever opening the eyes (no ARC_01a in the bank).
+                if (standUpKind == EStandUp.Init && !WakeUpCinematicEvents.IsCameraLocked)
+                    PlayStandUp(EStandUp.Init);
+                // The capture fade never reported the reveal.
+                else if (standUpKind == EStandUp.AfterCapture && captureFallbackAt >= 0f &&
+                         Time.unscaledTime >= captureFallbackAt)
+                    PlayStandUp(EStandUp.AfterCapture);
+                break;
+
+            case EStandUpPhase.Playing:
+                // Scaled, like the Animator: a pause holds both.
+                standUpElapsed += Time.deltaTime;
+
+                AnimatorStateInfo info = animController.GetCurrentAnimatorStateInfo(0);
+                bool inState = info.shortNameHash == standUpStateHash;
+
+                // In seconds at the state's own speed, so a sped-up clip is not waited out at 1x.
+                if (inState) standUpClipSeconds = info.length;
+
+                // Play() only takes effect on the Animator's next update, so the first frames can
+                // still report the previous state. The transition into Idle only starts on the
+                // clip's last frame (exit time 1), so the whole clip has played by now.
+                bool finished = inState ? info.normalizedTime >= 1f
+                                        : standUpElapsed > 0.2f && !animController.IsInTransition(0);
+
+                // The timeout counts from the clip's end, not from its start: a long clip must
+                // never be cut short by it.
+                bool timedOut = standUpElapsed >= standUpClipSeconds + standUpTimeout;
+
+                if (finished || timedOut)
+                {
+                    EndStandUp();
+
+                    // Normally the exit-time transition is already blending into Idle. If it did
+                    // not fire (a frame hitch jumping past it, the timeout), hand over by hand
+                    // rather than leave the rig on the stand-up's last frame.
+                    if (inState && !animController.IsInTransition(0)) PlayIdle(0.2f);
+                }
+                break;
+        }
+    }
+
+    /// <summary>The capture fade finished clearing at the checkpoint: get up.</summary>
+    private void HandleCaptureRevealed()
+    {
+        if (standUpPhase == EStandUpPhase.Lying && standUpKind == EStandUp.AfterCapture)
+            PlayStandUp(EStandUp.AfterCapture);
+    }
+
+    /// <summary>Arms the fallback in case <see cref="HandleCaptureRevealed"/> never comes.</summary>
+    private void HandleCaptureResolved()
+    {
+        if (standUpPhase == EStandUpPhase.Lying && standUpKind == EStandUp.AfterCapture)
+            captureFallbackAt = Time.unscaledTime + captureStandUpFallback;
     }
     private void HandleModuleExploded(ModuleRuntime runtime)
     {

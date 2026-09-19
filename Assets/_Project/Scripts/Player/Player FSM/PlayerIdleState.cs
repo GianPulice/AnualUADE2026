@@ -27,7 +27,7 @@ public class PlayerIdleState : BaseState<PlayerStateManager.EPlayerState>
         {
             playerStateManager.RigBody.linearVelocity = new Vector3(0,playerStateManager.RigBody.linearVelocity.y,0);
         }
-        if (playerStateManager.IsDisabled)
+        if (playerStateManager.IsImmobilized)
         {
             NextState = PlayerStateManager.EPlayerState.Disabled;
         }

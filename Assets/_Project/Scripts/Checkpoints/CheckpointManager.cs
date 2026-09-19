@@ -119,7 +119,18 @@ public class CheckpointManager : Singleton<CheckpointManager>
                             DelayType.UnscaledDeltaTime,
                             cancellationToken: this.GetCancellationTokenOnDestroy());
 
-        if (!RespawnAtActiveCheckpoint()) FallbackToDefeat();
+        if (!RespawnAtActiveCheckpoint())
+        {
+            FallbackToDefeat();
+            return;
+        }
+
+        // Lying on the floor at the checkpoint, still behind the capture fade; the player gets up
+        // once the fade has cleared (CaptureFadeView.OnCaptureRevealed) and only then has control
+        // back. Here and not in RespawnAtActiveCheckpoint, so a debug respawn does not lie the
+        // player down with no reveal ever coming. Same frame as the respawn: no frame of control.
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player != null) player.HoldLyingPose(PlayerStateManager.EStandUp.AfterCapture);
     }
 
     /// <summary>
