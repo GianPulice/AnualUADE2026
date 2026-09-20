@@ -196,7 +196,7 @@ Material:
     m_Floats:
     - Boolean_57A5114E: 1
     - BumpMulti: 0.35
-    - Emissive: 0
+    - Emissive: 1
     - EmissiveBrightness: 40
     - EmissiveContrast: 40
     - EmissiveInvert: 0
