@@ -16,11 +16,11 @@ MonoBehaviour:
   perModule:
   - module: {fileID: 11400000, guid: ebe3d6a27c9860946b3db79d50da63d9, type: 2}
     vfxPrefab: {fileID: 0}
-    explosionIntensity: 1
+    explosionIntensity: 0.75
     goreIntensity: 0.35
   - module: {fileID: 11400000, guid: 4d22063d83df3d74ebc3345f10687fa5, type: 2}
     vfxPrefab: {fileID: 0}
-    explosionIntensity: 1.4
+    explosionIntensity: 1.5
     goreIntensity: 1.3
   - module: {fileID: 11400000, guid: db6fe32667d0a804a941e960dc0ba95c, type: 2}
     vfxPrefab: {fileID: 0}
