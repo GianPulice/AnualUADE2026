@@ -1,19 +1,9 @@
 fileFormatVersion: 2
-guid: 3152d903595058b4aa233b6e4e9f0279
+guid: c70873e3070f3504ead6e63a0a2cd1a9
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: fence
-    second: {fileID: 2100000, guid: 719ab12a2f148fe43abb0458ea44b92e, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: rusted_pipe
-    second: {fileID: 2100000, guid: c3e0d03841922c541834beeb16097abb, type: 2}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -45,7 +35,7 @@ ModelImporter:
     lODScreenPercentages: []
     globalScale: 1
     meshCompression: 0
-    addColliders: 1
+    addColliders: 0
     useSRGBMaterialColor: 1
     sortHierarchyByName: 1
     importPhysicalCameras: 1
@@ -78,7 +68,7 @@ ModelImporter:
     secondaryUVMinLightmapResolution: 40
     secondaryUVMinObjectScale: 1
     secondaryUVPackMargin: 4
-    useFileScale: 0
+    useFileScale: 1
     strictVertexDataChecks: 0
   tangentSpace:
     normalSmoothAngle: 60
