@@ -246,6 +246,24 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool ChestPenaltyActive => SprintPenaltyFactor < 1f;
     public bool HeadPenaltyActive => IsBlindnessActive;
 
+    // The capsule's authored radius (0.3 on the shipped prefab), cached once so
+    // RefreshCapsuleRadius always has a real value to restore to, whatever order crouch and the
+    // legs penalty toggle in.
+    private float baseCapsuleRadius;
+
+    /// <summary>
+    /// Widens the capsule (WIR-025) while crouched or once the legs module has exploded — the two
+    /// poses whose arm-for-balance / limp reach swings past the standard radius — and restores it
+    /// the moment neither applies any more. Called from PlayerCrouchState's Enter/Exit and from
+    /// ApplyPenalty's Legs case; safe to call at any time since it only ever reads current state.
+    /// </summary>
+    public void RefreshCapsuleRadius()
+    {
+        if (capsuleColl == null || movement == null) return;
+
+        capsuleColl.radius = (IsCrouch || LegsPenaltyActive) ? movement.WideStanceRadius : baseCapsuleRadius;
+    }
+
     // ── Injured locomotion (M1) ─────────────────────────────────────────────────
     //
     // The legs penalty already slows the player down; these clips are what make it read on
@@ -343,6 +361,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // cannot see it: that box hits walls and props first, with default friction and square
         // corners, and the player snags on them instead of sliding.
         boxColl.enabled = false;
+
+        // Read before anything (crouch, a legs penalty already restored from a save) has a chance
+        // to widen it — see RefreshCapsuleRadius.
+        baseCapsuleRadius = capsuleColl.radius;
 
         SetupClipOverrides();
         hasLocomotionSpeedParam = HasAnimatorParameter(LOCOMOTION_SPEED_PARAM, AnimatorControllerParameterType.Float);
@@ -1086,6 +1108,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             case PenaltyType.Legs:
                 MoveSpeedPenaltyFactor = Mathf.Clamp01(data.CojeraMultiplier);
                 ApplyInjuredLocomotion();
+                // The limp swings an arm out past the standard capsule (WIR-025) for the rest of
+                // the run, same reason crouch does — see RefreshCapsuleRadius.
+                RefreshCapsuleRadius();
                 break;
 
             case PenaltyType.Chest:

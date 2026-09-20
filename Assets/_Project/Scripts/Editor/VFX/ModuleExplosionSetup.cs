@@ -228,11 +228,19 @@ public static class ModuleExplosionSetup
             shape.shapeType = ParticleSystemShapeType.Sphere;
             shape.radius = 0.05f;
             FadeOut(spray);
-            Splat(spray, dampen: 0.7f);
+            // Lower dampen than Chunks on purpose: this is a Stretch renderer, so its visible
+            // LENGTH shrinks with speed (see velocityScale below). The old 0.7 dropped a droplet to
+            // 30% speed in one collision event — a long streak snapping to a stub the instant it
+            // touched the floor, which is what "hits the floor and cuts" was describing. Losing
+            // speed more gradually over a couple of contact steps instead reads as a droplet
+            // skidding to a stop, not a hard cut.
+            Splat(spray, dampen: 0.4f);
             var renderer = spray.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
             renderer.lengthScale = 2.4f;
-            renderer.velocityScale = 0.05f;
+            // Halved with the same droplet-snap in mind: less of the visible length comes from
+            // instantaneous speed, so the drop in speed on impact is less of a drop in shape too.
+            renderer.velocityScale = 0.025f;
         }
 
         // Mist: the red haze the burst leaves hanging. Same texture as the smoke, tinted by its own
@@ -290,8 +298,17 @@ public static class ModuleExplosionSetup
         return built;
     }
 
-    /// <summary>Makes a system hit level geometry and stay put, instead of falling through it.</summary>
-    private static void Splat(ParticleSystem ps, float dampen)
+    /// <summary>
+    /// Makes a system hit level geometry and stay put, instead of falling through it.
+    ///
+    /// <paramref name="radiusScale"/> inflates the collision sphere past the particle's visible
+    /// size, so it stops a hair ABOVE the floor instead of exactly on it. At 1 (the old default)
+    /// the pivot sits flush with the surface, and since neither this shader nor URP's stock one
+    /// does soft-particle depth fading, a particle resting exactly at that height gets hard
+    /// depth-tested against the floor mesh from grazing camera angles — the geometric half of the
+    /// reported "collides with the floor and cuts".
+    /// </summary>
+    private static void Splat(ParticleSystem ps, float dampen, float radiusScale = 1.6f)
     {
         var collision = ps.collision;
         collision.enabled = true;
@@ -304,6 +321,7 @@ public static class ModuleExplosionSetup
         collision.bounce = 0.05f;
         collision.lifetimeLoss = 0f;
         collision.sendCollisionMessages = false;
+        collision.radiusScale = radiusScale;
     }
 
     /// <summary>

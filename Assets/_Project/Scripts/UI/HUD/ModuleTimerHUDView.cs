@@ -39,6 +39,13 @@ public class ModuleTimerHUDView : MonoBehaviour
     [SerializeField] private TMP_Text moduleLabel;
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private UIRingArc ring;
+    [Tooltip("Time and ring color while the module is running (not in warning).")]
+    [SerializeField] private Color timerColor = new Color(1f, 0.6f, 0f); // amber/orange
+    [Tooltip("Static background track behind the ring (sibling named \"RingTrack\"). Optional — " +
+             "found automatically next to ring if left empty.")]
+    [SerializeField] private UIRingArc ringTrack;
+    [Tooltip("Dim amber-gray shade for the track, instead of the theme's neutral gray.")]
+    [SerializeField] private Color ringTrackColor = new Color(0.32f, 0.24f, 0.12f); // amber shadow
     [Tooltip("Scaled on every beep. Its own object, so the pulse does not fight the slide.")]
     [SerializeField] private RectTransform pulseTarget;
 
@@ -77,6 +84,10 @@ public class ModuleTimerHUDView : MonoBehaviour
 
     private void Awake()
     {
+        if (ringTrack == null && ring != null)
+            ringTrack = ring.transform.parent.Find("RingTrack")?.GetComponent<UIRingArc>();
+        if (ringTrack != null) ringTrack.color = ringTrackColor;
+
         ModuleEvents.OnStateChanged += HandleStateChanged;
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnTimeAdjusted += HandleTimeAdjusted;
@@ -249,7 +260,7 @@ public class ModuleTimerHUDView : MonoBehaviour
         if (timerText != null)
         {
             timerText.text = FormatTime(left);
-            Color c = warning ? Accent : Primary;
+            Color c = timerColor;
             // The blink owns the alpha while in warning.
             c.a = warning ? timerText.alpha : 1f;
             timerText.color = c;
@@ -258,7 +269,7 @@ public class ModuleTimerHUDView : MonoBehaviour
         if (ring != null)
         {
             ring.SetSweep(360f * module.TimerProgress);
-            ring.color = warning ? Accent : (theme != null ? theme.TextSecondary : Color.gray);
+            ring.color = warning ? Accent : timerColor;
         }
     }
 

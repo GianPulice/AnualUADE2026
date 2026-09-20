@@ -41,7 +41,7 @@ MonoBehaviour:
     variants:
     - You made it. You're the first.
     clips: []
-    alert: '<color=#2EB847>> {0} DISARMED</color>'
+    alert: <color=#2EB847>> {0} DISARMED</color>
     playsOverMenus: 1
   - id: 4
     category: 1
@@ -49,7 +49,7 @@ MonoBehaviour:
     - Industrial sector. Three parts of the system to bring back online. Once all
       three are up, you can move on.
     clips: []
-    alert: 
+    alert: '|| Safe Zone || '
     playsOverMenus: 0
   - id: 5
     category: 1
@@ -63,14 +63,14 @@ MonoBehaviour:
     variants:
     - Module disarmed. The gate is open. The complex goes on.
     clips: []
-    alert: '<color=#2EB847>> M1 DISARMED</color>'
+    alert: <color=#2EB847>> M1 DISARMED</color>
     playsOverMenus: 0
   - id: 7
     category: 1
     variants:
     - Two modules down. One left.
     clips: []
-    alert: '<color=#2EB847>> M2 DISARMED</color>'
+    alert: <color=#2EB847>> M2 DISARMED</color>
     playsOverMenus: 0
   - id: 8
     category: 1

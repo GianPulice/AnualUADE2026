@@ -12533,19 +12533,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.6763641
+      value: 0.67636406
       objectReference: {fileID: 0}
     - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.20623189
+      value: 0.20623218
       objectReference: {fileID: 0}
     - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.6763642
+      value: 0.67636406
       objectReference: {fileID: 0}
     - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.2062319
+      value: -0.20623216
       objectReference: {fileID: 0}
     - target: {fileID: 5462070032916073715, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_Material
@@ -12553,15 +12553,15 @@ PrefabInstance:
       objectReference: {fileID: 13400000, guid: 1b3f83f725718a74b93197eab0c5c2e2, type: 2}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 28.68
+      value: 10.84
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 4.96
+      value: 0.057
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 17.09
+      value: -18.03
       objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalRotation.w
@@ -13344,7 +13344,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Checkpoint
   activationMode: 1
   respawnPoint: {fileID: 290716043}
-  puzzleId: sp1_panel_electrico
+  puzzleIds:
+  - sp1_panel_electrico
+  puzzleId: 
   playerTag: Player
 --- !u!1001 &292372844
 PrefabInstance:
@@ -15331,7 +15333,7 @@ GameObject:
   m_Icon: {fileID: -5397416234189338067, guid: 0000000000000000d000000000000000, type: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &345180339
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -15367,7 +15369,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Checkpoint
   activationMode: 0
   respawnPoint: {fileID: 345180341}
-  puzzleId: sp3_valvulas
+  puzzleIds:
+  - sp3_valvulas
+  puzzleId: 
   playerTag: Player
 --- !u!4 &345180341
 Transform:
@@ -19178,7 +19182,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3902520948021833331, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
       propertyPath: m_Layer
-      value: 12
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: -659912966070259250, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
@@ -31249,6 +31253,7 @@ Transform:
   - {fileID: 710000008}
   - {fileID: 1232346315}
   - {fileID: 710000202}
+  - {fileID: 6193098313}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &710000003
@@ -31593,7 +31598,7 @@ Transform:
   m_GameObject: {fileID: 710000231}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.46, y: 0, z: 2.12}
+  m_LocalPosition: {x: -1.46, y: 0, z: 6.62}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -36485,8 +36490,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 823456781}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.2916559, y: 0, z: 0, w: 0.9565233}
-  m_LocalPosition: {x: 28.68, y: 6.8318214, z: 16.685705}
+  m_LocalRotation: {x: 0.29165637, y: 0, z: 0, w: 0.9565232}
+  m_LocalPosition: {x: 10.84, y: 2.313942, z: -19.007107}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -40848,7 +40853,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Checkpoint
   activationMode: 1
   respawnPoint: {fileID: 921698742}
-  puzzleId: sp2_contenedores
+  puzzleIds:
+  - sp2_contenedores
+  puzzleId: 
   playerTag: Player
 --- !u!4 &921698742
 Transform:
@@ -96008,7 +96015,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &6193098313
 Transform:
   m_ObjectHideFlags: 0
@@ -96017,12 +96024,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5757845663}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.5814848, y: 0.00000009246486, z: 4.960325}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.5814848, y: 0.592, z: 4.12}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 710000002}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &151307313187747755
 PrefabInstance:
@@ -96444,7 +96451,6 @@ SceneRoots:
   - {fileID: 144278226}
   - {fileID: 816626569}
   - {fileID: 710000002}
-  - {fileID: 6193098313}
   - {fileID: 466113961}
   - {fileID: 4487105773186040796}
   - {fileID: 1054182714}

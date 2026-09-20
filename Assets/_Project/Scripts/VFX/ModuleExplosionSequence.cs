@@ -329,9 +329,18 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Same frame too: the module's LED turns red with the blast, not when the state changed.
         if (cause != null) ModuleEvents.RaiseExplosionShown(cause);
 
-        if (config != null && config.VfxPrefab != null)
+        ExplosionVFX prefab = null;
+        float explosionPunch = 1f;
+        float gore = 1f;
+        if (config != null)
+            config.ResolveExplosion(cause != null ? cause.Data : null, out prefab, out explosionPunch, out gore);
+
+        if (prefab != null)
         {
-            ExplosionVFX vfx = Instantiate(config.VfxPrefab, at, Quaternion.identity);
+            ExplosionVFX vfx = Instantiate(prefab, at, Quaternion.identity);
+            // Before Play: the knobs are read once, when it applies them to this copy.
+            vfx.SetIntensity(explosionPunch);
+            vfx.SetGore(gore);
             vfx.Play();
             duration = vfx.Duration;
         }

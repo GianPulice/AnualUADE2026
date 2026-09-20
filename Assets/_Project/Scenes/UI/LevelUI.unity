@@ -512,6 +512,10 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8782988479003291708, guid: 90c47cb2a66a0634d8e6bb951ea3703c, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4279900876
+      objectReference: {fileID: 0}
     - target: {fileID: 8958212507161195972, guid: 90c47cb2a66a0634d8e6bb951ea3703c, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -1474,6 +1478,10 @@ PrefabInstance:
       propertyPath: m_Sprite
       value: 
       objectReference: {fileID: 21300000, guid: 99ef4b1b6c988c54f992f3b96981549a, type: 3}
+    - target: {fileID: 7860919145934984392, guid: 5586e5510d88218478090069c3b9db15, type: 3}
+      propertyPath: timerColor.g
+      value: 0.11284235
+      objectReference: {fileID: 0}
     - target: {fileID: 9129640566100514954, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901

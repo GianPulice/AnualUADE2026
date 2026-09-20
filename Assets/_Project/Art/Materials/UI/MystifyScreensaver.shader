@@ -42,6 +42,12 @@ Shader "WIRED/UI/Mystify Screensaver"
         [Header(Look)]
         _LineWidth ("Line Width (texels)", Range(0.5, 4)) = 1
         _ColorCycle ("Seconds per Colour Change", Range(0.25, 20)) = 2.5
+        // The colours are not the screensaver's full wheel: they are rolled inside one band of it.
+        // 0 is red, 1/12 amber, 1/6 yellow; the band wraps, so a centre near 0 reaches back into
+        // crimson. Width is capped at half the wheel so the shortest way between two hues in the
+        // band never leaves it.
+        _HueCenter ("Hue Centre (0 red, .04 orange, .08 amber)", Range(0, 1)) = 0.04
+        _HueRange ("Hue Spread", Range(0, 0.5)) = 0.14
         _Saturation ("Saturation", Range(0, 1)) = 1
         _Brightness ("Brightness", Range(0, 1)) = 1
         _Background ("Background", Color) = (0, 0, 0, 1)
@@ -81,6 +87,7 @@ Shader "WIRED/UI/Mystify Screensaver"
             float _Echoes, _EchoSpacing, _EchoFade;
             float _SpeedMin, _SpeedMax, _Margin;
             float _LineWidth, _ColorCycle, _Saturation, _Brightness;
+            float _HueCenter, _HueRange;
             float4 _Background;
             float _Seed, _Clock;
             // (width, height) of the render texture in texels. Pushed by the script: a Blit outside a
@@ -132,8 +139,16 @@ Shader "WIRED/UI/Mystify Screensaver"
                 return saturate(abs(frac(h + float3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0);
             }
 
+            // A rolled 0..1 number placed inside the allowed band of the wheel, wrapping at 1.
+            float BandHue(float r)
+            {
+                return frac(_HueCenter + (r - 0.5) * _HueRange);
+            }
+
             // A polygon's colour at time t: it drifts from one random hue to the next every
             // _ColorCycle seconds, the short way round the wheel so it never greys out halfway.
+            // Both hues come out of the band, and the band is under half the wheel wide, so the
+            // short way between them stays inside it: nothing ever passes through green or blue.
             float3 PolygonColour(uint seed, uint polygon, float t)
             {
                 // Offset per polygon, so they do not all turn at the same moment.
@@ -142,8 +157,8 @@ Shader "WIRED/UI/Mystify Screensaver"
                 float blend = smoothstep(0.0, 1.0, phase - step);
 
                 uint key = 8000u + polygon * 65536u + (uint)step;
-                float from = Rand(seed, key);
-                float to = Rand(seed, key + 1u);
+                float from = BandHue(Rand(seed, key));
+                float to = BandHue(Rand(seed, key + 1u));
                 float hue = from + (frac(to - from + 0.5) - 0.5) * blend;
 
                 return lerp(1.0, HueToRgb(hue), _Saturation) * _Brightness;
