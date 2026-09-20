@@ -54,6 +54,18 @@ public class ModuleLED : MonoBehaviour
     private float activeLightIntensity;
     private ModuleStatus? shownStatus;
 
+    /// <summary>
+    /// The module this LED reports. Read by <see cref="ModuleExplosionSequence"/> so a blast goes
+    /// off on the LED of the module that actually exploded, and moves with it.
+    /// </summary>
+    public ModuleData Module => module;
+
+    /// <summary>
+    /// Where that blast is spawned: the LED's own Light, so the explosion sits exactly on the glow
+    /// the player has been watching count down. Falls back to this object when there is no Light.
+    /// </summary>
+    public Transform ExplosionAnchor => ledLight != null ? ledLight.transform : transform;
+
     // The Active → Exploded switch waits for the blast to be SEEN (ModuleEvents.OnExplosionShown):
     // with a cinematic the camera first travels to the body part, and the LED going red before the
     // VFX reads as a spoiler. Bounded so a presentation that never plays the VFX cannot freeze it.

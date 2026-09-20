@@ -24,11 +24,46 @@ public static class ModuleExplosionSetup
     // White and electric cyan. No red: that colour is reserved for danger lights.
     private static readonly Color Cyan = new Color(0.55f, 0.95f, 1f, 1f);
 
+    // Blood. Deliberately darker and duller than the danger red (#CC1A1A): gore is meant to read
+    // as wet meat, not as the signal colour the LEDs and the UI use to mean "danger".
+    private static readonly Color BloodDeep   = new Color(0.30f, 0.015f, 0.02f, 1f);
+    private static readonly Color BloodBright = new Color(0.62f, 0.05f,  0.05f, 1f);
+
+    private static readonly string[] GoreSystems = { "BloodSpray", "BloodMist", "BloodChunks" };
+
     [MenuItem("Tools/VFX/Module Explosion/Setup (build missing + wire)")]
     public static void SetupAll() => Run(rebuildPrefab: false);
 
     [MenuItem("Tools/VFX/Module Explosion/Rebuild VFX Prefab")]
     public static void RebuildPrefab() => Run(rebuildPrefab: true);
+
+    /// <summary>
+    /// Throws away the three blood systems and builds them again, leaving the rest of the prefab
+    /// (flash, sparks, smoke, debris, light) exactly as it was tuned. This is the one to use after
+    /// changing the gore numbers below: a full rebuild would also undo hand-tuning.
+    /// </summary>
+    [MenuItem("Tools/VFX/Module Explosion/Refresh Gore Layers")]
+    public static void RefreshGore()
+    {
+        EnsureFolder(TexDir);
+        EnsureFolder(MatDir);
+
+        if (AssetDatabase.LoadAssetAtPath<ExplosionVFX>(PrefabPath) == null)
+        {
+            Debug.LogWarning($"[ModuleExplosionSetup] No prefab at {PrefabPath}. Run Setup first.");
+            return;
+        }
+
+        EnsureGore(BloodMaterial(), SmokeMaterial(), replaceExisting: true);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[ModuleExplosionSetup] Gore layers rebuilt.");
+    }
+
+    private static Material BloodMaterial() =>
+        EnsureMaterial("mat_vfx_blood", EnsureTexture("vfx_blood.png", GenerateBloodBlob), additive: false);
+
+    private static Material SmokeMaterial() =>
+        EnsureMaterial("mat_vfx_smoke", EnsureTexture("vfx_smoke.png", GenerateSmoke), additive: false);
 
     private static void Run(bool rebuildPrefab)
     {
@@ -43,9 +78,11 @@ public static class ModuleExplosionSetup
         Material add   = EnsureMaterial("mat_vfx_additive", dot,   additive: true);
         Material smk   = EnsureMaterial("mat_vfx_smoke",    smoke, additive: false);
         Material solid = EnsureMaterial("mat_vfx_debris",   Texture2D.whiteTexture, additive: false);
+        Material gore  = BloodMaterial();
 
         ExplosionVFX prefab = AssetDatabase.LoadAssetAtPath<ExplosionVFX>(PrefabPath);
-        if (prefab == null || rebuildPrefab) prefab = BuildPrefab(add, smk, solid);
+        if (prefab == null || rebuildPrefab) prefab = BuildPrefab(add, smk, solid, gore);
+        else EnsureGore(gore, smk, replaceExisting: false);   // Gore on a prefab built before it existed.
 
         SO_ModuleExplosionConfig config = EnsureConfig(prefab);
         WirePlayer(config);
@@ -56,7 +93,8 @@ public static class ModuleExplosionSetup
 
     // ── Prefab ───────────────────────────────────────────────────────────────────────────
 
-    private static ExplosionVFX BuildPrefab(Material additive, Material smokeMat, Material debrisMat)
+    private static ExplosionVFX BuildPrefab(Material additive, Material smokeMat, Material debrisMat,
+                                            Material bloodMat)
     {
         GameObject root = new GameObject("ModuleExplosion");
         ExplosionVFX vfx = root.AddComponent<ExplosionVFX>();
@@ -138,6 +176,8 @@ public static class ModuleExplosionSetup
             FadeOut(debris);
         }
 
+        BuildGore(root, bloodMat, smokeMat);
+
         // Light: a short cyan-white pop on the surroundings. Driven by ExplosionVFX.
         GameObject lightGo = new GameObject("Light");
         lightGo.transform.SetParent(root.transform, false);
@@ -157,6 +197,143 @@ public static class ModuleExplosionSetup
         Object.DestroyImmediate(root);
         return saved.GetComponent<ExplosionVFX>();
     }
+
+    // Gore âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+    /// <summary>
+    /// The blood layers, kept apart from <see cref="BuildPrefab"/> so they can be added to (or
+    /// rebuilt on) a prefab that was already tuned by hand, without touching the rest of it.
+    /// Systems that already exist are left alone; the caller deletes them first to force a rebuild.
+    /// </summary>
+    /// <returns>True when at least one system was created, i.e. the prefab needs saving.</returns>
+    private static bool BuildGore(GameObject root, Material bloodMat, Material mistMat)
+    {
+        bool built = false;
+
+        // Spray: the arterial burst. Stretched droplets thrown wide, pulled down hard, and they
+        // stop where they land instead of bouncing â blood is not a rubber ball.
+        if (root.transform.Find("BloodSpray") == null)
+        {
+            built = true;
+            ParticleSystem spray = CreateSystem(root, "BloodSpray", bloodMat);
+            var main = spray.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 1.2f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 9f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+            main.startColor = new ParticleSystem.MinMaxGradient(BloodDeep, BloodBright);
+            main.gravityModifier = 2.4f;
+            main.maxParticles = 600;   // Headroom for ExplosionVFX.intensity above 1.
+            SetBurst(spray, 140);
+            var shape = spray.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.05f;
+            FadeOut(spray);
+            Splat(spray, dampen: 0.7f);
+            var renderer = spray.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Stretch;
+            renderer.lengthScale = 2.4f;
+            renderer.velocityScale = 0.05f;
+        }
+
+        // Mist: the red haze the burst leaves hanging. Same texture as the smoke, tinted by its own
+        // start colour; it SINKS where the smoke rises, so the two do not read as one cloud.
+        if (root.transform.Find("BloodMist") == null)
+        {
+            built = true;
+            ParticleSystem mist = CreateSystem(root, "BloodMist", mistMat);
+            var main = mist.main;
+            main.startDelay = 0.02f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.7f, 1.3f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.4f, 1.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.35f, 0.8f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.22f, 0.01f, 0.015f, 0.55f), new Color(0.42f, 0.04f, 0.04f, 0.4f));
+            main.gravityModifier = 0.15f;
+            main.maxParticles = 200;
+            SetBurst(mist, 18);
+            var shape = mist.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.12f;
+            var sol = mist.sizeOverLifetime;
+            sol.enabled = true;
+            sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.5f, 1f, 1.6f));
+            FadeOut(mist);
+        }
+
+        // Chunks: heavy gibs. Slower and fewer than the spray, they outlive it and tumble to the
+        // floor, so the shot still has something moving once the flash is gone.
+        if (root.transform.Find("BloodChunks") == null)
+        {
+            built = true;
+            ParticleSystem chunks = CreateSystem(root, "BloodChunks", bloodMat);
+            var main = chunks.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1f, 1.8f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 5f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.13f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.25f, 0.02f, 0.02f, 1f), new Color(0.5f, 0.07f, 0.05f, 1f));
+            main.gravityModifier = 3.2f;
+            main.maxParticles = 150;
+            SetBurst(chunks, 26);
+            var shape = chunks.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.07f;
+            var rol = chunks.rotationOverLifetime;
+            rol.enabled = true;
+            rol.z = new ParticleSystem.MinMaxCurve(-4f, 4f);
+            FadeOut(chunks);
+            Splat(chunks, dampen: 0.85f);
+        }
+
+        return built;
+    }
+
+    /// <summary>Makes a system hit level geometry and stay put, instead of falling through it.</summary>
+    private static void Splat(ParticleSystem ps, float dampen)
+    {
+        var collision = ps.collision;
+        collision.enabled = true;
+        collision.type = ParticleSystemCollisionType.World;
+        collision.mode = ParticleSystemCollisionMode.Collision3D;
+        // High = a real raycast per particle. Medium and Low read the depth buffer, which in URP is
+        // only there when a feature asks for it, so the blood would fall through the floor at random.
+        collision.quality = ParticleSystemCollisionQuality.High;
+        collision.dampen = dampen;
+        collision.bounce = 0.05f;
+        collision.lifetimeLoss = 0f;
+        collision.sendCollisionMessages = false;
+    }
+
+    /// <summary>
+    /// Adds the gore layers to the saved prefab. With replaceExisting the three are deleted first,
+    /// so the numbers above win over whatever is in the asset.
+    /// </summary>
+    private static void EnsureGore(Material bloodMat, Material mistMat, bool replaceExisting)
+    {
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (replaceExisting)
+            {
+                foreach (string name in GoreSystems)
+                {
+                    Transform existing = contents.transform.Find(name);
+                    if (existing != null) Object.DestroyImmediate(existing.gameObject);
+                }
+            }
+
+            if (!BuildGore(contents, bloodMat, mistMat)) return;
+            PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    // Systems ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
     private static ParticleSystem CreateSystem(GameObject root, string name, Material material)
     {
@@ -310,6 +487,31 @@ public static class ModuleExplosionSetup
             float noise = Mathf.PerlinNoise(x * 0.23f + 7.1f, y * 0.23f + 3.3f);
             float a = Mathf.Clamp01((1f - d) * 1.4f) * Mathf.Lerp(0.45f, 1f, noise);
             px[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a) * 255));
+        }
+        return px;
+    }
+
+    /// <summary>
+    /// A droplet: a round core with a noise-warped edge, so the spray does not read as a hundred
+    /// copies of the same perfect circle. Only the alpha matters â the colour comes from the
+    /// system's start colour.
+    /// </summary>
+    private static Color32[] GenerateBloodBlob(int size)
+    {
+        Color32[] px = new Color32[size * size];
+        float c = (size - 1) * 0.5f;
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float dx = (x - c) / c;
+            float dy = (y - c) / c;
+            float d = Mathf.Sqrt(dx * dx + dy * dy);
+
+            // The noise pushes the edge in and out; the centre stays solid, so it reads as thick
+            // fluid rather than as the soft additive dot the sparks use.
+            float wobble = Mathf.PerlinNoise(x * 0.18f + 11.7f, y * 0.18f + 4.9f) * 0.35f;
+            float a = Mathf.Clamp01((1f - d + wobble - 0.18f) * 2.5f);
+            px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
         }
         return px;
     }

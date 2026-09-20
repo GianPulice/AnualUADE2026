@@ -248,8 +248,8 @@ That covers `PLY_01`–`PLY_07`, `PLY_08`/`PLY_11` and `NEM_01`/`NEM_02`.
 
 **Missing outright, in spec-table order:** `PLY_09`/`PLY_10` (the hold-breath input and its
 involuntary exhale, which belong to the unbuilt hiding system); `NEM_06`–`NEM_13` voice lines (there
-is no `PlayVoiceLine`); every `MOD_*` call site — the module system runs its timers, explosions,
-penalties and resolutions **silently**, even though all nine clips exist; every `TRP_*` (the traps
+is no `PlayVoiceLine`); every `MOD_*` call site but the countdown tick — the module system runs its
+activations, explosions, penalties and resolutions **silently**, even though all nine clips exist; every `TRP_*` (the traps
 themselves do not exist); every `LUZ_*` — `FlickerLight`, `MonitorFlicker` and the generator have no
 `AudioSource` between them; every `SAV_*`; and `UI_01`–`UI_06` apart from the panel click, so the
 menus are silent.
@@ -352,8 +352,8 @@ fog and its Timeline track · the whole Nemesis director layer (`NemesisDirector
 stuck escalation, telemetry, the test console and the editor validators) · the freight elevator and
 its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene MVC UI framework,
 `UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
-applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (built, zero
-callers) · the ball/basket push puzzle.
+applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (mid-rewrite to
+the DBD format, zero callers) · the ball/basket push puzzle.
 
 ## Architecture
 
@@ -509,6 +509,26 @@ for the rest of the run by design** — there is no method to clear them:
 The movement states feed the Animator the **pre-penalty** speed so a limping player still plays the
 run blend; only the physical velocity is scaled.
 
+**Time jumps.** Besides the countdown, the active timer only moves through two calls, both no-ops
+with no module running: `ApplyTimePenalty(seconds)` (clamped at 0 — the tick explodes it on the next
+unpaused frame) and `ApplyTimeBonus(seconds)` (capped at `TimerDuration`, so it can never revive an
+exploded module). Both raise `ModuleEvents.OnTimeAdjusted(module, delta)` with the delta actually
+applied — it also fires while the timer is paused, where no tick would follow to show it.
+
+**On screen.** The countdown is readable outside the inventory: `ModuleTimerHUDView`
+(`UI/HUD/`, in `HUDCanvas.prefab` → `ModuleTimerHUD`) is a top-left Win95 window that slides in when a
+module goes Active, shows MM:SS inside a draining block ring (`UIRingArc`), the module's label, one
+pip per module and a "-5s" / "+3s" popup on `OnTimeAdjusted`, and slides out ~2 s after the module
+resolves or explodes. It also slides out when the Nemesis grabs the player and back in once they are up
+with control again (`PlayerStateManager.IsRecoveringFromCapture`, the same span the timer is
+frozen). Its `ModalVisibilityGate` hides it under every modal **except** `SkillCheck`
+(`ignoredModalIds`), because that is exactly when its penalties land. `ModuleTimerBeeper`, on the
+same object, beeps from 30 s left (1/s, `sfx_modulo_tick_normal`) and faster under 10 s (2/s,
+`sfx_modulo_tick_urgente`); it runs off `OnTimerTick`, so it goes quiet by itself whenever the timer
+is paused. The window was built by the one-shot `Tools/UI/Module Timer HUD/Build`
+(`Editor/UIStyle/ModuleTimerHUDBuilder.cs` + `UIBuildKit.cs`) and then re-laid out by hand: the
+prefab is the source of truth, and re-running the builder would overwrite the hand edits.
+
 ### Capture, checkpoints and session reset
 
 A capture is a **cost, not a Game Over**. The chain is deliberately one-directional so no system
@@ -520,6 +540,11 @@ NemesisCatchState -> PlayerStateManager.OnCaptured() -> PlayerEvents.OnPlayerCap
                                                      -> ModuleManager.ApplyTimePenalty
                  -> CheckpointManager.OnRespawned    -> NemesisStateManager (subscribed)
 ```
+
+**A capture costs no module time** (design decision): `SO_PlayerMovement.captureModuleTimePenalty`
+is 0, so `ApplyCaptureCost` returns early, and the timer is frozen from the grab until the player is
+back on their feet (`PlayerStateManager.captureTimerPaused`). Raising the value brings the cost back
+without code changes.
 
 The Nemesis never calls into save or UI; it only raises and only listens. `Checkpoint` activates by
 physical trigger, by puzzle id, or either, once only — and **snapshots puzzle progress at
@@ -571,7 +596,9 @@ panel, discard footer.
 - `ModuleHUDView` + `ModuleRowView` + `ActiveModuleTimerView` + `FailuresPipsView` are the device
   HUD of spec §3, inside the inventory: they subscribe to `ModuleEvents` and read `ModuleManager`
   (`GetActiveModule()`, `GetExplodedCount()`) rather than polling, and they keep counting with the
-  inventory open because the timers tick on `Time.unscaledDeltaTime`.
+  inventory open because the timers tick on `Time.unscaledDeltaTime`. `ActiveModuleDisplay` drains
+  the circle around the timer (`radialFill = TimerProgress`) off the same events; before, nothing
+  called it and the circle sat full.
 
 **ESC is a layer stack, not a close button.** `InventoryManagerUI.HandleCancelInput` unwinds
 discard dialog → doc panel → selection → inventory, one press per layer, and `RequestClose()` (the
@@ -1671,7 +1698,7 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 - **There is no win condition.** `GameResultManager.ReportWin` has no caller at all — the debug `WinLoseTest.cs` that used to call it (key `I`) was deleted. The only reachable ending is the Nemesis catching you.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
-- **`SkillCheckController.Open()` has zero callers**, `OnFailed` is never invoked, and the model has no fail-out path.
+- **The skill check is mid-rewrite and does not work.** `SO_SkillCheckData` already has the Dead by Daylight format (per-check `steps` with lap time, zone and perfect widths, miss penalty and perfect bonus; weighted `zoneSectors` meant for `RouletteSelection`), but `SkillCheckModel` / `SkillCheckController` still hold the old endless-needle logic with their data reads commented out. `Open()` has zero callers, there is no prefab, and `ModuleManager.ApplyTimeBonus` / `ModuleEvents.OnTimeAdjusted` are waiting for it.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
   per-category `pickupSoundId` on `SO_ItemCategoryConfig` when its own field is empty — which it is
@@ -1694,8 +1721,9 @@ The systems below are **implemented but not connected to anything**. Read this b
   save-point set and the UI set are still unreachable. For a fixed one-sound-per-event case the
   blocking step is authoring the SO and dragging it into `AudioManager.sounds`; for anything with
   variations, use a bank and the `PlayClip` overloads rather than minting twenty dead SOs.
-- **The module system is silent.** `ModuleManager` runs the timers, explosions, penalties and
-  resolutions without a single audio call, and `MOD_01`–`MOD_09` all have clips waiting.
+- **The module system is almost silent.** Only the countdown speaks: `ModuleTimerBeeper` plays the
+  tick clips under 30 s. `ModuleManager` still runs activations, explosions, penalties and
+  resolutions without a single audio call, and the rest of `MOD_01`–`MOD_09` have clips waiting.
 - **There is no music system.** One chase track played by `NemesisChaseMusic`. No `MusicManager`, no
   zone/exploration music, no stinger, no menu or ending piece — `AudioManager.PlayMusic` has zero
   callers. See *Spec deltas — Music*.

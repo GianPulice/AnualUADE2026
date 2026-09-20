@@ -15,6 +15,9 @@ using UnityEngine.UI;
 ///  • Slides in when a module goes Active, and stays while it runs.
 ///  • When that module resolves or explodes it shows the outcome for <see cref="settledHoldSeconds"/>
 ///    and slides out. Nothing is shown between modules.
+///  • Slides out when the Nemesis grabs the player and back in once the player is up with control
+///    again (<see cref="PlayerStateManager.IsRecoveringFromCapture"/>) — the same span the module
+///    timer is frozen, so it comes back showing the time it left with.
 ///  • Under ≤ the beeper's warning threshold the time and the ring turn Accent and blink, pulsing in
 ///    step with each <see cref="ModuleTimerBeeper.Beeped"/>.
 ///
@@ -62,7 +65,8 @@ public class ModuleTimerHUDView : MonoBehaviour
     [SerializeField, Min(0.02f)] private float pulseDuration = 0.16f;
 
     private ModuleRuntime shown;
-    private bool isVisible;
+    private bool isVisible;        // the window is on screen (slid in)
+    private bool captureHidden;    // the player is caught / getting up: out of the way until control is back
     private bool inWarning;
     private float blinkTime;
     private Vector2 deltaRestPosition;
@@ -108,6 +112,16 @@ public class ModuleTimerHUDView : MonoBehaviour
 
     private void Update()
     {
+        // Polled, not an event: the flag lives on whichever player is in the level, and a player
+        // unloaded mid-capture simply stops reporting it — nothing is left stuck hidden.
+        PlayerStateManager player = PlayerRegistry.Current;
+        bool caught = player != null && player.IsRecoveringFromCapture;
+        if (caught != captureHidden)
+        {
+            captureHidden = caught;
+            ApplyVisibility();
+        }
+
         if (!inWarning || shown == null || timerText == null) return;
 
         blinkTime += Time.unscaledDeltaTime * blinkSpeed;
@@ -171,12 +185,7 @@ public class ModuleTimerHUDView : MonoBehaviour
         SetStatus("T-MINUS", theme != null ? theme.TextMuted : Color.gray);
         RefreshTime(module);
         RefreshPips();
-
-        if (!isVisible && slide != null)
-        {
-            slide.SlideIn(SlideDirection.FromLeft);
-            isVisible = true;
-        }
+        ApplyVisibility();
     }
 
     /// <summary>Freezes the window on the outcome, then slides it out.</summary>
@@ -206,8 +215,22 @@ public class ModuleTimerHUDView : MonoBehaviour
     {
         shown = null;
         inWarning = false;
-        if (isVisible && slide != null) slide.SlideOut(SlideDirection.FromLeft);
-        isVisible = false;
+        ApplyVisibility();
+    }
+
+    /// <summary>
+    /// On screen = a module to show AND the player not caught. Slides only on a change, so a
+    /// capture takes the window out and the stand-up brings it back in, and the timer it shows
+    /// again is the one that was frozen during the capture.
+    /// </summary>
+    private void ApplyVisibility()
+    {
+        bool target = shown != null && !captureHidden;
+        if (target == isVisible || slide == null) return;
+
+        if (target) slide.SlideIn(SlideDirection.FromLeft);
+        else slide.SlideOut(SlideDirection.FromLeft);
+        isVisible = target;
     }
 
     // -- Drawing -------------------

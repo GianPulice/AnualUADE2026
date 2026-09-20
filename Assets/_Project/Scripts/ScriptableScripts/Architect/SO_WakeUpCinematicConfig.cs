@@ -14,6 +14,10 @@ public class SO_WakeUpCinematicConfig : ScriptableObject
     [Tooltip("Off: the level starts with control. No black screen, no camera pan, no ARC_01a / ARC_01b.")]
     [SerializeField] private bool cinematicEnabled = true;
 
+    [Tooltip("Level scenes where the cinematic plays, by name — the scene the Player lives in, not " +
+             "LevelUI. Dev and test scenes stay out so they start with control. Empty = every level.")]
+    [SerializeField] private string[] levelScenes = { "WIRED_Zona1_Blockout" };
+
     [Header("Skip")]
     [Tooltip("Lets the player cut the cinematic with the skip key. The prompt only shows when this is on.")]
     [SerializeField] private bool skippable = true;
@@ -27,4 +31,15 @@ public class SO_WakeUpCinematicConfig : ScriptableObject
     public bool Skippable => skippable;
     public KeyCode SkipKey => skipKey;
     public string SkipPromptText => string.Format(skipPromptFormat, skipKey);
+
+    public bool PlaysInScene(string sceneName)
+    {
+        if (levelScenes == null || levelScenes.Length == 0) return true;
+
+        foreach (string allowed in levelScenes)
+        {
+            if (allowed == sceneName) return true;
+        }
+        return false;
+    }
 }

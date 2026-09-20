@@ -22,11 +22,6 @@ using UnityEngine;
 
 public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 {
-    // -- Configuration -------------------
-
-    [Header("Input")]
-    [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
-
     // -- IModalUI -------------------
     public string ModalId => "Inventory";
     public bool ConsumesEscape => true;   // ESC closes inventory layers if pause is NOT on top
@@ -99,19 +94,19 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         InventoryEvents.OnItemSelected -= HandleItemSelected;
     }
 
-    // ------------------ Input ------------------ To be removed once the Input System is integrated
+    // ------------------ Input ------------------
 
     private void HandleInput()
     {
         // Closing with ESC is governed by UIStateManager (UI/Exit action -> RequestClose).
-        // Here we only handle Tab to open/close the inventory.
+        // Here we only handle Player/Inventory (Tab / Select) to open/close it.
 
-        if (!Input.GetKeyDown(toggleKey)) return;
+        if (!GameInput.InventoryPressed) return;
         if (ScreenManager.IsInputLocked) return;
 
         if (isInventoryOpen)
         {
-            // We only close with Tab if the inventory is the top of the stack.
+            // We only close with the toggle if the inventory is the top of the stack.
             if (UIStateManager.Exists && !ReferenceEquals(UIStateManager.Instance.Peek(), this)) return;
 
             if (itemDetailView != null && itemDetailView.IsDocOpen)

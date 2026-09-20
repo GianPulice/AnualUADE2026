@@ -493,7 +493,30 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
 | `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje global | InteractionPromptView |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
-| `InventoryEvents.OnModuleTimerTick/StateChanged/Exploded` | timers de módulos | ModuleHUDView |
+| `ModuleEvents.OnTimerTick/OnStateChanged/OnExploded` | `ModuleManager` (los viejos `InventoryEvents.OnModule*` ya no existen) | ModuleHUDView, ActiveModuleDisplay, ModuleTimerHUDView, ModuleTimerBeeper |
+| `ModuleEvents.OnTimeAdjusted` | `ModuleManager.ApplyTimePenalty` / `ApplyTimeBonus`, con el delta aplicado | ModuleTimerHUDView (popup "-5s"/"+3s"), ActiveModuleDisplay |
+| `UIStateManager.OnModalPushed/Popped` | se abre/cierra un modal | ModalVisibilityGate, InteractionPromptView |
+
+### Timer del módulo en el HUD
+
+`HUDCanvas.prefab` → `ModuleTimerHUD`: ventana Win95 arriba a la izquierda (anclada a un punto, en 24, -24) con el MM:SS del módulo activo adentro de un anillo de bloques que se vacía (`UIRingArc`,
+30 bloques), la etiqueta `M2 // CHEST`, un pip por módulo y el popup de salto de tiempo.
+
+- **Visibilidad**: entra deslizándose cuando un módulo pasa a Active; al resolverse o explotar muestra
+  el resultado ~2 s y sale. Entre módulos no se ve. Cuando el Nemesis agarra al player también sale, y
+  vuelve a entrar cuando se levantó y recuperó el control (`PlayerStateManager.IsRecoveringFromCapture`,
+  el mismo tramo en que el timer está frenado). Nunca `SetActive`: la muestra/oculta el
+  `UISlideTransition` de `Window`, y el pulso de cada bip escala `RingRoot` (el slide cancela todos los
+  tweens de su propio objeto).
+- **`ModalVisibilityGate.ignoredModalIds`**: el gate del root lleva `SkillCheck`, así el timer queda
+  visible durante el skill check (ahí caen las penalizaciones) y se oculta con inventario, pausa, etc.
+  Con la lista vacía el gate se comporta como siempre.
+- **Urgencia**: con ≤30 s el tiempo y el anillo pasan a Accent y titilan; `ModuleTimerBeeper` bipea
+  1/s y 2/s por debajo de 10 s, alineado a la grilla del intervalo (un salto de tiempo = un bip, no una
+  ráfaga).
+- La armó el builder de un solo uso `Tools/UI/Module Timer HUD/Build` y después se retocó a mano
+  (380×210, sin barra de título). **No volver a correr el builder**: rearmaría la barra de título y
+  el layout original encima de los retoques. El prefab es la fuente de verdad.
 
 ### Interaction Prompt — ventana Win95 y tipos de mensaje
 

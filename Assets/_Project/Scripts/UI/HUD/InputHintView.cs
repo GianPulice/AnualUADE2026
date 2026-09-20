@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// The help console at the top centre of the screen: a small panel with the terminal background at
@@ -8,7 +9,9 @@ using UnityEngine;
 ///
 /// Rules:
 ///   - It fades after the hint's seconds (5 by default), or shortly after the player does what it
-///     asks (<see cref="InputHint.dismissKeys"/> / <see cref="InputHint.dismissOnMove"/>).
+///     asks: performs its Input System action (<see cref="InputHint.inputAction"/>), or the legacy
+///     <see cref="InputHint.dismissKeys"/> / <see cref="InputHint.dismissOnMove"/>.
+///   - The key between brackets follows the device in use: keyboard or gamepad, switching live.
 ///   - A different hint arriving replaces it at once; the same hint again is ignored.
 ///   - The countdown stops while a menu is open or the game is paused, and a hint raised under a
 ///     menu waits for it to close. The root's ModalVisibilityGate hides it under menus.
@@ -44,6 +47,7 @@ public class InputHintView : MonoBehaviour
     [SerializeField, Min(0f)] private float afterInputSeconds = 0.8f;
 
     private InputHint current;
+    private bool currentForGamepad;
     private InputHint pending;
     private float remaining;
     private bool closing;
@@ -104,6 +108,13 @@ public class InputHintView : MonoBehaviour
 
         TickCursor();
 
+        // Picked up the pad (or went back to the keyboard) mid-hint: the bracket follows it.
+        if (!closing && currentForGamepad != InputHintEvents.UsingGamepad)
+        {
+            body = BuildLine(current);
+            RenderLabel();
+        }
+
         if (closing || IsBlocked) return;
 
         if (PlayerDidIt(current)) remaining = Mathf.Min(remaining, afterInputSeconds);
@@ -136,6 +147,10 @@ public class InputHintView : MonoBehaviour
         current = hint;
         remaining = hint.seconds;
         closing = false;
+
+        // Read in PlayerDidIt with WasPerformedThisFrame, which needs it enabled.
+        InputAction inputAction = hint.Action;
+        if (inputAction != null && !inputAction.enabled) inputAction.Enable();
 
         body = BuildLine(hint);
         cursorOn = true;
@@ -176,7 +191,9 @@ public class InputHintView : MonoBehaviour
 
     private string BuildLine(InputHint hint)
     {
-        string keys = uppercase ? hint.keys.ToUpperInvariant() : hint.keys;
+        currentForGamepad = InputHintEvents.UsingGamepad;
+        string label = hint.LabelFor(currentForGamepad) ?? string.Empty;
+        string keys = uppercase ? label.ToUpperInvariant() : label;
         string action = uppercase ? hint.action.ToUpperInvariant() : hint.action;
 
         string keyColor = theme != null ? ColorUtility.ToHtmlStringRGB(theme.Get(keyRole)) : "FFFFFF";
@@ -229,9 +246,10 @@ public class InputHintView : MonoBehaviour
 
     private static bool PlayerDidIt(InputHint hint)
     {
-        if (hint.dismissOnMove &&
-            (Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.1f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.1f))
-            return true;
+        InputAction inputAction = hint.Action;
+        if (inputAction != null && inputAction.WasPerformedThisFrame()) return true;
+
+        if (hint.dismissOnMove && GameInput.MoveValue.sqrMagnitude > 0.01f) return true;
 
         if (hint.dismissKeys == null) return false;
         foreach (KeyCode key in hint.dismissKeys)

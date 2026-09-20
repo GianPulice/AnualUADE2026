@@ -161,7 +161,7 @@ public class InteractionManager : Singleton<InteractionManager>
 
     private void Interact()
     {
-        if (!Input.GetKeyDown(KeyCode.E)) return;
+        if (!GameInput.InteractPressed) return;
         if (Time.unscaledTime - lastInteractTime < InteractCooldown) return;
         if (currentInteractable == null) return;
         if (!currentInteractable.CanInteract())

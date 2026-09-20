@@ -172,11 +172,8 @@ public class WakeUpCameraPan : MonoBehaviour
         }
     }
 
-    // Legacy axes, the same ones PlayerStateManager moves with; "Mouse X/Y" exist in the Input
-    // Manager and the project runs both input backends.
-    private static bool PlayerGaveInput() =>
-        Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.1f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.1f ||
-        Mathf.Abs(Input.GetAxisRaw("Mouse X")) > 0.1f || Mathf.Abs(Input.GetAxisRaw("Mouse Y")) > 0.1f;
+    // Player/Move and Player/Look: keyboard, mouse or either stick.
+    private static bool PlayerGaveInput() => GameInput.AnyMoveOrLook();
 
     /// <param name="progress">0 = start (right, low), 1 = end framing (the nape).</param>
     private void Apply(float progress)
@@ -197,7 +194,7 @@ public class WakeUpCameraPan : MonoBehaviour
     }
 
     /// <summary>World yaw of the player's body (the model, which is what the camera frames).</summary>
-    private static float PlayerYaw()
+    internal static float PlayerYaw()
     {
         PlayerStateManager player = PlayerRegistry.Current;
         if (player == null) return 0f;
@@ -205,7 +202,7 @@ public class WakeUpCameraPan : MonoBehaviour
         return body.eulerAngles.y;
     }
 
-    private static float WrapToRange(float value, Vector2 range)
+    internal static float WrapToRange(float value, Vector2 range)
     {
         float span = range.y - range.x;
         return span > 0f ? range.x + Mathf.Repeat(value - range.x, span) : value;

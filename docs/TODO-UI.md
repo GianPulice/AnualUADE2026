@@ -15,16 +15,15 @@ los specs de Inventario, Interacción y Puzzles.
 Esto no es "pendiente de UI" sino de cableado, pero condiciona todo lo de abajo: **hoy el
 loop de juego no corre**.
 
-- [ ] **Arrancar los timers de módulos.** `InventoryManagerUI.StartModuleTimer(moduleId)` y
-  `ResolveModule(moduleId)` no los llama nadie. Sin eso `ModuleData.Status` queda `Inactive`,
-  `TickModuleTimers()` no hace nada, y en cascada no disparan: `OnModuleExploded`,
-  `BlindnessOverlayView` (B5), ni `CheckGameOver()` → `ReportGameOver()` (B6). Todo lo marcado
-  como ✅ en "Screens de resultado" está implementado pero es **inalcanzable**.
+- [x] **Arrancar los timers de módulos.** Resuelto: los módulos viven en `ModuleManager` (escena
+  Data), los arranca `ZoneTrigger` y los resuelve `PuzzleStateManager.OnPuzzleCompleted` vía
+  `ModuleData.associatedPuzzleId`. Lo que sigue abajo sobre `InventoryManagerUI.StartModuleTimer` /
+  `TickModuleTimers` es historia: ese código ya no existe.
 - [ ] **Condición de victoria.** `GameResultManager.ReportWin()` solo se llama desde
   `WinLoseTest.cs` (tecla `I` de debug). No hay camino de gameplay que gane la partida.
-- [ ] **Resetear estado de run en Retry / New Game.** `InventoryManager` y `PuzzleStateManager`
-  son `DontDestroyOnLoad` sin `Clear()`. `GameResultManager.ResetSession()` solo resetea el flag
-  de resultado, así que al reintentar se conservan todos los ítems y puzzles ya completados.
+- [x] **Resetear estado de run en Retry / New Game.** Resuelto con `GameSession.BeginNewSession()`:
+  los managers persistentes (`InventoryManager`, `PuzzleStateManager`, `ModuleManager`, …)
+  implementan `ISessionResettable`. Ver `docs/CLAUDE.md` § Capture, checkpoints and session reset.
 
 ---
 
@@ -118,6 +117,26 @@ Pendiente en esta zona:
 - [ ] **Override huérfano en `LevelUI.unity`** — la instancia del prefab fuerza `Doc Box` a
       `m_IsActive: 1`. Hoy es inerte (el `CanvasGroup` arranca en alpha 0 y `ItemDetailView.Awake`
       lo desactiva), pero conviene hacerle Revert al override.
+- [x] **El círculo del timer no se movía.** `ActiveModuleDisplay.UpdateDisplay` no lo llamaba nadie;
+      ahora se maneja solo con `ModuleEvents` y drena `RadialFill` con `TimerProgress`.
+
+### Timer del módulo fuera del inventario (HUD)
+
+Decidido en "UI y timer": el timer se ve fuera del inventario, con el módulo activo; el bip arranca
+a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § Timer del módulo en el HUD.
+
+- [x] **Ventana del timer en `HUDCanvas`** (`ModuleTimerHUDView`): MM:SS dentro de un anillo de
+      bloques que se vacía, `M2 // CHEST`, un pip por módulo, popup "-5s"/"+3s". Visible sobre el
+      skill check (`ModalVisibilityGate.ignoredModalIds`).
+- [x] **Bip de cuenta regresiva** (`ModuleTimerBeeper`): 1/s desde 30 s, 2/s con el clip urgente
+      desde 10 s. Se calla solo en pausa y durante el agarre.
+- [x] **El agarre no cuesta tiempo**: `SO_PlayerMovement.captureModuleTimePenalty = 0`; el timer
+      sigue frenado desde el agarre hasta que el player se levanta.
+- [ ] **Borrar el builder de un solo uso** `Editor/UIStyle/ModuleTimerHUDBuilder.cs`: la ventana ya
+      se retocó a mano (380×210, sin barra de título) y correrlo de nuevo pisaría esos cambios.
+      `UIBuildKit.cs` se puede quedar si el skill check lo usa para armar su canvas.
+- [ ] **`M1_Legs.timerDuration` está en 500 s** (antes del commit `9885271b` era 50): parece valor
+      de prueba. Confirmar y volverlo antes de una build.
 
 > El look de la UI (tema, bordes Win95, fuentes con contorno, fondos animados, transición, tubo CRT)
 > se aplica con **perfiles de estilo**: un `SO_UIStyleProfile` por prefab en
@@ -158,7 +177,7 @@ El sistema de puzzles está parcialmente implementado:
 - ✅ Sub-Puzzle 1: panel eléctrico + caja de fusibles (`SequencePanelInteractable` + `SequencePanelUIController`). Es el único puzzle que se completa de punta a punta; escribe directo en `PuzzleStateManager` sin pasar por `PuzzleController`.
 - ✅ Sub-Puzzle 2: cajas empujables — **unificado**. Se eligió la variante física y se borraron `ContainerInteractable`, `ContainerSlot` y el muerto `PushableBall`. Queda `BallPuzzleItem` + `BasketTrigger` + `GrabbableBall` + `PushBoxTriggerLogic`, con `ContainerPuzzleController.CheckContainers()` como verificador. Ya no hay dos semánticas de clave: `PuzzleStateManager.SetContainerSlot()` se escribe **siempre con el `BallId`**, y `SO_ContainerPuzzleData.ContainerRequirement.containerId` conserva el nombre viejo pero se autora con un id de caja (documentado en su tooltip). Pendiente: **reprobar el puzzle de punta a punta en escena**.
 - 🟡 Sub-Puzzle 3: 3 válvulas — la lógica existe (`ValveInteractable` + `ValvePuzzleController`) pero **no hay feedback visual**: la válvula no rota ni cambia de estado al interactuar. Además `InitializeValveState()` espera con un `WaitForSeconds(3)` hardcodeado para que exista el singleton (workaround de race condition, no fix).
-- 🟡 **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación): `SkillCheckController` + `SkillCheckView` + `SkillCheckModel` + `SO_SkillCheckData` están escritos, pero **`SkillCheckController.Instance.Open(data)` no lo llama nadie** y el check no tiene salida por fallo: `OnFailed` nunca se invoca, `HandleCheckSuccess`/`HandleCheckFailed` están vacíos y el modelo no cuenta fallos. Se puede errar indefinidamente, solo restando tiempo al módulo activo. **Prefab, cableado de escena y camino de fallo pendientes.**
+- 🟡 **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación), **reescritura estilo Dead by Daylight a medio hacer y en pausa**. `SO_SkillCheckData` ya tiene el formato nuevo: `steps` (vuelta de la aguja, zona, zona perfecta, castigo por fallo, bonus por perfecto, de difícil a fácil) y `zoneSectors` con peso para sortear la zona con `RouletteSelection`. `SkillCheckModel` / `SkillCheckController` / `SkillCheckView` siguen con la lógica vieja (aguja sin fin) y las lecturas del SO comentadas: **hoy no funciona**. Del lado de módulos ya está lo que necesita: `ModuleManager.ApplyTimeBonus`, `ModuleEvents.OnTimeAdjusted` y el timer del HUD visible sobre el modal `SkillCheck`. Falta: modelo/controller/vista nuevos, prefab, escena y el disparador en el Hub.
 - ❌ Hub Central: 3 ranuras de inserción. `SocketInteractable` + `HubPuzzleController.CheckHubCompletion()` existen, pero al completarse solo setean el flag y loguean — la cinemática, el acceso al Piso 3 y el ascensor son un comentario `// TO DO HERE`. Es el endgame del Piso 1.
 - ❌ Cinemática post-Hub
 

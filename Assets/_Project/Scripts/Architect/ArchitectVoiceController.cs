@@ -89,10 +89,25 @@ public class ArchitectVoiceController : MonoBehaviour
     public bool IsSpeaking => currentLine != null;
 
     /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts.</summary>
-    public bool PlaysWakeUpOnStart => playWakeUpOnStart && (wakeUpConfig == null || wakeUpConfig.CinematicEnabled);
+    public bool PlaysWakeUpOnStart =>
+        playWakeUpOnStart && (wakeUpConfig == null || wakeUpConfig.CinematicEnabled) && IsWakeUpLevel;
+
+    /// <summary>
+    /// The Player's scene is one the config lists (dev scenes are not). This controller lives in
+    /// LevelUI, so the level is read off the player. Until the player registers it answers true —
+    /// the countdown re-checks every frame and cancels the wake-up as soon as it knows better.
+    /// </summary>
+    private bool IsWakeUpLevel =>
+        player == null || wakeUpConfig == null || wakeUpConfig.PlaysInScene(player.gameObject.scene.name);
 
     /// <summary>May be null: the cinematic then plays and can be skipped with the default key.</summary>
     public SO_WakeUpCinematicConfig WakeUpConfig => wakeUpConfig;
+
+    /// <summary>
+    /// Seconds left before ARC_01a starts, while the level-start countdown runs; -1 otherwise.
+    /// The wake-up cinematic starts the stand-up clip off it, ahead of the line.
+    /// </summary>
+    public float WakeUpSecondsUntilLine => wakeUpCountdown;
 
     /// <summary>The wake-up already finished, was cut, or was skipped because it has no text.</summary>
     public bool IsWakeUpDone => wakeUpDone;
@@ -156,6 +171,15 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private void Update()
     {
+        if (wakeUpCountdown >= 0f && !IsWakeUpLevel)
+        {
+            // The player registered in a scene without the cinematic (a dev scene): start with
+            // control. WakeUpCinematicView sees IsWakeUpDone and lifts its black on the same frame.
+            wakeUpCountdown = -1f;
+            wakeUpDone = true;
+            ReleaseWakeUpLock();
+        }
+
         if (wakeUpCountdown >= 0f)
         {
             // The wake-up cinematic starts on a black screen: the player must not be walking around

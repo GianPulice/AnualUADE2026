@@ -8,6 +8,9 @@ using UnityEngine;
 ///     ("USE [SHIFT] TO RUN" at the first long corridor).
 ///
 /// <see cref="ShowNow"/> is public for UnityEvents (a puzzle finished, an item picked up).
+///
+/// The key shown and what closes the hint come from the hint's Input System action; see
+/// <see cref="InputHint"/>. The trigger volume is drawn in the Scene view so it can be placed.
 /// </summary>
 public class InputHintTrigger : MonoBehaviour
 {
@@ -57,4 +60,26 @@ public class InputHintTrigger : MonoBehaviour
         // Only spent once the HUD actually took it: with no HUD loaded yet, try again next time.
         if (InputHintEvents.Show(hint) || InputHintEvents.HasShown(hint.Id)) fired = true;
     }
+
+#if UNITY_EDITOR
+    private static readonly Color GizmoFill = new Color(0.55f, 0.85f, 1f, 0.12f);
+    private static readonly Color GizmoWire = new Color(0.55f, 0.85f, 1f, 0.9f);
+
+    private void OnDrawGizmos()
+    {
+        BoxCollider box = GetComponent<BoxCollider>();
+        if (box == null) return;
+
+        Gizmos.matrix = transform.localToWorldMatrix;
+        Gizmos.color = GizmoFill;
+        Gizmos.DrawCube(box.center, box.size);
+        Gizmos.color = GizmoWire;
+        Gizmos.DrawWireCube(box.center, box.size);
+        Gizmos.matrix = Matrix4x4.identity;
+
+        string what = string.IsNullOrWhiteSpace(hint.inputAction) ? hint.keys : hint.inputAction;
+        UnityEditor.Handles.Label(transform.TransformPoint(box.center + Vector3.up * box.size.y * 0.5f),
+                                  $"HINT {what} → {hint.action}");
+    }
+#endif
 }

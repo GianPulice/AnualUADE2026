@@ -131,11 +131,35 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     // through the black screen and the respawn, until the stand-up ends and control is back.
     private bool captureTimerPaused;
 
+    // Same span as captureTimerPaused, but independent of ModuleManager: from the grab until the
+    // stand-up ends and control is back. HUD that must get out of the way of a capture polls it.
+    private bool recoveringFromCapture;
+
+    /// <summary>True from the Nemesis grab, through the black screen and the respawn, until the
+    /// player is back on their feet with control — the same moment the module timer resumes.</summary>
+    public bool IsRecoveringFromCapture => recoveringFromCapture;
+
     /// <summary>True while the player is lying on the floor or getting up.</summary>
     public bool IsStandingUp => standUpPhase != EStandUpPhase.None;
 
     /// <summary>True during the level-start stand-up only — the one the wake-up skip can cut.</summary>
     public bool IsWakeUpStandingUp => IsStandingUp && standUpKind == EStandUp.Init;
+
+    /// <summary>True during the checkpoint stand-up after a capture: lying down or getting up.</summary>
+    public bool IsCaptureStandingUp => IsStandingUp && standUpKind == EStandUp.AfterCapture;
+
+    /// <summary>
+    /// How far through the stand-up the player is: 0 while lying (and on the first frames), then
+    /// the clip's normalized time, 1 once it is over. Camera shots sync to it instead of a timer, so
+    /// changing the clip or its speed keeps them in step.
+    /// </summary>
+    public float StandUpProgress { get; private set; }
+
+    /// <summary>
+    /// Seconds until the playing stand-up reaches its last frame; 0 while lying, on its first frames
+    /// (before the Animator reports the state) and once it is over.
+    /// </summary>
+    public float StandUpSecondsLeft { get; private set; }
 
     // ── Moving floors ─────────────────────────────────────────────────────
 
@@ -462,6 +486,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // Control is back after a capture: the module timer runs again from here.
         if (captureTimerPaused && !IsImmobilized) ReleaseCaptureTimerPause();
+        if (recoveringFromCapture && !IsImmobilized) recoveringFromCapture = false;
 
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
@@ -537,25 +562,23 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // Build the movement direction vector from the inputs.
         //
-        // GetAxisRAW, not GetAxis. The smoothed axes in ProjectSettings/InputManager.asset run at
-        // gravity 3, so after the key is released the value takes about a third of a second to
-        // decay to zero — and for that whole third of a second inputDir is still non-zero, so
-        // PlayerMovingState keeps driving the character at FULL speed. That is the "he keeps
-        // walking after I let go" the playtest reported: it was never the animation blend, which
-        // is only 0.1-0.2s.
-        //
-        // Losing the smoothing costs nothing here: the ramp UP is already owned by
-        // SO_Movement.Acceleration in PlayerMovingState, which is where it can be tuned and where
-        // it applies to gamepads too. Raw still returns the analogue value for a stick.
-        inputDir = orientation.forward * Input.GetAxisRaw("Vertical")
-                 + orientation.right   * Input.GetAxisRaw("Horizontal");
+        // Player/Move, unsmoothed on purpose. The old smoothed legacy axes kept reporting a value
+        // for a third of a second after the key was released, and for that whole time
+        // PlayerMovingState kept driving the character at FULL speed ("he keeps walking after I
+        // let go"). The ramp UP is owned by SO_Movement.Acceleration in PlayerMovingState, where
+        // it can be tuned and where it applies to gamepads too.
+        Vector2 move = GameInput.MoveValue;
+        inputDir = orientation.forward * move.y
+                 + orientation.right   * move.x;
         inputDir.Normalize();
 
         // Crouch mechanic. Standing back up is gated on headroom: pressing crouch under a low
         // ceiling must NOT grow the capsule into it — that wedges the Rigidbody between the floor
         // and the slab and the player freezes in place (the reported bug). The request is
         // remembered instead and honoured automatically as soon as the space above clears.
-        if (Input.GetButtonDown("Crouch"))
+        // Not under a menu: on a gamepad B is both Crouch and UI/Exit, and closing the inventory
+        // must not crouch the player too.
+        if (GameInput.CrouchPressed && !PauseManager.IsGameplayInputBlocked)
         {
             if (!isCrouch)
             {
@@ -841,6 +864,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         }
 
         isDisabled = true;
+        recoveringFromCapture = true;
         PlayerEvents.PlayerCaptured(this);
     }
 
@@ -868,6 +892,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         standUpStateHash = hash;
         standUpPhase = EStandUpPhase.Lying;
         standUpElapsed = 0f;
+        StandUpProgress = 0f;
         captureFallbackAt = -1f;
 
         // Gets up standing, whatever stance the player was caught in.
@@ -895,9 +920,14 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         if (standUpPhase == EStandUpPhase.Playing && standUpKind == kind) return;
         if ((standUpPhase == EStandUpPhase.None || standUpKind != kind) && !HoldLyingPose(kind)) return;
 
+        // The cinematic can start the clip on the very frame the camera locks: without this, the
+        // lock pick-up in TickStandUp would run after it and lie the player back down on frame 0.
+        if (kind == EStandUp.Init) initStandUpHandled = true;
+
         standUpPhase = EStandUpPhase.Playing;
         standUpElapsed = 0f;
         standUpClipSeconds = 0f;
+        StandUpSecondsLeft = 0f;
         captureFallbackAt = -1f;
         animController.Play(standUpStateHash, 0, 0f);
     }
@@ -928,7 +958,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
     private void EndStandUp()
     {
+        StandUpSecondsLeft = 0f;
         standUpPhase = EStandUpPhase.None;
+        StandUpProgress = 1f;
         captureFallbackAt = -1f;
     }
 
@@ -993,6 +1025,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
                 // In seconds at the state's own speed, so a sped-up clip is not waited out at 1x.
                 if (inState) standUpClipSeconds = info.length;
+                if (inState) StandUpProgress = Mathf.Clamp01(info.normalizedTime);
+
+                // Real seconds to the clip's last frame, at the state's own speed.
+                if (inState) StandUpSecondsLeft = info.length * (1f - Mathf.Clamp01(info.normalizedTime));
 
                 // Play() only takes effect on the Animator's next update, so the first frames can
                 // still report the previous state. The transition into Idle only starts on the

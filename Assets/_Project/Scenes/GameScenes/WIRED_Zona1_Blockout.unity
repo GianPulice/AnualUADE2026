@@ -889,6 +889,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: GeneratorUnit
       objectReference: {fileID: 0}
+    - target: {fileID: 5538479276060446206, guid: 995be41687dd5214dbdc8d89c4e60e7d, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1245,6 +1249,10 @@ PrefabInstance:
     - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
       propertyPath: m_Name
       value: Wall_corner_3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1891,6 +1899,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ConcretePipe
       objectReference: {fileID: 0}
+    - target: {fileID: 2117499382483732599, guid: 91ae511101e62c146999cf26ab483b1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2517,6 +2529,10 @@ PrefabInstance:
     - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_Name
       value: TrashCan
+      objectReference: {fileID: 0}
+    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4129,6 +4145,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Metal_cabinet_2
       objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
       value: -22.97
@@ -4464,6 +4484,10 @@ PrefabInstance:
     - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_Name
       value: Spool
+      objectReference: {fileID: 0}
+    - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 4817812452836329343, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4872,6 +4896,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: BarrelOil
       objectReference: {fileID: 0}
+    - target: {fileID: 4818749612752425578, guid: ccdcd80bb12d6854fa57e41a532d93ac, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -4999,6 +5027,10 @@ PrefabInstance:
     - target: {fileID: 2117499382483732599, guid: 91ae511101e62c146999cf26ab483b1e, type: 3}
       propertyPath: m_Name
       value: ConcretePipe
+      objectReference: {fileID: 0}
+    - target: {fileID: 2117499382483732599, guid: 91ae511101e62c146999cf26ab483b1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5560,6 +5592,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Wall_column (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 2702541128932143652, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -6027,6 +6063,10 @@ PrefabInstance:
     - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_Name
       value: Spool (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 4817812452836329343, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -7152,6 +7192,10 @@ PrefabInstance:
     - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
       propertyPath: m_Name
       value: PropaneTankSmall (4)
+      objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -9181,6 +9225,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Barrel_2
       objectReference: {fileID: 0}
+    - target: {fileID: 5493813558855045510, guid: 784bf009c782d754abf55dbd96f95da2, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -9928,6 +9976,10 @@ PrefabInstance:
     - target: {fileID: 6567162515502514538, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
       propertyPath: m_Name
       value: Liquid_reservoir_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6567162515502514538, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 1409011335605842484, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
@@ -11252,6 +11304,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrashCan (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x
       value: 11.0723
@@ -12047,6 +12103,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_stack
       objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
       value: 8.12
@@ -12574,6 +12634,10 @@ PrefabInstance:
     - target: {fileID: 7895188192952171637, guid: cbe8a2ee027832243a4cd34334966a92, type: 3}
       propertyPath: m_Name
       value: Pipes_arch
+      objectReference: {fileID: 0}
+    - target: {fileID: 7895188192952171637, guid: cbe8a2ee027832243a4cd34334966a92, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -13486,6 +13550,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_stack (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
       value: -24.98
@@ -13973,6 +14041,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Wall_corner_1
       objectReference: {fileID: 0}
+    - target: {fileID: 9036922883906747497, guid: 2ea4567d4cec36145be3f6f2e7c34966, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -14141,6 +14213,10 @@ PrefabInstance:
     - target: {fileID: 4818749612752425578, guid: ccdcd80bb12d6854fa57e41a532d93ac, type: 3}
       propertyPath: m_Name
       value: BarrelOil (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818749612752425578, guid: ccdcd80bb12d6854fa57e41a532d93ac, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -14340,6 +14416,10 @@ PrefabInstance:
     - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
       propertyPath: m_Name
       value: Barrel_1 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -14585,6 +14665,10 @@ PrefabInstance:
     - target: {fileID: 1705170064541175733, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
       propertyPath: m_Name
       value: BarrelWater (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 1705170064541175733, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8213525752612771826, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
       propertyPath: m_LocalPosition.x
@@ -15290,6 +15374,10 @@ PrefabInstance:
     - target: {fileID: 860703241537305046, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
       propertyPath: m_Name
       value: Bags_2 (12)
+      objectReference: {fileID: 0}
+    - target: {fileID: 860703241537305046, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 2236908218112371782, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
       propertyPath: m_LocalScale.x
@@ -17384,6 +17472,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_stack
       objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
       value: -20.902
@@ -17667,6 +17759,10 @@ PrefabInstance:
     - target: {fileID: 3902520948021833331, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
       propertyPath: m_Name
       value: TrashContainer
+      objectReference: {fileID: 0}
+    - target: {fileID: 3902520948021833331, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: -659912966070259250, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
@@ -18506,6 +18602,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bridges_support_2
       objectReference: {fileID: 0}
+    - target: {fileID: 5976354196749396025, guid: afedf300c1f8e6e44a218f3512e6b7b4, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7121696572245195336, guid: afedf300c1f8e6e44a218f3512e6b7b4, type: 3}
       propertyPath: m_LocalPosition.x
       value: 9.16
@@ -18638,6 +18738,10 @@ PrefabInstance:
     - target: {fileID: 6854290269254644337, guid: 35a45c513b2fbb14396efad2f77d4061, type: 3}
       propertyPath: m_Name
       value: CrateMetal2
+      objectReference: {fileID: 0}
+    - target: {fileID: 6854290269254644337, guid: 35a45c513b2fbb14396efad2f77d4061, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -19200,6 +19304,10 @@ PrefabInstance:
     - target: {fileID: 2111702646495625354, guid: b5fd97d4fcd4a3e41b4f0867aa068a70, type: 3}
       propertyPath: m_Name
       value: V_Puzzle1Gate
+      objectReference: {fileID: 0}
+    - target: {fileID: 6040060119200383167, guid: b5fd97d4fcd4a3e41b4f0867aa068a70, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8289815757802645836, guid: b5fd97d4fcd4a3e41b4f0867aa068a70, type: 3}
       propertyPath: m_LocalPosition.x
@@ -19865,6 +19973,10 @@ PrefabInstance:
     - target: {fileID: 1705170064541175733, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
       propertyPath: m_Name
       value: BarrelWater
+      objectReference: {fileID: 0}
+    - target: {fileID: 1705170064541175733, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8213525752612771826, guid: 806cf37ccc1eb314daf9c0e4cd4b0476, type: 3}
       propertyPath: m_LocalPosition.x
@@ -20875,6 +20987,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ConcretePipe (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 2117499382483732599, guid: 91ae511101e62c146999cf26ab483b1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -21843,6 +21959,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Metal_cabinet_1
       objectReference: {fileID: 0}
+    - target: {fileID: 868198882627394252, guid: 911197cf8e80206469536e2584898988, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 5676590398797448244, guid: 911197cf8e80206469536e2584898988, type: 3}
       propertyPath: m_LocalPosition.x
       value: -29.65663
@@ -22762,6 +22882,10 @@ PrefabInstance:
     - target: {fileID: 8494995610966087988, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
       propertyPath: m_Name
       value: Cargo_2_full (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 8494995610966087988, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -24326,6 +24450,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Pipes_out_2
       objectReference: {fileID: 0}
+    - target: {fileID: 8641017982345224883, guid: 2cc8e7ee6222f424796cac76ac015917, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -25157,6 +25285,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ConcretePipePile
       objectReference: {fileID: 0}
+    - target: {fileID: 6561700185641861475, guid: ad459ff0847492d44b01057aa9322aac, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7587116743057044229, guid: ad459ff0847492d44b01057aa9322aac, type: 3}
       propertyPath: m_LocalPosition.x
       value: 7.715
@@ -25375,6 +25507,10 @@ PrefabInstance:
     - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
       propertyPath: m_Name
       value: Barrel_1 (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -27184,6 +27320,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_stack (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
       value: 10.487
@@ -28915,6 +29055,7 @@ Transform:
   - {fileID: 710000006}
   - {fileID: 710000008}
   - {fileID: 1232346315}
+  - {fileID: 710000202}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &710000003
@@ -29043,6 +29184,349 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1914249988654757668, guid: c50494fa3f2feb34d95f76a3f923362c, type: 3}
   m_PrefabInstance: {fileID: 419813318}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &710000201
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710000202}
+  m_Layer: 0
+  m_Name: INPUT HINTS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &710000202
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000201}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 710000212}
+  - {fileID: 710000222}
+  - {fileID: 710000232}
+  - {fileID: 710000242}
+  m_Father: {fileID: 710000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &710000211
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710000212}
+  - component: {fileID: 710000213}
+  - component: {fileID: 710000214}
+  m_Layer: 0
+  m_Name: HINT - Sprint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &710000212
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000211}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: 0.70266926, z: -0, w: 0.71151674}
+  m_LocalPosition: {x: 0.159, y: 0, z: 14.88}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 710000202}
+  m_LocalEulerAnglesHint: {x: 0, y: 89.283, z: 0}
+--- !u!65 &710000213
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000211}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 3, y: 2.5, z: 8}
+  m_Center: {x: 0, y: 1.25, z: 0}
+--- !u!114 &710000214
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000211}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0a844ef254f2a4795bd15a563d64df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InputHintTrigger
+  hint:
+    id: tuto_sprint
+    inputAction: Player/Sprint
+    keys: SHIFT
+    gamepadKeys: 
+    action: run
+    seconds: 5
+    dismissKeys: 
+    dismissOnMove: 0
+  showOnStart: 0
+  startDelay: 1
+--- !u!1 &710000221
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710000222}
+  - component: {fileID: 710000223}
+  - component: {fileID: 710000224}
+  m_Layer: 0
+  m_Name: HINT - Crouch
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &710000222
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000221}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.97, y: -0.86, z: -18.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 710000202}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &710000223
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000221}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 3, y: 2.5, z: 2}
+  m_Center: {x: 0, y: 1.25, z: 0}
+--- !u!114 &710000224
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000221}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0a844ef254f2a4795bd15a563d64df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InputHintTrigger
+  hint:
+    id: tuto_crouch
+    inputAction: Player/Crouch
+    keys: CTRL
+    gamepadKeys: 
+    action: crouch
+    seconds: 5
+    dismissKeys: 
+    dismissOnMove: 0
+  showOnStart: 0
+  startDelay: 1
+--- !u!1 &710000231
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710000232}
+  - component: {fileID: 710000233}
+  - component: {fileID: 710000234}
+  m_Layer: 0
+  m_Name: HINT - Interact
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &710000232
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000231}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.46, y: 0, z: 2.12}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 710000202}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &710000233
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000231}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 3, y: 2.5, z: 3}
+  m_Center: {x: 0, y: 1.25, z: 0}
+--- !u!114 &710000234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000231}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0a844ef254f2a4795bd15a563d64df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InputHintTrigger
+  hint:
+    id: tuto_pause
+    inputAction: Player/Pause
+    keys: 
+    gamepadKeys: 
+    action: pause the game
+    seconds: 5
+    dismissKeys: 
+    dismissOnMove: 0
+  showOnStart: 0
+  startDelay: 1
+--- !u!1 &710000241
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710000242}
+  - component: {fileID: 710000243}
+  - component: {fileID: 710000244}
+  m_Layer: 0
+  m_Name: HINT - Inventory
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &710000242
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000241}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.72, y: 0, z: -5.019}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 710000202}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &710000243
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000241}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 3, y: 2.5, z: 3}
+  m_Center: {x: 0, y: 1.25, z: 0}
+--- !u!114 &710000244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710000241}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0a844ef254f2a4795bd15a563d64df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InputHintTrigger
+  hint:
+    id: tuto_inventory
+    inputAction: Player/Inventory
+    keys: 
+    gamepadKeys: 
+    action: open the inventory
+    seconds: 5
+    dismissKeys: 
+    dismissOnMove: 0
+  showOnStart: 0
+  startDelay: 1
 --- !u!1001 &710146098
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -30065,7 +30549,7 @@ MonoBehaviour:
   m_Center: {x: 0, y: 2, z: 0}
   m_LayerMask:
     serializedVersion: 2
-    m_Bits: 6153
+    m_Bits: 6152
   m_UseGeometry: 1
   m_DefaultArea: 0
   m_GenerateLinks: 1
@@ -31392,7 +31876,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8429833125395424590, guid: 3484f89b76ab28f4cb4b95a2639c9ce7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1989478350}
   m_SourcePrefab: {fileID: 100100000, guid: 3484f89b76ab28f4cb4b95a2639c9ce7, type: 3}
 --- !u!4 &770072196 stripped
 Transform:
@@ -32004,6 +32491,10 @@ PrefabInstance:
     - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
       propertyPath: m_Name
       value: PropaneTankSmall (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -32723,6 +33214,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Metal_cabinet_2 (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
       value: 5.52
@@ -33310,6 +33805,10 @@ PrefabInstance:
     - target: {fileID: 5621167948117016068, guid: fb917574e2cabea4eab830261181f8ac, type: 3}
       propertyPath: m_Name
       value: Pipes_horizontal_turn_2
+      objectReference: {fileID: 0}
+    - target: {fileID: 5621167948117016068, guid: fb917574e2cabea4eab830261181f8ac, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8545547162668008500, guid: fb917574e2cabea4eab830261181f8ac, type: 3}
       propertyPath: m_LocalScale.x
@@ -34097,6 +34596,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Spool (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 4817812452836329343, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_LocalPosition.x
       value: 8.11
@@ -34289,6 +34792,10 @@ PrefabInstance:
     - target: {fileID: 8051665765835977133, guid: a3625163ac361d64d9d49da22f8ea767, type: 3}
       propertyPath: m_Name
       value: CrateMetal (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 8051665765835977133, guid: a3625163ac361d64d9d49da22f8ea767, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -35394,6 +35901,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: PropaneTankSmall
       objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -35415,6 +35926,10 @@ PrefabInstance:
     - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_Name
       value: Palet_stack
+      objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
@@ -36883,6 +37398,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: GeneratorPortable (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 5853626463516962668, guid: 6f3fd8c0b5e26a249b4de1b70f14b92f, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -37806,6 +38325,10 @@ PrefabInstance:
     - target: {fileID: 860703241537305046, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
       propertyPath: m_Name
       value: Bags_2 (11)
+      objectReference: {fileID: 0}
+    - target: {fileID: 860703241537305046, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 2236908218112371782, guid: 6199db273995a1946989c8418b9eb86a, type: 3}
       propertyPath: m_LocalScale.x
@@ -39177,6 +39700,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Building_13
       objectReference: {fileID: 0}
+    - target: {fileID: 3289781080574156544, guid: a710767e3ce12f74282449d8aadf9574, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -39666,6 +40193,10 @@ PrefabInstance:
     - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_Name
       value: Spool
+      objectReference: {fileID: 0}
+    - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 4817812452836329343, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -40569,6 +41100,10 @@ PrefabInstance:
     - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_Name
       value: Metal_cabinet_2 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -42404,6 +42939,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: CrateMetal
       objectReference: {fileID: 0}
+    - target: {fileID: 8051665765835977133, guid: a3625163ac361d64d9d49da22f8ea767, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -42425,6 +42964,10 @@ PrefabInstance:
     - target: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
       propertyPath: m_Name
       value: MetalPipe (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
       propertyPath: m_LocalScale.x
@@ -42477,32 +43020,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1029064023}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
---- !u!1 &1029064022 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-  m_PrefabInstance: {fileID: 1029064021}
-  m_PrefabAsset: {fileID: 0}
---- !u!208 &1029064023
-NavMeshObstacle:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1029064022}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Shape: 1
-  m_Extents: {x: 0.002, y: 0.002, z: 0.012}
-  m_MoveThreshold: 0.1
-  m_Carve: 1
-  m_CarveOnlyStationary: 1
-  m_Center: {x: 0, y: 0.002, z: 0}
-  m_TimeToStationary: 0.5
 --- !u!4 &1029064024 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
@@ -43871,6 +44390,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Wall_corner_3 (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -44680,6 +45203,10 @@ PrefabInstance:
     - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_Name
       value: Palet_stack (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 7603385428057928923, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 7930619360612031408, guid: d53a315dece6dbe4398a459edccf08eb, type: 3}
       propertyPath: m_LocalPosition.x
@@ -45800,6 +46327,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Roadblock
       objectReference: {fileID: 0}
+    - target: {fileID: 449738486616478593, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 940374801718605057, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
       propertyPath: m_LocalPosition.x
       value: -27.75
@@ -46539,6 +47070,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_single
       objectReference: {fileID: 0}
+    - target: {fileID: 7932320299326606368, guid: 672533171ed9e794fb8b7173435287e5, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -46746,6 +47281,10 @@ PrefabInstance:
     - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_Name
       value: Metal_cabinet_2 (4)
+      objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -48064,6 +48603,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MetalPipe
       objectReference: {fileID: 0}
+    - target: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.59
@@ -48107,32 +48650,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1156628842}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
---- !u!1 &1156628841 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-  m_PrefabInstance: {fileID: 1156628840}
-  m_PrefabAsset: {fileID: 0}
---- !u!208 &1156628842
-NavMeshObstacle:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1156628841}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Shape: 1
-  m_Extents: {x: 0.002, y: 0.002, z: 0.013}
-  m_MoveThreshold: 0.1
-  m_Carve: 1
-  m_CarveOnlyStationary: 1
-  m_Center: {x: 0, y: 0.002, z: 0}
-  m_TimeToStationary: 0.5
 --- !u!4 &1156628843 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
@@ -49767,6 +50286,10 @@ PrefabInstance:
     - target: {fileID: 5853626463516962668, guid: 6f3fd8c0b5e26a249b4de1b70f14b92f, type: 3}
       propertyPath: m_Name
       value: GeneratorPortable
+      objectReference: {fileID: 0}
+    - target: {fileID: 5853626463516962668, guid: 6f3fd8c0b5e26a249b4de1b70f14b92f, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -52001,6 +52524,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Metal_cabinet_2 (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
       value: 14.26
@@ -53064,6 +53591,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: PropaneTankSmall
       objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -54017,6 +54548,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Pipes_horizontal_long
       objectReference: {fileID: 0}
+    - target: {fileID: 2508232006281784125, guid: 2c9f122ef2dcd7e4b92e8e773d1a7680, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -54375,6 +54910,10 @@ PrefabInstance:
     - target: {fileID: 7656070407805042796, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
       propertyPath: m_Name
       value: Barrel_3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7656070407805042796, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -55149,6 +55688,10 @@ PrefabInstance:
     - target: {fileID: 2507502667737318352, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
       propertyPath: m_Name
       value: Wall
+      objectReference: {fileID: 0}
+    - target: {fileID: 2507502667737318352, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 5747583193468265852, guid: 1e02f48bb71ba7741a0ff2fcf43df912, type: 3}
       propertyPath: m_LocalScale.x
@@ -57146,6 +57689,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Barrel_1
       objectReference: {fileID: 0}
+    - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -57518,6 +58065,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Cargo_2_full (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 8494995610966087988, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -57788,6 +58339,10 @@ PrefabInstance:
     - target: {fileID: 5976354196749396025, guid: afedf300c1f8e6e44a218f3512e6b7b4, type: 3}
       propertyPath: m_Name
       value: Bridges_support_2 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 5976354196749396025, guid: afedf300c1f8e6e44a218f3512e6b7b4, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 7121696572245195336, guid: afedf300c1f8e6e44a218f3512e6b7b4, type: 3}
       propertyPath: m_LocalPosition.x
@@ -59292,6 +59847,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Cargo_2_full
       objectReference: {fileID: 0}
+    - target: {fileID: 8494995610966087988, guid: 0da82a58ddbda824c91315b152c5444e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -59981,6 +60540,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrashCan (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0.74
@@ -60176,6 +60739,10 @@ PrefabInstance:
     - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
       propertyPath: m_Name
       value: PropaneTankSmall (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -61162,6 +61729,10 @@ PrefabInstance:
     - target: {fileID: 4694282004046954013, guid: 084a50bf102774a499819b63e07418fd, type: 3}
       propertyPath: m_Name
       value: Dumpster
+      objectReference: {fileID: 0}
+    - target: {fileID: 4694282004046954013, guid: 084a50bf102774a499819b63e07418fd, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -63416,6 +63987,10 @@ PrefabInstance:
     - target: {fileID: 5493813558855045510, guid: 784bf009c782d754abf55dbd96f95da2, type: 3}
       propertyPath: m_Name
       value: Barrel_2
+      objectReference: {fileID: 0}
+    - target: {fileID: 5493813558855045510, guid: 784bf009c782d754abf55dbd96f95da2, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -66033,6 +66608,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Roadblock
       objectReference: {fileID: 0}
+    - target: {fileID: 449738486616478593, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 940374801718605057, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0.43439427
@@ -67650,6 +68229,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Barrel_1
       objectReference: {fileID: 0}
+    - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -68346,6 +68929,10 @@ PrefabInstance:
     - target: {fileID: 2666480880407067609, guid: ea6a7a7ff8cc2b244b2950160d38dc7b, type: 3}
       propertyPath: m_Name
       value: Bags_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2666480880407067609, guid: ea6a7a7ff8cc2b244b2950160d38dc7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 3154591551351431510, guid: ea6a7a7ff8cc2b244b2950160d38dc7b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -69200,6 +69787,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Pipes_out_2 (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 8641017982345224883, guid: 2cc8e7ee6222f424796cac76ac015917, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -69475,6 +70066,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TransformerBox
       objectReference: {fileID: 0}
+    - target: {fileID: 7950991258550103004, guid: e5340eec188f4d14cbc6f022fb5beedc, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -69669,6 +70264,10 @@ PrefabInstance:
     - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_Name
       value: Metal_cabinet_2
+      objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -70800,6 +71399,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ConcretePipePile
       objectReference: {fileID: 0}
+    - target: {fileID: 6561700185641861475, guid: ad459ff0847492d44b01057aa9322aac, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7587116743057044229, guid: ad459ff0847492d44b01057aa9322aac, type: 3}
       propertyPath: m_LocalPosition.x
       value: 18.56
@@ -71056,6 +71659,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Palet_single
       objectReference: {fileID: 0}
+    - target: {fileID: 7932320299326606368, guid: 672533171ed9e794fb8b7173435287e5, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -71220,6 +71827,10 @@ PrefabInstance:
     - target: {fileID: 868198882627394252, guid: 911197cf8e80206469536e2584898988, type: 3}
       propertyPath: m_Name
       value: Metal_cabinet_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 868198882627394252, guid: 911197cf8e80206469536e2584898988, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 5676590398797448244, guid: 911197cf8e80206469536e2584898988, type: 3}
       propertyPath: m_LocalPosition.x
@@ -72186,6 +72797,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrashCan (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.208
@@ -72710,6 +73325,10 @@ PrefabInstance:
     - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
       propertyPath: m_Name
       value: Wall_corner_3 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -73872,6 +74491,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TrashCan
       objectReference: {fileID: 0}
+    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x
       value: -19.776
@@ -74020,6 +74643,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MetalPipe (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.5511773
@@ -74063,32 +74690,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1825283798}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
---- !u!1 &1825283797 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2597567740006272699, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
-  m_PrefabInstance: {fileID: 1825283796}
-  m_PrefabAsset: {fileID: 0}
---- !u!208 &1825283798
-NavMeshObstacle:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1825283797}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Shape: 1
-  m_Extents: {x: 0.002, y: 0.002, z: 0.013}
-  m_MoveThreshold: 0.1
-  m_Carve: 1
-  m_CarveOnlyStationary: 1
-  m_Center: {x: 0, y: 0.002, z: 0}
-  m_TimeToStationary: 0.5
 --- !u!4 &1825283799 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7818320767896612712, guid: 924fb0fea078d534bb7f7630956dfce1, type: 3}
@@ -74269,6 +74872,10 @@ PrefabInstance:
     - target: {fileID: 6567162515502514538, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
       propertyPath: m_Name
       value: Liquid_reservoir_1 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 6567162515502514538, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 1409011335605842484, guid: 56b75914baf8b1d40b8053cc9be4973e, type: 3}
@@ -77420,6 +78027,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: PropaneTankSmall (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 8804764611602745404, guid: 5a422f03e45273b4b80afdf7b7484f19, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -78231,6 +78842,10 @@ PrefabInstance:
     - target: {fileID: 449738486616478593, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
       propertyPath: m_Name
       value: Roadblock (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 449738486616478593, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 940374801718605057, guid: d23c35d63ef73d64e8d5468e93ed8d72, type: 3}
       propertyPath: m_LocalPosition.x
@@ -80487,6 +81102,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Spool (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 2989129481598341211, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 4817812452836329343, guid: 3803716154674de45a6a57d20a74ecb6, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.53
@@ -80821,6 +81440,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Wall_corner_1
       objectReference: {fileID: 0}
+    - target: {fileID: 9036922883906747497, guid: 2ea4567d4cec36145be3f6f2e7c34966, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -80943,6 +81566,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1986992520}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1989478347 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8429833125395424590, guid: 3484f89b76ab28f4cb4b95a2639c9ce7, type: 3}
+  m_PrefabInstance: {fileID: 770072195}
+  m_PrefabAsset: {fileID: 0}
+--- !u!208 &1989478350
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1989478347}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.005, y: 0.005, z: 0.002}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0.002}
+  m_TimeToStationary: 0.5
 --- !u!1001 &1991755451
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -81938,6 +82582,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Metal_cabinet_2
       objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
+      objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
       value: -6.5338616
@@ -82051,6 +82699,10 @@ PrefabInstance:
     - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
       propertyPath: m_Name
       value: Wall_corner_3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3405096110515019514, guid: 0742a1a7b5e26db4b9dc06023f0b0d26, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -82550,6 +83202,10 @@ PrefabInstance:
     - target: {fileID: 2702541128932143652, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
       propertyPath: m_Name
       value: Wall_column
+      objectReference: {fileID: 0}
+    - target: {fileID: 2702541128932143652, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -84434,6 +85090,10 @@ PrefabInstance:
     - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_Name
       value: Metal_cabinet_2 (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 981582408412111452, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
+      propertyPath: m_Layer
+      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 8756896081919454243, guid: 0a7bf76ae497f8a4c8334b28c0d79d7b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -86761,44 +87421,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 16.068981, y: 1, z: 5.032115}
   m_Center: {x: -0.6292734, y: 0, z: -2.016058}
---- !u!1 &2827252668
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6842309701}
-  - component: {fileID: 3811384590}
-  m_Layer: 0
-  m_Name: TRIGGER - Input Hint WASD Move
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &3811384590
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2827252668}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: be0a844ef254f2a4795bd15a563d64df, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::InputHintTrigger
-  hint:
-    id: crouch
-    keys: Left Control
-    action: crouch
-    seconds: 5
-    dismissKeys: 32010000
-    dismissOnMove: 0
-  showOnStart: 0
-  startDelay: 1
 --- !u!114 &3863129835
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -86840,21 +87462,6 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.5814848, y: 0.00000009246486, z: 4.960325}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!4 &6842309701
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2827252668}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 10.705, y: -0.016, z: -18.205}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -87302,7 +87909,6 @@ SceneRoots:
   - {fileID: 816626569}
   - {fileID: 710000002}
   - {fileID: 6193098313}
-  - {fileID: 6842309701}
   - {fileID: 466113961}
   - {fileID: 4487105773186040796}
   - {fileID: 1054182714}

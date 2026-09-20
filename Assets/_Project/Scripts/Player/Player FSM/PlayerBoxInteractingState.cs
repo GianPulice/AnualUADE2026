@@ -226,10 +226,10 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     /// </summary>
     private Vector3 ReadPushDirection()
     {
-        // Raw, same as the rest of the player's input: the smoothed axis keeps reporting a value
-        // for a third of a second after release.
-        float vertical = Input.GetAxisRaw("Vertical");
-        float horizontal = Input.GetAxisRaw("Horizontal");
+        // Player/Move, same as the rest of the player's input.
+        Vector2 move = GameInput.MoveValue;
+        float vertical = move.y;
+        float horizontal = move.x;
 
         Track(Forward, vertical > AxisThreshold);
         Track(Back, vertical < -AxisThreshold);
