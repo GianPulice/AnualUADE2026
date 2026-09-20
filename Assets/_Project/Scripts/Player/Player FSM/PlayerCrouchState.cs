@@ -23,6 +23,8 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         float crouchHeight = playerStateManager.Movement.CrouchHeight;
         playerStateManager.CapsuleColl.height = crouchHeight;
         playerStateManager.CapsuleColl.center = new Vector3(0, crouchHeight * 0.5f, 0);
+        // WIR-025: crouch-idle/walk swing an arm out for balance well past the standard radius.
+        playerStateManager.RefreshCapsuleRadius();
         playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.CrouchNoiseRadius;
         NextState = StateKey;
     }
@@ -41,6 +43,9 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         float standingHeight = playerStateManager.Movement.StandingHeight;
         playerStateManager.CapsuleColl.height = standingHeight;
         playerStateManager.CapsuleColl.center = new Vector3(0, standingHeight * 0.5f, 0);
+        // Narrows back down unless a legs injury is still keeping it wide (IsCrouch is already
+        // false here — that is what triggered leaving this state).
+        playerStateManager.RefreshCapsuleRadius();
         playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
     }
 

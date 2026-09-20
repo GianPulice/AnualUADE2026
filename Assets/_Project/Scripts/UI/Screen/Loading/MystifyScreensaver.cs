@@ -6,9 +6,10 @@ using UnityEngine.UI;
 /// MystifyScreensaver.shader and shown on this RawImage.
 ///
 /// Every time it is enabled — every time the loading screen comes up — it rolls a new seed: new
-/// starting corners, directions, speeds and colours, so like the real screensaver it never plays the
-/// same pattern twice. Everything else (polygons, echoes, speeds, colour rate) is tuned on the material
-/// asset, which is re-read on every show: tweak it in Play mode and the next load picks it up.
+/// starting corners, directions, speeds and colours — these last always inside the material's hue
+/// band, the reds — so like the real screensaver it never plays the same pattern twice. Everything
+/// else (polygons, echoes, speeds, colour rate, the band itself) is tuned on the material asset,
+/// which is re-read on every show: tweak it in Play mode and the next load picks it up.
 ///
 /// The shader draws into a small render texture rather than straight onto the canvas: one-texel lines
 /// at <see cref="rows"/> rows, point-filtered up to the screen, are the aliased staircase of a VGA
@@ -40,9 +41,10 @@ public class MystifyScreensaver : MonoBehaviour
 
     [Header("Random look per show")]
     [Tooltip("On every show, the shape / trail / motion / line / colour-rate values are rolled inside " +
-             "the ranges below on the runtime copy. Brightness, Saturation, Background, the render queue " +
-             "and the GI flags are never touched: they stay as authored on the material. Off = the " +
-             "material's values are used as they are, only the seed changes.")]
+             "the ranges below on the runtime copy. The hue band (Hue Centre / Hue Spread), Brightness, " +
+             "Saturation, Background, the render queue and the GI flags are never touched: they stay as " +
+             "authored on the material, so the screensaver keeps its colours inside the band whatever " +
+             "is rolled. Off = the material's values are used as they are, only the seed changes.")]
     [SerializeField] private bool randomizeLook = true;
 
     [SerializeField] private Vector2Int polygonsRange = new Vector2Int(1, 4);
@@ -138,8 +140,8 @@ public class MystifyScreensaver : MonoBehaviour
 
     /// <summary>
     /// Rolls the tunable look on the runtime copy, clamped to the shader's own property ranges.
-    /// Only the properties listed here change: Brightness, Saturation, Background, render queue and
-    /// GI stay exactly as the material asset has them.
+    /// Only the properties listed here change: the hue band, Brightness, Saturation, Background,
+    /// render queue and GI stay exactly as the material asset has them.
     /// </summary>
     private void RandomizeLook()
     {

@@ -13,6 +13,7 @@ public class PlayerCameraController : MonoBehaviour
     private CinemachineRotationComposer cinemachineRotationComposer;
     private CinemachineInputAxisController cinemachineInputAxisController;
     private WakeUpCameraPan wakeUpPan;
+    private CaptureStandUpCameraPan capturePan;
 
     // The transform the rig orbits around and aims at ("Placeholder forward direction"). It sits
     // at standing head height and never moved, which is the whole bug this dip fixes: crouching
@@ -43,6 +44,7 @@ public class PlayerCameraController : MonoBehaviour
         cinemachineRotationComposer = GetComponent<CinemachineRotationComposer>();
         cinemachineInputAxisController = GetComponent<CinemachineInputAxisController>();
         wakeUpPan = GetComponent<WakeUpCameraPan>();
+        capturePan = GetComponent<CaptureStandUpCameraPan>();
         AplyConfig();
         CachePivot();
     }
@@ -84,14 +86,18 @@ public class PlayerCameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// The wake-up cinematic frames the player from straight behind, not over the shoulder, and
-    /// hands the shoulder offset back gradually (<see cref="WakeUpCameraPan.ShoulderWeight"/>).
-    /// Only on a rig that has the pan; any other rig keeps the offset AplyConfig set once.
+    /// The camera shots (wake-up cinematic, capture stand-up) frame the player from straight behind,
+    /// not over the shoulder, and hand the shoulder offset back gradually (their ShoulderWeight).
+    /// Only on a rig that has one of them; any other rig keeps the offset AplyConfig set once.
     /// </summary>
     private void UpdateShoulderOffset()
     {
-        if (wakeUpPan == null || cinemachineRotationComposer == null || cameraConfig == null) return;
-        cinemachineRotationComposer.TargetOffset = cameraConfig.ShoulderOffset * wakeUpPan.ShoulderWeight;
+        if (wakeUpPan == null && capturePan == null) return;
+        if (cinemachineRotationComposer == null || cameraConfig == null) return;
+
+        float weight = (wakeUpPan != null ? wakeUpPan.ShoulderWeight : 1f) *
+                       (capturePan != null ? capturePan.ShoulderWeight : 1f);
+        cinemachineRotationComposer.TargetOffset = cameraConfig.ShoulderOffset * weight;
     }
 
     /// <summary>
@@ -139,9 +145,12 @@ public class PlayerCameraController : MonoBehaviour
 
         // The wake-up cinematic raises the pivot from the floor to the head on its own timing:
         // placed exactly, no damping, or the rise would lag behind a pan synced to the voice line.
-        if (wakeUpPan != null && wakeUpPan.TryGetPivotOffset(out float wakeUpOffset))
+        // Same for the capture stand-up shot, synced to the clip.
+        float shotOffset = 0f;
+        if ((wakeUpPan != null && wakeUpPan.TryGetPivotOffset(out shotOffset)) ||
+            (capturePan != null && capturePan.TryGetPivotOffset(out shotOffset)))
         {
-            local.y = standingPivotHeight + wakeUpOffset;
+            local.y = standingPivotHeight + shotOffset;
             pivotVelocity = 0f;
             pivot.localPosition = local;
             return;

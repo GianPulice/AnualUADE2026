@@ -45,7 +45,7 @@ public class PushableBox : BaseRangeInteractable
     // from "grabbed but stuck against a wall / AFK", which is Rigidbody.linearVelocity's job on
     // paper but not in practice: kinematic snaps and micro-jitter both feed noise back into it.
     private Vector3 lastPushPos;
-    // Cached so LockAtBasket can silence the push loop the FRAME the box lands on the basket, and
+    // Cached so SnapToBasket can silence the push loop the FRAME the box lands on the basket, and
     // guarantee the "colocar_caja" sound plays with no overlap of the pushing sound underneath.
     private bool pushSoundPlaying;
     // Minimum XZ movement per second below which the box counts as still. Squared to avoid a
@@ -79,6 +79,10 @@ public class PushableBox : BaseRangeInteractable
     private Transform currentTriggerTransform;
     private bool isGrabbed;
     private bool locked;
+    // True for the length of a reversible slide onto a basket. Separate from `locked` because that
+    // one means "finished, never grabbable again" — a wrong guess has to slide in and still be
+    // pullable afterwards.
+    private bool snapping;
 
     // Tracks IsWithinGrabRange between frames so Update fires a prompt refresh exactly on the
     // frame the answer flips (in-range ↔ out-of-range). Null means "no cached answer" — used
@@ -94,6 +98,13 @@ public class PushableBox : BaseRangeInteractable
     public PlayerStateManager Player { get => player; set => player = value; }
     public bool PlayerNearby { get; set; }
     public bool IsLocked => locked;
+
+    /// <summary>
+    /// A basket is currently driving this rigidbody and nothing else may write to it — either
+    /// mid-slide onto one, or frozen there for good. The grab-snap pin reads this to know when to
+    /// stop hard-writing the box's pose back, which would otherwise fight the slide.
+    /// </summary>
+    private bool BasketOwnsBody => locked || snapping;
 
     protected override void Awake()
     {
@@ -210,7 +221,7 @@ public class PushableBox : BaseRangeInteractable
     // Reads the box's XZ displacement since the last physics step. When it is above the movement
     // threshold and the box is grabbed, the push loop plays; otherwise it stops. In FixedUpdate
     // rather than Update because the position we compare against is the physics-driven position,
-    // which is what Rigidbody-based pushing writes. Locked boxes get no sound — LockAtBasket
+    // which is what Rigidbody-based pushing writes. Locked boxes get no sound — SnapToBasket
     // owns the crossover from "empujando" to "colocar".
     private void FixedUpdate()
     {
@@ -300,7 +311,7 @@ public class PushableBox : BaseRangeInteractable
         // the box, and so the transform write below actually cancels penetration resolution
         // from that step. The seconds-based deadline is compared against real time.
         float pinDeadline = Time.time + SnapCollisionSuppressSeconds;
-        while (Time.time < pinDeadline && !locked)
+        while (Time.time < pinDeadline && !BasketOwnsBody)
         {
             yield return new WaitForFixedUpdate();
             if (rb != null)
@@ -312,10 +323,10 @@ public class PushableBox : BaseRangeInteractable
             }
         }
 
-        // Restore only if LockAtBasket has not already taken over the rigidbody. It sets its own
-        // kinematic + zeroed-velocity state on purpose (see LockAtBasket) and any writeback here
+        // Restore only if a basket has not already taken over the rigidbody. It sets its own
+        // kinematic + zeroed-velocity state on purpose (see BasketOwnsBody) and any writeback here
         // would undo that mid-snap onto the basket.
-        if (rb != null && !locked)
+        if (rb != null && !BasketOwnsBody)
         {
             rb.constraints = originalConstraints;
             rb.isKinematic = wasKinematic;
@@ -363,7 +374,7 @@ public class PushableBox : BaseRangeInteractable
         pushSoundPlaying = true;
     }
 
-    /// <param name="immediate">Cut with no fade. Only for LockAtBasket, where the loop must be
+    /// <param name="immediate">Cut with no fade. Only for SnapToBasket, where the loop must be
     /// gone before the "colocar_caja" one-shot starts.</param>
     private void StopPushSound(bool immediate = false)
     {
@@ -499,7 +510,7 @@ public class PushableBox : BaseRangeInteractable
         player.SetPlayerPositionAndDirection(anchor.position, tempDir);
 
         // Pin the box as the active interactable so releasing with E still works if the crosshair
-        // moves off the mesh while pushing. Cleared on Release / ForceRelease / LockAtBasket.
+        // moves off the mesh while pushing. Cleared on Release / ForceRelease / SnapToBasket.
         if (InteractionManager.Exists)
             InteractionManager.Instance.SetForcedInteractable(this);
 
@@ -540,7 +551,7 @@ public class PushableBox : BaseRangeInteractable
     }
 
     // Same as Release but survives a null Player. Used when the box is torn out of the player's
-    // hands from the outside (LockAtBasket): the player reference may already be gone, and we
+    // hands from the outside (SnapToBasket): the player reference may already be gone, and we
     // still need isGrabbed / mass / forced-interactable in a sane state.
     private void ForceRelease()
     {
@@ -596,17 +607,24 @@ public class PushableBox : BaseRangeInteractable
     }
 
     /// <summary>
-    /// Called by <see cref="BasketTrigger"/> when THIS box has just entered the basket it is meant
-    /// for. Detaches the player from any push interaction, disables further grabs, freezes physics
-    /// input, and slides the box to (target.x, currentY, target.z) over <see cref="snapDuration"/>.
-    /// Y is never touched. Safe to call more than once — subsequent calls are ignored.
+    /// Centres the box on a basket it has just entered: detaches the player from the push, plays
+    /// the "placed" sound and slides the box to (target.x, currentY, target.z) over
+    /// <see cref="snapDuration"/>. Y is never touched.
+    ///
+    /// REVERSIBLE on purpose, and that is the whole point of the method existing separately from
+    /// <see cref="LockInPlace"/>. The box stays grabbable, so one dropped in the wrong basket can
+    /// be pulled straight back out. Making the wrong placement physically impossible is what let
+    /// the player solve the puzzle by trying every basket until one accepted the box, without ever
+    /// reading the symbols; the puzzle already refuses to complete until every box is in its own
+    /// basket (<c>ContainerPuzzleController.CheckContainers</c>), so the validation does not need
+    /// to double as the feedback.
     /// </summary>
-    public void LockAtBasket(Transform target)
+    public void SnapToBasket(Transform target)
     {
         if (locked) return;
         if (target == null)
         {
-            Debug.LogWarning($"[{nameof(PushableBox)}] '{name}' LockAtBasket called with a null " +
+            Debug.LogWarning($"[{nameof(PushableBox)}] '{name}' SnapToBasket called with a null " +
                              "target. Ignoring.", this);
             return;
         }
@@ -621,10 +639,64 @@ public class PushableBox : BaseRangeInteractable
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_colocar_caja", transform.position);
 
+        Vector3 to = new Vector3(target.position.x, transform.position.y, target.position.z);
+
+        if (snapDuration <= 0f)
+        {
+            transform.position = to;
+            InteractionEvents.RequestPromptRefresh();
+            return;
+        }
+
+        // Kinematic for the length of the slide only. LeanTween writes the transform directly and
+        // the solver would fight it the whole way; EndSnap hands the box back to physics so it can
+        // be pushed out again.
+        snapping = true;
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+        }
+
+        // A box nudged out and straight back in would otherwise leave two tweens racing for the
+        // same transform, and whichever finished last would win.
+        LeanTween.cancel(gameObject);
+        LeanTween.move(gameObject, to, snapDuration).setEaseOutCubic().setOnComplete(EndSnap);
+
+        // The crosshair may still be on this box after the snap starts; without a refresh the UI
+        // keeps advertising the prompt from before the slide ("stop pushing the box").
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    private void EndSnap()
+    {
+        snapping = false;
+
+        // The puzzle may have been completed during the slide, which freezes the box for good.
+        // Handing it back to physics here would undo exactly that.
+        if (locked) return;
+
+        if (rb != null) rb.isKinematic = false;
+    }
+
+    /// <summary>
+    /// Freezes the box where it stands, permanently: no more grabbing, no more physics.
+    ///
+    /// Called by <c>ContainerPuzzleController</c> once the whole puzzle is solved, so a finished
+    /// arrangement cannot be taken apart again. Safe to call more than once. Does not move the box
+    /// — by the time the puzzle is solved every box is already sitting in its basket.
+    /// </summary>
+    public void LockInPlace()
+    {
+        if (locked) return;
+
+        if (isGrabbed) ForceRelease();
+        StopPushSound(immediate: true);
+
         locked = true;
 
-        // Freeze physics so no residual push or collision can drift the box off-centre while the
-        // tween runs, and so the player cannot bump into it any more.
         if (rb != null)
         {
             rb.linearVelocity = Vector3.zero;
@@ -637,21 +709,6 @@ public class PushableBox : BaseRangeInteractable
         foreach (PushBoxTriggerLogic t in GetComponentsInChildren<PushBoxTriggerLogic>(true))
             t.enabled = false;
 
-        Vector3 from = transform.position;
-        Vector3 to = new Vector3(target.position.x, from.y, target.position.z);
-
-        if (snapDuration <= 0f)
-        {
-            transform.position = to;
-            return;
-        }
-
-        LeanTween.move(gameObject, to, snapDuration).setEaseOutCubic();
-
-        // The crosshair may still be on this box after the snap starts; without a refresh the UI
-        // keeps advertising the previous prompt (e.g. "stop pushing the box") even though the
-        // box is now locked and CanInteract returns false. Fired after `locked = true` so the
-        // refresh reads the final state, not the transient post-ForceRelease "push" state.
         InteractionEvents.RequestPromptRefresh();
     }
 }

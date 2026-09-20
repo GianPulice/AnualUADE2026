@@ -29,11 +29,13 @@ public class DoorInteractable : BaseRangeInteractable
              "respect the same conditions as the player.")]
     [SerializeField] private bool nemesisCanForceLocked = true;
 
-    [Tooltip("Give the swinging leaf a NavMeshObstacle with Carve on Awake, when it has none.\n\n" +
-             "ON by default, and it is what makes the Nemesis treat a closed door as closed. A " +
-             "NavMeshAgent ignores physics colliders entirely, and this scene's NavMeshSurface " +
-             "excludes layer Default from its bake, so without the obstacle the NavMesh runs " +
-             "straight through the doorway and the monster walks through the panel.\n\n" +
+    [Tooltip("Give the swinging leaf a NavMeshObstacle on Awake, when it has none.\n\n" +
+             "ON by default. A NavMeshAgent ignores physics colliders entirely, and this scene's " +
+             "NavMeshSurface excludes layer Default from its bake, so without the obstacle the " +
+             "monster walks through the panel.\n\n" +
+             "It only CARVES when Nemesis Can Open is off (a safe-haven door is a wall for it). " +
+             "On a door it can open, carving would erase the doorway from its paths and it would " +
+             "never walk up to the door to open it.\n\n" +
              "Turn it off only for a door that already carries a hand-tuned obstacle whose shape " +
              "does not match the leaf collider.")]
     [SerializeField] private bool autoCarveNavMesh = true;
@@ -472,7 +474,14 @@ private void CacheClosedRotation()
         obstacle.center = leaf.center;
         obstacle.size = leaf.size;
 
-        obstacle.carving = true;
+        // Carve ONLY on doors the Nemesis can never open. On a door it can open, carving deletes
+        // the doorway from the NavMesh while the door is closed, so no path ever goes through it,
+        // desiredVelocity never points at it, NemesisDoorUser never finds it — and the monster
+        // treats every closed door as a wall. Non-carving, the obstacle stays in the doorway for
+        // local avoidance and the door gets opened on approach. That is exactly how the
+        // hand-authored obstacle on DoorWood was set up (Carve off), which is why the Nemesis
+        // crossed those and stopped crossing once DoorMetalRed (no obstacle) replaced them.
+        obstacle.carving = !nemesisCanOpen;
 
         // Only re-carve once the panel has come to rest. Carving every frame of a 0.6s swing is
         // the expensive way to get the same answer, and it forces a NavMesh update while the agent

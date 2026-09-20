@@ -167,7 +167,7 @@ Material:
     - Boolean_57A5114E: 1
     - BumpMulti: 0.35
     - Emissive: 1
-    - EmissiveBrightness: 13
+    - EmissiveBrightness: 5
     - EmissiveContrast: 49.5
     - EmissiveInvert: 0
     - Emissivecontrast: 40
@@ -331,7 +331,7 @@ Material:
     - _UVDetailsMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMaskEmissive: {r: 1, g: 0, b: 0, a: 0}
-    - emissiveColor: {r: 2.9960785, g: 2.4627452, b: 1.082353, a: 1}
+    - emissiveColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &2229976167979971247

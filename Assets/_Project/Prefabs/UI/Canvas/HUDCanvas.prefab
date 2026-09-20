@@ -439,7 +439,9 @@ MonoBehaviour:
   hintEnabled: 1
   hint:
     id: 
+    inputAction: Player/Move
     keys: WASD
+    gamepadKeys: 
     action: move
     seconds: 5
     dismissKeys: 
@@ -3553,7 +3555,7 @@ MonoBehaviour:
   bank: {fileID: 11400000, guid: 7217edc09abff1043860802a09040f4b, type: 2}
   playWakeUpOnStart: 1
   wakeUpConfig: {fileID: 11400000, guid: 86b31827996b4178b45d956c5dd62070, type: 2}
-  wakeUpDelay: 1.5
+  wakeUpDelay: 2
   inactivityThreshold: 90
   timerCriticalFraction: 0.2
   alertDuration: 3

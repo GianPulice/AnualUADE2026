@@ -91,7 +91,7 @@ public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCh
 
         view.Tick(model.NeedleSpeed);
 
-        if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
+        if (GameInput.InteractPressed)
             HandleEInput();
     }
 

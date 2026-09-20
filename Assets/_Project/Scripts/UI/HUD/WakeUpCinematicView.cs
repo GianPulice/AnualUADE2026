@@ -4,11 +4,12 @@ using UnityEngine;
 /// The opening cinematic, driven by ARC_01a (<see cref="ArchitectVoiceController"/>):
 ///
 ///   1. The level starts on black. Camera look input is locked (<see cref="WakeUpCinematicEvents"/>).
+///      <see cref="standUpLeadSeconds"/> before ARC_01a, the stand-up clip starts, at normal speed.
 ///   2. ARC_01a starts: its first subtitle page is read on the black screen.
-///   3. When the second page starts, the eyes open (two lids + a dim that clears), the player's
-///      stand-up trigger fires and the camera pan starts on the player's right (<see cref="WakeUpCameraPan"/>).
-///   4. The pan is timed to reach the default framing on the frame ARC_01a ends, which is also the
-///      frame the controller gives movement back.
+///   3. When the second page starts, the eyes open (two lids + a dim that clears) and the camera pan
+///      starts on the player's right (<see cref="WakeUpCameraPan"/>).
+///   4. The pan is timed to reach the default framing on the stand-up's last frame, a couple of
+///      seconds after ARC_01a ends (ARC_01b is already playing by then). Control comes back there.
 ///   5. The input hint (<see cref="InputHintView"/>) shows after ARC_01a or after ARC_01b (<see cref="hintMoment"/>).
 ///   6. At any point until control comes back, the skip key (<see cref="SO_WakeUpCinematicConfig"/>)
 ///      jumps to the end and cuts both lines. <see cref="WakeUpSkipPromptView"/> tells the player.
@@ -53,13 +54,22 @@ public class WakeUpCinematicView : MonoBehaviour
     [Tooltip("Used only when ARC_01a has no page break: seconds on black before the eyes open.")]
     [SerializeField, Min(0f)] private float fallbackBlackHold = 2.5f;
 
+    [Header("Stand-up")]
+    [Tooltip("Seconds BEFORE ARC_01a starts that the stand-up clip starts, at normal speed, still on " +
+             "black. The clip (11.4s) then outlasts the line by a couple of seconds, and the whole " +
+             "cinematic — camera pan, control, input hint — stretches to its end. Capped by the " +
+             "controller's Wake Up Delay: the clip cannot start before the countdown does.")]
+    [SerializeField, Min(0f)] private float standUpLeadSeconds = 2f;
+
     [Header("Input hint")]
     [SerializeField] private HintMoment hintMoment = HintMoment.AfterWakeUp1;
     [SerializeField] private bool hintEnabled = true;
     [Tooltip("Shown through InputHintView, once per run like any other hint.")]
     [SerializeField] private InputHint hint = new InputHint { keys = "WASD", action = "move", dismissOnMove = true };
 
-    private enum State { Off, Covering, Playing, WaitingForHint }
+    // WaitingForStandUp: ARC_01a is over but the player is still getting up; the camera stays
+    // locked and keeps panning until the clip ends.
+    private enum State { Off, Covering, Playing, WaitingForStandUp, WaitingForHint }
 
     private State state = State.Off;
     private float lineStartTime;
@@ -81,7 +91,8 @@ public class WakeUpCinematicView : MonoBehaviour
         ArchitectEvents.OnLineEnded -= HandleLineEnded;
 
         // Never leave the camera locked behind a HUD that went away.
-        if (state == State.Covering || state == State.Playing) WakeUpCinematicEvents.Finish();
+        if (state == State.Covering || state == State.Playing || state == State.WaitingForStandUp)
+            WakeUpCinematicEvents.Finish();
     }
 
     // Start, not Awake: the controller registers its Instance in its own Awake.
@@ -104,9 +115,10 @@ public class WakeUpCinematicView : MonoBehaviour
             return;
         }
 
-        // ARC_01a can end before the (long) stand-up does: the skip still cuts what is left of it,
-        // and the hint below then shows on the next frame.
-        if (state == State.WaitingForHint && IsPlayerWakingUp() && SkipPressed())
+        // ARC_01a ends before the stand-up does: the skip still cuts what is left of it, and the
+        // camera and the hint follow on the next frame.
+        if ((state == State.WaitingForStandUp || state == State.WaitingForHint) && IsPlayerWakingUp() &&
+            SkipPressed())
         {
             PlayerRegistry.Current.SkipStandUp();
             return;
@@ -117,11 +129,25 @@ public class WakeUpCinematicView : MonoBehaviour
             case State.Covering:
                 // The wake-up was skipped (no text in the bank): do not leave the player on black.
                 ArchitectVoiceController voice = ArchitectVoiceController.Instance;
-                if (voice == null || voice.IsWakeUpDone) EndCinematic(showHint: false);
+                if (voice == null || voice.IsWakeUpDone)
+                {
+                    EndCinematic(showHint: false);
+                    break;
+                }
+
+                // The clip starts standUpLeadSeconds before ARC_01a, while the countdown runs.
+                float untilLine = voice.WakeUpSecondsUntilLine;
+                if (!standUpFired && !LoadingScreen.IsLoading && untilLine >= 0f && untilLine <= standUpLeadSeconds)
+                    FireStandUp();
                 break;
 
             case State.Playing:
                 TickEyes();
+                break;
+
+            case State.WaitingForStandUp:
+                // On its feet: the pan has landed on the nape with it, control comes back.
+                if (!IsPlayerWakingUp()) EndCinematic(showHint: true);
                 break;
 
             case State.WaitingForHint:
@@ -147,12 +173,26 @@ public class WakeUpCinematicView : MonoBehaviour
 
         eyesOpening = false;
         state = State.Playing;
+
+        // The countdown was shorter than the lead (or skipped past it): get up now at the latest.
+        if (!standUpFired) FireStandUp();
     }
 
     private void HandleLineEnded(bool interrupted)
     {
         if (state != State.Playing) return;
-        EndCinematic(showHint: !interrupted);
+
+        if (interrupted)
+        {
+            EndCinematic(showHint: false);
+            return;
+        }
+
+        // The stand-up outlasts the line: the eyes are long open, but the camera keeps panning
+        // and control waits for the clip's last frame.
+        SetVisible(false);
+        if (IsPlayerWakingUp()) state = State.WaitingForStandUp;
+        else EndCinematic(showHint: true);
     }
 
     private void TickEyes()
@@ -163,28 +203,21 @@ public class WakeUpCinematicView : MonoBehaviour
         if (!eyesOpening)
         {
             eyesOpening = true;
-            standUpFired = false;
 
-            // Measured from now and not from openStart: if this frame came late, the pan still has
-            // to land on the line's last frame, not after it.
-            WakeUpCinematicEvents.StartPan(lineDuration - elapsed);
+            // The pan lands on the nape when the player is on its feet — the stand-up's end, a
+            // couple of seconds after the line. Without a stand-up running, on the line's end.
+            // Measured from now, so a late frame does not push the landing past either.
+            PlayerStateManager player = PlayerRegistry.Current;
+            float panSeconds = player != null && player.IsWakeUpStandingUp && player.StandUpSecondsLeft > 0f
+                ? player.StandUpSecondsLeft
+                : lineDuration - elapsed;
+            WakeUpCinematicEvents.StartPan(panSeconds);
         }
 
         float progress = Mathf.Clamp01((elapsed - openStart) / eyeOpenDuration);
         SetOpen(Mathf.Clamp01(openCurve.Evaluate(progress)), Mathf.Lerp(startDim, 0f, progress));
 
-        if (progress >= 1f)
-        {
-            SetVisible(false);
-
-            // Once the eyes are fully open, so the whole stand-up is seen, not half of it behind
-            // the lids and the dim.
-            if (!standUpFired)
-            {
-                standUpFired = true;
-                FireStandUp();
-            }
-        }
+        if (progress >= 1f) SetVisible(false);
     }
 
     // Legacy input, like WakeUpCameraPan: the project runs both input backends.
@@ -266,10 +299,11 @@ public class WakeUpCinematicView : MonoBehaviour
 
     /// <summary>
     /// The player has been lying on the floor since the camera was locked (it picks that up on its
-    /// own) and gets up now, during the pan.
+    /// own) and starts getting up now, at the clip's normal speed, still behind the black.
     /// </summary>
     private void FireStandUp()
     {
+        standUpFired = true;
         PlayerStateManager player = PlayerRegistry.Current;
         if (player != null) player.PlayStandUp(PlayerStateManager.EStandUp.Init);
     }

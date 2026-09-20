@@ -50,7 +50,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     /// <summary>This component disabled the player, so it is the one that re-enables it.</summary>
     private bool lockedPlayer;
 
-    private bool warnedNoSfx, warnedNoVfx, warnedNoBrain;
+    private bool warnedNoSfx, warnedNoVfx, warnedNoBrain, warnedNoLed;
+
+    /// <summary>The player's module LEDs, cached per registered player (see FindModuleLight).</summary>
+    private ModuleLED[] moduleLeds;
 
     // ── IModalUI ─────────────────────────────────────────────────────────────────────────
     // Pushed only while the cinematic plays: it blocks pause, the inventory and the gameplay
@@ -92,7 +95,11 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         if (defeatCamera != null) Destroy(defeatCamera.gameObject);
     }
 
-    private void HandlePlayerRegistered(PlayerStateManager registered) => player = registered;
+    private void HandlePlayerRegistered(PlayerStateManager registered)
+    {
+        player = registered;
+        moduleLeds = null;   // A respawned or reloaded player has its own LED objects.
+    }
 
     // ── Penalty explosion (the run goes on) ──────────────────────────────────────────────
 
@@ -122,7 +129,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
             return;
         }
 
-        Transform focus = FindFocusBone(runtime);
+        Transform focus = FindFocus(runtime);
         Vector3 at = focus != null ? focus.position : FallbackFocus();
         PlayExplosion(at, runtime);
         ModuleEvents.RaisePenaltyApplied(runtime);
@@ -264,7 +271,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         LockPlayer();
         PushModal();
 
-        Transform focus = FindFocusBone(cause);
+        Transform focus = FindFocus(cause);
         CinemachineBrain brain = FindBrain();
 
         if (brain != null && config != null)
@@ -322,9 +329,18 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Same frame too: the module's LED turns red with the blast, not when the state changed.
         if (cause != null) ModuleEvents.RaiseExplosionShown(cause);
 
-        if (config != null && config.VfxPrefab != null)
+        ExplosionVFX prefab = null;
+        float explosionPunch = 1f;
+        float gore = 1f;
+        if (config != null)
+            config.ResolveExplosion(cause != null ? cause.Data : null, out prefab, out explosionPunch, out gore);
+
+        if (prefab != null)
         {
-            ExplosionVFX vfx = Instantiate(config.VfxPrefab, at, Quaternion.identity);
+            ExplosionVFX vfx = Instantiate(prefab, at, Quaternion.identity);
+            // Before Play: the knobs are read once, when it applies them to this copy.
+            vfx.SetIntensity(explosionPunch);
+            vfx.SetGore(gore);
             vfx.Play();
             duration = vfx.Duration;
         }
@@ -543,6 +559,38 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Where the blast goes off, and what the shot frames: the LED of the module that exploded, so
+    /// head, chest and leg modules each blow up in their own place. Falls back to the body part's
+    /// bone when that LED cannot be found (no LED for the module, a rig without one).
+    /// </summary>
+    private Transform FindFocus(ModuleRuntime runtime)
+    {
+        return FindModuleLight(runtime) ?? FindFocusBone(runtime);
+    }
+
+    /// <summary>
+    /// The <see cref="ModuleLED"/> on the player whose module matches the one that exploded. The
+    /// lookup is cached per player: the LEDs are part of the rig and do not come and go.
+    /// </summary>
+    private Transform FindModuleLight(ModuleRuntime runtime)
+    {
+        if (player == null || runtime == null || runtime.Data == null) return null;
+
+        if (moduleLeds == null) moduleLeds = player.GetComponentsInChildren<ModuleLED>(true);
+
+        foreach (ModuleLED led in moduleLeds)
+        {
+            if (led == null || led.Module == null) continue;
+            if (led.Module.ModuleID != runtime.Data.ModuleID) continue;
+            return led.ExplosionAnchor;
+        }
+
+        WarnOnce(ref warnedNoLed, $"No ModuleLED on the player for module '{runtime.ModuleID}'. " +
+                                  "The explosion falls back to the body part's bone.");
+        return null;
+    }
 
     private Transform FindFocusBone(ModuleRuntime runtime)
     {

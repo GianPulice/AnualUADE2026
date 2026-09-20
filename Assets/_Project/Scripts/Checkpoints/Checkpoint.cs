@@ -7,8 +7,10 @@ using UnityEngine;
 /// Two activation conditions are supported, chosen per instance:
 ///   - <c>PhysicalTrigger</c>: the player walks into this object's trigger collider. Needs a
 ///     Collider with <c>Is Trigger</c> on. Good for corridors and room thresholds.
-///   - <c>PuzzleCompleted</c>: the puzzle named in <see cref="puzzleId"/> is solved. Ties the
-///     checkpoint to progress rather than to geography.
+///   - <c>PuzzleCompleted</c>: any one of the puzzles in <see cref="puzzleIds"/> is solved. Ties
+///     the checkpoint to progress rather than to geography. Several ids are allowed because a
+///     room can be reached from more than one direction: the safe point is "the player got here",
+///     and which puzzle got them here is not something the checkpoint should have to care about.
 ///   - <c>Either</c>: whichever happens first (default).
 ///
 /// A checkpoint only ever activates once. Walking back through an earlier checkpoint after a
@@ -29,9 +31,17 @@ public class Checkpoint : MonoBehaviour
              "If empty, this object's own transform is used.")]
     [SerializeField] private Transform respawnPoint;
 
-    [Tooltip("Puzzle whose completion activates this checkpoint. " +
+    [Tooltip("Puzzles whose completion activates this checkpoint — any one of them is enough. " +
              "Only read in PuzzleCompleted / Either mode.")]
     [PuzzleId]
+    [SerializeField] private string[] puzzleIds = System.Array.Empty<string>();
+
+    // Migration shim for the single-id field this replaced. Unity cannot carry a string into a
+    // string[], so the checkpoints already authored in Zona 1 would silently lose their id and
+    // never activate again — a checkpoint that quietly stops existing is close to impossible to
+    // notice from play. Folded into puzzleIds and cleared on load; safe to delete once every
+    // scene holding a Checkpoint has been opened and re-saved.
+    [HideInInspector]
     [SerializeField] private string puzzleId;
 
     [Tooltip("Tag the trigger filters by. Only read in PhysicalTrigger / Either mode.")]
@@ -40,7 +50,6 @@ public class Checkpoint : MonoBehaviour
     private bool hasActivated;
 
     public Transform RespawnPoint => respawnPoint != null ? respawnPoint : transform;
-    public string PuzzleId => puzzleId;
     public bool HasActivated => hasActivated;
 
     private bool ListensToPuzzle =>
@@ -48,6 +57,35 @@ public class Checkpoint : MonoBehaviour
 
     private bool ListensToTrigger =>
         activationMode == EActivationMode.PhysicalTrigger || activationMode == EActivationMode.Either;
+
+    private void Awake()
+    {
+        MigrateLegacyPuzzleId();
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Also here, so opening the scene rewrites the field and the next save drops the legacy
+        // value for good, rather than migrating it again on every load forever.
+        MigrateLegacyPuzzleId();
+    }
+#endif
+
+    private void MigrateLegacyPuzzleId()
+    {
+        if (string.IsNullOrWhiteSpace(puzzleId)) return;
+
+        puzzleIds ??= System.Array.Empty<string>();
+
+        if (System.Array.IndexOf(puzzleIds, puzzleId) < 0)
+        {
+            System.Array.Resize(ref puzzleIds, puzzleIds.Length + 1);
+            puzzleIds[^1] = puzzleId;
+        }
+
+        puzzleId = null;
+    }
 
     private void OnEnable()
     {
@@ -66,18 +104,37 @@ public class Checkpoint : MonoBehaviour
         // Catch-up: the puzzle may already be solved by the time this checkpoint loads (the
         // level comes in additively, or a snapshot was restored). The event fires once and only
         // on the transition, so without this the checkpoint would never activate.
-        if (!ListensToPuzzle || string.IsNullOrWhiteSpace(puzzleId)) return;
+        if (!ListensToPuzzle || puzzleIds == null) return;
         if (!PuzzleStateManager.Exists) return;
 
-        if (PuzzleStateManager.Instance.IsPuzzleCompleted(puzzleId)) Activate();
+        foreach (string id in puzzleIds)
+        {
+            if (string.IsNullOrWhiteSpace(id)) continue;
+            if (!PuzzleStateManager.Instance.IsPuzzleCompleted(id)) continue;
+
+            Activate();
+            return;
+        }
     }
 
     private void HandlePuzzleCompleted(string completedId)
     {
-        if (string.IsNullOrWhiteSpace(puzzleId)) return;
-        if (completedId != puzzleId) return;
+        if (!Listens(completedId)) return;
 
         Activate();
+    }
+
+    /// <summary>Whether this checkpoint is waiting on that puzzle.</summary>
+    private bool Listens(string completedId)
+    {
+        if (puzzleIds == null || string.IsNullOrWhiteSpace(completedId)) return false;
+
+        foreach (string id in puzzleIds)
+        {
+            if (id == completedId) return true;
+        }
+
+        return false;
     }
 
     private void OnTriggerEnter(Collider other)

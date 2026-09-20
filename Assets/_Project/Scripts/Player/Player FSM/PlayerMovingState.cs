@@ -55,7 +55,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             if (playerStateManager.InputDir != Vector3.zero)
             {
                 // Sprint mechanic (chest penalty reduces the sprint multiplier — 1 while healthy)
-                if (Input.GetButton("Sprint"))
+                if (GameInput.SprintHeld)
                 {
                     playerStateManager.SpeedMultiplier = playerStateManager.Movement.SprintSpeedMultiplier * playerStateManager.SprintPenaltyFactor;
                     playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;

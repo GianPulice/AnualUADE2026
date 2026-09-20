@@ -268,10 +268,20 @@ public static class ArchitectVoiceSetup
                 Debug.LogWarning($"[ArchitectVoiceSetup] No '{PlayerCameraName}' in {PlayerPath}. Add {nameof(WakeUpCameraPan)} by hand.");
                 return;
             }
-            if (rig.GetComponent<WakeUpCameraPan>() != null) return;
+            bool changed = false;
+            if (rig.GetComponent<WakeUpCameraPan>() == null)
+            {
+                rig.gameObject.AddComponent<WakeUpCameraPan>();
+                changed = true;
+            }
+            // The camera shot of the checkpoint stand-up after a capture.
+            if (rig.GetComponent<CaptureStandUpCameraPan>() == null)
+            {
+                rig.gameObject.AddComponent<CaptureStandUpCameraPan>();
+                changed = true;
+            }
 
-            rig.gameObject.AddComponent<WakeUpCameraPan>();
-            PrefabUtility.SaveAsPrefabAsset(root, PlayerPath);
+            if (changed) PrefabUtility.SaveAsPrefabAsset(root, PlayerPath);
         }
         finally
         {

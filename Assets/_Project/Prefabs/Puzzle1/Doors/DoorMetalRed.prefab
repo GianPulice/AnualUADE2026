@@ -368,6 +368,14 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.93063
+      objectReference: {fileID: 0}
+    - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.7557848
+      objectReference: {fileID: 0}
+    - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: m_LocalPosition.x
       value: -2.55
       objectReference: {fileID: 0}
@@ -396,14 +404,6 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 0.93063
-      objectReference: {fileID: 0}
-    - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0.7557848
-      objectReference: {fileID: 0}
-    - target: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
@@ -423,6 +423,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 0.47
       objectReference: {fileID: 0}
+    - target: {fileID: 4968626413543492079, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
+      propertyPath: autoCarveNavMesh
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8438275548156035699, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       propertyPath: m_Name
       value: DoorMetalRed
@@ -430,21 +434,21 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 4228250354980065986, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1000000000000001002}
     - targetCorrespondingSourceObject: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1000000000000003002}
+    - targetCorrespondingSourceObject: {fileID: 4228250354980065986, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1000000000000001002}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
---- !u!4 &3984970953462746499 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 4228250354980065986, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
-  m_PrefabInstance: {fileID: 1000000000000008001}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &2818179394122948450 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3097519461228478499, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
+  m_PrefabInstance: {fileID: 1000000000000008001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &3984970953462746499 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4228250354980065986, guid: b54a0ddc679d09445a92409621b33cb5, type: 3}
   m_PrefabInstance: {fileID: 1000000000000008001}
   m_PrefabAsset: {fileID: 0}

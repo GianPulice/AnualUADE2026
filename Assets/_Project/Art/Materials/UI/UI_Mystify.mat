@@ -32,6 +32,8 @@ Material:
     - _EchoFade: 0
     - _EchoSpacing: 0.065
     - _Echoes: 6
+    - _HueCenter: 0.04
+    - _HueRange: 0.14
     - _LineWidth: 1.5
     - _Margin: 0.025
     - _Polygons: 4
