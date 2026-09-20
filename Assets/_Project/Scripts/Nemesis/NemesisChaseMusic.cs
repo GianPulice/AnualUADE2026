@@ -18,6 +18,14 @@ using UnityEngine.Audio;
 /// Catch while the capture is unresolved), so the music does not duck out for the one beat the
 /// Nemesis is grabbing the player.
 ///
+/// WHY IT DOES NOT STOP WHEN THE CHASE DOES (decision D5). OnChaseEnded fires the moment the
+/// Nemesis leaves the hunted set, which is the frame it lost sight of the player — so cutting the
+/// music there announces something the monster has no way of telling the player itself: that it is
+/// no longer sure where they are. It is loudest exactly where it hurts most, from inside a hiding
+/// spot, where the player can see nothing and the audio is all they have. The track therefore holds
+/// through the committed search that follows and stops when the SEARCH ends, so silence means "it
+/// stopped looking", not "it stopped seeing you".
+///
 /// Structurally a simplified NemesisAudio/AmbienceBedLayer: one owned AudioSource instead of a
 /// crossfade pair, because there is only ever one clip and two states (audible / silent) rather
 /// than a swap between several.
@@ -41,6 +49,12 @@ public class NemesisChaseMusic : MonoBehaviour
     [Tooltip("Seconds for a full fade in or out, in either direction.")]
     [SerializeField, Min(0.05f)] private float fadeDuration = 2f;
 
+    [Tooltip("Safety net for the search tail: seconds the music may keep playing after a chase " +
+             "ends if no state change ever arrives to close it, which is what a Nemesis switched " +
+             "off mid-search leaves behind. Longer than SearchTimeOut, so in a normal run the " +
+             "state change always gets there first.")]
+    [SerializeField, Min(1f)] private float searchTailTimeout = 25f;
+
     [Header("Routing")]
     [Tooltip("Leave EMPTY. It then resolves to AudioManager's Music bus, which is where this " +
              "belongs: it is a score cue, not a sound the monster makes, and the Music slider is " +
@@ -58,6 +72,11 @@ public class NemesisChaseMusic : MonoBehaviour
     private float currentVolume;
     private float volumeTarget;
 
+    /// <summary>The chase is over but the search it handed over to is not, so the music is still
+    /// up. See the D5 paragraph in the class doc.</summary>
+    private bool isTrailingSearch;
+    private float tailElapsed;
+
     private void Awake()
     {
         source = CreateSource();
@@ -68,12 +87,14 @@ public class NemesisChaseMusic : MonoBehaviour
         // playing chase music through a walk, or silent through a chase.
         NemesisEvents.OnChaseStarted += HandleChaseStarted;
         NemesisEvents.OnChaseEnded += HandleChaseEnded;
+        NemesisEvents.OnStateChanged += HandleStateChanged;
     }
 
     private void OnDestroy()
     {
         NemesisEvents.OnChaseStarted -= HandleChaseStarted;
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
+        NemesisEvents.OnStateChanged -= HandleStateChanged;
     }
 
     private void Start()
@@ -121,6 +142,7 @@ public class NemesisChaseMusic : MonoBehaviour
         if (chaseMusicClip == null) return;
 
         volumeTarget = maxVolume;
+        isTrailingSearch = false;
 
         if (source.clip != chaseMusicClip) source.clip = chaseMusicClip;
         if (!source.isPlaying) source.Play();
@@ -130,6 +152,35 @@ public class NemesisChaseMusic : MonoBehaviour
 
     private void HandleChaseEnded()
     {
+        // NOT a fade-out. The state change that follows on this same frame is what decides whether
+        // this is a search worth scoring or the end of the encounter — see HandleStateChanged.
+        // NemesisTelemetry emits the chase transition before the state transition, so that answer
+        // is always one call away and never a frame late.
+        isTrailingSearch = true;
+        tailElapsed = 0f;
+    }
+
+    /// <summary>
+    /// Ends the tail once the Nemesis stops looking for the player.
+    ///
+    /// Searching is the committed sweep the music is held for. Traversing counts too: it is the
+    /// same pursuit continuing by lift, with the player a floor away rather than lost. Anything
+    /// else — back on patrol, or investigating a noise with no idea where the player is — is the
+    /// encounter being over, which is the one thing silence here is allowed to mean.
+    /// </summary>
+    private void HandleStateChanged(NemesisStateManager.ENemesisState state)
+    {
+        if (!isTrailingSearch) return;
+
+        if (state == NemesisStateManager.ENemesisState.Searching ||
+            state == NemesisStateManager.ENemesisState.Traversing) return;
+
+        EndMusic();
+    }
+
+    private void EndMusic()
+    {
+        isTrailingSearch = false;
         volumeTarget = 0f;
 
         if (ambienceController != null) ambienceController.FadeInAll(fadeDuration);
@@ -137,6 +188,15 @@ public class NemesisChaseMusic : MonoBehaviour
 
     private void Update()
     {
+        // The tail cannot outlive its timeout. A Nemesis switched off mid-search — dormant, a
+        // capture resolving into a teardown, a scene unload — raises no further state change, and
+        // without this the track would keep playing over an empty level for the rest of the run.
+        if (isTrailingSearch)
+        {
+            tailElapsed += Time.unscaledDeltaTime;
+            if (tailElapsed >= searchTailTimeout) EndMusic();
+        }
+
         // Unscaled, not scaled: this fade is paired with AmbienceController's own (also unscaled)
         // takeover fade, and a pause mid-transition must not leave one of the two frozen while the
         // other keeps moving — that is what would turn a paused chase into dead silence.

@@ -16,7 +16,7 @@ MonoBehaviour:
   searchTimeOut: 15
   visionLossGracePeriod: 2.5
   patrolWaypointWaitTime: 1.5
-  patrolWaitVariance: 0.25
+  patrolWaitVariance: 0.6
   noiseUpdateCooldown: 0.5
   viewRange: 7
   viewAngle: 170
