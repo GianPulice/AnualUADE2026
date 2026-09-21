@@ -10,24 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4199243a8a390b44980d76478b1ab2c9, type: 3}
-  m_Name: SO_NoteSequence
+  m_Name: SO_LlaveEscaleras
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
-  itemID: nota_secuencia
-  itemName: Daily New
-  category: 2
-  itemDescription: 'This seems like a report, although these numbers are quite curious.
-
-'
-  itemIcon: {fileID: 21300000, guid: fd3d39e275654504a9db99d936816b3d, type: 3}
-  isMetallic: 0
+  itemID: Stairs
+  itemName: Stairs
+  category: 0
+  itemDescription: 
+  itemIcon: {fileID: 21300000, guid: ab396c6db3a23d54ca26dc56353296f7, type: 3}
+  isMetallic: 1
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
-  contentType: 1
-  textContent: '3 workers died at the factory after 1 serious incident where 4 gas
-    tanks exploded on the 2nd floor.
-
-'
+  contentType: 0
+  textContent: 
   audioClip: {fileID: 0}
-  targetID: 
+  targetID: puerta_sp3_valvulas
   worldPickupPrefab: {fileID: 0}

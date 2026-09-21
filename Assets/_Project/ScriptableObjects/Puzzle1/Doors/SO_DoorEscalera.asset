@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 44f1a24a93d42544c892271d4a5057e7, type: 3}
-  m_Name: SO_DoorValvulas
+  m_Name: SO_DoorEscalera
   m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
-  doorId: puerta_valvulas
-  requiredKey: {fileID: 11400000, guid: ac7613db5701f2242be0dec25ac4a91b, type: 2}
+  doorId: puerta_Stairs
+  requiredKey: {fileID: 11400000, guid: 3724921ce8d206f4db2678496ce56d96, type: 2}
   consumeKey: 0
   requiredCompletedPuzzleId: 
-  openPrompt: Open Valve room
-  lockedPrompt: You need the valve key
+  openPrompt: Open Stairs
+  lockedPrompt: You need the Stairs key
   openSoundId: 
   closeSoundId: 
