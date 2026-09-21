@@ -58,6 +58,11 @@ public class DoorInteractable : BaseRangeInteractable
     // doorData: nothing here is saved, so a reload brings the door back the way the scene has it.
     private bool sequenceLocked;
 
+    // What PuzzleStateManager remembers this door as unlocked under. Not the bare DoorId: several
+    // doors share one SO_DoorData (the two stair doors, the two valve-room doors), and each of them
+    // is its own lock that asks for the key once. See BuildLockId.
+    private string lockId;
+
     public bool IsOpen => isOpen;
     public bool IsAnimating => isAnimating;
 
@@ -90,8 +95,9 @@ protected override void Awake()
         // open has to carve where the leaf actually ENDS UP, not where it started.
         EnsureNavMeshObstacle();
 
-        wasEverOpened = doorData != null && PuzzleStateManager.Exists &&
-                        PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
+        lockId = BuildLockId();
+        wasEverOpened = lockId != null && PuzzleStateManager.Exists &&
+                        PuzzleStateManager.Instance.IsDoorOpened(lockId);
 
         isOpen = wasEverOpened;
         if (isOpen) ApplyOpenStateImmediate();
@@ -179,9 +185,22 @@ public void OpenDoor()
         bool firstUnlock = !wasEverOpened;
         wasEverOpened = true;
 
-        // Consume the key only on the first ever unlock.
+        // Recorded BEFORE the key check below, which asks every door whether it is still locked
+        // and must already count this one as open.
+        if (doorData != null)
+        {
+            if (PuzzleStateManager.Exists)
+                PuzzleStateManager.Instance.SetDoorOpened(lockId);
+            else
+                Debug.LogWarning($"[{nameof(DoorInteractable)}] No PuzzleStateManager — door " +
+                                 $"'{doorData.DoorId}' opened but will not stay unlocked.", this);
+        }
+
+        // The key leaves the inventory only on the first unlock of its LAST locked door. Spending
+        // it on the first of two stair doors left the second one locked for good.
         if (firstUnlock && doorData != null &&
-            doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists)
+            doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists &&
+            !AnyOtherDoorStillNeeds(doorData.RequiredKey))
         {
             InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
 
@@ -190,15 +209,6 @@ public void OpenDoor()
             // exact confusion WIR-041 was about.
             if (!InventoryManager.Instance.HasItem(doorData.RequiredKey))
                 InteractionEvents.RaiseGlobalMessage($"Used the {doorData.RequiredKey.ItemName}");
-        }
-
-        if (doorData != null)
-        {
-            if (PuzzleStateManager.Exists)
-                PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
-            else
-                Debug.LogWarning($"[{nameof(DoorInteractable)}] No PuzzleStateManager — door " +
-                                 $"'{doorData.DoorId}' opened but will not stay unlocked.", this);
         }
 
         Vector3? openerPos = ResolvePlayerPosition();
@@ -243,6 +253,43 @@ public void OpenDoor()
         AudioManager.Instance.PlaySFX("sfx_interaction_puerta_bloqueada", transform.position);
         float length = AudioManager.Instance.GetSoundLength("sfx_interaction_puerta_bloqueada");
         blockedSoundBusyUntil = Time.unscaledTime + length;
+    }
+
+    // ── Key bookkeeping ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The DoorId plus where the door stands, to the decimetre. The root never moves (only the
+    /// hinge swings), so the same door gets the same id on every load and checkpoint restore, and
+    /// two doors sharing one SO_DoorData get different ones. A hierarchy path would also be unique,
+    /// but it changes every time someone tidies the scene.
+    /// </summary>
+    private string BuildLockId()
+    {
+        if (doorData == null || string.IsNullOrWhiteSpace(doorData.DoorId)) return null;
+
+        Vector3 p = transform.position;
+        return $"{doorData.DoorId}@{Mathf.RoundToInt(p.x * 10f)},{Mathf.RoundToInt(p.y * 10f)}," +
+               $"{Mathf.RoundToInt(p.z * 10f)}";
+    }
+
+    /// <summary>
+    /// Whether any other door in the loaded scenes still asks for this key: never unlocked by the
+    /// player. Inactive doors count — a door hidden until later in the level is still a use left.
+    /// A door the Nemesis forced open does too, since forcing does not unlock it for the player.
+    /// Doors in scenes that are not loaded cannot be seen from here.
+    /// </summary>
+    private bool AnyOtherDoorStillNeeds(SO_InventoryItem key)
+    {
+        DoorInteractable[] doors = FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include);
+
+        foreach (DoorInteractable door in doors)
+        {
+            if (door == this || door.doorData == null) continue;
+            if (door.doorData.RequiredKey != key) continue;
+            if (!door.wasEverOpened) return true;
+        }
+
+        return false;
     }
 
     // ── Opening by the Nemesis ──────────────────────────────────────────────

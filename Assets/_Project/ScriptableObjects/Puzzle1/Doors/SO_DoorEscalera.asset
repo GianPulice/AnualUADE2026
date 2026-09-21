@@ -16,7 +16,7 @@ MonoBehaviour:
   requiredKey: {fileID: 11400000, guid: 3724921ce8d206f4db2678496ce56d96, type: 2}
   consumeKey: 1
   requiredCompletedPuzzleId: 
-  openPrompt: Open Stairs
-  lockedPrompt: You need the Stairs key
+  openPrompt: Open stairs door
+  lockedPrompt: You need Stairs Key
   openSoundId: 
   closeSoundId: 

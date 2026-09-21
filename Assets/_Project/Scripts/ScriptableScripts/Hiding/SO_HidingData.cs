@@ -82,9 +82,11 @@ public class SO_HidingData : ScriptableObject
              "chase (plan §3.4, level B).\n\n" +
              "Measured from the EYE, about 1.8 m up, so below ~0.3 (with View Range 7) the whole " +
              "band falls inside the 1.5 m proximity disc and this does nothing — which is where the " +
-             "first value, 0.25, left it. 0 = a locker is as blind as a container, which makes the " +
+             "first value, 0.25, left it. 0.5 (3.5 m) was too much in play: after losing the " +
+             "player the Nemesis looked around near the locker, filled the meter and pulled them " +
+             "out almost every time. 0 = a locker is as blind as a container, which makes the " +
              "spec's 'medium risk' and 'low risk' the same thing.")]
-    [SerializeField, Range(0f, 1f)] private float lockerVisionExposure = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float lockerVisionExposure = 0.35f;
 
     [Header("Mix (MasterMixer snapshots)")]
     [Tooltip("The snapshot the mix returns to on the way out — MasterMixer's default, 'Snapshot'.")]

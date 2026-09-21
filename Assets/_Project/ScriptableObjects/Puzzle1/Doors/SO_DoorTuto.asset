@@ -16,7 +16,7 @@ MonoBehaviour:
   requiredKey: {fileID: 11400000, guid: 97145eeb98bee20439e237306637239d, type: 2}
   consumeKey: 1
   requiredCompletedPuzzleId: 
-  openPrompt: 'Open HUB '
-  lockedPrompt: You need the HUB key
+  openPrompt: Open HUB door
+  lockedPrompt: You need HUB Key
   openSoundId: 
   closeSoundId: 

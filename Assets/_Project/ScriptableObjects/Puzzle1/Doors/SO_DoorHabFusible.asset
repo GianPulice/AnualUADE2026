@@ -16,7 +16,7 @@ MonoBehaviour:
   requiredKey: {fileID: 11400000, guid: 01d3e972ecba23e4c87e54426c70f997, type: 2}
   consumeKey: 1
   requiredCompletedPuzzleId: 
-  openPrompt: Open Storage room
-  lockedPrompt: You need the storage key
+  openPrompt: Open storage room door
+  lockedPrompt: You need Storage Room Key
   openSoundId: 
   closeSoundId: 

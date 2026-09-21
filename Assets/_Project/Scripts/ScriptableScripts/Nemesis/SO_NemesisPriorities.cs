@@ -66,6 +66,9 @@ public class SO_NemesisPriorities : ScriptableObject
     /// </summary>
     private void Reset() => rungs = BuildDefaultLadder();
 
+    /// <summary>Safety cap on walking back to where the player was lost. See that rung.</summary>
+    private const float LostSightMaxSeconds = 10f;
+
     /// <summary>
     /// The ladder as shipped, in code, so it is also what runs when no asset is assigned.
     ///
@@ -190,7 +193,7 @@ public class SO_NemesisPriorities : ScriptableObject
             //
             // Between the two sight rungs on purpose: seeing the player outranks everything, full
             // stop, so "lo esta viendo" stays first. But once the Nemesis is SURE which spot the
-            // player ducked into, "lo perdio de vista recien" is answering a question that is
+            // player ducked into, "va a donde lo vio por ultima vez" is answering a question that is
             // already settled — without this rung above it, the grace period keeps the Nemesis
             // running at the last place it saw them for the whole window instead of walking
             // straight to the locker it already knows about.
@@ -203,14 +206,23 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.Is(ENemesisPredicate.KnowsHidingSpot)),
 
-            // Just lost sight. Measured from the last SENSE rather than from entering the state,
-            // so hearing them mid-chase renews the pursuit exactly the way seeing them would —
-            // which is what the old per-state counter did by resetting itself.
+            // Just lost sight: keep going until it stands where it last sensed them (NemesisPursuit
+            // runs straight at that spot once the sighting is gone), and only then hand over to the
+            // search. A fixed grace window used to end the chase wherever the Nemesis happened to
+            // be, so it never went back to where it lost them. The age cap is a safety net for a
+            // spot it cannot quite reach, not a mechanic. Measured from the last SENSE, so hearing
+            // them on the way renews it the way seeing them would.
             Rung(NemesisStateManager.ENemesisState.Chasing,
-                 "lo perdió de vista recién",
+                 "va a donde lo vio por última vez",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.VisionLossGracePeriod),
+                 NemesisCondition.Not(ENemesisPredicate.HasArrived),
+                 new NemesisCondition
+                 {
+                     predicate = ENemesisPredicate.BeliefAgeUnder,
+                     threshold = ENemesisThreshold.Custom,
+                     customSeconds = LostSightMaxSeconds,
+                 },
                  NemesisCondition.Not(ENemesisPredicate.IsBeliefUnreachable)),
 
             // STANDING AT THE LOCKER DOOR, HAND ON IT — THE SEARCH BUDGET BELOW MUST NOT BE ABLE TO

@@ -69,6 +69,11 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// for why the search stands still at all.</summary>
     private float pauseRemaining;
 
+    /// <summary>Where to go once the look-around at the spot it lost the player is over. Chosen on
+    /// entry, held through that first pause. See EnterState.</summary>
+    private Vector3 deferredTarget;
+    private bool hasDeferredTarget;
+
     // Scoring buffers for PickSearchTarget, reused for the same reason as the interception's.
     private readonly List<float> weightBuffer = new List<float>();
 
@@ -109,11 +114,28 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                     nemesisStateManager.NemesisMovement.SearchSpeed);
 
+        // Measured before the retarget below moves the destination away from here.
+        bool standingWhereLost = IsStandingWhereLost();
+
         // The one expensive decision of this state, taken once. See TryGetInterceptPoint for why
         // it must not be re-taken per frame. Taken even when a hiding spot is about to override the
         // destination below: it is also what commits the room sweep the search falls back to once
-        // the spot has been checked.
-        RetargetSearch();
+        // the spot has been checked. Anchored on where it SAW them — see TryCommitRoomSweep.
+        RetargetSearch(anchorOnSighting: true);
+
+        // THE SEARCH STARTS WHERE IT LOST THEM. The chase walks back to the last sighting and hands
+        // over on arrival; heading straight off to the first sweep point read as the Nemesis never
+        // having cared where the player went. It stops, looks around (NemesisLookAround covers this
+        // state), and only then goes where the retarget above chose.
+        if (standingWhereLost && nemesisStateManager.IsAgentReady)
+        {
+            deferredTarget = SearchTarget;
+            hasDeferredTarget = true;
+            pauseRemaining = nemesisStateManager.NemesisData != null
+                ? nemesisStateManager.NemesisData.SearchPauseTime
+                : 1f;
+            nemesisStateManager.NavAgent.destination = nemesisStateManager.transform.position;
+        }
 
         spotTarget = null;
         spotCheckRemaining = -1f;
@@ -126,6 +148,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     public override void ExitState()
     {
         HasIntercept = false;
+        hasDeferredTarget = false;
         EndSpotCheck();
         freeRoam.Release();
 
@@ -182,12 +205,39 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         }
 
         SO_NemesisData data = nemesisStateManager.NemesisData;
-        pauseRemaining = data != null ? data.SearchPauseTime : 0f;
 
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                     nemesisStateManager.NemesisMovement.SearchSpeed);
 
+        // The look-around where it lost them is over: now the point chosen on entry.
+        if (hasDeferredTarget)
+        {
+            hasDeferredTarget = false;
+            SetDestination(deferredTarget);
+            return;
+        }
+
+        pauseRemaining = data != null ? data.SearchPauseTime : 0f;
         SetDestination(PickNextPoint());
+    }
+
+    /// <summary>
+    /// Whether the Nemesis is standing on the spot where it last saw the player — the chase walked
+    /// it back there. Read off the eyes and not the freshest belief, for the same reason as
+    /// NemesisPursuit: footsteps heard afterwards are not where it lost them.
+    /// </summary>
+    private bool IsStandingWhereLost()
+    {
+        const float Radius = 2.5f;
+
+        NemesisPursuit pursuit = nemesisStateManager.ChasingState != null
+            ? nemesisStateManager.ChasingState.Pursuit
+            : null;
+        if (pursuit == null || !pursuit.TryGetRecentSighting(out Vector3 lastSeen)) return false;
+
+        Vector3 offset = lastSeen - nemesisStateManager.transform.position;
+        offset.y = 0f;
+        return offset.sqrMagnitude <= Radius * Radius;
     }
 
     /// <summary>
@@ -253,6 +303,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         spotTarget = spot;
         spotCheckRemaining = -1f;
         pauseRemaining = 0f;
+        hasDeferredTarget = false;
 
         // Retired for as long as the spot has priority, so the HUD and the gizmos do not draw a
         // cut-off the search is not heading for.
@@ -350,17 +401,18 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// Called on entry and on a fresh noise, and NOWHERE ELSE. See
     /// <see cref="TryGetInterceptPoint"/> for the cost.
     /// </summary>
-    private void RetargetSearch()
+    private void RetargetSearch(bool anchorOnSighting = false)
     {
         if (!nemesisStateManager.IsAgentReady) return;
 
         // A retarget is new information, so whatever pause was running is over: standing around
         // for another second after hearing a noise somewhere else is the opposite of reacting.
         pauseRemaining = 0f;
+        hasDeferredTarget = false;
 
         // BEFORE THE INTERCEPTION, because the two answer different questions and the interception
         // answers the wrong one at close range. See TryCommitRoomSweep.
-        if (TryCommitRoomSweep()) return;
+        if (TryCommitRoomSweep(anchorOnSighting)) return;
 
         freeRoam.Release();
 
@@ -420,7 +472,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// RoomCommitRange at 0 disables room sweeps entirely and restores the interception-first
     /// behaviour that shipped before this existed.
     /// </summary>
-    private bool TryCommitRoomSweep()
+    private bool TryCommitRoomSweep(bool anchorOnSighting)
     {
         SO_NemesisData data = nemesisStateManager.NemesisData;
         if (data == null) return false;
@@ -428,7 +480,24 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         float commitRange = data.RoomCommitRange;
         if (commitRange <= 0f) return false;
 
-        if (!nemesisStateManager.TryGetBelief(out Vector3 belief, out bool fromSight)) return false;
+        // ON ENTRY, THE SWEEP IS ANCHORED WHERE IT SAW THEM, even if a footstep has been heard
+        // since. The freshest belief is a noise the moment the player keeps running after breaking
+        // line of sight, and a noise never commits a sweep (below) — so one footstep was enough to
+        // skip the room it watched them disappear into. The age limit is unchanged: the sighting
+        // still has to be younger than SightCommitTime.
+        Vector3 belief;
+        bool fromSight;
+        FieldOfView eyes = nemesisStateManager.FieldOfView;
+        if (anchorOnSighting && eyes != null && eyes.HasLastKnownPosition &&
+            eyes.TimeSinceLastSighting < data.SightCommitTime)
+        {
+            belief = eyes.LastKnownPosition;
+            fromSight = true;
+        }
+        else if (!nemesisStateManager.TryGetBelief(out belief, out fromSight))
+        {
+            return false;
+        }
 
         // A NOISE INSIDE THE ROOM ALREADY BEING SWEPT COUNTS TOO, and this branch is load-bearing
         // rather than a nicety. ShouldNoiseRetarget deliberately lets a noise inside the committed

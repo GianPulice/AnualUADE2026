@@ -829,8 +829,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             return;
         }
 
-        Vector3 direction = horizontal / horizontalSpeed;
-
         GetCapsuleProbe(out Vector3 bottom, out Vector3 top, out float radius);
 
         // One physics step of travel plus the skin: far enough to see the wall before touching it,
@@ -842,22 +840,61 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         float probeDistance = Mathf.Max(MinObstacleProbe,
                                         horizontalSpeed * Time.fixedDeltaTime + ObstacleSkin);
 
-        if (Physics.CapsuleCast(bottom, top, radius, direction, out RaycastHit hit, probeDistance,
-                                obstacleMask, QueryTriggerInteraction.Ignore))
-        {
-            Vector3 normal = hit.normal;
-            normal.y = 0f;
+        // Two passes, for corners. One deflection slides along a single wall fine, but in a corner
+        // (two walls, or a crate against a wall) the slide along the first runs straight into the
+        // second: the solver stops it there, and the next step deflects off the first wall again,
+        // so the player shivered in the corner instead of stopping or sliding out of it.
+        Vector3 slide = horizontal;
+        Vector3 firstNormal = Vector3.zero;
 
-            // A purely horizontal normal is a wall. A purely vertical one is floor or ceiling, and
-            // deflecting along it would cancel the movement instead of redirecting it.
-            if (normal.sqrMagnitude > 0.0001f)
+        for (int pass = 0; pass < SlidePasses; pass++)
+        {
+            float slideSpeed = slide.magnitude;
+            if (slideSpeed < 0.01f) break;
+
+            if (!TryGetObstacleNormal(bottom, top, radius, slide / slideSpeed, probeDistance,
+                                      out Vector3 normal))
+                break;
+
+            slide = Vector3.ProjectOnPlane(slide, normal);
+
+            if (pass == 0)
             {
-                Vector3 deflected = Vector3.ProjectOnPlane(horizontal, normal.normalized);
-                desired = new Vector3(deflected.x, desired.y, deflected.z);
+                firstNormal = normal;
+                continue;
             }
+
+            // Sliding off the second wall points back into the first: pinned in the corner.
+            // Standing still is the honest answer, and it is what ends the shiver.
+            if (Vector3.Dot(slide, firstNormal) < -0.001f) slide = Vector3.zero;
         }
 
-        rigBody.linearVelocity = desired;
+        rigBody.linearVelocity = new Vector3(slide.x, desired.y, slide.z);
+    }
+
+    /// <summary>How many surfaces one step may slide off. Two covers a corner; a third wall in the
+    /// same step is a dead end the solver handles on its own.</summary>
+    private const int SlidePasses = 2;
+
+    /// <summary>
+    /// The horizontal normal of the first obstacle a capsule cast along <paramref name="direction"/>
+    /// meets. False when nothing is in the way, and also when all it meets is floor or ceiling:
+    /// deflecting along a vertical normal would cancel the movement instead of redirecting it.
+    /// </summary>
+    private bool TryGetObstacleNormal(Vector3 bottom, Vector3 top, float radius, Vector3 direction,
+                                      float distance, out Vector3 normal)
+    {
+        normal = Vector3.zero;
+
+        if (!Physics.CapsuleCast(bottom, top, radius, direction, out RaycastHit hit, distance,
+                                 obstacleMask, QueryTriggerInteraction.Ignore))
+            return false;
+
+        normal = new Vector3(hit.normal.x, 0f, hit.normal.z);
+        if (normal.sqrMagnitude <= 0.0001f) return false;
+
+        normal.Normalize();
+        return true;
     }
 
     /// <summary>Margin the obstacle cast is shrunk by, so a capsule already resting against a wall

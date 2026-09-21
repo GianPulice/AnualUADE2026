@@ -3921,11 +3921,11 @@ MonoBehaviour:
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
-  resolvedLightIntensity: 1.5
+  resolvedLightIntensity: 3.5
   explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
   explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
-  explodedLightIntensity: 1.5
-  castLightWhenSteady: 0
+  explodedLightIntensity: 3.5
+  castLightWhenSteady: 1
 --- !u!1001 &1974476544131229765
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4247,11 +4247,11 @@ MonoBehaviour:
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
-  resolvedLightIntensity: 1.5
+  resolvedLightIntensity: 3.5
   explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
   explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
-  explodedLightIntensity: 1.5
-  castLightWhenSteady: 0
+  explodedLightIntensity: 3.5
+  castLightWhenSteady: 1
 --- !u!4 &2084047916685922222 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 822e4ab0d4341a14ba3c0b7c078737d3, type: 3}
@@ -4723,11 +4723,11 @@ MonoBehaviour:
   offMaterial: {fileID: 2100000, guid: 238d43a514064d49ace4c8d570b9d6fc, type: 2}
   resolvedMaterial: {fileID: 2100000, guid: ada86cc45e3f408c8e428b094ab84f40, type: 2}
   resolvedLightColor: {r: 0.1, g: 1, b: 0.25, a: 1}
-  resolvedLightIntensity: 1.5
+  resolvedLightIntensity: 3.5
   explodedMaterial: {fileID: 2100000, guid: bf698e02fa644f6489588253e31b9dc4, type: 2}
   explodedLightColor: {r: 1, g: 0.06, b: 0.06, a: 1}
-  explodedLightIntensity: 1.5
-  castLightWhenSteady: 0
+  explodedLightIntensity: 3.5
+  castLightWhenSteady: 1
 --- !u!1001 &7410605439287947516
 PrefabInstance:
   m_ObjectHideFlags: 0

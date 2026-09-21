@@ -16,7 +16,7 @@ MonoBehaviour:
   requiredKey: {fileID: 11400000, guid: ac7613db5701f2242be0dec25ac4a91b, type: 2}
   consumeKey: 1
   requiredCompletedPuzzleId: 
-  openPrompt: Open Valve room
-  lockedPrompt: You need the valve key
+  openPrompt: Open valve room door
+  lockedPrompt: You need Valve Key
   openSoundId: 
   closeSoundId: 

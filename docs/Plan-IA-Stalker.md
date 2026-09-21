@@ -293,7 +293,7 @@ riesgo (locker medio, mesa alto, container bajo):
 | Tipo | Hoy | Propuesto |
 |---|---|---|
 | `Container` | ciego | ciego (el spec lo pide así) |
-| `Locker` | ciego | sólo acumula por las rendijas y **sólo desde el lado de la puerta**: alcance × `lockerVisionExposure` (**0.5** → 3.5 m), **siempre por el acumulador, nunca instantáneo** |
+| `Locker` | ciego | sólo acumula por las rendijas y **sólo desde el lado de la puerta**: alcance × `lockerVisionExposure` (**0.35** → 2.45 m; ver §16.4), **siempre por el acumulador, nunca instantáneo** |
 | `UnderTable` | ciego | alcance × `underTableVisionMultiplier` (0.5 → 3.5 m, spec) desde cualquier lado, también por el acumulador |
 
 Si el medidor pasa el umbral con el jugador escondido, el escondite queda **sospechoso** y
@@ -809,7 +809,7 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Parámetro | Valor | Origen |
 |---|---|---|
 | `seenEnteringWindow` | 0.75 s, **y línea de vista a la puerta** | Subida 0.6 s + un barrido de la vista (0.1 s) + margen |
-| `lockerVisionExposure` | **0.5** del alcance (3.5 m), sólo por acumulador y sólo del lado de la puerta | Spec: riesgo medio. Con 0.25 quedaba adentro del disco de proximidad (§3.4) |
+| `lockerVisionExposure` | **0.35** del alcance (2.45 m), sólo por acumulador y sólo del lado de la puerta | Spec: riesgo medio. Con 0.25 quedaba adentro del disco de proximidad (§3.4); con 0.5 agarraba casi siempre en el playtest (§16.4) |
 | `underTableVisionMultiplier` | 0.5 (3.5 m) | Spec: riesgo alto. El consejo votó no subirla |
 | Proximidad extrema | 1.5 m **plano** desde los pies, sólo mismo piso (`CatchMaxVerticalOffset`) | Antes era una esfera desde el ojo que nunca llegaba al piso (§3.3) |
 | `hiddenPullOutTime` | 0.8 s | Placeholder hasta la animación `Pull Out`; el consejo propuso 1.2 s con SFX |
@@ -1271,3 +1271,30 @@ bloqueante con la geometría real) y el 4 como el menos (tres premisas falsas).
   cada frame, y el evento `HiddenPlayerSpotted` estaba latcheado (ahora se dispara cada frame a
   propósito, para que la confirmación renueve la memoria; es una invocación de delegado, no un
   raycast).
+
+### 16.4 Playtest del 21/09 — ajustes
+
+- **Siempre te agarraba escondido.** Tres cosas empujaban al Nemesis hacia el locker: al perderte, el
+  `Chasing` corría al punto *predicho* (adelantado según tu velocidad, que es justo hacia el locker
+  al que ibas); ahí miraba alrededor y con `lockerVisionExposure` 0.5 (3.5 m) llenaba el medidor en
+  ~1 s; y a 1.5 m la proximidad lo delataba. Se bajó la exposición a **0.35** y se cambió la
+  persecución (abajo).
+- **Al perderte ya no volvía a donde te vio.** Seguía persiguiendo 2.5 s (`visionLossGracePeriod`)
+  hacia el punto predicho o un waypoint de flanqueo, y después `Searching` barría la sala o cortaba
+  el paso. Ahora, sin visión, `NemesisPursuit` va **derecho al último punto conocido** (si el camino
+  es completo) y la regla "va a donde lo vio por última vez" mantiene `Chasing` **hasta llegar**
+  (tope de seguridad: 10 s de antigüedad de la creencia). Recién ahí arranca la búsqueda.
+  `visionLossGracePeriod` ya no lo usa la escalera por defecto.
+- **Detrás de una mesa no la rodeaba.** El punto adelantado caía dentro del hueco de la mesa en el
+  NavMesh y `SamplePosition` (2 m) lo tiraba al lado del Nemesis: llegaba ahí y te espejaba. Ahora
+  el punto adelantado se camina por el NavMesh desde donde estás (`NavMesh.Raycast`) y se corta en
+  el primer borde, siempre de tu lado; y a menos de 3 m no se adelanta.
+
+- **Segundo playtest (21/09): la búsqueda no arrancaba en el último punto y el locker agarraba
+  igual.** Causa común: la creencia es "lo más reciente entre vista y oído", así que si el jugador
+  corta la línea de vista y sigue corriendo, los pasos llevan la creencia hasta el locker. La
+  persecución lo seguía hasta ahí (proximidad → agarre), y el barrido de sala nunca se armaba porque
+  un ruido no compromete barrido. Ahora `NemesisPursuit` vuelve al **último punto visto**
+  (`TryGetRecentSighting`, 10 s), `Searching` al entrar se queda un `SearchPauseTime` mirando ahí y
+  arma el barrido anclado en ese punto visto (si es más nuevo que `SightCommitTime`). Los ruidos que
+  se siguen oyendo después retargetean la búsqueda como antes.
