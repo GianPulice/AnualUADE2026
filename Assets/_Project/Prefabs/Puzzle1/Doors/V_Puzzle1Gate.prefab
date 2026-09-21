@@ -17,6 +17,10 @@ PrefabInstance:
       value: puzzle_central_piso1
       objectReference: {fileID: 0}
     - target: {fileID: 1940283907028515427, guid: dc5549b0d26318645bc65ec4ed880bac, type: 3}
+      propertyPath: opensOnPuzzleCompleted
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1940283907028515427, guid: dc5549b0d26318645bc65ec4ed880bac, type: 3}
       propertyPath: openHeight
       value: 1.21
       objectReference: {fileID: 0}

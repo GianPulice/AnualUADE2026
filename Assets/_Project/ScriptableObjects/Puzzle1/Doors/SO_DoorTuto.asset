@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
   doorId: Hub
   requiredKey: {fileID: 11400000, guid: 97145eeb98bee20439e237306637239d, type: 2}
-  consumeKey: 0
+  consumeKey: 1
   requiredCompletedPuzzleId: 
   openPrompt: 'Open HUB '
   lockedPrompt: You need the HUB key

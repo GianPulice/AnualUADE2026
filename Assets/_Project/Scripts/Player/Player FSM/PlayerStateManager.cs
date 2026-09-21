@@ -754,7 +754,19 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // a real ramp. See FlatGroundAngle.
         rigBody.useGravity = groundAngle <= FlatGroundAngle;
 
-        moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
+        // Slope-following without slowing down. This was ProjectOnPlane(inputDir, normal), and
+        // projecting a unit horizontal vector onto a tilted plane shortens it to cos(angle): the
+        // horizontal speed came out at cos^2 — about 79% on the 27 degree stair ramp — and because
+        // UpdateLocomotionAnimSpeed scales the legs by actual/nominal speed, the walk cycle
+        // slowed down with it.
+        //
+        // The horizontal part is kept exactly as the input gave it and only the vertical term is
+        // solved for, so the result still lies in the ground plane (dot with the normal is zero)
+        // and a stair costs the same pace as a flat corridor. Speed ALONG the slope is therefore
+        // 1/cos(angle) of the walking speed, which is what stops a stair from feeling like wading.
+        Vector3 normal = hitRay.normal;
+        float rise = -(normal.x * inputDir.x + normal.z * inputDir.z) / Mathf.Max(normal.y, 0.1f);
+        moveDir = new Vector3(inputDir.x, rise, inputDir.z);
     }
 
     /// <summary>Margin the stand-up probe is shrunk by so brushing a wall does not read as a ceiling.</summary>

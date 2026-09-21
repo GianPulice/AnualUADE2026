@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
   doorId: puerta_Stairs
   requiredKey: {fileID: 11400000, guid: 3724921ce8d206f4db2678496ce56d96, type: 2}
-  consumeKey: 0
+  consumeKey: 1
   requiredCompletedPuzzleId: 
   openPrompt: Open Stairs
   lockedPrompt: You need the Stairs key

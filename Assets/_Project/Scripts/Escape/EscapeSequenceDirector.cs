@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.Events;
@@ -55,9 +57,9 @@ public class EscapeSequenceDirector : MonoBehaviour
         [Tooltip("La puerta de la zona segura: la que se abre en 2B y NO se traba.")]
         public DoorInteractable safeDoor;
 
-        [Tooltip("El portón del final del pasillo. Se abre de una al arrancar la cinemática: el " +
-                 "escape muestra la salida, y un portón cerrado se lee como callejón sin salida. " +
-                 "Aparte sigue abriéndose solo cuando se completa su puzzle.")]
+        [Tooltip("El portón del final del pasillo. Arranca a abrirse al recuperar el control y " +
+                 "termina justo cuando llegarías corriendo (ver 'End Gate Slack Seconds' en el " +
+                 "config). Necesita 'Opens On Puzzle Completed' apagado, o su puzzle lo abre antes.")]
         public PuzzleGate endGate;
 
         [Header("Nemesis (2A)")]
@@ -142,6 +144,7 @@ public class EscapeSequenceDirector : MonoBehaviour
 
     private SocketInteractable lastInsertedSocket;
     private PlayerStateManager lockedPlayer;
+    private CancellationTokenSource endGateCts;
 
     private CinemachineBrain brain;
     private CinemachineBlendDefinition previousBlend;
@@ -164,6 +167,10 @@ public class EscapeSequenceDirector : MonoBehaviour
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
         CheckpointManager.OnRespawned -= HandleRespawned;
         GameResultManager.OnGameResult -= HandleGameResult;
+
+        endGateCts?.Cancel();
+        endGateCts?.Dispose();
+        endGateCts = null;
 
         if (fogCycle != null) fogCycle.RouteCompleted -= HandleRouteCompleted;
         foreach (SocketInteractable socket in sockets)
@@ -287,9 +294,6 @@ public class EscapeSequenceDirector : MonoBehaviour
 
     private void StartOpening()
     {
-        // The way out is open before the camera ever shows it.
-        if (stage.endGate != null) stage.endGate.OpenNow();
-
         if (openingTimeline == null || openingTimeline.playableAsset == null)
         {
             Debug.LogError($"[{nameof(EscapeSequenceDirector)}] No opening Timeline: the sequence " +
@@ -308,6 +312,9 @@ public class EscapeSequenceDirector : MonoBehaviour
         if (actor != null && actor.TryTakeControl()) actor.WarpTo(stage.nemesisHidden);
 
         PlayTimeline(openingTimeline, HandleOpeningStopped);
+
+        // The handoff is the end of the timeline, which just started.
+        ScheduleEndGate((float)openingTimeline.duration);
     }
 
     private void HandleOpeningStopped(PlayableDirector director)
@@ -339,6 +346,10 @@ public class EscapeSequenceDirector : MonoBehaviour
         else PlacePlayerAt(stage.playerSpot);
         if (cameraPan != null) cameraPan.Snap();
 
+        // A skip brought the handoff forward: the gate is timed again from now. Open() ignores a
+        // gate that already started.
+        if (skipping) ScheduleEndGate(0f);
+
         // A skip cut the Nemesis's run short: it goes where the run would have ended.
         if (skipping && actor != null) actor.WarpTo(stage.nemesisApproachEnd);
 
@@ -367,6 +378,54 @@ public class EscapeSequenceDirector : MonoBehaviour
         fogCycle.RouteCompleted -= HandleRouteCompleted;
         fogCycle.RouteCompleted += HandleRouteCompleted;
         fogCycle.Begin(config);
+    }
+
+    /// <summary>
+    /// The gate opens during the chase, not before it, and finishes as a player who sprinted for it
+    /// gets there. Its opening has a fixed length (the sound is cut to it), so what is timed here is
+    /// the START: the run from the spot takes R seconds after the handoff, the opening takes D, so
+    /// it starts D - R before the handoff — inside the cinematic's last seconds when D > R, after
+    /// the handoff when not. <paramref name="secondsToHandoff"/> is how far the handoff is from now.
+    /// Called again on a skip, with 0: the handoff came early, and the wait still pending is redone.
+    /// </summary>
+    private void ScheduleEndGate(float secondsToHandoff)
+    {
+        if (stage.endGate == null || stage.playerSpot == null) return;
+
+        endGateCts?.Cancel();
+        endGateCts?.Dispose();
+        endGateCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
+
+        float startIn = Mathf.Max(0f, secondsToHandoff + RunToEndGateSeconds() - stage.endGate.OpenDuration);
+        OpenEndGateAfterAsync(startIn, endGateCts.Token).Forget();
+    }
+
+    // Scaled time, like the timeline it is counted against. A cancel (a skip rescheduling it, the
+    // director going away) throws out of the delay and the gate is left alone.
+    private async UniTaskVoid OpenEndGateAfterAsync(float seconds, CancellationToken token)
+    {
+        if (seconds > 0f) await UniTask.Delay(TimeSpan.FromSeconds(seconds), cancellationToken: token);
+        stage.endGate.Open();
+    }
+
+    /// <summary>The sprint from where control comes back to the gate, in a straight line, with the
+    /// player's sprint of this moment (so a module penalty moves the gate too), plus the slack.</summary>
+    private float RunToEndGateSeconds()
+    {
+        Vector3 from = stage.playerSpot.position;
+        Vector3 to = stage.endGate.transform.position;
+        from.y = to.y = 0f;
+
+        return Vector3.Distance(from, to) / SprintSpeedOf(PlayerRegistry.Current) + config.EndGateSlackSeconds;
+    }
+
+    // Same product the moving state uses (and NemesisEscapePursuit, PlayerCinematicRun):
+    // EffectiveMoveSpeed carries the legs penalty and SprintPenaltyFactor the chest one.
+    private static float SprintSpeedOf(PlayerStateManager player)
+    {
+        if (player == null || player.Movement == null) return 4.5f;
+        return Mathf.Max(0.1f, player.EffectiveMoveSpeed * player.Movement.SprintSpeedMultiplier *
+                               player.SprintPenaltyFactor);
     }
 
     // ── Gate trigger ────────────────────────────────────────────────────────

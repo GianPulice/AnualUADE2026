@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
   doorId: puerta_storage
   requiredKey: {fileID: 11400000, guid: 01d3e972ecba23e4c87e54426c70f997, type: 2}
-  consumeKey: 0
+  consumeKey: 1
   requiredCompletedPuzzleId: 
   openPrompt: Open Storage room
   lockedPrompt: You need the storage key

@@ -127,6 +127,16 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Cada cuántos segundos actualiza lo que sabe de la posición del jugador.")]
     [SerializeField, Min(0.02f)] private float trackingRefreshSeconds = 0.25f;
 
+    // ── Portón del final ────────────────────────────────────────────────────
+    [Header("Portón del final — A DEFINIR EN TESTEO")]
+    // El portón arranca a abrirse cuando volvés a tener el control, y tarda lo que tardarías en
+    // llegar a él corriendo en línea recta desde Player_Spot con TU sprint de ese momento (módulos
+    // incluidos). Este margen se suma a ese tiempo.
+    [Tooltip("Segundos que se suman al tiempo de carrera hasta el portón. Positivo = termina de " +
+             "abrirse un poco después de que llegás (la reacción al recuperar el control, la " +
+             "aceleración, esquivar). Negativo = ya está abierto cuando llegás.")]
+    [SerializeField] private float endGateSlackSeconds = 0.5f;
+
     // ── Audio (Paso 7) ──────────────────────────────────────────────────────
     [Header("Audio (Paso 7)")]
     [Tooltip("Alarma de instalación. Loop desde que arranca la secuencia hasta que termina.")]
@@ -182,6 +192,8 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float MinChaseSpeed => minChaseSpeed;
     public bool PerfectTracking => perfectTracking;
     public float TrackingRefreshSeconds => trackingRefreshSeconds;
+
+    public float EndGateSlackSeconds => endGateSlackSeconds;
 
     public AudioClip AlarmClip => alarmClip;
     public float AlarmVolume => alarmVolume;
