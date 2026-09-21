@@ -15,7 +15,7 @@ MonoBehaviour:
   itemID: Stairs
   itemName: Stairs
   category: 0
-  itemDescription: 
+  itemDescription: This key can open the stairs door
   itemIcon: {fileID: 21300000, guid: ab396c6db3a23d54ca26dc56353296f7, type: 3}
   isMetallic: 1
   isConsumable: 0
