@@ -554,6 +554,62 @@ public class SO_NemesisDataEditor : Editor
                 $"y a través de un piso hasta {data.ListenRange * data.FloorOcclusionMultiplier:0.##} m.",
                 EditorStyles.wordWrappedMiniLabel);
         }
+
+        DrawChaseProgressChecks(data);
+    }
+
+    /// <summary>
+    /// The loop-round-a-table counterplay (NemesisChaseProgress + NemesisPursuit). Every check here
+    /// is one that fails SILENTLY in game: the stall still gets detected and logged, the HUD still
+    /// says "estancado", and the Nemesis goes on tail-chasing exactly as before — so from the
+    /// outside it looks like the counterplay does not work, when it was simply tuned off.
+    /// </summary>
+    private static void DrawChaseProgressChecks(SO_NemesisData data)
+    {
+        // Backed by ChaseTrailPenalty's own tooltip: 1 is "off", and nothing else says so.
+        bool penaltyActs = data.ChaseTrailPenalty < 1f;
+        PlayerDiagramGUI.Verdict(penaltyActs,
+            penaltyActs
+                ? $"Estancado, los waypoints sobre el rastro pesan ×{data.ChaseTrailPenalty:0.##}: " +
+                  "la ruta tiende a salir por el otro lado"
+                : "Chase Trail Penalty en 1 — la penalización del rastro está apagada: " +
+                  "detecta el loop pero lo sigue persiguiendo por atrás");
+
+        // Backed by ChaseStagnantDetourTolerance's own tooltip: the code takes the larger of the
+        // two, so a stagnant value at or below the normal one means the budget never widens.
+        bool toleranceWidens = data.ChaseStagnantDetourTolerance > data.ChaseDetourTolerance;
+        PlayerDiagramGUI.Verdict(toleranceWidens,
+            toleranceWidens
+                ? $"Estancado acepta desvíos de hasta ×{data.ChaseStagnantDetourTolerance:0.##} " +
+                  $"(normal ×{data.ChaseDetourTolerance:0.##})"
+                : $"Chase Stagnant Detour Tolerance ({data.ChaseStagnantDetourTolerance:0.##}) no supera " +
+                  $"a la normal ({data.ChaseDetourTolerance:0.##}) — estancado no amplía nada, y el " +
+                  "otro lado del obstáculo casi nunca entra en el presupuesto");
+
+        // Backed by ChaseTrailPenaltyRadius's own tooltip. BeliefTraceRadius is documented as
+        // roughly the spacing between neighbouring waypoints, so a trail radius well past it
+        // reaches the waypoints on the FAR side of anything table-sized too — and a penalty on
+        // both sides is no preference at all.
+        bool radiusTight = data.ChaseTrailPenaltyRadius <= data.BeliefTraceRadius * 2f;
+        PlayerDiagramGUI.Verdict(radiusTight,
+            radiusTight
+                ? $"Radio del rastro ({data.ChaseTrailPenaltyRadius:0.##} m) del orden de la " +
+                  $"separación entre waypoints ({data.BeliefTraceRadius:0.##} m)"
+                : $"Radio del rastro ({data.ChaseTrailPenaltyRadius:0.##} m) mucho mayor que la " +
+                  $"separación entre waypoints ({data.BeliefTraceRadius:0.##} m) — marca los " +
+                  "dos lados de un obstáculo chico y ya no queda 'otro lado' que elegir");
+
+        // The number the two window knobs boil down to. Worth seeing as a rate because that is
+        // what it gets compared against in your head — a chase speed and a sprint speed — and
+        // neither of those lives on this asset, so they are left to the reader rather than
+        // hard-coded here to drift.
+        float closingRate = data.ChaseMinProgress / Mathf.Max(0.01f, data.ChaseProgressWindow);
+        EditorGUILayout.LabelField(
+            $"Para no estancarse tiene que acortar {data.ChaseMinProgress:0.##} m (por NavMesh) cada " +
+            $"{data.ChaseProgressWindow:0.#} s: {closingRate:0.##} m/s de promedio. Se mide solo en " +
+            $"Chasing y mientras lo vio hace menos de {data.VisionLossGracePeriod:0.#} s " +
+            "(Vision Loss Grace Period).",
+            EditorStyles.wordWrappedMiniLabel);
     }
 }
 #endif

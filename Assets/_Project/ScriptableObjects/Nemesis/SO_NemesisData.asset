@@ -90,3 +90,8 @@ MonoBehaviour:
   proximityDetectionRespectsWalls: 1
   proximityUsesPathDistance: 1
   proximityRecalcInterval: 0.2
+  chaseProgressWindow: 4
+  chaseMinProgress: 1.5
+  chaseStagnantDetourTolerance: 2.5
+  chaseTrailPenalty: 0.2
+  chaseTrailPenaltyRadius: 3

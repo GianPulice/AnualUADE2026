@@ -732,7 +732,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VisionRangeController
   defaultConfig: {fileID: 11400000, guid: 3937456cb1428fa4899c9fca5ba4b725, type: 2}
-  beaconDepthBias: 0.25
+  beaconDepthBias: 0.1
   beaconMaxPixels: 26
   beaconFalloff: 4
   playerOverride: {fileID: 0}

@@ -64,13 +64,59 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private bool isCrouch = false;
     // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
     private bool wantsToStand = false;
-    private bool isHidden = false;
     private bool isDisabled = false;
 
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
-    public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
+
+    // ── Hiding ──────────────────────────────────────────────────────────────────
+    //
+    // The player only ever holds the REFERENCE. Everything about getting in and out — the poses,
+    // the interior camera, freezing the body, and undoing all of it on a capture, a respawn or a
+    // scene unload — belongs to HidingSpot, and what the player does while inside belongs to
+    // PlayerHiddenState. This is the seam between the three, and nothing else.
+
+    private HidingSpot currentHidingSpot;
+    private bool debugHidden;
+    private bool hidingTransition;
+
+    /// <summary>
+    /// The spot the player is inside, or null. WHICH spot it is, and not just "am I hidden", is
+    /// what the Nemesis needs to be able to walk up to a locker and open it (plan §3.1): with a
+    /// bare bool the monster can know you vanished and still have nowhere to look.
+    /// </summary>
+    public HidingSpot CurrentHidingSpot => currentHidingSpot;
+
+    /// <summary>
+    /// True while the Nemesis's vision has to treat the player as gone. Derived, not stored:
+    /// a spot that released without clearing a separate flag is the exact bug this replaces.
+    /// </summary>
+    public bool IsHidden => currentHidingSpot != null || debugHidden;
+
+    /// <summary>
+    /// Hidden with no spot at all — the F10 console's Hide toggle, so that the monster's vision
+    /// can be exercised in a scene with no hiding spot built in it yet. It is a debug affordance
+    /// and nothing in the game should write it.
+    /// </summary>
+    public bool DebugHidden { get => debugHidden; set => debugHidden = value; }
+
+    /// <summary>
+    /// True while the climb-in or climb-out animation is playing: the player cannot move and is
+    /// STILL FULLY VISIBLE. That window is what the Nemesis's "I saw you climb in" rule reads —
+    /// see <see cref="HidingSpot"/>.
+    /// </summary>
+    public bool IsHidingTransition => hidingTransition;
+
+    /// <summary>Called by <see cref="HidingSpot"/> only, at both ends of the transition.</summary>
+    public void SetHidingTransition(bool active) => hidingTransition = active;
+
+    /// <summary>
+    /// Called by <see cref="HidingSpot"/> only: once when the player is in, once with null on
+    /// every way back out. Not a property with a setter, because "anyone can assign this" is how
+    /// the old loose IsHidden bool ended up with two writers and no owner.
+    /// </summary>
+    public void SetHidingSpot(HidingSpot spot) => currentHidingSpot = spot;
 
     /// <summary>
     /// True while the player cannot act: disabled (captured, wake-up, explosion) or lying down /
@@ -514,8 +560,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // During a scene change the level is already running behind the loading screen: keys
         // pressed there must not walk the player off before it is revealed. Same while lying on
-        // the floor or getting up.
-        if (ScreenManager.IsInputLocked || IsStandingUp) inputDir = Vector3.zero;
+        // the floor or getting up, and while climbing into or out of a hiding spot.
+        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition) inputDir = Vector3.zero;
         else InputUpdate();
         CheckGround();
         base.Update();
@@ -628,15 +674,12 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             wantsToStand = false;
         }
 
-        // Debug keys, Editor only: in a build Y froze the player and R hid them from the Nemesis.
+        // Debug key, Editor only: in a build Y froze the player.
+        //
+        // R is gone. It was the stand-in for a hiding spot while the system did not exist, and
+        // HidingSpot has replaced it. The F10 console keeps a Hide toggle (DebugHidden) for
+        // exercising the Nemesis's vision in a scene with no spot built into it.
 #if UNITY_EDITOR
-        // Hidden state testing
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            if (isHidden) isHidden = false;
-            else isHidden = true;
-        }
-
         // Disabled state testing
         if (Input.GetKeyDown(KeyCode.Y))
         {

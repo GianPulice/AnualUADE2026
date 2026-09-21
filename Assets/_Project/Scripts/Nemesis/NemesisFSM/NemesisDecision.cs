@@ -121,6 +121,11 @@ public sealed class NemesisDecision
     /// that this one is over.</summary>
     public bool HasGivenUpOnElevator => stateManager.HasGivenUpOnElevator;
 
+    /// <summary>The chase has spent a whole window without closing the distance over the NavMesh.
+    /// A measurement, not a sensor reading: NemesisChaseProgress takes it before this runs each
+    /// frame, so every rung of one pass reads the same answer.</summary>
+    public bool IsChaseStagnant => stateManager.IsChaseStagnant;
+
     public bool HasBelief => stateManager.TryGetBelief(out _);
 
     /// <summary>Seconds since either sensor last caught the player. Infinity if neither ever has.
@@ -458,6 +463,7 @@ public sealed class NemesisDecision
             ENemesisPredicate.IsInState => IsIn(condition.state),
             ENemesisPredicate.BeliefAgeUnder => BeliefAge < Resolve(condition),
             ENemesisPredicate.TimeInStateUnder => stateManager.TimeInCurrentState < Resolve(condition),
+            ENemesisPredicate.IsChaseStagnant => IsChaseStagnant,
             _ => false,
         };
 

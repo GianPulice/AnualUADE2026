@@ -380,14 +380,20 @@ Shader "Hidden/Custom/VisionFogHLSL"
         float2 uv = input.texcoord;
         half3 sceneColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv).rgb;
 
-        if (_EnableVisionFog < 0.5) return half4(sceneColor, 1.0);
+        // La profundidad se lee ANTES de los early-outs: los beacons (los ojos del Nemesis)
+        // se componen aca adentro, asi que si salieramos derecho dejarian de existir cada vez
+        // que la niebla esta apagada. El tell del monstruo no puede depender de un toggle de arte.
+        float rawDepth = SampleSceneDepth(uv);
+
+        if (_EnableVisionFog < 0.5)
+            return half4(sceneColor + vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams)), 1.0);
 
         // Early-out: el controller pone _VisionEnd = 0 cuando no hay player (Main Menu,
         // LevelUI aislado, escena de gameplay todavia sin cargar).
-        if (_VisionEnd <= _VisionStart + 0.001) return half4(sceneColor, 1.0);
+        if (_VisionEnd <= _VisionStart + 0.001)
+            return half4(sceneColor + vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams)), 1.0);
 
         // ── Posicion world del pixel ───────────────────────────────────────
-        float rawDepth = SampleSceneDepth(uv);
         float3 worldPos = ComputeWorldSpacePosition(uv, rawDepth, UNITY_MATRIX_I_VP);
 
         // El skybox no tiene geometria: su worldPos reconstruida es basura, asi que se marca

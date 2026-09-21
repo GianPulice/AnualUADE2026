@@ -77,6 +77,9 @@ public class NemesisChaseMusic : MonoBehaviour
     private bool isTrailingSearch;
     private float tailElapsed;
 
+    // Set once the run has a result: nothing may start the track again after that.
+    private bool runOver;
+
     private void Awake()
     {
         source = CreateSource();
@@ -88,6 +91,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseStarted += HandleChaseStarted;
         NemesisEvents.OnChaseEnded += HandleChaseEnded;
         NemesisEvents.OnStateChanged += HandleStateChanged;
+        GameResultManager.OnGameResult += HandleGameResult;
     }
 
     private void OnDestroy()
@@ -95,6 +99,20 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseStarted -= HandleChaseStarted;
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
         NemesisEvents.OnStateChanged -= HandleStateChanged;
+        GameResultManager.OnGameResult -= HandleGameResult;
+    }
+
+    /// <summary>
+    /// The run is over — win, loss or game over. The result screen freezes time, but this track
+    /// fades on unscaled time (see Update), so it still goes. Unlike <see cref="EndMusic"/> the
+    /// ambience is NOT faded back in: a result screen is not the level resuming. Lives with the
+    /// level, so a Retry reloads it and the flag starts clean.
+    /// </summary>
+    private void HandleGameResult(GameResultModel result)
+    {
+        runOver = true;
+        isTrailingSearch = false;
+        volumeTarget = 0f;
     }
 
     private void Start()
@@ -139,7 +157,7 @@ public class NemesisChaseMusic : MonoBehaviour
 
     private void HandleChaseStarted()
     {
-        if (chaseMusicClip == null) return;
+        if (runOver || chaseMusicClip == null) return;
 
         volumeTarget = maxVolume;
         isTrailingSearch = false;
@@ -152,6 +170,9 @@ public class NemesisChaseMusic : MonoBehaviour
 
     private void HandleChaseEnded()
     {
+        // After the result, a trailing search would end in EndMusic and bring the ambience back.
+        if (runOver) return;
+
         // NOT a fade-out. The state change that follows on this same frame is what decides whether
         // this is a search worth scoring or the end of the encounter — see HandleStateChanged.
         // NemesisTelemetry emits the chase transition before the state transition, so that answer

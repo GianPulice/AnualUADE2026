@@ -270,8 +270,15 @@ public class NemesisTestConsole : MonoBehaviour
 
         GUILayout.Space(4f);
 
-        if (GUILayout.Button(player.IsHidden ? "Leave hiding" : "Hide  (blinds its vision)"))
-            player.IsHidden = !player.IsHidden;
+        // "Hidden with no spot": exercises the monster's vision in a scene with no HidingSpot built
+        // into it. Greyed out while the player is in a real spot, which owns IsHidden then and has
+        // to be left with E — toggling this there would do nothing, which reads as a broken button.
+        bool inRealSpot = player.CurrentHidingSpot != null;
+        GUI.enabled = !inRealSpot;
+        if (GUILayout.Button(inRealSpot ? "Hidden in a spot  (leave it with E)"
+                           : player.DebugHidden ? "Leave hiding" : "Hide  (blinds its vision)"))
+            player.DebugHidden = !player.DebugHidden;
+        GUI.enabled = true;
 
         // The capture path proper: PlayerStateManager.OnCaptured is what the Nemesis calls, and it
         // is what CheckpointManager listens to. Setting IsDisabled by hand would freeze the player

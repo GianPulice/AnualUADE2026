@@ -61,6 +61,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private NemesisStateManager stateManager;
     private NemesisTelemetry telemetry;
+    private NemesisChaseProgress chaseProgress;
     private readonly List<Sample> history = new List<Sample>();
 
     private NemesisStateManager.ENemesisState? lastState;
@@ -92,6 +93,7 @@ public class NemesisDebugHUD : MonoBehaviour
         // so by the time any Update runs it exists — but script order between two components on
         // one object is not guaranteed, so this is re-resolved lazily where it is read.
         telemetry = GetComponent<NemesisTelemetry>();
+        chaseProgress = GetComponent<NemesisChaseProgress>();
     }
 
     private void OnDestroy()
@@ -169,6 +171,7 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "sospecha", DescribeAwareness());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "distancia", DescribeDistance());
+        Row(ref line, "persecución", DescribeChaseProgress());
         Row(ref line, "búsqueda", DescribeSearch());
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
@@ -289,6 +292,63 @@ public class NemesisDebugHUD : MonoBehaviour
         return reachable
             ? $"recta {straight:0.0} m  ·  NavMesh {path:0.0} m"
             : $"recta {straight:0.0} m  ·  <b>sin camino</b>";
+    }
+
+    /// <summary>
+    /// Whether the chase is closing the distance, and what the pursuit is doing about it when it
+    /// is not.
+    ///
+    /// The loop round a table is the one chase failure nothing else on this panel can show: the
+    /// state says Chasing, the rung says "lo está viendo", the agent is moving, the watchdog is
+    /// quiet — every row reads healthy while the player runs rings round the monster. This row is
+    /// the window in progress (metres gained against the metres it needs, and the seconds left)
+    /// and, once it latches, how many detour waypoints the trail penalty actually had to push
+    /// against. "Estancado" with 0 penalised means the counterplay had nothing to choose between —
+    /// no waypoints near the obstacle — and no tuning will fix that; waypoints will.
+    ///
+    /// The ChaseStalled count stays on the row after the chase ends, because it is the number the
+    /// habit thresholds will be calibrated from.
+    /// </summary>
+    private string DescribeChaseProgress()
+    {
+        // Re-resolved lazily for the same reason as the telemetry: the state manager adds it in its
+        // own Awake, and script order between two components on one object is not guaranteed.
+        if (chaseProgress == null) chaseProgress = GetComponent<NemesisChaseProgress>();
+        if (chaseProgress == null) return "—";
+
+        int stalls = chaseProgress.ChaseStalledCount;
+        string count = stalls > 0 ? $"  ·  {stalls} ChaseStalled" : "";
+
+        if (!chaseProgress.IsMeasuring)
+        {
+            bool chasing = stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Chasing;
+            if (!chasing) return "—" + count;
+
+            // Said out loud because it is the one "not measuring" that is on purpose: the escape
+            // paces the gap by design (see NemesisChaseProgress.Tick).
+            NemesisDecision decision = stateManager.Decision;
+            if (decision != null && decision.ChaseFloor) return "no mide durante el escape" + count;
+
+            return "sin medir (sin vista reciente, sin camino o frenado)" + count;
+        }
+
+        float progress = chaseProgress.WindowProgress;
+
+        if (chaseProgress.IsChaseStagnant)
+        {
+            NemesisChasingState chasingState = stateManager.ChasingState;
+            NemesisPursuit pursuit = chasingState != null ? chasingState.Pursuit : null;
+            int penalized = pursuit != null ? pursuit.PenalizedLastReplan : 0;
+
+            return $"<b>ESTANCADO</b>  {progress:+0.0;-0.0;0.0} m  ·  rastro: " +
+                   $"{penalized} waypoints penalizados{count}";
+        }
+
+        SO_NemesisData data = stateManager.NemesisData;
+        float needed = data != null ? data.ChaseMinProgress : 0f;
+
+        return $"acortó {progress:+0.0;-0.0;0.0} / {needed:0.0} m  ·  " +
+               $"quedan {chaseProgress.WindowRemaining:0.0} s{count}";
     }
 
     private string DescribeSearch()

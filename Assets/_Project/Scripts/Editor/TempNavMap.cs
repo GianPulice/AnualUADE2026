@@ -264,4 +264,442 @@ public static class TempNavMap
             }
         }
     }
+
+    // The toggle only flips the feature in memory; without SaveAssets the .asset stays at 0.
+    [MenuItem("Tools/Temp/PostFX Persist")]
+    public static void PostFxPersist()
+    {
+        var t = AssetDatabase.LoadAssetAtPath<SO_PostProcessToggle>("Assets/_Project/ScriptableObjects/SO_PostProcessToggle.asset");
+        if (t == null) { Debug.Log("TEMP-PFX toggle asset not found"); return; }
+
+        t.SetAllEnabled(true);
+
+        var targets = new System.Collections.Generic.List<Object>();
+        t.CollectTargets(targets);
+        foreach (Object o in targets) if (o != null) EditorUtility.SetDirty(o);
+        EditorUtility.SetDirty(t);
+        AssetDatabase.SaveAssets();
+
+        Debug.Log($"TEMP-PFX saved. ps1={t.IsPs1Enabled} fog={t.IsVisionFogEnabled} features={t.AreRendererFeaturesEnabled} targets={targets.Count}");
+    }
+
+    // How wide is the gap the player actually has to squeeze through, prop by prop along x.
+    [MenuItem("Tools/Temp/Escape Pinch Point")]
+    public static void PinchPoint()
+    {
+        float r = 0.30f;
+        Debug.Log("TEMP-PINCH player capsule radius 0.30 -> needs a 0.60 m gap minimum");
+        for (float x = 5.0f; x <= 13.0f; x += 0.5f)
+        {
+            float best = 0f, bestZ = 0f, runStart = -1f;
+            for (float z = 13.0f; z <= 17.05f; z += 0.05f)
+            {
+                bool free = !Physics.CheckCapsule(new Vector3(x, 0.4f, z), new Vector3(x, 1.7f, z), r, ~0, QueryTriggerInteraction.Ignore);
+                if (free && runStart < 0f) runStart = z;
+                if ((!free || z > 17.0f) && runStart >= 0f)
+                {
+                    float len = z - runStart;
+                    if (len > best) { best = len; bestZ = runStart + len * 0.5f; }
+                    runStart = -1f;
+                }
+            }
+            string verdict = best <= 0.01f ? "BLOCKED" : (best < 0.35f ? "too tight" : "ok");
+            Debug.Log($"TEMP-PINCH x={x:0.0} widest free lane={best:0.00} m centred at z={bestZ:0.00} -> {verdict}");
+        }
+    }
+
+    // Hangs one realtime light under each corridor ceiling lamp and wires them into the flicker.
+    // Re-runnable: it never adds a second light to a lamp that already has one.
+    [MenuItem("Tools/Temp/Escape Build Corridor Lamps")]
+    public static void BuildCorridorLamps()
+    {
+        const string ChildName = "EscapeLamp";
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Light/Light Base.prefab");
+        if (prefab == null) { Debug.Log("TEMP-LAMP Light Base.prefab not found"); return; }
+
+        var made = new System.Collections.Generic.List<Light>();
+        var props = new System.Collections.Generic.List<Transform>();
+        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (!t.name.StartsWith("CeilingLamp")) continue;
+            Vector3 p = t.position;
+            if (p.x < -28f || p.x > 32f || p.z < 12f || p.z > 18f) continue;
+            props.Add(t);
+        }
+        props.Sort((a, b) => a.position.x.CompareTo(b.position.x));
+
+        foreach (Transform prop in props)
+        {
+            Transform existing = prop.Find(ChildName);
+            Light light;
+            if (existing != null)
+            {
+                light = existing.GetComponentInChildren<Light>();
+                Debug.Log($"TEMP-LAMP reusing on {prop.name} at x={prop.position.x:0.00}");
+            }
+            else
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, prop);
+                go.name = ChildName;
+                go.transform.localPosition = Vector3.zero;
+                go.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // straight down
+                light = go.GetComponentInChildren<Light>();
+                // Off by default: the corridor stays dark in normal play and only these lamps
+                // come alive during the escape. Begin() then falls back to config.LampIntensity,
+                // and End() puts them back out.
+                if (light != null) { light.enabled = false; light.intensity = 0f; }
+                Undo.RegisterCreatedObjectUndo(go, "Escape corridor lamp");
+                Debug.Log($"TEMP-LAMP created on {prop.name} at x={prop.position.x:0.00}");
+            }
+            if (light != null) made.Add(light);
+        }
+
+        var flicker = Object.FindAnyObjectByType<EscapeCorridorFlicker>();
+        if (flicker == null) { Debug.Log($"TEMP-LAMP {made.Count} lamps ready, but no EscapeCorridorFlicker in the scene to wire them to"); return; }
+
+        var so = new SerializedObject(flicker);
+        var arr = so.FindProperty("lamps");
+        arr.arraySize = made.Count;
+        for (int i = 0; i < made.Count; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = made[i];
+        so.ApplyModifiedProperties();
+        EditorUtility.SetDirty(flicker);
+
+        Debug.Log($"TEMP-LAMP wired {made.Count} lamps into EscapeCorridorFlicker");
+    }
+
+    // Light Base.prefab brings a LightZone (pushes a fog preset on the player) and its trigger:
+    // gameplay behaviour the escape lamps must not have. Strip it, keep Light + FogLightBypass,
+    // and leave each lamp asleep (inactive) so it only exists while the escape runs.
+    [MenuItem("Tools/Temp/Escape Strip Corridor Lamps")]
+    public static void StripCorridorLamps()
+    {
+        int n = 0;
+        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (t.name != "EscapeLamp") continue;
+            GameObject go = t.gameObject;
+
+            foreach (var fade in go.GetComponents<FogLightBypassPlayerFade>()) Undo.DestroyObjectImmediate(fade);
+            foreach (var zone in go.GetComponents<LightZone>()) Undo.DestroyObjectImmediate(zone);
+            foreach (var col in go.GetComponents<SphereCollider>()) Undo.DestroyObjectImmediate(col);
+
+            Undo.RecordObject(go, "Sleep escape lamp");
+            go.SetActive(false);
+            EditorUtility.SetDirty(go);
+            n++;
+
+            string left = string.Join(", ", System.Array.ConvertAll(go.GetComponents<Component>(), c => c.GetType().Name));
+            Debug.Log($"TEMP-STRIP {go.transform.parent.name}: [{left}] active={go.activeSelf}");
+        }
+        Debug.Log($"TEMP-STRIP done, {n} lamps");
+    }
+
+    // One-shot audit of everything the escape depends on. Prints OK / FAIL lines.
+    [MenuItem("Tools/Temp/Escape Audit")]
+    public static void Audit()
+    {
+        const System.Reflection.BindingFlags F = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+        int fails = 0;
+        void Check(bool ok, string what) { if (!ok) fails++; Debug.Log($"TEMP-AUDIT {(ok ? "OK  " : "FAIL")} {what}"); }
+
+        var d = Object.FindAnyObjectByType<EscapeSequenceDirector>(FindObjectsInactive.Include);
+        Check(d != null, "director in scene");
+        if (d == null) return;
+
+        foreach (string f in new[] { "config", "openingTimeline", "socketMacroCamera", "fogCycle", "corridorFlicker", "escapeAudio",
+                                     "corridorLock", "actor", "pursuit", "captureGameOver", "playerRun", "cameraPan" })
+        {
+            var v = typeof(EscapeSequenceDirector).GetField(f, F)?.GetValue(d) as Object;
+            Check(v != null, "director." + f);
+        }
+
+        object stage = typeof(EscapeSequenceDirector).GetField("stage", F).GetValue(d);
+        foreach (var fi in stage.GetType().GetFields())
+        {
+            var v = fi.GetValue(stage) as Object;
+            string extra = "";
+            if (v is Transform t) extra = $" pos={t.position} yaw={t.eulerAngles.y:0}";
+            Check(v != null, "stage." + fi.Name + extra);
+        }
+
+        // Flicker lamps
+        var flicker = Object.FindAnyObjectByType<EscapeCorridorFlicker>(FindObjectsInactive.Include);
+        var lamps = typeof(EscapeCorridorFlicker).GetField("lamps", F)?.GetValue(flicker) as Light[];
+        Check(lamps != null && lamps.Length == 7, $"flicker lamps count = {(lamps == null ? -1 : lamps.Length)}");
+        if (lamps != null)
+            foreach (var l in lamps)
+            {
+                if (l == null) { Check(false, "lamp null"); continue; }
+                bool clean = l.GetComponent<LightZone>() == null && l.GetComponent<SphereCollider>() == null && l.GetComponent<FogLightBypassPlayerFade>() == null;
+                Check(!l.gameObject.activeSelf && clean && l.GetComponent<FogLightBypass>() != null,
+                      $"lamp x={l.transform.position.x:0.0} inactive={!l.gameObject.activeSelf} clean={clean} bypass={l.GetComponent<FogLightBypass>() != null} fwdY={l.transform.forward.y:0.00}");
+            }
+
+        // Camera pan
+        var pan = Object.FindAnyObjectByType<EscapeCameraPan>(FindObjectsInactive.Include);
+        float sa = (float)typeof(EscapeCameraPan).GetField("startAngle", F).GetValue(pan);
+        float sl = (float)typeof(EscapeCameraPan).GetField("startLowering", F).GetValue(pan);
+        Check(Mathf.Approximately(sa, 55f) && Mathf.Approximately(sl, 5f), $"pan startAngle={sa} startLowering={sl}");
+
+        // Timeline
+        var pd = (UnityEngine.Playables.PlayableDirector)typeof(EscapeSequenceDirector).GetField("openingTimeline", F).GetValue(d);
+        var tl = pd.playableAsset as UnityEngine.Timeline.TimelineAsset;
+        Check(tl != null && Mathf.Approximately((float)tl.duration, 11f), $"timeline duration={tl?.duration}");
+        var times = new System.Collections.Generic.Dictionary<string, double>();
+        foreach (var m in tl.markerTrack.GetMarkers()) if (m is EscapeBeatMarker bm) times[bm.Beat.ToString()] = bm.time;
+        foreach (var kv in times) Debug.Log($"TEMP-AUDIT      beat {kv.Key} @ {kv.Value:0.00}");
+        Check(times["PlayerOpensSafeDoor"] < times["PlayerRunToSpot"], "door opens before the run");
+        Check(times["PlacePlayer"] < times["PlayerOpensSafeDoor"], "player placed before the door opens");
+        Check(times["PlayerCameraPan"] < tl.duration, "pan starts before the end");
+        foreach (var track in tl.GetOutputTracks())
+            foreach (var clip in track.GetClips())
+                Debug.Log($"TEMP-AUDIT      clip '{clip.displayName}' {clip.start:0.00}->{clip.end:0.00}");
+
+        // Config
+        var cfg = typeof(EscapeSequenceDirector).GetField("config", F).GetValue(d) as SO_EscapeSequenceConfig;
+        Check(cfg.PaceNear > 0.9f && cfg.PaceFar > 1.2f, $"pace near={cfg.PaceNear} far={cfg.PaceFar} nearD={cfg.PaceNearDistance} farD={cfg.PaceFarDistance} min={cfg.MinChaseSpeed}");
+
+        // Player route
+        Transform rs = (Transform)stage.GetType().GetField("playerRunStart").GetValue(stage);
+        Transform sp = (Transform)stage.GetType().GetField("playerSpot").GetValue(stage);
+        bool a = UnityEngine.AI.NavMesh.SamplePosition(rs.position, out var ha, 4f, UnityEngine.AI.NavMesh.AllAreas);
+        bool b = UnityEngine.AI.NavMesh.SamplePosition(sp.position, out var hb, 3f, UnityEngine.AI.NavMesh.AllAreas);
+        var path = new UnityEngine.AI.NavMeshPath();
+        bool c = a && b && UnityEngine.AI.NavMesh.CalculatePath(ha.position, hb.position, UnityEngine.AI.NavMesh.AllAreas, path);
+        float len = Vector3.Distance(rs.position, ha.position);
+        for (int i = 1; i < path.corners.Length; i++) len += Vector3.Distance(path.corners[i - 1], path.corners[i]);
+        Check(c && path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete, $"player route complete, {len:0.00} m = {len / 4.5f:0.00} s of sprint");
+        bool clearAtSpot = !Physics.CheckCapsule(sp.position + Vector3.up * 0.4f, sp.position + Vector3.up * 1.7f, 0.3f, ~0, QueryTriggerInteraction.Ignore);
+        Check(clearAtSpot, "spot is free of colliders");
+
+        // Nemesis gap at handover
+        Transform ne = (Transform)stage.GetType().GetField("nemesisApproachEnd").GetValue(stage);
+        Debug.Log($"TEMP-AUDIT      handover gap player<->nemesis = {Vector3.Distance(sp.position, ne.position):0.00} m");
+
+        // Renderer features
+        var tog = AssetDatabase.LoadAssetAtPath<SO_PostProcessToggle>("Assets/_Project/ScriptableObjects/SO_PostProcessToggle.asset");
+        Check(tog != null && tog.AreRendererFeaturesEnabled, "renderer features active");
+
+        // Nemesis eyes on the prefab
+        var nem = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Project/Prefabs/Nemesis.prefab");
+        var eyes = nem != null ? nem.GetComponentInChildren<NemesisEyes>(true) : null;
+        if (eyes != null)
+        {
+            float mpr = (float)typeof(NemesisEyes).GetField("minPixelRadius", F).GetValue(eyes);
+            float fa = (float)typeof(NemesisEyes).GetField("facingAngle", F).GetValue(eyes);
+            float inten = (float)typeof(NemesisEyes).GetField("intensity", F).GetValue(eyes);
+            Check(mpr >= 9f && fa >= 360f && inten >= 5f, $"eyes minPixelRadius={mpr} facingAngle={fa} intensity={inten}");
+        }
+        else Check(false, "NemesisEyes on prefab");
+
+        Debug.Log($"TEMP-AUDIT DONE fails={fails}");
+    }
+
+    // Runtime snapshot: who is running, where everyone is, where the camera looks.
+    [MenuItem("Tools/Temp/Escape Probe")]
+    public static void Probe()
+    {
+        if (!Application.isPlaying) { Debug.Log("TEMP-PROBE not playing"); return; }
+        var flicker = Object.FindAnyObjectByType<EscapeCorridorFlicker>();
+        var pursuit = Object.FindAnyObjectByType<NemesisEscapePursuit>();
+        var go = Object.FindAnyObjectByType<EscapeCaptureGameOver>();
+        var player = PlayerRegistry.Current;
+        var nem = Object.FindAnyObjectByType<NemesisStateManager>();
+        int litLamps = 0;
+        var lamps = typeof(EscapeCorridorFlicker).GetField("lamps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(flicker) as Light[];
+        if (lamps != null) foreach (var l in lamps) if (l != null && l.gameObject.activeInHierarchy && l.enabled) litLamps++;
+        Vector3 cf = Camera.main != null ? Camera.main.transform.forward : Vector3.zero;
+        Vector3 pp = player != null ? player.transform.position : Vector3.zero;
+        Vector3 np = nem != null ? nem.transform.position : Vector3.zero;
+        Debug.Log($"TEMP-PROBE t={Time.time:0.0} flicker={flicker?.IsRunning} litLamps={litLamps}/7 pursuit={pursuit?.IsActive} gameOverArmed={go?.IsActive} " +
+                  $"player={pp} bodyYaw={(player != null && player.PlayerBody != null ? player.PlayerBody.eulerAngles.y : -1):0} disabled={player?.IsDisabled} " +
+                  $"camFwd=({cf.x:0.00},{cf.y:0.00},{cf.z:0.00}) nemesis={np} gap={Vector3.Distance(pp, np):0.00} nemState={nem?.CurrentStateKey} cpEnabled={(CheckpointManager.Exists ? CheckpointManager.Instance.enabled.ToString() : "n/a")}");
+    }
+
+    // Door (5), the Nemesis's door: its real opening, where the leaf ends up when the Nemesis opens
+    // it, and whether the Nemesis's walk crosses the open leaf or the frame.
+    [MenuItem("Tools/Temp/Escape Nemesis Door")]
+    public static void NemesisDoor()
+    {
+        const System.Reflection.BindingFlags F = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var d = Object.FindAnyObjectByType<EscapeSequenceDirector>(FindObjectsInactive.Include);
+        object stage = typeof(EscapeSequenceDirector).GetField("stage", F).GetValue(d);
+        T Get<T>(string n) where T : class => stage.GetType().GetField(n).GetValue(stage) as T;
+        var door = Get<DoorInteractable>("nemesisSideDoor");
+        Transform hidden = Get<Transform>("nemesisHidden"), doorway = Get<Transform>("nemesisDoorway"), exit = Get<Transform>("nemesisRunExit");
+
+        var hinge = typeof(DoorInteractable).GetField("hinge", F).GetValue(door) as Transform;
+        float angle = (float)typeof(DoorInteractable).GetField("openAngle", F).GetValue(door);
+        Debug.Log($"TEMP-NDOOR hinge={hinge.position} openAngle={angle}");
+
+        Bounds Leaf()
+        {
+            Bounds b = new Bounds(); bool first = true;
+            foreach (var r in hinge.GetComponentsInChildren<Renderer>())
+            { if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds); }
+            return b;
+        }
+        foreach (var r in door.GetComponentsInChildren<Renderer>())
+            Debug.Log($"TEMP-NDOOR part '{r.name}' x=[{r.bounds.min.x:0.00},{r.bounds.max.x:0.00}] z=[{r.bounds.min.z:0.00},{r.bounds.max.z:0.00}] underHinge={r.transform.IsChildOf(hinge)}");
+
+        Bounds closed = Leaf();
+        Quaternion saved = hinge.localRotation;
+        Bounds best = closed; float bestAway = float.MinValue; int bestSign = 0;
+        foreach (int sign in new[] { 1, -1 })
+        {
+            hinge.localRotation = saved * Quaternion.Euler(0f, sign * angle, 0f);
+            Bounds b = Leaf();
+            float away = Vector3.Distance(new Vector3(b.center.x, 0, b.center.z), new Vector3(hidden.position.x, 0, hidden.position.z));
+            Debug.Log($"TEMP-NDOOR open sign={sign} leaf x=[{b.min.x:0.00},{b.max.x:0.00}] z=[{b.min.z:0.00},{b.max.z:0.00}] distFromNemesis={away:0.00}");
+            if (away > bestAway) { bestAway = away; best = b; bestSign = sign; }
+        }
+        hinge.localRotation = saved; // restore
+        Debug.Log($"TEMP-NDOOR closed leaf x=[{closed.min.x:0.00},{closed.max.x:0.00}] z=[{closed.min.z:0.00},{closed.max.z:0.00}]  -> Nemesis swing = sign {bestSign}, open leaf x=[{best.min.x:0.00},{best.max.x:0.00}] z=[{best.min.z:0.00},{best.max.z:0.00}]");
+
+        // Walk segments vs the open leaf (Nemesis agent radius 0.5).
+        void Seg(string name, Vector3 a, Vector3 b)
+        {
+            Bounds grown = best; grown.Expand(new Vector3(1.0f, 0f, 1.0f)); // radius 0.5 each side
+            int hits = 0; float firstT = -1f;
+            for (int i = 0; i <= 40; i++)
+            {
+                Vector3 p = Vector3.Lerp(a, b, i / 40f); p.y = best.center.y;
+                if (grown.Contains(p)) { hits++; if (firstT < 0) firstT = i / 40f; }
+            }
+            Debug.Log($"TEMP-NDOOR walk {name} {a}->{b}: {(hits > 0 ? $"CROSSES the open leaf ({hits}/41 samples, from t={firstT:0.00})" : "clear of the open leaf")}");
+        }
+        Seg("hidden->doorway", hidden.position, doorway.position);
+        Seg("doorway->exit", doorway.position, exit.position);
+
+        // The actor drives a NavMeshAgent: what matters is the NavMesh path, corner by corner.
+        void NavSeg(string name, Vector3 a, Vector3 b)
+        {
+            bool sa = UnityEngine.AI.NavMesh.SamplePosition(a, out var ha, 1.5f, UnityEngine.AI.NavMesh.AllAreas);
+            bool sb = UnityEngine.AI.NavMesh.SamplePosition(b, out var hb, 1.5f, UnityEngine.AI.NavMesh.AllAreas);
+            if (!sa || !sb) { Debug.Log($"TEMP-NDOOR nav {name}: OFF NAVMESH (from={sa} to={sb})"); return; }
+            var path = new UnityEngine.AI.NavMeshPath();
+            UnityEngine.AI.NavMesh.CalculatePath(ha.position, hb.position, UnityEngine.AI.NavMesh.AllAreas, path);
+            Debug.Log($"TEMP-NDOOR nav {name}: status={path.status} corners={path.corners.Length} snapFrom={ha.position} snapTo={hb.position}");
+            for (int i = 1; i < path.corners.Length; i++)
+                Seg($"  nav {name} leg{i}", path.corners[i - 1], path.corners[i]);
+        }
+        NavSeg("hidden->doorway", hidden.position, doorway.position);
+        NavSeg("doorway->exit", doorway.position, exit.position);
+    }
+
+    // Shot 2A setup: fog off for exactly the frames of the shot, plus a steady key light on the
+    // Nemesis's doorway. One inactive object, switched on by an Activation Track 2.0 -> 8.35.
+    [MenuItem("Tools/Temp/Escape Build Shot2A")]
+    public static void BuildShot2A()
+    {
+        const string PresetPath = "Assets/_Project/ScriptableObjects/Escape/SO_VisionFog_CinematicClear.asset";
+        const string ObjName = "Shot2A_Setup (fog off + Nemesis key light)";
+
+        // 1. The preset: a copy of Dark with the fog collapsed (start == end -> the shader skips it).
+        //    Same numbers as Dark everywhere else, so popping back reads as a cut, not an iris.
+        var preset = AssetDatabase.LoadAssetAtPath<SO_VisionFogConfig>(PresetPath);
+        if (preset == null)
+        {
+            AssetDatabase.CopyAsset("Assets/_Project/ScriptableObjects/Rendering/Fog/SO_VisionFog_Dark.asset", PresetPath);
+            preset = AssetDatabase.LoadAssetAtPath<SO_VisionFogConfig>(PresetPath);
+        }
+        preset.visionStart = 6.8f;
+        preset.visionEnd = 6.8f;
+        preset.transitionDuration = 0f;
+        EditorUtility.SetDirty(preset);
+
+        // 2. The object, under the escape sequence.
+        var dir = Object.FindAnyObjectByType<EscapeSequenceDirector>(FindObjectsInactive.Include);
+        Transform root = dir.transform;
+        Transform existing = root.Find(ObjName);
+        GameObject go = existing != null ? existing.gameObject : new GameObject(ObjName);
+        if (existing == null) { go.transform.SetParent(root, false); Undo.RegisterCreatedObjectUndo(go, "Shot2A setup"); }
+
+        // Not ??: a missing component is a Unity fake-null in the Editor, which ?? does not see.
+        var ov = go.GetComponent<VisionFogOverride>();
+        if (ov == null) ov = go.AddComponent<VisionFogOverride>();
+        var so = new SerializedObject(ov);
+        so.FindProperty("config").objectReferenceValue = preset;
+        so.ApplyModifiedProperties();
+
+        // Key light: between the 2A camera and the Nemesis's doorway, high, aimed at where it steps
+        // out and looks around. Steady on purpose — the corridor lamps flicker, the reveal must not.
+        Transform keyT = go.transform.Find("NemesisKeyLight");
+        if (keyT == null) { keyT = new GameObject("NemesisKeyLight").transform; keyT.SetParent(go.transform, false); }
+        keyT.position = new Vector3(-17.0f, 3.3f, 14.2f);
+        keyT.LookAt(new Vector3(-21.1f, 1.2f, 14.8f));
+        var key = keyT.GetComponent<Light>();
+        if (key == null) key = keyT.gameObject.AddComponent<Light>();
+        key.type = LightType.Spot;
+        key.spotAngle = 55f;
+        key.innerSpotAngle = 35f;
+        key.range = 9f;
+        key.intensity = 6f;
+        key.color = new Color(0.82f, 0.88f, 1f); // a cold key, to set it apart from the warm corridor lamps
+        key.shadows = LightShadows.None;
+        key.lightmapBakeType = LightmapBakeType.Realtime;
+
+        go.SetActive(false); // the track owns when it is on
+        EditorUtility.SetDirty(go);
+
+        // 3. Activation Track 2.0 -> 8.35 (the 2A clip), bound to the object.
+        var pd = (UnityEngine.Playables.PlayableDirector)typeof(EscapeSequenceDirector)
+            .GetField("openingTimeline", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(dir);
+        var tl = (UnityEngine.Timeline.TimelineAsset)pd.playableAsset;
+        UnityEngine.Timeline.ActivationTrack track = null;
+        foreach (var t in tl.GetOutputTracks())
+            if (t is UnityEngine.Timeline.ActivationTrack at && at.name == "Shot2A Setup") track = at;
+        if (track == null) track = tl.CreateTrack<UnityEngine.Timeline.ActivationTrack>(null, "Shot2A Setup");
+        track.postPlaybackState = UnityEngine.Timeline.ActivationTrack.PostPlaybackState.Inactive;
+
+        UnityEngine.Timeline.TimelineClip clip = null;
+        foreach (var c in track.GetClips()) clip = c;
+        if (clip == null) clip = track.CreateDefaultClip();
+        clip.start = 2.0;
+        clip.duration = 6.35;
+        clip.displayName = "2A · niebla off + luz Nemesis";
+
+        pd.SetGenericBinding(track, go);
+        EditorUtility.SetDirty(tl);
+        EditorUtility.SetDirty(pd);
+        AssetDatabase.SaveAssets();
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(go.scene);
+
+        Debug.Log($"TEMP-2A preset start={preset.visionStart} end={preset.visionEnd} transition={preset.transitionDuration} | " +
+                  $"object active={go.activeSelf} override={ov != null} key at {keyT.position} fwd={keyT.forward} | " +
+                  $"track clip {clip.start:0.00}->{clip.end:0.00} bound={(pd.GetGenericBinding(track) as GameObject)?.name}");
+    }
+
+    // Fog off for the whole final chase: both fog-cycle presets point at a preset that pushes the
+    // fog out past the corridor. The originals (EscapeClosed / EscapeOpen) are left untouched.
+    [MenuItem("Tools/Temp/Escape No Fog Chase")]
+    public static void NoFogChase()
+    {
+        const string NoFogPath = "Assets/_Project/ScriptableObjects/Escape/SO_VisionFog_EscapeNoFog.asset";
+        var noFog = AssetDatabase.LoadAssetAtPath<SO_VisionFogConfig>(NoFogPath);
+        if (noFog == null)
+        {
+            AssetDatabase.CopyAsset("Assets/_Project/ScriptableObjects/Rendering/Fog/SO_VisionFog_Dark.asset", NoFogPath);
+            noFog = AssetDatabase.LoadAssetAtPath<SO_VisionFogConfig>(NoFogPath);
+        }
+        // Far, not collapsed: the fog cycle lerps into it over its close seconds, so the wall of fog
+        // recedes past the corridor (~56 m) instead of snapping away at the end of the lerp.
+        noFog.visionStart = 60f;
+        noFog.visionEnd = 120f;
+        EditorUtility.SetDirty(noFog);
+
+        var dir = Object.FindAnyObjectByType<EscapeSequenceDirector>(FindObjectsInactive.Include);
+        var cfg = typeof(EscapeSequenceDirector).GetField("config", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(dir) as SO_EscapeSequenceConfig;
+        var so = new SerializedObject(cfg);
+        var closed = so.FindProperty("closedFog");
+        var open = so.FindProperty("openFog");
+        string before = $"{(closed.objectReferenceValue ? closed.objectReferenceValue.name : "null")} / {(open.objectReferenceValue ? open.objectReferenceValue.name : "null")}";
+        closed.objectReferenceValue = noFog;
+        open.objectReferenceValue = noFog;
+        so.ApplyModifiedProperties();
+        EditorUtility.SetDirty(cfg);
+        AssetDatabase.SaveAssets();
+
+        Debug.Log($"TEMP-NOFOG preset start={noFog.visionStart} end={noFog.visionEnd} | config closed/open was [{before}] now [{cfg.ClosedFog.name} / {cfg.OpenFog.name}]");
+    }
 }

@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 /// <summary>
 /// Player-originated events other systems react to without needing to be called directly.
@@ -6,6 +7,14 @@ using System;
 /// </summary>
 public static class PlayerEvents
 {
+    /// <summary>
+    /// Static event state survives leaving Play mode when domain reload is disabled, leaving
+    /// listeners from the previous run hooked to destroyed objects — and the first one to throw
+    /// stops the rest of the invocation list. The same guard NemesisEvents and HidingEvents carry.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => OnPlayerCaptured = null;
+
     /// <summary>
     /// The player was captured by the Nemesis. Raised by PlayerStateManager.OnCaptured() and
     /// nothing else.

@@ -107,6 +107,10 @@ public class EscapeSequenceDirector : MonoBehaviour
     [Header("Scene pieces")]
     [SerializeField] private Stage stage = new Stage();
     [SerializeField] private EscapeFogCycle fogCycle;
+
+    [Tooltip("Las lámparas del techo del pasillo, titilando. Es ambiente: la guía de a dónde ir " +
+             "sigue siendo el fog cycle.")]
+    [SerializeField] private EscapeCorridorFlicker corridorFlicker;
     [SerializeField] private EscapeAudio escapeAudio;
     [SerializeField] private EscapeCorridorLock corridorLock;
     [SerializeField] private NemesisCinematicActor actor;
@@ -152,12 +156,14 @@ public class EscapeSequenceDirector : MonoBehaviour
     {
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
         CheckpointManager.OnRespawned += HandleRespawned;
+        GameResultManager.OnGameResult += HandleGameResult;
     }
 
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
         CheckpointManager.OnRespawned -= HandleRespawned;
+        GameResultManager.OnGameResult -= HandleGameResult;
 
         if (fogCycle != null) fogCycle.RouteCompleted -= HandleRouteCompleted;
         foreach (SocketInteractable socket in sockets)
@@ -343,12 +349,24 @@ public class EscapeSequenceDirector : MonoBehaviour
         if (pursuit != null) pursuit.Begin(config);
         if (captureGameOver != null) captureGameOver.Begin();
 
-        if (fogCycle != null)
-        {
-            fogCycle.RouteCompleted -= HandleRouteCompleted;
-            fogCycle.RouteCompleted += HandleRouteCompleted;
-            fogCycle.Begin(config);
-        }
+        // Normally already running since the player crossed the doorway; this is the net for a skip
+        // or a removed marker.
+        BeginFogCycle();
+    }
+
+    /// <summary>
+    /// Starts the chase fog, once. The run beat calls it as the player crosses the safe door, so the
+    /// fog changes mid-cinematic instead of at the cut; FinishOpening calls it again as a net. The
+    /// guard is not optional: a second Begin on a running cycle rebuilds its runtime presets and
+    /// destroys the ones still on the fog stack, which freezes the fog.
+    /// </summary>
+    private void BeginFogCycle()
+    {
+        if (fogCycle == null || fogCycle.IsRunning) return;
+
+        fogCycle.RouteCompleted -= HandleRouteCompleted;
+        fogCycle.RouteCompleted += HandleRouteCompleted;
+        fogCycle.Begin(config);
     }
 
     // ── Gate trigger ────────────────────────────────────────────────────────
@@ -366,9 +384,23 @@ public class EscapeSequenceDirector : MonoBehaviour
         onGateReached.Invoke();
     }
 
+    /// <summary>
+    /// The run is over — a capture during the escape (game over), or any other ending. Whatever the
+    /// escape still has running is stopped here: without this the corridor kept flickering, the fog
+    /// kept cycling and the tension music kept playing behind the result screen.
+    /// </summary>
+    private void HandleGameResult(GameResultModel result)
+    {
+        if (phase != Phase.Escape) return;
+
+        EndEscapeSystems();
+        phase = Phase.Done;
+    }
+
     private void EndEscapeSystems()
     {
         if (fogCycle != null) fogCycle.End();
+        if (corridorFlicker != null) corridorFlicker.End();
         if (pursuit != null) pursuit.End();
         if (captureGameOver != null) captureGameOver.End();
         if (escapeAudio != null) escapeAudio.Stop();
@@ -445,6 +477,10 @@ public class EscapeSequenceDirector : MonoBehaviour
         {
             case EscapeBeat.AlarmStart:
                 if (escapeAudio != null) escapeAudio.Begin(config);
+                // The light comes back here, in the cinematic, not at the handover: the Nemesis walks
+                // out of its door under the corridor lamps. It keeps running into the escape and
+                // stops with the rest of it (EndEscapeSystems).
+                if (corridorFlicker != null && !corridorFlicker.IsRunning) corridorFlicker.Begin(config);
                 EscapeSocketAlarmLight socketLight = AlarmLightOfLastSocket();
                 if (socketLight != null) socketLight.Activate();
                 break;
@@ -475,6 +511,9 @@ public class EscapeSequenceDirector : MonoBehaviour
 
             case EscapeBeat.PlayerRunToSpot:
                 if (playerRun != null) playerRun.RunTo(stage.playerSpot);
+                // The fog changes as the player comes out of the safe door, not at the cut: it lerps
+                // over the preset's close seconds, so it is done by the time control comes back.
+                BeginFogCycle();
                 break;
 
             case EscapeBeat.PlayerCameraPan:

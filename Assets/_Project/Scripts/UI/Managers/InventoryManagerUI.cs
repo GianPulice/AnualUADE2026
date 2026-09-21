@@ -126,6 +126,14 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
             // Nor while lying on the floor or getting up.
             if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsImmobilized) return;
 
+            // Nor from inside a hiding spot, nor half way into one (hiding spec §6). Two reasons,
+            // and the second is the one that matters: the inventory is a full-screen modal that
+            // takes the camera away, and the whole point of being in the locker is watching the
+            // gap for the monster walking past. A menu there is a blindfold the player asked for
+            // by accident.
+            if (PlayerRegistry.Current != null &&
+                (PlayerRegistry.Current.IsHidden || PlayerRegistry.Current.IsHidingTransition)) return;
+
             // Only opens if there is no other modal on top (pause, panel, doc...).
             if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
             OpenInventory();

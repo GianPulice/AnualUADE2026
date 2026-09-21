@@ -444,6 +444,14 @@ public enum ENemesisPredicate
     /// the cabin never came, or the player turned up on this floor. The opposite fact from
     /// <see cref="IsUsingElevator"/>, and the one that ends a commitment.</summary>
     HasGivenUpOnElevator,
+
+    /// <summary>The chase has gone a whole window without closing the distance to the player over
+    /// the NavMesh — the loop round a table or a column. Measured by NemesisChaseProgress; stays
+    /// true until the chase gains ground again or ends. No shipped rung asks it yet: NemesisPursuit
+    /// already reacts to it (it routes the other way round), and a rung that makes the Nemesis
+    /// give up the chase on purpose belongs to the ambush counterplay, which is not built.
+    /// </summary>
+    IsChaseStagnant,
 }
 
 /// <summary>

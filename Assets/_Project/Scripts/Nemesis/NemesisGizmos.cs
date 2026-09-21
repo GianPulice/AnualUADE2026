@@ -107,6 +107,13 @@ public class NemesisGizmos : MonoBehaviour
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
     [SerializeField] private bool drawProximityVignette = false;
 
+    [Header("Chase")]
+    [Tooltip("While chasing: a ring of Chase Trail Penalty Radius around every waypoint on the " +
+             "sensed trail (where the player was sensed passing). Those are the detour waypoints " +
+             "the pursuit marks down once the chase stalls, so what is left outside the rings is " +
+             "'the other way round'. Faint while measuring, solid once stalled. Play mode only.")]
+    [SerializeField] private bool drawChaseTrail = true;
+
     [Header("Style")]
     [Tooltip("Segments per arc. Higher is smoother and costs nothing outside Play mode.")]
     [SerializeField, Range(8, 64)] private int arcSegments = 28;
@@ -167,6 +174,61 @@ public class NemesisGizmos : MonoBehaviour
         DrawIntercept();
         if (drawRoomSweep) DrawRoomSweep();
         DrawPursuit();
+        if (drawChaseTrail) DrawChaseTrail(data);
+    }
+
+    /// <summary>
+    /// The sensed trail as the stalled-chase counterplay reads it, with the penalty radius around
+    /// each stamped waypoint.
+    ///
+    /// Same argument as DrawPursuit above, and it matters more here. "Did it come round the other
+    /// side" has two very different failure modes that look identical from the outside: the rings
+    /// cover BOTH sides of the obstacle (the radius is too big for it — nothing is left to pick),
+    /// or there is simply no waypoint outside the rings with a view of the player (the level
+    /// needs waypoints there, and no number will fix it). Seeing the rings over the real geometry
+    /// is what tells the two apart.
+    ///
+    /// Drawn from the same graph, the same age window and the same radius the pursuit uses, never
+    /// a copy — see the class summary for what a gizmo that disagrees with the game is worth.
+    /// Play mode only: there is no trail outside it.
+    /// </summary>
+    private void DrawChaseTrail(SO_NemesisData data)
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisChaseProgress progress = GetComponent<NemesisChaseProgress>();
+        if (progress == null || (!progress.IsMeasuring && !progress.IsChaseStagnant)) return;
+
+        NemesisStateManager manager = StateManager;
+        NemesisController controller = manager != null ? manager.NemesisController : null;
+        NemesisRouteGraph graph = controller != null ? controller.RouteGraph : null;
+
+        bool stagnant = progress.IsChaseStagnant;
+
+        // Faint while it is only measuring: the rings are a preview of what a stall would mark
+        // down, which is exactly what you want to see while tuning the radius before one fires.
+        Color color = stagnant
+            ? HardDetectColor
+            : new Color(HardDetectColor.r, HardDetectColor.g, HardDetectColor.b, 0.3f);
+
+        if (graph != null && graph.IsBuilt)
+        {
+            for (int i = 0; i < graph.NodeCount; i++)
+            {
+                if (graph.SensedAge(i) > NemesisPursuit.TrailMemoryTime) continue;
+
+                NemesisRouteGraph.Node node = graph.GetNode(i);
+                if (!node.IsValid) continue;
+
+                DrawDisc(node.Position, data.ChaseTrailPenaltyRadius, color);
+                Gizmos.DrawWireSphere(node.Position, 0.25f);
+            }
+        }
+
+        if (!stagnant) return;
+
+        DrawLabel(transform.position + Vector3.up * 2.6f,
+                  $"persecución estancada ({progress.ChaseStalledCount})", HardDetectColor);
     }
 
     /// <summary>

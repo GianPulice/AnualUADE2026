@@ -618,6 +618,60 @@ public class SO_NemesisData : ScriptableObject
              "vignette interpolates between measurements.")]
     [SerializeField, Min(0.05f)] private float proximityRecalcInterval = 0.2f;
 
+    [Header("Chase - progress (el loop de la mesa)")]
+    //
+    // At the end rather than beside the other chase knobs, so this change is a pure addition to
+    // both the inspector and the asset file. The initialisers are the plan's starting values
+    // (docs/Plan-IA-Stalker.md §12) and they matter: they are what an asset saved before these
+    // fields existed deserialises to. Without them it would get zeros — a trail penalty of 0 is a
+    // veto, not the plan's x0.2 — and nothing would say so.
+    //
+    // Corriendo, el jugador (4.5 m/s) siempre le gana al Nemesis (3.0 m/s), así que dar vueltas
+    // alrededor de una mesa es una persecución que no puede terminar. Estos knobs dicen cuándo el
+    // Nemesis se da cuenta de que no está acortando distancia (NemesisChaseProgress) y qué hace
+    // NemesisPursuit mientras tanto: marcar el camino por donde vino el jugador y aceptar
+    // desvíos más largos, para que la ruta salga por el otro lado. Nunca lo hace más rápido.
+
+    [Tooltip("Segundos que tiene una persecución para acortar Chase Min Progress antes de " +
+             "contar como estancada.\n\n" +
+             "Solo corre mientras está en Chasing y lo vio hace menos de Vision Loss Grace " +
+             "Period. Cada ventana que vence sin progreso suma un 'ChaseStalled' (se ve en F9 y " +
+             "en la consola).\n\n" +
+             "Más corto y cualquier persecución con una esquina de por medio se marca como " +
+             "estancada; más largo y el loop de la mesa dura eso de más antes de que reaccione.")]
+    [SerializeField, Min(0.5f)] private float chaseProgressWindow = 4f;
+
+    [Tooltip("Metros, medidos por NavMesh (no en línea recta: hay pisos), que la distancia " +
+             "hasta el jugador tiene que bajar dentro de la ventana para que cuente como " +
+             "progreso.\n\n" +
+             "Se compara contra la distancia al ABRIR la ventana, no contra la mejor lectura: " +
+             "en un loop se acerca de un lado y se aleja del otro, y eso no es progreso. Llegar " +
+             "al alcance de captura (Catch Max Reach) cuenta siempre como progreso.")]
+    [SerializeField, Min(0.05f)] private float chaseMinProgress = 1.5f;
+
+    [Tooltip("Reemplaza a Chase Detour Tolerance mientras la persecución está estancada: cuánto " +
+             "más puede tardar un desvío por un waypoint respecto de ir derecho.\n\n" +
+             "Sube para que 'el otro lado' del obstáculo entre en el presupuesto; con la " +
+             "tolerancia normal casi nunca entra, porque ir derecho al jugador que da vueltas " +
+             "siempre parece corto. Nunca baja la normal: si ponés menos, se usa la normal.")]
+    [SerializeField, Min(1f)] private float chaseStagnantDetourTolerance = 2.5f;
+
+    [Tooltip("Multiplicador del peso de los waypoints de desvío que están sobre el rastro " +
+             "sensado (por donde se lo sintió pasar al jugador), mientras la persecución está " +
+             "estancada.\n\n" +
+             "0.2 = esos waypoints tienen 5 veces menos chances en el sorteo, y lo que queda es " +
+             "el otro lado del obstáculo. 1 apaga la contra-jugada. 0 los veta del todo, y " +
+             "entonces si el único waypoint con vista al jugador está sobre el rastro, sigue " +
+             "persiguiéndolo por atrás.")]
+    [SerializeField, Range(0f, 1f)] private float chaseTrailPenalty = 0.2f;
+
+    [Tooltip("Metros (en planta, sin contar pisos) alrededor de cada waypoint del rastro dentro " +
+             "de los cuales un waypoint de desvío cuenta como 'por donde vino'.\n\n" +
+             "Del orden de la distancia entre waypoints vecinos (Belief Trace Radius). Si es más " +
+             "grande que el obstáculo, marca los DOS lados y ya no queda un 'otro lado' que " +
+             "elegir. Los gizmos lo dibujan alrededor del rastro durante la persecución.")]
+    [SerializeField, Min(0f)] private float chaseTrailPenaltyRadius = 3f;
+
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
@@ -719,4 +773,9 @@ public class SO_NemesisData : ScriptableObject
     public bool ProximityDetectionRespectsWalls { get => proximityDetectionRespectsWalls; set => proximityDetectionRespectsWalls = value; }
     public bool ProximityUsesPathDistance { get => proximityUsesPathDistance; set => proximityUsesPathDistance = value; }
     public float ProximityRecalcInterval { get => proximityRecalcInterval; set => proximityRecalcInterval = value; }
+    public float ChaseProgressWindow { get => chaseProgressWindow; set => chaseProgressWindow = value; }
+    public float ChaseMinProgress { get => chaseMinProgress; set => chaseMinProgress = value; }
+    public float ChaseStagnantDetourTolerance { get => chaseStagnantDetourTolerance; set => chaseStagnantDetourTolerance = value; }
+    public float ChaseTrailPenalty { get => chaseTrailPenalty; set => chaseTrailPenalty = value; }
+    public float ChaseTrailPenaltyRadius { get => chaseTrailPenaltyRadius; set => chaseTrailPenaltyRadius = value; }
 }

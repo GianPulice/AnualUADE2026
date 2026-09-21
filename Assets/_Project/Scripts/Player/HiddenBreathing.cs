@@ -16,9 +16,11 @@ using UnityEngine.Audio;
 /// in docs/CLAUDE.md. Wiring breathing into detection is a change to the hiding system, and it
 /// belongs there, alongside the hold-breath input, not here.
 ///
-/// WHAT DRIVES IT TODAY: <c>PlayerStateManager.IsHidden</c>, which as of now is toggled only by the
-/// `R` debug key — the hiding system does not exist yet. This component needs no changes when it
-/// lands; whatever sets IsHidden will start it.
+/// WHAT DRIVES IT: <c>PlayerStateManager.IsHidden</c> — a real <see cref="HidingSpot"/> since
+/// phase 1, or the F10 console's debug toggle in a scene with no spot built into it. The only
+/// thing the hiding system added here is the per-type VOLUME multiplier below: a steel locker next
+/// to your face is louder from the inside (spec's <c>closetBreathingMultiplier</c>), which is a mix
+/// decision and therefore belongs to the component that owns the mix.
 ///
 /// Setup: drop it on the player root, assign the loop. Everything else has a working default.
 /// </summary>
@@ -105,7 +107,7 @@ public class HiddenBreathing : MonoBehaviour
 
         if (shouldBreathe && !source.isPlaying) StartLoop();
 
-        float target = shouldBreathe ? volume : 0f;
+        float target = shouldBreathe ? volume * SpotVolumeMultiplier() : 0f;
 
         // Unscaled: this fade is paired with the pause and the hiding lowpass, and a fade frozen
         // half way through by a modal is audible as a stuck drone. Same convention as
@@ -115,6 +117,18 @@ public class HiddenBreathing : MonoBehaviour
         source.volume = currentVolume;
 
         if (!shouldBreathe && currentVolume <= 0f && source.isPlaying) source.Stop();
+    }
+
+    /// <summary>
+    /// How much louder (or quieter) the breath is inside THIS kind of spot. 1 when hidden with no
+    /// spot at all, which is what the F10 debug toggle does. Read every frame rather than cached
+    /// on entry so the fade follows a spot that releases the player mid-breath.
+    /// </summary>
+    private float SpotVolumeMultiplier()
+    {
+        HidingSpot spot = player != null ? player.CurrentHidingSpot : null;
+        if (spot == null || spot.Data == null) return 1f;
+        return spot.Data.BreathingVolumeMultiplierFor(spot.Type);
     }
 
     private void StartLoop()

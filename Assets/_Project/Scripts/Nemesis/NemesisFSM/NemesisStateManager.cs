@@ -17,9 +17,10 @@ using UnityEngine.AI;
 ///   NemesisLifecycle     dormancy, agent tuning, and every teleport
 ///   NemesisLookAround    sweeps the gaze while standing still
 ///   NemesisAudio         the per-state breathing and voice loops
+///   NemesisChaseProgress whether a chase is closing the distance at all
 ///
 /// A facade is not a god object: the problem was never that everything could be reached from here,
-/// it was that everything was implemented here. All six are added automatically when missing, so
+/// it was that everything was implemented here. All seven are added automatically when missing, so
 /// no existing Nemesis prefab has to be opened and re-saved. NemesisElevatorUser is the deliberate
 /// exception — it carries real scene wiring, so it is looked up and never grown.
 /// </summary>
@@ -46,7 +47,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "frente del cuerpo.")]
     [SerializeField] private NemesisLookAround lookAround;
 
-    [Tooltip("The per-state breathing and voice loops. Added automatically like the five above, " +
+    [Tooltip("Mide si una persecución está acortando distancia (por NavMesh) o si el jugador lo " +
+             "tiene dando vueltas alrededor de una mesa. Se agrega solo, igual que los de arriba: " +
+             "no tiene nada que configurar en escena.\n\n" +
+             "Se tunea desde SO_NemesisData (Chase Progress Window / Chase Min Progress). Solo " +
+             "mide y publica 'IsChaseStagnant': no elige la ruta ni decide el estado.")]
+    [SerializeField] private NemesisChaseProgress chaseProgress;
+
+    [Tooltip("The per-state breathing and voice loops. Added automatically like the six above, " +
              "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
              "a state with no entry crossfades the monster to silence. An empty array is a silent " +
              "Nemesis, not a broken one.\n\n" +
@@ -156,6 +164,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// the Nemesis in Traversing on a trip nobody is taking any more looked like.
     /// </summary>
     public bool HasGivenUpOnElevator => elevatorUser != null && elevatorUser.HasGivenUpOnElevator;
+
+    /// <summary>
+    /// The chase has gone a whole measurement window without closing the distance to the player
+    /// over the NavMesh — the loop round a table. See <see cref="NemesisChaseProgress"/>.
+    ///
+    /// Read by the ladder as a predicate and by <see cref="NemesisPursuit"/> to route the other
+    /// way round. Neither reads the component directly: the facade is where the FSM asks its
+    /// questions, so a missing component degrades to "not stalled" in exactly one place.
+    /// </summary>
+    public bool IsChaseStagnant => chaseProgress != null && chaseProgress.IsChaseStagnant;
 
     /// <summary>How full the suspicion meter is, 0 to 1. Read by NemesisDebugHUD - the ladder uses
     /// <see cref="IsSuspicious"/>, which is this against the designer's threshold.</summary>
@@ -864,6 +882,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         telemetry.Initialize(this);
         stuckEscape.Initialize(this);
         lifecycle.Initialize(this);
+        chaseProgress.Initialize(this);
 
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
@@ -925,7 +944,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // which is the worst of both worlds: a feature that exists in the code and not in the game.
         lookAround  = ResolveSibling(lookAround);
 
-        // GetComponent and NOT ResolveSibling: unlike the five above, this one is a real feature
+        // Same terms again: it reads the state, the belief and the tuning off this object and
+        // holds nothing a designer could wire wrong. A Nemesis that only gained it when somebody
+        // remembered to open the prefab would loop round tables forever in every scene nobody
+        // touched.
+        chaseProgress = ResolveSibling(chaseProgress);
+
+        // GetComponent and NOT ResolveSibling: unlike the six above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
         // freight elevator should not silently grow one.
         if (elevatorUser == null) elevatorUser = GetComponent<NemesisElevatorUser>();
@@ -938,7 +963,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
         // AFTER the sensors, and that ordering is load-bearing.
         //
-        // Added on the same terms as the six above — it reads its bus off AudioManager and its
+        // Added on the same terms as the siblings above — it reads its bus off AudioManager and its
         // occlusion raycast off the sensor, so there is nothing on it a designer could wire wrong.
         // The content it needs (stateLoops) is authored on the prefab, and an unauthored array is
         // a silent monster rather than a broken one, so growing the component costs nothing.
@@ -1053,6 +1078,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // base.Update() anything a state threw took it down too, every frame. See
         // NemesisTelemetry.TickProximity.
         telemetry.TickProximity();
+
+        // Before the decision, for the same reason the sensor flags are sampled above it:
+        // IsChaseStagnant is a predicate, and the ladder has to read this frame's verdict. After
+        // base.Update() it would be judging a chase against last frame's answer and, on the frame
+        // a chase ends, measuring a state the machine has already left.
+        chaseProgress.Tick();
 
         // Decide before executing. The tree looks at the world exactly as the sensors read it a
         // few lines above, and base.Update() acts on that answer in the SAME frame — where a

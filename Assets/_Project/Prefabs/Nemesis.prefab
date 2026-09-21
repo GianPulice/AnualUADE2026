@@ -1346,8 +1346,8 @@ MonoBehaviour:
   eyeColor: {r: 1, g: 0.12, b: 0.08, a: 1}
   intensity: 3.5
   worldRadius: 0.045
-  minPixelRadius: 3.5
-  facingAngle: 150
+  minPixelRadius: 5.5
+  facingAngle: 220
   nearFadeStart: 0
   nearFadeEnd: 0
   disableRealLights: 1

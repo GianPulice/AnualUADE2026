@@ -52,6 +52,26 @@ public sealed class NemesisPursuit
     private Vector3 predictedPoint;
     private bool hasPredictedPoint;
 
+    /// <summary>
+    /// How far back the sensed trail counts as "the way they came" when a stalled chase looks for
+    /// the other side.
+    ///
+    /// The same number and the same reasoning as NemesisSearchingState's own TrailMemoryTime,
+    /// which reads the trail for a heading: long enough to hold a lap's worth of stamped
+    /// waypoints, short enough to describe this encounter rather than the last one. Not on the SO
+    /// for the reason given there — it is not a design value; what the designer tunes is how hard
+    /// the trail pushes (ChaseTrailPenalty) and how wide it is (ChaseTrailPenaltyRadius). Public so
+    /// NemesisGizmos draws the trail this class actually reads, rather than a guess at it.
+    /// </summary>
+    public const float TrailMemoryTime = 8f;
+
+    /// <summary>How many detour candidates the last replan marked down for sitting on the sensed
+    /// trail. For the debug HUD: a stalled chase with nothing penalised is a stall the counterplay
+    /// had nothing to work with — the lap passes no waypoints, so there is no "way they came" to
+    /// steer away from — and that is a level problem (waypoints around the obstacle), not a tuning
+    /// one.</summary>
+    public int PenalizedLastReplan { get; private set; }
+
     /// <summary>Where the pursuit currently thinks the player is heading. Drawn by NemesisGizmos -
     /// see there for why an invisible decision is an untunable one.</summary>
     public Vector3 PredictedPoint => predictedPoint;
@@ -82,6 +102,7 @@ public sealed class NemesisPursuit
         hasRoutePoint = false;
         hasPredictedPoint = false;
         hasReplanned = false;
+        PenalizedLastReplan = 0;
     }
 
     /// <summary>
@@ -212,12 +233,23 @@ public sealed class NemesisPursuit
     /// SEEING THEM ENDS THE ARGUMENT. With the player in view there is nothing a waypoint can add:
     /// the shortest way to someone you can see is at them, and detouring "cleverly" while looking
     /// straight at the player is the single most obviously broken thing an enemy can do.
+    ///
+    /// ...UNLESS GOING AT THEM HAS STOPPED WORKING. That argument assumes running at someone you
+    /// can see closes the gap, and a loop round a table is precisely the case where it does not:
+    /// the player is in view on every lap, the speed difference means the tail chase can never
+    /// end, and NemesisChaseProgress has measured a whole window of it. Keeping the early-out there
+    /// would leave the counterplay below as dead code in the one situation it exists for — a low
+    /// table never breaks line of sight at all. Every candidate still has to SEE the predicted
+    /// point, so this cannot send the Nemesis off to stand somewhere it has lost the player.
     /// </summary>
     private void Replan(Vector3 belief)
     {
         hasRoutePoint = false;
+        PenalizedLastReplan = 0;
 
-        if (stateManager.HasVisualTarget) return;
+        bool stagnant = stateManager.IsChaseStagnant;
+
+        if (stateManager.HasVisualTarget && !stagnant) return;
 
         Vector3 origin = stateManager.transform.position;
 
@@ -241,7 +273,7 @@ public sealed class NemesisPursuit
 
         float directTime = DirectTime(directWorks, route);
 
-        if (TryPickWaypoint(origin, belief, directWorks, directTime, out Vector3 point))
+        if (TryPickWaypoint(origin, belief, directWorks, directTime, stagnant, out Vector3 point))
         {
             hasRoutePoint = true;
             routePoint = point;
@@ -292,9 +324,21 @@ public sealed class NemesisPursuit
     /// A ROLL AND NOT AN ARGMAX, for the same reason NemesisController gives: always taking the
     /// single best-scoring position reads as the monster knowing exactly where you are, because
     /// functionally it does. Weighted tickets read as it having a good idea.
+    ///
+    /// AND WHEN THE CHASE HAS STALLED, THE WAY THEY CAME IS MARKED DOWN. This is the whole of the
+    /// answer to looping an obstacle, and it is deliberately not a behaviour: no "flank" state, no
+    /// point computed on the far side of the table. The waypoints the player was sensed running
+    /// past — NemesisController's sensed trail — lose most of their tickets, the detour budget
+    /// widens so the far side is affordable at all, and the roll does the rest: what is left is
+    /// the other way round. It works on the waypoint graph rather than on NavMesh area costs
+    /// because nothing here rebakes at runtime, and it is still a roll, so it is a tendency the
+    /// player can read and beat, not a certainty.
+    ///
+    /// Never faster: the speed gap is the design, and a monster that accelerates when you outwit it
+    /// reads as the game cheating, not as the monster being clever.
     /// </summary>
     private bool TryPickWaypoint(Vector3 origin, Vector3 belief, bool directWorks, float directTime,
-                                 out Vector3 point)
+                                 bool stagnant, out Vector3 point)
     {
         point = Vector3.zero;
 
@@ -324,8 +368,22 @@ public sealed class NemesisPursuit
         if (sampledBuffer.Count == 0) return false;
 
         float tolerance = data != null ? Mathf.Max(1f, data.ChaseDetourTolerance) : 1.25f;
+
+        // Raised, never lowered: a stagnant tolerance typed below the normal one would make the
+        // counterplay SHRINK the choice, which is the opposite of what a stall asks for.
+        if (stagnant)
+        {
+            tolerance = Mathf.Max(tolerance,
+                                  data != null ? data.ChaseStagnantDetourTolerance : 2.5f);
+        }
+
         float listenRange = data != null ? data.ListenRange : 10f;
         float speed = ChaseSpeed;
+
+        // Read once per replan rather than per candidate. Only consulted while stagnant.
+        float trailPenalty = data != null ? Mathf.Clamp01(data.ChaseTrailPenalty) : 0.2f;
+        float trailRadius = data != null ? Mathf.Max(0f, data.ChaseTrailPenaltyRadius) : 3f;
+        float floorBand = data != null ? data.FloorHeightThreshold : 2.5f;
 
         float freshness = controller != null ? controller.BeliefFreshness() : 1f;
 
@@ -372,6 +430,17 @@ public sealed class NemesisPursuit
 
             // Sooner is better. +1 so a candidate it is standing on does not divide by zero.
             weight /= 1f + ownTime;
+
+            // The way they came round, while the direct chase is getting nowhere. A multiplier
+            // and not a veto (unless the asset sets it to 0): if the trail side is the only place
+            // with a view of the player it still wins the roll, because a detour there beats
+            // tail-chasing them round the same lap again.
+            if (stagnant && graph.IsNearSensedTrail(candidate, trailRadius, floorBand,
+                                                    TrailMemoryTime))
+            {
+                weight *= trailPenalty;
+                PenalizedLastReplan++;
+            }
 
             weightBuffer.Add(weight);
             kept++;

@@ -251,6 +251,54 @@ public sealed class NemesisRouteGraph
         return Vector3.SqrMagnitude(to - from) > 0.01f;
     }
 
+    /// <summary>Seconds since this node was last stamped by a detection, or infinity if it never
+    /// has been (or the index does not exist). Read by NemesisGizmos to draw the trail the
+    /// pursuit is steering away from.</summary>
+    public float SensedAge(int nodeIndex) =>
+        nodeIndex >= 0 && nodeIndex < lastSensedAt.Count
+            ? Time.time - lastSensedAt[nodeIndex]
+            : float.PositiveInfinity;
+
+    /// <summary>
+    /// Whether a point lies near any waypoint stamped in the last <paramref name="maxAge"/>
+    /// seconds — that is, on the route the player was sensed taking.
+    ///
+    /// The question <see cref="NemesisPursuit"/> asks of each detour candidate when a chase has
+    /// stalled. <see cref="TryGetSensedTrail"/> is not enough for it: that answers with the two
+    /// newest stamps because a HEADING needs no more, while "which side did they come round" is
+    /// the whole recent trail — around a column, the lap they just ran is several waypoints, not
+    /// two.
+    ///
+    /// A FLOOR-PLAN NEIGHBOURHOOD AND A HEIGHT BAND, NOT A PATH QUERY. A path query per stamped
+    /// node per candidate would put a NavMesh query inside a double loop for an answer that is
+    /// only ever a weight. But a plain sphere would be wrong in exactly the way NemesisNav exists
+    /// to prevent: a waypoint one storey up sits within a few metres of the one below it, and the
+    /// trail on the walkway would mark the corridor underneath as "the way they came". So the
+    /// radius is measured flat, and anything further off vertically than
+    /// <paramref name="maxVerticalOffset"/> is another floor and never counts — the same split
+    /// the capture uses between its reach and its vertical offset.
+    /// </summary>
+    public bool IsNearSensedTrail(Vector3 point, float radius, float maxVerticalOffset,
+                                  float maxAge)
+    {
+        float cutoff = Time.time - maxAge;
+        float radiusSqr = radius * radius;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            if (lastSensedAt[i] < cutoff) continue;
+            if (!nodes[i].IsValid) continue;
+
+            Vector3 offset = nodes[i].Position - point;
+            if (Mathf.Abs(offset.y) > maxVerticalOffset) continue;
+
+            offset.y = 0f;
+            if (offset.sqrMagnitude <= radiusSqr) return true;
+        }
+
+        return false;
+    }
+
     public bool TryGetNodeIndex(Transform waypoint, out int index)
     {
         for (int i = 0; i < nodes.Count; i++)

@@ -221,6 +221,7 @@ AudioMixerGroupController:
   m_Send: 00000000000000000000000000000000
   m_Effects:
   - {fileID: -5648898966925807752}
+  - {fileID: 264519958165743341}
   m_UserColorIndex: 0
   m_Mute: 0
   m_Solo: 0
@@ -236,6 +237,8 @@ AudioMixerController:
   m_MasterGroup: {fileID: 24300002}
   m_Snapshots:
   - {fileID: 24500006}
+  - {fileID: 933365523553591937}
+  - {fileID: 6236104856522793246}
   m_StartSnapshot: {fileID: 24500006}
   m_SuspendThreshold: -80
   m_EnableSuspend: 1
@@ -326,6 +329,9 @@ AudioMixerSnapshotController:
     9d2a907a6a9401341a05e32c315f0e79: 120
     4ed3c6ccf872b9446b0862fecad42d1e: -12
     d7c9b0fca108830449eb6e6f2b4c51d3: -3
+    fbd5c966f71c4f3eb9ccc3bee490d2f7: 22000
+    708e17426bfd45b69921d6d69183300e: 22000
+    07f78b083b64493e9b9e062935923d09: 22000
   m_TransitionOverrides: {}
 --- !u!244 &89010427040844610
 AudioMixerEffectController:
@@ -356,6 +362,7 @@ AudioMixerGroupController:
   m_Send: 00000000000000000000000000000000
   m_Effects:
   - {fileID: 8046676631412834762}
+  - {fileID: 855340398703213838}
   m_UserColorIndex: 0
   m_Mute: 0
   m_Solo: 0
@@ -424,6 +431,7 @@ AudioMixerGroupController:
   m_Send: 00000000000000000000000000000000
   m_Effects:
   - {fileID: 8927190924075953208}
+  - {fileID: 6467348295655963157}
   m_UserColorIndex: 0
   m_Mute: 0
   m_Solo: 0
@@ -503,3 +511,91 @@ AudioMixerEffectController:
   m_SendTarget: {fileID: 0}
   m_EnableWetMix: 0
   m_Bypass: 0
+--- !u!244 &264519958165743341
+AudioMixerEffectController:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  m_EffectID: e947b565fa08487ebfde2d7ee2f4954e
+  m_EffectName: Lowpass Simple
+  m_MixLevel: c1a238bb87804a1fbbbb18b1b147185d
+  m_Parameters:
+  - m_ParameterName: Cutoff freq
+    m_GUID: fbd5c966f71c4f3eb9ccc3bee490d2f7
+  m_SendTarget: {fileID: 0}
+  m_EnableWetMix: 0
+  m_Bypass: 0
+--- !u!244 &855340398703213838
+AudioMixerEffectController:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  m_EffectID: 4eb5135eef764d70bc24d20f4114b522
+  m_EffectName: Lowpass Simple
+  m_MixLevel: 13f9dd42ac65409a8b426e18aa7f5682
+  m_Parameters:
+  - m_ParameterName: Cutoff freq
+    m_GUID: 708e17426bfd45b69921d6d69183300e
+  m_SendTarget: {fileID: 0}
+  m_EnableWetMix: 0
+  m_Bypass: 0
+--- !u!244 &6467348295655963157
+AudioMixerEffectController:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  m_EffectID: 522290b5cce54072bdfc8d9522fb6a4f
+  m_EffectName: Lowpass Simple
+  m_MixLevel: 5fd4f8f9dc1c4f7aa5f7559d9eeebd5c
+  m_Parameters:
+  - m_ParameterName: Cutoff freq
+    m_GUID: 07f78b083b64493e9b9e062935923d09
+  m_SendTarget: {fileID: 0}
+  m_EnableWetMix: 0
+  m_Bypass: 0
+--- !u!245 &933365523553591937
+AudioMixerSnapshotController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: InsideCloset
+  m_AudioMixer: {fileID: 24100000}
+  m_SnapshotID: 0ad48ca2721f40c6b7e40abae96e558d
+  m_FloatValues:
+    74d17304138ea754a94c79fbb464cba2: 12
+    5b5c9ae469cad474f81e7e6d99bb7f6c: -2
+    e399dab8f3f4e784e81218f5d07f9a5f: -3
+    9d2a907a6a9401341a05e32c315f0e79: 120
+    4ed3c6ccf872b9446b0862fecad42d1e: -12
+    d7c9b0fca108830449eb6e6f2b4c51d3: -3
+    fbd5c966f71c4f3eb9ccc3bee490d2f7: 1500
+    708e17426bfd45b69921d6d69183300e: 1800
+    07f78b083b64493e9b9e062935923d09: 4000
+  m_TransitionOverrides: {}
+--- !u!245 &6236104856522793246
+AudioMixerSnapshotController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: InsideContainer
+  m_AudioMixer: {fileID: 24100000}
+  m_SnapshotID: b3d39f923c8a41bbb2c1cabbeb9ec0bb
+  m_FloatValues:
+    74d17304138ea754a94c79fbb464cba2: 12
+    5b5c9ae469cad474f81e7e6d99bb7f6c: -2
+    e399dab8f3f4e784e81218f5d07f9a5f: -3
+    9d2a907a6a9401341a05e32c315f0e79: 120
+    4ed3c6ccf872b9446b0862fecad42d1e: -12
+    d7c9b0fca108830449eb6e6f2b4c51d3: -3
+    fbd5c966f71c4f3eb9ccc3bee490d2f7: 700
+    708e17426bfd45b69921d6d69183300e: 900
+    07f78b083b64493e9b9e062935923d09: 2000
+  m_TransitionOverrides: {}
