@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3498073b4c0614469f394d91cc9eaa3, type: 3}
+  m_Name: SO_ChainDecoy
+  m_EditorClassIdentifier: Assembly-CSharp::SO_ChainDecoy
+  interactText: Mover cadenas
+  cooldown: 2
+  hearingDistance: 8
+  noiseDuration: 1.5
+  rattleSoundId: 

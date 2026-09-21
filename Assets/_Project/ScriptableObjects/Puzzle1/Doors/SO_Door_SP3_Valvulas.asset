@@ -17,4 +17,4 @@ MonoBehaviour:
   consumeKey: 1
   requiredCompletedPuzzleId: 
   openPrompt: Open valve room door
-  lockedPrompt: You need the engineering key
+  lockedPrompt: You need Engineering Key

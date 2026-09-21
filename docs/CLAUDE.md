@@ -352,8 +352,9 @@ fog and its Timeline track · the whole Nemesis director layer (`NemesisDirector
 stuck escalation, telemetry, the test console and the editor validators) · the freight elevator and
 its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene MVC UI framework,
 `UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
-applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (mid-rewrite to
-the DBD format, zero callers) · the ball/basket push puzzle.
+applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (DBD format;
+`SkillCheckPanelInteractable` completes `puzzle_central_piso2` and so resolves M2, but no scene
+places it yet — F6 opens it for testing) · the ball/basket push puzzle.
 
 ## Architecture
 
@@ -417,8 +418,8 @@ Communication between systems in different scenes uses **static C# events**. Key
 | `NemesisEvents.OnStateChanged` | NemesisTelemetry | NemesisAudio, NemesisEyes |
 | `NemesisEvents.OnCaptureResolved` | NemesisCatchState | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager | InteractionPromptView |
-| `InteractionEvents.OnGlobalMessage` | any system, via `RaiseGlobalMessage` | InteractionPromptView |
-| `InventoryEvents.OnItemAdded/Removed/Consumed` | InventoryManager | InteractionPromptView, ModuleHUDView |
+| `InteractionEvents.OnGlobalMessage` | any system, via `RaiseGlobalMessage` | InteractionNotificationFeed |
+| `InventoryEvents.OnItemAdded/Removed/Consumed` | InventoryManager | InteractionPromptView, InteractionNotificationFeed, ModuleHUDView |
 | `UIStateManager.OnModalPushed/Popped` | UIStateManager | (subscribers as needed) |
 
 **Subscribe in `Awake`, unsubscribe in `OnDestroy`** — never in `OnEnable/OnDisable` for static events, as the delegate outlives the GameObject's enabled state.
@@ -1698,7 +1699,7 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 - **There is no win condition.** `GameResultManager.ReportWin` has no caller at all — the debug `WinLoseTest.cs` that used to call it (key `I`) was deleted. The only reachable ending is the Nemesis catching you.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
-- **The skill check is mid-rewrite and does not work.** `SO_SkillCheckData` already has the Dead by Daylight format (per-check `steps` with lap time, zone and perfect widths, miss penalty and perfect bonus; weighted `zoneSectors` meant for `RouletteSelection`), but `SkillCheckModel` / `SkillCheckController` still hold the old endless-needle logic with their data reads commented out. `Open()` has zero callers, there is no prefab, and `ModuleManager.ApplyTimeBonus` / `ModuleEvents.OnTimeAdjusted` are waiting for it.
+- **The skill check works but nothing in the level opens it.** `SkillCheckController` (LevelUI, canvas `SkillCheckCanvas.prefab`, data `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset`) plays the Dead by Daylight sequence and moves the active module's timer through `ApplyTimePenalty` / `ApplyTimeBonus`. Its only caller is the debug `SkillCheckTestKey` (F6, editor/dev builds), which just logs the result. Missing: the Hub panel that calls `Open(data, completed => …)` and completes the M2 puzzle, and the spec's progressive shake/ambience calm-down between checks.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
   per-category `pickupSoundId` on `SO_ItemCategoryConfig` when its own field is empty — which it is

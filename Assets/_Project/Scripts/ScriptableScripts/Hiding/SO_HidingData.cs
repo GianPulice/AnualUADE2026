@@ -74,6 +74,20 @@ public class SO_HidingData : ScriptableObject
     [Tooltip("Seconds the climb-out takes. The player is visible and cannot move for it.")]
     [SerializeField, Range(0.1f, 2f)] private float exitDuration = 0.6f;
 
+    [Header("What the Nemesis still sees")]
+    [Tooltip("Inside a LOCKER, how far the monster can still make the player out through the " +
+             "slats, as a fraction of its View Range, and only from the door side. Only ever " +
+             "through the peripheral accumulator, never instantly: past the suspicion threshold it " +
+             "walks over to look, and a full meter marks the locker as known rather than starting a " +
+             "chase (plan §3.4, level B).\n\n" +
+             "Measured from the EYE, about 1.8 m up, so below ~0.3 (with View Range 7) the whole " +
+             "band falls inside the 1.5 m proximity disc and this does nothing — which is where the " +
+             "first value, 0.25, left it. 0.5 (3.5 m) was too much in play: after losing the " +
+             "player the Nemesis looked around near the locker, filled the meter and pulled them " +
+             "out almost every time. 0 = a locker is as blind as a container, which makes the " +
+             "spec's 'medium risk' and 'low risk' the same thing.")]
+    [SerializeField, Range(0f, 1f)] private float lockerVisionExposure = 0.35f;
+
     [Header("Mix (MasterMixer snapshots)")]
     [Tooltip("The snapshot the mix returns to on the way out — MasterMixer's default, 'Snapshot'.")]
     [SerializeField] private AudioMixerSnapshot outsideSnapshot;
@@ -104,6 +118,7 @@ public class SO_HidingData : ScriptableObject
     public float ClosetBreathingMultiplier { get => closetBreathingMultiplier; set => closetBreathingMultiplier = value; }
     public float EnterDuration { get => enterDuration; set => enterDuration = value; }
     public float ExitDuration { get => exitDuration; set => exitDuration = value; }
+    public float LockerVisionExposure { get => lockerVisionExposure; set => lockerVisionExposure = value; }
     public AudioMixerSnapshot OutsideSnapshot => outsideSnapshot;
     public float SnapshotTransitionSeconds => snapshotTransitionSeconds;
 

@@ -2,18 +2,26 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// The fog / guide-light loop of the escape (Paso 4). Its one job is WHEN: which door of the route
-/// is the objective, and when its light opens the fog, holds, closes, and waits.
+/// The light / fog loop of the escape (Pasos 4-5). Its one job is WHEN: when the corridor's white
+/// lights come on and the fog opens, when they die and the fog closes again, and which door of the
+/// route the player has reached.
 ///
-/// Per leg, on the current objective door:
-///   1. The door lights — its beam opens the fog from the door towards the player (open seconds).
-///   2. The light holds (hold seconds): the window to see and decide.
-///   3. The light goes out and the fog closes (close seconds).
-///   4. A dark gap, then the same door lights again — until the player reaches it (arrival radius).
-///      Then the next door of the route repeats the cycle.
+/// The loop, on one clock for the whole corridor:
+///   1. Opening — the white lights come on and the fog opens (open seconds, lerped).
+///   2. Holding — lights on, fog open (hold seconds): the level is visible, and so is the Nemesis.
+///   3. Closing — the lights die and the fog closes back to its normal density (close seconds).
+///   4. Dark    — fog closed (dark gap seconds). Only the amber lights of the path show through it.
 /// Nothing scales with progress: every number is the same from the first door to the gate.
 ///
-/// The optional fog presets (<see cref="SO_EscapeSequenceConfig.ClosedFog"/> and
+/// The amber lights (<see cref="EscapeGuideDoor"/>) are fixed and stay on for the whole escape:
+/// they are the path, and they are what pierces the closed fog. They used to be the thing that
+/// cycled, one door at a time, with a beam aimed at the player — which read as a light following
+/// the player and never as a way to go (WIR-039).
+///
+/// The white lights themselves are <see cref="EscapeCorridorFlicker"/>'s: this only sets how much
+/// power they get (<see cref="Power"/>), and they keep failing on top of it.
+///
+/// The fog presets (<see cref="SO_EscapeSequenceConfig.ClosedFog"/> and
 /// <see cref="SO_EscapeSequenceConfig.OpenFog"/>) are pushed onto the <see cref="VisionRangeController"/>'s
 /// stack as runtime copies, with the open / close seconds written into their transition time. That
 /// is what makes the seconds in the config the ONLY place the lerp durations live.
@@ -23,8 +31,8 @@ using UnityEngine;
 /// </summary>
 public class EscapeFogCycle : MonoBehaviour
 {
-    [Tooltip("Las puertas del recorrido, EN ORDEN: la primera en encenderse primero, la última es " +
-             "el portón. Cada una lleva un EscapeGuideDoor.")]
+    [Tooltip("The doors of the route, IN ORDER: the last one is the gate. Each one carries an " +
+             "EscapeGuideDoor.")]
     [SerializeField] private EscapeGuideDoor[] route = Array.Empty<EscapeGuideDoor>();
 
     /// <summary>The player reached the door at this index of the route.</summary>
@@ -36,6 +44,7 @@ public class EscapeFogCycle : MonoBehaviour
     private enum Phase { Idle, Opening, Holding, Closing, Dark }
 
     private SO_EscapeSequenceConfig config;
+    private EscapeCorridorFlicker whiteLights;
     private VisionRangeController fog;
     private SO_VisionFogConfig closedRuntime;
     private SO_VisionFogConfig openRuntime;
@@ -45,65 +54,69 @@ public class EscapeFogCycle : MonoBehaviour
     private Phase phase = Phase.Idle;
     private int index;
     private float timer;
-
-    // The door that was the objective before the player crossed it, still fading out.
-    private EscapeGuideDoor fading;
+    private float power;
 
     public bool IsRunning { get; private set; }
     public int CurrentIndex => index;
     public int RouteLength => route.Length;
 
-    /// <summary>Starts the loop at the first door.</summary>
-    public void Begin(SO_EscapeSequenceConfig escapeConfig)
+    /// <summary>How much power the white lights have right now, 0..1. 1 = on, fog open.</summary>
+    public float Power => power;
+
+    /// <summary>
+    /// Starts the loop with the lights on and the fog open, which is how the corridor looks when
+    /// the escape starts: the cinematic hands over under lit lamps, and the first close is the
+    /// first thing the player sees the fog do.
+    /// </summary>
+    /// <param name="corridorLamps">The white lights the cycle powers. Optional.</param>
+    public void Begin(SO_EscapeSequenceConfig escapeConfig, EscapeCorridorFlicker corridorLamps)
     {
+        // A cycle that stopped at the gate still has its presets on the stack. Rebuilding them without
+        // popping first would destroy assets the controller is still reading, and freeze the fog.
+        ReleaseFog();
+
         config = escapeConfig;
-        if (route.Length == 0)
-        {
-            Debug.LogWarning($"[{nameof(EscapeFogCycle)}] The route is empty: no guide lights.", this);
-            return;
-        }
+        whiteLights = corridorLamps;
 
         fog = FindAnyObjectByType<VisionRangeController>();
         CreateRuntimeFog();
 
-        // The dense fog rules the whole escape, between light pulses.
+        // The dense fog rules the whole escape; the open preset goes on top of it while lit.
         if (fog != null && closedRuntime != null && !closedPushed)
         {
             fog.PushConfig(closedRuntime);
             closedPushed = true;
         }
 
+        if (route.Length == 0)
+            Debug.LogWarning($"[{nameof(EscapeFogCycle)}] The route is empty: no amber path and no " +
+                             "gate arrival.", this);
+
         IsRunning = true;
         Restart();
     }
 
-    /// <summary>Back to the first door, everything closed. Also what a respawn does.</summary>
+    /// <summary>Back to the first door, lights on. Also what a respawn does.</summary>
     public void Restart()
     {
         if (!IsRunning) return;
 
-        TurnAllOff();
-        SetFogOpen(false);
-
         index = 0;
-        fading = null;
-        phase = Phase.Dark;
-        timer = config.DarkGapSeconds;
+        LightPath();
+        EnterHolding();
     }
 
-    /// <summary>Stops the loop: every light out, the fog back to what it was.</summary>
+    /// <summary>Stops the loop: the path goes dark, the white lights get their power back, and the
+    /// fog returns to what it was.</summary>
     public void End()
     {
         IsRunning = false;
         phase = Phase.Idle;
 
         TurnAllOff();
-        SetFogOpen(false);
-
-        if (fog != null && closedPushed) fog.PopConfig(closedRuntime);
-        closedPushed = false;
-
-        DestroyRuntimeFog();
+        SetPower(1f);
+        whiteLights = null;
+        ReleaseFog();
     }
 
     private void OnDestroy() => End();
@@ -113,34 +126,23 @@ public class EscapeFogCycle : MonoBehaviour
         if (!IsRunning || config == null) return;
 
         SyncRuntimeFog();
-        TickFading();
+        TickClock();
+        TickArrival();
+    }
 
-        Transform player = PlayerRegistry.CurrentTransform;
-        if (player == null) return;
-
-        EscapeGuideDoor door = route[index];
-        Vector3 playerPos = player.position;
-
-        if (HorizontalDistance(playerPos, door.Position) <= config.ArrivalRadius)
-        {
-            HandleArrival(door);
-            return;
-        }
+    private void TickClock()
+    {
+        float dt = Time.deltaTime;
 
         switch (phase)
         {
             case Phase.Opening:
-                door.Apply(config, Mathf.MoveTowards(door.Lit, 1f, Time.deltaTime / config.OpenSeconds), playerPos);
-                if (door.Lit >= 1f)
-                {
-                    phase = Phase.Holding;
-                    timer = config.HoldSeconds;
-                }
+                SetPower(Mathf.MoveTowards(power, 1f, dt / config.OpenSeconds));
+                if (power >= 1f) EnterHolding();
                 break;
 
             case Phase.Holding:
-                door.Apply(config, 1f, playerPos);
-                timer -= Time.deltaTime;
+                timer -= dt;
                 if (timer <= 0f)
                 {
                     phase = Phase.Closing;
@@ -149,8 +151,8 @@ public class EscapeFogCycle : MonoBehaviour
                 break;
 
             case Phase.Closing:
-                door.Apply(config, Mathf.MoveTowards(door.Lit, 0f, Time.deltaTime / config.CloseSeconds), playerPos);
-                if (door.Lit <= 0f)
+                SetPower(Mathf.MoveTowards(power, 0f, dt / config.CloseSeconds));
+                if (power <= 0f)
                 {
                     phase = Phase.Dark;
                     timer = config.DarkGapSeconds;
@@ -158,7 +160,7 @@ public class EscapeFogCycle : MonoBehaviour
                 break;
 
             case Phase.Dark:
-                timer -= Time.deltaTime;
+                timer -= dt;
                 if (timer <= 0f)
                 {
                     phase = Phase.Opening;
@@ -168,40 +170,50 @@ public class EscapeFogCycle : MonoBehaviour
         }
     }
 
-    private void HandleArrival(EscapeGuideDoor door)
+    private void EnterHolding()
     {
-        int reached = index;
-        DoorReached?.Invoke(reached);
-
-        if (reached >= route.Length - 1)
-        {
-            // The gate. Everything goes dark; the listener decides what the arrival means.
-            IsRunning = false;
-            phase = Phase.Idle;
-            TurnAllOff();
-            SetFogOpen(false);
-            RouteCompleted?.Invoke();
-            return;
-        }
-
-        // Crossed a door: its light fades out on its own while the next door waits its dark gap.
-        fading = door;
-        SetFogOpen(false);
-
-        index = reached + 1;
-        phase = Phase.Dark;
-        timer = config.DarkGapSeconds;
+        phase = Phase.Holding;
+        timer = config.HoldSeconds;
+        SetPower(1f);
+        SetFogOpen(true);
     }
 
-    private void TickFading()
+    private void TickArrival()
     {
-        if (fading == null) return;
+        if (index >= route.Length) return;
 
         Transform player = PlayerRegistry.CurrentTransform;
-        Vector3 towards = player != null ? player.position : fading.Position;
+        EscapeGuideDoor door = route[index];
+        if (player == null || door == null) return;
 
-        fading.Apply(config, Mathf.MoveTowards(fading.Lit, 0f, Time.deltaTime / config.CloseSeconds), towards);
-        if (fading.Lit <= 0f) fading = null;
+        if (HorizontalDistance(player.position, door.Position) > config.ArrivalRadius) return;
+
+        int reached = index;
+        index++;
+        DoorReached?.Invoke(reached);
+
+        // The gate. The listener decides what the arrival means; the cycle stops here and leaves the
+        // path lit and the fog as it is — the Nemesis is still coming.
+        if (index >= route.Length)
+        {
+            IsRunning = false;
+            phase = Phase.Idle;
+            RouteCompleted?.Invoke();
+        }
+    }
+
+    private void SetPower(float value)
+    {
+        power = Mathf.Clamp01(value);
+        if (whiteLights != null) whiteLights.Power = power;
+    }
+
+    private void LightPath()
+    {
+        for (int i = 0; i < route.Length; i++)
+        {
+            if (route[i] != null) route[i].Apply(config, 1f);
+        }
     }
 
     private void TurnAllOff()
@@ -213,6 +225,17 @@ public class EscapeFogCycle : MonoBehaviour
     }
 
     // ── Fog presets ─────────────────────────────────────────────────────────
+
+    /// <summary>Takes both presets off the stack and destroys the runtime copies.</summary>
+    private void ReleaseFog()
+    {
+        SetFogOpen(false);
+
+        if (fog != null && closedPushed) fog.PopConfig(closedRuntime);
+        closedPushed = false;
+
+        DestroyRuntimeFog();
+    }
 
     private void CreateRuntimeFog()
     {

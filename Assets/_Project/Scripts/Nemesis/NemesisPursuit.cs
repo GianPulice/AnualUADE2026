@@ -65,6 +65,16 @@ public sealed class NemesisPursuit
     /// </summary>
     public const float TrailMemoryTime = 8f;
 
+    /// <summary>Flat metres to the target under which the chase stops leading it. See Predict.
+    /// Not on the SO for the same reason as TrailMemoryTime: it is a property of the steering (a
+    /// lead longer than the gap is always wrong), not a difficulty knob.</summary>
+    private const float CloseRangeNoLead = 3f;
+
+    /// <summary>How old a sighting may be and still be "where it lost them". The same 10 s the
+    /// ladder gives the walk back there (SO_NemesisPriorities, "va a donde lo vio por última vez").
+    /// </summary>
+    public const float RecentSightingSeconds = 10f;
+
     /// <summary>How many detour candidates the last replan marked down for sitting on the sensed
     /// trail. For the debug HUD: a stalled chase with nothing penalised is a stall the counterplay
     /// had nothing to work with — the lap passes no waypoints, so there is no "way they came" to
@@ -120,12 +130,53 @@ public sealed class NemesisPursuit
 
         if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
 
+        // LOST SIGHT: GO BACK TO WHERE IT LAST SAW THEM, NOTHING CLEVERER. Leading the target and
+        // routing through a flank only pay while it still sees them; with the sighting gone, the
+        // lead point is a guess that runs past the corner the player turned — or straight to the
+        // locker they were running for. Walking to the last known spot is what a player can read
+        // and play against, and it is what the search then starts from. Only when that spot can be
+        // reached: a partial path is the wall-hugging failure above, and the ladder's
+        // IsBeliefUnreachable rung owns that case.
+        //
+        // The SEEN spot, not the freshest belief: the belief follows whichever sense fired last,
+        // and a player who breaks line of sight and keeps running is heard all the way to the
+        // locker they dive into. Chasing that is not going back to where it lost them — it is
+        // being led to the hiding spot by the footsteps.
+        if (!stateManager.HasVisualTarget && TryGetRecentSighting(out Vector3 lastSeen) &&
+            stateManager.TryGetThrottledRoute(lastSeen, out NemesisNav.NavRoute toLastSeen) &&
+            toLastSeen.IsComplete)
+        {
+            predictedPoint = lastSeen;
+            hasPredictedPoint = true;
+            hasRoutePoint = false;
+            destination = lastSeen;
+            return true;
+        }
+
         predictedPoint = Predict(belief);
         hasPredictedPoint = true;
 
         TickRoute(belief);
 
         destination = hasRoutePoint ? routePoint : predictedPoint;
+        return true;
+    }
+
+    /// <summary>
+    /// Where the eyes last had the player, if that was recent enough to still be this chase. An
+    /// old sighting from another encounter is not where it lost them, so past
+    /// <see cref="RecentSightingSeconds"/> it does not count.
+    /// </summary>
+    public bool TryGetRecentSighting(out Vector3 position)
+    {
+        FieldOfView eyes = stateManager.FieldOfView;
+        position = Vector3.zero;
+
+        if (eyes == null || !eyes.HasLastKnownPosition ||
+            eyes.TimeSinceLastSighting >= RecentSightingSeconds)
+            return false;
+
+        position = eyes.LastKnownPosition;
         return true;
     }
 
@@ -155,6 +206,13 @@ public sealed class NemesisPursuit
     {
         SO_NemesisData data = Data;
         FieldOfView view = stateManager.FieldOfView;
+
+        // Up close there is nothing to cut off: the lead is longer than the gap, so every sidestep
+        // swings the target past the player — behind a table, to the far side of it. Close in, it
+        // goes at them and lets the path find the way round.
+        Vector3 toBelief = belief - stateManager.transform.position;
+        toBelief.y = 0f;
+        if (toBelief.sqrMagnitude < CloseRangeNoLead * CloseRangeNoLead) return belief;
 
         return PredictAhead(stateManager.transform.position, belief,
                             view != null ? view.LastKnownVelocity : Vector3.zero,
@@ -189,9 +247,33 @@ public sealed class NemesisPursuit
         // it would turn the Nemesis around and send it away from the person it is chasing.
         if (Vector3.Dot(toLead.normalized, toBelief.normalized) < 0f) return belief;
 
-        return NavMesh.SamplePosition(leadPoint, out NavMeshHit hit, 2f, NavMesh.AllAreas)
-            ? hit.position
-            : belief;
+        return KeepOnTargetSide(belief, leadPoint);
+    }
+
+    /// <summary>
+    /// The lead point, walked from the target along the NavMesh and stopped at the first edge.
+    ///
+    /// A plain SamplePosition of the lead point is what left the Nemesis mirroring a player across
+    /// a table. Strafing behind it puts the lead point inside the table's hole in the NavMesh, and
+    /// the nearest surface to a point inside a hole is just as likely the Nemesis's own side. It
+    /// ran to that side, "arrived", and stood there, never going round. NavMesh.Raycast walks the
+    /// surface from where the player IS, so the answer can never be across a gap from them: past
+    /// an edge it stops at the edge, on their side.
+    /// </summary>
+    private static Vector3 KeepOnTargetSide(Vector3 belief, Vector3 leadPoint)
+    {
+        const float SnapRadius = 1f;
+        int mask = NemesisNav.AreaMask;
+
+        if (!NavMesh.SamplePosition(belief, out NavMeshHit from, SnapRadius, mask)) return belief;
+
+        if (NavMesh.Raycast(from.position, leadPoint, out NavMeshHit edge, mask)) return edge.position;
+
+        // Clear run along the surface: the lead point is on the player's side, only lifted back
+        // onto the floor.
+        return NavMesh.SamplePosition(leadPoint, out NavMeshHit onFloor, SnapRadius, mask)
+            ? onFloor.position
+            : from.position;
     }
 
     // -- Route choice --------------------------------------------------------

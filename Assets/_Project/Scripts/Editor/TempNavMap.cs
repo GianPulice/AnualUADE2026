@@ -148,7 +148,7 @@ public static class TempNavMap
             Debug.Log($"TEMP-STAGE {fi.Name}: pos={t.position} fwd={t.forward} yaw={t.eulerAngles.y:0.0} obj={t.name}");
         }
 
-        foreach (var door in Object.FindObjectsByType<DoorInteractable>(FindObjectsSortMode.None))
+        foreach (var door in Object.FindObjectsByType<DoorInteractable>())
         {
             Bounds b = new Bounds(door.transform.position, Vector3.zero);
             foreach (var col in door.GetComponentsInChildren<Collider>()) b.Encapsulate(col.bounds);
@@ -214,7 +214,7 @@ public static class TempNavMap
     [MenuItem("Tools/Temp/Escape Corridor Lights")]
     public static void CorridorLights()
     {
-        var lights = Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var lights = Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
         int n = 0;
         System.Array.Sort(lights, (a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
         foreach (Light l in lights)
@@ -319,7 +319,7 @@ public static class TempNavMap
 
         var made = new System.Collections.Generic.List<Light>();
         var props = new System.Collections.Generic.List<Transform>();
-        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
         {
             if (!t.name.StartsWith("CeilingLamp")) continue;
             Vector3 p = t.position;
@@ -374,7 +374,7 @@ public static class TempNavMap
     public static void StripCorridorLamps()
     {
         int n = 0;
-        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
         {
             if (t.name != "EscapeLamp") continue;
             GameObject go = t.gameObject;

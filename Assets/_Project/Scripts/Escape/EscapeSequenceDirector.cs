@@ -22,8 +22,8 @@ using UnityEngine.Timeline;
 ///              <see cref="EscapeBeatMarker"/>s — retime or swap them in the Timeline. F skips it.
 ///   Handoff    on the frame the timeline ends: the player gets control, the Nemesis starts its
 ///              permanent trot (<see cref="NemesisEscapePursuit"/>) and the fog cycle starts (Paso 6).
-///   Escape     gameplay (Pasos 4-7): the fog cycle walks the player door to door, with the Nemesis
-///              chasing the whole way.
+///   Escape     gameplay (Pasos 4-7): the white lights and the fog cycle together while the amber
+///              lights mark the path door to door, with the Nemesis chasing the whole way.
 ///   Gate       the last door of the route only raises <see cref="GateReached"/> / onGateReached. There
 ///              is no ending here: the Nemesis keeps chasing, and the level's own WinTrigger ends
 ///              the run when the player crosses the gate.
@@ -110,8 +110,8 @@ public class EscapeSequenceDirector : MonoBehaviour
     [SerializeField] private Stage stage = new Stage();
     [SerializeField] private EscapeFogCycle fogCycle;
 
-    [Tooltip("Las lámparas del techo del pasillo, titilando. Es ambiente: la guía de a dónde ir " +
-             "sigue siendo el fog cycle.")]
+    [Tooltip("Las luces blancas del pasillo, titilando. Durante el escape el fog cycle les da la " +
+             "potencia: prendidas = niebla abierta, apagadas = sólo se ven las luces ámbar.")]
     [SerializeField] private EscapeCorridorFlicker corridorFlicker;
     [SerializeField] private EscapeAudio escapeAudio;
     [SerializeField] private EscapeCorridorLock corridorLock;
@@ -148,6 +148,9 @@ public class EscapeSequenceDirector : MonoBehaviour
 
     private CinemachineBrain brain;
     private CinemachineBlendDefinition previousBlend;
+
+    private VisionRangeController fogCentre;
+    private Transform fogCentreCamera;
     private bool brainOverridden;
 
     public bool IsPlaying => phase == Phase.Opening;
@@ -180,6 +183,7 @@ public class EscapeSequenceDirector : MonoBehaviour
 
         // No coroutines here: the object is going away. Whatever the cinematic held is given back now.
         CinematicState.End();
+        ReleaseFogCentre();
         if (lockedPlayer != null) lockedPlayer.IsDisabled = false;
         if (brainOverridden && brain != null) brain.DefaultBlend = previousBlend;
     }
@@ -377,7 +381,7 @@ public class EscapeSequenceDirector : MonoBehaviour
 
         fogCycle.RouteCompleted -= HandleRouteCompleted;
         fogCycle.RouteCompleted += HandleRouteCompleted;
-        fogCycle.Begin(config);
+        fogCycle.Begin(config, corridorFlicker);
     }
 
     /// <summary>
@@ -475,7 +479,7 @@ public class EscapeSequenceDirector : MonoBehaviour
         if (phase != Phase.Escape || fogCycle == null) return;
 
         if (fogCycle.IsRunning) fogCycle.Restart();
-        else fogCycle.Begin(config);
+        else BeginFogCycle();
     }
 
     // ── Timeline plumbing ───────────────────────────────────────────────────
@@ -690,6 +694,12 @@ public class EscapeSequenceDirector : MonoBehaviour
 
         CinematicState.Begin(config.Skippable, config.SkipPromptText);
 
+        // The fog is measured from the shot, not from the player standing somewhere off camera, so
+        // the cinematic carries the same fog as the gameplay it cuts to (WIR-040).
+        fogCentre = FindAnyObjectByType<VisionRangeController>();
+        fogCentreCamera = Camera.main != null ? Camera.main.transform : null;
+        if (fogCentre != null && fogCentreCamera != null) fogCentre.SetCentreOverride(fogCentreCamera);
+
         // Every cut in the script is a cut, including the ones into and out of the timeline.
         brain = CinemachineBrain.ActiveBrainCount > 0 ? CinemachineBrain.GetActiveBrain(0) : null;
         if (brain != null && !brainOverridden)
@@ -703,6 +713,7 @@ public class EscapeSequenceDirector : MonoBehaviour
     private void EndCinematic()
     {
         CinematicState.End();
+        ReleaseFogCentre();
 
         if (lockedPlayer != null) lockedPlayer.IsDisabled = false;
         lockedPlayer = null;
@@ -710,6 +721,13 @@ public class EscapeSequenceDirector : MonoBehaviour
         // Put back two frames later, when the brain has already made the cut back to gameplay.
         if (brainOverridden && brain != null) StartCoroutine(RestoreBlendLater(brain, previousBlend));
         brainOverridden = false;
+    }
+
+    private void ReleaseFogCentre()
+    {
+        if (fogCentre != null) fogCentre.ClearCentreOverride(fogCentreCamera);
+        fogCentre = null;
+        fogCentreCamera = null;
     }
 
     private static IEnumerator RestoreBlendLater(CinemachineBrain target, CinemachineBlendDefinition blend)

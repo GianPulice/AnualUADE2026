@@ -1413,7 +1413,7 @@ MonoBehaviour:
   occluderMask:
     serializedVersion: 2
     m_Bits: 2048
-  occludedVolume: 0.35
+  occludedVolume: 0.5
   probeMask:
     serializedVersion: 2
     m_Bits: 4121
@@ -1458,7 +1458,7 @@ MonoBehaviour:
   maxDistance: 25
   occlusionEnabled: 1
   fieldOfListening: {fileID: 6366883338896328337}
-  occludedVolumeMultiplier: 0.35
+  occludedVolumeMultiplier: 0.5
   occlusionEaseSpeed: 3
 --- !u!114 &9034987497469841307
 MonoBehaviour:

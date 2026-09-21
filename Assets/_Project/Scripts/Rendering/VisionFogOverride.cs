@@ -6,12 +6,12 @@ using UnityEngine;
 /// cinematic it is an Activation Track, so the shot that needs the fog gone owns exactly the frames
 /// it covers.
 ///
-/// Why it exists: the vision fog is centred on the PLAYER, not on the camera
-/// (<see cref="VisionRangeController"/> feeds the player's position to the shader). A cinematic shot
-/// whose camera is far from the player renders fully fogged — the escape's shot 2A sits ~13 m from
-/// the player and frames the Nemesis ~21 m away, where the Dark preset leaves 0.44 % of the light.
-/// Push a preset with visionStart == visionEnd and the shader skips the fog; the Nemesis's eyes are
-/// composed on their own and survive it.
+/// Why it exists: a shot often needs a different fog than the gameplay around it. The escape's shot
+/// 2A frames the Nemesis ~21 m from the camera, where the Dark preset leaves 0.44 % of the light, so
+/// it pushes a wider band for its frames. (It used to push visionStart == visionEnd, which makes the
+/// shader skip the fog entirely: the fog was centred on the player, ~13 m off camera. The escape now
+/// centres it on the camera for the cinematic — VisionRangeController.SetCentreOverride — so the
+/// shot keeps a fog of its own, WIR-040.)
 ///
 /// Because the pop lives in OnDisable, every way out is covered without bookkeeping: the track
 /// ending, a skip jumping past it, the director stopping, the scene unloading.

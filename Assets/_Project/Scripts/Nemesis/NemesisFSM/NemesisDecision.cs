@@ -163,6 +163,62 @@ public sealed class NemesisDecision
         }
     }
 
+    /// <summary>
+    /// Whether the route to the belief stops short of it — a PARTIAL path (WIR-018). Through the
+    /// same throttled oracle as <see cref="RouteToBeliefCrossesFloors"/> and for the same reason:
+    /// both questions are about one path, and they must read one answer for it.
+    ///
+    /// A query that cannot run at all (the belief is nowhere near the NavMesh) is NOT reported as
+    /// unreachable: that is a player on top of something, and the chase towards the spot below
+    /// them is still worth running.
+    /// </summary>
+    public bool IsBeliefUnreachable
+    {
+        get
+        {
+            if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
+
+            return stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route) &&
+                   !route.IsComplete;
+        }
+    }
+
+    /// <summary>Investigating is standing where it heard the noise, looking around, and its dwell
+    /// has not run out. A reading of the state's own phase, the same shape as the plan's
+    /// IsCheckingSpot: the state executes, the ladder decides how long that is allowed to last.
+    /// </summary>
+    public bool IsInspectingNoise
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Investigating) return false;
+            NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+            return investigating != null && investigating.IsInspecting;
+        }
+    }
+
+    /// <summary>Whether it is sure which hiding spot the player is in. See
+    /// <see cref="NemesisStateManager.KnownHidingSpot"/>.</summary>
+    public bool KnowsHidingSpot => stateManager.KnownHidingSpot != null;
+
+    /// <summary>Searching is standing at a hiding spot's approach point, checking it. A reading of
+    /// the state's own phase, the same shape as <see cref="IsInspectingNoise"/>: the state executes,
+    /// the ladder decides how long that is allowed to last.</summary>
+    public bool IsCheckingSpot
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return false;
+            NemesisSearchingState searching = stateManager.SearchingState;
+            return searching != null && searching.IsCheckingSpot;
+        }
+    }
+
+    /// <summary>Whether it only suspects a hiding spot, with no certainty to act on instead. See
+    /// <see cref="NemesisStateManager.SuspectedHidingSpot"/>, which already goes null once
+    /// <see cref="KnowsHidingSpot"/> would be true.</summary>
+    public bool SuspectsHidingSpot => stateManager.SuspectedHidingSpot != null;
+
     // ── Why it decided what it decided ──────────────────────────────────────
 
     /// <summary>
@@ -192,6 +248,10 @@ public sealed class NemesisDecision
     /// player until the run ends. It sits ON TOP of the ladder rather than inside it: the ladder
     /// still decides Catch and Traversing, so a floor of "keep chasing" cannot stop the Nemesis
     /// from grabbing the player or taking the freight lift — which a pinned state would.
+    ///
+    /// A player hiding during the escape is covered too, though it lifts "sabe en qué escondite
+    /// está" out of Searching: Chasing runs at the belief inside the spot, the pursuit ends at the
+    /// spot's door, and the grab of a hidden player is measured at the door (CanReachPlayerNow).
     /// </summary>
     public bool ChaseFloor { get; set; }
 
@@ -464,6 +524,11 @@ public sealed class NemesisDecision
             ENemesisPredicate.BeliefAgeUnder => BeliefAge < Resolve(condition),
             ENemesisPredicate.TimeInStateUnder => stateManager.TimeInCurrentState < Resolve(condition),
             ENemesisPredicate.IsChaseStagnant => IsChaseStagnant,
+            ENemesisPredicate.IsBeliefUnreachable => IsBeliefUnreachable,
+            ENemesisPredicate.IsInspectingNoise => IsInspectingNoise,
+            ENemesisPredicate.KnowsHidingSpot => KnowsHidingSpot,
+            ENemesisPredicate.IsCheckingSpot => IsCheckingSpot,
+            ENemesisPredicate.SuspectsHidingSpot => SuspectsHidingSpot,
             _ => false,
         };
 

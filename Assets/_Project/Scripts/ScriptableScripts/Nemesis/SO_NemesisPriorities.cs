@@ -66,6 +66,9 @@ public class SO_NemesisPriorities : ScriptableObject
     /// </summary>
     private void Reset() => rungs = BuildDefaultLadder();
 
+    /// <summary>Safety cap on walking back to where the player was lost. See that rung.</summary>
+    private const float LostSightMaxSeconds = 10f;
+
     /// <summary>
     /// The ladder as shipped, in code, so it is also what runs when no asset is assigned.
     ///
@@ -176,19 +179,64 @@ public class SO_NemesisPriorities : ScriptableObject
 
             // Plainly visible. An interrupt for the same reason as the capture: seeing the player
             // is the one piece of information that should never be held behind a dwell window.
+            // Not when it cannot get there (WIR-018): a chase towards a partial path stops at the
+            // end of it, and this rung would hold the monster there staring for as long as the
+            // player stays in view. Same condition on the grace rung below.
             Rung(NemesisStateManager.ENemesisState.Chasing,
                  "lo está viendo",
                  interrupts: true,
-                 NemesisCondition.Is(ENemesisPredicate.SeesPlayer)),
+                 NemesisCondition.Is(ENemesisPredicate.SeesPlayer),
+                 NemesisCondition.Not(ENemesisPredicate.IsBeliefUnreachable)),
 
-            // Just lost sight. Measured from the last SENSE rather than from entering the state,
-            // so hearing them mid-chase renews the pursuit exactly the way seeing them would —
-            // which is what the old per-state counter did by resetting itself.
+            // KNOWING THE SPOT MUST OUTRANK THE CHASE GRACE, OR THE NEMESIS STANDS AT THE DOORWAY
+            // INSTEAD OF WALKING TO THE LOCKER.
+            //
+            // Between the two sight rungs on purpose: seeing the player outranks everything, full
+            // stop, so "lo esta viendo" stays first. But once the Nemesis is SURE which spot the
+            // player ducked into, "va a donde lo vio por ultima vez" is answering a question that is
+            // already settled — without this rung above it, the grace period keeps the Nemesis
+            // running at the last place it saw them for the whole window instead of walking
+            // straight to the locker it already knows about.
+            //
+            // Only routes to Searching, which walks the Nemesis to the spot's approach point. The
+            // capture itself still comes from "lo tiene al alcance de la mano" — proximity — once
+            // it is standing at the door; this rung's job ends at getting it there.
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "sabe en qué escondite está",
+                 interrupts: false,
+                 NemesisCondition.Is(ENemesisPredicate.KnowsHidingSpot)),
+
+            // Just lost sight: keep going until it stands where it last sensed them (NemesisPursuit
+            // runs straight at that spot once the sighting is gone), and only then hand over to the
+            // search. A fixed grace window used to end the chase wherever the Nemesis happened to
+            // be, so it never went back to where it lost them. The age cap is a safety net for a
+            // spot it cannot quite reach, not a mechanic. Measured from the last SENSE, so hearing
+            // them on the way renews it the way seeing them would.
             Rung(NemesisStateManager.ENemesisState.Chasing,
-                 "lo perdió de vista recién",
+                 "va a donde lo vio por última vez",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.VisionLossGracePeriod)),
+                 NemesisCondition.Not(ENemesisPredicate.HasArrived),
+                 new NemesisCondition
+                 {
+                     predicate = ENemesisPredicate.BeliefAgeUnder,
+                     threshold = ENemesisThreshold.Custom,
+                     customSeconds = LostSightMaxSeconds,
+                 },
+                 NemesisCondition.Not(ENemesisPredicate.IsBeliefUnreachable)),
+
+            // STANDING AT THE LOCKER DOOR, HAND ON IT — THE SEARCH BUDGET BELOW MUST NOT BE ABLE TO
+            // PULL THE NEMESIS AWAY MID-CHECK.
+            //
+            // Same shape as "revisa donde escucho el ruido" further down for Investigating: the
+            // state itself does the checking (NemesisSearchingState.IsCheckingSpot), this rung only
+            // stops "le queda presupuesto de busqueda" below from timing the search out from under a
+            // check that is already standing at the spot.
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "está revisando un escondite",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
+                 NemesisCondition.Is(ENemesisPredicate.IsCheckingSpot)),
 
             // Once in, the search runs on its own clock: it is a fixed budget of time to spend on
             // a belief, not something to re-justify every frame — and ABOVE "hears a noise" is
@@ -209,6 +257,21 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
                  NemesisCondition.TimeInStateUnder(ENemesisThreshold.SearchTimeOut)),
+
+            // A SUSPECTED SPOT IS SOMEWHERE CONCRETE TO WALK TO AND LOOK AT — EXACTLY WHAT
+            // INVESTIGATING IS FOR.
+            //
+            // The peripheral suspicion meter decays in well under a second (see IsSuspicious), so
+            // without this rung the Nemesis drops the suspicion — and with it any reason to walk
+            // over — before it ever reaches the locker.
+            //
+            // Below the search budget on purpose, same reasoning as "esta revisando un escondite"
+            // above: a search already in progress checks suspected spots itself, and this rung only
+            // needs to fire when nothing is already handling it.
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "sospecha de un escondite",
+                 interrupts: false,
+                 NemesisCondition.Is(ENemesisPredicate.SuspectsHidingSpot)),
 
             // A noise to walk towards — reached only when the rung above did not already claim an
             // ongoing search. Starting fresh from Patrolling or Traversing still works exactly the
@@ -249,6 +312,15 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Not(ENemesisPredicate.HasArrived),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.InvestigationTimeOut)),
+
+            // Arrived at the noise: look around there for InvestigationDwellTime before letting go
+            // (DIS-002). Without this, arriving was finishing — a noise inside the stopping distance
+            // was investigated for about a second and the monster went straight back to patrol.
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "revisa donde escuchó el ruido",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
+                 NemesisCondition.Is(ENemesisPredicate.IsInspectingNoise)),
 
             // Coming off a pursuit still believing something: sweep rather than file it away.
             // Two rungs and not one because a rung is an AND — splitting the old
@@ -452,6 +524,50 @@ public enum ENemesisPredicate
     /// give up the chase on purpose belongs to the ambush counterplay, which is not built.
     /// </summary>
     IsChaseStagnant,
+
+    /// <summary>
+    /// The route to where the Nemesis believes the player is does not arrive: the path is PARTIAL
+    /// and stops at the closest point it can reach. On a player seen from another floor with no
+    /// stair or lift connecting them, or behind a door the monster cannot open. Read through the
+    /// same throttled oracle as <see cref="RouteToBeliefCrossesFloors"/>, so the two never
+    /// disagree about one path.
+    ///
+    /// WIR-018: without this, "lo está viendo" held Chasing for as long as the player stayed in
+    /// view, and a chase towards a partial path ends standing still at the end of it — the
+    /// monster planted under the player, staring up, forever. The chasing rungs ask NOT this, so
+    /// an unreachable sighting falls through to Searching and, from there, back to patrol.
+    /// </summary>
+    IsBeliefUnreachable,
+
+    /// <summary>
+    /// Investigating has reached the spot the noise came from and is standing there looking around,
+    /// for SO_NemesisData.InvestigationDwellTime (DIS-002). Held by the rung "revisa donde escuchó
+    /// el ruido": without it, arriving was finishing, and a noise closer than the stopping distance
+    /// was investigated for about a second.
+    /// </summary>
+    IsInspectingNoise,
+
+    /// <summary>
+    /// It is sure which hiding spot the player is in: saw them get in, or made them out through the
+    /// slats (plan §3.4, levels A/B). Read through <see cref="NemesisStateManager.KnownHidingSpot"/>,
+    /// which is null otherwise.
+    /// </summary>
+    KnowsHidingSpot,
+
+    /// <summary>
+    /// Searching is standing at a hiding spot's approach point, checking it (plan §3.5). Same shape
+    /// as <see cref="IsInspectingNoise"/>: the state does the checking, this predicate only tells the
+    /// ladder how long that is allowed to hold the rung above the search budget.
+    /// </summary>
+    IsCheckingSpot,
+
+    /// <summary>
+    /// Only a suspicion about a hiding spot — caught out of the corner of its eye (plan §3.4, level A
+    /// grey zone) — with no certainty to act on instead.
+    /// <see cref="NemesisStateManager.SuspectedHidingSpot"/> already goes null the moment
+    /// <see cref="KnowsHidingSpot"/> would be true, so the two never hold together.
+    /// </summary>
+    SuspectsHidingSpot,
 }
 
 /// <summary>

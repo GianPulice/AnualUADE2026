@@ -518,8 +518,8 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisEyes |
 | `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
-| `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje global | InteractionPromptView |
-| `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, ModuleHUDView |
+| `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje de interacción | InteractionNotificationFeed |
+| `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, InteractionNotificationFeed (sólo Added), ModuleHUDView |
 | `ModuleEvents.OnTimerTick/OnStateChanged/OnExploded` | `ModuleManager` (los viejos `InventoryEvents.OnModule*` ya no existen) | ModuleHUDView, ActiveModuleDisplay, ModuleTimerHUDView, ModuleTimerBeeper |
 | `ModuleEvents.OnTimeAdjusted` | `ModuleManager.ApplyTimePenalty` / `ApplyTimeBonus`, con el delta aplicado | ModuleTimerHUDView (popup "-5s"/"+3s"), ActiveModuleDisplay |
 | `UIStateManager.OnModalPushed/Popped` | se abre/cierra un modal | ModalVisibilityGate, InteractionPromptView |
@@ -545,28 +545,72 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
   (380×210, sin barra de título). **No volver a correr el builder**: rearmaría la barra de título y
   el layout original encima de los retoques. El prefab es la fuente de verdad.
 
+### Skill check (Puzzle Central 2)
+
+`SkillCheckCanvas.prefab` en `LevelUI`, manejado por el objeto `SkillCheckController`. Estilo Dead by
+Daylight: en cada intento aparece la zona en un lugar sorteado (`zoneSectors` con peso) y la aguja da
+**una** vuelta desde las 12. [E] en la zona pasa; en su franja inicial "perfect" además devuelve
+tiempo al módulo; fuera de la zona, o sin apretar, resta tiempo y repite el mismo check con la zona
+en otro lado. Todo el tuning está en `SO_SkillCheckData` (`ScriptableObjects/Puzzle2/`).
+
+- **MVC**: `SkillCheckModel` es estado puro (paso, zona, juicio de un ángulo), `SkillCheckView` sólo
+  dibuja y `SkillCheckController` corre la secuencia con UniTask.
+- **Modal que no pausa** (`PausesGame = false`, `ConsumesEscape = false`): el mundo sigue y ESC abre
+  la pausa encima. La aguja y las esperas corren en tiempo escalado y **sólo mientras es el modal de
+  arriba**, así que la pausa o la cinemática de explosión la congelan en vez de gastar una vuelta.
+- **Look**: ventana Win95 como el panel de secuencia (perfil `UIStyle_SkillCheckCanvas`: CRT,
+  transición de señal sólo en la ventana, superficie animada). El dial usa `UIRingArc` con los fades
+  de alfa (`startAlpha/endAlpha/outerAlpha/innerAlpha`): estela de radar detrás de la aguja, zona que
+  se apaga desde el perfect y un brillo de fósforo en el centro.
+- **API**: `Open(data, completed => …)` devuelve `false` si ya estaba abierto; el callback llega
+  cuando el overlay se cerró (`true` = completó, `false` = cancelado por `Cancel()`, fin de la run o
+  sesión nueva). **Prueba: F6** (`SkillCheckTestKey`, sólo editor/dev).
+- **Disparador en el mundo**: `SkillCheckPanelInteractable` con un `SO_SkillCheckPuzzleData` (puzzle id +
+  secuencia). Al completar llama `PuzzleStateManager.SetPuzzleCompleted`, y el módulo cuyo
+  `associatedPuzzleId` coincide (`M2_Chest` → `puzzle_central_piso2`) se resuelve. Cancelar no completa
+  nada; el panel se puede volver a usar desde el primer check.
+
 ### Interaction Prompt — ventana Win95 y tipos de mensaje
 
 El prompt es una ventana chica al estilo Win95 (`Window` con `UIBevelFrame` Raised, barra de título, fondo
 animado) con una línea de comando de fósforo adentro: `> TEXTO_`, en mayúsculas, tipeada con
 `TMPTypewriterReveal` y con un cursor `_` que parpadea en rojo (`#CC1A1A`, el acento del tema).
 
-Muestra **tres tipos** en el mismo slot, cada uno ligeramente distinto:
+Muestra **dos tipos** en el mismo slot, cada uno ligeramente distinto:
 
 | Tipo | Título | Slot izquierdo | Entrada |
 |---|---|---|---|
 | Común (puertas, válvulas, paneles, notas) | `C:WIREDINTERACT.EXE` | keycap `E` | desde abajo |
 | Ítem (recoger / insertar) | `C:WIREDITEM.DAT` | keycap `E` + pozo Sunken con el ícono del ítem | desde abajo |
-| Global (mensajes del sistema) | `C:WIREDSYSTEM.MSG` | pozo con glifo `!`, sin tecla | desde la izquierda, se va sola |
 
 - El tipo lo declara el interactable con la interfaz **opcional** `IPromptPresentation` (`Kind` + `PromptIcon`).
   Hoy la implementan `PickupInteractable` y `SocketInteractable`; lo que no la implemente es Común.
-- Los mensajes globales se publican con `InteractionEvents.RaiseGlobalMessage(texto, segundos)`. El aviso de
-  auto-pickup ("X added to inventory") es su primer uso. Si hay un modal abierto, el mensaje queda diferido
-  hasta que se cierre.
+- El prompt sólo describe lo que estás mirando. Lo que el juego dice sobre una interacción (una llave
+  usada, un ítem que entró al inventario) va al feed de notificaciones de abajo: compartiendo este slot,
+  el prompt de lo siguiente que mirabas lo pisaba al instante.
 - El estado "info" (`GetInfoText`) conserva el tipo pero va en gris y sin tecla.
 - **La barra de título NO está en el perfil de estilo**: la pinta la view según el tipo, y un `UIThemeApplier`
   la repintaría en `OnEnable`. El resto del prompt lo estila `UIStyle_InteractionCanvas.asset`.
+
+### Notificaciones de interacción
+
+`HUDCanvas.prefab` → `InteractionFeed` (`InteractionNotificationFeed`): filas cortas apiladas arriba a la
+derecha (anclado en -24, -24). Entra una fila por:
+
+- `InventoryEvents.OnItemAdded` → `+ HUB KEY`, tanto si se levantó del mundo como si la dio un puzzle.
+- `InteractionEvents.RaiseGlobalMessage(texto, segundos)` → cualquier mensaje de interacción:
+  `USED THE HUB KEY` (la puerta al consumir la llave), `X left behind: hands full` (recompensa que no entra).
+
+Reglas:
+
+- **Máximo 3 a la vez**: la cuarta saca a la más vieja; las de abajo suben a ocupar el hueco.
+- Cada una se va sola a los segundos (los del mensaje; 3 s las de ítem). El tiempo corre en **tiempo
+  escalado y sólo sin modales abiertos**: lo que llega con el panel de secuencia o el inventario abierto
+  espera ahí y hace su entrada al cerrarse. Las animaciones van en unscaled.
+- `ModalVisibilityGate` en el root la oculta bajo cualquier modal.
+- Las filas se clonan de `RowTemplate` (inactivo): la consola del input hint con barra de acento a la
+  izquierda. Para cambiar el look se edita el template en el prefab, no el código.
+- Las alertas del Arquitecto (`HUDAlertView`, arriba al centro, de a una) NO pasan por acá.
 
 ---
 

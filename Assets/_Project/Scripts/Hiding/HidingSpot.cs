@@ -339,15 +339,16 @@ public class HidingSpot : BaseRangeInteractable
     /// Hands the body back with no animation and no waiting. Every way out that is not the player
     /// pressing E lands here: a capture, a respawn, a cinematic, the scene unloading.
     /// </summary>
-    private void ReleaseImmediate()
+    private void ReleaseImmediate(Transform landing = null)
     {
         // A climb cut short: cancelling runs its finally right here (cancelImmediately), which is
         // what unlocks the input of a player caught half way into a locker.
         if (climbCts != null && !climbCts.IsCancellationRequested) climbCts.Cancel();
 
-        // No landing transform: a capture leaves the player where the Nemesis grabbed them, and a
-        // respawn has already moved them. Teleporting here would fight both.
-        ReleaseInternal(ResolvePlayer(), null);
+        // No landing by default: a respawn has already moved the player, a cinematic owns them, and
+        // a climb cut short never put them inside. The one exception is a capture from INSIDE —
+        // see HandlePlayerCaptured.
+        ReleaseInternal(ResolvePlayer(), landing);
     }
 
     private void OnDestroy()
@@ -381,9 +382,20 @@ public class HidingSpot : BaseRangeInteractable
 
     private void HandlePlayerCaptured(PlayerStateManager captured)
     {
+        // Caught INSIDE — the Nemesis pulled them out (NemesisCatchState's pull-out phase): they are
+        // put back down outside the prop, at the exit pose. Left where the grab found them, the body
+        // goes dynamic again inside the prop's own solid collider and PhysX shoots it out, possibly
+        // through the wall behind. Before phase 2 nothing could capture a hidden player, so nothing
+        // ever hit this.
+        if (IsOccupied)
+        {
+            ReleaseImmediate(exitPose != null ? exitPose : ApproachPoint);
+            return;
+        }
+
         // Mid-climb counts too: grabbed half way into the locker, the entry must not complete and
         // hide a player who is already in the monster's hands.
-        if (IsOccupied || IsTransitioning) ReleaseImmediate();
+        if (IsTransitioning) ReleaseImmediate();
     }
 
     private void HandleRespawned(Checkpoint checkpoint)
@@ -517,6 +529,32 @@ public class HidingSpot : BaseRangeInteractable
         if (c == null || ownColliders == null) return false;
         for (int i = 0; i < ownColliders.Length; i++)
             if (ReferenceEquals(ownColliders[i], c)) return true;
+        return false;
+    }
+
+    // One buffer for every spot: line tests run one at a time on the main thread, and one ray
+    // through one prop plus whatever stands behind it returns a handful of hits, not thirty-two.
+    private static readonly RaycastHit[] lineHits = new RaycastHit[32];
+
+    /// <summary>
+    /// Whether anything on <paramref name="mask"/> OTHER than this spot's own colliders stands
+    /// between the two points. The Nemesis's side of the total-immunity fix (plan §3.3): its
+    /// proximity test, its grab and what it can still make out through the slats ask this instead
+    /// of a plain raycast while the player is inside, so the shell stops being a wall between the
+    /// monster and the person in it — and stays one for everyone else, and for every other
+    /// question. Triggers never block, same as every other line test in the project.
+    /// </summary>
+    public bool IsLineBlockedIgnoringSelf(Vector3 from, Vector3 to, LayerMask mask)
+    {
+        Vector3 toPoint = to - from;
+        float distance = toPoint.magnitude;
+        if (distance <= 0.0001f) return false;
+
+        int count = Physics.RaycastNonAlloc(from, toPoint / distance, lineHits, distance, mask,
+                                            QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+            if (!OwnsCollider(lineHits[i].collider)) return true;
+
         return false;
     }
 

@@ -2,8 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Every number of the escape sequence that is meant to be tuned in playtest, in one asset: the
-/// skip key, the fog / guide-light cycle (Paso 4), the Nemesis's trot (Paso 6) and the audio
-/// layers (Paso 7). What is NOT here is the cinematic's timing — shots and beats are clips and
+/// skip key, the white-light / fog cycle (Paso 4), the amber path lights (Paso 5), the Nemesis's
+/// trot (Paso 6) and the audio layers (Paso 7). What is NOT here is the cinematic's timing — shots and beats are clips and
 /// markers in the Timeline (open the EscapeSequence object, Window ▸ Sequencing ▸ Timeline).
 ///
 /// Read live: the fog cycle and the pursuit re-read this asset every frame, so dragging a slider
@@ -34,67 +34,59 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [SerializeField] private string skipPromptFormat = "[Press {0} to skip]";
 
     // ── Fog cycle (Paso 4) ──────────────────────────────────────────────────
-    [Header("Ciclo de fog por puerta (Paso 4) — A DEFINIR EN TESTEO")]
-    [Tooltip("Segundos que tarda la luz de la puerta en abrir la niebla, de la puerta hacia el " +
-             "jugador.")]
+    [Header("Ciclo de luces blancas y fog (Paso 4) — A DEFINIR EN TESTEO")]
+    [Tooltip("Segundos que tardan las luces blancas del pasillo en prenderse y la niebla en abrirse " +
+             "(con lerp, no de golpe).")]
     [SerializeField, Min(0.05f)] private float openSeconds = 1.5f;
 
-    [Tooltip("Segundos que la luz se sostiene abierta (visibilidad y decisión).")]
+    [Tooltip("Segundos con las luces blancas prendidas y la niebla abierta: se ve el nivel, y " +
+             "también al Nemesis. Ése es el costo.")]
     [SerializeField, Min(0f)] private float holdSeconds = 4f;
 
-    [Tooltip("Segundos que tarda la niebla en cerrarse cuando la luz se apaga.")]
+    [Tooltip("Segundos que tardan las luces blancas en apagarse y la niebla en volver a cerrarse.")]
     [SerializeField, Min(0.05f)] private float closeSeconds = 2f;
 
-    [Tooltip("Segundos con todo cerrado antes de que la luz de la puerta objetivo vuelva a " +
-             "prenderse (o antes de que se prenda la próxima puerta, si el jugador ya cruzó la " +
-             "actual). Constante en todo el recorrido: el ciclo no escala con la dificultad.")]
+    [Tooltip("Segundos a oscuras con la niebla cerrada antes de que vuelvan las luces blancas. Lo " +
+             "único que se ve son las luces ámbar del camino. Constante en todo el recorrido: el " +
+             "ciclo no escala con la dificultad.")]
     [SerializeField, Min(0f)] private float darkGapSeconds = 1.5f;
 
-    [Tooltip("Distancia horizontal (m) a la puerta objetivo a la que se la da por alcanzada y el " +
-             "ciclo pasa a la próxima. En la última puerta (el portón) dispara el evento " +
-             "'On Gate Reached' del director, y nada más.")]
+    [Tooltip("Distancia horizontal (m) a la que una puerta del recorrido se da por alcanzada. En " +
+             "la última (el portón) dispara el evento 'On Gate Reached' del director, y nada más.")]
     [SerializeField, Min(0.5f)] private float arrivalRadius = 2.5f;
 
-    [Header("Luz que perfora el fog — forma")]
-    [Tooltip("Apertura TOTAL del cono de luz (grados), desde la puerta hacia el jugador. Chico = " +
-             "sólo el eje puerta-jugador se aclara y las zonas laterales quedan cerradas (lo que " +
-             "pide el guion). 0 = esfera: aclara también a los costados.")]
-    [SerializeField, Range(0f, 179f)] private float lightConeAngle = 40f;
-
-    [Tooltip("Metros de más sobre la distancia puerta-jugador, para que la luz nunca termine " +
-             "justo en el jugador.")]
-    [SerializeField, Min(0f)] private float lightReachPadding = 3f;
-
-    [Tooltip("Alcance mínimo de la luz (m), con la niebla abierta del todo.")]
-    [SerializeField, Min(0f)] private float lightMinReach = 8f;
-
-    [Tooltip("Alcance máximo de la luz (m). Un tramo más largo que esto queda cubierto sólo hasta acá.")]
-    [SerializeField, Min(1f)] private float lightMaxReach = 40f;
-
-    [Header("Luz que perfora el fog — aspecto (Paso 5)")]
-    [Tooltip("Color de la luz de emergencia. El guion la nombra 'blanca' en el Paso 4 y el camino " +
-             "'ámbar/naranja' en el Paso 5: arranca en ámbar cálido. ROJO NO: está reservado al " +
-             "Nemesis.")]
+    [Header("Luces ámbar del camino (Paso 5)")]
+    [Tooltip("Color de las luces del camino al portón: fijas en cada puerta del recorrido, " +
+             "prendidas todo el escape. ROJO NO: está reservado al Nemesis.")]
     [ColorUsage(showAlpha: false, hdr: false)]
     [SerializeField] private Color lightColor = new Color(1f, 0.72f, 0.38f);
+
+    [Tooltip("Radio (m) del halo de cada luz en la niebla. Chico: tiene que leerse como una " +
+             "lámpara, no como un agujero en el fog.")]
+    [SerializeField, Min(0f)] private float lightRadius = 3f;
 
     [Tooltip("Cuánta luz inyecta en la niebla (el halo). Ver FogLightBypass.intensity.")]
     [SerializeField, Range(0f, 8f)] private float lightFogIntensity = 2f;
 
-    [Tooltip("Cuánta niebla disuelve en el eje de la luz. 1 = la limpia del todo.")]
-    [SerializeField, Range(0f, 1f)] private float lightFogClear = 1f;
+    [Tooltip("Cuánta niebla disuelve alrededor de la lámpara. Bajo = el halo brilla y el entorno " +
+             "sigue en niebla; 1 = limpia la esfera entera.")]
+    [SerializeField, Range(0f, 1f)] private float lightFogClear = 0.35f;
 
-    [Tooltip("Intensidad de la Light real de la puerta a plena apertura (lo que ilumina de " +
-             "verdad la geometría).")]
+    [Tooltip("Brillo del punto de la lámpara que atraviesa cualquier niebla, a cualquier distancia " +
+             "(FogBeacon). Es lo que hace que el camino se vea con el fog cerrado. 0 = sin punto.")]
+    [SerializeField, Min(0f)] private float beaconIntensity = 3f;
+
+    [Tooltip("Intensidad de la Light real de cada puerta (lo que ilumina de verdad la geometría). " +
+             "También es la de las lámparas del pasillo que arrancan apagadas en la escena.")]
     [SerializeField, Min(0f)] private float lampIntensity = 6f;
 
     [Header("Preset de niebla del escape (opcionales)")]
-    [Tooltip("Niebla espesa que rige durante todo el escape, entre pulsos de luz. Vacío = no toca " +
-             "la niebla global (sólo actúa la luz de las puertas).")]
+    [Tooltip("Niebla espesa que rige durante todo el escape, con las luces blancas apagadas. " +
+             "Vacío = no toca la niebla global.")]
     [SerializeField] private SO_VisionFogConfig closedFog;
 
-    [Tooltip("Niebla más baja que se aplica mientras la luz está prendida, además del claro que " +
-             "abre la luz. Vacío = sólo el claro de la luz.")]
+    [Tooltip("Niebla más baja que se aplica mientras las luces blancas están prendidas. Vacío = la " +
+             "niebla no cambia con las luces.")]
     [SerializeField] private SO_VisionFogConfig openFog;
 
     // ── Nemesis (Paso 6) ────────────────────────────────────────────────────
@@ -174,13 +166,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float DarkGapSeconds => darkGapSeconds;
     public float ArrivalRadius => arrivalRadius;
 
-    public float LightConeAngle => lightConeAngle;
-    public float LightReachPadding => lightReachPadding;
-    public float LightMinReach => lightMinReach;
-    public float LightMaxReach => Mathf.Max(lightMaxReach, lightMinReach);
     public Color LightColor => lightColor;
+    public float LightRadius => lightRadius;
     public float LightFogIntensity => lightFogIntensity;
     public float LightFogClear => lightFogClear;
+    public float BeaconIntensity => beaconIntensity;
     public float LampIntensity => lampIntensity;
     public SO_VisionFogConfig ClosedFog => closedFog;
     public SO_VisionFogConfig OpenFog => openFog;

@@ -1,73 +1,133 @@
-using System;
+using System.Collections.Generic;
+using UnityEngine;
 
+/// <summary>What a press (or no press) on one skill check attempt was worth.</summary>
+public enum SkillCheckResult
+{
+    Miss,
+    Good,
+    Perfect
+}
+
+/// <summary>
+/// State of one skill check sequence (Central Puzzle 2 — Ventilation Hub): which check the player is
+/// on, where its success zone landed this attempt, and what a needle angle is worth against it.
+///
+/// Pure data and rules — no time, no input, no drawing. The needle itself belongs to the controller,
+/// which feeds its angle to <see cref="Judge"/> and the verdict back to <see cref="Register"/>.
+///
+/// Angles follow a clock face (0 = twelve o'clock, clockwise), the convention of
+/// <see cref="SO_SkillCheckData"/> and <see cref="UIRingArc"/>.
+/// </summary>
 public class SkillCheckModel : BaseScreenModel
 {
-    public int   CurrentCheck      { get; private set; }
-    public int   TotalChecks       { get; private set; }
-    public float NeedleSpeed       { get; private set; }
-    public float SuccessZoneStart  { get; private set; }
-    public float SuccessZoneWidth  { get; private set; }
-    public bool  IsComplete        { get; private set; }
+    // Used when the data has no sectors at all: the spread of the SO's defaults, clear of twelve
+    // o'clock where the needle starts.
+    private const float FallbackSectorStart = 110f;
+    private const float FallbackSectorEnd = 340f;
 
-    public event Action OnCheckSuccess;
-    public event Action OnCheckFailed;
-    public event Action OnAllChecksComplete;
+    private SO_SkillCheckData.SkillCheckStep[] steps = new SO_SkillCheckData.SkillCheckStep[0];
+    private SO_SkillCheckData.ZoneSector[] sectors = new SO_SkillCheckData.ZoneSector[0];
 
-    private float _widthIncrement;
+    // Reused on every roll so picking a sector allocates nothing.
+    private readonly List<float> sectorWeights = new List<float>();
 
-    public void Configure(SO_SkillCheckData data)
-    {
-        //NeedleSpeed      = data.needleSpeed;
-        //SuccessZoneStart = data.successZoneStartAngle;
-        //SuccessZoneWidth = data.initialSuccessZoneWidth;
-        //_widthIncrement  = data.successZoneWidthIncrement;
-        //TotalChecks      = data.totalChecks;
-        CurrentCheck     = 0;
-        IsComplete       = false;
-        IsInitialized    = true;
-    }
+    /// <summary>Index of the check being played. Equal to <see cref="TotalSteps"/> once complete.</summary>
+    public int StepIndex { get; private set; }
+    public int TotalSteps => steps.Length;
+    public bool IsComplete => TotalSteps > 0 && StepIndex >= TotalSteps;
+
+    /// <summary>Misses over the whole sequence, for logging.</summary>
+    public int Misses { get; private set; }
+
+    /// <summary>Where this attempt's success zone starts, in degrees.</summary>
+    public float ZoneStart { get; private set; }
+
+    public SO_SkillCheckData.SkillCheckStep CurrentStep =>
+        steps[Mathf.Clamp(StepIndex, 0, Mathf.Max(0, TotalSteps - 1))];
+
+    public float ZoneWidth => CurrentStep.successZoneDegrees;
+
+    /// <summary>The perfect slice sits at the start of the zone and never outgrows it.</summary>
+    public float PerfectWidth => Mathf.Min(CurrentStep.perfectZoneDegrees, ZoneWidth);
 
     public override void Initialize()
     {
-        CurrentCheck = 0;
-        IsComplete   = false;
+        steps = new SO_SkillCheckData.SkillCheckStep[0];
+        sectors = new SO_SkillCheckData.ZoneSector[0];
+        StepIndex = 0;
+        Misses = 0;
+        ZoneStart = 0f;
         IsInitialized = true;
     }
 
-    // Returns true if the needle angle is inside the success zone.
-    public bool TryInput(float needleAngle)
+    /// <summary>Starts a sequence from the first check, with its zone already placed.</summary>
+    public void Configure(SO_SkillCheckData data)
     {
-        if (IsComplete) return false;
+        steps = data != null && data.steps != null ? data.steps : new SO_SkillCheckData.SkillCheckStep[0];
+        sectors = data != null && data.zoneSectors != null ? data.zoneSectors : new SO_SkillCheckData.ZoneSector[0];
 
-        if (IsAngleInZone(needleAngle))
-        {
-            CurrentCheck++;
-            SuccessZoneWidth += _widthIncrement;
-            NotifyDataChanged();
+        sectorWeights.Clear();
+        foreach (SO_SkillCheckData.ZoneSector sector in sectors) sectorWeights.Add(sector.weight);
 
-            if (CurrentCheck >= TotalChecks)
-            {
-                IsComplete = true;
-                OnAllChecksComplete?.Invoke();
-            }
-            else
-            {
-                OnCheckSuccess?.Invoke();
-            }
-            return true;
-        }
+        StepIndex = 0;
+        Misses = 0;
+        IsInitialized = true;
 
-        OnCheckFailed?.Invoke();
-        return false;
+        if (TotalSteps > 0) RollZone();
+        NotifyDataChanged();
     }
 
-    private bool IsAngleInZone(float angle)
+    /// <summary>
+    /// What a press at <paramref name="needleAngle"/> is worth on the current attempt. Pure: nothing
+    /// changes until the verdict goes back through <see cref="Register"/>.
+    /// </summary>
+    public SkillCheckResult Judge(float needleAngle)
     {
-        float start = SuccessZoneStart % 360f;
-        float end   = (start + SuccessZoneWidth) % 360f;
-        if (start <= end)
-            return angle >= start && angle <= end;
-        // the zone crosses 0°
-        return angle >= start || angle <= end;
+        if (TotalSteps == 0 || IsComplete) return SkillCheckResult.Miss;
+
+        float intoZone = needleAngle - ZoneStart;
+        if (intoZone < 0f || intoZone > ZoneWidth) return SkillCheckResult.Miss;
+        return PerfectWidth > 0f && intoZone <= PerfectWidth ? SkillCheckResult.Perfect : SkillCheckResult.Good;
+    }
+
+    /// <summary>
+    /// A hit moves on to the next check, a miss replays this one. Either way the next attempt gets a
+    /// zone somewhere new, so a miss cannot be retried from muscle memory.
+    /// </summary>
+    public void Register(SkillCheckResult result)
+    {
+        if (TotalSteps == 0 || IsComplete) return;
+
+        if (result == SkillCheckResult.Miss) Misses++;
+        else StepIndex++;
+
+        if (!IsComplete) RollZone();
+        NotifyDataChanged();
+    }
+
+    // -- Zone -------------------
+
+    /// <summary>
+    /// Picks a sector by weight, then a start inside it that keeps the whole zone in the sector. A
+    /// sector narrower than the zone pins the zone to the sector's start, and nothing may run past
+    /// twelve o'clock: the needle's lap ends there.
+    /// </summary>
+    private void RollZone()
+    {
+        float from = FallbackSectorStart;
+        float to = FallbackSectorEnd;
+
+        int picked = RouletteSelection.Roulette(sectorWeights);
+        if (picked >= 0)
+        {
+            from = sectors[picked].startDegrees;
+            to = sectors[picked].endDegrees;
+        }
+
+        float width = ZoneWidth;
+        float latestStart = Mathf.Max(from, to - width);
+        float start = RouletteSelection.GetRandom(from, latestStart);
+        ZoneStart = Mathf.Clamp(start, 0f, Mathf.Max(0f, 360f - width));
     }
 }

@@ -90,6 +90,11 @@ public static class LineOfSight
     /// Note the polarity: true means "can see", not "is blocked". Both readings exist in this
     /// project - FieldOfListening.IsOccludedByWall answers the opposite question - and mixing them
     /// up inverts a sensor silently, so the name says which one this is.
+    ///
+    /// TRIGGERS NEVER BLOCK THE VIEW. The project has Queries Hit Triggers ON, and the level puts
+    /// trigger volumes on Default — ambience zones, light zones, tutorial hints, checkpoints — so a
+    /// raycast that does not say otherwise stops at the invisible edge of every one of them. Looking
+    /// from one ambience zone into the next, through an open doorway, read as a wall (WIR-020).
     /// </summary>
     public static bool CheckView(Vector3 origin, Vector3 point, LayerMask obstacleMask)
     {
@@ -97,7 +102,7 @@ public static class LineOfSight
         float distance = toPoint.magnitude;
         if (distance <= 0.0001f) return true;
 
-        return !Physics.Raycast(origin, toPoint / distance, distance, obstacleMask);
+        return !Physics.Raycast(origin, toPoint / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore);
     }
 
     public static bool CheckView(Transform self, Transform target, LayerMask obstacleMask)
@@ -164,7 +169,8 @@ public static class LineOfSight
             bool withinCone = Vector3.Angle(front, toPoint) <= angle * 0.5f || distance <= minDistance;
             if (!withinCone) continue;
 
-            if (Physics.Raycast(origin, toPoint / distance, distance, obstacleMask)) continue;
+            // Triggers ignored, same as CheckView and for the same reason.
+            if (Physics.Raycast(origin, toPoint / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore)) continue;
 
             seenPoint = point;
             return true;

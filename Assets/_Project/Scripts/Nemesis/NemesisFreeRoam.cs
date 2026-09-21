@@ -139,10 +139,24 @@ public sealed class NemesisFreeRoam
     /// anchor is new information, and carrying the old visited set into it would have the Nemesis
     /// skipping parts of a room it has never been in.
     /// </summary>
-    public void Commit(Vector3 sweepAnchor, float sweepRadius)
+    public void Commit(Vector3 sweepAnchor, float sweepRadius) => Commit(sweepAnchor, sweepRadius, null);
+
+    /// <summary>
+    /// Commits the sweep to an area and to the ROOM the player was seen going into (see
+    /// <see cref="NemesisRooms"/>). While that room still offers anywhere to look, it is the only
+    /// place the sweep looks; the rest of the disc only comes into play once it runs dry.
+    ///
+    /// Why the room and not just the disc: the disc is centred on where the player was LAST SEEN,
+    /// and when you lose someone going through a door, that is the doorway — from which the
+    /// corridor outside is exactly as visible as the room. The wall test cannot tell them apart,
+    /// and the corridor points competed on equal terms with the room the Nemesis watched you walk
+    /// into. Null room: the disc alone, as before.
+    /// </summary>
+    public void Commit(Vector3 sweepAnchor, float sweepRadius, string enteredRoom)
     {
         anchor = sweepAnchor;
         radius = Mathf.Max(1f, sweepRadius);
+        room = string.IsNullOrEmpty(enteredRoom) ? null : enteredRoom;
         committed = true;
         exhausted = false;
         sweptPoints.Clear();
@@ -154,8 +168,15 @@ public sealed class NemesisFreeRoam
     {
         committed = false;
         exhausted = false;
+        room = null;
         sweptPoints.Clear();
     }
+
+    private string room;
+
+    /// <summary>The room the sweep is prioritising, or null when it is sweeping the disc alone.
+    /// For the debug HUD and the gizmos.</summary>
+    public string Room => room;
 
     /// <summary>Whether a position falls inside the committed area, walls included. Used by the
     /// search to decide whether a noise is confirming the sweep or contradicting it.</summary>
@@ -164,7 +185,7 @@ public sealed class NemesisFreeRoam
         if (!committed) return false;
         if (Vector3.SqrMagnitude(point - anchor) > radius * radius) return false;
 
-        return !IsBehindWall(point);
+        return !IsOutsideSweep(point);
     }
 
     /// <summary>
@@ -270,6 +291,8 @@ public sealed class NemesisFreeRoam
             return false;
         }
 
+        PreferEnteredRoom();
+
         int index = RouletteSelection.Roulette(weightBuffer);
         if (index < 0 || weightBuffer[index] <= 0f)
         {
@@ -281,6 +304,31 @@ public sealed class NemesisFreeRoam
         sweptPoints.Add(point);
 
         return true;
+    }
+
+    /// <summary>
+    /// Strict priority for the room the player was seen entering: if any live candidate is in it,
+    /// every candidate outside it is zeroed for this pick. A roll between the two would still send
+    /// the Nemesis out into the corridor a fair share of the time, which is the behaviour the rule
+    /// exists to stop. Once the room has nothing left, this does nothing and the disc takes over.
+    /// </summary>
+    private void PreferEnteredRoom()
+    {
+        if (room == null) return;
+
+        bool anyInRoom = false;
+        for (int i = 0; i < candidateBuffer.Count; i++)
+        {
+            if (weightBuffer[i] <= 0f) continue;
+            if (NemesisRooms.TryGetRoom(candidateBuffer[i], out string r) && r == room) { anyInRoom = true; break; }
+        }
+        if (!anyInRoom) return;
+
+        for (int i = 0; i < candidateBuffer.Count; i++)
+        {
+            if (weightBuffer[i] <= 0f) continue;
+            if (!NemesisRooms.TryGetRoom(candidateBuffer[i], out string r) || r != room) weightBuffer[i] = 0f;
+        }
     }
 
     // -- Candidates ----------------------------------------------------------
@@ -321,7 +369,7 @@ public sealed class NemesisFreeRoam
             Vector3 position = graph.GetNode(nodeBuffer[i]).Position;
 
             if (Vector3.SqrMagnitude(position - anchor) > sqrRadius) continue;
-            if (IsBehindWall(position)) continue;
+            if (IsOutsideSweep(position)) continue;
 
             candidateBuffer.Add(position);
         }
@@ -341,9 +389,18 @@ public sealed class NemesisFreeRoam
     /// </summary>
     private void AddSampledPoints(int sampleCount)
     {
-        for (int slot = candidateBuffer.Count; slot < sampleCount; slot++)
+        // With an entered room, the first half of the free slots only accepts points IN it: the
+        // disc is centred on the doorway, so an unbiased scatter lands half of its points in the
+        // corridor and the room it is meant to search gets two or three candidates.
+        int firstFree = candidateBuffer.Count;
+        int roomSlots = room != null ? (sampleCount - firstFree + 1) / 2 : 0;
+
+        for (int slot = firstFree; slot < sampleCount; slot++)
         {
-            for (int attempt = 0; attempt < AttemptsPerSlot; attempt++)
+            bool inRoomOnly = slot - firstFree < roomSlots;
+            int attempts = inRoomOnly ? AttemptsPerSlot * 3 : AttemptsPerSlot;
+
+            for (int attempt = 0; attempt < attempts; attempt++)
             {
                 Vector2 circle = Random.insideUnitCircle * radius;
                 Vector3 raw = anchor + new Vector3(circle.x, 0f, circle.y);
@@ -351,7 +408,8 @@ public sealed class NemesisFreeRoam
                 if (!NavMesh.SamplePosition(raw, out NavMeshHit hit, SweptRadius, NemesisNav.AreaMask))
                     continue;
 
-                if (IsBehindWall(hit.position)) continue;
+                if (inRoomOnly && (!NemesisRooms.TryGetRoom(hit.position, out string r) || r != room)) continue;
+                if (IsOutsideSweep(hit.position)) continue;
                 if (IsDuplicate(hit.position)) continue;
 
                 candidateBuffer.Add(hit.position);
@@ -393,6 +451,18 @@ public sealed class NemesisFreeRoam
     /// to the project, joining the capture check, the spawn-point visibility test, the stuck
     /// escape and NemesisPursuit.CanSeeFrom. Changing that mask changes all of them.
     /// </summary>
+    /// <summary>
+    /// Whether a point is outside what this sweep is searching. A point on the floor of the entered
+    /// room is inside by definition — the floor says so, which is better evidence than a line of
+    /// sight from the doorway, and it lets the sweep reach the corner of an L-shaped room that the
+    /// doorway cannot see into. Anything else still has to pass the wall test.
+    /// </summary>
+    private bool IsOutsideSweep(Vector3 point)
+    {
+        if (room != null && NemesisRooms.TryGetRoom(point, out string r) && r == room) return false;
+        return IsBehindWall(point);
+    }
+
     private bool IsBehindWall(Vector3 point)
     {
         FieldOfListening listening = stateManager.FieldOfListening;

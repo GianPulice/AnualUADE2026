@@ -59,6 +59,8 @@ public static class NemesisSetupValidator
 
         problems += ValidateSurfaces(report);
         problems += ValidateModifierVolumes(report);
+        problems += ValidateModifiers(report);
+        problems += ValidateNoiseLayer(report);
         problems += ValidateSensors(report);
         problems += ValidateCameraAndInteraction(report);
         problems += ValidateWaypoints(report);
@@ -66,8 +68,9 @@ public static class NemesisSetupValidator
 
         if (problems == 0)
         {
-            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifier volumes, sensors, " +
-                      "camera, interaction, waypoints and doors are set up correctly.");
+            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifiers and modifier " +
+                      "volumes, the noise layer, sensors, camera, interaction, waypoints and doors " +
+                      "are set up correctly.");
             return;
         }
 
@@ -129,7 +132,9 @@ public static class NemesisSetupValidator
         // and nothing else is meant to notice it. A pickup or a wall-mounted socket does not need
         // to carve the NavMesh any more than it needs to block a sightline, so flagging it here
         // would be the same false positive repeated for a second system.
-        int ignored = BuildMask(new[] { "Default", "Interactable" });
+        // Player: a body, not geometry. Baking the player's capsule into the NavMesh would carve a
+        // hole wherever the scene happens to have them standing.
+        int ignored = BuildMask(new[] { "Default", "Interactable", "Player" });
         int mask = surface.layerMask.value | ignored;
 
         List<string> examples = new List<string>();
@@ -187,6 +192,75 @@ public static class NemesisSetupValidator
         {
             problems += ReportVolumeReachesNoSurface(report, volume, surfaces);
             problems += ReportVolumeAreaIsNotBlocking(report, volume);
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// A per-object NavMeshModifier is filtered exactly like a volume: NavMeshSurface.CollectSources
+    /// SKIPS every modifier whose own GameObject is not on one of its Include Layers — and with it
+    /// everything it was meant to do to its children.
+    ///
+    /// This is the one that closed every doorway in Zona1 (WIR-028). The Door prefab carried its
+    /// "ignore from build" modifier on the root, and the root sits on Interactable for the
+    /// crosshair. Interactable is not baked, so the modifier was dropped, and the leaf (on Default)
+    /// was baked as a wall. It went unnoticed for as long as Default itself was not baked either.
+    /// </summary>
+    private static int ValidateModifiers(StringBuilder report)
+    {
+        NavMeshSurface[] surfaces = FindAll<NavMeshSurface>();
+        if (surfaces.Length == 0) return 0;
+
+        int problems = 0;
+        foreach (NavMeshModifier modifier in FindAll<NavMeshModifier>())
+        {
+            int layerBit = 1 << modifier.gameObject.layer;
+            bool reached = false;
+            foreach (NavMeshSurface surface in surfaces)
+            {
+                if ((surface.layerMask.value & layerBit) != 0 && modifier.AffectsAgentType(surface.agentTypeID))
+                {
+                    reached = true;
+                    break;
+                }
+            }
+            if (reached) continue;
+
+            report.AppendLine(
+                $"- NavMeshModifier on '{modifier.gameObject.name}' does nothing: it sits on layer " +
+                $"'{LayerMask.LayerToName(modifier.gameObject.layer)}', which no NavMeshSurface bakes, and " +
+                "the surface drops such modifiers in silence — including what they were meant to do " +
+                "to their children. Move the modifier onto a child that IS on a baked layer (the door " +
+                "prefab keeps it on its Hinge), then rebake.");
+            problems++;
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// Anything SOLID on a layer the Nemesis listens to. FieldOfListening ignores those now, but
+    /// the object is still misplaced: that layer is not baked into the NavMesh and not in the vision
+    /// obstacle mask, so it is invisible to both. Zona1's Stair_Divider sat on DetectableAudio and
+    /// was a permanent noise source in the stairwell, a wall the monster could see through, and a
+    /// gap in the NavMesh (WIR-018 / WIR-020 / WIR-028).
+    /// </summary>
+    private static int ValidateNoiseLayer(StringBuilder report)
+    {
+        int listen = 0;
+        foreach (FieldOfListening ears in FindAll<FieldOfListening>()) listen |= ears.ListenMask.value;
+        if (listen == 0) return 0;
+
+        int problems = 0;
+        foreach (Collider c in FindAll<Collider>())
+        {
+            if (c.isTrigger || ((1 << c.gameObject.layer) & listen) == 0) continue;
+            report.AppendLine(
+                $"- '{c.gameObject.name}' is a SOLID {c.GetType().Name} on '{LayerMask.LayerToName(c.gameObject.layer)}', " +
+                "a layer the Nemesis listens to. Noise sources are triggers; level geometry belongs on " +
+                "Wall/Props/Default, or it is left out of the NavMesh and out of the monster's sight.");
+            problems++;
         }
 
         return problems;

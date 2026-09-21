@@ -159,7 +159,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 14f + stripHeight + 26f;
+        float height = lineHeight * 15f + stripHeight + 26f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -169,6 +169,7 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "estado", DescribeState());
         Row(ref line, "regla", DescribeRung());
         Row(ref line, "sospecha", DescribeAwareness());
+        Row(ref line, "escondite", DescribeHidingSpot());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "distancia", DescribeDistance());
         Row(ref line, "persecución", DescribeChaseProgress());
@@ -259,6 +260,68 @@ public class NemesisDebugHUD : MonoBehaviour
         string state = stateManager.IsSuspicious ? "  ·  <b>sospecha</b>" : "";
 
         return $"[{bar}] {awareness:0.00} / {threshold:0.00}{state}";
+    }
+
+    /// <summary>
+    /// Which hiding spot the Nemesis knows or suspects the player is in, why, and what the search
+    /// is doing about it.
+    ///
+    /// The levels of knowledge (plan §3.4) are indistinguishable from outside until the monster
+    /// has its hand on the door: a Nemesis walking to a locker it SAW you enter, one walking to a
+    /// locker it only glimpsed, and one that happens to be sweeping past it all produce the same
+    /// walk. The reason is the tell, and it is what SeenEnteringWindow and the slat/table ranges
+    /// get tuned against - "it knew" and "it guessed" have opposite fixes.
+    ///
+    /// The third case is level B in progress: the meter on the row above is filling THROUGH a
+    /// spot, the one situation where a full meter marks a spot known instead of starting a chase.
+    /// </summary>
+    private string DescribeHidingSpot()
+    {
+        NemesisHidingAwareness awareness = stateManager.HidingAwareness;
+
+        HidingSpot known = stateManager.KnownHidingSpot;
+        if (known != null)
+            return $"<b>sabe</b> {NameOf(known)}{ReasonOf(awareness)}{SpotCheckOf(known)}";
+
+        HidingSpot suspected = stateManager.SuspectedHidingSpot;
+        if (suspected != null)
+            return $"sospecha {NameOf(suspected)}{ReasonOf(awareness)}{SpotCheckOf(suspected)}";
+
+        FieldOfView view = stateManager.FieldOfView;
+        HidingSpot through = view != null ? view.SensedThroughSpot : null;
+        if (through != null) return $"lo distingue por {NameOf(through)}";
+
+        return "—";
+    }
+
+    /// <summary>SpotId when the designer set one, the GameObject's name otherwise.</summary>
+    private static string NameOf(HidingSpot spot) =>
+        string.IsNullOrEmpty(spot.SpotId) ? spot.name : spot.SpotId;
+
+    private static string ReasonOf(NemesisHidingAwareness awareness)
+    {
+        string reason = awareness != null ? awareness.Reason : null;
+        return string.IsNullOrEmpty(reason) ? "" : $" ({reason})";
+    }
+
+    /// <summary>
+    /// Whether the search is on its way to <paramref name="spot"/> or already standing at it.
+    /// Nothing while no search is heading there: the knowledge outlives the walk, and a known
+    /// spot nobody is going to is exactly the case worth noticing - it is the one the memory
+    /// safety net in NemesisHidingAwareness exists for.
+    /// </summary>
+    private string SpotCheckOf(HidingSpot spot)
+    {
+        NemesisSearchingState searching = stateManager.SearchingState;
+        if (searching != null && ReferenceEquals(searching.SpotTarget, spot))
+            return searching.IsCheckingSpot ? "  ·  <b>revisando</b>" : "  ·  yendo";
+
+        // A suspected spot is looked at by Investigating instead, on its own dwell.
+        NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+        if (investigating != null && ReferenceEquals(investigating.SpotTarget, spot))
+            return investigating.IsInspecting ? "  ·  <b>revisando</b>" : "  ·  yendo";
+
+        return "";
     }
 
     private string DescribeBelief()

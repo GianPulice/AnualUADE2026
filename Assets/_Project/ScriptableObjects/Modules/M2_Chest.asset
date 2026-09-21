@@ -15,8 +15,9 @@ MonoBehaviour:
   moduleID: M2_Chest
   moduleLogLabel: M2
   penalty: 1
-  associatedPuzzleId: 
+  associatedPuzzleId: puzzle_central_piso2
   timerDuration: 180
+  walkAndRunSpeedPercent: 60
   sprintReduction: 0.25
   shakeAmplitude: 0.03
   shakeFrequency: 1.2
