@@ -142,8 +142,9 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         playerStateManager.PushDirection = Vector3.zero;
 
         // The box is driven by velocity now, so letting go mid-push would leave it gliding at the
-        // push speed. Gravity is left alone.
-        if (box != null)
+        // push speed. Gravity is left alone. Skipped when a basket has already taken the box over
+        // (kinematic): it is not gliding, and Unity refuses a velocity on a kinematic body.
+        if (box != null && !box.isKinematic)
         {
             Vector3 v = box.linearVelocity;
             box.linearVelocity = new Vector3(0f, v.y, 0f);
