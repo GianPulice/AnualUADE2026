@@ -64,18 +64,16 @@ public class BasketTrigger : MonoBehaviour
             Debug.LogWarning($"[{nameof(BasketTrigger)}] No PuzzleStateManager — ball " +
                              $"'{ball.BallId}' landing in basket '{basketId}' was not recorded.", this);
 
-        // Any box of this puzzle snaps onto any basket, right or wrong. It used to snap only onto
-        // the basket the Requirements table paired it with, which turned "does it click into
-        // place?" into the answer: the player pushed a box at each basket in turn until one
-        // accepted it and never had to understand the symbols. The arrangement is judged as a
-        // whole in CheckContainers instead, and the snap is reversible so a wrong guess can be
-        // pushed back out.
-        PushableBox grab = ball.GetComponentInParent<PushableBox>();
-        if (grab != null) grab.SnapToBasket(ResolveSnapTarget());
-
-        // After the snap, so a puzzle completed by this very box locks a box that is already
-        // centred on its basket rather than one mid-slide.
         NotifyPuzzleController();
+
+        // If this ball is the one that this specific basket expects (per the puzzle's
+        // Requirements table), tear the player off it and snap the box onto the basket. Wrong
+        // balls that share the same linkedPuzzleId keep behaving exactly as before.
+        if (IsCorrectBallForThisBasket(ball))
+        {
+            PushableBox grab = ball.GetComponentInParent<PushableBox>();
+            if (grab != null) grab.LockAtBasket(ResolveSnapTarget());
+        }
 
         Debug.Log($"Basket {basketId} detected ball {ball.BallId}");
     }
@@ -84,6 +82,30 @@ public class BasketTrigger : MonoBehaviour
     {
         if (snapTarget != null) return snapTarget;
         return transform.parent != null ? transform.parent : transform;
+    }
+
+    /// <summary>
+    /// Whether the puzzle's Requirements table pairs this exact ball with this exact basket.
+    ///
+    /// Note the key semantics: <c>ContainerRequirement.containerId</c> is matched against
+    /// <c>BallPuzzleItem.BallId</c>. The field kept the "container" name from the deleted
+    /// ContainerInteractable implementation — it is authored with a BALL id.
+    /// </summary>
+    private bool IsCorrectBallForThisBasket(BallPuzzleItem ball)
+    {
+        ContainerPuzzleController controller = Controller;
+        if (controller == null) return false;
+
+        SO_ContainerPuzzleData data = controller.PuzzleData;
+        if (data == null) return false;
+
+        foreach (SO_ContainerPuzzleData.ContainerRequirement req in data.Requirements)
+        {
+            if (req.containerId == ball.BallId && req.requiredSlotId == basketId)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnTriggerExit(Collider other)

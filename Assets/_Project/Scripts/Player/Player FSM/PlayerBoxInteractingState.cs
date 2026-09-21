@@ -8,12 +8,18 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     private float animTimer = 0.2f;
     private float currentTimer = 0f;
 
-    // ── Eight-way push ──────────────────────────────────────────────────────────
+    // ── Four-way push ───────────────────────────────────────────────────────────
     //
     // W pushes the box away, S pulls it back, D / A slide it right / left — relative to the face
-    // the player grabbed, not to the camera, so the box always travels along its own axes. The two
-    // axes combine: W+D moves the pair forward AND right at once.
+    // the player grabbed, not to the camera, so the box always travels along its own axes. Only one
+    // direction at a time: the most recently pressed key that is still held wins, so holding W and
+    // then pressing D switches to D, and releasing D falls back to W.
     //
+    // Frame the key went down for each direction, or -1 while it is not held. Frames rather than
+    // time so two presses are ordered even when they land within the same millisecond.
+    private const int Forward = 0, Back = 1, Right = 2, Left = 3;
+    private readonly int[] pressedFrame = { -1, -1, -1, -1 };
+
     // A raw axis past this counts as held. Keyboard gives exactly ±1; the margin keeps a resting
     // gamepad stick from registering.
     private const float AxisThreshold = 0.5f;
@@ -76,6 +82,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         finishAnim = false;
         currentTimer = 0f;
 
+        for (int i = 0; i < pressedFrame.Length; i++) pressedFrame[i] = -1;
         box = playerStateManager.PushedBox;
         boxCollider = box != null ? box.GetComponent<BoxCollider>() : null;
         hasBoxOffset = false;
@@ -181,10 +188,11 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                 }
                 SetBoxCollIgnoresBox(true);
 
-                // Already blocked-tested per axis inside ReadPushDirection — nothing left to gate
-                // here. A second pass over the (already-safe) composed result would just reopen
-                // the same false-negative-near-corners risk this whole rewrite exists to close.
                 Vector3 pushDir = ReadPushDirection();
+
+                // Blocked is treated like no input: the pair stops together instead of the player
+                // walking off sideways while the box sits against a wall.
+                if (pushDir != Vector3.zero && IsPushBlocked(pushDir)) pushDir = Vector3.zero;
 
                 playerStateManager.PushDirection = pushDir;
 
@@ -213,51 +221,43 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     }
 
     /// <summary>
-    /// The world-space push direction for this frame, or zero. Both axes contribute, so holding
-    /// forward and right pushes the pair diagonally rather than picking one of the two.
-    ///
-    /// Each axis is blocked-tested ON ITS OWN, never as the composed diagonal. A cast along the
-    /// diagonal can clear a corner that a cast along either cardinal axis alone would catch — the
-    /// box's and the player's half-extents do not sample the exact 45° line, so a corner that
-    /// truly blocks "forward" can read as clear along "forward-and-right" and let the pair cut
-    /// straight through it. Testing forward and right independently, with the same cast that
-    /// already worked correctly for a single-direction push, cannot produce that false clear: if
-    /// either axis is genuinely blocked, that axis is not in the result no matter what the other
-    /// one is doing.
+    /// The world-space push direction for this frame, or zero. Tracks when each direction was
+    /// pressed and returns the latest one still held, so the box only ever moves along one axis.
     /// </summary>
     private Vector3 ReadPushDirection()
     {
-        // Player/Move, same as the rest of the player's input.
-        Vector2 move = GameInput.MoveValue;
+        // Raw, same as the rest of the player's input: the smoothed axis keeps reporting a value
+        // for a third of a second after release.
+        float vertical = Input.GetAxisRaw("Vertical");
+        float horizontal = Input.GetAxisRaw("Horizontal");
 
-        // Snapped to -1 / 0 / +1 rather than used raw: a diagonal has to travel at the same speed
-        // as a straight push, and a half-deflected stick must not make the box crawl.
-        float vertical = Mathf.Abs(move.y) > AxisThreshold ? Mathf.Sign(move.y) : 0f;
-        float horizontal = Mathf.Abs(move.x) > AxisThreshold ? Mathf.Sign(move.x) : 0f;
-        if (vertical == 0f && horizontal == 0f) return Vector3.zero;
+        Track(Forward, vertical > AxisThreshold);
+        Track(Back, vertical < -AxisThreshold);
+        Track(Right, horizontal > AxisThreshold);
+        Track(Left, horizontal < -AxisThreshold);
 
-        GetPushAxes(out Vector3 forward, out Vector3 right);
+        int latest = -1;
+        for (int i = 0; i < pressedFrame.Length; i++)
+        {
+            if (pressedFrame[i] < 0) continue;
+            if (latest < 0 || pressedFrame[i] > pressedFrame[latest]) latest = i;
+        }
+        if (latest < 0) return Vector3.zero;
 
-        Vector3 forwardAxis = vertical != 0f ? forward * vertical : Vector3.zero;
-        Vector3 rightAxis = horizontal != 0f ? right * horizontal : Vector3.zero;
-
-        if (forwardAxis != Vector3.zero && IsPushBlocked(forwardAxis)) forwardAxis = Vector3.zero;
-        if (rightAxis != Vector3.zero && IsPushBlocked(rightAxis)) rightAxis = Vector3.zero;
-
-        Vector3 result = forwardAxis + rightAxis;
-        return result == Vector3.zero ? Vector3.zero : result.normalized;
-    }
-
-    /// <summary>
-    /// The body faces the grabbed face for the whole push (the snap set it and nothing turns it
-    /// afterwards), so its forward is the box axis the player is working along.
-    /// </summary>
-    private void GetPushAxes(out Vector3 forward, out Vector3 right)
-    {
-        forward = playerStateManager.PlayerBody.forward;
+        // The body faces the grabbed face for the whole push (the snap set it and nothing turns it
+        // afterwards), so its forward is the box axis the player is working along.
+        Vector3 forward = playerStateManager.PlayerBody.forward;
         forward.y = 0f;
         forward.Normalize();
-        right = Vector3.Cross(Vector3.up, forward);
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+
+        switch (latest)
+        {
+            case Forward: return forward;
+            case Back:    return -forward;
+            case Right:   return right;
+            default:      return -right;
+        }
     }
 
     private void CacheBoxSolidColliders()
@@ -302,6 +302,12 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         Animator anim = playerStateManager.AnimController;
         anim.SetFloat(PushXHash, pushBlendTarget.x, PushBlendDamp, Time.deltaTime);
         anim.SetFloat(PushYHash, pushBlendTarget.y, PushBlendDamp, Time.deltaTime);
+    }
+
+    private void Track(int direction, bool held)
+    {
+        if (!held) pressedFrame[direction] = -1;
+        else if (pressedFrame[direction] < 0) pressedFrame[direction] = Time.frameCount;
     }
 
     /// <summary>
