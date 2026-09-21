@@ -21,16 +21,14 @@ MonoBehaviour:
   closeSeconds: 2
   darkGapSeconds: 1.5
   arrivalRadius: 2.5
-  lightConeAngle: 40
-  lightReachPadding: 3
-  lightMinReach: 8
-  lightMaxReach: 40
   lightColor: {r: 1, g: 0.72, b: 0.38, a: 1}
+  lightRadius: 3
   lightFogIntensity: 2
-  lightFogClear: 1
+  lightFogClear: 0.35
+  beaconIntensity: 3
   lampIntensity: 6
-  closedFog: {fileID: 11400000, guid: 0ab9f0153969b8048916d4458f507ceb, type: 2}
-  openFog: {fileID: 11400000, guid: 0ab9f0153969b8048916d4458f507ceb, type: 2}
+  closedFog: {fileID: 11400000, guid: 85e7d0e29935b754397313a3947dd609, type: 2}
+  openFog: {fileID: 11400000, guid: 9c6d7413934cc7e4596386b4964f8f31, type: 2}
   paceNear: 0.92
   paceFar: 1.25
   paceNearDistance: 2.5

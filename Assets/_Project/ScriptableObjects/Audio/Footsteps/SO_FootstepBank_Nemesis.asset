@@ -25,7 +25,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 60c867cce7b98c09caf1a108603459a8, type: 3}
     - {fileID: 8300000, guid: 98854c58e8c5fe3994a159dcc8cc3feb, type: 3}
     - {fileID: 8300000, guid: 9f1ddfa49bbb242ff2e117a2eff34512, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.78, y: 0.86}
     layers:
       serializedVersion: 2
@@ -41,7 +41,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: e4fb894221d772d633fbd9f5e916b125, type: 3}
     - {fileID: 8300000, guid: 42a57dc91baee4747a434c6f5ceff143, type: 3}
     - {fileID: 8300000, guid: 6b41a2d80b0260d47b82a0074336e55d, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.97, y: 1.05}
     layers:
       serializedVersion: 2
@@ -57,7 +57,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 5d0afd2885cc2c14e206a04e3a5d965e, type: 3}
     - {fileID: 8300000, guid: 19458667386a2664fa8067efa090514b, type: 3}
     - {fileID: 8300000, guid: 57ad801ed7b995d1f1364d807fedbd5b, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.78, y: 0.86}
     layers:
       serializedVersion: 2
@@ -69,7 +69,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 44df4678cbecde884d3370d01923c916, type: 3}
     - {fileID: 8300000, guid: 89d31a6c69e6fa14ead48e7365213e1d, type: 3}
     - {fileID: 8300000, guid: da9c09d64dbd79a684ebff7711042eae, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.8, y: 0.88}
     layers:
       serializedVersion: 2
@@ -86,7 +86,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 1339106f175d9d83c6ec15422f81f7bc, type: 3}
     - {fileID: 8300000, guid: 2d81b4a615e47e4b55459e9efb2e92c3, type: 3}
     - {fileID: 8300000, guid: f916e80f42551b3f353c5c8e0f4fa9c2, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.8, y: 0.88}
     layers:
       serializedVersion: 2
@@ -98,7 +98,7 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 0d3933827523786f7ea3e22d0282c502, type: 3}
     - {fileID: 8300000, guid: ba66d25003731bb007885d4abe71d18b, type: 3}
     - {fileID: 8300000, guid: a636c5ef6970837b660bc2515d64bc0c, type: 3}
-    volume: 0.75
+    volume: 1
     pitchRange: {x: 0.78, y: 0.86}
     layers:
       serializedVersion: 2

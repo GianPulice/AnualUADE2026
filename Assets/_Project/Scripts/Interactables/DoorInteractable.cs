@@ -182,7 +182,15 @@ public void OpenDoor()
         // Consume the key only on the first ever unlock.
         if (firstUnlock && doorData != null &&
             doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists)
+        {
             InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
+
+            // Only when it really left the inventory: ConsumeItem refuses an item that is not
+            // marked consumable, and announcing a key as used while it stays in the bag is the
+            // exact confusion WIR-041 was about.
+            if (!InventoryManager.Instance.HasItem(doorData.RequiredKey))
+                InteractionEvents.RaiseGlobalMessage($"Used the {doorData.RequiredKey.ItemName}");
+        }
 
         if (doorData != null)
         {

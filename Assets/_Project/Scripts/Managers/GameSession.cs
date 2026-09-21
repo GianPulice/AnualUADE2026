@@ -53,6 +53,11 @@ public static class GameSession
         Debug.Log($"[GameSession] BeginNewSession — resetting {resettables.Count} manager(s) " +
                   $"and notifying {(OnNewSessionStarting?.GetInvocationList().Length ?? 0)} static hook(s).");
 
+        // A run never starts frozen. The menu and the wake-up cinematic run on unscaled time, so a
+        // Time.timeScale left at 0 by the previous run's end screen hides until the player tries to
+        // move (WIR-035). Whatever screen leaked it, this is the one door every new run goes through.
+        Time.timeScale = 1f;
+
         // Iterate a copy so a resettable that unregisters during its reset (or an implementation
         // that spawns/destroys other resettables) does not corrupt the list.
         ISessionResettable[] snapshot = resettables.ToArray();

@@ -1,32 +1,36 @@
 using UnityEngine;
 
 /// <summary>
-/// One door of the escape route, as a light: when lit it punches a corridor through the fog from
-/// the door towards the player (Paso 4). It only knows how lit it is right now — WHEN to light it
-/// is <see cref="EscapeFogCycle"/>'s job, and how it looks is <see cref="SO_EscapeSequenceConfig"/>.
+/// One amber light of the path to the gate (Paso 5). Fixed at its doorway: it is a lamp you run
+/// towards, not a light that follows you. It only knows how lit it is right now — WHEN it is lit is
+/// <see cref="EscapeFogCycle"/>'s job, and how it looks is <see cref="SO_EscapeSequenceConfig"/>.
 ///
-/// The light does two things, both driven by one 0..1 value:
-///   - a <see cref="FogLightBypass"/> that clears the fog. Its reach grows with the value, so the
-///     opening starts AT the door and expands towards the player, not the other way round. With a
-///     cone angle set in the config it is a narrow beam along the door-player axis, so the side
-///     areas stay closed.
-///   - an optional real <see cref="Light"/> at the door, so the geometry near it is lit too.
+/// Three pieces, driven by one 0..1 value, each doing the one thing the other two cannot:
+///   - a <see cref="FogBeacon"/>: the point that stays readable through ANY fog, at any distance.
+///     With the fog closed this is what shows the way.
+///   - a small <see cref="FogLightBypass"/> sphere: the halo around the lamp. Kept small with a low
+///     clear on purpose — a big clear sphere would hand the player a clean view of the room.
+///   - an optional real <see cref="Light"/>: lights the geometry near the door.
 ///
-/// Place it on an empty at the doorway, on the side the player approaches from. Its own position is
-/// the apex of the beam. Needs a <see cref="FogLightBypass"/> on the same object (added by the
-/// setup), which this component drives — leave its radius and colours alone.
+/// It used to be a cone aimed at the player every frame, reaching a few metres past them: the light
+/// travelled with the player instead of marking the way (WIR-039).
+///
+/// Place it on an empty at the doorway. The bypass is required and the beacon is added on Awake
+/// when missing; leave their fields alone, this component drives them.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(FogLightBypass))]
 public class EscapeGuideDoor : MonoBehaviour
 {
-    [Tooltip("Luz real del marco de la puerta (opcional). Se prende con la niebla; su color e " +
-             "intensidad salen de SO_EscapeSequenceConfig.")]
+    [Tooltip("Real light of the door frame (optional). Turns on with the path; its colour and " +
+             "intensity come from SO_EscapeSequenceConfig.")]
     [SerializeField] private Light lamp;
 
-    private const float StartReach = 0.5f;
+    private const float BeaconWorldRadius = 0.15f;
+    private const float BeaconMinPixels = 4f;
 
     private FogLightBypass bypass;
+    private FogBeacon beacon;
     private float lit;
 
     /// <summary>How lit the door is, 0..1.</summary>
@@ -37,12 +41,19 @@ public class EscapeGuideDoor : MonoBehaviour
     private void Awake()
     {
         bypass = GetComponent<FogLightBypass>();
+        if (!TryGetComponent(out beacon)) beacon = gameObject.AddComponent<FogBeacon>();
+
+        // A lamp is visible from every side, unlike an eye, and bigger than one: the beacon's
+        // defaults are sized for the Nemesis's eyes.
+        beacon.limitByFacing = false;
+        beacon.worldRadius = BeaconWorldRadius;
+        beacon.minPixelRadius = BeaconMinPixels;
+
         TurnOff();
     }
 
-    /// <param name="litAmount">0 = off, 1 = fully open.</param>
-    /// <param name="towards">Where the player is: the beam points there and reaches past it.</param>
-    public void Apply(SO_EscapeSequenceConfig config, float litAmount, Vector3 towards)
+    /// <param name="litAmount">0 = off, 1 = fully on.</param>
+    public void Apply(SO_EscapeSequenceConfig config, float litAmount)
     {
         lit = Mathf.Clamp01(litAmount);
         if (lit <= 0.0001f)
@@ -51,21 +62,16 @@ public class EscapeGuideDoor : MonoBehaviour
             return;
         }
 
-        Vector3 toPlayer = towards - transform.position;
-        float reach = Mathf.Clamp(toPlayer.magnitude + config.LightReachPadding,
-                                  config.LightMinReach, config.LightMaxReach);
-
         bypass.overrideAppearance = true;
+        bypass.shape = FogLightBypass.BypassShape.Sphere;
         bypass.color = config.LightColor;
         bypass.intensity = config.LightFogIntensity * lit;
         bypass.clearAmount = config.LightFogClear;
-        bypass.radius = Mathf.Lerp(StartReach, reach, lit);
+        bypass.radius = config.LightRadius;
 
-        bool beam = config.LightConeAngle > 0.5f;
-        bypass.shape = beam ? FogLightBypass.BypassShape.Cone : FogLightBypass.BypassShape.Sphere;
-        bypass.coneAngle = Mathf.Max(1f, config.LightConeAngle);
-        if (beam && toPlayer.sqrMagnitude > 0.01f)
-            transform.rotation = Quaternion.LookRotation(toPlayer);
+        beacon.color = config.LightColor;
+        beacon.intensity = config.BeaconIntensity;
+        beacon.IntensityScale = lit;
 
         if (lamp != null)
         {
@@ -80,8 +86,9 @@ public class EscapeGuideDoor : MonoBehaviour
         lit = 0f;
         if (bypass == null) bypass = GetComponent<FogLightBypass>();
 
-        // Radius 0 is how FogLightBypass says "does nothing".
+        // Radius 0 is how FogLightBypass says "does nothing"; scale 0 is the beacon's.
         bypass.radius = 0f;
+        if (beacon != null) beacon.IntensityScale = 0f;
         if (lamp != null) lamp.enabled = false;
     }
 

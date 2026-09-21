@@ -43,7 +43,7 @@ public static class TempLampDiag
                 parentInfo = proxy == null ? " proxy=NULL"
                     : $" proxy='{proxy.name}' proxyPos=({proxy.position.x:F2},{proxy.position.z:F2}) proxyLid={Lid(proxy)} proxyPI={Lid(PrefabUtility.GetPrefabInstanceHandle(proxy))} proxyParent={(proxy.parent ? proxy.parent.name : "none")}";
             }
-            sb.AppendLine($"{(lamp ? "LAMP " : "CEIL ")}{t.name,-24} pos=({t.position.x:F2},{t.position.z:F2}) PI={Lid(handle)} trLid={Lid(t)} inst={t.gameObject.GetInstanceID()}{parentInfo}");
+            sb.AppendLine($"{(lamp ? "LAMP " : "CEIL ")}{t.name,-24} pos=({t.position.x:F2},{t.position.z:F2}) PI={Lid(handle)} trLid={Lid(t)} inst={t.gameObject.GetEntityId()}{parentInfo}");
         }
         for (int i = 0; i < t.childCount; i++) Walk(t.GetChild(i), sb);
     }

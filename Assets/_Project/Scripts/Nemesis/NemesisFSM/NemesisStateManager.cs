@@ -18,9 +18,10 @@ using UnityEngine.AI;
 ///   NemesisLookAround    sweeps the gaze while standing still
 ///   NemesisAudio         the per-state breathing and voice loops
 ///   NemesisChaseProgress whether a chase is closing the distance at all
+///   NemesisHidingAwareness which hiding spot it knows (or suspects) the player is in
 ///
 /// A facade is not a god object: the problem was never that everything could be reached from here,
-/// it was that everything was implemented here. All seven are added automatically when missing, so
+/// it was that everything was implemented here. All eight are added automatically when missing, so
 /// no existing Nemesis prefab has to be opened and re-saved. NemesisElevatorUser is the deliberate
 /// exception — it carries real scene wiring, so it is looked up and never grown.
 /// </summary>
@@ -53,6 +54,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "Se tunea desde SO_NemesisData (Chase Progress Window / Chase Min Progress). Solo " +
              "mide y publica 'IsChaseStagnant': no elige la ruta ni decide el estado.")]
     [SerializeField] private NemesisChaseProgress chaseProgress;
+
+    [Tooltip("Lo que sabe de escondites: en cuál está seguro de que te metiste (te vio entrar, o te " +
+             "distinguió por las rendijas) y en cuál sólo sospecha. Se agrega solo, igual que los de " +
+             "arriba: no tiene nada que configurar en escena.\n\n" +
+             "Sólo sabe: la búsqueda va hasta el escondite, la escalera decide cuándo y la captura " +
+             "te saca. Se tunea desde SO_NemesisData (Seen Entering Window, Under Table Vision " +
+             "Multiplier) y SO_HidingData (Locker Vision Exposure).")]
+    [SerializeField] private NemesisHidingAwareness hidingAwareness;
 
     [Tooltip("The per-state breathing and voice loops. Added automatically like the six above, " +
              "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
@@ -174,6 +183,20 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// questions, so a missing component degrades to "not stalled" in exactly one place.
     /// </summary>
     public bool IsChaseStagnant => chaseProgress != null && chaseProgress.IsChaseStagnant;
+
+    /// <summary>What the Nemesis knows about hiding spots. See <see cref="NemesisHidingAwareness"/>.
+    /// </summary>
+    public NemesisHidingAwareness HidingAwareness => hidingAwareness;
+
+    /// <summary>The hiding spot it is sure the player is in, or null. Read by the ladder as
+    /// KnowsHidingSpot and by Searching, which walks straight to it. Degrades to "knows nothing"
+    /// when the component is missing, in this one place.</summary>
+    public HidingSpot KnownHidingSpot => hidingAwareness != null ? hidingAwareness.KnownSpot : null;
+
+    /// <summary>A hiding spot it only suspects, when it has no certainty to act on instead. Read by
+    /// the ladder as SuspectsHidingSpot and by Investigating, which goes to have a look.</summary>
+    public HidingSpot SuspectedHidingSpot =>
+        hidingAwareness != null && hidingAwareness.KnownSpot == null ? hidingAwareness.SuspectedSpot : null;
 
     /// <summary>How full the suspicion meter is, 0 to 1. Read by NemesisDebugHUD - the ladder uses
     /// <see cref="IsSuspicious"/>, which is this against the designer's threshold.</summary>
@@ -310,12 +333,23 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         if (navAgent != null) navAgent.speed = speed;
 
-        currentGait = gait;
+        // Chasing and Patrolling re-issue their gait EVERY FRAME while moving. Treating each of
+        // those as a new order is what made the running-in-place guard below dead code during a
+        // chase (WIR-024): it reset the still-timer every frame, so the timer could never reach
+        // its grace, so the monster sprinted on the spot for as long as it was stuck. Only an
+        // order that changes something is a fresh one.
+        bool fresh = gait != currentGait || !Mathf.Approximately(speed, currentGaitSpeed);
 
-        // A fresh order gets the benefit of the doubt: the body has not had a frame to move yet,
-        // and starting the still-timer from where the last order left it would blank the first
-        // steps of every walk that follows a pause.
+        currentGait = gait;
+        currentGaitSpeed = speed;
+
+        if (!fresh) return;
+
+        // A fresh order gets the benefit of the doubt: the body has not had a frame to move yet —
+        // the path may still be computing and the agent has to accelerate — and judging it from
+        // the first frame would blank the first steps of every walk that follows a pause.
         stillTimer = 0f;
+        gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
 
         ApplyGaitToAnimator(gait);
     }
@@ -325,18 +359,36 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public EGait CurrentGait => currentGait;
 
     private EGait currentGait = EGait.Idle;
+    private float currentGaitSpeed;
     private Vector3 lastGaitSamplePosition;
+    private Vector3 smoothedFlatVelocity;
     private float stillTimer;
+    private float gaitBenefitOfDoubtUntil;
 
-    /// <summary>Flat metres per second below which the body counts as standing still. Well under
-    /// the slowest authored speed, so it only ever catches a body that is not moving at all.
+    /// <summary>Flat metres per second below which the body counts as standing still, whatever it
+    /// was told. The floor under <see cref="GaitProgressFraction"/> for very slow gaits.</summary>
+    private const float GaitMotionEpsilon = 0.2f;
+
+    /// <summary>
+    /// Fraction of the commanded speed the body has to actually make, net, to count as walking or
+    /// running (WIR-024). A monster ordered to run at 3 m/s that nets 0.4 m/s is not running: it is
+    /// shoving against a NavMesh edge, a door, or its own avoidance, and a run cycle on top of that
+    /// is exactly the "running in place" QA keeps seeing.
     /// </summary>
-    private const float GaitMotionEpsilon = 0.05f;
+    private const float GaitProgressFraction = 0.3f;
 
-    /// <summary>How long it has to stand still before the legs stop. Short enough not to read as
-    /// lag, long enough that a single frame of contact with geometry does not flicker the
-    /// animation.</summary>
-    private const float GaitStillGrace = 0.15f;
+    /// <summary>Time constant of the velocity smoothing, in seconds. Long enough that a body
+    /// jittering back and forth against geometry averages out to nothing — which instantaneous
+    /// speed never does — and short enough that a real stop reads as a stop.</summary>
+    private const float GaitVelocitySmoothing = 0.3f;
+
+    /// <summary>How long it has to be not-really-moving before the legs stop. Short enough not to
+    /// read as lag, long enough that a brush with geometry does not flicker the animation.</summary>
+    private const float GaitStillGrace = 0.2f;
+
+    /// <summary>How long after a new gait order the body is not judged at all: path computation
+    /// plus accelerating up to a fraction of the new speed.</summary>
+    private const float GaitStartGrace = 0.5f;
 
     /// <summary>A frame's displacement above this is a teleport, not a stride: a Warp, a spawn, or
     /// the lift dropping the body at the far landing. Sampling through one would report a sprint
@@ -358,6 +410,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     ///
     /// Only Walking and Running are second-guessed. Idle and Grabbing are not claims about
     /// movement, so there is nothing for the body to contradict.
+    ///
+    /// NET SPEED, NOT INSTANTANEOUS SPEED (WIR-024). This used to compare each frame's
+    /// displacement against 0.05 m/s. A body shoving against a NavMesh edge or dithering in its own
+    /// avoidance moves a few millimetres back and forth every frame — well above that — and nets
+    /// nothing, so the run cycle stayed on while the monster went nowhere. The velocity VECTOR is
+    /// smoothed instead, which cancels the back-and-forth, and what it nets is judged against the
+    /// speed the gait asked for.
     /// </summary>
     private void TickLocomotionAnimation()
     {
@@ -372,28 +431,44 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (delta.sqrMagnitude > GaitTeleportStep * GaitTeleportStep)
         {
             stillTimer = 0f;
+            smoothedFlatVelocity = Vector3.zero;
             return;
         }
 
-        if (currentGait != EGait.Walking && currentGait != EGait.Running) return;
+        float deltaTime = Time.deltaTime;
+        if (deltaTime <= 0f) return;
 
         delta.y = 0f;
+        float k = 1f - Mathf.Exp(-deltaTime / GaitVelocitySmoothing);
+        smoothedFlatVelocity = Vector3.Lerp(smoothedFlatVelocity, delta / deltaTime, k);
 
-        float deltaTime = Time.deltaTime;
-        float speed = deltaTime > 0f ? delta.magnitude / deltaTime : 0f;
+        if (currentGait != EGait.Walking && currentGait != EGait.Running) return;
+        if (Time.time < gaitBenefitOfDoubtUntil) { stillTimer = 0f; return; }
 
-        if (speed > GaitMotionEpsilon) stillTimer = 0f;
-        else                           stillTimer += deltaTime;
+        // Judged against the agent's CURRENT speed, not the one the gait was set with: the escape
+        // sequence's NemesisEscapePursuit throttles NavAgent.speed directly, every frame, to hold
+        // its distance — slowing down on purpose there is not being stuck, and must not stop the
+        // legs mid-cinematic.
+        float commanded = navAgent != null && navAgent.isActiveAndEnabled ? navAgent.speed : currentGaitSpeed;
+        float required = Mathf.Max(GaitMotionEpsilon, commanded * GaitProgressFraction);
+        if (smoothedFlatVelocity.magnitude >= required) stillTimer = 0f;
+        else                                           stillTimer += deltaTime;
 
         ApplyGaitToAnimator(stillTimer >= GaitStillGrace ? EGait.Idle : currentGait);
     }
+
+    /// <summary>What the body is really netting across the floor, in m/s — the number the
+    /// locomotion animation trusts. Exposed for the F9 HUD.</summary>
+    public float NetFlatSpeed => smoothedFlatVelocity.magnitude;
 
     /// <summary>Forgets where the body was, so the next tick measures from here. For anything that
     /// moves the Nemesis without walking it there.</summary>
     public void ResetGaitSampling()
     {
         lastGaitSamplePosition = transform.position;
+        smoothedFlatVelocity = Vector3.zero;
         stillTimer = 0f;
+        gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
     }
 
     private void ApplyGaitToAnimator(EGait gait)
@@ -508,6 +583,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
             ? state as NemesisSearchingState
             : null;
 
+    /// <summary>The Investigating state instance, or null before the machine is built. Read by the
+    /// ladder's IsInspectingNoise and by NemesisLookAround, which sweeps the gaze while it inspects
+    /// the spot a noise came from.</summary>
+    public NemesisInvestigatingState InvestigatingState =>
+        States.TryGetValue(ENemesisState.Investigating, out BaseState<ENemesisState> state)
+            ? state as NemesisInvestigatingState
+            : null;
+
     /// <summary>The Chasing state instance, or null before the machine is built. Reached for by
     /// NemesisGizmos, which draws where the pursuit is aiming - the machine itself never reads it.
     /// </summary>
@@ -583,6 +666,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// Moved out of NemesisChasingState, where it was private: with the decision layer choosing
     /// when to capture, "can it reach them" is a fact about the world rather than something one
     /// state knows about itself.
+    ///
+    /// A PLAYER IN A HIDING SPOT IS REACHED AT THE DOOR, and only a door it knows to open. The
+    /// interior pose is inside the prop, off the NavMesh by construction, so measured to the player
+    /// the agent could only ever get as close as the edge of the mesh — 0.7 m out on the test
+    /// area's locker — and any stopping distance on top put it past the 1 m reach: it stood at the
+    /// door staring at the player for as long as they stayed in. The approach point is the authored
+    /// place to stand, validated on the NavMesh and within reach of the interior pose, so standing
+    /// within reach of IT is being able to open the spot. And only a spot it knows: walking past the
+    /// door of a locker it has no idea is occupied must not pull anyone out of it.
     /// </summary>
     public bool CanReachPlayerNow
     {
@@ -594,6 +686,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
             PlayerStateManager target = fieldOfView.GetCurrentTarget();
             if (target == null) return false;
 
+            HidingSpot spot = target.CurrentHidingSpot;
+            if (spot != null && !ReferenceEquals(spot, KnownHidingSpot)) return false;
+
             Vector3 toPlayer = target.transform.position - transform.position;
 
             // Between floors: the vertical gap rules the capture out before anything else. A
@@ -601,21 +696,38 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
             // storey on foot.
             if (Mathf.Abs(toPlayer.y) > nemesisData.CatchMaxVerticalOffset) return false;
 
-            toPlayer.y = 0f;
-            if (toPlayer.sqrMagnitude > nemesisData.CatchMaxReach * nemesisData.CatchMaxReach) return false;
+            Vector3 toReach = spot != null ? spot.ApproachPoint.position - transform.position : toPlayer;
+            toReach.y = 0f;
+            if (toReach.sqrMagnitude > nemesisData.CatchMaxReach * nemesisData.CatchMaxReach) return false;
 
             if (!nemesisData.CatchRequiresLineOfSight) return true;
             if (fieldOfListening == null) return true;   // No way to test it: do not block the capture.
 
             Vector3 eye = transform.position + Vector3.up * CatchProbeHeight;
             Vector3 targetPoint = target.transform.position + Vector3.up * CatchProbeHeight;
-            return !fieldOfListening.IsOccludedByWall(eye, targetPoint);
+
+            // Through the shell of the spot the player is hiding in, and only that one (plan
+            // §3.3). A locker on Default is a wall like any other, and with this ray stopping at
+            // its door, hiding was total immunity: the monster could stand at the door forever.
+            return !fieldOfListening.IsOccludedByWall(eye, targetPoint, target.CurrentHidingSpot);
         }
     }
 
     /// <summary>Height the capture's line-of-sight ray is fired from. Cast from the pivots, which
     /// sit at floor level, the ray scrapes the ground and always reports occlusion.</summary>
     private const float CatchProbeHeight = 1f;
+
+    /// <summary>
+    /// How close the agent gets to a hiding spot's approach point before it counts as standing at
+    /// it — for Searching and Investigating checking a spot.
+    ///
+    /// Not the default stopping distance, which is a metre: the approach point is authored within
+    /// the grab's reach (1 m) of the player inside, so stopping a metre short of it leaves the
+    /// Nemesis up to two metres from them — outside both the grab and the proximity rule, and the
+    /// check comes back "empty" with the player in there. Not zero either: an agent asked to arrive
+    /// exactly on its destination circles it (see PursuitStoppingDistance).
+    /// </summary>
+    public const float SpotCheckStoppingDistance = 0.25f;
 
     // ── Facade: belief ──────────────────────────────────────────────────────
 
@@ -883,6 +995,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         stuckEscape.Initialize(this);
         lifecycle.Initialize(this);
         chaseProgress.Initialize(this);
+        hidingAwareness.Initialize(this);
 
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
@@ -950,7 +1063,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // touched.
         chaseProgress = ResolveSibling(chaseProgress);
 
-        // GetComponent and NOT ResolveSibling: unlike the six above, this one is a real feature
+        // Same terms: it reads its eyes and its tuning off this object. A Nemesis that only learned
+        // about hiding spots once somebody re-saved its prefab would go on treating every locker
+        // as a wall in every scene nobody touched.
+        hidingAwareness = ResolveSibling(hidingAwareness);
+
+        // GetComponent and NOT ResolveSibling: unlike the seven above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
         // freight elevator should not silently grow one.
         if (elevatorUser == null) elevatorUser = GetComponent<NemesisElevatorUser>();
@@ -1084,6 +1202,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // base.Update() it would be judging a chase against last frame's answer and, on the frame
         // a chase ends, measuring a state the machine has already left.
         chaseProgress.Tick();
+
+        // Same reason: KnowsHidingSpot is a predicate, and a spot that stopped being worth knowing
+        // this frame (seen out in the open, burned) must be gone before the ladder reads it.
+        hidingAwareness.Tick();
 
         // Decide before executing. The tree looks at the world exactly as the sensors read it a
         // few lines above, and base.Update() acts on that answer in the SAME frame — where a

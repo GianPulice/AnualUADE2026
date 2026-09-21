@@ -306,6 +306,7 @@ public class SO_NemesisDataEditor : Editor
     {
         Color vision = new Color(1f, 0.784f, 0.314f);
         Color crouch = new Color(0.55f, 0.75f, 0.45f);
+        Color underTable = new Color(0.35f, 0.82f, 0.80f);   // Same teal as NemesisGizmos.
 
         if (data.ViewRange > 0.01f)
         {
@@ -326,13 +327,26 @@ public class SO_NemesisDataEditor : Editor
         }
 
         float crouched = data.ViewRange * data.CrouchVisionMultiplier;
-        if (crouched <= 0.01f) return;
+        if (crouched > 0.01f)
+        {
+            float crouchedPx = crouched * pxPerMetre;
+            PlayerDiagramGUI.Arc(origin, crouchedPx, 0f, data.ViewAngle, crouch);
+            // Offset a little off dead-centre so it does not sit exactly under the healthy-range
+            // label when the two radii land close together.
+            LabelAt(origin, crouchedPx, -28f, $"agachado {crouched:0.##} m", crouch);
+        }
 
-        float crouchedPx = crouched * pxPerMetre;
-        PlayerDiagramGUI.Arc(origin, crouchedPx, 0f, data.ViewAngle, crouch);
-        // Offset a little off dead-centre so it does not sit exactly under the healthy-range
-        // label when the two radii land close together.
-        LabelAt(origin, crouchedPx, -28f, $"agachado {crouched:0.##} m", crouch);
+        // Under a table, the same shortened wedge again (plan §3.4, level B): a table shortens the
+        // view exactly the way a crouch does, and the picture should say so. What it feeds is
+        // different — the suspicion meter, never an instant sighting — and that is on the field's
+        // tooltip, not something an arc can show. Labelled on the opposite side from the crouched
+        // one, because the two radii routinely land within a metre of each other.
+        float underTableRange = data.ViewRange * data.UnderTableVisionMultiplier;
+        if (underTableRange <= 0.01f) return;
+
+        float underTablePx = underTableRange * pxPerMetre;
+        PlayerDiagramGUI.Arc(origin, underTablePx, 0f, data.ViewAngle, underTable);
+        LabelAt(origin, underTablePx, 28f, $"bajo mesa {underTableRange:0.##} m", underTable);
     }
 
     private static void DrawCatch(SO_NemesisData data, Vector2 origin, float pxPerMetre)
@@ -419,7 +433,8 @@ public class SO_NemesisDataEditor : Editor
         }
         PlayerDiagramGUI.Verdict(heard, heard ? "Te oye" : "No te oye");
         PlayerDiagramGUI.Verdict(hardDetected,
-            hardDetected ? "Detección dura: te nota igual, sin importar nada más"
+            hardDetected ? "Detección dura: te nota igual, sin importar cono ni escondite " +
+                           "(medida en plano, desde el cuerpo, contra un jugador en su mismo piso)"
                          : "Fuera de la detección dura");
         PlayerDiagramGUI.Verdict(catchable,
             catchable ? "Dentro del alcance de atrapada (sólo importa si ya te está persiguiendo)"
@@ -428,8 +443,10 @@ public class SO_NemesisDataEditor : Editor
         EditorGUILayout.HelpBox(
             "Prueba en 2D, sin paredes ni pisos de por medio: no reproduce oclusión " +
             "(WallOcclusionMultiplier / FloorOcclusionMultiplier / ProximityDetectionRespectsWalls) " +
-            "ni CatchMaxVerticalOffset, que es un eje aparte. Para eso, con el Nemesis en escena, " +
-            "mirá los gizmos (NemesisGizmos) contra la geometría real.",
+            "ni CatchMaxVerticalOffset, que es un eje aparte y gobierna las dos: la atrapada y la " +
+            "detección dura se miden en plano desde el cuerpo, sólo contra un jugador en su mismo " +
+            "piso. Para eso, con el Nemesis en escena, mirá los gizmos (NemesisGizmos) contra la " +
+            "geometría real.",
             MessageType.Info);
     }
 

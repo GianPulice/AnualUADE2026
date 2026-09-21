@@ -57,10 +57,47 @@ public class FieldOfView : MonoBehaviour
 
     private float awareness;
 
+    /// <summary>The hiding spot the current peripheral contact is being made THROUGH, or null when
+    /// the player is out in the open. Decides what a full meter means — see TickAwareness.</summary>
+    private HidingSpot peripheralSpot;
+
+    /// <summary>The Nemesis's body: where its feet are. The hard-detection disc is measured from
+    /// here, not from the eye — see IsStandingOnMe.</summary>
+    private Transform body;
+
+    /// <summary>Height above the player's pivot (their feet) that the proximity test aims its
+    /// occlusion ray at: the body, not the floor it stands on. Same height the grab's own ray uses
+    /// (NemesisStateManager.CatchProbeHeight); a ray ending at the feet ends ON the floor and can
+    /// report the floor itself as the obstruction.</summary>
+    private const float BodyProbeHeight = 1f;
+
     private Vector3 lookDirection;
+
+    /// <summary>
+    /// The Nemesis has worked out that the player is inside <c>spot</c> without having SEEN them:
+    /// the suspicion meter filled while looking through a locker's slats or under a table (plan
+    /// §3.4, level B), or — <c>atArmsLength</c> — it is standing right next to the spot and the
+    /// proximity rule reached them through its shell (§3.3). Either way no chase starts: the spot
+    /// becomes known (NemesisHidingAwareness), the Nemesis walks to its door and pulls them out.
+    ///
+    /// Raised EVERY FRAME the detection lasts, not once: the listener dedupes, and a certainty the
+    /// eyes keep renewing must not expire on the listener's clock while the eyes still have it. An
+    /// instance event and not a static one: these are this Nemesis's eyes, and a second Nemesis in
+    /// the scene must not learn from them.
+    /// </summary>
+    public event System.Action<HidingSpot, bool> HiddenPlayerSpotted;
+
+    /// <summary>Whether the last sweep caught the player in the corner of its eye. Live, unlike
+    /// <see cref="Awareness"/>, which takes seconds to drain after a contact is gone — the
+    /// difference between "I glimpsed you climbing in" and "I was chasing you a moment ago".</summary>
+    public bool HasPeripheralContact => peripheralContact;
 
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
+
+    /// <summary>The hiding spot the meter is filling through right now (level B), or null. For the
+    /// debug HUD: "suspicion rising" reads very differently when the player is in a locker.</summary>
+    public HidingSpot SensedThroughSpot => peripheralContact ? peripheralSpot : null;
 
     /// <summary>
     /// How close the Nemesis is to noticing something in the corner of its eye: 0 nothing, 1
@@ -172,9 +209,11 @@ public class FieldOfView : MonoBehaviour
                              $"from the pivot instead of from eye height.", this);
         }
 
+        NemesisStateManager manager = GetComponentInParent<NemesisStateManager>();
+        body = manager != null ? manager.transform : transform;
+
         if (nemesisData != null) return;
 
-        NemesisStateManager manager = GetComponentInParent<NemesisStateManager>();
         if (manager != null) nemesisData = manager.NemesisData;
 
         if (nemesisData == null)
@@ -208,6 +247,7 @@ public class FieldOfView : MonoBehaviour
         awareness = 0f;
         peripheralContact = false;
         peripheralTarget = null;
+        peripheralSpot = null;
     }
 
     /// <summary>
@@ -285,6 +325,19 @@ public class FieldOfView : MonoBehaviour
 
         if (awareness < 1f) return;
 
+        // Filled while the player is HIDING: it has worked out where they are, it has not seen them
+        // (plan §3.4, level B). A shape behind slats does not start a chase — the spot becomes
+        // known and the search walks up to it and opens it. The belief and the target are still
+        // refreshed, every frame the contact lasts: it does know where the player is now, and the
+        // grab needs a target to reach for once it is standing at the door.
+        if (peripheralSpot != null)
+        {
+            lastKnownTarget = peripheralTarget;
+            RecordSighting(peripheralPoint);
+            HiddenPlayerSpotted?.Invoke(peripheralSpot, false);
+            return;
+        }
+
         // Filled: this stops being a suspicion and becomes a sighting, on exactly the same terms
         // as one caught by the focus cone. RecordSighting is what keeps LastKnownVelocity honest,
         // so it has to run here too and not only on the instant path.
@@ -295,14 +348,21 @@ public class FieldOfView : MonoBehaviour
 
     /// <summary>
     /// Hard detection: inside <c>proximityDetectionRange</c> the Nemesis notices the player no
-    /// matter what — no cone, no hiding. Forcing <see cref="HasVisualTarget"/> is enough to route
-    /// the FSM into Chasing, since every state already transitions on that flag.
+    /// matter what — no cone, no hiding. Out in the open, forcing <see cref="HasVisualTarget"/> is
+    /// enough to route the FSM into Chasing, since every state already transitions on that flag.
+    /// Inside a hiding spot it reports the spot instead (<see cref="HiddenPlayerSpotted"/>): the
+    /// Nemesis knows where they are and goes to open the door — see the end of the method.
     ///
     /// With <c>proximityDetectionRespectsWalls</c> on, the only thing it still requires is that
     /// there be no geometry in between. Without that check the radius punches through the thin
     /// blockout walls: standing on the other side of a partition is enough to be detected, chased
     /// and grabbed — which is the reported "it can grab you through walls". The cone and Hidden
     /// are still defeated, which is what this detection exists for.
+    ///
+    /// The wall test looks THROUGH the shell of the spot the player is hiding in, and only that
+    /// one (plan §3.3). A locker on Default is otherwise a wall like any other, and this ray
+    /// stopping at its door made hiding total immunity: the one thing the spec says breaks Hidden
+    /// could never reach anyone inside anything.
     /// </summary>
     /// <returns>true if the player was detected by proximity this frame.</returns>
     private bool CheckExtremeProximity()
@@ -316,11 +376,12 @@ public class FieldOfView : MonoBehaviour
         if (player == null) return false;
 
         Vector3 playerPosition = player.transform.position;
-        if (!LineOfSight.CheckRange(viewTransform.position, playerPosition, range)) return false;
+        if (!IsStandingOnMe(playerPosition, range)) return false;
 
-        if (nemesisData.ProximityDetectionRespectsWalls && IsOccluded(playerPosition)) return false;
+        HidingSpot spot = player.CurrentHidingSpot;
+        if (nemesisData.ProximityDetectionRespectsWalls &&
+            IsOccluded(playerPosition + Vector3.up * BodyProbeHeight, spot)) return false;
 
-        hasVisualTarget = true;
         lastKnownTarget = player.gameObject;
         RecordSighting(playerPosition);
 
@@ -330,6 +391,19 @@ public class FieldOfView : MonoBehaviour
         awareness = 1f;
         peripheralContact = false;
 
+        // Inside a spot: standing next to it is KNOWING it, not seeing them. As a sighting it won
+        // "lo está viendo", and Chasing ran at a point inside the prop — which the agent can only
+        // approach to the edge of the NavMesh, stopping short of the grab and staring at the door
+        // for as long as the player stayed in. Known, the search walks to the door and Catch pulls
+        // them out. The F10 console's spot-less Hide has no door to walk to: that one is a sighting.
+        if (spot != null)
+        {
+            hasVisualTarget = false;
+            HiddenPlayerSpotted?.Invoke(spot, true);
+            return true;
+        }
+
+        hasVisualTarget = true;
         return true;
     }
 
@@ -379,14 +453,46 @@ public class FieldOfView : MonoBehaviour
     }
 
     /// <summary>
-    /// Whether there is <see cref="obstacleMask"/> geometry between the eye and the point.
+    /// Whether a point is inside the hard-detection disc: measured FLAT from the body, and only on
+    /// the Nemesis's own floor.
+    ///
+    /// It used to be a sphere round the EYE measured to the player's FEET, and the eye is the head
+    /// bone, about 1.8 m up. With the shipped 1.5 m range that sphere never reached the floor the
+    /// Nemesis was standing on: extreme proximity could not fire on level ground at any distance,
+    /// which left the one rule the spec says breaks Hidden (§5.2) as dead code. NemesisGizmos and
+    /// the SO editor have always drawn it as a flat disc; this is now what they draw.
+    ///
+    /// "Its own floor" is the grab's test (CatchMaxVerticalOffset). Standing on the monster and
+    /// being within its reach have to agree on what the same floor is — a player on the catwalk
+    /// overhead is neither.
+    /// </summary>
+    private bool IsStandingOnMe(Vector3 point, float range)
+    {
+        Vector3 offset = point - body.position;
+        if (Mathf.Abs(offset.y) > nemesisData.CatchMaxVerticalOffset) return false;
+
+        offset.y = 0f;
+        return offset.sqrMagnitude <= range * range;
+    }
+
+    /// <summary>
+    /// Whether there is <see cref="obstacleMask"/> geometry between the eye and the point, not
+    /// counting the shell of <paramref name="through"/> — the spot the player is hiding in, or
+    /// null out in the open.
     ///
     /// Tested against the player's centre and not the three points FindVisibleTargets sweeps: here
     /// the distance is a couple of metres and the question being answered is "is there a wall in
     /// between", not "is a shoulder peeking out".
     /// </summary>
-    private bool IsOccluded(Vector3 targetPosition) =>
-        !LineOfSight.CheckView(viewTransform.position, targetPosition, obstacleMask);
+    /// <summary>Whether the eye has a clear line to <paramref name="point"/>, looking through the
+    /// shell of <paramref name="through"/> only. For NemesisHidingAwareness's "did it see the spot
+    /// being climbed into", which has to use the same obstacles this sensor sees with.</summary>
+    public bool HasLineOfSightTo(Vector3 point, HidingSpot through) => !IsOccluded(point, through);
+
+    private bool IsOccluded(Vector3 targetPosition, HidingSpot through) =>
+        through != null
+            ? through.IsLineBlockedIgnoringSelf(viewTransform.position, targetPosition, obstacleMask)
+            : !LineOfSight.CheckView(viewTransform.position, targetPosition, obstacleMask);
 
     public void FindVisibleTargets()
     {
@@ -394,19 +500,26 @@ public class FieldOfView : MonoBehaviour
 
         PlayerStateManager player = PlayerRegistry.Current;
 
-        // Hidden means inside a locker or under a table: normal vision cannot reach the player
-        // at all. Extreme proximity, already checked in Update before this runs, is the only
-        // way out of Hidden — so getting here with IsHidden means it did not trigger.
+        // Hidden means inside a locker, under a table or in a container: NORMAL vision cannot reach
+        // the player at all. Extreme proximity was already checked in Update before this ran — so
+        // getting here with IsHidden means it did not trigger — and what is left is what leaks
+        // through the spot itself, into the suspicion meter only (SenseThroughSpot).
         if (player != null && player.IsHidden)
         {
             hasVisualTarget = false;
 
-            // Cleared as well, or the suspicion meter keeps climbing off the last sweep that saw
-            // them - which would have the Nemesis work out that someone is in the locker purely
-            // by having been looking that way when they got in.
+            // Cleared before the spot gets its say, or the meter keeps climbing off the last sweep
+            // that saw them in the open — which would have the Nemesis work out that someone is in
+            // the locker purely by having been looking that way when they got in. Whether it SAW
+            // them get in is a separate rule with its own window (NemesisHidingAwareness).
             peripheralContact = false;
+            peripheralSpot = null;
+
+            SenseThroughSpot(player);
             return;
         }
+
+        peripheralSpot = null;
 
         float viewRange = nemesisData.ViewRange;
         float viewAngle = nemesisData.ViewAngle;
@@ -484,6 +597,121 @@ public class FieldOfView : MonoBehaviour
         peripheralContact = true;
         peripheralTarget = peripheralHit;
         peripheralCloseness = 1f - Mathf.Clamp01(peripheralDistance / Mathf.Max(0.01f, viewRange));
+    }
+
+    /// <summary>
+    /// What the Nemesis can still make out of a player who is hiding (plan §3.4, level B). It only
+    /// ever sets up a peripheral contact.
+    ///
+    /// HOW FAR depends on the spot: through a locker's slats, a fraction of the view range and only
+    /// from in front of the door; under a table, a shortened view from any side; inside a container
+    /// — and under the F10 console's spot-less Hide — nothing. <see cref="HiddenViewRange"/> has the
+    /// numbers.
+    ///
+    /// ALWAYS THROUGH THE METER, NEVER A SIGHTING, even dead ahead in the focus cone. Making out a
+    /// shape behind slats is exactly the "something is there" the meter models, and an instant
+    /// sighting through a locker door is the binary sensor this replaced. What a FULL meter means
+    /// here is different too: see TickAwareness.
+    ///
+    /// The spot's own colliders are looked through — the reduced range IS the slats and the edge of
+    /// the table. Anything else in between, a wall or another prop, still blocks exactly as it does
+    /// for a player in the open.
+    /// </summary>
+    private void SenseThroughSpot(PlayerStateManager player)
+    {
+        HidingSpot spot = player.CurrentHidingSpot;
+        float range = HiddenViewRange(spot);
+        if (range <= 0f) return;
+
+        Vector3 eye = viewTransform.position;
+
+        // Slats are in the DOOR. The back and the sides of a locker are sheet steel.
+        if (spot.Type == EHidingSpotType.Locker && !IsInFrontOf(spot, eye)) return;
+
+        Collider bodyCollider = player.CapsuleColl;
+        if (bodyCollider == null) return;
+
+        if (!CheckConeThroughSpot(eye, LookDirection, bodyCollider, nemesisData.ViewAngle, range,
+                                  spot, out Vector3 seenPoint))
+            return;
+
+        peripheralContact = true;
+        peripheralTarget = player.gameObject;
+        peripheralPoint = player.transform.position;
+        peripheralSpot = spot;
+        peripheralCloseness = 1f - Mathf.Clamp01(Vector3.Distance(eye, seenPoint) / range);
+    }
+
+    /// <summary>
+    /// How far the Nemesis can make out a player hidden in <paramref name="spot"/>, in metres, or 0
+    /// when it cannot at all. Public so the gizmos can draw it round a spot.
+    ///
+    /// The locker's fraction lives on SO_HidingData next to the rest of the spot's numbers; the
+    /// table's on SO_NemesisData, where the hiding spec put it and where the SO editor and the
+    /// gizmos draw it next to the crouched range it resembles.
+    /// </summary>
+    public float HiddenViewRange(HidingSpot spot)
+    {
+        if (spot == null || nemesisData == null) return 0f;   // F10's spot-less Hide: blind.
+
+        switch (spot.Type)
+        {
+            case EHidingSpotType.Locker:
+                return spot.Data != null ? nemesisData.ViewRange * spot.Data.LockerVisionExposure : 0f;
+
+            case EHidingSpotType.UnderTable:
+                return nemesisData.ViewRange * nemesisData.UnderTableVisionMultiplier;
+
+            default:
+                return 0f;   // Container: sealed. The spec's "no vision at all".
+        }
+    }
+
+    /// <summary>Whether a point is on the side the spot's interior pose faces — the way the player
+    /// inside is looking out, which for a locker is the door.</summary>
+    private static bool IsInFrontOf(HidingSpot spot, Vector3 point)
+    {
+        Transform pose = spot.InteriorPose;
+
+        Vector3 facing = pose.forward;
+        facing.y = 0f;
+
+        Vector3 toPoint = point - pose.position;
+        toPoint.y = 0f;
+
+        return Vector3.Dot(facing, toPoint) > 0f;
+    }
+
+    /// <summary>
+    /// <see cref="LineOfSight.CheckConeSampled"/> with a range of its own and the occupied spot's
+    /// shell looked through. Same three samples up the body — feet, centre, head — for the reason
+    /// that method gives: a head showing over the edge of a table is not the same as a player
+    /// entirely under it.
+    /// </summary>
+    private bool CheckConeThroughSpot(Vector3 origin, Vector3 front, Collider target, float angle,
+                                      float range, HidingSpot spot, out Vector3 seenPoint)
+    {
+        seenPoint = Vector3.zero;
+        Bounds bounds = target.bounds;
+
+        for (int j = -1; j < 2; j++)
+        {
+            Vector3 point = bounds.center + new Vector3(0f, j * bounds.extents.y * 0.9f, 0f);
+
+            Vector3 toPoint = point - origin;
+            float distance = toPoint.magnitude;
+            if (distance > range) continue;
+
+            bool withinCone = distance <= minDistance || Vector3.Angle(front, toPoint) <= angle * 0.5f;
+            if (!withinCone) continue;
+
+            if (spot.IsLineBlockedIgnoringSelf(origin, point, obstacleMask)) continue;
+
+            seenPoint = point;
+            return true;
+        }
+
+        return false;
     }
     /// <summary>
     /// Last target seen, or null if nobody has been seen yet / the object was destroyed.

@@ -31,7 +31,7 @@ MonoBehaviour:
   playerLightRange: 4.4
   playerLightClear: 0.94
   playerLightFalloff: 2
-  playerLightColor: {r: 1, g: 0.78, b: 0.5, a: 1}
+  playerLightColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   playerLightTint: 1
   playerLightInjection: 0.04
   bypassFalloff: 2

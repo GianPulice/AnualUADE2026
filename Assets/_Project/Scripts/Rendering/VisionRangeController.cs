@@ -60,6 +60,10 @@ public class VisionRangeController : MonoBehaviour
     // ── State ───────────────────────────────────────────────────────────────
     private Transform _player;
 
+    // Where the fog is measured from when it is not the player: a cinematic shot framed far from
+    // them. See SetCentreOverride.
+    private Transform _centreOverride;
+
     // Stack of active configs: the last one pushed wins. The bottom is always defaultConfig.
     private readonly List<SO_VisionFogConfig> _configStack = new List<SO_VisionFogConfig>();
 
@@ -167,9 +171,10 @@ public class VisionRangeController : MonoBehaviour
             frame.playerLightColor = _playerLight.OverrideColor;
         }
 
-        frame.PushToShader(_player.position, lightPos);
+        Vector3 centre = _centreOverride != null ? _centreOverride.position : _player.position;
+        frame.PushToShader(centre, lightPos);
         PushBypassZones(frame);
-        PushBeacons(_player.position);
+        PushBeacons(centre);
     }
 
     // ── Public API for LightZones ───────────────────────────────────────────
@@ -207,6 +212,22 @@ public class VisionRangeController : MonoBehaviour
 
             if (newTop != null) ApplyTargetsFromConfig(newTop);
         }
+    }
+
+    /// <summary>
+    /// Measures the fog from <paramref name="centre"/> instead of the player until cleared. For a
+    /// cinematic whose camera is far from the player: centred on the player, a shot 13 m away
+    /// renders fully fogged, and the only other way out was turning the fog off for the shot —
+    /// which made the cinematic look nothing like the gameplay around it (WIR-040). The module
+    /// light stays on the player.
+    /// </summary>
+    public void SetCentreOverride(Transform centre) => _centreOverride = centre;
+
+    /// <summary>Back to the player — only if <paramref name="centre"/> is still the override, so a
+    /// caller never clears someone else's.</summary>
+    public void ClearCentreOverride(Transform centre)
+    {
+        if (_centreOverride == centre) _centreOverride = null;
     }
 
     /// <summary>Change the default config at runtime (e.g. on a level change).</summary>

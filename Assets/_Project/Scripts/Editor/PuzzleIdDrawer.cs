@@ -38,6 +38,7 @@ public class PuzzleIdDrawer : PropertyDrawer
         "SO_HubPuzzleData",
         "SO_SequencePuzzleData",
         "SO_ContainerPuzzleData",
+        "SO_SkillCheckPuzzleData",
     };
 
     private const string EmptyLabel = "(vacío)";

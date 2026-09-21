@@ -46,7 +46,9 @@ public class SO_SkillCheckData : ScriptableObject
         [Tooltip("Where the sector starts, in degrees (0 = twelve o'clock, clockwise).")]
         [Range(0f, 360f)] public float startDegrees;
 
-        [Tooltip("Where the sector ends. The whole success zone always fits inside the sector.")]
+        [Tooltip("Where the sector ends. The success zone fits inside the sector when it can; a zone " +
+                 "wider than the sector starts at the sector's start (so the perfect slice always " +
+                 "lands inside it), pulled back if needed so it never runs past twelve o'clock.")]
         [Range(0f, 360f)] public float endDegrees;
 
         [Tooltip("Relative chance of the zone landing in this sector (RouletteSelection). 0 = never, " +

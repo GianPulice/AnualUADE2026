@@ -13,11 +13,19 @@ using UnityEngine;
 /// If there is nowhere to respawn to, CheckpointManager falls back to the old defeat screen on
 /// its own and no notification ever arrives — this state simply stays parked, which is correct
 /// since the run is over and the scene is about to reload from the UI.
+///
+/// A PLAYER IN A HIDING SPOT IS PULLED OUT FIRST (plan §3.5): for SO_NemesisData.HiddenPullOutTime
+/// the Nemesis stands at the spot opening the locker or reaching under the table, and only then
+/// calls OnCaptured(). There is no pull-out animation yet — the grab plays — but the beat is the
+/// design: from inside, the player sees the monster at the door before the hands arrive.
 /// </summary>
 public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 {
+    // Private and never serialised, so a phase can be inserted anywhere — unlike the state and
+    // predicate enums, which designer assets store as integers.
     private enum ECatchPhase
     {
+        PullingOut,
         WaitingForCheckpoint,
         Grace,
     }
@@ -27,6 +35,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
     private ECatchPhase phase;
     private float graceTimer;
+    private float pullOutTimer;
 
     public NemesisCatchState(NemesisStateManager.ENemesisState key, NemesisStateManager stateManager) : base(key)
     {
@@ -38,6 +47,7 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
         NextState = StateKey;
         phase = ECatchPhase.WaitingForCheckpoint;
         graceTimer = 0f;
+        pullOutTimer = 0f;
         nemesisStateManager.BeginCapture();
 
         player = nemesisStateManager.FieldOfView.GetCurrentTarget();
@@ -61,10 +71,50 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
             return;
         }
 
-        // The one call the spec allows: from here on the Nemesis waits, it does not act.
+        // Hidden: get them out of there first. The body stops where it is — at the door — and turns
+        // to the spot; the player is left alone, still inside, still looking out through the slats.
+        if (player.CurrentHidingSpot != null && nemesisStateManager.NemesisData.HiddenPullOutTime > 0f)
+        {
+            phase = ECatchPhase.PullingOut;
+            HoldBody();
+            FaceTowards(player.transform.position);
+            nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
+            return;
+        }
+
+        Capture();
+    }
+
+    /// <summary>The one call the spec allows: from here on the Nemesis waits, it does not act.</summary>
+    private void Capture()
+    {
+        phase = ECatchPhase.WaitingForCheckpoint;
         player.OnCaptured();
         FaceEachOther();
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
+    }
+
+    /// <summary>Stops the agent where it stands. The capture itself never needed this — it is
+    /// entered already on top of the player — but the pull-out is entered at a door and must not
+    /// keep sliding along whatever path brought it there.</summary>
+    private void HoldBody()
+    {
+        if (!nemesisStateManager.IsAgentReady) return;
+
+        nemesisStateManager.NavAgent.ResetPath();
+        nemesisStateManager.NavAgent.velocity = Vector3.zero;
+    }
+
+    /// <summary>Turns the Nemesis alone towards a point, yaw only.</summary>
+    private void FaceTowards(Vector3 point)
+    {
+        Transform nemesis = nemesisStateManager.transform;
+        Vector3 toPoint = point - nemesis.position;
+        toPoint.y = 0f;
+
+        if (toPoint.sqrMagnitude <= 0.0001f) return;
+
+        nemesis.rotation = Quaternion.LookRotation(toPoint);
     }
 
     /// <summary>
@@ -100,6 +150,26 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     {
         switch (phase)
         {
+            case ECatchPhase.PullingOut:
+                // Scaled time: a gameplay beat, and the state manager's Update does not run while
+                // paused anyway.
+                pullOutTimer += Time.deltaTime;
+                if (pullOutTimer < nemesisStateManager.NemesisData.HiddenPullOutTime) return;
+
+                // They climbed out while the door was being opened and are no longer within reach.
+                // Nobody is in its hands, so report it the way the "nobody to capture" case does —
+                // the ladder picks the chase up, and the catch cooldown this exit opens keeps it
+                // from grabbing straight back on the next frame.
+                if (player == null ||
+                    (player.CurrentHidingSpot == null && !nemesisStateManager.CanReachPlayerNow))
+                {
+                    NextState = NemesisStateManager.ENemesisState.Chasing;
+                    return;
+                }
+
+                Capture();
+                break;
+
             case ECatchPhase.WaitingForCheckpoint:
                 // Passive: CheckpointManager is off doing its own thing on its own timing
                 // (cutscene delay, then respawn-or-defeat). This state does not poll it, it

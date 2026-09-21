@@ -51,20 +51,24 @@ public class WinController : BaseScreenController<WinView, GameResultModel>, IMo
         GameResultManager.OnGameResult -= HandleGameResult;
     }
 
+    // Order matters in both directions. Push snapshots Time.timeScale and the last Pop restores
+    // that snapshot, so freezing BEFORE the Push saved a 0, and the Pop put the 0 back after the
+    // 1 was set: the next New Game started frozen (WIR-035). Push first, freeze after; Pop first,
+    // unfreeze after.
     protected override void OnBeforeOpen()
     {
-        Time.timeScale = 0f;
-
         // Frees the cursor and stops PlayerCameraController from re-locking it.
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+
+        Time.timeScale = 0f;
 
         view.SetData(model);
     }
 
     protected override void OnBeforeClose()
     {
-        Time.timeScale = 1f;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        Time.timeScale = 1f;
     }
 
     private void HandleGameResult(GameResultModel incomingModel)
@@ -85,8 +89,8 @@ public class WinController : BaseScreenController<WinView, GameResultModel>, IMo
 
     private void HandleMainMenu()
     {
-        Time.timeScale = 1f;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        Time.timeScale = 1f;
 
         // Push alone, no Clear All first: the push already unloads the level, behind the loading
         // screen. A Clear All would unload it straight away, in view, before the fade even starts.
