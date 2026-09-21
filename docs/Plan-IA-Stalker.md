@@ -583,16 +583,18 @@ Orden recomendado. La Fase 4 no depende de los escondites y arregla un cheese qu
 puede ir en paralelo con la 1.
 
 ### Fase 0 — Ajustes sin código
-- `patrolWaitVariance` → ~0.6 en `SO_NemesisData.asset` (hoy 0.25).
-- Completar `NemesisAudio.stateLoops`: ya tiene Patrolling / Investigating / Chasing / Searching en
-  la instancia de Zona1; faltan `Catch` y `Traversing` (hoy callan). Pasarlo de la instancia de la
-  escena a `Nemesis.prefab`, para que la testbed y cualquier escena nueva no lo tengan mudo. La
-  respiración del Nemesis es el tell de la emboscada (C1).
-- Decidir D5 (música de persecución).
-- Activar el Director en Zona1, con zonas de presión y disparadores por puzzle
-  ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)).
-- **Verificación:** F9 muestra esperas distintas en cada waypoint; F10 lista las zonas y un botón
-  de presión inclina la patrulla hacia esa zona.
+- ✅ `patrolWaitVariance` → 0.6 en `SO_NemesisData.asset` (19/09; estaba en 0.25).
+- ✅ `NemesisAudio` movido de la instancia de Zona1 a `Nemesis.prefab`, con `Catch` autorado
+  (misma respiración que `Chasing`, así el loop no se reinicia en el agarre: es el caso que el
+  propio código anticipa). `Traversing` **no** hace falta autorarlo — si no tiene entrada, el código
+  le presta el loop de `Chasing`.
+- ✅ D5 decidido e implementado (ver §12).
+- ✅ Director activado en Zona1, con 5 zonas de presión y 3 disparadores por puzzle
+  ([§14.1](#141-el-director-hoy-estado-en-zona1)). El Nemesis pasa a despertarse con
+  `sp1_panel_electrico`.
+- **Pendiente de jugar:** F9 tiene que mostrar esperas distintas en cada waypoint; F10 tiene que
+  listar las cinco zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
+  o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
 
 ### Fase 1 — Escondites, lado jugador *(prerrequisito)*
 - `HidingSpot`, `SO_HidingData`, enum de tipo, `PlayerHiddenState` real, cámaras interiores,
@@ -696,7 +698,7 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D2 | ¿El Nemesis puede romper escondites para siempre? | Sí, con evidencia visible. Necesita arte: el locker roto. |
 | D3 | ¿Lo aprendido sobrevive a la captura y al checkpoint? | Sí. Por eso vive en el tracker y no en `PuzzleStateManager`, que se revierte con el checkpoint. Se resetea con New Game. |
 | D4 | ¿Los hábitos decaen? | Sí, lento (del orden de minutos sin repetirlo). |
-| D5 | La música de persecución se apaga cuando `Chasing` termina, así que **avisa que te perdió de vista**: es un estado interno filtrado al audio (análisis §12.4). | Que termine cuando termina la **búsqueda** comprometida, o con un fade mucho más largo. |
+| D5 | La música de persecución se apaga cuando `Chasing` termina, así que **avisa que te perdió de vista**: es un estado interno filtrado al audio (análisis §12.4). | **Decidido (19/09):** corta al terminar la búsqueda comprometida. Implementado en `NemesisChaseMusic`: `OnChaseEnded` ya no baja el volumen, sino que abre una cola que `OnStateChanged` cierra cuando el estado deja de ser `Searching`/`Traversing`, con `searchTailTimeout` (25 s) de red de seguridad. |
 | D6 | Espiar con la cámara orbital (C8). | Aceptarlo, como la mayoría de los juegos en tercera persona. Si molesta, se ajusta la cámara, no la IA. |
 | D7 | ¿Locker con visibilidad residual (Nivel B) o ciego salvo proximidad? | Residual y baja. Si no, "riesgo medio" (spec) y "riesgo bajo" (container) son lo mismo. |
 | D8 | ¿Va a haber dificultad seleccionable? | Si la hay, se escalan sentidos y umbrales de desbloqueo, nunca la velocidad (análisis §12.2). |
@@ -776,14 +778,14 @@ pudo abrir.
 
 | Qué | En la escena | Qué implica |
 |---|---|---|
-| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Desactivado** (`m_IsActive: 0`) desde el commit que lo agregó (`d69d4f6`, 06/09/2026) | No corre `Awake` y no hay singleton. `RequestPressure` sólo loguea *"there is no Director in the scene"* y `NemesisController` usa el ancla de siempre (el jugador). **En Zona1, el Director no hace nada.** |
-| `Puzzle Triggers` | Vacío | Aunque se active, ningún puzzle pide presión. |
-| `NemesisPressureZone` | **Ninguna** | Todo pedido termina en *"No pressure zone called '…'"*, y F10 muestra *"No pressure zones in the scene"*. |
+| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Activo** desde el 19/09/2026; estuvo desactivado desde el commit que lo agregó (`d69d4f6`, 06/09) | Corre `Awake` y hay singleton: la API responde y el ancla de presión llega a `NemesisController`. |
+| `Puzzle Triggers` | 3, cargados el 19/09: `sp1_panel_electrico` → `panel electrico` 0.5 / 45 s · `sp3_valvulas` → `valvulas` 0.7 / 60 s · `puzzle_central_piso1` → `montacargas` 1.0 / 60 s **+ entrada Mr. X** | La presión sube con el progreso. La entrada teatral está sólo en el último, y ninguno la pide en el puzzle que despierta al Nemesis. |
+| `NemesisPressureZone` | 5, creadas el 19/09 como hijas del Director: `montacargas` (r 11), `panel electrico` (r 10), `valvulas` (r 12), `fondo norte` (r 13), `ala oeste` (r 8) | Cubren 32 de los 39 waypoints, cada una con waypoints de los dos pisos, y ninguna toca el Hub (la más cercana queda a 12.2 m). |
 | Quién llama a la API | Sólo `NemesisTestConsole` (F10) | Ni los módulos ni la narrativa piden presión todavía. |
 | `noiseLayer` 8 (`DetectableAudio`) contra el `listenMask` del prefab (256) | ✅ Coinciden | El ruido sintético se oye. Si no coincidieran, `Start` lo reporta. |
 | El resto de la tuning del componente | Valores por defecto: evaluación cada 3 s, pesos ×3, ruido cada 9 s con radio 4, sentidos ×1.25, entrada a 10–22 m con 2.5 s de pausa | Sirven para arrancar. |
 | Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
-| Nemesis: `activatedByPuzzleId` en la instancia de Zona1 | Vacío | Arranca despierto desde Play. `Nemesis-System.md` dice que eso es para la testbed y no para el nivel: **decidir si es a propósito.** |
+| Nemesis: `activatedByPuzzleId` en la instancia de Zona1 | `sp1_panel_electrico` (19/09; estaba vacío) | Aparece al completar el primer sub-puzzle, que es lo que `Nemesis-System.md` describe para el nivel. |
 
 ### 14.2 Activar el Director en Zona1 (Fase 0, sin código)
 

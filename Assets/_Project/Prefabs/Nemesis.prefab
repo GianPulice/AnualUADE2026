@@ -1077,6 +1077,7 @@ GameObject:
   - component: {fileID: 6725881323002343902}
   - component: {fileID: 2070260496085017616}
   - component: {fileID: 8823410557001220303}
+  - component: {fileID: 7739481052210330915}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -1866,3 +1867,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4195913431897697815}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7739481052210330915
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b745aafaaddb8c4d81ba7e6488b9307, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisAudio
+  stateLoops:
+  - state: 0
+    clip: {fileID: 8300000, guid: 283946d0b0cc0d54a98934c841ea36f2, type: 3}
+    volume: 1
+  - state: 1
+    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
+    volume: 1
+  - state: 2
+    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
+    volume: 1
+  - state: 3
+    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
+    volume: 1
+  - state: 4
+    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
+    volume: 1
+  crossfadeDuration: 0.4
+  outputGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  minDistance: 2
+  maxDistance: 25
+  occlusionEnabled: 1
+  fieldOfListening: {fileID: 6366883338896328337}
+  occludedVolumeMultiplier: 0.35
+  occlusionEaseSpeed: 3
