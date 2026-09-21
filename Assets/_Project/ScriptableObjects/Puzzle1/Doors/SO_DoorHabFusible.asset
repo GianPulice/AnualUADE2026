@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44f1a24a93d42544c892271d4a5057e7, type: 3}
+  m_Name: SO_DoorHabFusible
+  m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
+  doorId: puerta_storage
+  requiredKey: {fileID: 11400000, guid: 01d3e972ecba23e4c87e54426c70f997, type: 2}
+  consumeKey: 0
+  requiredCompletedPuzzleId: 
+  openPrompt: Open Storage room
+  lockedPrompt: You need the storage key
+  openSoundId: 
+  closeSoundId: 
