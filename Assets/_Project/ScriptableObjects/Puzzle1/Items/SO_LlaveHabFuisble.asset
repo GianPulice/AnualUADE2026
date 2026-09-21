@@ -18,8 +18,8 @@ MonoBehaviour:
   itemDescription: This is for storage door in 2th floor
   itemIcon: {fileID: 21300000, guid: ab396c6db3a23d54ca26dc56353296f7, type: 3}
   isMetallic: 1
-  isConsumable: 1
-  consumeDescription: Consumed when opening the valve room door.
+  isConsumable: 0
+  consumeDescription: 
   isUnique: 1
   contentType: 0
   textContent: 
