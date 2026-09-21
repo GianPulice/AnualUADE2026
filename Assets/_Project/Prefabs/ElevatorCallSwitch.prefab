@@ -232,7 +232,7 @@ MonoBehaviour:
   busyPulseSpeed: 2
   switchAnimator: {fileID: 1334382196719669392}
   pressTriggerName: Pressed
-  callAcceptedSoundId: 
+  callAcceptedSoundId: sfx_elevator_button_01
   callRefusedSoundId: sfx_secuencia_incorrecta_panel_electrico
 --- !u!114 &4819326057731285946
 MonoBehaviour:

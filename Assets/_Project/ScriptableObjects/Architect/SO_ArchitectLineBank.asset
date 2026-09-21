@@ -18,7 +18,8 @@ MonoBehaviour:
     variants:
     - There's a device on your body. | Three modules. One timer at a time. When it
       hits zero, it goes off.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 37577c59a09e311499bad5a7e1af502c, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 1
@@ -33,7 +34,8 @@ MonoBehaviour:
     variants:
     - You're not alone in the complex anymore. And there's more than time to worry
       about now.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: e370e39e6fb1e2848be70396b0f035f2, type: 3}
     alert: '> CONTAINMENT BREACH'
     playsOverMenus: 0
   - id: 3
@@ -85,28 +87,34 @@ MonoBehaviour:
     - You're running out of time.
     - Almost.
     - Tick Tack, Tick Tack.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 9a46aa72f7c8619408ca912c75abac7c, type: 3}
+    - {fileID: 8300000, guid: 2244d39569e42804aae19bbf00a9c464, type: 3}
+    - {fileID: 8300000, guid: 45d820d0a8a082344af46432e031da73, type: 3}
     alert: '> {0} CRITICAL'
     playsOverMenus: 0
   - id: 10
     category: 2
     variants:
     - The legs. Every step from now on will remind you.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 4072a7176864c6b408c313da21be5668, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 11
     category: 2
     variants:
     - The chest. Breathing will cost you more than it used to.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 7516a43f3addeed4aaeb65da6dc8f56f, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 12
     category: 2
     variants:
     - The head. What you see won't always be real from now on.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: c664533d4fd225b458764bd6364ad231, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 13
@@ -114,7 +122,9 @@ MonoBehaviour:
     variants:
     - You made it in time.
     - Good.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: f45e9b174d20e3443b9d09b42492d110, type: 3}
+    - {fileID: 8300000, guid: 35baed264a47d2849962ab69e7770fb8, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 14

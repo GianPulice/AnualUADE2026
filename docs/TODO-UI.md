@@ -205,7 +205,7 @@ Cambios aplicados:
 
 Detalles diferidos:
 
-- [ ] **Sorting order del Canvas** — el reader ordena en 60 y la pausa en 1, así que la pausa NO se ve encima. Hoy se resuelve bloqueando la pausa en modo lectura; si alguna vez hace falta que se vea encima, hay que subir el sorting order del canvas de pausa, no bajar el del reader.
+- [x] **Sorting order del Canvas** — resuelto subiendo la pausa (1 → 70) y Settings detrás de ella (3 → 80), como decía esta nota, en vez de bajar el del reader. La escalera completa está en UI-System §7.7. En modo lectura la pausa igual sigue bloqueada por `BlocksPause`.
 - [ ] **Indicador visual de reproducción** si el documento incluye audio (futuro, cuando haya audio en documents).
 - [ ] **Sonido de apertura** — `openSoundId` en el controller está vacío; hay `sfx_puzzle_document_read_01/02` sin usar.
 

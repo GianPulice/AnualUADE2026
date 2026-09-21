@@ -54,8 +54,24 @@ public class DoorInteractable : BaseRangeInteractable
     // them. Cached until CloseDoor so the reverse animation lands exactly back on the closed rot.
     private float openedSign = 1f;
 
+    // Set by a scripted sequence (the escape lock-down), independent of the key / puzzle lock in
+    // doorData: nothing here is saved, so a reload brings the door back the way the scene has it.
+    private bool sequenceLocked;
+
     public bool IsOpen => isOpen;
     public bool IsAnimating => isAnimating;
+
+    /// <summary>Sealed by a sequence: the player can neither open nor close it, whatever its
+    /// SO_DoorData says. Only <see cref="TryOpenForNemesis"/> can still force it, and only on a door
+    /// that lets the Nemesis force locks.</summary>
+    public bool IsSequenceLocked => sequenceLocked;
+
+    public void SetSequenceLocked(bool locked)
+    {
+        if (sequenceLocked == locked) return;
+        sequenceLocked = locked;
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     /// <summary>Seconds the leaf takes to swing open. The Nemesis reads it to know how long to
     /// hold back before crossing, instead of duplicating the number on its own component.</summary>
@@ -95,6 +111,8 @@ public override string GetInteractText()
 
 public override string GetInfoText()
     {
+        if (sequenceLocked) return doorData != null && !string.IsNullOrWhiteSpace(doorData.LockedPrompt)
+            ? doorData.LockedPrompt : "Locked";
         if (isOpen) return string.Empty;
         if (doorData == null) return string.Empty;
         if (wasEverOpened) return string.Empty;
@@ -114,6 +132,7 @@ public override string GetInfoText()
 protected override bool CanInteractInCloseRange()
     {
         if (isAnimating) return false;
+        if (sequenceLocked) return false;
 
         // Free door: no data means no requirements ever.
         if (doorData == null) return true;
@@ -198,10 +217,14 @@ public void OpenDoor()
         // Fires when the player presses E while looking at a door whose CanInteract returned
         // false. Restrict the sound to the "actually locked" case: no data means no lock, a door
         // that is currently animating is only busy (not locked), and an already-unlocked door is
-        // never gated behind requirements the player might not have met.
-        if (doorData == null) return;
-        if (isOpen || isAnimating) return;
-        if (wasEverOpened) return;
+        // never gated behind requirements the player might not have met. A sequence lock is the
+        // exception to all three: it locks any door, open or not, with or without data.
+        if (!sequenceLocked)
+        {
+            if (doorData == null) return;
+            if (isOpen || isAnimating) return;
+            if (wasEverOpened) return;
+        }
         if (!AudioManager.Exists) return;
 
         // Rate-limit: skip while the previous bump is still ringing. Length is looked up on the

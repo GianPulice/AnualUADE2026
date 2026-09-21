@@ -166,6 +166,13 @@ public class ElevatorCabinNavMesh : MonoBehaviour
             return;
         }
 
+        // The shaft declared it has no NavMesh, so there is nothing to build a cabin floor on.
+        if (elevator.NavMeshNotNeeded)
+        {
+            enabled = false;
+            return;
+        }
+
         platform = elevator.Platform;
 
         Collider floor = FindCabinCollider();

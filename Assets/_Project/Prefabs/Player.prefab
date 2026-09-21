@@ -205,9 +205,17 @@ MonoBehaviour:
     m_Bits: 1
   groundAngleLimit: 45
   isInteracting: 0
+  initStandUpState: Init Stand Up
+  captureStandUpState: Standing Up
+  captureStandUpFallback: 2.5
+  initStandUpScenes:
+  - WIRED_Zona1_Blockout
+  standUpTimeout: 3
   injuredIdleClip: {fileID: 7400000, guid: 5a7f39a2f7d6add4786336ba777f382b, type: 2}
   injuredWalkClip: {fileID: 7400000, guid: e3f52691fa2e8334492f5de35a57d269, type: 2}
   injuredRunClip: {fileID: 7400000, guid: 7d30dd7cc98839749ae17e7b99fe16b0, type: 2}
+  locomotionAnimSpeedRange: {x: 0.6, y: 1.3}
+  locomotionAnimSpeedSharpness: 10
 --- !u!54 &8279488126507840101
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -373,6 +381,7 @@ MonoBehaviour:
   strideLength: 1.29
   minSpeed: 0.35
   teleportThreshold: 1.5
+  minStepInterval: 0.12
   minDistance: 2
   maxDistance: 20
   volumeScale: 1
@@ -2308,6 +2317,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
   emitter: {fileID: 8823410557001220301}
+  minClipWeight: 0.5
 --- !u!1 &4831345843929754120
 GameObject:
   m_ObjectHideFlags: 0

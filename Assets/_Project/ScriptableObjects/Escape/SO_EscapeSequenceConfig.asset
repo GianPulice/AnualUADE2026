@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4e93cc973103534b865b3fe8d05f004, type: 3}
+  m_Name: SO_EscapeSequenceConfig
+  m_EditorClassIdentifier: Assembly-CSharp::SO_EscapeSequenceConfig
+  triggerPuzzleId: puzzle_central_piso1
+  skippable: 1
+  skipKey: 102
+  skipPromptFormat: '[Press {0} to skip]'
+  openSeconds: 1.5
+  holdSeconds: 4
+  closeSeconds: 2
+  darkGapSeconds: 1.5
+  arrivalRadius: 2.5
+  lightConeAngle: 40
+  lightReachPadding: 3
+  lightMinReach: 8
+  lightMaxReach: 40
+  lightColor: {r: 1, g: 0.72, b: 0.38, a: 1}
+  lightFogIntensity: 2
+  lightFogClear: 1
+  lampIntensity: 6
+  closedFog: {fileID: 11400000, guid: 85e7d0e29935b754397313a3947dd609, type: 2}
+  openFog: {fileID: 11400000, guid: 9c6d7413934cc7e4596386b4964f8f31, type: 2}
+  paceNear: 0.92
+  paceFar: 1.25
+  paceNearDistance: 2.5
+  paceFarDistance: 12
+  minChaseSpeed: 1.2
+  perfectTracking: 1
+  trackingRefreshSeconds: 0.25
+  alarmClip: {fileID: 0}
+  alarmVolume: 0.6
+  tensionClip: {fileID: 0}
+  tensionMinVolume: 0.25
+  tensionMaxVolume: 0.9
+  tensionSmoothing: 1.5
+  doorLockSoundId: sfx_interaction_puerta_bloqueada
+  doorLockInterval: 0.12
+  zone2CompletePuzzleId: 

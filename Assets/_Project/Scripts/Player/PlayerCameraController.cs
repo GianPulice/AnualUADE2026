@@ -62,7 +62,10 @@ public class PlayerCameraController : MonoBehaviour
         bool gameplayActive = !PauseManager.IsGameplayInputBlocked;
         // Nor while the player gets up off the floor: nothing but pause until the clip ends.
         bool standingUp = PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp;
-        bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked && !standingUp;
+        // Nor during a scripted cinematic (CinematicState): its own cameras are live, and look
+        // input would turn this rig behind the cut so control comes back facing somewhere else.
+        bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked && !standingUp &&
+                            !CinematicState.IsPlaying;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
 
@@ -75,6 +78,19 @@ public class PlayerCameraController : MonoBehaviour
             if (Cursor.lockState != CursorLockMode.Locked) Cursor.lockState = CursorLockMode.Locked;
             if (Cursor.visible) Cursor.visible = false;
         }
+    }
+
+    /// <summary>
+    /// Points the look camera along a world yaw (degrees), behind the player. A cinematic that
+    /// teleports the player uses it so control comes back facing what the last shot framed.
+    /// The rig binds in world space (0 = looking down +Z), same as <see cref="WakeUpCameraPan"/>.
+    /// </summary>
+    public void FaceYaw(float worldYaw)
+    {
+        if (cinemachineOrbitalFollow == null) return;
+
+        cinemachineOrbitalFollow.HorizontalAxis.Value =
+            WakeUpCameraPan.WrapToRange(worldYaw, cinemachineOrbitalFollow.HorizontalAxis.Range);
     }
 
     void AplyConfig()

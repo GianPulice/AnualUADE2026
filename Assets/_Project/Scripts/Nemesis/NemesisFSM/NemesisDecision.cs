@@ -180,12 +180,42 @@ public sealed class NemesisDecision
     // ── The ladder ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The state the Nemesis should be in this frame: the first rung whose conditions all hold.
+    /// When true, the Nemesis never falls back below Chasing: whatever the ladder answers that is
+    /// not a capture or a lift crossing (Patrolling, Investigating, Searching) becomes Chasing.
+    ///
+    /// For the escape sequence (<see cref="NemesisEscapePursuit"/>), where the Nemesis hunts the
+    /// player until the run ends. It sits ON TOP of the ladder rather than inside it: the ladder
+    /// still decides Catch and Traversing, so a floor of "keep chasing" cannot stop the Nemesis
+    /// from grabbing the player or taking the freight lift — which a pinned state would.
+    /// </summary>
+    public bool ChaseFloor { get; set; }
+
+    /// <summary>
+    /// The state the Nemesis should be in this frame: the ladder's answer, raised to Chasing when
+    /// <see cref="ChaseFloor"/> is on.
+    /// </summary>
+    public NemesisStateManager.ENemesisState Decide()
+    {
+        NemesisStateManager.ENemesisState decided = DecideFromLadder();
+
+        if (!ChaseFloor) return decided;
+
+        bool belowChase = decided == NemesisStateManager.ENemesisState.Patrolling ||
+                          decided == NemesisStateManager.ENemesisState.Investigating ||
+                          decided == NemesisStateManager.ENemesisState.Searching;
+        if (!belowChase) return decided;
+
+        LastReason = "escape: no baja de Chasing";
+        return NemesisStateManager.ENemesisState.Chasing;
+    }
+
+    /// <summary>
+    /// The first rung whose conditions all hold.
     ///
     /// Order is the whole design, and it is the designer's to change — see
     /// <see cref="SO_NemesisPriorities"/> for the shipped order and why it reads the way it does.
     /// </summary>
-    public NemesisStateManager.ENemesisState Decide()
+    private NemesisStateManager.ENemesisState DecideFromLadder()
     {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // PINNED FROM THE TEST CONSOLE, AND THE ONLY SAFE PLACE TO DO IT.

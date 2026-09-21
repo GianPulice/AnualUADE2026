@@ -362,6 +362,23 @@ public class FieldOfView : MonoBehaviour
     }
 
     /// <summary>
+    /// Tells the Nemesis where a target is, as though this sensor had just seen it: refreshes the
+    /// last known position, velocity and target, but does NOT set <see cref="HasVisualTarget"/> —
+    /// nothing was actually seen, so the suspicion and focus logic are untouched.
+    ///
+    /// For <see cref="NemesisEscapePursuit"/>, which keeps the belief fresh for the length of the
+    /// escape. Nothing else should call it: a belief that the sensor did not earn is exactly what
+    /// the rest of this class is careful never to invent.
+    /// </summary>
+    public void InjectSighting(GameObject target)
+    {
+        if (target == null) return;
+
+        lastKnownTarget = target;
+        RecordSighting(target.transform.position);
+    }
+
+    /// <summary>
     /// Whether there is <see cref="obstacleMask"/> geometry between the eye and the point.
     ///
     /// Tested against the player's centre and not the three points FindVisibleTargets sweeps: here

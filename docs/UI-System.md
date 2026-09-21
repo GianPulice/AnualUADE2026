@@ -240,8 +240,6 @@ Este patrón se repite en todo el proyecto:
 > muestra labels estáticos) y el toggle de glitch VHS (`Settings_VHSGlitch` ya lo lee el
 > `GlitchController`, pero Options no lo expone).
 
----
-
 ## 7. Convenciones que hay que respetar
 
 ### 7.1 Suscripción a eventos estáticos: Awake / OnDestroy
@@ -300,8 +298,6 @@ Checklist:
 - `Time.unscaledDeltaTime` sigue avanzando (lo usan los fades de UI y los timers del HUD del inventario).
 - UniTask con `UniTask.Yield(PlayerLoopTiming.Update)` corre con o sin timeScale.
 
----
-
 ### 7.5 Escalado y anclaje: márgenes fijos, no fracciones
 
 El proyecto tiene **12 Canvas Scaler** repartidos entre escenas persistentes y prefabs modales, y el
@@ -350,6 +346,37 @@ GameObject y nunca lo vuelven a llamar.
 La misma lógica aplica a cualquier animación por código, no solo a LeanTween: los fades de
 `BaseScreenView.ShowAsync()`/`HideAsync()` usan `Time.unscaledDeltaTime` por esta razón, y
 `UISlideTransition` expone `ignoreTimeScale` (default `true`) por lo mismo. Ver §7.4.
+
+### 7.7 Sorting order de los canvas
+
+Los canvas de UI son todos **Screen Space - Overlay**, así que quién tapa a quién lo decide únicamente
+el `sortingOrder` del Canvas raíz — la jerarquía no interviene, porque viven en escenas distintas.
+La escalera actual:
+
+| Orden | Canvas |
+|---|---|
+| 0 | CanvasMainMenu, CanvasSaveSlots |
+| 1 | Inventory Canvas |
+| 3 | HUDCanvas, CanvasResult, CanvasWin |
+| 50 | SequencePanelCanvas |
+| 60 | DocumentReaderCanvas |
+| **70** | **CanvasPause** |
+| **80** | **CanvasSettings** |
+| 100 | InteractionCanvas |
+| 32000 | UI_LoadingScreen |
+
+Dos reglas que la escalera codifica y que conviene no romper:
+
+- **La pausa va encima de todo modal de gameplay.** `PauseManager.TryToggleFromInput()` la describe como
+  un overlay global: se abre sobre el inventario, el reader y el panel de secuencia, y sólo respeta
+  `IModalUI.BlocksPause`. Si un modal nuevo necesita quedar por encima, la respuesta es que declare
+  `BlocksPause => true`, no que suba su canvas por encima de 70.
+- **Settings va encima de la pausa**, porque se abre desde ella.
+
+`CanvasCRTPresenter` copia el `sortingOrder` del canvas al canvas overlay donde dibuja el tubo, así
+que la escalera vale igual para las pantallas que pasan por CRT.
+
+---
 
 ## 8. Cómo agregar una pantalla nueva (mini-tutorial)
 
@@ -473,7 +500,7 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 `GameResultManager.ResetSession()` se llama ahora en `MainMenuController.HandleNewGame()` antes de empujar el grupo de gameplay. **Pendiente**: cuando se implemente Load Game en `SaveSlotsController`, ese flujo también debe llamar `ResetSession()` antes de cargar la partida guardada.
 
 ### 10.4 ~~DocumentReader — race condition ESC con PauseManager~~ ✅ Resuelto en modo lectura
-`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. El canvas del reader ordena en 60 y el de pausa en 1, con lo cual un menú de pausa abierto encima se dibujaría **debajo** de la hoja — invisible pero comiéndose el input; y el juego ya está congelado, así que la pausa no aportaría nada.
+`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. Además el juego ya está congelado, así que la pausa no aportaría nada. (El canvas de pausa ordena hoy en 70, por encima del reader; ver §7.7.)
 
 **Sigue abierto en lectura in situ** (`Open(SO_DocumentData)`, desde `NoteInteractable`): ahí el mundo sigue corriendo y la pausa tiene que poder abrirse, así que `BlocksPause` queda en `false` y la race condition original aplica igual. Hoy no hay ninguna `NoteInteractable` colocada en ninguna escena, así que no se manifiesta.
 

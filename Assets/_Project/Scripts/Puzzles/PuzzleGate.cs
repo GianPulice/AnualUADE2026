@@ -54,6 +54,25 @@ public class PuzzleGate : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Opens the gate at once, no animation and no puzzle event. For a cinematic that needs the
+    /// gate already open while it plays: the escape shows the way out, so a shut gate reads as a
+    /// dead end. Safe to call twice, and it cancels a half-played opening.
+    /// </summary>
+    public void OpenNow()
+    {
+        if (door == null) return;
+
+        if (openRoutine != null)
+        {
+            StopCoroutine(openRoutine);
+            openRoutine = null;
+        }
+
+        door.localPosition = OpenPosition();
+        door.localScale = OpenScale();
+    }
+
     private void OnEnable()
     {
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
