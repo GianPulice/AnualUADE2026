@@ -204,6 +204,9 @@ public class ExplosionVFX : MonoBehaviour
     private void StartFlash()
     {
         if (flashLight == null) return;
+        // Spawned mid-game, after ModuleLightLayers patched the scene's lights: without this the
+        // flash would not light the module bases it goes off on.
+        ModuleLightLayers.LetLightReachModules(flashLight);
         flashLight.enabled = true;
         flashLight.intensity = flashPeakIntensity * intensity;
         flashElapsed = 0f;

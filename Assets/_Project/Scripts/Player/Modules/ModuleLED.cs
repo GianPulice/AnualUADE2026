@@ -91,6 +91,9 @@ public class ModuleLED : MonoBehaviour
 
         if (module == null)
             Debug.LogWarning($"[ModuleLED] '{name}' has no ModuleData assigned — it will stay off.", this);
+        else
+            // This LED's light must not flash on the other modules. See ModuleLightLayers.
+            ModuleLightLayers.Isolate(transform, ledLight, module.Penalty);
     }
 
     /// <summary>
