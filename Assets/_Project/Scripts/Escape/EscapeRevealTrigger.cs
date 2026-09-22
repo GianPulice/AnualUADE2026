@@ -8,8 +8,8 @@ using UnityEngine;
 /// fires on the way in.
 ///
 /// SETUP: a Box Collider (Is Trigger, set on its own when the component is added) spanning the
-/// corridor just past the door, so the reveal plays as soon as the player is out. Tools ▸ Escape
-/// Sequence ▸ Setup Chase Cinematics places one.
+/// corridor just past the door, so the reveal arms as soon as the player is out. The one in
+/// Zona1 is under EscapeSequence/Stage.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class EscapeRevealTrigger : MonoBehaviour

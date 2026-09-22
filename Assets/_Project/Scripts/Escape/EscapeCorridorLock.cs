@@ -12,12 +12,14 @@ using UnityEngine;
 /// through the doorway of is not locked at all.
 ///
 /// Do NOT put the safe-zone door in the list — it is the one that stays usable. It is sealed later,
-/// on its own, as the player comes out of it (<see cref="LockDoor"/>).
+/// on its own, as the player comes out of it (<see cref="LockDoor"/>). The hub's other exits need
+/// not be listed either: the director seals every door around the hub itself.
 /// </summary>
 public class EscapeCorridorLock : MonoBehaviour
 {
-    [Tooltip("Las puertas que se traban, EN EL ORDEN en que se traban: las del pasillo y las otras " +
-             "salidas del hub. Todas menos la del centro. Una puerta abierta se cierra al trabarse.")]
+    [Tooltip("Las puertas del pasillo que se traban, EN EL ORDEN en que se traban. La del centro NO. " +
+             "Las otras salidas del hub no hace falta ponerlas: el director traba solo toda puerta " +
+             "alrededor del hub. Una puerta abierta se cierra al trabarse.")]
     [SerializeField] private DoorInteractable[] doors = new DoorInteractable[0];
 
     // Sealed one by one from outside the list (the safe door, once the player is out of it), and
@@ -49,14 +51,19 @@ public class EscapeCorridorLock : MonoBehaviour
     }
 
     /// <summary>Seals one more door, shutting it first if it is open, with the lock sound once it is
-    /// home. For the safe door: it closes behind the player as they come out.</summary>
-    public void LockDoor(DoorInteractable door, SO_EscapeSequenceConfig config)
+    /// home (unless <paramref name="quiet"/>). For the safe door, which closes behind the player as
+    /// they come out, and for the hub's other exits, which the director finds on its own.</summary>
+    public void LockDoor(DoorInteractable door, SO_EscapeSequenceConfig config, bool quiet = false)
     {
         if (door == null) return;
         if (!extra.Contains(door) && System.Array.IndexOf(doors, door) < 0) extra.Add(door);
 
-        StartCoroutine(SealAndClack(door, config));
+        if (quiet) Seal(door);
+        else StartCoroutine(SealAndClack(door, config));
     }
+
+    /// <summary>Whether this door is in the list (so a caller sealing doors of its own skips it).</summary>
+    public bool Lists(DoorInteractable door) => door != null && System.Array.IndexOf(doors, door) >= 0;
 
     /// <summary>Opens the doors' lock again, the list's and the extra ones.</summary>
     public void UnlockAll()

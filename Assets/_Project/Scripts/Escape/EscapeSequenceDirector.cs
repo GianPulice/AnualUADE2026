@@ -14,23 +14,26 @@ using UnityEngine.Timeline;
 /// Runs the escape sequence from the third core to the gate. It is the conductor and nothing else:
 /// it decides WHEN each piece starts, and every piece does its own work (<see cref="EscapeFogCycle"/>,
 /// <see cref="EscapeCorridorFlicker"/>, <see cref="NemesisCinematicActor"/>,
-/// <see cref="NemesisEscapePursuit"/>, <see cref="EscapePlayerTurn"/>, <see cref="EscapeShotCamera"/>,
+/// <see cref="NemesisEscapePursuit"/>, <see cref="EscapeShotCamera"/>,
 /// <see cref="EscapeChaseRestart"/>, <see cref="EscapeGateSlam"/>, <see cref="EscapeAudio"/>,
 /// <see cref="EscapeCorridorLock"/>).
 ///
 ///   Trigger    the hub puzzle (the three cores) completes.
-///   Opening    a short Timeline: the macro of the socket while the alarm goes off, every other
-///              door of the hub and the corridor shuts and locks one after another, and the centre
-///              door (the safe-zone door) opens. Its shot is a Cinemachine clip and its actions are
-///              <see cref="EscapeBeatMarker"/>s — retime them in the Timeline. The Nemesis is taken
-///              out of play, behind its door.
-///   Corridor   the player has control and walks out through the only open door. Nothing chases
-///              yet: the lamps fail, the alarm sounds, every other door says LOCKED.
-///   Reveal     once the player is out (the Stage's reveal trigger, and clear of the door's swing):
-///              the safe-zone door slams and locks behind them — there is no going back to the safe
-///              zone, the chase is the only way — the fog rolls in, and the player turns round,
-///              slowly, with their own camera, to the Nemesis's eyes glowing in the fog. It charges
-///              as the fog expands around it, and control comes back while it is still coming.
+///   Opening    a short Timeline on a fixed shot of the centre door (the safe-zone door): the alarm
+///              goes off, every other door of the hub and the corridor shuts and locks one after
+///              another, and the centre door opens. Its actions are <see cref="EscapeBeatMarker"/>s —
+///              retime them in the Timeline. The Nemesis is taken out of play, behind its door.
+///   Corridor   the fixed shot stays up and the player gets their legs back — not their look: they
+///              walk out through the only open door as the shot frames it, their moves mapped to
+///              it. Nothing chases yet: the lamps fail, the alarm sounds, every other door says
+///              LOCKED.
+///   Reveal     as the player steps out (the Stage's reveal trigger, and clear of the door's swing),
+///              cut to the corridor in front of the freight elevator (the reveal shot): the side
+///              door opens and the Nemesis walks out, only its eyes showing in the fog, looks one
+///              way and the other, and runs at the camera. Behind the cut the safe-zone door slams
+///              and locks — there is no going back to the safe zone, the chase is the only way.
+///              When the Nemesis runs through the camera, cut to the player's own view, already
+///              looking its way: control comes back and the chase is on.
 ///   Escape     gameplay (Pasos 4-7): the lamps flicker and the fog expands and contracts while the
 ///              amber lights mark the path door to door, with the Nemesis chasing the whole way. A
 ///              capture starts the chase over from Player_Spot; it does not end the run.
@@ -41,8 +44,8 @@ using UnityEngine.Timeline;
 ///
 /// Every cinematic can be cut with the config's skip key, and a skip lands in the state the
 /// cinematic ends in: the opening's playhead jumps to the end (its markers are retroactive), the
-/// reveal hands over turned to the Nemesis, with it where its run would have taken it, the ending
-/// shuts the gate.
+/// reveal hands over looking at the Nemesis, out of its door and running (never brought nearer),
+/// the ending shuts the gate.
 ///
 /// The test key (<see cref="StartForTest"/>) starts from inside the hub, in front of the centre
 /// door, wherever the player was: the rest of the sequence assumes that is where it begins.
@@ -51,8 +54,10 @@ using UnityEngine.Timeline;
 /// complete when the scene loads, nothing plays), and the floor / wall fluid marks of the path
 /// (art).
 ///
-/// SETUP: Tools ▸ Escape Sequence ▸ Setup Chase Cinematics builds and wires the reveal, the
-/// restart checkpoint and the ending on the open scene.
+/// SETUP: everything hangs off the EscapeSequence object in Zona1 (its Stage, Cameras and Route
+/// children, GateDust). A setup tool built it once and was removed (git history: EscapeChaseSetup).
+/// The hub's other exits are found at runtime around the trigger puzzle's sockets rather than
+/// listed: a list can go stale.
 /// </summary>
 public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 {
@@ -88,12 +93,22 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         public PuzzleGate endGate;
 
         [Header("Nemesis")]
-        [Tooltip("Fuera de vista: acá espera desde la alarma hasta que salís al pasillo.")]
+        [Tooltip("Detrás de la puerta lateral, fuera de vista: acá espera desde la alarma hasta que " +
+                 "salís al pasillo.")]
         public Transform nemesisHidden;
 
-        [Tooltip("Donde aparece en la niebla, mirando hacia el jugador. Lejos: primero se le ven " +
-                 "sólo los ojos.")]
-        public Transform nemesisRevealStart;
+        [Tooltip("La puerta lateral del pasillo, frente al montacargas: por acá sale en la aparición. " +
+                 "Va en la lista de EscapeCorridorLock; se destraba sólo para que salga.")]
+        public DoorInteractable nemesisSideDoor;
+
+        [Tooltip("En el umbral de la puerta lateral: hasta acá camina al salir.")]
+        public Transform nemesisDoorway;
+
+        [Tooltip("El Nemesis gira hacia este marcador para 'mirar a un lado'.")]
+        public Transform nemesisLookLeft;
+
+        [Tooltip("El Nemesis gira hacia este marcador para 'mirar al otro'.")]
+        public Transform nemesisLookRight;
 
         [Tooltip("Donde vuelve a arrancar si te agarró: detrás de Player_Spot, a la distancia a la " +
                  "que empieza la persecución.")]
@@ -110,26 +125,23 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     [SerializeField] private SO_EscapeSequenceConfig config;
 
     [Header("Timelines")]
-    [Tooltip("La apertura: macro del socket, alarma, puertas trabándose, se abre la del centro. Se " +
-             "edita en Window ▸ Sequencing ▸ Timeline.")]
+    [Tooltip("La apertura, sobre la cámara fija de la puerta del centro: alarma, puertas " +
+             "trabándose, se abre la del centro. Se edita en Window ▸ Sequencing ▸ Timeline.")]
     [SerializeField] private PlayableDirector openingTimeline;
 
     [Header("Cinematic cameras")]
-    [Tooltip("La cámara del macro del socket. Se coloca sola frente al ÚLTIMO socket encastrado " +
-             "al arrancar.")]
-    [SerializeField] private CinemachineCamera socketMacroCamera;
+    [Tooltip("La cámara fija de la puerta del centro: al aire desde la apertura hasta que el " +
+             "jugador sale al pasillo (camina con esta cámara, el mouse no mira). Se ubica a mano " +
+             "en la escena. Es también la del clip de la apertura en el Timeline.")]
+    [SerializeField] private EscapeShotCamera doorShot;
 
-    [SerializeField, Min(0.1f)] private float macroDistance = 0.6f;
-    [SerializeField] private float macroHeight = 0.2f;
-    [SerializeField] private float macroLookHeight = 0.05f;
+    [Tooltip("El plano de la aparición: el pasillo frente al montacargas, mirando a la puerta " +
+             "lateral por la que sale el Nemesis. Fijo; se ubica a mano en la escena.")]
+    [SerializeField] private EscapeShotCamera revealShot;
 
     [Tooltip("El plano final: el portón desde el lado del pasillo. Se ubica a mano en la escena; " +
              "el jugador no se ve (queda oculto mientras dura).")]
     [SerializeField] private EscapeShotCamera gateShot;
-
-    [Tooltip("El giro de la aparición: el jugador se da vuelta despacio hacia el Nemesis, con su " +
-             "propia cámara (no hay corte).")]
-    [SerializeField] private EscapePlayerTurn playerTurn;
 
     [Header("Scene pieces")]
     [SerializeField] private Stage stage = new Stage();
@@ -181,6 +193,20 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     // Where the test key puts the player: inside the hub, this far from the centre door.
     private const float TestStartDistance = 1.8f;
 
+    // How far past the centre door's closed leaf (its wall line) the player must be to count as out
+    // in the corridor: about a capsule. A player hugging the corridor's near wall still counts.
+    private const float CorridorSideMargin = 0.3f;
+
+    // The hub's other exits: every door this close to the trigger puzzle's sockets, on their floor,
+    // other than the centre door. Sealed with the lock-down, so the centre door is the only way out.
+    private const float HubExitRadius = 12f;
+    private const float HubSameFloor = 2.5f;
+    private readonly List<DoorInteractable> hubExits = new List<DoorInteractable>();
+    private bool hubExitsSealed;
+
+    // The test key pressed while a capture is being resolved: run once it is over (see StartForTest).
+    private bool testStartPending;
+
     private readonly HashSet<EscapeBeat> firedBeats = new HashSet<EscapeBeat>();
 
     private SocketInteractable lastInsertedSocket;
@@ -195,6 +221,10 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
     private VisionRangeController fogCentre;
     private Transform fogCentreCamera;
+
+    // The reveal shot's own fog (config), while it is on the stack.
+    private VisionRangeController revealFogController;
+    private SO_VisionFogConfig revealFogPushed;
 
     // The centre door's doorway, measured on the scene's closed door: the open leaf would drag the
     // bounds out into the corridor.
@@ -218,9 +248,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     {
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
         GameResultManager.OnGameResult += HandleGameResult;
-
-        // It sits on this same object; the field only makes it visible in the inspector.
-        if (playerTurn == null) playerTurn = GetComponent<EscapePlayerTurn>();
 
         if (chaseRestart != null)
         {
@@ -255,6 +282,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         // No coroutines here: the object is going away. Whatever the cinematic held is given back now.
         CinematicState.End();
         ReleaseFogCentre();
+        PopRevealFog();
         ShowPlayer();
         ResumeModuleTicks();
         if (lockedPlayer != null) lockedPlayer.IsDisabled = false;
@@ -282,6 +310,8 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         // not "the third core", and must not become the shot of the macro.
         if (sockets == null || sockets.Length == 0)
             sockets = FindSocketsOfTriggerPuzzle();
+
+        FindHubExits();
 
         // The sequence already ran (saved game): it does not replay. See the class doc.
         if (PuzzleStateManager.Exists &&
@@ -311,21 +341,92 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
+    /// Every door around the hub other than the centre one: on the sockets' floor, within
+    /// <see cref="HubExitRadius"/> of them, and not already in the corridor lock's list. They are
+    /// sealed with the lock-down (<see cref="SealHubExits"/>), so the centre door is the only way
+    /// out. Found here rather than listed by hand because a list can go stale, and one forgotten
+    /// exit was enough for the player to leave the hub another way and never meet the reveal.
+    /// </summary>
+    private void FindHubExits()
+    {
+        hubExits.Clear();
+        if (sockets == null || sockets.Length == 0) return;
+
+        Vector3 hub = Vector3.zero;
+        int count = 0;
+        foreach (SocketInteractable socket in sockets)
+        {
+            if (socket == null) continue;
+            hub += socket.transform.position;
+            count++;
+        }
+        if (count == 0) return;
+        hub /= count;
+
+        foreach (DoorInteractable door in FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include))
+        {
+            if (door == stage.safeDoor) continue;
+            if (corridorLock != null && corridorLock.Lists(door)) continue;
+
+            Vector3 offset = door.transform.position - hub;
+            if (Mathf.Abs(offset.y) > HubSameFloor) continue;
+            offset.y = 0f;
+            if (offset.magnitude > HubExitRadius) continue;
+
+            hubExits.Add(door);
+        }
+
+        if (hubExits.Count > 0)
+            Debug.Log($"[{nameof(EscapeSequenceDirector)}] The lock-down also seals the hub's other " +
+                      $"exits: {string.Join(", ", hubExits.ConvertAll(d => d.name))}.", this);
+    }
+
+    /// <summary>Seals the hub's other exits, once per run, shutting any that is open.</summary>
+    private void SealHubExits(bool quiet)
+    {
+        if (hubExitsSealed || corridorLock == null) return;
+        hubExitsSealed = true;
+
+        foreach (DoorInteractable door in hubExits) corridorLock.LockDoor(door, config, quiet);
+    }
+
+    /// <summary>
     /// Plays the sequence from the top as if the third core had just gone in, without solving the
-    /// puzzle. For <see cref="EscapeSequenceTestKey"/>: it also works after a run has finished,
+    /// puzzle. For <see cref="EscapeSequenceTestKey"/>: it also works mid-chase or after the escape
+    /// ended without a result screen (a result screen blocks the key; use its own buttons),
     /// tearing down whatever the previous one left (the escape's systems, the locked doors, the
     /// gate). The player is put inside the hub, in front of the centre door, wherever they were —
     /// the sequence assumes it starts there. Ignored while a cinematic is playing.
+    ///
+    /// Pressed while a capture is being resolved (the grab, the black screen, the stand-up), it
+    /// waits for the capture to finish: taking the Nemesis in the middle of it froze its Catch state,
+    /// and the screen never came back from black.
     /// </summary>
     public void StartForTest()
     {
         if (config == null || IsPlaying) return;
+
+        if (CaptureInProgress())
+        {
+            testStartPending = true;
+            return;
+        }
+        testStartPending = false;
 
         ResetForReplay();
         PlacePlayerForTest();
 
         phase = Phase.Opening;
         StartCoroutine(StartOpeningNextFrame());
+    }
+
+    /// <summary>A capture is under way: the player grabbed, on the black screen or getting up, or the
+    /// Nemesis in its own Catch state (a pull-out from a hiding spot starts before the grab).</summary>
+    private bool CaptureInProgress()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player != null && player.IsRecoveringFromCapture) return true;
+        return actor != null && actor.IsNemesisCatching;
     }
 
     private void ResetForReplay()
@@ -335,13 +436,18 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         EndEscapeSystems();
         UnregisterWinPresenter();
         revealArmed = false;
+        hubExitsSealed = false;
+
+        // Pressed during the walk out: its shot and its locked look go with it.
+        if (phase == Phase.Corridor) TearDownCinematic(releasePlayer: true);
 
         // UnlockAll gives the safe door back too: it was sealed through the same lock.
         if (corridorLock != null) corridorLock.UnlockAll();
         if (stage.endGate != null) stage.endGate.CloseImmediate();
         if (gateSlam != null) gateSlam.ResetDust();
         if (gateShot != null) gateShot.Release();
-        if (playerTurn != null) playerTurn.Stop();
+        if (revealShot != null) revealShot.Release();
+        if (doorShot != null) doorShot.Release();
 
         ShowPlayer();
         ResumeModuleTicks();
@@ -411,6 +517,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
     private void Update()
     {
+        // A test start held back by a capture, now that it is over.
+        if (testStartPending && !IsPlaying && !CaptureInProgress()) StartForTest();
+
         if (phase == Phase.Corridor)
         {
             if (ReadyForReveal()) StartReveal();
@@ -489,8 +598,14 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         firedBeats.Clear();
         skipping = false;
 
+        // Started by the test key: no core went in, so the alarm light goes on the nearest socket.
+        if (lastInsertedSocket == null) lastInsertedSocket = NearestSocket(PlayerRegistry.CurrentTransform);
+
         BeginCinematic();
-        PositionMacroCamera();
+
+        // Up for the whole opening and the walk out: the Timeline's clip frames it too, and once
+        // the Timeline is over this is what keeps it on screen.
+        if (doorShot != null) doorShot.GoLive(null);
 
         // Out of play until the reveal: behind its door with its machine off, so nothing hunts the
         // player on the way out of the safe room.
@@ -507,9 +622,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
-    /// The lock-down is done and control comes back where the player stood at the socket. What the
-    /// opening's beats were meant to leave behind is made sure of here, so a skip or a deleted
-    /// marker lands in the same state.
+    /// The lock-down is done and the player gets their legs back where they stood, the fixed shot
+    /// of the centre door still up. What the opening's beats were meant to leave behind is made
+    /// sure of here, so a skip or a deleted marker lands in the same state.
     /// </summary>
     private void FinishOpening()
     {
@@ -520,25 +635,52 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         EscapeSocketAlarmLight alarmLight = AlarmLightOfLastSocket();
         if (alarmLight != null) alarmLight.ActivateNow();
         if (corridorLock != null) corridorLock.LockAllNow();
+        SealHubExits(quiet: true);
         if (stage.safeDoor != null) stage.safeDoor.OpenDoor();
 
-        EndCinematic();
+        WalkUnderDoorShot();
         phase = Phase.Corridor;
         revealArmed = false;
 
         if (stage.revealTrigger == null)
             Debug.LogWarning($"[{nameof(EscapeSequenceDirector)}] No reveal trigger on the Stage: the " +
-                             "Nemesis appears as soon as the player is out of the safe room. Tools ▸ " +
-                             "Escape Sequence ▸ Setup Chase Cinematics places one.", this);
+                             "Nemesis appears as soon as the player is out of the safe room. Add an EscapeRevealTrigger " +
+                             "just past the centre door.", this);
+    }
+
+    /// <summary>
+    /// The walk out, under the fixed shot of the centre door: the player moves, the shot stays.
+    /// Their look stays off — a cinematic with no skip prompt — because their own camera, off
+    /// screen, is what their moves are measured against: turning it unseen would turn the controls.
+    /// It is set looking the way the shot looks instead, so forward is into the picture. The cuts
+    /// stay hard cuts: the next one is the reveal's.
+    /// </summary>
+    private void WalkUnderDoorShot()
+    {
+        if (lockedPlayer != null) lockedPlayer.IsDisabled = false;
+        lockedPlayer = null;
+
+        if (doorShot == null)
+        {
+            // Nothing to walk under: plain gameplay until the reveal.
+            TearDownCinematic(releasePlayer: true);
+            return;
+        }
+
+        CinematicState.Begin(skippable: false, promptText: string.Empty);
+
+        PlayerCameraController look = FindAnyObjectByType<PlayerCameraController>();
+        if (look != null) look.FaceYaw(doorShot.transform.eulerAngles.y);
     }
 
     // ── Reveal ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Whether the reveal can start this frame. Two conditions, kept apart on purpose: the player has
-    /// been in the reveal trigger (that arms it, once), and is now clear of the centre door's swing
-    /// — the door shuts behind them the moment it starts, and must not sweep its leaf through them.
-    /// Armed and not clear, the player walks on with control until they are; wherever that is.
+    /// Whether the reveal can start this frame. The player has been in the reveal trigger (that arms
+    /// it, once), and now: is out in the corridor, and is clear of the centre door's swing — the
+    /// door shuts behind them as it starts, and must not sweep its leaf through them. Their own
+    /// camera is not on screen until after it has shut. Armed and not ready, the player walks on
+    /// with control until they are; wherever that is.
     /// </summary>
     private bool ReadyForReveal()
     {
@@ -553,7 +695,24 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                 ? stage.revealTrigger.Contains(player.position)
                 : IsOutOfSafeRoom(player.position);
 
-        return revealArmed && ClearOfSafeDoorSwing(player.position);
+        // Out in the corridor NOW, not only when it was armed: a player who stepped out and back into
+        // the hub would otherwise be sealed in the safe zone by the reveal meant to shut them out.
+        return revealArmed && OnCorridorSide(player.position) && ClearOfSafeDoorSwing(player.position);
+    }
+
+    /// <summary>Past the centre door's wall line, on the corridor side, by
+    /// <see cref="CorridorSideMargin"/>. Measured from the hinge, which stands in that line whether
+    /// the door is open or shut.</summary>
+    private bool OnCorridorSide(Vector3 point)
+    {
+        if (stage.safeDoor == null) return true;
+
+        Vector3 toCorridor = CorridorSideOf(safeDoorCentre);
+        if (toCorridor.sqrMagnitude < 0.0001f) return true;
+
+        Vector3 offset = point - safeDoorHinge;
+        offset.y = 0f;
+        return Vector3.Dot(offset, toCorridor) > CorridorSideMargin;
     }
 
     /// <summary>On the corridor side of the centre door, a step past it. Only the net for a Stage
@@ -587,20 +746,26 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
-    /// The Nemesis shows itself. The safe-zone door slams and locks behind the player — there is no
-    /// going back, the chase is the only way on — and the dense fog rolls in. After a beat the
-    /// player turns round, slowly, their own camera turning with them, to the Nemesis standing in the
-    /// fog down the corridor: only its eyes pierce it. After the stare it charges, and the fog
-    /// expands around it as it comes, so the body follows the eyes out of it. Control comes back
-    /// while it is still coming, the player facing it: at the handoff distance, or at the time cap
-    /// if it never gets there.
+    /// The Nemesis shows itself. The player steps out of the fixed shot of the centre door and it
+    /// cuts to the reveal shot: the corridor in front of the freight elevator, the side door
+    /// opening and the Nemesis coming out of it in the escape's dense fog, nothing of it showing but
+    /// its eyes (the config can give the shot a fog of its own). It looks one way, then the other,
+    /// and runs at the camera, the body coming out of the fog as it closes. Behind the cut the
+    /// safe-zone door slams and locks: there is no going back, the chase is the only way on. When
+    /// the Nemesis runs through the lens, cut to the player's own view, turned its way on the frame
+    /// of the cut (the turn is never seen): control comes back and the chase is on. At the time cap
+    /// whatever happens.
     /// </summary>
     private async UniTaskVoid RunRevealAsync(CancellationToken token)
     {
         PlayerStateManager player = PlayerRegistry.Current;
-        Transform start = stage.nemesisRevealStart != null ? stage.nemesisRevealStart : stage.nemesisApproachStart;
 
         BeginCinematic();
+
+        // The cut: the reveal shot goes up before the door shot steps down, on the same frame, so
+        // the player's own view never shows in between.
+        if (revealShot != null) revealShot.GoLive(null);
+        if (doorShot != null) doorShot.Release();
 
         // No way back: the safe zone is shut and sealed behind the player, the lock clacking home
         // once the leaf is in its frame.
@@ -610,89 +775,175 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             else stage.safeDoor.SetSequenceLocked(true);
         }
 
-        // The dense fog comes in, and the amber path with it.
+        // The dense fog comes in, and the amber path with it: the shot is in it. A fog of the shot's
+        // own, if the config gives it one, goes on top until the cut back.
         BeginFogCycle();
+        PushRevealFog();
 
-        // Down the corridor, behind the player, where the turn will find it.
-        bool hasNemesis = actor != null && start != null && actor.TryTakeControl();
-        if (hasNemesis) actor.WarpTo(start);
+        // Behind its door since the opening; put there again in case something moved it.
+        bool hasNemesis = actor != null && stage.nemesisHidden != null && actor.TryTakeControl();
+        if (hasNemesis) actor.WarpTo(stage.nemesisHidden);
 
-        float turnAt = config.RevealTurnDelay;
-        float chargeAt = turnAt + config.RevealTurnSeconds + config.RevealStareSeconds;
         float elapsed = 0f;
-        bool turning = false;
+        bool doorOpened = false;
+        bool walkedOut = false;
+        bool lookedLeft = false;
+        bool lookedRight = false;
         bool charging = false;
 
+        // The old opening's beats (its plane 2A), timed from the cut.
         while (!skipRequested)
         {
             await UniTask.Yield(PlayerLoopTiming.Update, token);
             elapsed += Time.deltaTime;
 
-            if (!turning && elapsed >= turnAt)
+            if (elapsed >= config.RevealMaxSeconds) break;
+
+            if (!doorOpened && elapsed >= config.RevealDoorOpenAt)
             {
-                turning = true;
-                if (player != null && start != null) BeginTurn(player, start.position, config.RevealTurnSeconds);
+                doorOpened = true;
+                OpenNemesisDoor();
             }
 
-            if (!charging && elapsed >= chargeAt)
+            if (!walkedOut && elapsed >= config.RevealWalkOutAt)
+            {
+                walkedOut = true;
+                if (hasNemesis) actor.WalkTo(stage.nemesisDoorway);
+            }
+
+            // A look ordered mid-walk waits for it to reach the doorway.
+            if (!lookedLeft && elapsed >= config.RevealLookLeftAt)
+            {
+                lookedLeft = true;
+                if (hasNemesis) actor.FaceTowards(stage.nemesisLookLeft);
+            }
+
+            if (!lookedRight && elapsed >= config.RevealLookRightAt)
+            {
+                lookedRight = true;
+                if (hasNemesis) actor.FaceTowards(stage.nemesisLookRight);
+            }
+
+            if (!charging && elapsed >= config.RevealChargeAt)
             {
                 charging = true;
                 if (hasNemesis && player != null) actor.RunTo(player.transform);
-
-                // The fog opens as it charges: the body comes out of it behind the eyes.
-                if (fogCycle != null) fogCycle.Hold(open: true);
-
-                Vector3 at = hasNemesis && actor.Body != null ? actor.Body.position
-                           : start != null ? start.position : transform.position;
-                PlaySound(config.RevealSoundId, at);
+                PlaySound(config.RevealSoundId, hasNemesis ? actor.Body.position : transform.position);
             }
 
-            if (elapsed >= config.RevealMaxSeconds) break;
-            if (!charging) continue;
-
-            // Nothing to watch coming: the stare was the shot.
-            if (!hasNemesis || player == null) break;
-            if (HorizontalGap(player.transform, actor.Body) <= config.RevealHandoffDistance) break;
+            // Through the lens: cut. With no shot to cut from, it hands over as it sets off.
+            if (charging && (!hasNemesis || revealShot == null ||
+                             AheadOfLens(revealShot.transform, actor.Body) <= config.RevealCutDistance))
+                break;
         }
 
-        // However it was cut, control comes back turned to the Nemesis.
-        if (player != null && start != null)
+        // However it ended (the cut, a skip, the cap), it ends out of its door and running at the
+        // player. Cut before it set off, it sets off now from the doorway: never nearer.
+        if (!doorOpened) OpenNemesisDoor();
+        if (hasNemesis && player != null && !charging)
         {
-            if (!turning) BeginTurn(player, start.position, 0f);
-            if (playerTurn != null) playerTurn.Finish();
+            if (!walkedOut) actor.WarpTo(stage.nemesisDoorway);
+            actor.RunTo(player.transform);
         }
 
-        if (skipRequested && hasNemesis && player != null) PlaceNemesisForHandoff(player);
+        // On the frame of the cut, so the turn is never seen: looking at it as control comes back.
+        if (player != null)
+        {
+            Vector3 lookAt = hasNemesis ? actor.Body.position
+                           : stage.nemesisDoorway != null ? stage.nemesisDoorway.position
+                           : player.transform.position + player.transform.forward;
+            AimPlayerViewAt(player, lookAt);
+        }
 
+        if (revealShot != null) revealShot.Release();
         FinishReveal();
     }
 
-    private void BeginTurn(PlayerStateManager player, Vector3 lookAt, float seconds)
+    /// <summary>How far in front of the lens a body is, along the shot's flat view: negative once
+    /// it has gone past.</summary>
+    private static float AheadOfLens(Transform lens, Transform body)
     {
-        if (playerTurn != null) playerTurn.Begin(player, lookAt, seconds);
-        else FacePlayer(player, lookAt);
+        Vector3 to = body.position - lens.position;
+        to.y = 0f;
+
+        Vector3 forward = lens.forward;
+        forward.y = 0f;
+        return forward.sqrMagnitude > 1e-6f ? Vector3.Dot(to, forward.normalized) : to.magnitude;
     }
 
-    /// <summary>A skipped reveal: the Nemesis goes where its run would have handed over — at the
-    /// handoff distance, between the player and where it appeared — already running.</summary>
-    private void PlaceNemesisForHandoff(PlayerStateManager player)
+    /// <summary>The reveal shot's own fog, on top of the escape's while the shot is up. Popped with
+    /// the rest of the cinematic (<see cref="TearDownCinematic"/>).</summary>
+    private void PushRevealFog()
     {
-        Transform body = actor.Body;
-        if (body == null) return;
+        PopRevealFog();
+        if (config.RevealShotFog == null) return;
 
-        Vector3 from = player.transform.position;
-        Vector3 away = body.position - from;
-        away.y = 0f;
-        if (away.magnitude <= config.RevealHandoffDistance) return;
+        revealFogController = FindAnyObjectByType<VisionRangeController>();
+        if (revealFogController == null) return;
 
-        Vector3 spot = from + away.normalized * config.RevealHandoffDistance;
-        actor.WarpTo(spot, Quaternion.LookRotation(-away).eulerAngles.y);
-        actor.RunTo(player.transform);
+        revealFogPushed = config.RevealShotFog;
+        revealFogController.PushConfig(revealFogPushed);
+    }
+
+    private void PopRevealFog()
+    {
+        if (revealFogController != null && revealFogPushed != null) revealFogController.PopConfig(revealFogPushed);
+        revealFogController = null;
+        revealFogPushed = null;
+    }
+
+    /// <summary>The side door opens for the Nemesis. It was sealed with the rest of the corridor in
+    /// the opening: the seal is lifted for it alone, and put back at the handoff (see
+    /// <see cref="BeginChase"/>).</summary>
+    private void OpenNemesisDoor()
+    {
+        DoorInteractable door = stage.nemesisSideDoor;
+        if (door == null) return;
+
+        door.SetSequenceLocked(false);
+
+        // The Nemesis's own opening swings the leaf without spending the player's key or marking the
+        // door as opened for good; the player's OpenDoor is only the fallback for a door it may not force.
+        if (!door.TryOpenForNemesis()) door.OpenDoor();
+    }
+
+    /// <summary>
+    /// Turns the player to a point, their camera behind them looking at it, at once: done on the
+    /// frame of a cut, so the turn is never seen. The camera sits the config's side angle off the
+    /// line, towards the side the rig's shoulder offset leaves open — straight behind, the player's
+    /// own head covered the eyes. And at the config's height: the rig's default ring looks at the
+    /// floor.
+    /// </summary>
+    private void AimPlayerViewAt(PlayerStateManager player, Vector3 point)
+    {
+        Vector3 to = point - player.transform.position;
+        to.y = 0f;
+        if (to.sqrMagnitude < 0.0001f) return;
+        to.Normalize();
+
+        // The body and the way it moves off, not the root: the camera's pivot hangs from the root.
+        if (player.PlayerBody != null) player.PlayerBody.forward = to;
+        player.NextDirection = to;
+
+        PlayerCameraController look = FindAnyObjectByType<PlayerCameraController>();
+        if (look == null) return;
+
+        // Shoulder to the right (the rig's default): the player stands left of centre, so the camera
+        // turns left of the line and what it looks at lands right of them.
+        float side = look.Config != null && look.Config.ShoulderOffset.x < 0f ? -1f : 1f;
+        look.FaceYaw(Quaternion.LookRotation(to).eulerAngles.y - side * config.RevealCameraSideAngle);
+
+        CinemachineOrbitalFollow orbital = look.GetComponent<CinemachineOrbitalFollow>();
+        if (orbital != null) orbital.VerticalAxis.Value = orbital.VerticalAxis.ClampValue(config.RevealCameraVertical);
+
+        // A cut, not a swing: the rig forgets where it was, damping and all.
+        CinemachineCamera cam = look.GetComponent<CinemachineCamera>();
+        if (cam != null) cam.PreviousStateIsValid = false;
     }
 
     /// <summary>
     /// The handoff: control, the Nemesis's chase and the fog's breathing, on the same frame. The
-    /// player is facing the Nemesis with their camera behind them: turning to run is theirs.
+    /// player looks down the corridor at the Nemesis coming; the way out is behind them.
     /// </summary>
     private void FinishReveal()
     {
@@ -709,12 +960,19 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         if (pursuit != null) pursuit.Begin(config);
         if (chaseRestart != null) chaseRestart.Begin(stage.chaseCheckpoint);
 
+        // Its door is sealed again behind it, like the rest of the corridor.
+        if (stage.nemesisSideDoor != null)
+        {
+            if (corridorLock != null) corridorLock.LockDoor(stage.nemesisSideDoor, config, quiet: true);
+            else stage.nemesisSideDoor.SetSequenceLocked(true);
+        }
+
         // Normally under way since the reveal's first frame; this is the net if it never got there.
         BeginFogCycle();
 
-        // The breathing starts open (the reveal opened it): the way to the gate is the first thing
-        // the player sees, and the first thing the fog does from here is close in.
-        if (fogCycle != null) fogCycle.Run();
+        // The breathing starts closed, with the clock running: the first thing the player sees is
+        // the eyes coming, and only then does the fog open on the rest of it.
+        if (fogCycle != null) fogCycle.Restart();
 
         RegisterWinPresenter();
         ScheduleEndGate(PlayerPosition());
@@ -745,9 +1003,26 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         if (phase != Phase.Escape) return;
 
         CancelSequence();
-        if (fogCycle != null) fogCycle.Restart();
+
+        // Closed and still while the screen is black and the player gets up: the breathing starts
+        // over when they have control (HandleChaseControlRegained), not behind the black screen.
+        if (fogCycle != null)
+        {
+            fogCycle.Restart();
+            fogCycle.Hold(open: false);
+        }
+
         CancelEndGate();
         if (stage.endGate != null) stage.endGate.CloseImmediate();
+
+        // Every seal again, quietly: nothing should have opened one, but a way back into the safe
+        // zone would end the chase for good. Player_Spot is well clear of every leaf.
+        if (corridorLock != null)
+        {
+            corridorLock.LockAllNow();
+            if (stage.safeDoor != null) corridorLock.LockDoor(stage.safeDoor, config, quiet: true);
+            foreach (DoorInteractable door in hubExits) corridorLock.LockDoor(door, config, quiet: true);
+        }
     }
 
     /// <summary>The Nemesis has let go: it waits on the chase's start mark, behind the player, until
@@ -762,6 +1037,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     private void HandleChaseControlRegained()
     {
         if (phase != Phase.Escape) return;
+
+        // The fog breathes again from closed, the path from its first door.
+        if (fogCycle != null) fogCycle.Restart();
 
         ScheduleEndGate(PlayerPosition());
         ReleaseNemesisAfterAsync(config.RestartNemesisDelay, NewSequenceToken()).Forget();
@@ -955,11 +1233,12 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         }
         else
         {
-            // A defeat in the middle of the reveal drops its shot; the player stays as the defeat
-            // left them.
+            // A defeat in the middle of the walk out or the reveal drops their shot; the player stays
+            // as the defeat left them.
             CancelSequence();
-            if (playerTurn != null) playerTurn.Stop();
-            if (phase == Phase.Reveal) TearDownCinematic(releasePlayer: false);
+            if (doorShot != null) doorShot.Release();
+            if (revealShot != null) revealShot.Release();
+            if (phase == Phase.Corridor || phase == Phase.Reveal) TearDownCinematic(releasePlayer: false);
             EndEscapeSystems();
         }
 
@@ -1040,6 +1319,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                 if (corridorLock == null) break;
                 if (skipping) corridorLock.LockAllNow();
                 else corridorLock.LockAll(config);
+
+                // And every other way out of the hub: the centre door is left as the only one.
+                SealHubExits(quiet: skipping);
                 break;
 
             default:
@@ -1077,27 +1359,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         return best;
     }
 
-    private void PositionMacroCamera()
-    {
-        Transform playerTransform = PlayerRegistry.CurrentTransform;
-
-        // Started by the test key: no core went in, so frame the socket nearest to the player.
-        if (lastInsertedSocket == null) lastInsertedSocket = NearestSocket(playerTransform);
-        if (socketMacroCamera == null || lastInsertedSocket == null) return;
-
-        Vector3 socket = lastInsertedSocket.transform.position;
-
-        // In front of the socket, on the side the player stands: that is the side it can be reached from.
-        Vector3 toPlayer = playerTransform != null ? playerTransform.position - socket : lastInsertedSocket.transform.forward;
-        toPlayer.y = 0f;
-        toPlayer = toPlayer.sqrMagnitude > 0.0001f ? toPlayer.normalized : Vector3.forward;
-
-        Vector3 position = socket + toPlayer * macroDistance + Vector3.up * macroHeight;
-        Vector3 focus = socket + Vector3.up * macroLookHeight;
-
-        socketMacroCamera.transform.SetPositionAndRotation(position, Quaternion.LookRotation(focus - position));
-    }
-
     // ── Player ──────────────────────────────────────────────────────────────
 
     private Vector3 PlayerPosition()
@@ -1105,21 +1366,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         Transform player = PlayerRegistry.CurrentTransform;
         if (player != null) return player.position;
         return stage.playerSpot != null ? stage.playerSpot.position : transform.position;
-    }
-
-    /// <summary>Turns the player where they stand to face a point, at once, with the look camera
-    /// behind them. Only for a Stage without the turn piece.</summary>
-    private static void FacePlayer(PlayerStateManager player, Vector3 point)
-    {
-        Vector3 to = point - player.transform.position;
-        to.y = 0f;
-        if (to.sqrMagnitude < 0.0001f) return;
-
-        Quaternion facing = Quaternion.LookRotation(to);
-        player.TeleportTo(player.transform.position, facing);
-
-        PlayerCameraController look = FindAnyObjectByType<PlayerCameraController>();
-        if (look != null) look.FaceYaw(facing.eulerAngles.y);
     }
 
     /// <summary>Takes the player out of the picture (the last shot must not show them past the
@@ -1244,6 +1490,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     {
         CinematicState.End();
         ReleaseFogCentre();
+        PopRevealFog();
 
         if (releasePlayer && lockedPlayer != null) lockedPlayer.IsDisabled = false;
         lockedPlayer = null;

@@ -2,19 +2,21 @@ using Unity.Cinemachine;
 using UnityEngine;
 
 /// <summary>
-/// A shot of the escape that is not in a Timeline: today, the gate slamming shut at the end. One
-/// job: be the live camera while <see cref="EscapeSequenceDirector"/> says so, keeping an eye on a
-/// target (the Nemesis) and taking a hit (the gate). WHEN it is live is the director's; where it
-/// stands is the scene's — move it in the Scene view.
+/// A shot of the escape that outlives a Timeline or has none: the centre door while the player walks
+/// out, the Nemesis leaving its door in the reveal, and the gate slamming shut at the end. One job:
+/// be the live camera while
+/// <see cref="EscapeSequenceDirector"/> says so, optionally keeping an eye on a target (the Nemesis)
+/// and taking a hit (the gate). WHEN it is live is the director's; where it stands is the scene's —
+/// move it in the Scene view.
 ///
 /// A <see cref="CinemachineCamera"/> with no position or rotation behaviours, so its own transform
 /// is the shot. It goes live by outranking the player's camera (<see cref="livePriority"/>) and
 /// hands back by returning to the priority it has in the scene (-100: never live on its own). The
 /// director makes every cut a hard cut while a cinematic plays.
 ///
-/// The reveal in the corridor used to be one of these, framed over the player's shoulder. It is the
-/// player's own camera now (<see cref="EscapePlayerTurn"/>): the open door kept getting between
-/// that shot and the Nemesis, and pulling the camera into the player's head.
+/// The door's and the reveal's are fixed (their follow at 0); the reveal's is the old opening's
+/// plane 2A. Framed over the player's shoulder instead, the open safe door kept getting between the
+/// shot and the Nemesis.
 /// </summary>
 [RequireComponent(typeof(CinemachineCamera))]
 public class EscapeShotCamera : MonoBehaviour

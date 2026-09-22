@@ -90,6 +90,18 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     {
         phase = ECatchPhase.WaitingForCheckpoint;
         player.OnCaptured();
+
+        // Refused: a cinematic has the player frozen (a module blowing up, the wake-up) and
+        // OnCaptured ignores a frozen player, so no respawn notification is ever coming. Waiting
+        // for it parked the Nemesis here for the rest of the run. Same as "nobody to capture"
+        // above: the state reporting it cannot execute; the cooldown this exit opens keeps it
+        // from grabbing straight back.
+        if (!player.IsRecoveringFromCapture)
+        {
+            NextState = NemesisStateManager.ENemesisState.Chasing;
+            return;
+        }
+
         FaceEachOther();
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
     }

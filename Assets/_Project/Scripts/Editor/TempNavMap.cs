@@ -406,7 +406,7 @@ public static class TempNavMap
         Check(d != null, "director in scene");
         if (d == null) return;
 
-        foreach (string f in new[] { "config", "openingTimeline", "socketMacroCamera", "gateShot", "playerTurn", "fogCycle", "corridorFlicker",
+        foreach (string f in new[] { "config", "openingTimeline", "doorShot", "revealShot", "gateShot", "fogCycle", "corridorFlicker",
                                      "escapeAudio", "corridorLock", "actor", "pursuit", "chaseRestart", "gateSlam" })
         {
             var v = typeof(EscapeSequenceDirector).GetField(f, F)?.GetValue(d) as Object;

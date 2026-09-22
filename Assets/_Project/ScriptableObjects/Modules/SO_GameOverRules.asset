@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: SO_GameOverRules
   m_EditorClassIdentifier: Assembly-CSharp::SO_GameOverRules
   useFatalModule: 1
-  fatalModule: {fileID: 11400000, guid: 4d22063d83df3d74ebc3345f10687fa5, type: 2}
+  fatalModule: {fileID: 11400000, guid: ebe3d6a27c9860946b3db79d50da63d9, type: 2}

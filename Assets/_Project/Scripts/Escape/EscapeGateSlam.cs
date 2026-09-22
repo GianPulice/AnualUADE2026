@@ -10,7 +10,7 @@ using UnityEngine;
 /// <see cref="EscapeSequenceDirector"/>'s.
 ///
 /// Sits on the dust object at the foot of the gate. The Particle Systems under it ARE the dust
-/// (Tools ▸ Escape Sequence ▸ Setup Chase Cinematics builds them, sized to the gate): they play
+/// (sized to the gate: a sheet of dust rolling out to each side, and a spray of chips): they play
 /// once, on the impact. Tune them on the children like any Particle System.
 /// </summary>
 public class EscapeGateSlam : MonoBehaviour

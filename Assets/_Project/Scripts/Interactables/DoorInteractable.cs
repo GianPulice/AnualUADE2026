@@ -66,9 +66,10 @@ public class DoorInteractable : BaseRangeInteractable
     public bool IsOpen => isOpen;
     public bool IsAnimating => isAnimating;
 
-    /// <summary>Sealed by a sequence: the player can neither open nor close it, whatever its
-    /// SO_DoorData says. Only <see cref="TryOpenForNemesis"/> can still force it, and only on a door
-    /// that lets the Nemesis force locks.</summary>
+    /// <summary>Sealed by a sequence: nobody opens it, whatever its SO_DoorData says — not the
+    /// player, and not the Nemesis either (<see cref="TryOpenForNemesis"/> refuses it, even on a door
+    /// that lets it force locks). The escape seals the hub behind the player; the Nemesis charging a
+    /// player backed against that door used to swing it open and hand them the safe zone back.</summary>
     public bool IsSequenceLocked => sequenceLocked;
 
     public void SetSequenceLocked(bool locked)
@@ -339,6 +340,9 @@ public void OpenDoor()
     {
         if (isOpen || isAnimating) return false;
         if (!nemesisCanOpen) return false;
+
+        // A sequence seal is absolute: see IsSequenceLocked.
+        if (sequenceLocked) return false;
 
         // CanInteractInCloseRange is the player's condition (key + puzzle). It is only consulted
         // when this door canNOT be forced.

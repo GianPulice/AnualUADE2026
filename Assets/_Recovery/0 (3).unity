@@ -30047,10 +30047,6 @@ PrefabInstance:
       value: Barrel_1 (11)
       objectReference: {fileID: 0}
     - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 7274756149027360540, guid: 6fd697077e65fc64799ea80f3d7bda1e, type: 3}
       propertyPath: m_StaticEditorFlags
       value: 2147483647
       objectReference: {fileID: 0}
@@ -47346,117 +47342,13 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 270
       objectReference: {fileID: 0}
-    - target: {fileID: -7395704305543789238, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -7146521406498821007, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -6763858364670572316, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -6733177361254619370, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -6577237425059042219, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -5824510187379060028, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -5063223942988036812, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -2914413575082383075, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -2764512629625626004, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -2519092360280523269, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
     - target: {fileID: -2473424575180118478, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 54a3a5c1f6e5d944c8776879b20e8604, type: 2}
-    - target: {fileID: -2040254050740271484, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -1688617927700330159, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: -1558721567721526513, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
       propertyPath: m_Name
       value: toilet (1)
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 2800250516343163423, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 2891746525080496957, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 3455292422214010178, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 4214726985332892257, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 5245042011116262203, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 5666858511584735161, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 5837523472550796488, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 6510112150598826555, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 7045030354117346258, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 7109989669349563735, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 9141816029861474070, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 9217234437682292332, guid: 647ae266650430d43b3992e424fc05b5, type: 3}
-      propertyPath: m_Layer
-      value: 12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects:
@@ -100431,8 +100323,8 @@ MonoBehaviour:
   macroDistance: 0.6
   macroHeight: 0.2
   macroLookHeight: 0.05
-  revealShot: {fileID: 0}
   gateShot: {fileID: 1815114810}
+  playerTurn: {fileID: 0}
   stage:
     playerSpot: {fileID: 264295858}
     chaseCheckpoint: {fileID: 264295859}
@@ -100440,10 +100332,7 @@ MonoBehaviour:
     revealTrigger: {fileID: 1168593972}
     endGate: {fileID: 277590739}
     nemesisHidden: {fileID: 2063495581}
-    nemesisSideDoor: {fileID: 0}
-    nemesisDoorway: {fileID: 0}
-    nemesisLookLeft: {fileID: 0}
-    nemesisLookRight: {fileID: 0}
+    nemesisRevealStart: {fileID: 853948990}
     nemesisApproachStart: {fileID: 1659173577}
     nemesisGateStart: {fileID: 386212459}
     nemesisGateStop: {fileID: 1726885299}
@@ -101555,10 +101444,6 @@ PrefabInstance:
       value: Barrel_3
       objectReference: {fileID: 0}
     - target: {fileID: 7656070407805042796, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 7656070407805042796, guid: b4121c710b9abb640938db0af45a6c32, type: 3}
       propertyPath: m_StaticEditorFlags
       value: 2147483647
       objectReference: {fileID: 0}
@@ -102242,17 +102127,9 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 700000008}
     m_Modifications:
-    - target: {fileID: 846099862419757701, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
-      propertyPath: m_Layer
-      value: 12
-      objectReference: {fileID: 0}
     - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_Name
       value: TrashCan
-      objectReference: {fileID: 0}
-    - target: {fileID: 5592967508095878075, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
-      propertyPath: m_Layer
-      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 6391019918177985741, guid: b8270abf1f4d1c445b4f853161d8c723, type: 3}
       propertyPath: m_LocalPosition.x

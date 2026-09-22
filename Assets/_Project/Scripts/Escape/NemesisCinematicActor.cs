@@ -40,7 +40,22 @@ public class NemesisCinematicActor : MonoBehaviour
     private bool moving;
     private Transform facing;
 
+    // Dormant with nowhere safe to appear, and its machine switched off anyway (see TryTakeControl).
+    private bool heldDormant;
+
     public bool HasControl => hasControl;
+
+    /// <summary>The Nemesis is in its own Catch state, its machine running: a capture is being
+    /// resolved and it must not be taken (its Catch would freeze, and the capture never end).</summary>
+    public bool IsNemesisCatching
+    {
+        get
+        {
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            return nemesis != null && nemesis.enabled &&
+                   nemesis.CurrentStateKey == NemesisStateManager.ENemesisState.Catch;
+        }
+    }
 
     /// <summary>Walking or running to a marker (false once it has arrived and stands).</summary>
     public bool IsMoving => hasControl && moving;
@@ -68,6 +83,12 @@ public class NemesisCinematicActor : MonoBehaviour
         if (!nemesis.IsActive) nemesis.Activate();
         if (!nemesis.IsActive)
         {
+            // Its machine goes off anyway: left on, it keeps retrying the spawn and walks in, live,
+            // in the middle of the cinematic. Release gives it back; a later TryTakeControl tries
+            // the spawn again.
+            nemesis.enabled = false;
+            heldDormant = true;
+
             Debug.LogWarning($"[{nameof(NemesisCinematicActor)}] The Nemesis is dormant and found " +
                              "no safe spawn: the cinematic plays without it.", this);
             return false;
@@ -77,6 +98,7 @@ public class NemesisCinematicActor : MonoBehaviour
         nemesis.SetStoppingDistance(arrivalDistance);
         Stand();
 
+        heldDormant = false;
         hasControl = true;
         return true;
     }
@@ -117,6 +139,13 @@ public class NemesisCinematicActor : MonoBehaviour
     /// </summary>
     public void Release()
     {
+        if (heldDormant)
+        {
+            // Never taken: only its machine was held, so the deferred spawn picks up where it was.
+            heldDormant = false;
+            if (!hasControl) nemesis.enabled = true;
+        }
+
         if (!hasControl) return;
         hasControl = false;
         moving = false;
