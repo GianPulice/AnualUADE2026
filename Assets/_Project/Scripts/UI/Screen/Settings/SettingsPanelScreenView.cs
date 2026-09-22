@@ -37,8 +37,9 @@ public class SettingsPanelScreenView : MonoBehaviour
     };
 
     [Tooltip("Window modes. The index maps to the FullScreenMode enum when connected. " +
-             "Current order: Fullscreen = ExclusiveFullScreen, Windowed = Windowed, " +
-             "Borderless = FullScreenWindow.")]
+             "Current order: Fullscreen = FullScreenWindow, Windowed = Windowed, " +
+             "Borderless = FullScreenWindow. Nothing uses ExclusiveFullScreen: see " +
+             "ScreenSettingsApplier (DX12 crash on focus loss).")]
     [SerializeField]
     private string[] _windowModeOptions =
     {

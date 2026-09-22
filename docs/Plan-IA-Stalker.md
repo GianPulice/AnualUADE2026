@@ -674,7 +674,8 @@ puede ir en paralelo con la 1.
 - ✅ Director activado en Zona1 ([§14.1](#141-el-director-hoy-estado-en-zona1)). Se había perdido
   (entró en `359081fd` y el merge `16b1962c` del 20/09 se quedó con la escena que no lo tenía); se
   rehízo el 22/09 con seis zonas y dos disparadores. El Nemesis se despierta con `sp2_contenedores`
-  (valor del prefab, a propósito: las puertas del montacargas se abren con `sp1`).
+  (valor del prefab, a propósito: las puertas del montacargas se abren con `sp1`). **Desde el 22/09
+  a la tarde en Zona1 no se despierta en el gameplay:** sólo en la cinemática final (§14.1).
 - **Pendiente de jugar:** F9 tiene que mostrar esperas distintas en cada waypoint; F10 tiene que
   listar las cinco zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
   o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
@@ -932,6 +933,10 @@ pudo abrir.
 > contra C5. Los dos cambios de diseño respecto del 19/09 son decisiones del equipo: el Nemesis se
 > despierta con `sp2` (el montacargas está cerrado hasta `sp1`), y el puzzle central no tiene
 > disparador porque dispara la cinemática del escape.
+>
+> **22/09/2026, más tarde: el Nemesis ya no aparece en el gameplay de Zona1**, sólo en la cinemática
+> final (pedido del equipo). Ver la fila "Nemesis: activación": el Director, las zonas y los
+> disparadores quedan armados pero inertes mientras el Nemesis duerme.
 
 | Qué | En la escena (22/09) | Qué implica |
 |---|---|---|
@@ -945,7 +950,7 @@ pudo abrir.
 | `noiseLayer` 8 (`DetectableAudio`) contra el `listenMask` del prefab (256) | ✅ Coinciden | El ruido sintético se oye. Si no coincidieran, `Start` lo reporta. |
 | El resto de la tuning del componente | Valores por defecto: evaluación cada 3 s, pesos ×3, ruido cada 9 s con radio 4, sentidos ×1.25, entrada a 10–22 m con 2.5 s de pausa | Sirven para arrancar. |
 | Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 (`ROUTE 2 2F`) se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
-| Nemesis: `activatedByPuzzleId` | `sp2_contenedores`, del prefab (sin override en la escena) | Despierta con el segundo sub-puzzle. |
+| Nemesis: activación | `wakeOnlyFromScript` prendido (override en la escena, 22/09). `activatedByPuzzleId` sigue en `sp2_contenedores` (prefab) pero se ignora | Duerme toda la partida hasta que el escape lo toma (`NemesisCinematicActor` → `ActivateInPlace`, sin buscar spawn point: la cinemática lo pone detrás de su puerta). Sin anuncio ARC_02. Los disparadores de `sp2`/`sp3` y la entrada Mr. X no hacen nada (salen si el Nemesis no está activo). Apagar el flag vuelve al despertar con `sp2`. |
 
 **Cómo se ven las zonas.** Cada zona se dibuja como un cilindro: un disco por cada piso donde tiene
 waypoints, con etiqueta de id, radio, waypoints cubiertos y presión en vivo (color según la

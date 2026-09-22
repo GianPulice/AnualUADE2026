@@ -44,6 +44,13 @@ public class NemesisController : MonoBehaviour
     [PuzzleId]
     [SerializeField] private string activatedByPuzzleId;
 
+    [Tooltip("Dormant until a script wakes it: the escape cinematic (NemesisCinematicActor), which " +
+             "places it itself. Activated By Puzzle Id is ignored and there is no Nemesis in play " +
+             "before that.\n\n" +
+             "On in Zona1, where the Nemesis only appears in the final cinematic. Off everywhere " +
+             "else (the testbeds wake it with their puzzle).")]
+    [SerializeField] private bool wakeOnlyFromScript;
+
     [Header("Spawn points")]
     [Tooltip("Candidate points for ChooseSpawnPoint().\n\n" +
              "A point is only ever used if ALL THREE hold: it is at least Spawn Min Player Distance " +
@@ -217,6 +224,10 @@ public class NemesisController : MonoBehaviour
     /// <summary>Puzzle that wakes the Nemesis up, or empty/null when it starts active.
     /// Read by <see cref="NemesisStateManager"/>, which owns the dormant/awake gate.</summary>
     public string ActivatedByPuzzleId => activatedByPuzzleId;
+
+    /// <summary>No puzzle wakes it: only <see cref="NemesisStateManager.ActivateInPlace"/>, called
+    /// by the escape cinematic. Read by <see cref="NemesisStateManager"/>.</summary>
+    public bool WakeOnlyFromScript => wakeOnlyFromScript;
 
     private SO_NemesisData Data => stateManager != null ? stateManager.NemesisData : null;
 

@@ -1220,6 +1220,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         stuckEscape.ResetSample();
 
+        // Asleep until a script takes it (the escape cinematic, through ActivateInPlace): no
+        // puzzle and no catch-up.
+        if (WakesOnlyFromScript)
+        {
+            lifecycle.SetDormant(true);
+            return;
+        }
+
         string gate = nemesisController != null ? nemesisController.ActivatedByPuzzleId : null;
 
         if (string.IsNullOrWhiteSpace(gate))
@@ -1335,24 +1343,22 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     //
     // The Nemesis used to be live from the first frame, patrolling out of wherever it happened to
     // be dropped in the scene — which is what made its first appearance feel random. It now stays
-    // dormant until its activation puzzle is solved, and only then picks a spawn point.
+    // dormant until its activation puzzle is solved, and only then picks a spawn point. A scene can
+    // also keep it asleep for a script instead (WakeOnlyFromScript: Zona1, where it only appears in
+    // the escape cinematic).
 
     private void HandleActivationPuzzleCompleted(string completedId)
     {
+        if (WakesOnlyFromScript) return;
+
         string gate = nemesisController != null ? nemesisController.ActivatedByPuzzleId : null;
         if (string.IsNullOrWhiteSpace(gate) || completedId != gate) return;
 
         Activate();
     }
 
-    /// <summary>
-    /// Wakes the Nemesis up: warps it to a spawn point away from the player and starts the FSM.
-    /// Idempotent, so re-completing the activation puzzle never re-spawns it mid-run.
-    ///
-    /// Entering the first state is the one part that cannot move to NemesisLifecycle: it touches
-    /// the protected State dictionary of the shared FSM base, and reaching into that from a
-    /// sibling component would give the machine a second owner.
-    /// </summary>
+    private bool WakesOnlyFromScript => nemesisController != null && nemesisController.WakeOnlyFromScript;
+
     /// <summary>
     /// Retries the spawn-in while the Nemesis waits for somewhere safe to appear.
     ///
@@ -1374,7 +1380,25 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Activate();
     }
 
-    public void Activate()
+    /// <summary>
+    /// Wakes the Nemesis up: warps it to a spawn point away from the player and starts the FSM.
+    /// Idempotent, so re-completing the activation puzzle never re-spawns it mid-run.
+    ///
+    /// Entering the first state is the one part that cannot move to NemesisLifecycle: it touches
+    /// the protected State dictionary of the shared FSM base, and reaching into that from a
+    /// sibling component would give the machine a second owner.
+    /// </summary>
+    public void Activate() => Activate(chooseSpawnPoint: true);
+
+    /// <summary>
+    /// Wakes the Nemesis where it stands, with no spawn-point search: for a script that places it
+    /// itself on the same frame — the escape cinematic, which warps it behind its door. The search
+    /// has nothing to add there and can only get in the way: it refuses every point the player is
+    /// near or can see, and its "nowhere safe yet" would leave the cinematic without its Nemesis.
+    /// </summary>
+    public void ActivateInPlace() => Activate(chooseSpawnPoint: false);
+
+    private void Activate(bool chooseSpawnPoint)
     {
         if (isActive) return;
 
@@ -1391,7 +1415,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // "never": it clears itself the moment the player walks on or turns round. So the Nemesis
         // goes back to sleep and tries again, rather than appearing somewhere it should not. See
         // TickDeferredSpawn.
-        if (nemesisController != null && nemesisController.ChooseSpawnPoint() == null)
+        if (chooseSpawnPoint && nemesisController != null && nemesisController.ChooseSpawnPoint() == null)
         {
             lifecycle.SetDormant(true);
             awaitingSafeSpawn = true;

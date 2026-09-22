@@ -40,9 +40,6 @@ public class NemesisCinematicActor : MonoBehaviour
     private bool moving;
     private Transform facing;
 
-    // Dormant with nowhere safe to appear, and its machine switched off anyway (see TryTakeControl).
-    private bool heldDormant;
-
     public bool HasControl => hasControl;
 
     /// <summary>The Nemesis is in its own Catch state, its machine running: a capture is being
@@ -64,10 +61,11 @@ public class NemesisCinematicActor : MonoBehaviour
     public Transform Body => nemesis != null ? nemesis.transform : null;
 
     /// <summary>
-    /// Takes the Nemesis, waking it if it was still dormant.
+    /// Takes the Nemesis, waking it if it was still dormant. In Zona1 it always is the first time:
+    /// it sleeps until this cinematic (NemesisController.WakeOnlyFromScript).
     /// </summary>
-    /// <returns>false when there is no Nemesis (or it could not appear): the cinematic then plays
-    /// without it.</returns>
+    /// <returns>false when there is no Nemesis in the scene: the cinematic then plays without it.
+    /// </returns>
     public bool TryTakeControl()
     {
         if (hasControl) return true;
@@ -80,25 +78,15 @@ public class NemesisCinematicActor : MonoBehaviour
             return false;
         }
 
-        if (!nemesis.IsActive) nemesis.Activate();
-        if (!nemesis.IsActive)
-        {
-            // Its machine goes off anyway: left on, it keeps retrying the spawn and walks in, live,
-            // in the middle of the cinematic. Release gives it back; a later TryTakeControl tries
-            // the spawn again.
-            nemesis.enabled = false;
-            heldDormant = true;
-
-            Debug.LogWarning($"[{nameof(NemesisCinematicActor)}] The Nemesis is dormant and found " +
-                             "no safe spawn: the cinematic plays without it.", this);
-            return false;
-        }
+        // Woken where it stands, not at a spawn point: every caller warps it onto a marker right
+        // after this. The spawn search refuses anywhere near the player or in their sight, and
+        // waiting for it would leave the cinematic without its Nemesis.
+        if (!nemesis.IsActive) nemesis.ActivateInPlace();
 
         nemesis.enabled = false;
         nemesis.SetStoppingDistance(arrivalDistance);
         Stand();
 
-        heldDormant = false;
         hasControl = true;
         return true;
     }
@@ -139,13 +127,6 @@ public class NemesisCinematicActor : MonoBehaviour
     /// </summary>
     public void Release()
     {
-        if (heldDormant)
-        {
-            // Never taken: only its machine was held, so the deferred spawn picks up where it was.
-            heldDormant = false;
-            if (!hasControl) nemesis.enabled = true;
-        }
-
         if (!hasControl) return;
         hasControl = false;
         moving = false;
