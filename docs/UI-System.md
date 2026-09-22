@@ -11,7 +11,7 @@ Está pensado para que alguien que se suma al proyecto pueda navegar el código 
 
 ## 1. Visión general
 
-El proyecto usa **carga aditiva de escenas** para componer la UI. En cualquier momento del juego hay varias escenas cargadas a la vez (`Bootstrap`, `Data`, `LevelUI`, `UI_Settings`, etc.), cada una con responsabilidades distintas. La navegación entre menús no carga/descarga el juego entero — solo agrega o quita escenas específicas.
+El proyecto usa **carga aditiva de escenas** para componer la UI. En cualquier momento del juego hay varias escenas cargadas a la vez (`Data`, `SettingsScene` y las del grupo activo, p. ej. `WIRED_Zona1_Blockout` + `LevelUI`), cada una con responsabilidades distintas. La navegación entre menús no carga/descarga el juego entero — solo agrega o quita escenas específicas.
 
 Cada pantalla sigue el patrón **MVC**:
 
@@ -40,13 +40,13 @@ Open()          →  OnBeforeOpen()  →  view.ShowAsync()  →  OnAfterOpen()
 Close()         →  OnBeforeClose() →  view.HideAsync()  →  OnAfterClose()
 ```
 
-Los 4 hooks (`OnBeforeOpen`, `OnAfterOpen`, `OnBeforeClose`, `OnAfterClose`) son virtuales en `BaseScreenController` y los override cada Controller concreto para hacer cosas específicas: setear `Time.timeScale`, popular el view, bloquear/desbloquear el cursor, etc.
+Los 4 hooks (`OnBeforeOpen`, `OnAfterOpen`, `OnBeforeClose`, `OnAfterClose`) son virtuales en `BaseScreenController` y los override cada Controller concreto para hacer cosas específicas: Push/Pop en el `UIStateManager` (que es quien gobierna `Time.timeScale` y el cursor, ver §7.3), popular el view, etc.
 
 ### ShowAsync / HideAsync usan unscaledDeltaTime
 
-**Importante**: los fades de `BaseScreenView.ShowAsync()` y `HideAsync()` usan `Time.unscaledDeltaTime`, así que **funcionan aunque `Time.timeScale = 0`**. Esto es clave porque muchas pantallas (Pausa, Settings, Inventario, SequencePanel) se abren con timeScale = 0 y deben poder animar el fade igual.
+**Importante**: los fades de `BaseScreenView.ShowAsync()` y `HideAsync()` usan `Time.unscaledDeltaTime`, así que **funcionan aunque `Time.timeScale = 0`**. Esto es clave porque varias pantallas (Pausa, Settings, SequencePanel, el reader en modo lectura) se abren con timeScale = 0 y deben poder animar el fade igual. El inventario ya no pausa (`PausesGame => false`).
 
-El método genérico `Fade(alpha, duration)` SÍ usa `Time.deltaTime` — está pensado para overlays que deben "congelarse" al pausar (ej: las viñetas del Nemesis).
+El método genérico `Fade(alpha, duration)` **también** usa `Time.unscaledDeltaTime` (antes usaba `deltaTime` y el fade del prompt de interacción quedaba a medias en pausa). Un overlay que tiene que "congelarse" al pausar anima su alpha por su cuenta con `Time.deltaTime`, sin `Fade()`: es el caso de `VignetteChaseView`.
 
 ---
 
@@ -57,35 +57,35 @@ El método genérico `Fade(alpha, duration)` SÍ usa `Time.deltaTime` — está 
 | Archivo | Rol |
 |---|---|
 | `Assets/_Project/Scripts/Managers/ScreenManager.cs` | Singleton que carga/descarga grupos de escenas. Escucha eventos del channel. |
-| `Assets/_Project/Scripts/ScriptableScripts/Screens/SO_SceneList.cs` | Base de datos: nombre de grupo (`"Menu"`, `"Level1_Group"`) → lista de escenas, y lista de escenas **persistentes**. |
+| `Assets/_Project/Scripts/ScriptableScripts/Screens/SO_SceneList.cs` | Base de datos: nombre de grupo (`"Menu"`, `"TestBlocking"`) → lista de escenas, y lista de escenas **persistentes**. El asset es `ScriptableObjects/Screen and Scenes/Scene List.asset`. |
 | `Assets/_Project/Scripts/ScriptableScripts/Screens/ScreenEventChannel.cs` | Event channel ScriptableObject. Expone `RaisePushScreen(label)`, `RaisePopScreen()`, `RaiseClearAll()`. |
 | `Assets/_Project/Scripts/BootingScene/BootingSceneLoader.cs` | Carga las escenas iniciales al arrancar el juego. |
 
 ### Cómo funciona la navegación
 
-1. Algún código (ej: `MainMenuController.HandleNewGame`) hace `screenChannel.RaisePushScreen("Level1_Group")`.
+1. Algún código (ej: `MainMenuController.EnterGameplay`, desde New Game o un slot) hace `screenChannel.RaisePushScreen(firstSceneLabel)` — hoy `"TestBlocking"` (`WIRED_Zona1_Blockout` + `LevelUI`).
 2. `ScreenManager.OnPushScreenRequestedWrapper(label)` recibe el evento.
 3. Descarga el grupo activo anterior (si hay) y carga las escenas del nuevo grupo en paralelo (`UniTask.WhenAll`).
 4. Mantiene un `Stack<string>` de pantallas activas para que `RaisePopScreen()` vuelva atrás.
 
-**Escenas persistentes**: las que están en `SO_SceneList.persistentSceneNames` no se descargan nunca (`Data`, `LevelUI`, `UI_Settings`, etc.). Cargan al boot y viven toda la sesión.
+**Escenas persistentes**: las que están en `SO_SceneList.persistentSceneNames` no se descargan nunca. Hoy son dos: `Data` y `SettingsScene`. `Bootstrap` las carga, empuja el primer grupo (`defaultStartGroup` = `Menu`) y se descarga a sí misma.
 
 ### Por qué importa la distinción persistente vs pushable
 
-- **Pushable** (`Menu`, `Level1_Group`, `UI_SaveSlots`): se cargan/descargan según la navegación. Los managers que vivan ahí mueren al descargar.
-- **Persistente** (`Bootstrap`, `Data`, `LevelUI`, `UI_Settings`): siempre vivas. Sus singletons (`PauseManager`, `InventoryManagerUI`, `SettingsController`, etc.) se pueden invocar desde cualquier escena.
+- **Pushable** (`Menu` = `MainMenu` + `MainMenuUI`, `TestBlocking` = `WIRED_Zona1_Blockout` + `LevelUI`, y los grupos de test `TestIñaki`, `TestNemesis`…, todos con `LevelUI`): se cargan/descargan según la navegación. Los managers que vivan ahí mueren al descargar. **`LevelUI` no es persistente**: viaja dentro de cada grupo de gameplay, así que sus controllers (`PauseManagerUI`, `InventoryManagerUI`, `DocumentReaderController`, `SequencePanelUIController`, `SkillCheckController`, el HUD) se recrean con cada nivel.
+- **Persistente** (`Data`, `SettingsScene`): siempre vivas. Sus singletons (`PauseManager`, `UIStateManager`, `ModuleManager`, `ScreenManager` en `Data`; `SettingsController` en `SettingsScene`) se pueden invocar desde cualquier escena.
 
 ---
 
 ## 4. UI modales: el patrón de "controller persistente con static Instance"
 
-Hay un grupo de UIs que se abren **sobre** la pantalla actual: Pausa, Settings, Inventario, SequencePanel (puzzles), DocumentReader (notas). Estas no se cargan con el flujo de `ScreenManager` — viven en escenas persistentes y se invocan directo.
+Hay un grupo de UIs que se abren **sobre** la pantalla actual: Pausa, Settings, Inventario, SequencePanel (puzzles), SkillCheck, DocumentReader (notas). Estas no se cargan con el flujo de `ScreenManager` — viven en una escena de UI que ya está cargada y se invocan directo.
 
 ### Patrón común
 
 Cada uno de estos controllers:
 
-1. Vive en una escena persistente (`LevelUI` o `UI_Settings`).
+1. Vive en `LevelUI` (viaja con cada grupo de gameplay) o en `SettingsScene` (persistente; `SettingsController` está en el root de `CanvasSettings.prefab`).
 2. Expone `public static SettingsController Instance { get; private set; }` (o el nombre que sea) y lo asigna en `Awake`.
 3. Expone `public bool IsOpen` para que otros sistemas (típicamente `PauseManager`) sepan si está activo.
 4. Tiene un método público `OpenScreen()` / `Open(data)` que cualquier código puede llamar.
@@ -98,11 +98,11 @@ Ejemplos en el código:
 - `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable` (lectura in situ: el mundo sigue corriendo).
 - `SequencePanelUIController.Instance.Open(panel)` — invocado desde `SequencePanelInteractable`.
 - `SettingsController.Instance.OpenScreen()` — invocado desde `PauseManagerUI.HandleSettings()` y `MainMenuController.HandleSettings()`.
-- `InventoryManagerUI.Instance.OpenInventory()` — invocado desde su propio `HandleInput()` con Tab.
+- `InventoryManagerUI.Instance.OpenInventory()` — invocado desde su propio `HandleInput()` con la action Player/Inventory (Tab). No abre con otra modal arriba, ni capturado, tirado o escondido.
 
 ### Por qué `static Instance` y NO `Singleton<T>`
 
-`Singleton<T>` (el de `Assets/_Project/Scripts/SingletonCreator/Singleton.cs`) está pensado para managers globales que pueden hacer `DontDestroyOnLoad`. Los controllers de UI persistente NO necesitan eso — la escena ya garantiza una sola instancia. Solo necesitan el accessor global. `public static T Instance { get; private set; }` + asignar en `Awake` es suficiente.
+`Singleton<T>` (el de `Assets/_Project/Scripts/SingletonCreator/Singleton.cs`) está pensado para managers globales que pueden hacer `DontDestroyOnLoad`. Los controllers de UI persistente NO necesitan eso — la escena ya garantiza una sola instancia. Solo necesitan el accessor global. `public static T Instance { get; private set; }` + asignar en `Awake` es suficiente. (Excepción: `InventoryManagerUI` hereda de `Singleton<T>` con `CreateSingleton(false)`, sin `DontDestroyOnLoad`.)
 
 ---
 
@@ -112,10 +112,10 @@ Ejemplos en el código:
 
 | Archivo | Rol |
 |---|---|
-| `Assets/_Project/Scripts/Managers/PauseManager.cs` | Singleton<PauseManager>. Maneja `Time.timeScale`, escucha ESC, dispara evento estático `OnPauseStateChanged`. |
+| `Assets/_Project/Scripts/Managers/PauseManager.cs` | Singleton<PauseManager> en `Data`. Guarda el estado de pausa, escucha Player/Pause, dispara evento estático `OnPauseStateChanged`. **No toca `Time.timeScale`**: lo pone el `UIStateManager` cuando `PauseManagerUI` hace Push. |
 | `Assets/_Project/Scripts/UI/Screen/Pause/PauseModel.cs` | Estado `PauseState { Unpaused, Paused }`. |
-| `Assets/_Project/Scripts/UI/Screen/Pause/PauseView.cs` | Botones Continue/Options/Exit. |
-| `Assets/_Project/Scripts/UI/Managers/PauseManagerUI.cs` | Controller. Escucha `OnPauseStateChanged` y abre/cierra el view. |
+| `Assets/_Project/Scripts/UI/Screen/Pause/PauseView.cs` | Botones Continue / Settings / Main Menu / Exit. |
+| `Assets/_Project/Scripts/UI/Managers/PauseManagerUI.cs` | Controller (en `LevelUI`). Escucha `OnPauseStateChanged` y abre/cierra el view. |
 
 ### Flow de pausa
 
@@ -130,21 +130,25 @@ InputAction Player/Pause → PauseManager.TryToggleFromInput()
 ¿Ya está en pausa? → sí: return (el cierre va por UI/Exit → PauseManagerUI.RequestClose)
       │
       ▼
+¿Cambio de escena en curso, o no hay player cargado (menú)? → sí: return
+      │
+      ▼
 ¿Hay una UI bloqueante abierta? (ver §5.1)
       ├─ Sí  → return (la UI bloqueante consume el ESC ella misma)
-      └─ No  → model.Toggle() → state pasa a Paused → dispara OnPauseStateChanged
+      └─ No  → Pause() → model.Pause() → state pasa a Paused → dispara OnPauseStateChanged
                     │
                     ▼
               PauseManagerUI.HandlePauseStateChanged(state)
                     │
                     ▼
-              Open() → OnBeforeOpen() (Time.timeScale = 0, cursor visible)
+              Open() → OnBeforeOpen() → UIStateManager.Push(this)
+                                         (PausesGame: Time.timeScale = 0, cursor libre)
                     │
                     ▼
               view.ShowAsync() (fade con unscaledDeltaTime)
 ```
 
-Al apretar Continue (o ESC sin UI bloqueante), pasa lo inverso: `model.Unpause()` → evento → `Close()` → `OnBeforeClose()` (`Time.timeScale = 1`, cursor oculto).
+Al apretar Continue (o ESC), pasa lo inverso: `PauseManager.RequestUnpause()` → `model.Unpause()` → evento → `Close()` → `OnBeforeClose()` → `UIStateManager.Pop(this)`, que restaura timeScale y cursor cuando el stack queda vacío. Continue no cierra la modal que hubiera abajo (p. ej. el panel de secuencia): se vuelve a ella.
 
 ### 5.1 Guard de ESC — UIStateManager.IsBlockingPause
 
@@ -154,6 +158,8 @@ Al apretar Continue (o ESC sin UI bloqueante), pasa lo inverso: `model.Unpause()
 private void TryToggleFromInput()
 {
     if (IsPaused) return;
+    if (ScreenManager.IsInputLocked) return;
+    if (!PlayerRegistry.HasPlayer) return;   // ESC en el menú no debe dejar la pausa trabada
     if (UIStateManager.Exists && UIStateManager.Instance.IsBlockingPause) return;
     Pause();
 }
@@ -167,7 +173,9 @@ private void TryToggleFromInput()
 
 ```csharp
 public static bool IsGameplayInputBlocked
-    => (Exists && Instance.IsPaused) || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen);
+    => (Exists && Instance.IsPaused)
+    || (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen)
+    || ScreenManager.IsInputLocked;   // también durante un cambio de escena
 ```
 
 `IsAnyModalOpen` es `true` cuando hay al menos una modal en el stack del `UIStateManager`, **sin importar si tiene `PausesGame = true` o false**. Eso significa que el player queda bloqueado aunque el tiempo no esté pausado (ej: leyendo un documento). Los scripts que lean `Input.*` directamente (movimiento, agarre de objetos, etc.) hacen early return:
@@ -191,16 +199,19 @@ Settings es la UI más sofisticada hoy y muestra todos los patrones juntos.
 ### Estructura
 
 ```
-UI_Settings (escena persistente)
-└─ SettingsRoot (GameObject vacío con SettingsController)
-    └─ Canvas (con SettingsView + CanvasGroup)
-        ├─ SettingsTabSelector (4 botones: Brightness, Controls, Screen, Volume)
-        ├─ Panels container
-        │   ├─ BrightnessPanel  (con SettingsPanelBrightnessView — placeholder)
-        │   ├─ ControlsPanel    (con SettingsPanelControlsView — sensibilidad funcional)
-        │   ├─ ScreenPanel      (con SettingsPanelScreenView — placeholder)
-        │   └─ VolumePanel      (con SettingsPanelVolumeView — funcional)
-        └─ Footer (Apply / Reset / Back buttons)
+SettingsScene (escena persistente)
+└─ CanvasSettings (instancia de CanvasSettings.prefab; SettingsController en el root)
+    └─ SettingsRoot (SettingsView + CanvasGroup)
+        ├─ TopBar (BackButton)
+        └─ Body
+            ├─ TabsColumn (SettingsTabSelector: Tab_Brightness, Tab_Controls, Tab_Screen, Tab_Volume)
+            └─ ContentColumn
+                ├─ PanelsHost
+                │   ├─ Panel_Brightness (SettingsPanelBrightnessView — brillo, contraste, gamma, CRT, dither)
+                │   ├─ Panel_Controls   (SettingsPanelControlsView — sensibilidad + invertir Y)
+                │   ├─ Panel_Screen     (SettingsPanelScreenView — resolución, modo, FPS, VSync)
+                │   └─ Panel_Volume     (SettingsPanelVolumeView — master, música, SFX)
+                └─ Footer (BtnApply / BtnReset)
 ```
 
 ### Modelo con snapshot/revert
@@ -209,11 +220,11 @@ UI_Settings (escena persistente)
 
 ### Por qué un evento estático
 
-`CameraSensitivityApplier` vive en el rig de cámara del player (escena `LevelUI`). `SettingsModel` vive en `UI_Settings`. **Son escenas distintas — no hay forma de pasarle referencia directa**. El evento estático `SettingsModel.OnSettingsApplied` permite que `CameraSensitivityApplier.HandleSettingsApplied()` se entere sin coupling.
+`CameraSensitivityApplier` vive en el prefab del player (`Player.prefab`, escena de gameplay; también en `HidingSpot.prefab`). `SettingsModel` vive en `SettingsScene`. **Son escenas distintas — no hay forma de pasarle referencia directa**. El evento estático `SettingsModel.OnSettingsApplied` permite que `CameraSensitivityApplier.HandleSettingsApplied()` se entere sin coupling.
 
 Este patrón se repite en todo el proyecto:
 - `NemesisEvents.OnChaseStarted` → escuchado por `VignetteChaseView`.
-- `InventoryEvents.OnItemAdded` → escuchado por `InteractionPromptView`, `ModuleHUDView`.
+- `InventoryEvents.OnItemAdded` → escuchado por `InteractionPromptView`, `InteractionNotificationFeed`.
 - `GameResultManager.OnGameResult` → escuchado por `WinController`, `ResultScreenController`.
 
 ### Sub-views por tab
@@ -227,18 +238,26 @@ Este patrón se repite en todo el proyecto:
 
 `SettingsView` agrega esos eventos en `WireXxxPanel()` y los re-emite en sus propios eventos públicos para que `SettingsController` solo conozca a `SettingsView`.
 
-### Estado "placeholder"
+### Quién aplica cada opción
 
-> ⚠️ **Desactualizado**: esta sección decía que ningún sistema leía los 12 campos extra
-> (Brightness, Contrast, Gamma, CRTScanlines, ResolutionIndex, etc.). **Ya no es cierto** —
-> existen `PostProcessSettingsApplier`, `PS1EffectApplier`, `ScreenSettingsApplier`,
-> `AudioBackgroundApplier` y `CameraSensitivityApplier`, todos suscritos a
-> `SettingsModel.OnSettingsApplied` y leyendo las keys de PlayerPrefs. Ver la tabla
-> key → applier en `docs/CLAUDE.md`.
->
-> Lo único que sigue sin conectar es el rebinding de teclas (`SettingsPanelControlsView`
-> muestra labels estáticos) y el toggle de glitch VHS (`Settings_VHSGlitch` ya lo lee el
-> `GlitchController`, pero Options no lo expone).
+Ya no queda ningún panel "placeholder": los cuatro escriben en el model, y los campos los leen
+appliers suscritos a `SettingsModel.OnSettingsApplied` que leen las keys de PlayerPrefs:
+`PostProcessSettingsApplier` (brillo/contraste/gamma), `PS1EffectApplier` y `UIPSXSettingsApplier`
+(CRT/dither, mundo y UI), `ScreenSettingsApplier` (resolución/modo/FPS/VSync),
+`CameraSensitivityApplier` (sensibilidad + invertir Y), `AudioBackgroundApplier` y
+`AmbienceComfortApplier`. Ver la tabla key → applier en `docs/CLAUDE.md`.
+
+El modo "Fullscreen" de Options aplica `FullScreenWindow`, igual que "Borderless": nada usa
+`ExclusiveFullScreen`, que en DX12 crashea al perder el foco (UUM-134743; ver `ScreenSettingsApplier.Modes`).
+
+Sin control en Options todavía:
+
+- Rebinding de teclas (`SettingsPanelControlsView` muestra labels estáticos).
+- `Settings_VHSGlitch`: la leen `GlitchController` y `UISignalStaticBurst`, pero ni `SettingsModel` ni
+  Options la tienen.
+- `Settings_AudioInBackground` y `Settings_LowFreqAmbience`: están en `SettingsModel` (con
+  snapshot/revert) y tienen applier, pero ningún panel llama `SetAudioInBackground` /
+  `SetLowFreqAmbience`, así que en la práctica quedan en su default.
 
 ## 7. Convenciones que hay que respetar
 
@@ -262,6 +281,13 @@ private void OnDestroy()
 - `InputAction.Enable()` (patrón estándar de Unity InputSystem).
 - ScriptableObject event channels en managers que se activan/desactivan a propósito.
 - Suscripciones a componentes hijos que comparten lifecycle con el padre y que querés bloquear cuando el padre está disabled.
+
+**Hooks estáticos a `GameSession.OnNewSessionStarting`**: registrarlos con
+`[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]`, **no** con
+`SubsystemRegistration`. `GameSession` limpia ese evento en `SubsystemRegistration`, y Unity no ordena
+métodos del mismo tipo de carga: si el hook corría primero quedaba borrado. Así pasó con
+`GameResultManager.ResetSession` (WIR-035: después del primer resultado se ignoraba el `WinTrigger`) y
+con `InputHintEvents` (los hints no volvían a salir en la segunda partida).
 
 ### 7.2 Show/Hide de pantallas: nunca SetActive directo en código de UI
 
@@ -295,12 +321,12 @@ Checklist:
 
 **Lo que NO se rompe**:
 - `Input.GetKey*` sigue funcionando (por eso necesitamos el guard `IsGameplayInputBlocked` para bloquear input lógico).
-- `Time.unscaledDeltaTime` sigue avanzando (lo usan los fades de UI y los timers del HUD del inventario).
+- `Time.unscaledDeltaTime` sigue avanzando (lo usan los fades y tweens de UI y el tiempo de sesión de `ModuleManager`).
 - UniTask con `UniTask.Yield(PlayerLoopTiming.Update)` corre con o sin timeScale.
 
 ### 7.5 Escalado y anclaje: márgenes fijos, no fracciones
 
-El proyecto tiene **12 Canvas Scaler** repartidos entre escenas persistentes y prefabs modales, y el
+El proyecto tiene **14 Canvas Scaler** (13 prefabs en `Prefabs/UI` + el `CrosshairCanvas` de `LevelUI.unity`), y el
 layout ya está calibrado a 1920x1080. Las reglas de abajo existen para que agregar un nodo no
 descalibre el resto.
 
@@ -335,9 +361,10 @@ Dos reglas, y las dos vienen de bugs reales:
   propiedad corren a la vez y el último en escribir gana por frame — el objeto tiembla o queda a
   mitad de camino. Es especialmente fácil de provocar donde hay **pooling**: un `ItemSlotView`
   reciclado puede traerse el tween del item anterior.
-- **`setIgnoreTimeScale(true)` siempre.** El inventario, la pausa y el resto de las modales abren con
-  `Time.timeScale = 0` (lo pone el `UIStateManager` cuando alguna modal declara `PausesGame = true`).
-  Un tween que no ignora el timeScale se congela a mitad de la animación y no termina nunca.
+- **`setIgnoreTimeScale(true)` siempre.** La pausa, Settings, el panel de secuencia y el reader en
+  modo lectura abren con `Time.timeScale = 0` (lo pone el `UIStateManager` cuando alguna modal declara
+  `PausesGame = true`; el inventario ya no). Un tween que no ignora el timeScale se congela a mitad de
+  la animación y no termina nunca.
 
 **Con pooling, el tween se dispara en el `Setup()` de la fila, no en `Awake`.** El `Awake` de un
 objeto pooleado corre una sola vez, la primera; las apariciones siguientes reusan el mismo
@@ -351,19 +378,27 @@ La misma lógica aplica a cualquier animación por código, no solo a LeanTween:
 
 Los canvas de UI son todos **Screen Space - Overlay**, así que quién tapa a quién lo decide únicamente
 el `sortingOrder` del Canvas raíz — la jerarquía no interviene, porque viven en escenas distintas.
-La escalera actual:
+La escalera vive en los prefabs; ninguna escena la pisa:
 
 | Orden | Canvas |
 |---|---|
 | 0 | CanvasMainMenu, CanvasSaveSlots |
-| 1 | Inventory Canvas |
-| 3 | HUDCanvas, CanvasResult, CanvasWin |
-| 50 | SequencePanelCanvas |
+| 1 | Inventory Canvas, HUDCanvas |
+| 3 | CanvasResult, CanvasWin |
+| 50 | SequencePanelCanvas, SkillCheckCanvas |
 | 60 | DocumentReaderCanvas |
 | **70** | **CanvasPause** |
 | **80** | **CanvasSettings** |
-| 100 | InteractionCanvas |
+| 100 | InteractionCanvas (se esconde solo ante cualquier modal, ver `InteractionPromptView.HandleModalPushed`) |
+| 1000 | CrosshairCanvas (objeto de escena en `LevelUI`, no es prefab) |
 | 32000 | UI_LoadingScreen |
+
+> **Sin overrides de `m_SortingOrder` en las escenas.** Hasta el 22/09 `LevelUI.unity` y
+> `SettingsScene.unity` pisaban el orden (overrides de `326a6790`, anteriores a que la pausa y Settings
+> subieran a 70/80 en `ae59f620`). En juego, la pausa quedaba en 50, debajo del reader, y el prompt en 1.
+> Se revirtieron. El HUD bajó de 3 a 1 **en el prefab**, que es lo que valía en juego, para seguir
+> debajo de Result/Win. Si un canvas tiene que cambiar de lugar, cambialo en el prefab y fijate que la
+> instancia no quede con override (en el Inspector el campo aparece en negrita).
 
 Dos reglas que la escalera codifica y que conviene no romper:
 
@@ -371,7 +406,8 @@ Dos reglas que la escalera codifica y que conviene no romper:
   un overlay global: se abre sobre el inventario, el reader y el panel de secuencia, y sólo respeta
   `IModalUI.BlocksPause`. Si un modal nuevo necesita quedar por encima, la respuesta es que declare
   `BlocksPause => true`, no que suba su canvas por encima de 70.
-- **Settings va encima de la pausa**, porque se abre desde ella.
+- **Settings va encima de la pausa**, porque se abre desde ella. (Con los overrides de hoy se sigue
+  cumpliendo: 51 contra 50.)
 
 `CanvasCRTPresenter` copia el `sortingOrder` del canvas al canvas overlay donde dibuja el tubo, así
 que la escalera vale igual para las pantallas que pasan por CRT.
@@ -438,7 +474,7 @@ Assets/_Project/Scripts/
 │   ├─ PauseManager.cs                    ← singleton de pausa, delega ESC guard a UIStateManager
 │   ├─ AudioManager.cs                    ← SetMasterVolume/Music/SFX
 │   ├─ GameResultManager.cs               ← evento OnGameResult (Win/Lose)
-│   ├─ InteractionManager.cs              ← SphereCast desde la cámara + KeyCode.E al IInteractable activo
+│   ├─ InteractionManager.cs              ← cast por la mira (InteractionProbe) + GameInput.InteractPressed
 │   ├─ InventoryManager.cs                ← lista de ítems (lógica de negocio, no UI)
 │   └─ PuzzleStateManager.cs              ← flags de puzzles/sockets/puertas/válvulas (sin persistencia)
 ├─ ScriptableScripts/
@@ -452,7 +488,7 @@ Assets/_Project/Scripts/
 │   │   ├─ BaseScreenModel.cs             ← POCO con Initialize/NotifyDataChanged
 │   │   ├─ Pause/
 │   │   │   ├─ PauseModel.cs              ← state machine de pausa
-│   │   │   └─ PauseView.cs               ← botones continue/options/exit
+│   │   │   └─ PauseView.cs               ← botones continue/settings/main menu/exit
 │   │   ├─ Settings/
 │   │   │   ├─ SettingsModel.cs           ← campos + PlayerPrefs + snapshot/revert
 │   │   │   ├─ SettingsView.cs            ← raíz que delega en sub-views
@@ -460,8 +496,8 @@ Assets/_Project/Scripts/
 │   │   │   ├─ SettingsTabSelector.cs     ← cambio de tab
 │   │   │   ├─ SettingsPanelVolumeView.cs
 │   │   │   ├─ SettingsPanelControlsView.cs
-│   │   │   ├─ SettingsPanelBrightnessView.cs (placeholder)
-│   │   │   └─ SettingsPanelScreenView.cs    (placeholder)
+│   │   │   ├─ SettingsPanelBrightnessView.cs
+│   │   │   └─ SettingsPanelScreenView.cs
 │   │   ├─ Document/                      ← DocumentReader (notas)
 │   │   ├─ Win/                           ← WinController/View
 │   │   ├─ Result/                        ← ResultScreenController/View + ResultPresentation
@@ -469,12 +505,20 @@ Assets/_Project/Scripts/
 │   │   ├─ Loading/                       ← LoadingController/View
 │   │   └─ MainMenu/                      ← MainMenu, SaveSlots
 │   ├─ Managers/
+│   │   ├─ UIStateManager.cs              ← stack de modales: timeScale, cursor, ESC (UI/Exit)
 │   │   ├─ PauseManagerUI.cs              ← controller del view de pausa
-│   │   ├─ InventoryManagerUI.cs          ← Tab abre, ESC capas, timers
-│   │   └─ SequencePanelUIController.cs   ← puzzles de secuencia
+│   │   ├─ InventoryManagerUI.cs          ← Tab abre, ESC capas (los módulos están en ModuleManager)
+│   │   ├─ SequencePanelUIController.cs   ← puzzles de secuencia
+│   │   └─ SkillCheckController.cs        ← skill check (+ SkillCheckTestKey, F6)
 │   ├─ Interaction/
-│   │   └─ InteractionPromptView.cs       ← prompt "Agarrar", "Necesitas X"
+│   │   ├─ InteractionPromptView.cs       ← prompt "Pick up X", "You need X"
+│   │   └─ SequencePanel*/SkillCheck*     ← model + view de cada puzzle
 │   └─ HUD/
+│       ├─ ModuleTimerHUDView.cs          ← timer del módulo (+ ModuleTimerBeeper)
+│       ├─ InteractionNotificationFeed.cs ← feed de notificaciones
+│       ├─ HidingOverlayView.cs           ← lo que se ve desde el escondite
+│       ├─ BreathHoldMeterView.cs         ← medidor de aliento
+│       ├─ ModalVisibilityGate.cs         ← oculta un nodo del HUD bajo modales
 │       └─ Vignette/                      ← Vignettes de proximidad/chase
 ├─ Player/
 │   ├─ PlayerCameraController.cs          ← Cinemachine config + lock del cursor
@@ -497,10 +541,10 @@ Assets/_Project/Scripts/
 Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ESC puede llegar al PauseManager porque `SettingsController.IsOpen` ya pasó a false al inicio del fade. Resultado: despausa el juego. Edge case chico, ignorable salvo que importe.
 
 ### 10.3 ~~GameResultManager — estado estático persistente~~ ✅ Resuelto
-`GameResultManager.ResetSession()` se llama ahora en `MainMenuController.HandleNewGame()` antes de empujar el grupo de gameplay. **Pendiente**: cuando se implemente Load Game en `SaveSlotsController`, ese flujo también debe llamar `ResetSession()` antes de cargar la partida guardada.
+`GameResultManager.ResetSession()` corre en cada `GameSession.BeginNewSession()`, colgado de `GameSession.OnNewSessionStarting` (ver §7.1 por qué con `AfterAssembliesLoaded`). `MainMenuController.EnterGameplay()` llama `BeginNewSession()` antes de empujar el grupo de gameplay, y lo usan tanto New Game como la elección de un slot (`HandleSlotSelected`), así que el Load Game futuro ya pasa por ahí.
 
 ### 10.4 ~~DocumentReader — race condition ESC con PauseManager~~ ✅ Resuelto en modo lectura
-`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. Además el juego ya está congelado, así que la pausa no aportaría nada. (El canvas de pausa ordena hoy en 70, por encima del reader; ver §7.7.)
+`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. Además el juego ya está congelado, así que la pausa no aportaría nada. (Igual, la pausa ordena en 70, por encima del reader; ver §7.7.)
 
 **Sigue abierto en lectura in situ** (`Open(SO_DocumentData)`, desde `NoteInteractable`): ahí el mundo sigue corriendo y la pausa tiene que poder abrirse, así que `BlocksPause` queda en `false` y la race condition original aplica igual. Hoy no hay ninguna `NoteInteractable` colocada en ninguna escena, así que no se manifiesta.
 
@@ -510,48 +554,65 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 
 | Evento | Dispara | Escuchan |
 |---|---|---|
-| `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI |
-| `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver | WinController, ResultScreenController |
-| `SettingsModel.OnSettingsApplied` | Apply en Settings | CameraSensitivityApplier |
-| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView |
-| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView |
-| `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisEyes |
-| `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView |
-| `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView |
+| `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI, AudioBackgroundApplier, ModuleManager |
+| `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver (Win y GameOver pueden pasar antes por un presenter, ver abajo) | WinController, ResultScreenController, CaptureFadeView, SkillCheckController (+ audio del Nemesis y EscapeSequenceDirector) |
+| `SettingsModel.OnSettingsApplied` | Apply en Settings | los appliers de §6, GlitchController, UISignalStaticBurst |
+| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView (+ NemesisChaseMusic, NemesisTension) |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, VignetteChaseView |
+| `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisChaseMusic |
+| `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView (+ PlayerStateManager, EscapeChaseRestart) |
+| `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView, DocumentReaderController (auto-close in situ), ItemGlint, ItemProximityHighlight |
 | `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje de interacción | InteractionNotificationFeed |
-| `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, InteractionNotificationFeed (sólo Added), ModuleHUDView |
+| `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, InventoryManagerUI, InteractionNotificationFeed (sólo Added) |
 | `ModuleEvents.OnTimerTick/OnStateChanged/OnExploded` | `ModuleManager` (los viejos `InventoryEvents.OnModule*` ya no existen) | ModuleHUDView, ActiveModuleDisplay, ModuleTimerHUDView, ModuleTimerBeeper |
 | `ModuleEvents.OnTimeAdjusted` | `ModuleManager.ApplyTimePenalty` / `ApplyTimeBonus`, con el delta aplicado | ModuleTimerHUDView (popup "-5s"/"+3s"), ActiveModuleDisplay |
-| `UIStateManager.OnModalPushed/Popped` | se abre/cierra un modal | ModalVisibilityGate, InteractionPromptView |
+| `UIStateManager.OnModalPushed/Popped` | se abre/cierra un modal | ModalVisibilityGate, InteractionPromptView, CameraInputBlocker, ArchitectSubtitleView, InputHintView (sólo Popped) |
+| `HidingEvents.OnEntered/OnExited` | el player entra/sale de un escondite | HidingOverlayView |
+
+**Presenters de resultado.** `GameResultManager.ReportWin` y `ReportGameOver` marcan el resultado
+como reportado y, si hay un presenter registrado (`WinPresenter` / `GameOverPresenter`), le dejan
+correr su plano antes de disparar `OnGameResult`. Hoy `EscapeSequenceDirector` registra el de Win (el
+portón que se cierra) y `ModuleExplosionSequence` el de GameOver (la explosión); sin presenter el
+resultado sale en el acto. La victoria de gameplay la reporta `WinTrigger` (en `WIRED_Zona1_Blockout`).
 
 ### Timer del módulo en el HUD
 
 `HUDCanvas.prefab` → `ModuleTimerHUD`: ventana Win95 arriba a la izquierda (anclada a un punto, en 24, -24) con el MM:SS del módulo activo adentro de un anillo de bloques que se vacía (`UIRingArc`,
 30 bloques), la etiqueta `M2 // CHEST`, un pip por módulo y el popup de salto de tiempo.
 
-- **Visibilidad**: entra deslizándose cuando un módulo pasa a Active; al resolverse o explotar muestra
-  el resultado ~2 s y sale. Entre módulos no se ve. Cuando el Nemesis agarra al player también sale, y
-  vuelve a entrar cuando se levantó y recuperó el control (`PlayerStateManager.IsRecoveringFromCapture`,
-  el mismo tramo en que el timer está frenado). Nunca `SetActive`: la muestra/oculta el
-  `UISlideTransition` de `Window`, y el pulso de cada bip escala `RingRoot` (el slide cancela todos los
-  tweens de su propio objeto).
+- **Visibilidad**: entra deslizándose cuando un módulo pasa a Active; al resolverse o explotar se queda
+  quieta mostrando el resultado (`RESOLVED` / `EXPLODED`) hasta que el siguiente módulo pasa a Active y
+  la reemplaza (con `hideWhenSettled`, apagado en el prefab, saldría a los `settledHoldSeconds`). Cuando
+  el Nemesis agarra al player sale, y vuelve a entrar cuando se levantó y recuperó el control
+  (`PlayerStateManager.IsRecoveringFromCapture`, el mismo tramo en que el timer está frenado).
+- **Planos sin HUD** (`CinematicState.HudHidden`): los planos de cámara de seguridad del escape (el
+  portazo al salir al pasillo y el portón del final, hasta la pantalla de victoria) lo prenden con
+  `CinematicState.SetHudHidden(true)` desde `EscapeSequenceDirector`. Mientras está prendido el timer
+  sale **en el mismo frame**, sin slide (es un corte duro: una ventana deslizándose sobre el plano nuevo
+  es justo lo que el plano no quiere), y vuelve a entrar deslizándose cuando se apaga. Es un flag, no
+  un evento: la view lo lee en su `Update`. Otros planos de la misma cinemática conservan el HUD.
+- El root nunca se desactiva (ahí viven las suscripciones): la muestra/oculta el `UISlideTransition` de
+  `Window`, y el corte instantáneo apaga sólo `Window` (`SlideIn` la vuelve a prender). El pulso de cada
+  bip escala `RingRoot` (el slide cancela todos los tweens de su propio objeto).
 - **`ModalVisibilityGate.ignoredModalIds`**: el gate del root lleva `SkillCheck`, así el timer queda
   visible durante el skill check (ahí caen las penalizaciones) y se oculta con inventario, pausa, etc.
   Con la lista vacía el gate se comporta como siempre.
-- **Urgencia**: con ≤30 s el tiempo y el anillo pasan a Accent y titilan; `ModuleTimerBeeper` bipea
+- **Urgencia**: en marcha van en ámbar (`timerColor`); con ≤30 s el tiempo y el anillo pasan a Accent y titilan; `ModuleTimerBeeper` bipea
   1/s y 2/s por debajo de 10 s, alineado a la grilla del intervalo (un salto de tiempo = un bip, no una
   ráfaga).
-- La armó el builder de un solo uso `Tools/UI/Module Timer HUD/Build` y después se retocó a mano
-  (380×210, sin barra de título). **No volver a correr el builder**: rearmaría la barra de título y
-  el layout original encima de los retoques. El prefab es la fuente de verdad.
+- La armó un builder de un solo uso (ya borrado) y después se retocó a mano (380×210, sin barra de
+  título). El prefab es la fuente de verdad.
 
 ### Skill check (Puzzle Central 2)
 
 `SkillCheckCanvas.prefab` en `LevelUI`, manejado por el objeto `SkillCheckController`. Estilo Dead by
 Daylight: en cada intento aparece la zona en un lugar sorteado (`zoneSectors` con peso) y la aguja da
-**una** vuelta desde las 12. [E] en la zona pasa; en su franja inicial "perfect" además devuelve
-tiempo al módulo; fuera de la zona, o sin apretar, resta tiempo y repite el mismo check con la zona
-en otro lado. Todo el tuning está en `SO_SkillCheckData` (`ScriptableObjects/Puzzle2/`).
+**una** vuelta desde las 12. Cada check tiene un solo intento: [E] en la zona acierta, y en su franja
+inicial "perfect" además devuelve tiempo al módulo; fuera de la zona, o sin apretar, resta tiempo. Acierto
+o fallo, pasa al siguiente check. Al terminar la ronda, si hubo **algún** fallo la ronda entera se da
+por perdida (`SEQUENCE FAILED - RESTART`, `failHoldTime`) y vuelve a empezar desde el primer check con
+zonas nuevas (`SkillCheckModel.RestartRound`): hay que acertarlos todos seguidos. Todo el tuning está en
+`SO_SkillCheckData` (`ScriptableObjects/Puzzle2/`).
 
 - **MVC**: `SkillCheckModel` es estado puro (paso, zona, juicio de un ángulo), `SkillCheckView` sólo
   dibuja y `SkillCheckController` corre la secuencia con UniTask.
@@ -568,7 +629,7 @@ en otro lado. Todo el tuning está en `SO_SkillCheckData` (`ScriptableObjects/Pu
 - **Disparador en el mundo**: `SkillCheckPanelInteractable` con un `SO_SkillCheckPuzzleData` (puzzle id +
   secuencia). Al completar llama `PuzzleStateManager.SetPuzzleCompleted`, y el módulo cuyo
   `associatedPuzzleId` coincide (`M2_Chest` → `puzzle_central_piso2`) se resuelve. Cancelar no completa
-  nada; el panel se puede volver a usar desde el primer check.
+  nada; el panel se puede volver a usar desde el primer check. Hoy sólo está colocado en `TestIñaki`.
 
 ### Interaction Prompt — ventana Win95 y tipos de mensaje
 
@@ -580,8 +641,8 @@ Muestra **dos tipos** en el mismo slot, cada uno ligeramente distinto:
 
 | Tipo | Título | Slot izquierdo | Entrada |
 |---|---|---|---|
-| Común (puertas, válvulas, paneles, notas) | `C:WIREDINTERACT.EXE` | keycap `E` | desde abajo |
-| Ítem (recoger / insertar) | `C:WIREDITEM.DAT` | keycap `E` + pozo Sunken con el ícono del ítem | desde abajo |
+| Común (puertas, válvulas, paneles, notas) | `C:\WIRED\INTERACT.EXE` | keycap `E` | desde abajo |
+| Ítem (recoger / insertar) | `C:\WIRED\ITEM.DAT` | keycap `E` + pozo Sunken con el ícono del ítem | desde abajo |
 
 - El tipo lo declara el interactable con la interfaz **opcional** `IPromptPresentation` (`Kind` + `PromptIcon`).
   Hoy la implementan `PickupInteractable` y `SocketInteractable`; lo que no la implemente es Común.
@@ -612,6 +673,25 @@ Reglas:
   izquierda. Para cambiar el look se edita el template en el prefab, no el código.
 - Las alertas del Arquitecto (`HUDAlertView`, arriba al centro, de a una) NO pasan por acá.
 
+### HUD del escondite: overlay y medidor de aliento
+
+Dos nodos de `HUDCanvas.prefab`, el prefab es la fuente de verdad de su layout:
+
+- **`HidingOverlay` (`HidingOverlayView`)**: lo que el player ve del escondite desde adentro, a
+  pantalla completa y **debajo** del resto del HUD (viñetas, timer y medidor se dibujan encima). Un
+  look por `EHidingSpotType`: rendijas de locker, la parte de abajo y las patas de una mesa, la juntura
+  de luz de un contenedor. Es procedural: cada look es un `RawImage` con una textura de alfa de 320×180
+  generada en `Awake`, teñida con `shade` (casi negro, nunca rojo: el rojo es peligro). Entra y sale con
+  `HidingEvents.OnEntered` / `OnExited` (0.35 s / 0.25 s, en unscaled) y nunca toma clicks.
+- **`BreathMeter` (`BreathHoldMeterView`)**: ventana abajo a la izquierda (anclada a un punto, en 24, 24)
+  con 10 pips del aire que le queda al player (`PlayerStateManager.BreathAir`) y una línea de estado:
+  `[F] HOLD BREATH` (con la tecla real de `GameInput.HoldBreath`), `HOLDING...` o `RECOVERING`. Por
+  debajo de `lowAir` (0.3) los pips pasan a Accent. Se ve mientras el player está en un escondite
+  (`CurrentHidingSpot`) y no está deshabilitado; como el timer, **pollea** `PlayerRegistry.Current` en
+  `Update` porque el aire no tiene evento. Sólo dibuja: el estado escondido es dueño del aliento y del
+  ruido. El root lleva un `ModalVisibilityGate` sobre su propio `CanvasGroup` y la view fadea el de la
+  ventana, así no se pelean por el mismo alfa.
+
 ---
 
 ## 12. Referencias en código
@@ -624,4 +704,4 @@ Para entender un pattern específico, leer estos archivos como modelo:
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
 - **View con sub-views y re-emisión de eventos**: `SettingsView.cs`.
 - **Vista permanentemente activa con CanvasGroup.alpha**: `InteractionPromptView.cs`.
-- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs` (usa `Fade()` con deltaTime).
+- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs` (anima el alfa en su propio `Update` con `Time.deltaTime`; el `Fade()` del base es unscaled).

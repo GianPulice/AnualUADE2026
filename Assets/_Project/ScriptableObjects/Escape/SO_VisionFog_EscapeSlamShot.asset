@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9610cc42620bd3b4eafa9fc758329e80, type: 3}
-  m_Name: SO_VisionFog_EscapeGateShot
+  m_Name: SO_VisionFog_EscapeSlamShot
   m_EditorClassIdentifier: Assembly-CSharp::SO_VisionFogConfig
   dataVersion: 2
   visionStart: 1
-  visionEnd: 6
+  visionEnd: 8.5
   fogDensity: 5.43
   fogFalloffPower: 0.85
   darkness: 1
@@ -28,18 +28,18 @@ MonoBehaviour:
   maxLightPreservation: 0.45
   lightDistanceFalloff: 0.081
   blurStrength: 0.0102
-  playerLightRange: 0
-  playerLightClear: 0
+  playerLightRange: 4.4
+  playerLightClear: 0.94
   playerLightFalloff: 2
   playerLightColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   playerLightTint: 1
-  playerLightInjection: 0
+  playerLightInjection: 0.04
   bypassFalloff: 2
   bypassDefaultColor: {r: 1, g: 0.72, b: 0.38, a: 1}
   bypassDefaultIntensity: 1
   bypassDefaultClear: 1
   bypassPlayerFade: 1
-  transitionDuration: 0
+  transitionDuration: 2
   silhouetteMode: 3
   densityPower: 0.25
-  playerLightIntensity: 0
+  playerLightIntensity: 0.94

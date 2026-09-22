@@ -13,7 +13,7 @@ using UnityEngine.UI;
 /// <see cref="PlayerRegistry"/> — there is no per-frame event for the air draining.
 ///
 /// The root carries a <see cref="ModalVisibilityGate"/> on its own CanvasGroup; this fades the
-/// window's, so the two never fight over one alpha. Built by HidingHUDBuilder.
+/// window's, so the two never fight over one alpha. Lives in HUDCanvas.prefab.
 /// </summary>
 [DisallowMultipleComponent]
 public class BreathHoldMeterView : MonoBehaviour

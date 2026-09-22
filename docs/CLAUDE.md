@@ -526,9 +526,8 @@ frozen). Its `ModalVisibilityGate` hides it under every modal **except** `SkillC
 (`ignoredModalIds`), because that is exactly when its penalties land. `ModuleTimerBeeper`, on the
 same object, beeps from 30 s left (1/s, `sfx_modulo_tick_normal`) and faster under 10 s (2/s,
 `sfx_modulo_tick_urgente`); it runs off `OnTimerTick`, so it goes quiet by itself whenever the timer
-is paused. The window was built by the one-shot `Tools/UI/Module Timer HUD/Build`
-(`Editor/UIStyle/ModuleTimerHUDBuilder.cs` + `UIBuildKit.cs`) and then re-laid out by hand: the
-prefab is the source of truth, and re-running the builder would overwrite the hand edits.
+is paused. The window was built by a one-shot editor builder (since deleted) and then re-laid out
+by hand: the prefab is the source of truth.
 
 ### Capture, checkpoints and session reset
 

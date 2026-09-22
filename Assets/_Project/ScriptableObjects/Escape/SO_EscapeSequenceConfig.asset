@@ -16,21 +16,86 @@ MonoBehaviour:
   skippable: 1
   skipKey: 102
   skipPromptFormat: '[Press {0} to skip]'
+  doorSlamSeconds: 0.15
+  doorSlamSoundId: 
+  snapPlayerToMark: 1
+  tensionSeconds: 3
+  safeDoorOpensAfter: 1.5
+  panOnPlayerView: 1
+  chargeOnPlayerView: 1
+  panSeconds: 2.2
+  panCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panTurnSign: 1
+  eyesHoldSeconds: 1.6
+  chargeDistance: 6
+  chargeMaxSeconds: 4
   openSeconds: 2.2
   holdSeconds: 3
   closeSeconds: 2.2
   darkGapSeconds: 2.5
   arrivalRadius: 2.5
+  guideLightsEnabled: 0
   lightColor: {r: 1, g: 0.72, b: 0.38, a: 1}
   lightRadius: 3
   lightFogIntensity: 2
   lightFogClear: 0.35
   beaconIntensity: 3
+  guideLampIntensity: 20
+  guideSpotAngle: 70
   lampIntensity: 6
+  alarmRed: {r: 0.8, g: 0.102, b: 0.102, a: 1}
+  alarmAmber: {r: 1, g: 0.72, b: 0.38, a: 1}
+  alarmPeriod: 0.8
+  alarmGap: 0.15
+  alarmLampIntensity: 12
+  alarmBeaconIntensity: 3
+  alarmBeaconRadius: 0.3
+  alarmBeaconMinPixels: 10
+  alarmBeaconNearFadeStart: 1.5
+  alarmBeaconNearFadeEnd: 4
+  alarmPoolClear: 0
+  alarmBeamIntensity: 0.9
   closedFog: {fileID: 11400000, guid: 85e7d0e29935b754397313a3947dd609, type: 2}
   openFog: {fileID: 0}
   revealShotFog: {fileID: 0}
+  slamShotFog: {fileID: 11400000, guid: 278b7642ce2734f4f81bb425885e0321, type: 2}
+  revealCameraSideAngle: 12
+  revealCameraVertical: -5
+  revealSoundId: sfx_nemesis_activacion
+  captureOutcome: 0
+  restartNemesisDelay: 1
+  gateDropDelay: 1
+  gateSlamSeconds: 0.35
+  gateSlamSoundId: sfx_interaction_cerrar_puerta
+  gateShakeAmplitude: 0.06
+  gateShakeSeconds: 0.45
   gateShotFog: {fileID: 11400000, guid: e28b129b194c9aebafd223c828726d59, type: 2}
+  cutToDustShot: 0
+  dustShotDelay: 0.35
+  endingHoldSeconds: 2.5
   paceNear: 0.92
   paceFar: 1.25
   paceNearDistance: 2.5
@@ -38,6 +103,7 @@ MonoBehaviour:
   minChaseSpeed: 1.2
   perfectTracking: 1
   trackingRefreshSeconds: 0.25
+  endGateSlackSeconds: 0.5
   alarmClip: {fileID: 0}
   alarmVolume: 0.6
   tensionClip: {fileID: 0}

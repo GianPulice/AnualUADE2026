@@ -12,15 +12,17 @@ los specs de Inventario, Interacción y Puzzles.
 
 ## 🔴 Bloqueantes del loop principal
 
-Esto no es "pendiente de UI" sino de cableado, pero condiciona todo lo de abajo: **hoy el
-loop de juego no corre**.
+Esto no es "pendiente de UI" sino de cableado, pero condicionaba todo lo de abajo. Los tres
+están resueltos: el loop de juego (timers, victoria, reset de run) ya corre.
 
 - [x] **Arrancar los timers de módulos.** Resuelto: los módulos viven en `ModuleManager` (escena
   Data), los arranca `ZoneTrigger` y los resuelve `PuzzleStateManager.OnPuzzleCompleted` vía
   `ModuleData.associatedPuzzleId`. Lo que sigue abajo sobre `InventoryManagerUI.StartModuleTimer` /
   `TickModuleTimers` es historia: ese código ya no existe.
-- [ ] **Condición de victoria.** `GameResultManager.ReportWin()` solo se llama desde
-  `WinLoseTest.cs` (tecla `I` de debug). No hay camino de gameplay que gane la partida.
+- [x] **Condición de victoria.** Resuelto: `WinTrigger` (`Scripts/Puzzles/WinTrigger.cs`, colocado en
+  `WIRED_Zona1_Blockout`) llama `GameResultManager.ReportWin()`; con el escape registrado como
+  `GameResultManager.WinPresenter`, el plano del portón corre antes de la pantalla de victoria.
+  `WinLoseTest.cs` ya no existe.
 - [x] **Resetear estado de run en Retry / New Game.** Resuelto con `GameSession.BeginNewSession()`:
   los managers persistentes (`InventoryManager`, `PuzzleStateManager`, `ModuleManager`, …)
   implementan `ISessionResettable`. Ver `docs/CLAUDE.md` § Capture, checkpoints and session reset.
@@ -32,10 +34,16 @@ loop de juego no corre**.
 ### Detalles diferidos (mejoras visuales, baja prioridad)
 
 - [ ] **Topbar del inventario** — fila ~28px arriba con `// inventario` a la izquierda y `[TAB] cerrar` a la derecha. Spec inventory §2.
+      Hoy hay un equivalente parcial sobre la lista, no una tira arriba: `ItemsText`
+      (`// INVENTORY .........00 OBJ`) y `CloseInventoryButton` (`[X] CLOSE [TAB]`).
 - [ ] **Bottom hint** — fila ~22px abajo con `[E] usar / insertar` y `[ESC] cerrar inventario`. Spec inventory §2.
 - [x] **Estado vacío del panel de detalle** — `Empty State Panel/EmptyStateText`, texto centrado
       "SELECT AN ITEM / TO SEE THE DETAIL" en `#8A8A8A`. El panel de fondo quedó con alpha 0.
-- [ ] **Borde izquierdo rojo** (`#cc1a1a`, 2px) en item seleccionado de la lista + fondo `#110808`. Hoy el highlight es genérico. Spec inventory §4.3.
+- [ ] **Borde izquierdo rojo** (`#cc1a1a`, 2px) en item seleccionado de la lista + fondo `#110808`. Spec inventory §4.3.
+      Se probó y se volvió atrás: hoy la selección es, a propósito, el barrido animado (Filled
+      Horizontal) de `ItemSlotView`. La versión con barra fija pintaba `SelectionBar` / `RowBackground`,
+      que el prefab `InventoryItem` nunca tuvo, y la lista quedó sin highlight. Si se retoma, primero
+      agregar y cablear esos dos nodos en el prefab (ver el summary de `ItemSlotView`).
 
 ### Panel de detalle — pasada visual (hecha)
 
@@ -104,19 +112,21 @@ ensanche (pivot 0.5) para que el borde izquierdo del texto no se moviera ni un p
 
 Pendiente en esta zona:
 
-- [ ] **Bordes de 1px** en chips y botones. La referencia los tiene; un `Image` de uGUI sin sprite
-      no dibuja borde, así que hace falta un sprite 9-sliced con outline o un nodo extra por chip.
-      Hoy se resuelve solo con fondo.
+- [x] **Bordes de 1px** en chips y botones. Obsoleto: el look pasó a Win95 y el borde lo pone un
+      `UIBevelFrame` (nodo `BevelFrame`) que aplica `UIStyle_InventoryCanvas`: lo tienen
+      `OpenDocButton`, `CloseInventoryButton`, `CloseDocButton` y el chip de categoría
+      (`Item Type Color Box`). Ya no se resuelve solo con fondo.
 - [ ] **Sweep del `CloseDocButton`** — ya tiene `ButtonHoverColorSwap` (la cruz se aclara a blanco)
-      pero no `ButtonHoverSweepEffect` como el resto, porque le faltan el `SweepBar` y el
-      `RectMask2D`.
+      y `UIBevelPressFeedback`, pero no `ButtonHoverSweepEffect`, porque le faltan el `SweepBar` y el
+      `RectMask2D`. En el inventario el sweep sólo lo tiene `OpenDocButton` (`CloseInventoryButton`
+      tampoco; el botón de descarte ya no existe).
 - [ ] **Calibrar el gris del cuerpo de la nota.** La referencia usa `#3a3a3a` sobre `#070707`, que
-      a 10px en un browser lee bien pero a pantalla completa queda casi ilegible. Quedó en
-      `#E8E8E8` (`DocText`) tras el pedido de pasar los textos a blanco. Bajarlo solo si en algún
-      momento se prioriza fidelidad al mockup sobre legibilidad.
-- [ ] **Override huérfano en `LevelUI.unity`** — la instancia del prefab fuerza `Doc Box` a
-      `m_IsActive: 1`. Hoy es inerte (el `CanvasGroup` arranca en alpha 0 y `ItemDetailView.Awake`
-      lo desactiva), pero conviene hacerle Revert al override.
+      a 10px en un browser lee bien pero a pantalla completa queda casi ilegible. Hoy `DocText` va en
+      blanco `#FFFFFF`: el rol `TextPrimary` del tema, aplicado por `UIStyle_InventoryCanvas`. Bajarlo
+      solo si en algún momento se prioriza fidelidad al mockup sobre legibilidad.
+- [x] **Override huérfano en `LevelUI.unity`** — la instancia del prefab forzaba `Doc Box` a
+      `m_IsActive: 1`. Ya no está: el override se fue en `e21b6de2` y hoy `LevelUI.unity` no tiene
+      ningún override sobre `Doc Box`.
 - [x] **El círculo del timer no se movía.** `ActiveModuleDisplay.UpdateDisplay` no lo llamaba nadie;
       ahora se maneja solo con `ModuleEvents` y drena `RadialFill` con `TimerProgress`.
 
@@ -132,12 +142,13 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
       desde 10 s. Se calla solo en pausa y durante el agarre.
 - [x] **El agarre no cuesta tiempo**: `SO_PlayerMovement.captureModuleTimePenalty = 0`; el timer
       sigue frenado desde el agarre hasta que el player se levanta.
-- [ ] **Borrar el builder de un solo uso** `Editor/UIStyle/ModuleTimerHUDBuilder.cs`: la ventana ya
+- [x] **Borrar el builder de un solo uso** `Editor/UIStyle/ModuleTimerHUDBuilder.cs`: la ventana ya
       se retocó a mano (380×210, sin barra de título) y correrlo de nuevo pisaría esos cambios.
-      El skill check ya se armó con `UIBuildKit.cs` (y su builder se borró), así que el kit se puede
-      borrar junto con este builder.
-- [ ] **`M1_Legs.timerDuration` está en 500 s** (antes del commit `9885271b` era 50): parece valor
-      de prueba. Confirmar y volverlo antes de una build.
+      Borrado el 2026-09-22 junto con `UIBuildKit.cs` y `HidingHUDBuilder.cs`: el prefab es la fuente
+      de verdad.
+- [ ] **`M1_Legs.timerDuration` está en 900 s** (`ScriptableObjects/Modules/M1_Legs.asset`; M2 y M3
+      están en 180). Viene cambiando seguido (500, 30, 600, 15 y, desde `62774265`, 900): confirmar
+      el valor final antes de una build.
 
 > El look de la UI (tema, bordes Win95, fuentes con contorno, fondos animados, transición, tubo CRT)
 > se aplica con **perfiles de estilo**: un `SO_UIStyleProfile` por prefab en
@@ -147,7 +158,10 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
 
 ### Reproductor de audio (mediano)
 
-- [ ] **Reproductor de audio en panel de detalle** para items de tipo Grabación. Spec inventory §5.3:
+- [ ] **Reproductor de audio en panel de detalle** para items de tipo Grabación. Spec inventory §5.3.
+  La lógica ya está esbozada en `ItemDetailView` (Play/Stop, `ignoreListenerPause`, barra de progreso,
+  corte al cerrar) detrás de `enableAudioFeatures`, que está en `false` en el prefab y sin
+  `audioPlayerBox` asignado: falta armar el nodo en `Inventory Canvas.prefab` y encenderlo. Lo que pide el spec:
   - Botones Reproducir / Detener.
   - Barra de progreso roja con tiempo actual / duración total.
   - `AudioSource.ignoreListenerPause = true` para que el audio siga sonando con `Time.timeScale = 0`.
@@ -158,7 +172,9 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
 
 ## 📜 Lateral Inventory (Variante B de puzzle)
 
-El esqueleto está creado (`LateralInventoryView.cs` + `LateralInventorySlotView.cs`).
+El esqueleto está creado (`LateralInventoryView.cs` + `LateralInventorySlotView.cs`), sin colocar en
+ninguna escena ni prefab. Ojo: el estado `Interacting` que existe hoy en el FSM del player
+(`PlayerBoxInteractingState`) es el de empujar cajas, no éste.
 Cuando se implemente la Variante B de interacción con puzzles, completar:
 
 - [ ] **Paneo de cámara cinematográfico** (Lerp 0.6s) hacia un `puzzleCameraPoint` que define cada puzzle. Spec interaction §6.2.
@@ -187,11 +203,14 @@ patrón del `SequencePanelUIController` con MVC + `IModalUI`.
 
 También pendiente en la capa de mundo (no es UI pero bloquea el testeo de puzzles):
 
-- [ ] **Puertas sólidas.** `DoorInteractable.DisableBlockingCollider()` está comentado en los
-  dos lugares donde se llamaba (`AnimateOpen` y `ApplyOpenStateImmediate`). Los paneles se
-  deslizan pero el collider sigue bloqueando: no se puede atravesar ninguna puerta.
+- [x] **Puertas sólidas.** Obsoleto: las puertas ya no se deslizan. `DoorInteractable` hace girar la
+  hoja sobre la bisagra (`AnimateHinge`), el collider sólido va con la hoja, y la caja de interacción
+  del root es trigger (ver `InteractionManager`), así que el vano queda libre al abrir.
+  `DisableBlockingCollider()` ya no existe.
 - [ ] **`PuzzleController.CompletePuzzle()` y `PuzzleReward.GiveReward()` no los llama nadie.**
   `SocketInteractable` puede arrancar un puzzle genérico (`StartPuzzle()`) pero nada lo completa.
+  Además ni `PuzzleController` ni `PuzzleReward` están puestos en ninguna escena o prefab: los puzzles
+  reales escriben directo en `PuzzleStateManager`. Decidir si se borran (código muerto) o se cablean.
 
 ---
 
@@ -206,9 +225,9 @@ Cambios aplicados:
 
 Detalles diferidos:
 
-- [x] **Sorting order del Canvas** — resuelto subiendo la pausa (1 → 70) y Settings detrás de ella (3 → 80), como decía esta nota, en vez de bajar el del reader. La escalera completa está en UI-System §7.7. En modo lectura la pausa igual sigue bloqueada por `BlocksPause`.
+- [x] **Sorting order del Canvas** — se subió la pausa (1 → 70) y Settings detrás de ella (3 → 80) en los **prefabs**, en vez de bajar el del reader. El 22/09 se revirtieron los overrides de escena que lo pisaban (`LevelUI.unity`: `CanvasPause`, `HUDCanvas`, `InteractionCanvas`; `SettingsScene.unity`: `CanvasSettings`) y el HUD pasó a 1 en el prefab. La escalera completa está en UI-System §7.7. En modo lectura la pausa igual sigue bloqueada por `BlocksPause`.
 - [ ] **Indicador visual de reproducción** si el documento incluye audio (futuro, cuando haya audio en documents).
-- [ ] **Sonido de apertura** — `openSoundId` en el controller está vacío; hay `sfx_puzzle_document_read_01/02` sin usar.
+- [ ] **Sonido de apertura** — `openSoundId` del `DocumentReaderController` sigue vacío en `LevelUI.unity`; hay `sfx_puzzle_document_read_01/02` (`Audio/SFX/Puzzles/`) sin usar y todavía sin SO de sonido que los registre como id.
 
 ---
 
@@ -217,10 +236,10 @@ Detalles diferidos:
 - [x] **Ventana Win95 + línea de comando de fósforo + 3 tipos de mensaje** (común / ítem / global). Ver
       `UI-System.md` · Interaction Prompt. El texto de `PickupInteractable` pasó de "Press 'E' to pick up X"
       a "Pick up X": la tecla ahora se dibuja.
-- [ ] **Borrar `Scripts/Editor/UIStyle/InteractionPromptWindowBuilder.cs`** una vez commiteado el prefab. Es un
-      builder de un solo uso; el prefab es la fuente de verdad.
+- [x] **Borrar `Scripts/Editor/UIStyle/InteractionPromptWindowBuilder.cs`** una vez commiteado el prefab. Es un
+      builder de un solo uso; el prefab es la fuente de verdad. Borrado el 2026-09-22.
 - [ ] **Renombrar `IInteractable.GetInteractText()` → `GetPromptText()`** para alinear con spec interaction §1.1. Cambio cosmético, alto número de archivos afectados.
-- [ ] **Priorizar por dot product de mirada** cuando hay múltiples interactables solapados. Spec interaction §10. El comportamiento actual depende del orden de registro.
+- [x] **Priorizar por dot product de mirada** cuando hay múltiples interactables solapados. Spec interaction §10. Obsoleto: ya no hay orden de registro. `InteractionManager` elige con `InteractionProbe.Find`, que tira un SphereCast por el punto exacto de la mira y se queda con el hit más cercano al player sobre ese rayo: lo que se mira es lo que se elige.
 
 ---
 
@@ -241,8 +260,8 @@ Ver la tabla de mapeo key → applier en `docs/CLAUDE.md`.
 Lo que sigue pendiente:
 
 - [ ] **Keybinds rebinding** — requiere InputSystem rebinding UI. `SettingsPanelControlsView` muestra labels estáticos.
-- [ ] **Toggle de glitch VHS** — `GlitchController` ya lee `Settings_VHSGlitch` de PlayerPrefs, pero Options no expone el toggle. Basta agregar el control y escribir la key.
-- [ ] **Verificar en build standalone** — `Screen.SetResolution` es no-op en Play Mode del Editor.
+- [ ] **Toggle de glitch VHS** — `GlitchController` y `UISignalStaticBurst` ya leen `Settings_VHSGlitch` de PlayerPrefs, pero ni `SettingsModel` ni Options la tienen. Hay que sumarla al model (con snapshot/revert, como las demás) y agregar el control. Mismo caso: `Settings_AudioInBackground` y `Settings_LowFreqAmbience` ya están en `SettingsModel` y tienen applier (`AudioBackgroundApplier`, `AmbienceComfortApplier`), pero ningún panel de Options los escribe.
+- [ ] **Verificar en build standalone** — `Screen.SetResolution` es no-op en Play Mode del Editor. Ojo al probar: "Fullscreen" ya no es `ExclusiveFullScreen` sino `FullScreenWindow`, igual que "Borderless" (crash DX12 al perder el foco, UUM-134743; ver `ScreenSettingsApplier`).
 
 ---
 
@@ -251,22 +270,22 @@ Lo que sigue pendiente:
 Stub visual implementado. La estructura del `SO_SaveSlotData` ya está preparada para
 recibir datos del save real:
 
-- `modules` ← snapshot de `InventoryManagerUI.GetAllModules()` (con moduleId, status, timeRemaining, timerDuration). **Ojo**: no existe ningún `ModuleManager`; los módulos viven hoy en `InventoryManagerUI`.
+- `modules` ← snapshot de `ModuleManager.Instance.GetAllModules()` (con moduleId, status, timeRemaining, timerDuration). Los módulos viven en `ModuleManager` (escena Data); `InventoryManagerUI` ya no los tiene.
 - `currentZoneId` ← zona/sala donde el player guardó.
 - `collectedItemIds` ← `InventoryManager.GetItemIDs()`. La restauración ya existe (`InventoryManager.RestoreFromIDs`) pero **no la llama nadie**.
-- `completedPuzzleIds` + `insertedSocketIds` ← **falta escribirlo**: `PuzzleStateManager` no tiene ningún método de serialización (`GetState()` no existe). Sus `HashSet`/`Dictionary` son privados y no hay export ni restore.
-- `playTimeSeconds` ← `InventoryManagerUI._sessionTime` (ya se trackea con `unscaledDeltaTime`).
+- `completedPuzzleIds` + `insertedSocketIds` ← **falta escribirlo** a disco. `PuzzleStateManager` ya tiene `Snapshot()` / `RestoreSnapshot(PuzzleSnapshot)` (los usan los checkpoints), pero es una copia en memoria con campos `internal`: no hay export serializable.
+- `playTimeSeconds` ← `ModuleManager.SessionTime` (se trackea con `unscaledDeltaTime`).
 - `lastSavedIso` ← `DateTime.UtcNow.ToString("o")` al momento del save.
 
 Pendiente:
 
-- [ ] **Conectar `OnSlotSelected(int)`** al sistema de save real cuando exista. Un futuro `GameLoader` (o el `MainMenuController`) se suscribe y decide:
+- [ ] **Conectar `OnSlotSelected(int)`** al sistema de save real cuando exista. Hoy lo escucha `MainMenuController.HandleSlotSelected`, que distingue vacío / con datos sólo en el log y entra igual al grupo `firstSceneLabel` por `EnterGameplay`. Cuando exista el save, ahí se decide:
   - Si `slot.IsEmpty` → carga la escena de inicio nueva.
   - Si NO `slot.IsEmpty` → carga la escena de gameplay aplicando los datos del slot.
 - [ ] **Save / Load real**: serializar `SO_SaveSlotData` a JSON en `Application.persistentDataPath` y reconstruirlos al boot. Hoy los datos viven como sub-assets del `SO_SaveSlotDatabase`.
 - [ ] **Diferenciar "cargar" vs "nueva"** en `HandleSlotClicked` según `slot.IsEmpty`. Hoy ambos disparan el mismo evento.
 - [ ] **Confirmación "¿Sobrescribir slot?"** si el slot ya tenía datos al hacer "nueva".
-- [ ] **Botón "borrar slot"** con confirmación, similar al discard del inventario.
+- [ ] **Botón "borrar slot"** con confirmación. (El diálogo de descarte del inventario que servía de modelo ya no existe: el inventario no descarta.)
 - [ ] **Indicador de slot recién guardado** (animación o destacado visual).
 - [ ] **Timer del módulo activo** en la card: si `modules[i].status == Active`, mostrar `timeRemaining / timerDuration` como barra debajo del pip correspondiente.
 - [ ] **Tooltip al hover** sobre cada pip con el nombre del módulo (`moduleId`).
@@ -284,18 +303,18 @@ Pendiente:
 
 Estado real:
 
-- ✅ **B5 — Ceguera M3**: `BlindnessOverlayView.cs` (HUD, permanente). `causesBlindness` + `blindnessDuration` en `ModuleData`. Evento `InventoryEvents.OnBlindnessTriggered`, disparado desde `InventoryManagerUI.TickModuleTimers`. **Cableado de escena pendiente: agregar GO con CanvasGroup negro + BlindnessOverlayView al Canvas HUD en Level_UI.** ⚠️ Inalcanzable hoy — ver "Bloqueantes del loop principal".
-- ✅ **B6 — Game Over por módulos**: `GameState.GameOver` en el enum, `GameResultManager.ReportGameOver()` con `OnSaveDeleteRequested`. **Pendiente**: configurar el preset `GameOver` en el array `_presentations` del `ResultScreenController` (título "GAME OVER" rojo `#CC1A1A`, vignette `#0D0000`, `ShowRetry = false`, `ShowStats = true`). `_mainMenuGroup` debe coincidir con la label del `SO_SceneList`. ⚠️ Inalcanzable hoy — los timers no arrancan.
+- ✅ **B5 — Ceguera M3**: `BlindnessOverlayView.cs` (HUD, permanente). `blindnessDuration` en `ModuleData`. Escucha `ModuleEvents.OnPenaltyApplied` (el viejo `InventoryEvents.OnBlindnessTriggered` y `InventoryManagerUI.TickModuleTimers` ya no existen). **Cableado pendiente: no está en ninguna escena ni prefab; agregar un GO con CanvasGroup negro + `BlindnessOverlayView` a `HUDCanvas.prefab`.**
+- ✅ **B6 — Game Over por módulos**: `GameState.GameOver` en el enum, `GameResultManager.ReportGameOver()` con `OnSaveDeleteRequested`. `ModuleManager` lo reporta según `SO_GameOverRules`, y el resultado pasa antes por la cinemática de explosión (`GameOverPresenter`). El preset `GameOver` ya está en `_presentations` de `CanvasResult.prefab` (título `GAME OVER` en Accent, vignette `#0D0000`, `ShowRetry = false`, `ShowStats = true`) y `_mainMenuGroup` = `Menu`.
 - ⚠️ **`OnSaveDeleteRequested` no tiene ningún suscriptor** — no hay save system que borre el slot.
-- ✅ **Preset Lose**: sin título, sin stats, con Retry. Retry usa `ScreenManager.ReloadCurrentGroup()` (antes tenía hardcodeado `"Level1_Group"`, que no existe en el `SO_SceneList`). **Actualizar labels de botones en el prefab.**
-- ✅ **InventoryManagerUI**: `_sessionTime` tracker, `CheckGameOver()` (dispara cuando todos los módulos explotan), `GetActiveModule()` (para SkillCheck), `ResetSessionTime()`. ⚠️ `ResetSessionTime()` no lo llama nadie.
+- ✅ **Preset Lose**: título `YOU DIED`, sin stats, con Retry. Retry usa `ScreenManager.ReloadCurrentGroup()` (antes tenía hardcodeado `"Level1_Group"`, que no existe en el `SO_SceneList`). **Actualizar labels de botones en el prefab.**
+- ✅ **Tiempo de sesión y fin de run**: lo que antes estaba en `InventoryManagerUI` (`_sessionTime`, `CheckGameOver()`, `GetActiveModule()`) vive ahora en `ModuleManager` (`SessionTime`, `CheckGameOver`, `GetActiveModule()`), que se resetea con `GameSession.BeginNewSession()`.
 
 ---
 
 ## 🧹 Limpieza / refactor menor
 
 - [x] **`PauseManager.OnEnable/OnDisable` con InputAction** — resuelto con `pauseActionHandler` cached. Lambda ya no se pierde en `-=`.
-- [ ] **Editor setup `SequencePanelUISetup.cs`** — depende del refactor reciente del View (BaseScreenView). El `SetPrivateField` ya busca en jerarquía de bases. Si se vuelve a romper, considerar dropear el editor setup y construir el prefab manualmente.
+- [x] **Editor setup `SequencePanelUISetup.cs`** — Obsoleto: el script se borró en `26bcc941` (2026-09-03) y `SequencePanelCanvas.prefab` es la fuente de verdad (estilado con `UIStyle_SequencePanelCanvas`).
 - [x] **`PausesGame` en IModalUI** — propiedad agregada a la interfaz. `UIStateManager.ApplyModalEnvironment` solo pone `timeScale = 0` si alguna modal en el stack declara `PausesGame = true`. `DocumentReader` integrado al sistema con `PausesGame = false` (tiempo corre, input bloqueado).
   - ✅ **Caveat cerrado en modo lectura**: `BlocksPause` pasó a ser `isOpen && pausesWhileOpen`, así que la nota que se abre al agarrarla se come el ESC sin que la pausa dispare en el mismo frame. En lectura in situ (`NoteInteractable`) sigue en `false` a propósito — ahí el mundo corre y la pausa tiene que andar. Ver UI-System §10.4.
-- [x] **`GameResultManager.ResetSession()` en flujo real** — se llama ahora en `MainMenuController.HandleNewGame()`. Pendiente: agregar el mismo llamado en `SaveSlotsController` cuando se implemente Load Game.
+- [x] **`GameResultManager.ResetSession()` en flujo real** — corre en cada `GameSession.BeginNewSession()`, que llama `MainMenuController.EnterGameplay()` tanto para New Game como al elegir un slot, así que el Load Game futuro ya queda cubierto.

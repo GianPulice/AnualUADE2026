@@ -21,3 +21,4 @@ MonoBehaviour:
     requiredPosition: 0
   - valveId: valve_sp3_3
     requiredPosition: 3
+  completionSoundValveId: valve_sp3_2

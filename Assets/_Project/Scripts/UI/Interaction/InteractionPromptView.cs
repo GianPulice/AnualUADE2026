@@ -192,8 +192,8 @@ public class InteractionPromptView : BaseScreenView
 
     /// <summary>
     /// Any modal (inventory, pause, settings, sequence panel, document reader...) covers the
-    /// prompt instantly. InteractionCanvas has sortingOrder 100 (the highest in the project),
-    /// so without this the prompt would be drawn ON TOP of any modal.
+    /// prompt instantly. InteractionCanvas has sortingOrder 100, above every modal canvas (pause 70,
+    /// settings 80), so without this the prompt would be drawn ON TOP of any modal.
     /// Snapping without animation on purpose: the modal may set Time.timeScale to 0.
     /// </summary>
     private void HandleModalPushed(IModalUI _)

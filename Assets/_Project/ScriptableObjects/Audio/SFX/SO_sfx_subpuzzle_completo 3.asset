@@ -16,8 +16,8 @@ MonoBehaviour:
   category: 0
   clip: {fileID: 8300000, guid: b3deb5cb7a574114387d57e0740097f2, type: 3}
   loop: 0
-  volume: 0.5
+  volume: 0.25
   ignoreListenerPause: 0
   minDistance: 1
-  maxDistance: 500
-  rolloff: 0
+  maxDistance: 35
+  rolloff: 1

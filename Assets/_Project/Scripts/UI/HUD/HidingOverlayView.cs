@@ -12,7 +12,7 @@ using UnityEngine.UI;
 /// alpha texture made in Awake; the colour comes from <see cref="shade"/>.
 ///
 /// Sits under the rest of the HUD (the vignettes, the timer, the breath meter draw over it), and
-/// never takes a click. The HUD's builder places it; see HidingHUDBuilder.
+/// never takes a click. Lives in HUDCanvas.prefab, which is the source of truth for its layout.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(RectTransform))]

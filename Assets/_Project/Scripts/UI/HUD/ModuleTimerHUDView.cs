@@ -77,6 +77,7 @@ public class ModuleTimerHUDView : MonoBehaviour
     private ModuleRuntime shown;
     private bool isVisible;        // the window is on screen (slid in)
     private bool captureHidden;    // the player is caught / getting up: out of the way until control is back
+    private bool cinematicHidden;  // a shot that wants a clean screen (CinematicState.HudHidden)
     private bool inWarning;
     private float blinkTime;
     private Vector2 deltaRestPosition;
@@ -134,6 +135,15 @@ public class ModuleTimerHUDView : MonoBehaviour
         {
             captureHidden = caught;
             ApplyVisibility();
+        }
+
+        // Taken off at once, not slid: it goes on the frame of a hard cut, and a window sliding out
+        // over the new shot is exactly what the shot wants gone.
+        bool cinematic = CinematicState.HudHidden;
+        if (cinematic != cinematicHidden)
+        {
+            cinematicHidden = cinematic;
+            ApplyVisibility(instant: cinematic);
         }
 
         if (!inWarning || shown == null || timerText == null) return;
@@ -237,16 +247,21 @@ public class ModuleTimerHUDView : MonoBehaviour
     }
 
     /// <summary>
-    /// On screen = a module to show AND the player not caught. Slides only on a change, so a
-    /// capture takes the window out and the stand-up brings it back in, and the timer it shows
-    /// again is the one that was frozen during the capture.
+    /// On screen = a module to show AND the player not caught AND no shot asking for a clean screen.
+    /// Slides only on a change, so a capture takes the window out and the stand-up brings it back
+    /// in, and the timer it shows again is the one that was frozen during the capture.
+    ///
+    /// <paramref name="instant"/> takes it off in the same frame instead of sliding: the window is
+    /// a child of this root, so switching it off leaves the subscriptions here running, and
+    /// <see cref="UISlideTransition.SlideIn"/> switches it back on by itself.
     /// </summary>
-    private void ApplyVisibility()
+    private void ApplyVisibility(bool instant = false)
     {
-        bool target = shown != null && !captureHidden;
+        bool target = shown != null && !captureHidden && !cinematicHidden;
         if (target == isVisible || slide == null) return;
 
         if (target) slide.SlideIn(SlideDirection.FromLeft);
+        else if (instant) slide.gameObject.SetActive(false);
         else slide.SlideOut(SlideDirection.FromLeft);
         isVisible = target;
     }
