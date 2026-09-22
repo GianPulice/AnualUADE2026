@@ -117,8 +117,9 @@ public override string GetInteractText()
 
 public override string GetInfoText()
     {
-        if (sequenceLocked) return doorData != null && !string.IsNullOrWhiteSpace(doorData.LockedPrompt)
-            ? doorData.LockedPrompt : "Locked";
+        // A sequence lock is not a key the player is missing: whatever the door's data asks for,
+        // it just says LOCKED (its lockedPrompt names a key, which reads as a hint to go find it).
+        if (sequenceLocked) return "LOCKED";
         if (isOpen) return string.Empty;
         if (doorData == null) return string.Empty;
         if (wasEverOpened) return string.Empty;

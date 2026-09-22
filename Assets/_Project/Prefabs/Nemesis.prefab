@@ -1399,15 +1399,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
-  bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
+  bank: {fileID: 11400000, guid: d4b0c7e21a9f4e63b8527ac0f13d6e88, type: 2}
   bus: 1
   cadenceSource: 1
   strideLength: 1.6
   minSpeed: 0.35
   teleportThreshold: 2
   minStepInterval: 0.12
-  minDistance: 2
-  maxDistance: 18
+  minDistance: 1.5
+  maxDistance: 24
+  rolloff: 0
+  pitchMultiplier: 0.72
   volumeScale: 1
   occlusionEnabled: 1
   occluderMask:

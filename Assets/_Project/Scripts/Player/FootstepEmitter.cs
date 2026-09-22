@@ -114,6 +114,15 @@ public class FootstepEmitter : MonoBehaviour
              "makes them one.")]
     [SerializeField, Min(0.1f)] private float maxDistance = 20f;
 
+    [Tooltip("How the step fades between Min and Max Distance. Linear barely drops close by (the " +
+             "listener rides the camera a few metres back); Logarithmic halves every time the " +
+             "distance doubles, so how far away a step is reads at once. The Nemesis uses it.")]
+    [SerializeField] private AudioRolloffMode rolloff = AudioRolloffMode.Linear;
+
+    [Tooltip("Multiplies every step's pitch. Below 1 = deeper and heavier: the Nemesis plays the " +
+             "player's own bank lower, so the two are told apart by ear.")]
+    [SerializeField, Range(0.3f, 2f)] private float pitchMultiplier = 1f;
+
     [Tooltip("Master scale on top of the per-surface volume. This is the knob for 'the monster is " +
              "heavier than the player', not the per-surface one.")]
     [SerializeField, Range(0f, 2f)] private float volumeScale = 1f;
@@ -471,10 +480,12 @@ public class FootstepEmitter : MonoBehaviour
 
         Vector3 at = transform.position + footOffset;
         float vol = Mathf.Clamp01(volume * CurrentVolumeScale() * OcclusionMultiplier(at));
-        float pitch = Random.Range(pitchRange.x, pitchRange.y);
+        float pitch = Random.Range(pitchRange.x, pitchRange.y) * pitchMultiplier;
 
-        if (bus == EBus.Nemesis) manager.PlayNemesis(clip, at, vol, pitch, minDistance, maxDistance);
-        else                     manager.PlayPlayer (clip, at, vol, pitch, minDistance, maxDistance);
+        SO_SoundData.SoundCategory category = bus == EBus.Nemesis
+            ? SO_SoundData.SoundCategory.Nemesis
+            : SO_SoundData.SoundCategory.Player;
+        manager.PlayClip(clip, category, at, vol, pitch, minDistance, maxDistance, rolloff);
 
         return bag;
     }

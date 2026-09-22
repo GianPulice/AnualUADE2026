@@ -1964,7 +1964,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SkillCheckTestKey
   controller: {fileID: 1872597451}
-  data: {fileID: 0}
+  data: {fileID: 11400000, guid: 4b034718e82b4dae85fc452892b907b2, type: 2}
   key: 287
 --- !u!114 &1872597451
 MonoBehaviour:

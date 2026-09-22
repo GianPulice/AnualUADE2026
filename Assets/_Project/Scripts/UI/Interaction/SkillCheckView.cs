@@ -57,6 +57,7 @@ public class SkillCheckView : BaseScreenView
     [SerializeField] private string perfectString = "PERFECT";
     [SerializeField] private string missString = "MISS";
     [SerializeField] private string completeString = "SYSTEM STABILIZED";
+    [SerializeField] private string failedString = "SEQUENCE FAILED - RESTART";
 
     [Header("Feel")]
     [SerializeField, Min(0f)] private float shakeDistance = 10f;
@@ -78,6 +79,7 @@ public class SkillCheckView : BaseScreenView
     public void Setup(int totalSteps)
     {
         StopFeedback();
+        System.Array.Clear(pipResults, 0, pipResults.Length);
         if (track != null) track.color = Disabled;
         SetStep(0, totalSteps);
         SetPips(0, totalSteps);
@@ -126,7 +128,7 @@ public class SkillCheckView : BaseScreenView
     }
 
     /// <summary>Holds the verdict on screen: the zone takes its colour, the dial shakes or pulses.</summary>
-    public void ShowResult(SkillCheckResult result, int stepsDone, int totalSteps)
+    public void ShowResult(SkillCheckResult result, int playedIndex, int totalSteps)
     {
         Color color = result switch
         {
@@ -144,10 +146,23 @@ public class SkillCheckView : BaseScreenView
             SkillCheckResult.Good => goodString,
             _ => missString
         }, color);
-        SetPips(stepsDone, totalSteps);
+        if (playedIndex >= 0 && playedIndex < pipResults.Length)
+            pipResults[playedIndex] = result == SkillCheckResult.Miss ? PipMiss : PipHit;
+        SetPips(playedIndex + 1, totalSteps);
 
         if (result == SkillCheckResult.Miss) Shake();
         else Pulse();
+    }
+
+    /// <summary>The round ended with a miss in it: the red pips stay up while the failure holds.</summary>
+    public void ShowFailed(int totalSteps)
+    {
+        HideZone();
+        SetNeedleVisible(false);
+        if (track != null) track.color = Accent;
+        SetPips(totalSteps, totalSteps);
+        SetStatus(failedString, Accent);
+        Shake();
     }
 
     /// <summary>Every check passed: the whole ring lights up.</summary>
@@ -183,7 +198,12 @@ public class SkillCheckView : BaseScreenView
         stepText.text = $"{shown}/{totalSteps}";
     }
 
-    /// <summary>Done checks lit, the current one dimmed, the rest off.</summary>
+    private const byte PipNone = 0, PipHit = 1, PipMiss = 2;
+
+    // What each check of the current round came out as. Sized for any pip count the prefab has.
+    private byte[] pipResults = new byte[32];
+
+    /// <summary>Played checks lit (hit) or red (miss), the current one dimmed, the rest off.</summary>
     private void SetPips(int stepsDone, int totalSteps)
     {
         for (int i = 0; i < pips.Length; i++)
@@ -195,7 +215,10 @@ public class SkillCheckView : BaseScreenView
             pip.gameObject.SetActive(used);
             if (!used) continue;
 
-            pip.color = i < stepsDone ? Primary : i == stepsDone ? Muted : Disabled;
+            byte played = i < pipResults.Length ? pipResults[i] : PipNone;
+            pip.color = i < stepsDone
+                ? (played == PipMiss ? Accent : Primary)
+                : i == stepsDone ? Muted : Disabled;
         }
     }
 

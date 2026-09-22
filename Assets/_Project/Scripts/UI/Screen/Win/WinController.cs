@@ -87,8 +87,14 @@ public class WinController : BaseScreenController<WinView, GameResultModel>, IMo
         _isTransitioning = false;
     }
 
+    private bool _leaving;
+
     private void HandleMainMenu()
     {
+        // Once: a second click or submit before the level unloads must not push again.
+        if (_leaving) return;
+        _leaving = true;
+
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
         Time.timeScale = 1f;
 

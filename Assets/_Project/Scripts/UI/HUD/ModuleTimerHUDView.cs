@@ -13,8 +13,8 @@ using UnityEngine.UI;
 ///
 /// Lifecycle:
 ///  • Slides in when a module goes Active, and stays while it runs.
-///  • When that module resolves or explodes it shows the outcome for <see cref="settledHoldSeconds"/>
-///    and slides out. Nothing is shown between modules.
+///  • When that module resolves or explodes it stays on the outcome (RESOLVED / EXPLODED) until the
+///    next module goes Active (optionally slides out, see <see cref="hideWhenSettled"/>).
 ///  • Slides out when the Nemesis grabs the player and back in once the player is up with control
 ///    again (<see cref="PlayerStateManager.IsRecoveringFromCapture"/>) — the same span the module
 ///    timer is frozen, so it comes back showing the time it left with.
@@ -65,6 +65,9 @@ public class ModuleTimerHUDView : MonoBehaviour
     [SerializeField, Min(0f)] private float fallbackWarningSeconds = 30f;
 
     [Header("Feel")]
+    [Tooltip("Slide the window out Settled Hold Seconds after a module resolves or explodes. Off = " +
+             "it stays on the outcome until the next module starts.")]
+    [SerializeField] private bool hideWhenSettled = false;
     [SerializeField, Min(0f)] private float settledHoldSeconds = 2f;
     [Tooltip("Blink cycles per second of the time while in warning.")]
     [SerializeField, Min(0.1f)] private float blinkSpeed = 2f;
@@ -199,7 +202,10 @@ public class ModuleTimerHUDView : MonoBehaviour
         ApplyVisibility();
     }
 
-    /// <summary>Freezes the window on the outcome, then slides it out.</summary>
+    /// <summary>
+    /// Freezes the window on the outcome and leaves it there: the window sliding away the moment a
+    /// module ends read as the HUD breaking. The next module going Active replaces it (<see cref="Show"/>).
+    /// </summary>
     private void Settle(ModuleRuntime module)
     {
         inWarning = false;
@@ -219,7 +225,8 @@ public class ModuleTimerHUDView : MonoBehaviour
         SetStatus(resolved ? "RESOLVED" : "EXPLODED", outcome);
 
         LeanTween.cancel(gameObject);
-        LeanTween.delayedCall(gameObject, settledHoldSeconds, Hide).setIgnoreTimeScale(true);
+        if (hideWhenSettled)
+            LeanTween.delayedCall(gameObject, settledHoldSeconds, Hide).setIgnoreTimeScale(true);
     }
 
     private void Hide()

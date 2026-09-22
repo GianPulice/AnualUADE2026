@@ -7,8 +7,13 @@ public static class GameResultManager
     /// Wire the static reset into <see cref="GameSession.BeginNewSession"/> so a New Game / Retry
     /// clears the reported flag alongside every instance manager. Runs on each Play so the hook
     /// survives domain-reload-disabled enters into Play mode.
+    ///
+    /// AfterAssembliesLoaded, NOT SubsystemRegistration: GameSession clears OnNewSessionStarting in
+    /// SubsystemRegistration, and Unity does not order methods of the same load type. When the clear
+    /// ran second the hook was wiped, the reported flag never reset, and every run after the first
+    /// result ignored its WinTrigger (WIR-035).
     /// </summary>
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
     private static void HookSessionReset()
     {
         GameSession.OnNewSessionStarting -= ResetSession;

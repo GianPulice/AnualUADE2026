@@ -10,32 +10,22 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 048a2e44b06d26c4f81a1f18e6897c4a, type: 3}
-  m_Name: SO_SkillCheck_Ventilation
+  m_Name: SO_SkillCheck_TestF6
   m_EditorClassIdentifier: Assembly-CSharp::SO_SkillCheckData
   steps:
-  - sweepDuration: 1.45
-    successZoneDegrees: 90
-    perfectZoneDegrees: 14
+  - sweepDuration: 1.7
+    successZoneDegrees: 120
+    perfectZoneDegrees: 18
     failTimePenalty: 8
     perfectTimeBonus: 3
-  - sweepDuration: 1.25
-    successZoneDegrees: 70
-    perfectZoneDegrees: 11
+  - sweepDuration: 1.3
+    successZoneDegrees: 75
+    perfectZoneDegrees: 12
     failTimePenalty: 8
     perfectTimeBonus: 3
-  - sweepDuration: 1.05
-    successZoneDegrees: 52
-    perfectZoneDegrees: 8
-    failTimePenalty: 8
-    perfectTimeBonus: 3
-  - sweepDuration: 0.92
-    successZoneDegrees: 40
+  - sweepDuration: 0.9
+    successZoneDegrees: 36
     perfectZoneDegrees: 6
-    failTimePenalty: 8
-    perfectTimeBonus: 3
-  - sweepDuration: 0.82
-    successZoneDegrees: 31
-    perfectZoneDegrees: 5
     failTimePenalty: 8
     perfectTimeBonus: 3
   - sweepDuration: 0.72
