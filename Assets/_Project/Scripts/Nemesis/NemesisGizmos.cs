@@ -613,14 +613,26 @@ public class NemesisGizmos : MonoBehaviour
                   $"{gait} {open:0.#} m  (wall {open * wall:0.#})", color);
     }
 
+#if UNITY_EDITOR
+    /// <summary>
+    /// Cached: FindAssets searches the whole project, and it used to run on every Scene-view repaint
+    /// for as long as a Nemesis was in the scene. Edits to the asset still show, since this is the
+    /// asset itself; a deleted or reimported one reads as null and is simply looked up again.
+    /// </summary>
+    private static SO_Movement cachedMovement;
+#endif
+
     private static SO_Movement FindPlayerMovement()
     {
 #if UNITY_EDITOR
+        if (cachedMovement != null) return cachedMovement;
+
         string[] guids = UnityEditor.AssetDatabase.FindAssets("t:SO_Movement");
         if (guids.Length == 0) return null;
 
         string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
-        return UnityEditor.AssetDatabase.LoadAssetAtPath<SO_Movement>(path);
+        cachedMovement = UnityEditor.AssetDatabase.LoadAssetAtPath<SO_Movement>(path);
+        return cachedMovement;
 #else
         return null;
 #endif

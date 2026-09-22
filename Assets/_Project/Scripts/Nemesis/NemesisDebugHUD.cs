@@ -159,7 +159,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 15f + stripHeight + 26f;
+        float height = lineHeight * 17f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -177,6 +177,10 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
         Row(ref line, "trabas", DescribeStuck());
+
+        line.y += 6f;
+        Row(ref line, "ritmo", DescribePacing());
+        Row(ref line, "presión", DescribePressure());
 
         line.y += 6f;
         Row(ref line, "seguro en", lastSafeTime >= 0f ? $"{lastSafeTime:0.0} s" : "—");
@@ -491,6 +495,46 @@ public class NemesisDebugHUD : MonoBehaviour
 
         string warpText = warps > 0 ? $"<b>{warps} warp</b>" : "0 warp";
         return $"{repaths} recalculo  ·  {warpText}";
+    }
+
+    /// <summary>The Director's pacing (plan §6.4): without it, "why did it leave just now" has no answer.</summary>
+    private static string DescribePacing()
+    {
+        if (!NemesisDirector.Exists) return "sin Director";
+
+        NemesisTension tension = NemesisDirector.Tension;
+        if (tension == null || tension.Pacing == null) return "apagado (sin SO_DirectorPacing)";
+        if (!tension.IsRunning) return "esperando que se despierte";
+
+        const int Cells = 10;
+        int filled = Mathf.Clamp(Mathf.RoundToInt(tension.Tension * Cells), 0, Cells);
+        string bar = new string('#', filled) + new string('.', Cells - filled);
+
+        string state = tension.IsSuspended ? $"en pausa: {tension.SuspendReason}" : tension.State.ToString();
+
+        string timer = tension.State == NemesisTension.EPacingState.SustainPeak ||
+                       tension.State == NemesisTension.EPacingState.Relax
+            ? $" {tension.StateTimeRemaining:0} s"
+            : "";
+
+        string quiet = tension.State == NemesisTension.EPacingState.BuildUp
+            ? tension.IsPlayerInSafeZone
+                ? "  ·  en el Hub"
+                : $"  ·  silencio {tension.QuietTime:0}/{tension.Pacing.QuietTimeout:0} s"
+            : "";
+
+        return $"<b>{state}</b>{timer}  ·  [{bar}] {tension.Tension:0.00}{quiet}";
+    }
+
+    private static string DescribePressure()
+    {
+        string zone = NemesisDirector.ActiveZoneId;
+        if (zone == null) return "—";
+
+        string step = NemesisDirector.RisingStep > 0 ? $" x{NemesisDirector.RisingStep}" : "";
+
+        return $"<b>{zone}</b> {NemesisDirector.ActiveIntensity:0.00}  ·  " +
+               $"{NemesisDirector.ActiveSourceLabel}{step}  ·  quedan {NemesisDirector.ActiveTimeRemaining:0} s";
     }
 
     private string DescribeSafeStats()

@@ -297,6 +297,56 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (navAgent != null) navAgent.stoppingDistance = Mathf.Max(0f, distance);
     }
 
+    // ── Facade: steering ────────────────────────────────────────────────────
+
+    private Vector3 steeredDestination;
+    private bool hasSteeredDestination;
+    private float steeringRefreshAt;
+
+    /// <summary>Longest a destination goes without being re-sent even though it has not moved.
+    /// The safety net for whatever clears the agent's path without telling anyone.</summary>
+    private const float SteeringRefreshInterval = 1f;
+
+    /// <summary>
+    /// Points the agent at a destination that moves every frame, WITHOUT re-sending it every frame.
+    ///
+    /// For the two states that steer continuously, Chasing (the pursuit's prediction slides with
+    /// the player) and Traversing (the belief it is heading for). Both used to assign
+    /// NavAgent.destination on every frame, and every assignment restarts the path request — the
+    /// cost NemesisPatrolState already documents and avoids: pathPending comes up often enough to
+    /// blur the arrival test, which in Chasing flipped the gait between Idle and Running (WIR-024),
+    /// and on a long route across floors a request superseded every frame may never finish, leaving
+    /// the agent on the quick partial path Unity plans first — one that ends below the player
+    /// (WIR-018).
+    ///
+    /// Re-sent only when the target has really moved: half a metre far away, down to fifteen
+    /// centimetres at arm's length, where a stale point could cost the grab. Plus once a second
+    /// regardless, which covers a path cleared by something outside the Nemesis (a platform
+    /// dropping its riders) at the price of one pending frame per second.
+    /// </summary>
+    public void SteerTo(Vector3 destination)
+    {
+        if (!IsAgentReady) return;
+
+        float distanceToTarget = Vector3.Distance(transform.position, destination);
+        float resend = Mathf.Clamp(distanceToTarget * 0.1f, 0.15f, 0.5f);
+
+        if (hasSteeredDestination && Time.time < steeringRefreshAt &&
+            (destination - steeredDestination).sqrMagnitude <= resend * resend)
+        {
+            return;
+        }
+
+        navAgent.destination = destination;
+        steeredDestination = destination;
+        hasSteeredDestination = true;
+        steeringRefreshAt = Time.time + SteeringRefreshInterval;
+    }
+
+    /// <summary>Makes the next <see cref="SteerTo"/> send its destination whatever it is. For a
+    /// state taking over the agent, and after anything that clears the path (a warp).</summary>
+    public void ForgetSteering() => hasSteeredDestination = false;
+
     /// <summary>
     /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
     /// another one.
@@ -339,20 +389,35 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // its grace, so the monster sprinted on the spot for as long as it was stuck. Only an
         // order that changes something is a fresh one.
         bool fresh = gait != currentGait || !Mathf.Approximately(speed, currentGaitSpeed);
+        bool wasMoving = IsMovingGait(currentGait);
 
         currentGait = gait;
         currentGaitSpeed = speed;
 
         if (!fresh) return;
 
-        // A fresh order gets the benefit of the doubt: the body has not had a frame to move yet —
+        // SETTING OFF gets the benefit of the doubt: the body has not had a frame to move yet —
         // the path may still be computing and the agent has to accelerate — and judging it from
         // the first frame would blank the first steps of every walk that follows a pause.
-        stillTimer = 0f;
-        gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
+        //
+        // A change BETWEEN TWO MOVING GAITS does not (WIR-024). Every state runs at its own speed
+        // (chase 3, search and patrol 2.75, investigate 2.5), so each transition used to count as
+        // setting off and re-armed the grace, and a Nemesis traded between two states while it was
+        // wedged was never judged at all: it sprinted on the spot for as long as the trading went
+        // on. A body that was already meant to be moving is either moving or stuck, and neither
+        // needs half a second to find out.
+        if (!wasMoving && IsMovingGait(gait))
+        {
+            stillTimer = 0f;
+            gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
+        }
 
         ApplyGaitToAnimator(gait);
     }
+
+    /// <summary>The gaits that claim the body is getting somewhere — the only ones
+    /// <see cref="TickLocomotionAnimation"/> second-guesses.</summary>
+    private static bool IsMovingGait(EGait gait) => gait == EGait.Walking || gait == EGait.Running;
 
     /// <summary>How the Nemesis was last TOLD to move. What it is actually doing is
     /// <see cref="TickLocomotionAnimation"/>'s business.</summary>
@@ -963,6 +1028,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         InvalidateRouteVerdict();
         if (stuckEscape != null) stuckEscape.ResetSample();
 
+        // Whatever SteerTo last sent was a route from the old position. Re-sending it costs one
+        // query; trusting it could leave the agent standing where it landed.
+        ForgetSteering();
+
         return true;
     }
 
@@ -1092,6 +1161,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // switch itself off, and the monster would be equally loud through every wall in the level
         // — with nothing in the log to say so.
         nemesisAudio = ResolveSibling(nemesisAudio);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // A debug tool, not a sibling the FSM talks to: nothing here holds a reference to it, it
+        // only reads this facade (see NemesisTraceRecorder). Added on the same terms as the rest so
+        // every playtest in the editor leaves a trace without anyone opening the prefab.
+        if (GetComponent<NemesisTraceRecorder>() == null) gameObject.AddComponent<NemesisTraceRecorder>();
+#endif
     }
 
     private T ResolveSibling<T>(T current) where T : Component

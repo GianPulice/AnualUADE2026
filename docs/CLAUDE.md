@@ -392,7 +392,7 @@ Both the player and the Nemesis AI use the same generic FSM base:
 
 **Nemesis states**: `Patrolling -> Investigating -> Chasing -> Searching`, plus `Traversing` and the terminal `Catch` (managed by `NemesisStateManager`). `Traversing` means "getting there needs the freight elevator"; it holds that decision open for `SO_NemesisData.ElevatorCommitTime` even with the player out of sight, because a floor slab breaks line of sight for the whole trip and without it the lift ride was abandoned every time. **Which state the Nemesis is in is not decided by the states themselves** — see *Nemesis: the decision layer* below. Detection uses `FieldOfView.cs` (cone + obstacle raycast, polled every 0.1s) and `FieldOfListening.cs`, which occludes sight and sound with *different* masks — a floor blocks sight but only attenuates sound, and that is the Nemesis's only channel to the storey above. Route questions ("reachable? which floor? is the lift on the way?") go through `NemesisPathOracle`, which throttles them; that interval is a stability knob as much as a cost one, since a verdict flipping frame to frame makes the FSM oscillate. `NemesisTelemetry` fires `NemesisEvents.OnChaseStarted/Ended` when entering/leaving the `{Chasing, Catch}` set — `Traversing` is deliberately NOT in it, since the player is a storey away and unreachable — and `OnProximityChanged` every frame from the real distance to the player (`SO_NemesisData.proximityRadius`). Both drive `VignetteChaseView` and `VignetteProximityView` in the HUD. Entering `Catch` also schedules `GameResultManager.ReportLoss` after `captureDelay`.
 
-**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport), `NemesisLookAround` (sweeps the gaze while standing still), `NemesisAudio` (the per-state loops — added **last, after the sensors**, for the reason its own entry gives). `NemesisElevatorUser` is resolved with `GetComponent` but deliberately **not** auto-added: unlike the others it is a real feature with scene wiring behind it, and a level with no freight elevator should not silently grow one. The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot.
+**`NemesisStateManager` is a facade, not an implementation.** It owns the FSM and the shared references; everything else lives in sibling components on the same GameObject, all auto-added when missing so no existing prefab needs re-saving: `NemesisPathOracle` (throttled route queries), `NemesisTelemetry` (the events above), `NemesisStuckEscape` (no-progress watchdog and its warp out), `NemesisLifecycle` (dormancy, agent tuning from `SO_NemesisMovement`, and every teleport), `NemesisLookAround` (sweeps the gaze while standing still), `NemesisAudio` (the per-state loops — added **last, after the sensors**, for the reason its own entry gives). `NemesisElevatorUser` is resolved with `GetComponent` but deliberately **not** auto-added: unlike the others it is a real feature with scene wiring behind it, and a level with no freight elevator should not silently grow one. The states keep calling `NemesisStateManager`, which forwards — that is what the facade is for. Teleports must go through `NemesisStateManager.WarpTo`, which invalidates the cached route verdict and resets the stuck sample; a warp that skips either leaves the FSM steering from the floor it just left, or the watchdog reading the jump as ground covered on foot. In editor and development builds it also adds `NemesisTraceRecorder`, a debug tool nothing holds a reference to: it writes one CSV row every 0.25 s and one per state change (state, winning rung and note, gait, senses, belief age and source, path pending/status, commanded vs real speed, lift, stall, stuck counters, position) to `Logs/NemesisTrace/` (persistentDataPath in a dev build) — read it after a playtest instead of reconstructing the frame from memory.
 
 Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**; `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it; and no rung of the priority ladder will ever ask for it until you add one, so it is unreachable by default. **Append the new value at the end of the enum** — `SO_NemesisPriorities.asset` stores every rung's target as an integer, so inserting in the middle silently rewrites the designer's whole ladder into a different one.
 
@@ -933,6 +933,18 @@ after watching it happen:
   higher, hearing anything while searching voted the Nemesis into `Investigating` before
   `NemesisSearchingState.UpdateState` ever ran a frame, so its "a fresh noise re-aims the cut-off"
   logic was dead code and every noise cut the search short.
+- `venia persiguiendo y todavia cree algo` / `venia hacia el montacargas y todavia cree algo` sit
+  right under it, **above every Investigating rung** (22/09, WIR-006). At the bottom, a chase that
+  arrived at the last seen point while the player was still audible dropped into `Investigating`
+  instead of `Searching`: no look at the spot, no sweep anchored there (Plan-IA-Stalker §16.4), the
+  red vignette off and the music tail cut (D5), and then a walking-pace pursuit by ear with none of
+  the chase feedback.
+
+`IsBeliefUnreachable` counts a path query that **cannot run** (the belief more than 2 m from anything
+walkable: the upper stairwell, the Hub's interior, catwalk edges) as unreachable, not reachable
+(22/09, WIR-018). Counted as reachable, "lo esta viendo" — an interrupt with no timeout — held the
+Nemesis underneath the player, staring up, for as long as they stayed in view. A player on a crate
+is not affected: the 2 m snap already lands them on the floor beside it.
 
 `NemesisDebugHUD` shows the winning rung's index and note every frame. "Why is it doing this" is
 not answerable without it.
@@ -1003,11 +1015,15 @@ straight line the Nemesis holds station instead of closing.
   always taking the single best vantage point is indistinguishable from knowing where you are. A
   detour must fit inside `ChaseDetourTolerance` of going direct, unless there is no complete direct
   route at all, in which case anything reachable beats standing against the wall.
-- **It does its own path query and deliberately NOT through `NemesisPathOracle`.** The oracle holds
-  one cached answer and does not key it on the target, so querying it here would hand the pursuit a
-  verdict computed for the decision layer's belief and, worse, reset the oracle's timer with a
-  verdict computed for the predicted point — which the elevator rung then reads as its own. It is
-  affordable because the replan is already throttled by `ChaseRouteReplanInterval`.
+- **The route choice does its own path query, not through `NemesisPathOracle`.** It is affordable
+  because the replan is already throttled by `ChaseRouteReplanInterval`. The one oracle read the
+  pursuit does make — is the last point it SAW the player still reachable — is safe only because the
+  oracle now keys its answers on the target (22/09, WIR-018): it used to hold ONE answer on a timer,
+  so whichever asker came first in an interval got the query and the other read it as its own — the
+  ladder's "is the belief unreachable" answered with the route to the last-seen point, or the
+  reverse, flipping the unreachable rung on a borderline path. A target that drifts less than
+  `TargetMatchRadius` (2.5 m) reuses the answer, which keeps a moving belief at one query per
+  interval.
 
 **Searching picks where to look with a weighted roll** (`PickSearchTarget`), mixing the last known
 position, the predicted position, what it has not swept yet (reduced, not excluded — a search that
@@ -1165,17 +1181,18 @@ to-scale diagrams and live verdicts on top of `PlayerDiagramGUI`, a small shared
 red = penalised, amber = warning. Reuse it for any new authoring inspector rather than starting a
 new drawing helper.
 
-**Id fields are dropdowns, not text boxes.** Two `PropertyAttribute`s in `_Project/Scripts/Attributes/` turn
+**Id fields are dropdowns, not text boxes.** Three `PropertyAttribute`s in `_Project/Scripts/Attributes/` turn
 a bare string into a list of the ids that actually exist, each with a drawer in `_Project/Scripts/Editor/`:
 
 | Attribute | Drawer | Lists |
 |---|---|---|
 | `[PuzzleId]` | `PuzzleIdDrawer` | every `puzzleId` declared by the five puzzle SOs (collected by type NAME — they share no base class) |
 | `[SoundId]` | `SoundIdDrawer` | every `SO_SoundData` id, grouped into submenus by `SoundCategory` |
+| `[PressureZoneId]` | `PressureZoneIdDrawer` | every `NemesisPressureZone` id in the open scene(s) |
 
-Both exist for the same reason: these ids are matched by **string** at runtime, and a typo does not
+All three exist for the same reason: these ids are matched by **string** at runtime, and a typo does not
 fail — it produces a gate that never opens or a sound that never plays, with nothing in the console.
-Both keep two escape hatches that are as load-bearing as the list: `(vacío)` to clear the field
+All keep two escape hatches that are as load-bearing as the list: `(vacío)` to clear the field
 (most of these are optional), and `(escribir a mano…)` for an id whose asset does not exist yet. A
 value that matches nothing is shown with a `⚠ no existe` marker and **kept** — never silently
 snapped to the first entry, which would rewrite wiring nobody asked to change.
@@ -1280,6 +1297,28 @@ wearing the opposite sign. This retires "sprinting on the spot" as a class of bu
 call site: the cabin wait, a door being swept open and an agent stopped against geometry all used to
 produce it independently. Teleports (a Warp, a spawn) are detected by step size and reset the sample
 instead of registering as a sprint.
+
+Two follow-ups from the 22/09 pass (WIR-024). The half second of benefit of the doubt after a new
+gait order is granted only when **setting off** from Idle/Grabbing: every state runs at its own speed
+(chase 3, search and patrol 2.75, investigate 2.5), so each transition used to count as a new order
+and re-arm it, and a Nemesis traded between states while wedged was never judged at all. And the two
+states that steer continuously (Chasing, Traversing) send their destination through
+`NemesisStateManager.SteerTo`, which re-sends only when the target has really moved (0.5 m far away,
+down to 0.15 m at arm's length, plus once a second as a safety net). Re-sending every frame restarted
+the path request each time — pathPending blurred the arrival test, which flipped Chasing's gait
+Idle/Running around every frame, and a long route across floors could stay on Unity's quick partial
+path. `WarpTo` calls `ForgetSteering` so the first frame after a teleport always re-sends.
+
+**Generated links are off-limits.** Anything that is not a lift is crossed by
+`TraverseSimpleLinkAsync`, a straight-line lerp of the transform, and Zona1's surface still bakes
+with *Generate Links* on: dozens of generated jump links ran straight through the box room's
+pillars, so the Nemesis walked through them, and each crossing raised `IsTraversing` and parked it in
+`Traversing` for up to `ElevatorCommitTime` with no chase feedback. `NemesisLifecycle.ApplyMovementTuning`
+clears the built-in `Jump` area (where Unity puts every generated link) from the agent's mask before
+publishing it to `NemesisNav.AreaMask`, so the oracle and the route graph stop counting those links
+too. It is Plan-IA-Stalker D10 taken on the agent's side; turning *Generate Links* off and rebaking
+is still the real fix, and authored links (the lift's Walkable/Forklift, the planned drops' own
+area) are untouched.
 
 ### The cabin has a NavMesh of its own
 
@@ -1425,6 +1464,43 @@ It never enters the Hub, and that costs nothing to maintain: the warp goes throu
 Not Walkable volume. There is no path from the Director to a safe zone and none can be added by
 accident.
 
+**Nor does it park the Nemesis at the Hub's door (cheese C5).** Keeping it out of the Hub was never
+enough: a zone centred on the Hub pulled the patrol to the entrance, a noise sampled by the door sent
+it to investigate the threshold. `NemesisSafeZones` reads back as footprints the Not Walkable volumes
+that carry a `SafeZoneMarker` and that a `NavMeshSurface` actually bakes (read-only — they still gate
+nothing). The marker is not optional ceremony: Not Walkable also fills solid props — every
+`Bridges_support_2` has a `NavMesh Blocker` inside — and counted as refuges those rejected half the
+zones in Zona1. With no marker the Director warns on Start and the validator flags it. Every lever
+stays `NemesisSafeZones.Clearance` (6 m) away:
+`ApplyPressure` refuses a zone whose centre is closer (plan-view), and the noise and entrance
+samplers skip points closer on the same floor. `NemesisController.TryGetZoneAnchor` also drops the
+real-player bias while the player is **inside** the Hub — otherwise the gravitation itself kept the
+monster circling the door for as long as they sheltered. What the Nemesis sensed still counts.
+
+**Pacing (plan §6, phase 5).** With an `SO_DirectorPacing` assigned, `NemesisTension` (same
+GameObject, added by the Director if missing) keeps a 0..1 meter — NavMesh proximity, chase, the
+player seeing the Nemesis (head → chest raycast through `FieldOfListening.IsOccludedByWall`, never
+the camera), hiding with a search nearby; a capture fills it — and a state:
+`BuildUp → SustainPeak → PeakFade → Relax`. It never decays in `Chasing`/`Catch`, starts on
+`NemesisEvents.OnActivated`, and pauses while the Nemesis is dormant, a cinematic plays
+(`CinematicState`) or the escape runs (`Decision.ChaseFloor`). The peak only fires from BuildUp:
+Relax begins with the meter still high, and peaking from there looped.
+
+The Director turns the state into levers and still never touches the FSM. Each request carries a
+source (`Scripted` = puzzle trigger / API, `RisingSensitivity`, `Retreat`) and a lever set. PeakFade
+clears the rhythm's own pressure; Relax presses the zone farthest from the player by NavMesh with
+**anchor and route weights only** (no noise, no widened senses: if you walk into it, it chases you
+on its normal senses); BuildUp after `quietTimeout` without contact ramps pressure on the player's
+zone (Mr. X's anti-stall), paused while the player is in the Hub. Scripted requests outrank the
+rhythm: while one is live, pacing waits, and it only ever replaces or clears its own.
+
+**Seeing it.** F9 has `ritmo` and `presión` rows; F10 has *Pico de tensión* / *Saltar silencio*,
+which change inputs rather than states. Each `NemesisPressureZone` draws as a cylinder — one disc
+per floor it has waypoints on — labelled with id, radius, waypoint count and live pressure, magenta
+when it is too close to the Hub or covers no waypoint; selected, it draws a line to each waypoint it
+covers. Selecting the Director shows coverage: waypoints outside every zone, and the Hub with its
+6 m band. `PuzzleTrigger.zoneId` is a `[PressureZoneId]` dropdown.
+
 ### Stuck detection escalates
 
 `NemesisStuckEscape` had one response to everything — teleport — which is the strongest move
@@ -1448,6 +1524,18 @@ the repath had happened and the watchdog would repath forever, never escalating.
 The split is the point: repaths are the cheap fix working, warps are the body genuinely wedged.
 Warps climbing in one corner is a NavMesh bake or a misplaced waypoint, and no tuning in
 `SO_NemesisData` will fix it.
+
+**Where the warp lands** (22/09, WIR-028 / WIR-050). It used to be the nearest hidden waypoint in a
+straight line, which is the `Vector3.Distance` mistake this project bans in a level with floors: the
+nearest marker through the air could be on the other floor, on an island cut off from everything
+(the floor of the freight elevator's shaft, where it landed, could not path out and warped to the
+same marker again), or 1.4 m from the trap it was escaping (the top of Zona1's stairs, straight back
+into the funnel it wedged in). The pick is now tiered — hidden from the player first, then able to
+reach where it was going (the agent's destination, else the belief; a filter, never a pull towards
+the player), then at least 3 m from where it wedged — with walking distance breaking ties, and a
+50 m penalty for a candidate it cannot walk to from where it stands, so another island is only taken
+when it is the way off a stranded one. Each requirement relaxes in order when nothing meets it, so a
+level with few waypoints degrades to the old pick instead of leaving the Nemesis wedged.
 
 ### Safe zones (the Hub)
 
@@ -1477,6 +1565,9 @@ sensors while the player stood in a trigger volume), which needed careful handli
 `NemesisStateManager`/`NemesisChasingState`/`NemesisInvestigatingState` to avoid the FSM
 oscillating between Chasing and Patrolling every other frame. The NavMesh-only approach sidesteps
 all of that: if the Nemesis can never reach the space, there is nothing to gate.
+
+`NemesisSafeZones` does not change that. It only reads the same volumes back ("is this point in the
+Hub?", "how far from it?") so the Director can stay away from the door — see *The Director*.
 
 One consequence worth knowing: this only blocks *movement*. The Nemesis can still **see or hear**
 the player inside the Hub if line of sight allows it (e.g. through a doorway) — it just cannot walk

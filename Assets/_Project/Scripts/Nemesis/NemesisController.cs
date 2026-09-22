@@ -594,6 +594,9 @@ public class NemesisController : MonoBehaviour
         Transform player = PlayerRegistry.CurrentTransform;
         if (player == null) return false;
 
+        // C5: knowledge it did not earn must not keep it circling the Hub's door while the player shelters inside.
+        if (NemesisSafeZones.Contains(player.position)) return false;
+
         position = player.position;
         return true;
     }

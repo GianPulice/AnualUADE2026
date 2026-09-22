@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -7,12 +8,21 @@ using UnityEngine;
 /// <see cref="DoorInteractable.SetSequenceLocked"/>, which is separate from the key / puzzle lock
 /// of their SO_DoorData, so this never touches what a door needs to open in the rest of the game.
 ///
-/// Do NOT put the safe-zone door in the list — it is the one that stays usable.
+/// A door that is open when it locks swings shut first: a sealed door the player can still walk
+/// through the doorway of is not locked at all.
+///
+/// Do NOT put the safe-zone door in the list — it is the one that stays usable. It is sealed later,
+/// on its own, as the player comes out of it (<see cref="LockDoor"/>).
 /// </summary>
 public class EscapeCorridorLock : MonoBehaviour
 {
-    [Tooltip("Las puertas del pasillo que se traban, EN EL ORDEN en que se traban.")]
+    [Tooltip("Las puertas que se traban, EN EL ORDEN en que se traban: las del pasillo y las otras " +
+             "salidas del hub. Todas menos la del centro. Una puerta abierta se cierra al trabarse.")]
     [SerializeField] private DoorInteractable[] doors = new DoorInteractable[0];
+
+    // Sealed one by one from outside the list (the safe door, once the player is out of it), and
+    // given back with the rest.
+    private readonly List<DoorInteractable> extra = new List<DoorInteractable>();
 
     private Coroutine routine;
 
@@ -28,20 +38,27 @@ public class EscapeCorridorLock : MonoBehaviour
         routine = StartCoroutine(LockRoutine(config));
     }
 
-    /// <summary>Locks every door at once, silently. What a skip needs.</summary>
+    /// <summary>Locks every door at once, silently. What a skip needs. Open ones still swing shut.</summary>
     public void LockAllNow()
     {
         IsLocked = true;
         if (routine != null) StopCoroutine(routine);
         routine = null;
 
-        for (int i = 0; i < doors.Length; i++)
-        {
-            if (doors[i] != null) doors[i].SetSequenceLocked(true);
-        }
+        for (int i = 0; i < doors.Length; i++) Seal(doors[i]);
     }
 
-    /// <summary>Opens the doors' lock again.</summary>
+    /// <summary>Seals one more door, shutting it first if it is open, with the lock sound once it is
+    /// home. For the safe door: it closes behind the player as they come out.</summary>
+    public void LockDoor(DoorInteractable door, SO_EscapeSequenceConfig config)
+    {
+        if (door == null) return;
+        if (!extra.Contains(door) && System.Array.IndexOf(doors, door) < 0) extra.Add(door);
+
+        StartCoroutine(SealAndClack(door, config));
+    }
+
+    /// <summary>Opens the doors' lock again, the list's and the extra ones.</summary>
     public void UnlockAll()
     {
         IsLocked = false;
@@ -52,6 +69,12 @@ public class EscapeCorridorLock : MonoBehaviour
         {
             if (doors[i] != null) doors[i].SetSequenceLocked(false);
         }
+
+        foreach (DoorInteractable door in extra)
+        {
+            if (door != null) door.SetSequenceLocked(false);
+        }
+        extra.Clear();
     }
 
     private IEnumerator LockRoutine(SO_EscapeSequenceConfig config)
@@ -61,17 +84,47 @@ public class EscapeCorridorLock : MonoBehaviour
             DoorInteractable door = doors[i];
             if (door == null) continue;
 
-            door.SetSequenceLocked(true);
-
-            string sound = config != null ? config.DoorLockSoundId : string.Empty;
-            if (!string.IsNullOrEmpty(sound) && AudioManager.Exists)
-                AudioManager.Instance.PlaySFX(sound, door.transform.position);
+            Seal(door);
+            PlayLockSound(door, config);
 
             float interval = config != null ? config.DoorLockInterval : 0.12f;
             if (interval > 0f) yield return new WaitForSeconds(interval);
         }
 
         routine = null;
+    }
+
+    private void Seal(DoorInteractable door)
+    {
+        if (door == null) return;
+
+        door.SetSequenceLocked(true);
+        if (door.IsOpen || door.IsAnimating) StartCoroutine(ShutWhenIdle(door));
+    }
+
+    // A door mid-swing cannot be told to close (DoorInteractable ignores it): wait for the swing.
+    private static IEnumerator ShutWhenIdle(DoorInteractable door)
+    {
+        while (door != null && door.IsAnimating) yield return null;
+        if (door != null && door.IsOpen) door.CloseDoor();
+    }
+
+    private IEnumerator SealAndClack(DoorInteractable door, SO_EscapeSequenceConfig config)
+    {
+        Seal(door);
+
+        // One frame for the close to start, then the swing out.
+        yield return null;
+        while (door != null && door.IsAnimating) yield return null;
+
+        PlayLockSound(door, config);
+    }
+
+    private static void PlayLockSound(DoorInteractable door, SO_EscapeSequenceConfig config)
+    {
+        string sound = config != null ? config.DoorLockSoundId : string.Empty;
+        if (door != null && !string.IsNullOrEmpty(sound) && AudioManager.Exists)
+            AudioManager.Instance.PlaySFX(sound, door.transform.position);
     }
 
     private void OnDrawGizmosSelected()

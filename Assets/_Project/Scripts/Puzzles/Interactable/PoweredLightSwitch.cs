@@ -1,14 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// Switch of the SP2 (boxes) room. Without power (SP1 not completed) it looks grey, still takes the
-/// interaction highlight, makes no sound and says it needs power, and its lights (<see cref="objects"/>)
-/// start switched off. Once SP1 is completed it toggles them: on activates every object in the array,
-/// off deactivates them again, with a click each time.
-///
-/// The grey goes through the renderers' property block (_BaseMap swapped for a grey texture, own
-/// emission off), read-modify-write like <see cref="ItemProximityHighlight"/> does, so the
-/// highlight keeps working on top of it.
+/// Switch of the SP2 (boxes) room. Without power (SP1 not completed) it still takes the interaction
+/// highlight, makes no sound and says it needs power, and its lights (<see cref="objects"/>) start
+/// switched off. Once SP1 is completed it toggles them: on activates every object in the array, off
+/// deactivates them again, with a click and a lever animation each time.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class PoweredLightSwitch : BaseRangeInteractable
@@ -26,11 +22,6 @@ public class PoweredLightSwitch : BaseRangeInteractable
              "toggle, no look change. For a second button that shares the same objects.")]
     [SerializeField] private bool ignoreIfInactive = true;
 
-    [Header("Look without power")]
-    [Tooltip("Renderers greyed out while there is no power. Empty = every renderer under this object.")]
-    [SerializeField] private Renderer[] renderers = new Renderer[0];
-    [SerializeField] private Color unpoweredColor = new Color(0.45f, 0.45f, 0.45f, 1f);
-
     [Header("Text")]
     [SerializeField] private string turnOnPrompt = "Turn on";
     [SerializeField] private string turnOffPrompt = "Turn off";
@@ -39,8 +30,15 @@ public class PoweredLightSwitch : BaseRangeInteractable
     [Header("Audio")]
     [SoundId] [SerializeField] private string clickSoundId = "sfx_elevator_button_01";
 
-    private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
-    private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+    [Header("Switch animation")]
+    [Tooltip("Animator driving the lever mesh. Left empty it is taken from this object's own " +
+             "children, so the prefab needs no wiring at all.")]
+    [SerializeField] private Animator switchAnimator;
+
+    [Tooltip("The name of the trigger in the animator when pressed.")]
+    [SerializeField] private string pressTriggerName = "Pressed";
+
+    private int pressTriggerHash;
 
     // On = the lights are active. Read from the objects themselves, not stored: two buttons sharing
     // the same array would otherwise each keep their own idea of it and undo each other.
@@ -55,13 +53,11 @@ public class PoweredLightSwitch : BaseRangeInteractable
     }
 
     private bool Ignored => ignoreIfInactive && !gameObject.activeSelf;
-    private MaterialPropertyBlock block;
-    private Texture2D greyTexture;
 
     protected override void Awake()
     {
         base.Awake();
-        if (renderers == null || renderers.Length == 0) renderers = GetComponentsInChildren<Renderer>(true);
+        ResolveSwitchAnimation();
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
     }
 
@@ -72,21 +68,17 @@ public class PoweredLightSwitch : BaseRangeInteractable
 
         // No power yet: the room starts dark. Left as authored when SP1 is already done.
         if (!sp1Completed) SetLights(false);
-
-        ApplyLook();
     }
 
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
-        if (greyTexture != null) Destroy(greyTexture);
     }
 
     private void HandlePuzzleCompleted(string puzzleId)
     {
         if (puzzleId != sp1PuzzleId || Ignored) return;
         sp1Completed = true;
-        ApplyLook();
         InteractionEvents.RequestPromptRefresh();
     }
 
@@ -106,6 +98,7 @@ public class PoweredLightSwitch : BaseRangeInteractable
         if (!sp1Completed || Ignored) return;
 
         SetLights(!IsOn);
+        PlaySwitchPress();
 
         if (!string.IsNullOrWhiteSpace(clickSoundId) && AudioManager.Exists)
             AudioManager.Instance.PlaySFX(clickSoundId, transform.position);
@@ -121,44 +114,28 @@ public class PoweredLightSwitch : BaseRangeInteractable
             if (go != null) go.SetActive(on);
     }
 
-    // ── Look ────────────────────────────────────────────────────────────────
+    // ── Lever animation ─────────────────────────────────────────────────────
 
-    private void ApplyLook()
+    /// <summary>
+    /// Finds the Animator and resolves the trigger hash once. See
+    /// <see cref="ElevatorCallPanel.ResolveSwitchAnimation"/> for why this is resolved up front
+    /// rather than looked up on every press.
+    /// </summary>
+    private void ResolveSwitchAnimation()
     {
-        block ??= new MaterialPropertyBlock();
+        if (switchAnimator == null) switchAnimator = GetComponentInChildren<Animator>(true);
 
-        if (!sp1Completed && greyTexture == null)
-        {
-            greyTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false) { name = "SwitchUnpowered" };
-            greyTexture.SetPixel(0, 0, unpoweredColor);
-            greyTexture.Apply(false, true);
-        }
+        // Silent when there is none. A switch is allowed to be a flat unanimated box.
+        if (switchAnimator == null) return;
 
-        foreach (Renderer r in renderers)
-        {
-            if (r == null) continue;
+        pressTriggerHash = Animator.StringToHash(pressTriggerName);
+    }
 
-            Material[] materials = r.sharedMaterials;
-            for (int i = 0; i < materials.Length; i++)
-            {
-                Material m = materials[i];
-                if (m == null) continue;
+    /// <summary>Throws the lever, top to bottom and back to top. A no-op with no animator.</summary>
+    private void PlaySwitchPress()
+    {
+        if (switchAnimator == null) return;
 
-                r.GetPropertyBlock(block, i);
-
-                if (m.HasProperty(BaseMapId))
-                {
-                    Texture authored = m.GetTexture(BaseMapId);
-                    block.SetTexture(BaseMapId, sp1Completed
-                        ? (authored != null ? authored : Texture2D.whiteTexture)
-                        : greyTexture);
-                }
-
-                if (m.HasProperty(EmissionColorId))
-                    block.SetColor(EmissionColorId, sp1Completed ? m.GetColor(EmissionColorId) : Color.black);
-
-                r.SetPropertyBlock(block, i);
-            }
-        }
+        switchAnimator.SetTrigger(pressTriggerHash);
     }
 }

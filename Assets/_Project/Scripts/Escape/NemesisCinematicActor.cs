@@ -42,6 +42,12 @@ public class NemesisCinematicActor : MonoBehaviour
 
     public bool HasControl => hasControl;
 
+    /// <summary>Walking or running to a marker (false once it has arrived and stands).</summary>
+    public bool IsMoving => hasControl && moving;
+
+    /// <summary>The Nemesis's body, for a camera to follow. Null until it has been found.</summary>
+    public Transform Body => nemesis != null ? nemesis.transform : null;
+
     /// <summary>
     /// Takes the Nemesis, waking it if it was still dormant.
     /// </summary>
@@ -78,10 +84,18 @@ public class NemesisCinematicActor : MonoBehaviour
     /// <summary>Puts the Nemesis on the marker, facing where the marker faces.</summary>
     public void WarpTo(Transform marker)
     {
-        if (!hasControl || marker == null) return;
+        if (marker == null) return;
+        WarpTo(marker.position, marker.eulerAngles.y);
+    }
 
-        nemesis.WarpTo(marker.position);
-        nemesis.transform.rotation = Quaternion.Euler(0f, marker.eulerAngles.y, 0f);
+    /// <summary>Puts the Nemesis on a point with no marker (a skip placing it where the run would
+    /// have got to), facing the given yaw.</summary>
+    public void WarpTo(Vector3 position, float yaw)
+    {
+        if (!hasControl) return;
+
+        nemesis.WarpTo(position);
+        nemesis.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         nemesis.ResetGaitSampling();
         Stand();
     }

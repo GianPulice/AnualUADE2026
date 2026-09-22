@@ -46,7 +46,7 @@ public class ContainerPuzzleController : MonoBehaviour
         LockSolvedBoxes();
 
         if (AudioManager.Exists)
-            AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
+            AudioManager.Instance.PlaySFX("sfx_subpuzzle_2_completo");
 
         PuzzleRewardDelivery.Deliver(containerPuzzleData.RewardItem, rewardDropPoint, this);
 

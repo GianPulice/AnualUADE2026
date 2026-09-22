@@ -28,9 +28,11 @@ public class NemesisDoorUser : MonoBehaviour
              "OpenDuration, so the door has time to swing without the Nemesis having to stop.")]
     [SerializeField, Min(0.5f)] private float detectionDistance = 3f;
 
-    [Tooltip("Thickness of the sweep. Roughly the agent radius, so it catches the door it is " +
-             "about to brush past and not only the one dead ahead.")]
-    [SerializeField, Min(0.1f)] private float detectionRadius = 0.6f;
+    [Tooltip("Thickness of the sweep. The agent radius (0.3) plus a small margin, so it catches the " +
+             "door it is about to brush past and not only the one dead ahead.\n\n" +
+             "Not much more: paths hug walls at the agent radius, and a wider sweep reaches into the " +
+             "wall beside it and opens doors it is only walking past.")]
+    [SerializeField, Min(0.1f)] private float detectionRadius = 0.35f;
 
     [Tooltip("Height above the pivot the sweep starts from. At floor level it catches the ground.")]
     [SerializeField] private float probeHeight = 1f;

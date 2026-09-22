@@ -82,6 +82,36 @@ public class DoorInteractable : BaseRangeInteractable
     /// hold back before crossing, instead of duplicating the number on its own component.</summary>
     public float OpenDuration => openDuration;
 
+    /// <summary>Where the leaf pivots. Its own position when the door has no hinge.</summary>
+    public Vector3 HingePosition => hinge != null ? hinge.position : transform.position;
+
+    /// <summary>
+    /// How far from the hinge, horizontally, the leaf reaches: anything closer than this can be hit
+    /// when it swings. For scripts that shut a door on their own (the escape) and must not sweep
+    /// the leaf through the player. Measured on the leaf's bounds, so slightly generous.
+    /// </summary>
+    public float SwingReach
+    {
+        get
+        {
+            if (hinge == null) return 0f;
+
+            Vector3 pivot = hinge.position;
+            float reach = 0f;
+            foreach (Renderer r in hinge.GetComponentsInChildren<Renderer>())
+            {
+                Bounds b = r.bounds;
+                for (int corner = 0; corner < 4; corner++)
+                {
+                    Vector3 p = new Vector3((corner & 1) == 0 ? b.min.x : b.max.x, pivot.y,
+                                            (corner & 2) == 0 ? b.min.z : b.max.z);
+                    reach = Mathf.Max(reach, Vector3.Distance(p, pivot));
+                }
+            }
+            return reach;
+        }
+    }
+
     public bool NemesisCanOpen => nemesisCanOpen;
 
 protected override void Awake()

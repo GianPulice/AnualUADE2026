@@ -15,8 +15,8 @@ MonoBehaviour:
   doorId: puerta_valvulas
   requiredKey: {fileID: 11400000, guid: ac7613db5701f2242be0dec25ac4a91b, type: 2}
   consumeKey: 1
-  requiredCompletedPuzzleId: 
+  requiredCompletedPuzzleId: sp1_panel_electrico
   openPrompt: Open valve room door
-  lockedPrompt: You need Valve Key
+  lockedPrompt: You need to turn the power on
   openSoundId: 
   closeSoundId: 

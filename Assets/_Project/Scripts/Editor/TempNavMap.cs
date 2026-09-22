@@ -406,8 +406,8 @@ public static class TempNavMap
         Check(d != null, "director in scene");
         if (d == null) return;
 
-        foreach (string f in new[] { "config", "openingTimeline", "socketMacroCamera", "fogCycle", "corridorFlicker", "escapeAudio",
-                                     "corridorLock", "actor", "pursuit", "captureGameOver", "playerRun", "cameraPan" })
+        foreach (string f in new[] { "config", "openingTimeline", "socketMacroCamera", "gateShot", "playerTurn", "fogCycle", "corridorFlicker",
+                                     "escapeAudio", "corridorLock", "actor", "pursuit", "chaseRestart", "gateSlam" })
         {
             var v = typeof(EscapeSequenceDirector).GetField(f, F)?.GetValue(d) as Object;
             Check(v != null, "director." + f);
@@ -435,22 +435,16 @@ public static class TempNavMap
                       $"lamp x={l.transform.position.x:0.0} inactive={!l.gameObject.activeSelf} clean={clean} bypass={l.GetComponent<FogLightBypass>() != null} fwdY={l.transform.forward.y:0.00}");
             }
 
-        // Camera pan
-        var pan = Object.FindAnyObjectByType<EscapeCameraPan>(FindObjectsInactive.Include);
-        float sa = (float)typeof(EscapeCameraPan).GetField("startAngle", F).GetValue(pan);
-        float sl = (float)typeof(EscapeCameraPan).GetField("startLowering", F).GetValue(pan);
-        Check(Mathf.Approximately(sa, 55f) && Mathf.Approximately(sl, 5f), $"pan startAngle={sa} startLowering={sl}");
-
-        // Timeline
+        // Timeline: the opening is only the socket, the alarm and the lock-down now.
         var pd = (UnityEngine.Playables.PlayableDirector)typeof(EscapeSequenceDirector).GetField("openingTimeline", F).GetValue(d);
         var tl = pd.playableAsset as UnityEngine.Timeline.TimelineAsset;
-        Check(tl != null && Mathf.Approximately((float)tl.duration, 11f), $"timeline duration={tl?.duration}");
+        Debug.Log($"TEMP-AUDIT      timeline duration={tl?.duration}");
         var times = new System.Collections.Generic.Dictionary<string, double>();
         foreach (var m in tl.markerTrack.GetMarkers()) if (m is EscapeBeatMarker bm) times[bm.Beat.ToString()] = bm.time;
         foreach (var kv in times) Debug.Log($"TEMP-AUDIT      beat {kv.Key} @ {kv.Value:0.00}");
-        Check(times["PlayerOpensSafeDoor"] < times["PlayerRunToSpot"], "door opens before the run");
-        Check(times["PlacePlayer"] < times["PlayerOpensSafeDoor"], "player placed before the door opens");
-        Check(times["PlayerCameraPan"] < tl.duration, "pan starts before the end");
+        foreach (string beat in new[] { "AlarmStart", "LockCorridorDoors", "PlayerOpensSafeDoor" })
+            Check(times.ContainsKey(beat) && times[beat] < tl.duration, $"beat {beat} inside the opening");
+        Check(times.Count == 3, $"only the three live beats on the marker track (found {times.Count})");
         foreach (var track in tl.GetOutputTracks())
             foreach (var clip in track.GetClips())
                 Debug.Log($"TEMP-AUDIT      clip '{clip.displayName}' {clip.start:0.00}->{clip.end:0.00}");
@@ -459,22 +453,15 @@ public static class TempNavMap
         var cfg = typeof(EscapeSequenceDirector).GetField("config", F).GetValue(d) as SO_EscapeSequenceConfig;
         Check(cfg.PaceNear > 0.9f && cfg.PaceFar > 1.2f, $"pace near={cfg.PaceNear} far={cfg.PaceFar} nearD={cfg.PaceNearDistance} farD={cfg.PaceFarDistance} min={cfg.MinChaseSpeed}");
 
-        // Player route
-        Transform rs = (Transform)stage.GetType().GetField("playerRunStart").GetValue(stage);
+        // Restart spot: where a capture sends the player back to.
         Transform sp = (Transform)stage.GetType().GetField("playerSpot").GetValue(stage);
-        bool a = UnityEngine.AI.NavMesh.SamplePosition(rs.position, out var ha, 4f, UnityEngine.AI.NavMesh.AllAreas);
-        bool b = UnityEngine.AI.NavMesh.SamplePosition(sp.position, out var hb, 3f, UnityEngine.AI.NavMesh.AllAreas);
-        var path = new UnityEngine.AI.NavMeshPath();
-        bool c = a && b && UnityEngine.AI.NavMesh.CalculatePath(ha.position, hb.position, UnityEngine.AI.NavMesh.AllAreas, path);
-        float len = Vector3.Distance(rs.position, ha.position);
-        for (int i = 1; i < path.corners.Length; i++) len += Vector3.Distance(path.corners[i - 1], path.corners[i]);
-        Check(c && path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete, $"player route complete, {len:0.00} m = {len / 4.5f:0.00} s of sprint");
-        bool clearAtSpot = !Physics.CheckCapsule(sp.position + Vector3.up * 0.4f, sp.position + Vector3.up * 1.7f, 0.3f, ~0, QueryTriggerInteraction.Ignore);
+        bool clearAtSpot = sp != null && !Physics.CheckCapsule(sp.position + Vector3.up * 0.4f, sp.position + Vector3.up * 1.7f, 0.3f, ~0, QueryTriggerInteraction.Ignore);
         Check(clearAtSpot, "spot is free of colliders");
 
-        // Nemesis gap at handover
-        Transform ne = (Transform)stage.GetType().GetField("nemesisApproachEnd").GetValue(stage);
-        Debug.Log($"TEMP-AUDIT      handover gap player<->nemesis = {Vector3.Distance(sp.position, ne.position):0.00} m");
+        // Nemesis gap when the chase starts over
+        Transform ne = (Transform)stage.GetType().GetField("nemesisApproachStart").GetValue(stage);
+        if (sp != null && ne != null)
+            Debug.Log($"TEMP-AUDIT      restart gap player<->nemesis = {Vector3.Distance(sp.position, ne.position):0.00} m");
 
         // Renderer features
         var tog = AssetDatabase.LoadAssetAtPath<SO_PostProcessToggle>("Assets/_Project/ScriptableObjects/SO_PostProcessToggle.asset");
@@ -502,7 +489,7 @@ public static class TempNavMap
         if (!Application.isPlaying) { Debug.Log("TEMP-PROBE not playing"); return; }
         var flicker = Object.FindAnyObjectByType<EscapeCorridorFlicker>();
         var pursuit = Object.FindAnyObjectByType<NemesisEscapePursuit>();
-        var go = Object.FindAnyObjectByType<EscapeCaptureGameOver>();
+        var restart = Object.FindAnyObjectByType<EscapeChaseRestart>();
         var player = PlayerRegistry.Current;
         var nem = Object.FindAnyObjectByType<NemesisStateManager>();
         int litLamps = 0;
@@ -511,7 +498,7 @@ public static class TempNavMap
         Vector3 cf = Camera.main != null ? Camera.main.transform.forward : Vector3.zero;
         Vector3 pp = player != null ? player.transform.position : Vector3.zero;
         Vector3 np = nem != null ? nem.transform.position : Vector3.zero;
-        Debug.Log($"TEMP-PROBE t={Time.time:0.0} flicker={flicker?.IsRunning} litLamps={litLamps}/7 pursuit={pursuit?.IsActive} gameOverArmed={go?.IsActive} " +
+        Debug.Log($"TEMP-PROBE t={Time.time:0.0} flicker={flicker?.IsRunning} litLamps={litLamps}/7 pursuit={pursuit?.IsActive} restartArmed={restart?.IsActive} " +
                   $"player={pp} bodyYaw={(player != null && player.PlayerBody != null ? player.PlayerBody.eulerAngles.y : -1):0} disabled={player?.IsDisabled} " +
                   $"camFwd=({cf.x:0.00},{cf.y:0.00},{cf.z:0.00}) nemesis={np} gap={Vector3.Distance(pp, np):0.00} nemState={nem?.CurrentStateKey} cpEnabled={(CheckpointManager.Exists ? CheckpointManager.Instance.enabled.ToString() : "n/a")}");
     }

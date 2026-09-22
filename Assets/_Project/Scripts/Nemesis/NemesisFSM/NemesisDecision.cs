@@ -164,13 +164,24 @@ public sealed class NemesisDecision
     }
 
     /// <summary>
-    /// Whether the route to the belief stops short of it — a PARTIAL path (WIR-018). Through the
-    /// same throttled oracle as <see cref="RouteToBeliefCrossesFloors"/> and for the same reason:
-    /// both questions are about one path, and they must read one answer for it.
+    /// Whether the route to the belief does not get there (WIR-018): a PARTIAL path, or no path
+    /// query possible at all. Through the same throttled oracle as
+    /// <see cref="RouteToBeliefCrossesFloors"/> and for the same reason: both questions are about
+    /// one path, and they must read one answer for it.
     ///
-    /// A query that cannot run at all (the belief is nowhere near the NavMesh) is NOT reported as
-    /// unreachable: that is a player on top of something, and the chase towards the spot below
-    /// them is still worth running.
+    /// A QUERY THAT CANNOT RUN COUNTS AS UNREACHABLE. It used to count as reachable, on the theory
+    /// that it meant a player standing on top of something with the floor right below — but that
+    /// case never gets here: the belief is snapped within NemesisNav.DefaultSampleRadius (2 m), which
+    /// already lands a player on a crate on the floor beside it, and the chase towards that spot
+    /// runs. What does get here is a player more than two metres from anything the Nemesis can
+    /// walk — the upper stairwell by its door, the Hub's interior, the edges of the catwalks. There
+    /// "lo está viendo" won every frame (an interrupt, with no timeout), and the monster stood
+    /// underneath staring up for as long as the player stayed in view.
+    ///
+    /// The decision only runs with the agent on the NavMesh (NemesisStateManager.TickDecision), so
+    /// the Nemesis's own end of the query is not what failed. The one exception, the capture
+    /// during a lift ride, is decided by "lo tiene al alcance de la mano", which sits above every
+    /// rung that asks this.
     /// </summary>
     public bool IsBeliefUnreachable
     {
@@ -178,8 +189,9 @@ public sealed class NemesisDecision
         {
             if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
 
-            return stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route) &&
-                   !route.IsComplete;
+            if (!stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route)) return true;
+
+            return !route.IsComplete;
         }
     }
 

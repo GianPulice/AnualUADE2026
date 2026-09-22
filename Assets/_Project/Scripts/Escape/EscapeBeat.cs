@@ -5,47 +5,50 @@
 ///
 /// Append-only: a Timeline asset stores the numeric value, so reordering or inserting in the
 /// middle would silently retarget every marker already placed.
+///
+/// Only three beats are live: the opening is now the socket, the alarm and the lock-down. The rest
+/// belonged to the old opening — the Nemesis leaving its door and the player's automatic run out of
+/// the safe room — which the corridor reveal replaced; they are kept only so the numbers of the
+/// others do not move, and a marker set to one of them does nothing but warn.
 /// </summary>
 public enum EscapeBeat
 {
-    // ── Opening cinematic (Pasos 1 to 3) ────────────────────────────────────
+    // ── Opening cinematic ───────────────────────────────────────────────────
 
-    /// <summary>The alarm starts: alarm loop + tension layer, and the socket lights go red.</summary>
+    /// <summary>The alarm starts: alarm loop + tension layer, the socket light goes red, and the
+    /// corridor lamps start failing.</summary>
     AlarmStart = 0,
 
-    /// <summary>The side door in front of the freight lift opens.</summary>
+    /// <summary>Retired: the Nemesis no longer leaves its door in the opening.</summary>
     NemesisOpenDoor = 1,
 
-    /// <summary>The Nemesis steps out of the side door, walking, to the doorway marker.</summary>
+    /// <summary>Retired: the Nemesis no longer leaves its door in the opening.</summary>
     NemesisWalkOut = 2,
 
-    /// <summary>The Nemesis turns to face the "look left" marker.</summary>
+    /// <summary>Retired: the Nemesis no longer leaves its door in the opening.</summary>
     NemesisLookLeft = 3,
 
-    /// <summary>The Nemesis turns to face the "look right" marker.</summary>
+    /// <summary>Retired: the Nemesis no longer leaves its door in the opening.</summary>
     NemesisLookRight = 4,
 
-    /// <summary>The Nemesis starts running to the exit marker, out of frame.</summary>
+    /// <summary>Retired: the Nemesis no longer leaves its door in the opening.</summary>
     NemesisRunAway = 5,
 
-    /// <summary>The player is placed at the run's start marker (put this while the shot is
-    /// elsewhere: the player must not be seen popping in).</summary>
+    /// <summary>Retired: the player walks out on their own now.</summary>
     PlacePlayer = 6,
 
-    /// <summary>The safe-zone door opens.</summary>
+    /// <summary>The centre door (the safe-zone door) opens: the only way out.</summary>
     PlayerOpensSafeDoor = 7,
 
     /// <summary>Every other door of the corridor locks, one after another (rapid sequence).</summary>
     LockCorridorDoors = 8,
 
-    /// <summary>The Nemesis appears down the corridor and runs towards the player; it is still
-    /// running when control comes back.</summary>
+    /// <summary>Retired: the Nemesis appears in the corridor reveal, not in the opening.</summary>
     NemesisApproach = 9,
 
-    /// <summary>The player sprints from the start marker to the spot where control comes back.</summary>
+    /// <summary>Retired: the player walks out on their own now.</summary>
     PlayerRunToSpot = 10,
 
-    /// <summary>The last shot: the player's camera orbits from the right round to the nape, until
-    /// the Timeline ends. Nothing else should be the live camera from here on (no shot clip).</summary>
+    /// <summary>Retired: control comes back after the corridor reveal.</summary>
     PlayerCameraPan = 11,
 }

@@ -58,6 +58,8 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
         // which is precisely the flip this state exists to stop.
         if (nemesisStateManager.TryGetBelief(out Vector3 belief)) believedTarget = belief;
         else believedTarget = nemesisStateManager.transform.position;
+
+        nemesisStateManager.ForgetSteering();
     }
 
     public override void ExitState() { }
@@ -99,6 +101,9 @@ public class NemesisTraversingState : BaseState<NemesisStateManager.ENemesisStat
         // one of the several stages where the answer is yes.
         if (nemesisStateManager.IsUsingElevator) return;
 
-        nemesisStateManager.NavAgent.destination = believedTarget;
+        // Through SteerTo and not a raw assignment every frame: the route to the other floor is
+        // the longest this Nemesis ever asks for, and a request restarted every frame is the one
+        // most likely never to finish (see NemesisStateManager.SteerTo).
+        nemesisStateManager.SteerTo(believedTarget);
     }
 }

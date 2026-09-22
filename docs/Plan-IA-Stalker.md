@@ -1,9 +1,10 @@
 # Plan — IA stalker y anti-cheese del Nemesis
 
-> **Estado al 21/09/2026:** construidas las Fases 0, 1, 2 y 4 (la 2 falta jugarla); pendientes la
-> 3, 5, 6, 7 y 8. La Fase 2 pasó por una revisión de cuatro modelos ([§16](#16-revisión-del-consejo-21092026))
-> que encontró un bug bloqueante, ya corregido, y ajustó el modelo de los §3.3–§3.5. **El Director de
-> Zona1 que armó la Fase 0 se perdió en el merge `16b1962c` (20/09): hay que rehacerlo**
+> **Estado al 22/09/2026:** construidas las Fases 0, 1, 2, 4 y 5 (la 2 y la 5 falta jugarlas);
+> pendientes la 3, 6, 7 y 8. La Fase 2 pasó por una revisión de cuatro modelos ([§16](#16-revisión-del-consejo-21092026))
+> que encontró un bug bloqueante, ya corregido, y ajustó el modelo de los §3.3–§3.5. El Director de
+> Zona1, que se había perdido en el merge `16b1962c` (20/09), se rehízo el 22/09 con seis zonas que
+> cubren los 39 waypoints, y ahora ninguna palanca puede actuar a menos de 6 m del Hub (C5)
 > ([§14.1](#141-el-director-hoy-estado-en-zona1)).
 >
 > Compara el análisis *"IA de enemigos stalker"* (Alien: Isolation, Mr. X, Nemesis, Dimitrescu,
@@ -64,7 +65,7 @@ Lo que falta se concentra en cinco agujeros:
 | 1 | **Escondites.** El lado jugador no existe. El lado Nemesis es binario (escondido = ciego) y, con los lockers del proyecto, **inmunidad total** — ver [§3.3](#33-hallazgo-con-los-lockers-actuales-esconderse-es-inmunidad-total). | ✅ Construido (Fases 1 y 2); falta jugarlo |
 | 2 | **Nadie cuenta los hábitos del jugador.** No hay ninguna contra-jugada. Es el anti-cheese entero. | Alta |
 | 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. Sigue siéndolo con M1 (3.6 m/s), y M2 ya no lo acorta porque es el módulo fatal ([C4](#c4--el-loop-alrededor-de-un-obstáculo-el-bug-de-la-mesa-de-dimitrescu)). | ✅ Construido (Fase 4) |
-| 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. Y en Zona1 hoy está **desactivado**, sin zonas ni disparadores: la Fase 0 lo activó y un merge lo borró ([§14.1](#141-el-director-hoy-estado-en-zona1)). | Media — pero sin esto el anti-cheese frustra |
+| 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. | ✅ Construido (Fase 5, 22/09); falta jugarlo |
 | 5 | **Escalada por progreso** (spec Nemesis §7.2) sin hacer. | Media, diferida por diseño |
 
 Y hay cosas que el análisis recomienda y que **acá no conviene hacer**: un `NoiseBus`, Unity
@@ -82,7 +83,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 | 1 | Separar percepción, conocimiento y decisión | ✅ | `FieldOfView` / `FieldOfListening` → `NemesisStateManager.TryGetBelief` / `BeliefAge` → `NemesisDecision` + `SO_NemesisPriorities`. Los estados sólo ejecutan. | Ninguna. Lo nuevo tiene que entrar igual: **un predicado y un peldaño, nunca un estado que decide**. |
 | 2 | El agente no hace trampa; el director sí | ✅ | Persecución y búsqueda leen la creencia y la velocidad **observada** (`FieldOfView.LastKnownVelocity`). Sólo dos lecturas del jugador real, ambas deliberadas: `ZoneBiasUsesRealPlayer` (elige zona, no waypoint) y `CanReachPlayerNow` (el agarre). | Las contra-jugadas nuevas tienen que pasar el mismo filtro (ver regla R4, §5). |
 | 3 | La detección es un acumulador | 🟡 | Banda periférica de 170° que llena `Awareness`; foco de 80° instantáneo a propósito (es un peldaño *interrupt*); agachado ×0.5 de alcance. | **Escondido es un `return` temprano**: 0 o todo. Sin término de luz. |
-| 4 | Administrar la tensión, no maximizarla | ❌ | `NemesisDirector` aplica presión cuando se la piden (`puzzleTriggers`, `RequestPressure`). | No hay medidor, ni estados de ritmo, ni retirada. El único alivio es la gracia post-captura (4 s) y que la búsqueda se agote (15 s). |
+| 4 | Administrar la tensión, no maximizarla | 🟡 | `NemesisTension` (medidor + BuildUp/SustainPeak/PeakFade/Relax) y `NemesisDirector` (retirada en Relax, sensibilidad creciente tras 90 s de silencio), con `SO_DirectorPacing`. | Construido el 22/09, sin jugar: los números del §12 son puntos de partida. |
 | 5 | Nada guionado para el "cuándo" y el "dónde" | 🟡 | Patrulla por ruleta, cúmulos, satélites; spawn y entrada muestreados. | Los disparadores del Director son siempre "al completar el puzzle". Aceptable: el *qué* puede ser fijo. |
 | 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint. | `patrolWaitVariance` está en 0.25 en el asset (el 0 es el default del código): la espera en cada waypoint varía 1.25–1.75 s, poco para que no se note el ritmo. Se arregla con un número. |
 | 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución. | `NemesisAudio.stateLoops` está cargado **sólo en la instancia de Zona1** (respiración de patrulla, búsqueda y persecución para Patrolling / Investigating / Chasing / Searching); faltan `Catch` y `Traversing`, y el prefab y la testbed no lo tienen. Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (ahora existe `NemesisEvents.OnActivated` para engancharlo). La música de persecución delata el estado interno — ver D5. |
@@ -423,6 +424,25 @@ se aprende igual que el cheese.
 - **Nota de implementación:** contar que el jugador está en el Hub necesita un trigger que sólo
   **informe** presencia. No bloquea nada, así que no contradice la regla de que el Hub no tiene
   lado C#.
+- ✅ **Construido (22/09): el Director ya no puede fabricar C5.** `NemesisSafeZones` lee como
+  huellas los volúmenes *Not Walkable* que llevan un `SafeZoneMarker` (un componente sin lógica al
+  lado del `NavMeshModifierVolume` del Hub; sin trigger ni capa nueva) y responde "¿dentro del
+  Hub?" y "¿a qué distancia del Hub?". El marcador es necesario porque *Not Walkable* no quiere
+  decir refugio: los 28 `Bridges_support_2` de Zona1 llevan uno adentro (`NavMesh Blocker`,
+  0.86 × 1.11 m) y, contados como Hub, rechazaban `panel electrico`, `fondo norte` y `ala oeste`.
+  Sin ningún marcador, el Director lo avisa al arrancar y el validador lo reporta. Con eso:
+  - ninguna zona de presión puede tener el centro a menos de `NemesisSafeZones.Clearance` (6 m) del
+    Hub: el Director la rechaza en runtime, y el gizmo y el validador la marcan;
+  - el ruido sintético y la entrada tipo Mr. X descartan puntos a menos de 6 m del Hub en el mismo
+    piso;
+  - la gravitación por la posición real del jugador (`ZoneBiasUsesRealPlayer`) se apaga mientras el
+    jugador está dentro del Hub: si no, la patrulla rondaba la puerta todo el tiempo que se quedara
+    adentro;
+  - la sensibilidad creciente no presiona mientras el jugador está en el Hub, y su reloj de silencio
+    se pausa.
+  Lo que el Nemesis **sintió** sigue valiendo (si te vio entrar, busca en la puerta hasta que se le
+  vence la búsqueda). La contra-jugada (1) sale sola de la Fase 5: una persecución que termina en el
+  Hub es un pico, y el Relax que sigue es la retirada.
 
 ### C6 — Ruido de cebo *(futuro)*
 - Hoy no hay objetos para tirar. `SightCommitTime` (6 s) ya impide escaparse de una habitación
@@ -651,11 +671,10 @@ puede ir en paralelo con la 1.
   propio código anticipa). `Traversing` **no** hace falta autorarlo — si no tiene entrada, el código
   le presta el loop de `Chasing`.
 - ✅ D5 decidido e implementado (ver §12).
-- ⚠️ Director activado en Zona1, con 5 zonas de presión y 3 disparadores por puzzle
-  ([§14.1](#141-el-director-hoy-estado-en-zona1)). El Nemesis pasa a despertarse con
-  `sp1_panel_electrico`. **Se perdió:** entró en `359081fd` y el merge `16b1962c` (20/09,
-  `origin/Nemesis-Testing` → `iña`) se quedó con la versión de la escena que no lo tenía. Hay que
-  rehacerlo (§14.2) o traer los objetos de `359081fd`.
+- ✅ Director activado en Zona1 ([§14.1](#141-el-director-hoy-estado-en-zona1)). Se había perdido
+  (entró en `359081fd` y el merge `16b1962c` del 20/09 se quedó con la escena que no lo tenía); se
+  rehízo el 22/09 con seis zonas y dos disparadores. El Nemesis se despierta con `sp2_contenedores`
+  (valor del prefab, a propósito: las puertas del montacargas se abren con `sp1`).
 - **Pendiente de jugar:** F9 tiene que mostrar esperas distintas en cada waypoint; F10 tiene que
   listar las cinco zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
   o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
@@ -715,9 +734,33 @@ puede ir en paralelo con la 1.
   regenera, así que lo que se agregue queda.) Rebakear el NavMesh de la testbed.
 - **Verificación:** caso 7.
 
-### Fase 5 — Tensión y ritmo
-- `NemesisTension`, estados de ritmo en el Director, retirada, sensibilidad creciente, fila en F9.
-- **Verificación:** caso 9.
+### Fase 5 — Tensión y ritmo — ✅ construida (22/09, sin commitear), falta jugarla
+- ✅ `NemesisTension` (en el GameObject del Director; el Director lo agrega si falta): medidor 0..1
+  alimentado por proximidad, persecución, "el jugador lo ve" (raycast cabeza → pecho con el
+  `obstacleMask` de los sentidos, sin cámara) y "escondido con el Nemesis buscando cerca"; pico con
+  la captura. No decae en `Chasing` ni `Catch`. Arranca con `NemesisEvents.OnActivated` y se pausa
+  con el Nemesis dormido, durante una cinemática (`CinematicState`) y durante el escape
+  (`ChaseFloor`).
+- ✅ Estados `BuildUp → SustainPeak → PeakFade → Relax`. El pico sólo se dispara desde BuildUp: el
+  Relax arranca con el medidor todavía alto, y desde ahí volvía a picar en el frame siguiente.
+- ✅ En el Director: PeakFade corta la presión propia del ritmo; Relax presiona la zona más lejana
+  por NavMesh **sólo con ancla y pesos** (sin ruido ni sentidos); BuildUp con 90 s sin contacto
+  arranca la sensibilidad creciente (0.3 → +0.15 cada 20 s → 1.0) sobre la zona del jugador. Los
+  disparadores por puzzle y la API le ganan siempre: mientras hay uno vivo, el ritmo espera.
+- ✅ `SO_DirectorPacing` en `ScriptableObjects/Nemesis/`, asignado al Director de Zona1 y al de
+  `NemesisTestbed` (el de la testbed tiene 4 zonas que cubren 5 de sus 17 waypoints: alcanza para
+  ver la retirada y la sensibilidad, no para calibrarlas).
+- ✅ F9: filas `ritmo` (estado, tiempo, medidor, silencio) y `presión` (zona, intensidad, origen,
+  tiempo). F10: línea de ritmo y botones *Pico de tensión* / *Saltar silencio* (cambian entradas,
+  no estados).
+- **Diferencia con el §14.3:** no hay trigger informativo del Hub. Un `SafeZoneMarker` en el mismo
+  GameObject que el volumen *Not Walkable* del Hub reusa su caja, así que no hay capa que elegir ni
+  collider que mantener alineado. Están en los dos `Safe Area` de Zona1 y en
+  `SafeVolume (CORRECT - on Props)` de la testbed. El conteo de `SafeZoneEscape` (Fase 3) puede usar
+  lo mismo.
+- **Verificación:** caso 9. Con F10: *Pico de tensión* → F9 pasa por SustainPeak y PeakFade a Relax,
+  y la fila `presión` muestra la zona más lejana como `retirada`; *Saltar silencio* → la zona del
+  jugador aparece como `sensibilidad` y sube un escalón cada 20 s.
 
 ### Fase 6 — Contra-jugadas desbloqueables
 - `CheckHidingSpots`, `PrioritizeSuspiciousSpots`, `ExitAmbush`, `BurnHidingSpot` (necesita el
@@ -823,6 +866,10 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Penalización del rastro en `NemesisPursuit` | ×0.2 al peso del waypoint | RE4R (Flanker) |
 | `SustainPeak` / `Relax` | 3–5 s / 30–45 s | Left 4 Dead (GDC 2009) |
 | `quietTimeout` (sensibilidad creciente) | 90 s sin contacto | Mr. X; ajustar al tamaño del nivel |
+| Medidor: ganancias por segundo | proximidad 0.05 (× 0..1) · persecución 0.08 · el jugador lo ve 0.05 (hasta 12 m) · escondido con búsqueda cerca 0.04 · captura = 1 | Una persecución de ~5–6 s llega al pico (0.85); con 0.12 bastaban 4 s y cualquier escapada corta compraba un Relax |
+| Medidor: decaimiento | 0.03/s, después de 4 s sin estímulos; nunca en `Chasing`/`Catch` | ~30 s de lleno a vacío, del orden del Relax |
+| Rampa de la sensibilidad creciente | 0.3, +0.15 cada 20 s, tope 1.0 | Llega al máximo en ~100 s después del `quietTimeout` |
+| Intensidad de la retirada | 0.8, sólo ancla y pesos | Si te lo cruzás, sus sentidos están intactos |
 | `patrolWaitVariance` | 0.6 s (hoy 0.25) | `docs/CLAUDE.md` |
 | Bajadas: alto mínimo / máximo | 1.5 m / 5 m (verificar el alto real entre `PISO_01` y `PISO_02` en el editor) | Debajo de 1.5 m lo cubre `agentClimb`/escalón; arriba de 5 m un humanoide no cae sin consecuencias |
 | Bajadas: umbral salto corto ↔ descolgarse | 2.5 m (= `FloorHeightThreshold`) | Mismo número que ya separa "otro piso" de "desnivel" |
@@ -880,24 +927,31 @@ pudo abrir.
 
 ### 14.1 El Director hoy: estado en Zona1
 
-> **⚠️ 21/09/2026: esto se perdió.** La tabla describe lo que dejó armado la Fase 0 (commit
-> `359081fd`, 19/09). El merge `16b1962c` (20/09, `origin/Nemesis-Testing` → `iña`) resolvió la
-> escena con la versión que no lo tenía, y todos los commits posteriores la heredaron: hoy
-> `Nemesis Director` está **apagado, con 0 zonas y 0 disparadores**. Para rehacerlo: los pasos del
-> §14.2 con los valores de esta tabla, o copiar los objetos desde `git show 359081fd:<escena>`
-> (con cuidado: la escena la editan varias personas). La testbed sí tiene Director, con 4 zonas y
-> sin disparadores, y ahí se puede probar todo lo que no depende de puzzles.
+> **22/09/2026: rehecho.** El setup de la Fase 0 (commit `359081fd`, 19/09) se perdió en el merge
+> `16b1962c` (20/09). Se volvió a armar con las cinco zonas de entonces, una sexta y la protección
+> contra C5. Los dos cambios de diseño respecto del 19/09 son decisiones del equipo: el Nemesis se
+> despierta con `sp2` (el montacargas está cerrado hasta `sp1`), y el puzzle central no tiene
+> disparador porque dispara la cinemática del escape.
 
-| Qué | En la escena (19/09, antes de perderse) | Qué implica |
+| Qué | En la escena (22/09) | Qué implica |
 |---|---|---|
-| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Activo** desde el 19/09/2026; estuvo desactivado desde el commit que lo agregó (`d69d4f6`, 06/09) | Corre `Awake` y hay singleton: la API responde y el ancla de presión llega a `NemesisController`. |
-| `Puzzle Triggers` | 3, cargados el 19/09: `sp1_panel_electrico` → `panel electrico` 0.5 / 45 s · `sp3_valvulas` → `valvulas` 0.7 / 60 s · `puzzle_central_piso1` → `montacargas` 1.0 / 60 s **+ entrada Mr. X** | La presión sube con el progreso. La entrada teatral está sólo en el último, y ninguno la pide en el puzzle que despierta al Nemesis. |
-| `NemesisPressureZone` | 5, creadas el 19/09 como hijas del Director: `montacargas` (r 11), `panel electrico` (r 10), `valvulas` (r 12), `fondo norte` (r 13), `ala oeste` (r 8) | Cubren 32 de los 39 waypoints, cada una con waypoints de los dos pisos, y ninguna toca el Hub (la más cercana queda a 12.2 m). |
-| Quién llama a la API | Sólo `NemesisTestConsole` (F10) | Ni los módulos ni la narrativa piden presión todavía. |
+| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Activo**, en el origen (su posición no se usa), con `NemesisDirector` + `NemesisTension` | Corre `Awake` y hay singleton: la API responde y el ancla de presión llega a `NemesisController`. |
+| `Puzzle Triggers` | 2: `sp2_contenedores` → `fondo norte` 0.5 / 45 s · `sp3_valvulas` → `valvulas` 0.7 / 60 s **+ entrada Mr. X** | La presión sube con el progreso. La entrada no va en `sp2` porque es el puzzle que despierta al Nemesis (§14.2), ni en el central (cinemática). |
+| `NemesisPressureZone` | 6, bajo `Nemesis Director / Pressure Zones`, reubicadas a mano en el editor el 22/09: `montacargas` (-16.6, 0, 9.9) r 10 · `panel electrico` (-23.1, 0, 22) r 10 · `valvulas` (28.6, 0, 25.6) r 12 · `fondo norte` (0.7, -0.8, 27.4) r 15 · `ala oeste` (-9.8, 0, 27.3) r 9 · `centro este` (15.9, 0, 12.3) r 11 | Cubren **38 de 39** waypoints (seleccionando el Director se ve cuál falta). Ningún centro queda a menos de 6 m del Hub: el más cercano es `centro este`, a 7.8 m. El ruido y la entrada igual evitan los 6 m alrededor de la puerta. |
+| `SafeZoneMarker` | En `'Safe Area '` y `Safe Area  (1)` | Es cómo el Director sabe dónde está el Hub (C5). Sin él la protección se apaga, y lo avisan el Director y el validador. |
+| `SO_DirectorPacing` | Asignado | El ritmo de la Fase 5 está prendido. |
+| Quién llama a la API | Los disparadores, el ritmo y `NemesisTestConsole` (F10) | Ni los módulos ni la narrativa piden presión todavía. |
 | `noiseLayer` 8 (`DetectableAudio`) contra el `listenMask` del prefab (256) | ✅ Coinciden | El ruido sintético se oye. Si no coincidieran, `Start` lo reporta. |
 | El resto de la tuning del componente | Valores por defecto: evaluación cada 3 s, pesos ×3, ruido cada 9 s con radio 4, sentidos ×1.25, entrada a 10–22 m con 2.5 s de pausa | Sirven para arrancar. |
-| Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
-| Nemesis: `activatedByPuzzleId` en la instancia de Zona1 | `sp1_panel_electrico` (19/09; estaba vacío) | Aparece al completar el primer sub-puzzle, que es lo que `Nemesis-System.md` describe para el nivel. |
+| Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 (`ROUTE 2 2F`) se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
+| Nemesis: `activatedByPuzzleId` | `sp2_contenedores`, del prefab (sin override en la escena) | Despierta con el segundo sub-puzzle. |
+
+**Cómo se ven las zonas.** Cada zona se dibuja como un cilindro: un disco por cada piso donde tiene
+waypoints, con etiqueta de id, radio, waypoints cubiertos y presión en vivo (color según la
+intensidad), y en magenta si está pegada al Hub o no toca ningún waypoint. Seleccionada, traza una
+línea a cada waypoint que cubre. **Seleccionando el Director** se ve la cobertura: cada waypoint
+fuera de toda zona marcado como `sin zona`, el contorno del Hub y la banda de 6 m donde no puede ir
+ningún centro. *Validate Navigation Setup* lista lo mismo como texto.
 
 ### 14.2 Activar el Director en Zona1 (Fase 0, sin código)
 
@@ -908,8 +962,8 @@ pudo abrir.
 2. **Las zonas.** Un contenedor `Pressure Zones` como hijo del Director y, adentro, un GameObject
    vacío por área que valga la pena nombrar, cada uno con `NemesisPressureZone`:
    - **`Zone Id`:** el lugar, no el evento (`sala de bombas`, no `después del puzzle 2`). Es texto
-     libre, sin dropdown, y la comparación no distingue mayúsculas; un id que no coincide sólo da un
-     warning.
+     libre y la comparación no distingue mayúsculas; del lado de los disparadores es un dropdown
+     (`[PressureZoneId]`) con las zonas de la escena.
    - **Centro y `Radius`** (12 m por defecto): entre una habitación y un ala. El gizmo se dibuja
      siempre, a escala, y en Play pasa de ámbar a rojo según la presión.
    - **Cada zona tiene que tocar al menos un waypoint de una ruta desbloqueada.** La palanca 2 elige
@@ -919,7 +973,8 @@ pudo abrir.
      `PISO_02`, dentro del radio. Donde los pisos se superponen, radios más chicos o centros corridos.
    - **Ningún centro dentro del Hub ni pegado a su puerta.** El ancla tira la patrulla hacia el
      centro, y con el Hub `Not Walkable` eso deja al Nemesis rondando la entrada del Hub: el cheese
-     C5 fabricado por el propio Director.
+     C5 fabricado por el propio Director. Desde el 22/09 no es sólo una regla: a menos de 6 m el
+     Director rechaza la zona (ver C5 en el §4).
    - **Para la Fase 5, que cubran lo jugable.** La retirada del Relax elige la zona más lejana al
      jugador, y la sensibilidad creciente presiona la zona donde está el jugador. Con un par de zonas
      sueltas no hay adónde retirarse ni qué presionar. Mínimo: una por ala y una por piso, ninguna en
@@ -929,7 +984,7 @@ pudo abrir.
    | Campo | Qué poner |
    |---|---|
    | `puzzleId` | Dropdown (`[PuzzleId]`) con los ids que existen hoy: `sp1_panel_electrico`, `sp2_contenedores`, `sp3_valvulas`, `puzzle_central_piso1`. |
-   | `zoneId` | La zona a presionar, **escrita a mano** tal cual el `Zone Id`. Vacío = sólo la entrada, sin presión. |
+   | `zoneId` | La zona a presionar, del dropdown de zonas de la escena. Vacío = sólo la entrada, sin presión. |
    | `intensity` | 0..1; escala las cuatro palancas juntas. Empezar bajo (0.5) en el primer puzzle y subir con el progreso. |
    | `duration` | 45–60 s. Un pedido nuevo **reemplaza** al anterior; no se suman. |
    | `stageEntrance` | La entrada tipo Mr. X. No en el primer golpe, y **nunca en el puzzle que despierta al Nemesis**: `StageEntranceAsync` sale sin hacer nada si el Nemesis todavía no está activo (`NemesisDirector.cs:538`), y despertarlo puede tardar (reintenta el spawn dos veces por segundo hasta que un punto sirve). |
@@ -956,10 +1011,10 @@ pudo abrir.
 | Hay presión pero la patrulla no cambia | Ninguna ruta desbloqueada tiene waypoints dentro del radio, o las que la tocan pesan 0. |
 | Se completa el puzzle y no pasa nada | `zoneId` mal escrito, o un `puzzleId` cargado con *(escribir a mano…)* que no existe (el dropdown lo marca con ⚠). |
 
-### 14.3 Lo nuevo del Director (§6): cómo se va a armar
+### 14.3 Lo nuevo del Director (§6): cómo se armó
 
-Nada de esto existe todavía. Es la forma propuesta, para que la Fase 5 no tenga que inventar el
-setup.
+Construido el 22/09 así, salvo el trigger del Hub, que no hizo falta (lo reemplaza un
+`SafeZoneMarker` sobre el volumen del Hub, ver la Fase 5 en el §9).
 
 | Pieza | Dónde va | Qué se configura |
 |---|---|---|
@@ -985,12 +1040,12 @@ setup.
 
 ### 14.5 Mejoras chicas de editor para hacer en el camino
 
-- Un atributo `[PressureZoneId]` con drawer, igual que `[PuzzleId]`, para `PuzzleTrigger.zoneId` y
-  para lo que pida presión en la Fase 5, que liste las zonas de la escena abierta. Hoy es el único
-  id del Director que se escribe a mano.
-- Que *Validate Navigation Setup* reporte: el Director apagado habiendo zonas o disparadores; zonas
-  que no tocan ningún waypoint de ruta; centros dentro de un volumen `Not Walkable`; disparadores
-  con un `zoneId` que no existe.
+- ✅ (22/09) Un atributo `[PressureZoneId]` con drawer, igual que `[PuzzleId]`, para
+  `PuzzleTrigger.zoneId`, que lista las zonas de la escena abierta.
+- ✅ (22/09) *Validate Navigation Setup* reporta: el Director apagado habiendo zonas o disparadores;
+  zonas sin id, repetidas, que no tocan ningún waypoint o con el centro a menos de 6 m del Hub;
+  disparadores sin puzzle, sin efecto, con un `zoneId` que no existe o con entrada en el puzzle que
+  despierta al Nemesis; y, como nota, la cobertura (`N/M waypoints`) y si falta `SO_DirectorPacing`.
 
 ---
 

@@ -7,7 +7,9 @@ using UnityEngine;
 /// Reports through <see cref="GameResultManager.ReportWin"/>, the same channel the loss paths use,
 /// so WinController opens the win screen with the run's time and resolved-module count and nothing
 /// here has to know about UI. ReportWin is already once-per-run; the local flag only saves the
-/// repeated lookups while the player stands inside.
+/// repeated lookups while the player stands inside. During the escape's chase the win first plays
+/// the last shot (the gate slamming in the Nemesis's face): the escape director is the
+/// <see cref="GameResultManager.WinPresenter"/> while it lasts, and nothing here changes for it.
 ///
 /// SETUP: a GameObject with a Collider (Is Trigger — set automatically when the component is added)
 /// placed on the FAR side of the gate, so it only fires once the player has actually crossed it.
