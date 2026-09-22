@@ -43,6 +43,10 @@ using UnityEngine.AI;
 /// SETUP: one of these in the level (it is a Singleton), plus a NemesisPressureZone per area worth
 /// naming. Nothing else has to know it exists — NemesisController asks it for an anchor through a
 /// static, and answers itself when there is no Director in the scene.
+///
+/// Pacing (plan §6): with an SO_DirectorPacing assigned, <see cref="NemesisTension"/> measures the
+/// encounter and the Director retreats in Relax and ramps pressure after a long silence. No lever may
+/// act within <see cref="NemesisSafeZones.Clearance"/> of the Hub (C5).
 /// </summary>
 public class NemesisDirector : Singleton<NemesisDirector>
 {
@@ -118,6 +122,12 @@ public class NemesisDirector : Singleton<NemesisDirector>
              "la entrada, así que no la bajes a cero.")]
     [SerializeField] private bool arriveOutOfSightOnly = true;
 
+    [Header("Ritmo (Fase 5)")]
+    [Tooltip("Tensión y ritmo: retirada en Relax y sensibilidad creciente tras mucho silencio. " +
+             "Vacío = el Director sólo responde a puzzles y a la API, como antes de la Fase 5.\n\n" +
+             "Los disparadores por puzzle le ganan siempre al ritmo.")]
+    [SerializeField] private SO_DirectorPacing pacing;
+
     [Header("Disparadores por puzzle")]
     [Tooltip("Presión que se dispara sola al completarse un puzzle. Es el gancho del que habla " +
              "el diseño: el alivio de resolver algo dura lo que tarda el Nemesis en aparecer.")]
@@ -130,6 +140,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         [Tooltip("Puzzle que dispara esto, al completarse.")]
         public string puzzleId;
 
+        [PressureZoneId]
         [Tooltip("Zona donde se aplica la presión. Vacío = sólo la entrada en escena, sin zona.")]
         public string zoneId;
 
@@ -147,9 +158,37 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     // ── Estado ──────────────────────────────────────────────────────────────
 
+    /// <summary>Who asked for the pressure in flight. Pacing only ever replaces or clears its own.</summary>
+    private enum EPressureSource
+    {
+        Scripted,
+        RisingSensitivity,
+        Retreat,
+    }
+
+    [Flags]
+    private enum ELevers
+    {
+        None = 0,
+        Anchor = 1 << 0,
+        RouteWeights = 1 << 1,
+        Noise = 1 << 2,
+        Senses = 1 << 3,
+        All = Anchor | RouteWeights | Noise | Senses,
+    }
+
+    /// <summary>Retreat moves the patrol and nothing else: its senses stay as they are.</summary>
+    private const ELevers RetreatLevers = ELevers.Anchor | ELevers.RouteWeights;
+
     private NemesisPressureZone activeZone;
     private float activeIntensity;
     private float pressureEndsAt;
+    private EPressureSource activeSource;
+    private ELevers activeLevers;
+
+    private NemesisTension tension;
+    private int risingStep;
+    private float nextRisingAt;
 
     private float nextEvaluationAt;
     private float nextNoiseAt;
@@ -171,7 +210,21 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// <summary>The live copy carrying the boost, or null when no boost is installed.</summary>
     private SO_NemesisData boostedData;
 
-    private void Awake() => CreateSingleton(false);
+    private void Awake()
+    {
+        CreateSingleton(false);
+
+        // Explicit null check: GetComponent's fake null in the Editor defeats '??'.
+        tension = GetComponent<NemesisTension>();
+        if (tension == null) tension = gameObject.AddComponent<NemesisTension>();
+
+        tension.PacingStateChanged += HandlePacingStateChanged;
+    }
+
+    private void OnDestroy()
+    {
+        if (tension != null) tension.PacingStateChanged -= HandlePacingStateChanged;
+    }
 
     private void OnEnable() => PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
 
@@ -205,7 +258,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
             return;
         }
 
-        Instance.ApplyPressure(zoneId, intensity, duration);
+        Instance.ApplyPressure(zoneId, intensity, duration, EPressureSource.Scripted, ELevers.All);
     }
 
     /// <summary>Ends whatever is in flight and puts everything it touched back.</summary>
@@ -247,6 +300,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
         NemesisDirector director = Instance;
         if (director.activeZone == null || director.activeIntensity <= 0f) return false;
+        if ((director.activeLevers & ELevers.Anchor) == 0) return false;
 
         anchor = director.activeZone.Center;
         return true;
@@ -283,19 +337,24 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// </summary>
     private void Evaluate()
     {
-        if (activeZone == null) return;
-
-        if (Time.time >= pressureEndsAt)
+        if (activeZone != null)
         {
-            ClearPressure();
-            return;
+            if (Time.time >= pressureEndsAt)
+            {
+                ClearPressure();
+            }
+            else
+            {
+                if ((activeLevers & ELevers.RouteWeights) != 0) ApplyRouteWeights();
+                if ((activeLevers & ELevers.Noise) != 0) TryEmitNoise();
+            }
         }
 
-        ApplyRouteWeights();
-        TryEmitNoise();
+        TickPacing();
     }
 
-    private void ApplyPressure(string zoneId, float intensity, float duration)
+    private void ApplyPressure(string zoneId, float intensity, float duration,
+                               EPressureSource source, ELevers levers)
     {
         NemesisPressureZone zone = NemesisPressureZone.Find(zoneId);
 
@@ -304,6 +363,21 @@ public class NemesisDirector : Singleton<NemesisDirector>
             Debug.LogWarning($"[{nameof(NemesisDirector)}] No pressure zone called '{zoneId}'. " +
                              "Check the id against the NemesisPressureZone in the scene — nothing " +
                              "happens until they match.", this);
+            return;
+        }
+
+        ApplyPressure(zone, intensity, duration, source, levers);
+    }
+
+    private void ApplyPressure(NemesisPressureZone zone, float intensity, float duration,
+                               EPressureSource source, ELevers levers)
+    {
+        if (!NemesisSafeZones.IsCentreClear(zone.Center))
+        {
+            Debug.LogError($"[{nameof(NemesisDirector)}] Refused pressure on '{zone.ZoneId}': its centre is " +
+                           $"{NemesisSafeZones.FlatDistance(zone.Center):0.0} m from the Hub (minimum " +
+                           $"{NemesisSafeZones.Clearance:0} m). The anchor would park the Nemesis at the " +
+                           "Hub's door (cheese C5). Move the zone.", zone);
             return;
         }
 
@@ -323,15 +397,17 @@ public class NemesisDirector : Singleton<NemesisDirector>
         activeZone = zone;
         activeIntensity = intensity;
         pressureEndsAt = Time.time + duration;
+        activeSource = source;
+        activeLevers = levers;
 
         // Immediately, not on the next tick: a request made right after a puzzle is a beat in the
         // level's pacing, and up to evaluationInterval of nothing happening blunts it.
         nextNoiseAt = Time.time + Mathf.Max(0f, noiseInterval);
-        ApplyRouteWeights();
-        ApplySensoryBoost();
+        if ((levers & ELevers.RouteWeights) != 0) ApplyRouteWeights();
+        if ((levers & ELevers.Senses) != 0) ApplySensoryBoost();
 
         Debug.Log($"[{nameof(NemesisDirector)}] Pressure on '{zone.ZoneId}' at {intensity:0.00} " +
-                  $"for {duration:0}s.", this);
+                  $"for {duration:0}s ({LabelOf(source)}).", this);
     }
 
     private void ClearPressure()
@@ -435,7 +511,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         Destroy(emitter, noiseLifetime);
     }
 
-    /// <summary>A point inside the zone that the Nemesis could actually stand on.</summary>
+    /// <summary>A point inside the zone that the Nemesis could actually stand on, and not at the Hub's door (C5).</summary>
     private bool TrySampleInZone(NemesisPressureZone zone, out Vector3 point)
     {
         point = zone.Center;
@@ -445,10 +521,11 @@ public class NemesisDirector : Singleton<NemesisDirector>
             Vector2 offset = UnityEngine.Random.insideUnitCircle * zone.Radius;
             Vector3 candidate = zone.Center + new Vector3(offset.x, 0f, offset.y);
 
-            if (NemesisNav.TrySnapToNavMesh(candidate, out point)) return true;
+            if (NemesisNav.TrySnapToNavMesh(candidate, out point) && NemesisSafeZones.IsClear(point))
+                return true;
         }
 
-        return NemesisNav.TrySnapToNavMesh(zone.Center, out point);
+        return NemesisNav.TrySnapToNavMesh(zone.Center, out point) && NemesisSafeZones.IsClear(point);
     }
 
     // ── Palanca 4: sentidos ─────────────────────────────────────────────────
@@ -622,6 +699,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
             if (!NemesisNav.TrySnapToNavMesh(candidate, out Vector3 snapped)) continue;
 
+            // Never on the Hub's doormat: arriving there is C5 staged by the Director.
+            if (!NemesisSafeZones.IsClear(snapped)) continue;
+
             // Out of sight FIRST: it is the property that makes the whole thing fair, and it is
             // also the cheapest test of the two.
             if (arriveOutOfSightOnly && senses != null &&
@@ -655,7 +735,8 @@ public class NemesisDirector : Singleton<NemesisDirector>
             if (!string.Equals(trigger.puzzleId, puzzleId, StringComparison.OrdinalIgnoreCase)) continue;
 
             if (!string.IsNullOrWhiteSpace(trigger.zoneId))
-                ApplyPressure(trigger.zoneId, trigger.intensity, trigger.duration);
+                ApplyPressure(trigger.zoneId, trigger.intensity, trigger.duration,
+                              EPressureSource.Scripted, ELevers.All);
 
             if (trigger.stageEntrance)
                 StageEntranceAsync(trigger.zoneId, this.GetCancellationTokenOnDestroy()).Forget();
@@ -679,7 +760,27 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private void Start()
     {
-        if (!TryResolveNemesis()) return;
+        TryResolveNemesis();
+        tension.Configure(pacing, nemesis);
+
+        ReportMissingSafeZones();
+        ReportZonesAtTheHub();
+        ReportTriggersWithoutZone();
+        ReportNoiseLayerMismatch();
+    }
+
+    private void ReportMissingSafeZones()
+    {
+        foreach (Unity.AI.Navigation.NavMeshModifierVolume _ in NemesisSafeZones.Volumes) return;
+
+        Debug.LogWarning($"[{nameof(NemesisDirector)}] No baked Not Walkable volume carries a SafeZoneMarker, so " +
+                         "the Director cannot tell where the Hub is and the C5 guard is off. Add a SafeZoneMarker " +
+                         "next to the Hub's NavMeshModifierVolume.", this);
+    }
+
+    private void ReportNoiseLayerMismatch()
+    {
+        if (nemesis == null) return;
 
         FieldOfListening senses = nemesis.FieldOfListening;
         if (senses == null) return;
@@ -694,4 +795,311 @@ public class NemesisDirector : Singleton<NemesisDirector>
                        "noises will be inaudible. Use the same layer the player's noise emitter " +
                        "is on (DetectableAudio).", this);
     }
+
+    private static void ReportZonesAtTheHub()
+    {
+        IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
+
+        for (int i = 0; i < zones.Count; i++)
+        {
+            NemesisPressureZone zone = zones[i];
+            if (zone == null || NemesisSafeZones.IsCentreClear(zone.Center)) continue;
+
+            Debug.LogError($"[{nameof(NemesisDirector)}] Pressure zone '{zone.ZoneId}' is centred " +
+                           $"{NemesisSafeZones.FlatDistance(zone.Center):0.0} m from the Hub (minimum " +
+                           $"{NemesisSafeZones.Clearance:0} m). Every request on it will be refused.", zone);
+        }
+    }
+
+    private void ReportTriggersWithoutZone()
+    {
+        for (int i = 0; i < puzzleTriggers.Count; i++)
+        {
+            PuzzleTrigger trigger = puzzleTriggers[i];
+            if (trigger == null || string.IsNullOrWhiteSpace(trigger.zoneId)) continue;
+            if (NemesisPressureZone.Find(trigger.zoneId) != null) continue;
+
+            Debug.LogWarning($"[{nameof(NemesisDirector)}] The trigger for '{trigger.puzzleId}' asks for zone " +
+                             $"'{trigger.zoneId}', which is not in the scene. That puzzle will apply no pressure.", this);
+        }
+    }
+
+    // ── Ritmo (Fase 5) ──────────────────────────────────────────────────────
+
+    private void HandlePacingStateChanged(NemesisTension.EPacingState state)
+    {
+        if (state != NemesisTension.EPacingState.BuildUp) risingStep = 0;
+        TickPacing();
+    }
+
+    /// <summary>
+    /// Turns the pacing state into levers. Puzzle beats and API requests outrank it: while one is live
+    /// the rhythm waits, and it only ever replaces or clears its own requests.
+    /// </summary>
+    private void TickPacing()
+    {
+        if (pacing == null || tension == null || !tension.IsRunning) return;
+
+        bool ownsPressure = activeZone != null && activeSource != EPressureSource.Scripted;
+
+        if (tension.IsSuspended)
+        {
+            if (ownsPressure) ClearPressure();
+            return;
+        }
+
+        if (activeZone != null && activeSource == EPressureSource.Scripted) return;
+
+        switch (tension.State)
+        {
+            case NemesisTension.EPacingState.BuildUp:
+                TickBuildUp(ownsPressure);
+                break;
+
+            case NemesisTension.EPacingState.SustainPeak:
+                break;
+
+            // "Corta el ruido sintético y el boost" and waits for the encounter to end on its own.
+            case NemesisTension.EPacingState.PeakFade:
+                if (ownsPressure) ClearPressure();
+                break;
+
+            case NemesisTension.EPacingState.Relax:
+                if (activeZone == null) ApplyRetreat();
+                break;
+        }
+    }
+
+    private void TickBuildUp(bool ownsPressure)
+    {
+        if (ownsPressure && activeSource == EPressureSource.Retreat) ClearPressure();
+
+        // C5: no pressure following the player into the Hub.
+        if (tension.IsPlayerInSafeZone)
+        {
+            if (activeZone != null && activeSource == EPressureSource.RisingSensitivity) ClearPressure();
+            risingStep = 0;
+            return;
+        }
+
+        // Contact resets the ramp; a live request lapses on its own or is cleared at PeakFade.
+        if (!tension.IsQuiet)
+        {
+            risingStep = 0;
+            return;
+        }
+
+        if (Time.time < nextRisingAt) return;
+
+        ApplyRisingSensitivity();
+    }
+
+    /// <summary>Mr. X's anti-stall: pressure where the player is, a step stronger every renewal.</summary>
+    private void ApplyRisingSensitivity()
+    {
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null) return;
+
+        NemesisPressureZone zone = FindPlayerZone(player.position);
+        if (zone == null) return;
+
+        float intensity = Mathf.Min(pacing.RisingMaxIntensity,
+                                    pacing.RisingStartIntensity + pacing.RisingIntensityStep * risingStep);
+
+        // Outlives the next renewal, so the pressure never drops out between two of them.
+        float duration = pacing.RisingRepeatSeconds + Mathf.Max(0.5f, evaluationInterval) + 1f;
+
+        ApplyPressure(zone, intensity, duration, EPressureSource.RisingSensitivity, ELevers.All);
+
+        risingStep++;
+        nextRisingAt = Time.time + pacing.RisingRepeatSeconds;
+    }
+
+    /// <summary>Relax: the patrol leans towards the zone farthest from the player, by NavMesh.</summary>
+    private void ApplyRetreat()
+    {
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null) return;
+
+        NemesisPressureZone zone = FindFarthestZone(player.position);
+        if (zone == null) return;
+
+        float duration = Mathf.Max(1f, tension.StateTimeRemaining);
+        ApplyPressure(zone, pacing.RetreatIntensity, duration, EPressureSource.Retreat, RetreatLevers);
+    }
+
+    /// <summary>The zone the player stands in (flat, nearest centre), else the nearest one by NavMesh.</summary>
+    private static NemesisPressureZone FindPlayerZone(Vector3 playerPosition)
+    {
+        IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
+
+        NemesisPressureZone best = null;
+        float bestFlat = float.PositiveInfinity;
+
+        for (int i = 0; i < zones.Count; i++)
+        {
+            NemesisPressureZone zone = zones[i];
+            if (!IsUsable(zone) || !zone.Contains(playerPosition)) continue;
+
+            Vector3 offset = playerPosition - zone.Center;
+            offset.y = 0f;
+
+            if (offset.sqrMagnitude >= bestFlat) continue;
+
+            bestFlat = offset.sqrMagnitude;
+            best = zone;
+        }
+
+        if (best != null) return best;
+
+        float bestPath = float.PositiveInfinity;
+
+        for (int i = 0; i < zones.Count; i++)
+        {
+            NemesisPressureZone zone = zones[i];
+            if (!IsUsable(zone)) continue;
+
+            float distance = NemesisNav.PathDistanceOrInfinity(playerPosition, zone.Center);
+            if (distance >= bestPath) continue;
+
+            bestPath = distance;
+            best = zone;
+        }
+
+        return best;
+    }
+
+    /// <summary>Farthest by NavMesh; farthest in a straight line when nothing is reachable.</summary>
+    private static NemesisPressureZone FindFarthestZone(Vector3 playerPosition)
+    {
+        IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
+
+        NemesisPressureZone byPath = null;
+        NemesisPressureZone byLine = null;
+        float bestPath = -1f;
+        float bestLine = -1f;
+
+        for (int i = 0; i < zones.Count; i++)
+        {
+            NemesisPressureZone zone = zones[i];
+            if (!IsUsable(zone)) continue;
+
+            float line = Vector3.Distance(playerPosition, zone.Center);
+            if (line > bestLine)
+            {
+                bestLine = line;
+                byLine = zone;
+            }
+
+            float path = NemesisNav.PathDistanceOrInfinity(playerPosition, zone.Center);
+            if (!float.IsPositiveInfinity(path) && path > bestPath)
+            {
+                bestPath = path;
+                byPath = zone;
+            }
+        }
+
+        return byPath != null ? byPath : byLine;
+    }
+
+    private static bool IsUsable(NemesisPressureZone zone) =>
+        zone != null && NemesisSafeZones.IsCentreClear(zone.Center);
+
+    private static string LabelOf(EPressureSource source) => source switch
+    {
+        EPressureSource.RisingSensitivity => "sensibilidad",
+        EPressureSource.Retreat => "retirada",
+        _ => "puzzle/API",
+    };
+
+    // ── Lectura para debug (F9, F10, gizmos) ────────────────────────────────
+
+    public static NemesisTension Tension => Exists ? Instance.tension : null;
+
+    public static string ActiveZoneId =>
+        Exists && Instance.activeZone != null ? Instance.activeZone.ZoneId : null;
+
+    public static float ActiveIntensity => Exists && Instance.activeZone != null ? Instance.activeIntensity : 0f;
+
+    public static float ActiveTimeRemaining =>
+        Exists && Instance.activeZone != null ? Mathf.Max(0f, Instance.pressureEndsAt - Time.time) : 0f;
+
+    public static string ActiveSourceLabel =>
+        Exists && Instance.activeZone != null ? LabelOf(Instance.activeSource) : null;
+
+    /// <summary>Rising-sensitivity renewals so far in this silence (0 when the ramp is idle).</summary>
+    public static int RisingStep => Exists ? Instance.risingStep : 0;
+
+#if UNITY_EDITOR
+    private static readonly Vector3[] FootprintScratch = new Vector3[4];
+
+    /// <summary>Selecting the Director shows coverage: waypoints outside every zone, and the Hub's no-go band.</summary>
+    private void OnDrawGizmosSelected()
+    {
+        NemesisPressureZone[] zones = FindObjectsByType<NemesisPressureZone>(FindObjectsInactive.Exclude);
+
+        int total = 0;
+        int covered = 0;
+
+        foreach (NemesisRoute route in FindObjectsByType<NemesisRoute>(FindObjectsInactive.Exclude))
+        {
+            for (int i = 0; i < route.transform.childCount; i++)
+            {
+                Transform waypoint = route.transform.GetChild(i);
+                if (!waypoint.CompareTag(NemesisRoute.WaypointTag)) continue;
+
+                total++;
+
+                bool inAny = false;
+                for (int z = 0; z < zones.Length && !inAny; z++)
+                    inAny = zones[z].isActiveAndEnabled && zones[z].Contains(waypoint.position);
+
+                if (inAny)
+                {
+                    covered++;
+                    continue;
+                }
+
+                Gizmos.color = UncoveredColor;
+                Gizmos.DrawWireCube(waypoint.position + Vector3.up * 0.5f, Vector3.one * 0.8f);
+                UnityEditor.Handles.color = UncoveredColor;
+                UnityEditor.Handles.Label(waypoint.position + Vector3.up * 1.4f, $"sin zona · {waypoint.name}");
+            }
+        }
+
+        foreach (Unity.AI.Navigation.NavMeshModifierVolume volume in NemesisSafeZones.Volumes)
+            DrawSafeZoneBand(volume);
+
+        UnityEditor.Handles.color = Color.white;
+        UnityEditor.Handles.Label(transform.position + Vector3.up * 2f,
+                                  $"Director · cobertura {covered}/{total} waypoints · {zones.Length} zonas");
+    }
+
+    private static void DrawSafeZoneBand(Unity.AI.Navigation.NavMeshModifierVolume volume)
+    {
+        NemesisSafeZones.GetFootprint(volume, FootprintScratch);
+
+        Vector3 p0 = FootprintScratch[0];
+        Vector3 a = (FootprintScratch[1] - p0).normalized;
+        Vector3 b = (FootprintScratch[3] - p0).normalized;
+        float clearance = NemesisSafeZones.Clearance;
+
+        UnityEditor.Handles.color = SafeZoneColor;
+        UnityEditor.Handles.DrawAAPolyLine(3f, FootprintScratch[0], FootprintScratch[1],
+                                           FootprintScratch[2], FootprintScratch[3], FootprintScratch[0]);
+
+        Vector3 e0 = FootprintScratch[0] - a * clearance - b * clearance;
+        Vector3 e1 = FootprintScratch[1] + a * clearance - b * clearance;
+        Vector3 e2 = FootprintScratch[2] + a * clearance + b * clearance;
+        Vector3 e3 = FootprintScratch[3] - a * clearance + b * clearance;
+
+        UnityEditor.Handles.color = new Color(SafeZoneColor.r, SafeZoneColor.g, SafeZoneColor.b, 0.5f);
+        UnityEditor.Handles.DrawDottedLines(new[] { e0, e1, e1, e2, e2, e3, e3, e0 }, 4f);
+        UnityEditor.Handles.Label((e2 + e3) * 0.5f + Vector3.up,
+                                  $"{volume.name}: sin centros de zona a menos de {clearance:0} m");
+    }
+
+    private static readonly Color UncoveredColor = new Color(1f, 0.35f, 0.25f, 0.9f);
+    private static readonly Color SafeZoneColor = new Color(0.35f, 0.85f, 0.55f, 0.9f);
+#endif
 }

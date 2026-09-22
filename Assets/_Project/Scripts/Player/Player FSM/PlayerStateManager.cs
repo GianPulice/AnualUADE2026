@@ -64,13 +64,83 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private bool isCrouch = false;
     // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
     private bool wantsToStand = false;
-    private bool isHidden = false;
     private bool isDisabled = false;
 
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
-    public bool IsHidden { get => isHidden; set => isHidden = value; }
     public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
+
+    // ── Hiding ──────────────────────────────────────────────────────────────────
+    //
+    // The player only ever holds the REFERENCE. Everything about getting in and out — the poses,
+    // the interior camera, freezing the body, and undoing all of it on a capture, a respawn or a
+    // scene unload — belongs to HidingSpot, and what the player does while inside belongs to
+    // PlayerHiddenState. This is the seam between the three, and nothing else.
+
+    private HidingSpot currentHidingSpot;
+    private bool debugHidden;
+    private bool hidingTransition;
+
+    /// <summary>
+    /// The spot the player is inside, or null. WHICH spot it is, and not just "am I hidden", is
+    /// what the Nemesis needs to be able to walk up to a locker and open it (plan §3.1): with a
+    /// bare bool the monster can know you vanished and still have nowhere to look.
+    /// </summary>
+    public HidingSpot CurrentHidingSpot => currentHidingSpot;
+
+    /// <summary>
+    /// True while the Nemesis's vision has to treat the player as gone. Derived, not stored:
+    /// a spot that released without clearing a separate flag is the exact bug this replaces.
+    /// </summary>
+    public bool IsHidden => currentHidingSpot != null || debugHidden;
+
+    /// <summary>
+    /// Hidden with no spot at all — the F10 console's Hide toggle, so that the monster's vision
+    /// can be exercised in a scene with no hiding spot built in it yet. It is a debug affordance
+    /// and nothing in the game should write it.
+    /// </summary>
+    public bool DebugHidden { get => debugHidden; set => debugHidden = value; }
+
+    /// <summary>
+    /// True while the climb-in or climb-out animation is playing: the player cannot move and is
+    /// STILL FULLY VISIBLE. That window is what the Nemesis's "I saw you climb in" rule reads —
+    /// see <see cref="HidingSpot"/>.
+    /// </summary>
+    public bool IsHidingTransition => hidingTransition;
+
+    /// <summary>Called by <see cref="HidingSpot"/> only, at both ends of the transition.</summary>
+    public void SetHidingTransition(bool active) => hidingTransition = active;
+
+    /// <summary>
+    /// Called by <see cref="HidingSpot"/> only: once when the player is in, once with null on
+    /// every way back out. Not a property with a setter, because "anyone can assign this" is how
+    /// the old loose IsHidden bool ended up with two writers and no owner.
+    /// </summary>
+    public void SetHidingSpot(HidingSpot spot) => currentHidingSpot = spot;
+
+    // ── Breath (hidden only) ──────────────────────────────────────────────
+    //
+    // Written by PlayerHiddenState only; read by what the player perceives of it — the breathing
+    // audio (HiddenBreathing) and the HUD meter (BreathHoldMeterView). Neither of those is allowed
+    // to touch the noise emitter, which stays the hidden state's business.
+
+    /// <summary>True while the player is holding their breath inside a spot.</summary>
+    public bool IsHoldingBreath { get; internal set; }
+
+    /// <summary>
+    /// Air left in the lungs, 1 = full, 0 = the forced exhale. Drains while holding and refills
+    /// over <see cref="SO_HidingData.BreathRecoverySeconds"/> after. Stays 1 when the hiding data
+    /// sets no hold limit.
+    /// </summary>
+    public float BreathAir { get; internal set; } = 1f;
+
+    /// <summary>
+    /// Raised on the involuntary exhale: letting go of the hold, or the lungs giving out. The
+    /// argument is true when the lungs gave out (the loud, ragged one).
+    /// </summary>
+    public event System.Action<bool> OnBreathExhaled;
+
+    internal void RaiseBreathExhaled(bool forced) => OnBreathExhaled?.Invoke(forced);
 
     /// <summary>
     /// True while the player cannot act: disabled (captured, wake-up, explosion) or lying down /
@@ -246,6 +316,24 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public bool ChestPenaltyActive => SprintPenaltyFactor < 1f;
     public bool HeadPenaltyActive => IsBlindnessActive;
 
+    // The capsule's authored radius (0.3 on the shipped prefab), cached once so
+    // RefreshCapsuleRadius always has a real value to restore to, whatever order crouch and the
+    // legs penalty toggle in.
+    private float baseCapsuleRadius;
+
+    /// <summary>
+    /// Widens the capsule (WIR-025) while crouched or once the legs module has exploded — the two
+    /// poses whose arm-for-balance / limp reach swings past the standard radius — and restores it
+    /// the moment neither applies any more. Called from PlayerCrouchState's Enter/Exit and from
+    /// ApplyPenalty's Legs case; safe to call at any time since it only ever reads current state.
+    /// </summary>
+    public void RefreshCapsuleRadius()
+    {
+        if (capsuleColl == null || movement == null) return;
+
+        capsuleColl.radius = (IsCrouch || LegsPenaltyActive) ? movement.WideStanceRadius : baseCapsuleRadius;
+    }
+
     // ── Injured locomotion (M1) ─────────────────────────────────────────────────
     //
     // The legs penalty already slows the player down; these clips are what make it read on
@@ -343,6 +431,10 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // cannot see it: that box hits walls and props first, with default friction and square
         // corners, and the player snags on them instead of sliding.
         boxColl.enabled = false;
+
+        // Read before anything (crouch, a legs penalty already restored from a save) has a chance
+        // to widen it — see RefreshCapsuleRadius.
+        baseCapsuleRadius = capsuleColl.radius;
 
         SetupClipOverrides();
         hasLocomotionSpeedParam = HasAnimatorParameter(LOCOMOTION_SPEED_PARAM, AnimatorControllerParameterType.Float);
@@ -492,8 +584,8 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // During a scene change the level is already running behind the loading screen: keys
         // pressed there must not walk the player off before it is revealed. Same while lying on
-        // the floor or getting up.
-        if (ScreenManager.IsInputLocked || IsStandingUp) inputDir = Vector3.zero;
+        // the floor or getting up, and while climbing into or out of a hiding spot.
+        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition) inputDir = Vector3.zero;
         else InputUpdate();
         CheckGround();
         base.Update();
@@ -606,15 +698,12 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             wantsToStand = false;
         }
 
-        // Debug keys, Editor only: in a build Y froze the player and R hid them from the Nemesis.
+        // Debug key, Editor only: in a build Y froze the player.
+        //
+        // R is gone. It was the stand-in for a hiding spot while the system did not exist, and
+        // HidingSpot has replaced it. The F10 console keeps a Hide toggle (DebugHidden) for
+        // exercising the Nemesis's vision in a scene with no spot built into it.
 #if UNITY_EDITOR
-        // Hidden state testing
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            if (isHidden) isHidden = false;
-            else isHidden = true;
-        }
-
         // Disabled state testing
         if (Input.GetKeyDown(KeyCode.Y))
         {
@@ -689,7 +778,19 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // a real ramp. See FlatGroundAngle.
         rigBody.useGravity = groundAngle <= FlatGroundAngle;
 
-        moveDir = Vector3.ProjectOnPlane(inputDir, hitRay.normal);
+        // Slope-following without slowing down. This was ProjectOnPlane(inputDir, normal), and
+        // projecting a unit horizontal vector onto a tilted plane shortens it to cos(angle): the
+        // horizontal speed came out at cos^2 — about 79% on the 27 degree stair ramp — and because
+        // UpdateLocomotionAnimSpeed scales the legs by actual/nominal speed, the walk cycle
+        // slowed down with it.
+        //
+        // The horizontal part is kept exactly as the input gave it and only the vertical term is
+        // solved for, so the result still lies in the ground plane (dot with the normal is zero)
+        // and a stair costs the same pace as a flat corridor. Speed ALONG the slope is therefore
+        // 1/cos(angle) of the walking speed, which is what stops a stair from feeling like wading.
+        Vector3 normal = hitRay.normal;
+        float rise = -(normal.x * inputDir.x + normal.z * inputDir.z) / Mathf.Max(normal.y, 0.1f);
+        moveDir = new Vector3(inputDir.x, rise, inputDir.z);
     }
 
     /// <summary>Margin the stand-up probe is shrunk by so brushing a wall does not read as a ceiling.</summary>
@@ -752,8 +853,6 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             return;
         }
 
-        Vector3 direction = horizontal / horizontalSpeed;
-
         GetCapsuleProbe(out Vector3 bottom, out Vector3 top, out float radius);
 
         // One physics step of travel plus the skin: far enough to see the wall before touching it,
@@ -765,22 +864,61 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         float probeDistance = Mathf.Max(MinObstacleProbe,
                                         horizontalSpeed * Time.fixedDeltaTime + ObstacleSkin);
 
-        if (Physics.CapsuleCast(bottom, top, radius, direction, out RaycastHit hit, probeDistance,
-                                obstacleMask, QueryTriggerInteraction.Ignore))
-        {
-            Vector3 normal = hit.normal;
-            normal.y = 0f;
+        // Two passes, for corners. One deflection slides along a single wall fine, but in a corner
+        // (two walls, or a crate against a wall) the slide along the first runs straight into the
+        // second: the solver stops it there, and the next step deflects off the first wall again,
+        // so the player shivered in the corner instead of stopping or sliding out of it.
+        Vector3 slide = horizontal;
+        Vector3 firstNormal = Vector3.zero;
 
-            // A purely horizontal normal is a wall. A purely vertical one is floor or ceiling, and
-            // deflecting along it would cancel the movement instead of redirecting it.
-            if (normal.sqrMagnitude > 0.0001f)
+        for (int pass = 0; pass < SlidePasses; pass++)
+        {
+            float slideSpeed = slide.magnitude;
+            if (slideSpeed < 0.01f) break;
+
+            if (!TryGetObstacleNormal(bottom, top, radius, slide / slideSpeed, probeDistance,
+                                      out Vector3 normal))
+                break;
+
+            slide = Vector3.ProjectOnPlane(slide, normal);
+
+            if (pass == 0)
             {
-                Vector3 deflected = Vector3.ProjectOnPlane(horizontal, normal.normalized);
-                desired = new Vector3(deflected.x, desired.y, deflected.z);
+                firstNormal = normal;
+                continue;
             }
+
+            // Sliding off the second wall points back into the first: pinned in the corner.
+            // Standing still is the honest answer, and it is what ends the shiver.
+            if (Vector3.Dot(slide, firstNormal) < -0.001f) slide = Vector3.zero;
         }
 
-        rigBody.linearVelocity = desired;
+        rigBody.linearVelocity = new Vector3(slide.x, desired.y, slide.z);
+    }
+
+    /// <summary>How many surfaces one step may slide off. Two covers a corner; a third wall in the
+    /// same step is a dead end the solver handles on its own.</summary>
+    private const int SlidePasses = 2;
+
+    /// <summary>
+    /// The horizontal normal of the first obstacle a capsule cast along <paramref name="direction"/>
+    /// meets. False when nothing is in the way, and also when all it meets is floor or ceiling:
+    /// deflecting along a vertical normal would cancel the movement instead of redirecting it.
+    /// </summary>
+    private bool TryGetObstacleNormal(Vector3 bottom, Vector3 top, float radius, Vector3 direction,
+                                      float distance, out Vector3 normal)
+    {
+        normal = Vector3.zero;
+
+        if (!Physics.CapsuleCast(bottom, top, radius, direction, out RaycastHit hit, distance,
+                                 obstacleMask, QueryTriggerInteraction.Ignore))
+            return false;
+
+        normal = new Vector3(hit.normal.x, 0f, hit.normal.z);
+        if (normal.sqrMagnitude <= 0.0001f) return false;
+
+        normal.Normalize();
+        return true;
     }
 
     /// <summary>Margin the obstacle cast is shrunk by, so a capsule already resting against a wall
@@ -1086,6 +1224,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             case PenaltyType.Legs:
                 MoveSpeedPenaltyFactor = Mathf.Clamp01(data.CojeraMultiplier);
                 ApplyInjuredLocomotion();
+                // The limp swings an arm out past the standard capsule (WIR-025) for the rest of
+                // the run, same reason crouch does — see RefreshCapsuleRadius.
+                RefreshCapsuleRadius();
                 break;
 
             case PenaltyType.Chest:

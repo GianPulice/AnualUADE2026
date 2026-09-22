@@ -37,16 +37,50 @@ public class NemesisPathOracle : MonoBehaviour
     private const float FallbackInterval = 0.4f;
 
     /// <summary>
-    /// When the cache is allowed to miss again, on the <see cref="Time.time"/> clock.
+    /// One cached answer: the point it was measured for, the verdict, and when it may be asked
+    /// again.
     ///
-    /// A deadline rather than a countdown ticked in Update, for two reasons: there is no Update to
-    /// get the order of wrong against the FSM, and Time.time is scaled — so a paused game freezes
-    /// the cache, which is right, since nothing it measures can move while paused.
+    /// The deadline is on the <see cref="Time.time"/> clock rather than a countdown ticked in
+    /// Update, for two reasons: there is no Update to get the order of wrong against the FSM, and
+    /// Time.time is scaled — so a paused game freezes the cache, which is right, since nothing it
+    /// measures can move while paused.
     /// </summary>
-    private float nextQueryTime;
+    private struct CachedRoute
+    {
+        public bool Used;
+        public Vector3 Target;
+        public float Expires;
+        public NemesisNav.NavRoute Route;
+        public bool Valid;
+    }
 
-    private NemesisNav.NavRoute cachedRoute;
-    private bool cachedRouteValid;
+    /// <summary>
+    /// A handful of answers, one per point being asked about.
+    ///
+    /// IT USED TO BE ONE ANSWER, KEYED ON TIME ALONE, AND THAT WAS A BUG THE MOMENT A SECOND ASKER
+    /// APPEARED (WIR-018). The ladder asks about the belief; since the 21/09 playtest NemesisPursuit
+    /// also asks about the last point it SAW the player. Whoever asked first in an interval got
+    /// the query, and the other read that answer as its own for the next 0.4 s — "is the belief
+    /// reachable" answered with the route to where the player was last seen, or the reverse. On a
+    /// borderline path that flipped the unreachable rung frame by frame, which is the
+    /// Chasing/Searching trade the throttle exists to prevent.
+    ///
+    /// Four slots because there are two askers today; the rest is headroom, and a full cache simply
+    /// recycles the answer closest to expiring.
+    /// </summary>
+    private readonly CachedRoute[] cache = new CachedRoute[4];
+
+    /// <summary>
+    /// How far a target may drift from the point an answer was measured for and still be given
+    /// that answer.
+    ///
+    /// Wide on purpose: a running player moves every frame, and a cache that missed on every
+    /// step would throttle nothing. At the player's sprint (4.5 m/s) it takes longer than the
+    /// shipped interval to leave this radius, so a moving belief still costs at most one query
+    /// per interval — while the last-seen point, which stops moving the moment sight is lost,
+    /// quickly drifts outside it and gets an answer of its own.
+    /// </summary>
+    private const float TargetMatchRadius = 2.5f;
 
     private void Awake()
     {
@@ -80,26 +114,55 @@ public class NemesisPathOracle : MonoBehaviour
     public float FloorHeightThreshold => nemesisData != null ? nemesisData.FloorHeightThreshold : 2.5f;
 
     /// <summary>
-    /// The route from here to a point, recomputed at most once per <see cref="Interval"/>.
+    /// The route from here to a point, recomputed at most once per <see cref="Interval"/> for
+    /// roughly that point.
     ///
-    /// Deliberately keyed on time alone and not on how far the target has moved: a running player
-    /// moves every frame, so a movement-keyed cache would miss every frame and throttle nothing.
-    /// What this answers — reachable, which floor, lift on the way — does not change in 0.4
-    /// seconds because the player took two steps.
+    /// Keyed on time AND on which point, with a generous radius (see
+    /// <see cref="TargetMatchRadius"/>). What this answers — reachable, which floor, lift on the
+    /// way — does not change in 0.4 seconds because the player took two steps, so a target that
+    /// moved a little is given the same answer; a different point entirely is not, and is never
+    /// handed a verdict measured for somebody else's question (see <see cref="cache"/>).
     /// </summary>
     /// <returns>false when the query could not run at all (an end off the NavMesh). A partial
     /// path returns true with <see cref="NemesisNav.NavRoute.IsComplete"/> false, which is a
     /// different and useful answer.</returns>
     public bool TryGetRoute(Vector3 target, out NemesisNav.NavRoute route)
     {
-        if (Time.time >= nextQueryTime)
+        float now = Time.time;
+        const float matchSqr = TargetMatchRadius * TargetMatchRadius;
+
+        int slot = -1;
+        float soonestExpiry = float.PositiveInfinity;
+
+        for (int i = 0; i < cache.Length; i++)
         {
-            nextQueryTime = Time.time + Interval;
-            cachedRouteValid = NemesisNav.TryGetRoute(transform.position, target, out cachedRoute);
+            ref CachedRoute entry = ref cache[i];
+
+            bool live = entry.Used && now < entry.Expires;
+            if (live && (entry.Target - target).sqrMagnitude <= matchSqr)
+            {
+                route = entry.Route;
+                return entry.Valid;
+            }
+
+            // A free or expired slot is the obvious place for the new answer; failing that, the
+            // live one closest to expiring, which is the one losing least by being replaced.
+            float expiry = live ? entry.Expires : float.NegativeInfinity;
+            if (expiry < soonestExpiry)
+            {
+                soonestExpiry = expiry;
+                slot = i;
+            }
         }
 
-        route = cachedRoute;
-        return cachedRouteValid;
+        ref CachedRoute fresh = ref cache[slot];
+        fresh.Used = true;
+        fresh.Target = target;
+        fresh.Expires = now + Interval;
+        fresh.Valid = NemesisNav.TryGetRoute(transform.position, target, out fresh.Route);
+
+        route = fresh.Route;
+        return fresh.Valid;
     }
 
     /// <summary>
@@ -114,10 +177,13 @@ public class NemesisPathOracle : MonoBehaviour
         route.CrossesLink && Mathf.Abs(route.VerticalDelta) >= FloorHeightThreshold;
 
     /// <summary>
-    /// Drops the cached answer so the next <see cref="TryGetRoute"/> recomputes.
+    /// Drops every cached answer so the next <see cref="TryGetRoute"/> recomputes.
     ///
     /// For the moment a state is entered on the strength of a verdict: acting on a reading taken
     /// up to an interval ago and half a level away is worse than paying for one extra query.
     /// </summary>
-    public void Invalidate() => nextQueryTime = 0f;
+    public void Invalidate()
+    {
+        for (int i = 0; i < cache.Length; i++) cache[i].Used = false;
+    }
 }

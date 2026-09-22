@@ -43,6 +43,8 @@ public class DoorInteractable : BaseRangeInteractable
     private Quaternion hingeClosedLocalRot;
     private bool isOpen;
     private bool isAnimating;
+    // The swing in progress, so a slam can cut it short (see Slam).
+    private Coroutine swing;
     private bool wasEverOpened;
     // When the "locked door" bump is still audibly playing. Player mashing E while the clip is
     // ringing must not stack another instance on top; we skip until Time.unscaledTime passes this.
@@ -54,12 +56,64 @@ public class DoorInteractable : BaseRangeInteractable
     // them. Cached until CloseDoor so the reverse animation lands exactly back on the closed rot.
     private float openedSign = 1f;
 
+    // Set by a scripted sequence (the escape lock-down), independent of the key / puzzle lock in
+    // doorData: nothing here is saved, so a reload brings the door back the way the scene has it.
+    private bool sequenceLocked;
+
+    // What PuzzleStateManager remembers this door as unlocked under. Not the bare DoorId: several
+    // doors share one SO_DoorData (the two stair doors, the two valve-room doors), and each of them
+    // is its own lock that asks for the key once. See BuildLockId.
+    private string lockId;
+
     public bool IsOpen => isOpen;
     public bool IsAnimating => isAnimating;
+
+    /// <summary>Sealed by a sequence: nobody opens it, whatever its SO_DoorData says — not the
+    /// player, and not the Nemesis either (<see cref="TryOpenForNemesis"/> refuses it, even on a door
+    /// that lets it force locks). The escape seals the hub behind the player; the Nemesis charging a
+    /// player backed against that door used to swing it open and hand them the safe zone back.</summary>
+    public bool IsSequenceLocked => sequenceLocked;
+
+    public void SetSequenceLocked(bool locked)
+    {
+        if (sequenceLocked == locked) return;
+        sequenceLocked = locked;
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     /// <summary>Seconds the leaf takes to swing open. The Nemesis reads it to know how long to
     /// hold back before crossing, instead of duplicating the number on its own component.</summary>
     public float OpenDuration => openDuration;
+
+    /// <summary>Where the leaf pivots. Its own position when the door has no hinge.</summary>
+    public Vector3 HingePosition => hinge != null ? hinge.position : transform.position;
+
+    /// <summary>
+    /// How far from the hinge, horizontally, the leaf reaches: anything closer than this can be hit
+    /// when it swings. For scripts that shut a door on their own (the escape) and must not sweep
+    /// the leaf through the player. Measured on the leaf's bounds, so slightly generous.
+    /// </summary>
+    public float SwingReach
+    {
+        get
+        {
+            if (hinge == null) return 0f;
+
+            Vector3 pivot = hinge.position;
+            float reach = 0f;
+            foreach (Renderer r in hinge.GetComponentsInChildren<Renderer>())
+            {
+                Bounds b = r.bounds;
+                for (int corner = 0; corner < 4; corner++)
+                {
+                    Vector3 p = new Vector3((corner & 1) == 0 ? b.min.x : b.max.x, pivot.y,
+                                            (corner & 2) == 0 ? b.min.z : b.max.z);
+                    reach = Mathf.Max(reach, Vector3.Distance(p, pivot));
+                }
+            }
+            return reach;
+        }
+    }
 
     public bool NemesisCanOpen => nemesisCanOpen;
 
@@ -74,8 +128,9 @@ protected override void Awake()
         // open has to carve where the leaf actually ENDS UP, not where it started.
         EnsureNavMeshObstacle();
 
-        wasEverOpened = doorData != null && PuzzleStateManager.Exists &&
-                        PuzzleStateManager.Instance.IsDoorOpened(doorData.DoorId);
+        lockId = BuildLockId();
+        wasEverOpened = lockId != null && PuzzleStateManager.Exists &&
+                        PuzzleStateManager.Instance.IsDoorOpened(lockId);
 
         isOpen = wasEverOpened;
         if (isOpen) ApplyOpenStateImmediate();
@@ -95,6 +150,9 @@ public override string GetInteractText()
 
 public override string GetInfoText()
     {
+        // A sequence lock is not a key the player is missing: whatever the door's data asks for,
+        // it just says LOCKED (its lockedPrompt names a key, which reads as a hint to go find it).
+        if (sequenceLocked) return "LOCKED";
         if (isOpen) return string.Empty;
         if (doorData == null) return string.Empty;
         if (wasEverOpened) return string.Empty;
@@ -114,6 +172,7 @@ public override string GetInfoText()
 protected override bool CanInteractInCloseRange()
     {
         if (isAnimating) return false;
+        if (sequenceLocked) return false;
 
         // Free door: no data means no requirements ever.
         if (doorData == null) return true;
@@ -160,18 +219,30 @@ public void OpenDoor()
         bool firstUnlock = !wasEverOpened;
         wasEverOpened = true;
 
-        // Consume the key only on the first ever unlock.
-        if (firstUnlock && doorData != null &&
-            doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists)
-            InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
-
+        // Recorded BEFORE the key check below, which asks every door whether it is still locked
+        // and must already count this one as open.
         if (doorData != null)
         {
             if (PuzzleStateManager.Exists)
-                PuzzleStateManager.Instance.SetDoorOpened(doorData.DoorId);
+                PuzzleStateManager.Instance.SetDoorOpened(lockId);
             else
                 Debug.LogWarning($"[{nameof(DoorInteractable)}] No PuzzleStateManager — door " +
                                  $"'{doorData.DoorId}' opened but will not stay unlocked.", this);
+        }
+
+        // The key leaves the inventory only on the first unlock of its LAST locked door. Spending
+        // it on the first of two stair doors left the second one locked for good.
+        if (firstUnlock && doorData != null &&
+            doorData.ConsumeKey && doorData.RequiredKey != null && InventoryManager.Exists &&
+            !AnyOtherDoorStillNeeds(doorData.RequiredKey))
+        {
+            InventoryManager.Instance.ConsumeItem(doorData.RequiredKey);
+
+            // Only when it really left the inventory: ConsumeItem refuses an item that is not
+            // marked consumable, and announcing a key as used while it stays in the bag is the
+            // exact confusion WIR-041 was about.
+            if (!InventoryManager.Instance.HasItem(doorData.RequiredKey))
+                InteractionEvents.RaiseGlobalMessage($"Used the {doorData.RequiredKey.ItemName}");
         }
 
         Vector3? openerPos = ResolvePlayerPosition();
@@ -187,7 +258,7 @@ public void OpenDoor()
         if (playUnlockSound && AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_interaction_puerta_desbloqueada", transform.position);
 
-        StartCoroutine(AnimateOpen(suppressOpenSound: playUnlockSound));
+        swing = StartCoroutine(AnimateOpen(suppressOpenSound: playUnlockSound));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door opened: {logId} (openedSign={openedSign}, opener={(openerPos.HasValue ? openerPos.Value.ToString("F2") : "null")})", this);
@@ -198,10 +269,14 @@ public void OpenDoor()
         // Fires when the player presses E while looking at a door whose CanInteract returned
         // false. Restrict the sound to the "actually locked" case: no data means no lock, a door
         // that is currently animating is only busy (not locked), and an already-unlocked door is
-        // never gated behind requirements the player might not have met.
-        if (doorData == null) return;
-        if (isOpen || isAnimating) return;
-        if (wasEverOpened) return;
+        // never gated behind requirements the player might not have met. A sequence lock is the
+        // exception to all three: it locks any door, open or not, with or without data.
+        if (!sequenceLocked)
+        {
+            if (doorData == null) return;
+            if (isOpen || isAnimating) return;
+            if (wasEverOpened) return;
+        }
         if (!AudioManager.Exists) return;
 
         // Rate-limit: skip while the previous bump is still ringing. Length is looked up on the
@@ -212,6 +287,43 @@ public void OpenDoor()
         AudioManager.Instance.PlaySFX("sfx_interaction_puerta_bloqueada", transform.position);
         float length = AudioManager.Instance.GetSoundLength("sfx_interaction_puerta_bloqueada");
         blockedSoundBusyUntil = Time.unscaledTime + length;
+    }
+
+    // ── Key bookkeeping ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The DoorId plus where the door stands, to the decimetre. The root never moves (only the
+    /// hinge swings), so the same door gets the same id on every load and checkpoint restore, and
+    /// two doors sharing one SO_DoorData get different ones. A hierarchy path would also be unique,
+    /// but it changes every time someone tidies the scene.
+    /// </summary>
+    private string BuildLockId()
+    {
+        if (doorData == null || string.IsNullOrWhiteSpace(doorData.DoorId)) return null;
+
+        Vector3 p = transform.position;
+        return $"{doorData.DoorId}@{Mathf.RoundToInt(p.x * 10f)},{Mathf.RoundToInt(p.y * 10f)}," +
+               $"{Mathf.RoundToInt(p.z * 10f)}";
+    }
+
+    /// <summary>
+    /// Whether any other door in the loaded scenes still asks for this key: never unlocked by the
+    /// player. Inactive doors count — a door hidden until later in the level is still a use left.
+    /// A door the Nemesis forced open does too, since forcing does not unlock it for the player.
+    /// Doors in scenes that are not loaded cannot be seen from here.
+    /// </summary>
+    private bool AnyOtherDoorStillNeeds(SO_InventoryItem key)
+    {
+        DoorInteractable[] doors = FindObjectsByType<DoorInteractable>(FindObjectsInactive.Include);
+
+        foreach (DoorInteractable door in doors)
+        {
+            if (door == this || door.doorData == null) continue;
+            if (door.doorData.RequiredKey != key) continue;
+            if (!door.wasEverOpened) return true;
+        }
+
+        return false;
     }
 
     // ── Opening by the Nemesis ──────────────────────────────────────────────
@@ -231,6 +343,9 @@ public void OpenDoor()
         if (isOpen || isAnimating) return false;
         if (!nemesisCanOpen) return false;
 
+        // A sequence seal is absolute: see IsSequenceLocked.
+        if (sequenceLocked) return false;
+
         // CanInteractInCloseRange is the player's condition (key + puzzle). It is only consulted
         // when this door canNOT be forced.
         if (!nemesisCanForceLocked && !CanInteractInCloseRange()) return false;
@@ -242,7 +357,7 @@ public void OpenDoor()
         if (nemesis != null) nemesisOpenerPos = nemesis.transform.position;
         else nemesisOpenerPos = ResolvePlayerPosition();
         openedSign = ResolveOpenSign(nemesisOpenerPos);
-        StartCoroutine(AnimateOpen(suppressOpenSound: false));
+        swing = StartCoroutine(AnimateOpen(suppressOpenSound: false));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"[Nemesis] Door forced open: {logId}", this);
@@ -253,10 +368,31 @@ public void CloseDoor()
     {
         if (!isOpen || isAnimating) return;
 
-        StartCoroutine(AnimateClose());
+        swing = StartCoroutine(AnimateClose());
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door closed: {logId}");
+    }
+
+    /// <summary>
+    /// Slams the door shut for a scripted sequence (the escape shuts every open door on the player
+    /// at once): from wherever the leaf is — open, or mid-swing either way — to closed in
+    /// <paramref name="seconds"/>, accelerating into the frame. A swing in progress is cut short.
+    /// Plays the door's close sound unless <paramref name="soundId"/> names another one.
+    ///
+    /// It does not lock anything: a sequence seals the door with <see cref="SetSequenceLocked"/>.
+    /// </summary>
+    /// <returns>false when the door was already shut and still.</returns>
+    public bool Slam(float seconds, string soundId = null)
+    {
+        if (!isOpen && !isAnimating) return false;
+
+        if (swing != null) StopCoroutine(swing);
+        swing = StartCoroutine(AnimateSlam(Mathf.Max(0.01f, seconds), soundId));
+
+        string logId = doorData != null ? doorData.DoorId : gameObject.name;
+        Debug.Log($"Door slammed: {logId}", this);
+        return true;
     }
 
 
@@ -307,6 +443,40 @@ private IEnumerator AnimateClose()
         if (hinge != null) hinge.localRotation = to;
 
         isAnimating = false;
+    }
+
+    private IEnumerator AnimateSlam(float seconds, string soundId)
+    {
+        PlayDoorSound(!string.IsNullOrWhiteSpace(soundId) ? soundId
+                    : doorData != null ? doorData.CloseSoundId : SO_DoorData.DefaultCloseSoundId);
+
+        isAnimating = true;
+
+        // From where the leaf IS, not from fully open: the slam may cut a swing in half.
+        Quaternion from = hinge != null ? hinge.localRotation : hingeClosedLocalRot;
+
+        float t = 0f;
+        while (t < seconds)
+        {
+            t += Time.deltaTime;
+
+            // Squared, not SmoothStep: it accelerates all the way into the frame and stops dead —
+            // a slam, not a swing.
+            float k = Mathf.Clamp01(t / seconds);
+            k *= k;
+
+            if (hinge != null)
+                hinge.localRotation = Quaternion.Slerp(from, hingeClosedLocalRot, k);
+
+            yield return null;
+        }
+
+        if (hinge != null) hinge.localRotation = hingeClosedLocalRot;
+
+        isAnimating = false;
+        isOpen = false;
+        swing = null;
+        InteractionEvents.RequestPromptRefresh();
     }
 
 

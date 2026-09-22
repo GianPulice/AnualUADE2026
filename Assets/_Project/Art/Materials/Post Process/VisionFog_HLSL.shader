@@ -65,7 +65,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
         // Para tunear los presets sin adivinar. Ninguno de estos modos es un look final.
         // Nombres sin espacios a proposito: el drawer de [Enum] parte la lista por comas y un
         // nombre con espacio queda con el espacio adentro del label.
-        [Enum(Off, 0, Transmittance, 1, OpticalDepth, 2, LightMask, 3, Inscatter, 4, BypassMask, 5, Distance, 6, Beacons, 7)]
+        [Enum(Off, 0, Transmittance, 1, OpticalDepth, 2, LightMask, 3, Inscatter, 4, BypassMask, 5, Distance, 6, Beacons, 7, Volumes, 8)]
         _FogDebugView                      ("Debug View", Float) = 0
     }
 
@@ -78,7 +78,14 @@ Shader "Hidden/Custom/VisionFogHLSL"
     #define VISION_FOG_MAX_BYPASS 16
 
     // Tiene que coincidir con VisionRangeController.MaxBeacons.
-    #define VISION_FOG_MAX_BEACONS 8
+    #define VISION_FOG_MAX_BEACONS 16
+
+    // Tiene que coincidir con VisionRangeController.MaxLightVolumes.
+    #define VISION_FOG_MAX_VOLUMES 16
+
+    // Muestras por haz a lo largo del rayo de vista. Con el dither por pixel, 16 alcanzan para que el
+    // cono se lea liso; subirlo afila el borde y cuesta lineal.
+    #define VISION_FOG_VOLUME_STEPS 16
 
     CBUFFER_START(UnityPerMaterial)
         float _EnableVisionFog;
@@ -139,6 +146,19 @@ Shader "Hidden/Custom/VisionFogHLSL"
     float  _FogBeaconDepthBias;   // metros de tolerancia contra la geometria propia
     float  _FogBeaconMaxPixels;   // techo del radio en pantalla, para que de cerca no tape la cara
     float  _FogBeaconFalloff;     // dureza de la gaussiana
+
+    // ── Haces de luz ───────────────────────────────────────────────────────
+    // El aire que ilumina una lampara con FogLightVolume, visto a traves de la niebla. Ver vfLightVolumes().
+    float4 _FogVolumeData[VISION_FOG_MAX_VOLUMES];   // xyz = vertice (la Light), w = alcance en metros
+    float4 _FogVolumeAxis[VISION_FOG_MAX_VOLUMES];   // xyz = eje (forward de la Light), w = cos(medio angulo exterior); < -1.5 => esfera
+    float4 _FogVolumeColor[VISION_FOG_MAX_VOLUMES];  // rgb = color * brillo (lineal), a = cos(medio angulo interior)
+    int    _FogVolumeCount;
+    float  _FogVolumeExtinction;   // 0..1 — cuanto de la niebla de las superficies les toca a los haces
+    float  _FogVolumeNearStart;    // metros a la luz del player: mas cerca, el haz no se ve
+    float  _FogVolumeNearEnd;      // metros a la luz del player: desde aca, brillo completo
+    float  _FogVolumeNoiseScale;   // frecuencia del polvo en mundo (1/m)
+    float  _FogVolumeNoiseAmount;  // 0..1 — cuanto modula el polvo
+    float  _FogVolumeNoiseSpeed;   // m/s a los que baja el polvo
 
     // ── Noise procedural ───────────────────────────────────────────────────
 
@@ -371,6 +391,136 @@ Shader "Hidden/Custom/VisionFogHLSL"
         return acc;
     }
 
+    // ── Haces de luz ───────────────────────────────────────────────────────
+    //
+    // El aire que ilumina una lampara con FogLightVolume: el cono de una Spot (o la esfera de una
+    // Point) hasta su alcance, integrado a lo largo del rayo de vista hasta la superficie de este
+    // pixel. Es lo que hace que de lejos se vea por donde pasa la luz, tipo los reflectores de Inside,
+    // y solo en las lamparas que lo tienen, no en toda la niebla.
+    //
+    // POR QUE DESPUES DE LA EXTINCION. Lo mismo que los beacons: la luz que se suma antes atraviesa
+    // la niebla que quiere mostrar, y pasado _VisionEnd llega x0.004. Aca cada haz se atenua con la
+    // niebla del lugar, pero solo _FogVolumeExtinction de lo que se atenua una superficie: se lee de
+    // lejos sin subirle la intensidad hasta quemar al player cuando pasa por abajo.
+    //
+    // Y SE APAGA CERCA DEL PLAYER (_FogVolumeNear*): el pedazo de haz entre la camara y el personaje
+    // le dejaria una patina encima, que es justo el "player demasiado iluminado" de antes.
+
+    // Interleaved gradient noise (Jimenez 2014): un valor por pixel, estable en el tiempo. Corre el
+    // arranque de la marcha para que las muestras se lean como grano fino y no como bandas.
+    float vfIGN(float2 pixel)
+    {
+        return frac(52.9829189 * frac(dot(pixel, float2(0.06711056, 0.00583715))));
+    }
+
+    float vfHash3(float3 p)
+    {
+        p = frac(p * 0.1031);
+        p += dot(p, p.zyx + 31.32);
+        return frac((p.x + p.y) * p.z);
+    }
+
+    float vfValueNoise3D(float3 p)
+    {
+        float3 i = floor(p);
+        float3 f = frac(p);
+        float3 u = f * f * (3.0 - 2.0 * f);
+
+        float x00 = lerp(vfHash3(i),                   vfHash3(i + float3(1, 0, 0)), u.x);
+        float x10 = lerp(vfHash3(i + float3(0, 1, 0)), vfHash3(i + float3(1, 1, 0)), u.x);
+        float x01 = lerp(vfHash3(i + float3(0, 0, 1)), vfHash3(i + float3(1, 0, 1)), u.x);
+        float x11 = lerp(vfHash3(i + float3(0, 1, 1)), vfHash3(i + float3(1, 1, 1)), u.x);
+        return lerp(lerp(x00, x10, u.y), lerp(x01, x11, u.y), u.z);
+    }
+
+    float3 vfLightVolumes(float3 rayOrigin, float3 surfacePos, float2 pixel)
+    {
+        float3 acc = 0.0;
+
+        int count = min(_FogVolumeCount, VISION_FOG_MAX_VOLUMES);
+        if (count <= 0) return acc;
+
+        float3 toSurface = surfacePos - rayOrigin;
+        float  rayLength = length(toSurface);
+        if (rayLength < 1e-4) return acc;
+        float3 rd = toSurface / rayLength;
+
+        float jitter   = vfIGN(pixel);
+        float fogRange = max(_VisionEnd - _VisionStart, 1e-4);
+
+        [loop]
+        for (int i = 0; i < count; i++)
+        {
+            float4 data  = _FogVolumeData[i];
+            float  range = data.w;
+            if (range <= 1e-3) continue;
+
+            // Tramo del rayo adentro de la esfera del alcance. Afuera no hay luz, y es lo que deja el
+            // costo en las lamparas que este pixel realmente cruza.
+            float3 oc = rayOrigin - data.xyz;
+            float  b  = dot(oc, rd);
+            float  h  = b * b - (dot(oc, oc) - range * range);
+            if (h <= 0.0) continue;
+            h = sqrt(h);
+            float t0 = max(-b - h, 0.0);
+            float t1 = min(-b + h, rayLength);
+            if (t1 <= t0) continue;
+
+            float4 axis      = _FogVolumeAxis[i];
+            float4 tint      = _FogVolumeColor[i];
+            bool   isCone    = axis.w > -1.5;
+            float  invRange2 = 1.0 / (range * range);
+
+            float dt  = (t1 - t0) / (float)VISION_FOG_VOLUME_STEPS;
+            float sum = 0.0;
+
+            [loop]
+            for (int k = 0; k < VISION_FOG_VOLUME_STEPS; k++)
+            {
+                float3 p   = rayOrigin + rd * (t0 + (k + jitter) * dt);
+                float3 toP = p - data.xyz;
+                float  d2  = dot(toP, toP);
+
+                float cone = 1.0;
+                if (isCone)
+                {
+                    cone = smoothstep(axis.w, tint.a, dot(toP, axis.xyz) * rsqrt(max(d2, 1e-6)));
+                    if (cone <= 0.0) continue;
+                }
+
+                // Caida como la de una Light de URP: inversa al cuadrado con ventana hasta el alcance.
+                // El +0.5 es el techo de cerca: sin el, el vertice es un punto de brillo infinito.
+                float w     = saturate(1.0 - d2 * invRange2 * d2 * invRange2);
+                float atten = w * w / (d2 + 0.5);
+
+                float nearFade = smoothstep(_FogVolumeNearStart, _FogVolumeNearEnd,
+                                            distance(p, _PlayerLightPosition));
+
+                sum += cone * atten * nearFade;
+            }
+
+            // La niebla y el polvo se cuentan una vez por haz, en el medio del tramo: la niebla ya
+            // satura pasado _VisionEnd y el polvo es una mancha grande, no hace falta pagarlos por
+            // muestra.
+            float3 mid   = rayOrigin + rd * (0.5 * (t0 + t1));
+            float  ramp  = pow(saturate((distance(mid.xz, _PlayerPos.xz) - _VisionStart) / fogRange),
+                               max(_FogFalloffPower, 0.01));
+            float  trans = exp(-ramp * max(_FogDensity, 0.0) * saturate(_FogVolumeExtinction));
+
+            float dust = 1.0;
+            if (_FogVolumeNoiseAmount > 0.001)
+            {
+                float n = vfValueNoise3D((mid + float3(0.0, _Time.y * _FogVolumeNoiseSpeed, 0.0))
+                                         * _FogVolumeNoiseScale);
+                dust = lerp(1.0, n * 2.0, saturate(_FogVolumeNoiseAmount));
+            }
+
+            acc += tint.rgb * (sum * dt * trans * dust);
+        }
+
+        return acc;
+    }
+
     // ── Fragment ───────────────────────────────────────────────────────────
 
     half4 Frag(Varyings input) : SV_Target
@@ -380,14 +530,20 @@ Shader "Hidden/Custom/VisionFogHLSL"
         float2 uv = input.texcoord;
         half3 sceneColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv).rgb;
 
-        if (_EnableVisionFog < 0.5) return half4(sceneColor, 1.0);
+        // La profundidad se lee ANTES de los early-outs: los beacons (los ojos del Nemesis)
+        // se componen aca adentro, asi que si salieramos derecho dejarian de existir cada vez
+        // que la niebla esta apagada. El tell del monstruo no puede depender de un toggle de arte.
+        float rawDepth = SampleSceneDepth(uv);
+
+        if (_EnableVisionFog < 0.5)
+            return half4(sceneColor + vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams)), 1.0);
 
         // Early-out: el controller pone _VisionEnd = 0 cuando no hay player (Main Menu,
         // LevelUI aislado, escena de gameplay todavia sin cargar).
-        if (_VisionEnd <= _VisionStart + 0.001) return half4(sceneColor, 1.0);
+        if (_VisionEnd <= _VisionStart + 0.001)
+            return half4(sceneColor + vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams)), 1.0);
 
         // ── Posicion world del pixel ───────────────────────────────────────
-        float rawDepth = SampleSceneDepth(uv);
         float3 worldPos = ComputeWorldSpacePosition(uv, rawDepth, UNITY_MATRIX_I_VP);
 
         // El skybox no tiene geometria: su worldPos reconstruida es basura, asi que se marca
@@ -495,6 +651,11 @@ Shader "Hidden/Custom/VisionFogHLSL"
         // agarra y el punto se lee como una luz y no como un pixel prendido.
         result += vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams));
 
+        // ── Haces de luz ───────────────────────────────────────────────────
+        // Tambien despues de la extincion, con su propia atenuacion. Ver vfLightVolumes().
+        float3 volumes = vfLightVolumes(GetCameraPositionWS(), worldPos, uv * _ScreenParams.xy);
+        result += volumes;
+
         // ── Debug views ────────────────────────────────────────────────────
         if (_FogDebugView > 0.5)
         {
@@ -506,6 +667,7 @@ Shader "Hidden/Custom/VisionFogHLSL"
             if (mode == 5) result = half3(saturate(bypassClear), playerClear, 0);
             if (mode == 6) result = frac(distFromPlayer / 10.0).xxx;
             if (mode == 7) result = vfBeacons(uv, LinearEyeDepth(rawDepth, _ZBufferParams));
+            if (mode == 8) result = volumes;
         }
 
         return half4(result, 1.0);

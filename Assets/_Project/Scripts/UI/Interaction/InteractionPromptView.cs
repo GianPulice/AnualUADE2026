@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -8,16 +7,17 @@ using UnityEngine.UI;
 /// <summary>
 /// The interaction prompt: a small Win95 window with a phosphor command line inside it.
 ///
-/// It shows three KINDS of message in the same slot, each looking slightly different so the player
+/// It shows two KINDS of message in the same slot, each looking slightly different so the player
 /// can tell them apart at a glance without reading:
 ///   Common — doors, valves, panels, notes. Dark title bar, key cap, no well.
 ///   Item   — picking something up or putting it in a socket. Adds the item's icon in a sunken well.
-///   Global — the game talking rather than the thing being looked at (see
-///            <see cref="InteractionEvents.OnGlobalMessage"/>). Inverted title bar, "!" glyph, no
-///            key cap, no "> " prefix, no cursor, and it slides in from the side and leaves on its own.
 ///
 /// Which kind a target uses comes from the optional <see cref="IPromptPresentation"/>; anything that
 /// does not implement it is Common.
+///
+/// It only describes what the player is looking at. What the game says about an interaction on its
+/// own (<see cref="InteractionEvents.OnGlobalMessage"/>, items entering the inventory) is
+/// <see cref="InteractionNotificationFeed"/>'s: sharing this one slot, the next prompt overwrote it.
 ///
 /// The window is sized to its line, not the line to the window — see <see cref="FitWindow"/>.
 ///
@@ -27,7 +27,7 @@ using UnityEngine.UI;
 /// </summary>
 public class InteractionPromptView : BaseScreenView
 {
-    /// <summary>One look. Three of these are authored in the Inspector, one per kind.</summary>
+    /// <summary>One look. Two of these are authored in the Inspector, one per kind.</summary>
     [Serializable]
     public class PromptVariant
     {
@@ -51,7 +51,6 @@ public class InteractionPromptView : BaseScreenView
     [SerializeField] private GameObject keyCapRoot;
     [SerializeField] private GameObject iconWell;
     [SerializeField] private Image iconImage;
-    [SerializeField] private TextMeshProUGUI glyphLabel;
 
     [Header("Message")]
     [SerializeField] private TextMeshProUGUI promptText;
@@ -74,16 +73,6 @@ public class InteractionPromptView : BaseScreenView
     {
         title = @"C:\WIRED\ITEM.DAT",
     };
-    [SerializeField] private PromptVariant globalVariant = new PromptVariant
-    {
-        title = @"C:\WIRED\SYSTEM.MSG",
-        titleBarRole = UIThemeRole.BevelLight,
-        titleTextRole = UIThemeRole.SurfaceScreen,
-        showKey = false,
-        showPrefix = false,
-        blinkCursor = false,
-        enterDirection = SlideDirection.FromLeft,
-    };
 
     [Header("Layout")]
     [Tooltip("Resized to fit the line. Its pivot is on the top edge, so a line that wraps grows the " +
@@ -104,32 +93,7 @@ public class InteractionPromptView : BaseScreenView
              "well always fit.")]
     [SerializeField] private float minWindowHeight = 96f;
 
-    [Header("Auto-pickup notice")]
-    [Tooltip("Format of the global message shown when an item is granted to the inventory WITHOUT " +
-             "a world pickup (puzzle reward, scripted grant). {0} is the item name.")]
-    [SerializeField] private string autoPickupFormat = "{0} added to inventory";
-
-    [Tooltip("Seconds the auto-pickup notice stays on screen before returning to the normal " +
-             "interaction prompt state. Counted in SCALED time, so a paused modal freezes the " +
-             "timer and it resumes with the remaining seconds when the modal closes.")]
-    [SerializeField, Min(0f)] private float autoPickupSeconds = 3f;
-
     private IInteractable currentTarget;
-
-    // Global-message state — event-driven and independent from the interaction system. While one is
-    // up this view ignores TargetChanged / RequestPromptRefresh so the message is not overwritten
-    // by an interactable the crosshair happens to land on mid-message. Cleared by a timer, at which
-    // point RefreshDisplay re-syncs the UI with whatever the interaction state is at that moment.
-    private bool showingGlobal;
-    private Coroutine globalRoutine;
-
-    // A message raised while a modal is open (e.g. the sequence panel completes and hands an item)
-    // is deferred here until the modal closes. Without this the notice would start counting down
-    // while the panel is still on top of it, and be gone the moment the panel closes. Only the
-    // latest pending message is kept — a stale one from a previous modal has no reason to surface
-    // after a newer one arrives.
-    private string pendingMessage;
-    private float pendingSeconds;
 
     // Stand-in for "no limit" when asking TMP how much room a line wants. TMP's own large value: an
     // infinity would leak into its arithmetic.
@@ -159,10 +123,8 @@ public class InteractionPromptView : BaseScreenView
 
         InteractionEvents.OnTargetChanged        += HandleTargetChanged;
         InteractionEvents.OnPromptRefreshRequested += HandlePromptRefreshRequested;
-        InteractionEvents.OnGlobalMessage        += HandleGlobalMessage;
         InventoryEvents.OnItemAdded              += HandleInventoryChanged;
         InventoryEvents.OnItemRemoved            += HandleInventoryChanged;
-        InventoryEvents.OnItemAutoAdded          += HandleItemAutoAdded;
         UIStateManager.OnModalPushed             += HandleModalPushed;
         UIStateManager.OnModalPopped             += HandleModalPopped;
     }
@@ -171,31 +133,13 @@ public class InteractionPromptView : BaseScreenView
     {
         InteractionEvents.OnTargetChanged        -= HandleTargetChanged;
         InteractionEvents.OnPromptRefreshRequested -= HandlePromptRefreshRequested;
-        InteractionEvents.OnGlobalMessage        -= HandleGlobalMessage;
         InventoryEvents.OnItemAdded              -= HandleInventoryChanged;
         InventoryEvents.OnItemRemoved            -= HandleInventoryChanged;
-        InventoryEvents.OnItemAutoAdded          -= HandleItemAutoAdded;
         UIStateManager.OnModalPushed             -= HandleModalPushed;
         UIStateManager.OnModalPopped             -= HandleModalPopped;
     }
 
-    // Safety net for the deferred-message path: OnModalPopped is the primary trigger to release a
-    // pending one, but some UIs close without pushing/popping through UIStateManager (or pop
-    // one modal while another is still on top). Polling here fires the message on the first frame
-    // after every modal is gone, regardless of which event surfaced that fact. Costs a couple of
-    // property checks per frame when idle — pendingMessage is null and the branch exits early.
-    private void Update()
-    {
-        TickCursor();
-
-        if (pendingMessage == null) return;
-        if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
-
-        string message = pendingMessage;
-        float seconds = pendingSeconds;
-        pendingMessage = null;
-        StartGlobal(message, seconds);
-    }
+    private void Update() => TickCursor();
 
     // Unscaled: the cursor keeps blinking while a modal has frozen the game, the same way the fades
     // of BaseScreenView do.
@@ -213,8 +157,6 @@ public class InteractionPromptView : BaseScreenView
 
     private void HandlePromptRefreshRequested()
     {
-        if (showingGlobal) return;
-
         // A refresh may bring the window back, not only redraw it in place. A target whose state
         // has nothing to say hides it, and when that state changes under the crosshair the refresh is
         // the only thing that fires — the elevator call panel going from "cabin here" to "call it",
@@ -234,23 +176,6 @@ public class InteractionPromptView : BaseScreenView
 
         currentTarget = target;
 
-        // A live AND actionable target dismisses a global message for good: the player
-        // choosing to look at something they can act on is a stronger signal than the tail end of
-        // an announcement, and per design we do NOT resume the message afterwards. A target
-        // that is not currently interactable (a box already locked into its basket, an info-only
-        // prop) leaves it alone — the interaction prompt would have nothing to show
-        // anyway, so hiding the message for it would only lose information.
-        if (showingGlobal && target != null && target.CanInteract())
-        {
-            CancelGlobal();
-            // Fall through into the normal "target != null" branch below so the prompt is shown
-            // immediately in this same call instead of waiting for the next TargetChanged.
-        }
-        else if (showingGlobal)
-        {
-            return;
-        }
-
         if (target != null)
         {
             RefreshDisplay(animate: true);
@@ -263,104 +188,7 @@ public class InteractionPromptView : BaseScreenView
         }
     }
 
-    private void HandleInventoryChanged(SO_InventoryItem _)
-    {
-        if (showingGlobal) return;
-        RefreshDisplay(animate: false);
-    }
-
-    /// <summary>
-    /// An item that reached the inventory with no world pickup becomes a global message. This is
-    /// the first caller of that path; it is routed through the same private entry point as
-    /// <see cref="InteractionEvents.OnGlobalMessage"/> rather than re-raising the event, so the
-    /// view does not listen to itself.
-    /// </summary>
-    private void HandleItemAutoAdded(SO_InventoryItem item)
-    {
-        if (item == null || promptText == null) return;
-        ShowGlobalMessage(string.Format(autoPickupFormat, item.ItemName), autoPickupSeconds);
-    }
-
-    private void HandleGlobalMessage(string text, float seconds) => ShowGlobalMessage(text, seconds);
-
-    private void ShowGlobalMessage(string text, float seconds)
-    {
-        if (string.IsNullOrWhiteSpace(text) || promptText == null) return;
-
-        // Defer while any modal (sequence panel, inventory, pause...) is open. Firing now would
-        // start the countdown behind the modal and the message would be gone the second it closes.
-        // HandleModalPopped — or the Update poll — picks it up then.
-        if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen)
-        {
-            pendingMessage = text;
-            pendingSeconds = seconds;
-            return;
-        }
-
-        StartGlobal(text, seconds);
-    }
-
-    private void StartGlobal(string text, float seconds)
-    {
-        showingGlobal = true;
-        lastRenderedTarget = null;
-        ApplyVariant(globalVariant, icon: null, showGlyph: true);
-
-        // Always typed out: a global message is an arrival, never a refresh.
-        SetLine(text, normalColor, forceReplay: true);
-
-        // A second message arriving before the first ends restarts the timer with the newer
-        // one — dropping the older text is preferable to queuing it, so the player never sees
-        // a delayed line for something that happened several seconds ago.
-        if (globalRoutine != null) StopCoroutine(globalRoutine);
-
-        ShowWindow();
-        slide?.SlideIn(globalVariant.enterDirection);
-
-        globalRoutine = StartCoroutine(GlobalCountdown(seconds));
-    }
-
-    // Aborts the message without triggering its exit animation. Used when a live interactable
-    // preempts it: the caller is about to draw the interaction prompt over the same
-    // CanvasGroup, so a fade-out here would fight it.
-    private void CancelGlobal()
-    {
-        if (globalRoutine != null)
-        {
-            StopCoroutine(globalRoutine);
-            globalRoutine = null;
-        }
-        showingGlobal = false;
-    }
-
-    // Scaled deltaTime on purpose: modals set Time.timeScale to 0, and the design here is that
-    // the message freezes with the game. A 2.3s-in pause must resume at 0.7s remaining after
-    // unpause, not skip forward while the pause menu was open.
-    private IEnumerator GlobalCountdown(float seconds)
-    {
-        float t = 0f;
-        while (t < seconds)
-        {
-            t += Time.deltaTime;
-            yield return null;
-        }
-
-        showingGlobal = false;
-        globalRoutine = null;
-
-        // Re-sync with the real interaction state: if the crosshair is on something, restore its
-        // prompt; otherwise fade out. Doing this in one place (RefreshDisplay + the else branch)
-        // keeps the exit symmetric with HandleTargetChanged.
-        if (IsAlive(currentTarget))
-        {
-            RefreshDisplay(animate: true);
-        }
-        else
-        {
-            HideWindow();
-            slide?.SlideOut();
-        }
-    }
+    private void HandleInventoryChanged(SO_InventoryItem _) => RefreshDisplay(animate: false);
 
     /// <summary>
     /// Any modal (inventory, pause, settings, sequence panel, document reader...) covers the
@@ -389,27 +217,6 @@ public class InteractionPromptView : BaseScreenView
     private void HandleModalPopped(IModalUI _)
     {
         if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
-
-        // A message raised while the modal was open was deferred. Fire it now that the modal is
-        // gone so its full dwell starts against a visible UI, not behind the panel. Consumes the
-        // pending slot so a subsequent modal pop does not replay it.
-        if (pendingMessage != null)
-        {
-            string message = pendingMessage;
-            float seconds = pendingSeconds;
-            pendingMessage = null;
-            StartGlobal(message, seconds);
-            return;
-        }
-
-        // The countdown was frozen (Time.deltaTime == 0 under the modal) but visuals were
-        // hidden by HandleModalPushed. Restore them so the remaining seconds actually show.
-        if (showingGlobal)
-        {
-            ShowWindow();
-            slide?.SlideIn(globalVariant.enterDirection);
-            return;
-        }
 
         IInteractable live = InteractionManager.Exists
             ? InteractionManager.Instance.CurrentInteractable
@@ -444,7 +251,7 @@ public class InteractionPromptView : BaseScreenView
 
         if (currentTarget.CanInteract())
         {
-            ApplyVariant(variant, icon, showGlyph: false);
+            ApplyVariant(variant, icon);
             SetLine(currentTarget.GetInteractText(), normalColor, appearing);
             lastRenderedTarget = currentTarget;
             if (animate) ShowWindow();
@@ -455,7 +262,7 @@ public class InteractionPromptView : BaseScreenView
             if (!string.IsNullOrEmpty(info))
             {
                 // Same kind, quieter: no key cap, because there is nothing to press.
-                ApplyVariant(variant, icon, showGlyph: false, forceHideKey: true);
+                ApplyVariant(variant, icon, forceHideKey: true);
                 SetLine(info, infoColor, appearing);
                 lastRenderedTarget = currentTarget;
                 if (animate) ShowWindow();
@@ -487,7 +294,7 @@ public class InteractionPromptView : BaseScreenView
             : commonVariant;
 
     /// <summary>Dresses the window for one kind: title bar, key cap and icon well.</summary>
-    private void ApplyVariant(PromptVariant variant, Sprite icon, bool showGlyph, bool forceHideKey = false)
+    private void ApplyVariant(PromptVariant variant, Sprite icon, bool forceHideKey = false)
     {
         if (variant == null) return;
 
@@ -501,14 +308,13 @@ public class InteractionPromptView : BaseScreenView
         bool showKey = variant.showKey && !forceHideKey;
         if (keyCapRoot != null) keyCapRoot.SetActive(showKey);
 
-        bool showWell = showGlyph || icon != null;
+        bool showWell = icon != null;
         if (iconWell != null) iconWell.SetActive(showWell);
         if (iconImage != null)
         {
             iconImage.sprite = icon;
             iconImage.enabled = icon != null;
         }
-        if (glyphLabel != null) glyphLabel.gameObject.SetActive(showGlyph);
 
         prefixEnabled = variant.showPrefix;
         cursorEnabled = variant.blinkCursor;

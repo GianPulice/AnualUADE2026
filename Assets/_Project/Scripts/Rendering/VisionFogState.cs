@@ -107,6 +107,17 @@ public struct VisionFogState
         public static readonly int BeaconDepthBias      = Shader.PropertyToID("_FogBeaconDepthBias");
         public static readonly int BeaconMaxPixels      = Shader.PropertyToID("_FogBeaconMaxPixels");
         public static readonly int BeaconFalloff        = Shader.PropertyToID("_FogBeaconFalloff");
+
+        public static readonly int VolumeData           = Shader.PropertyToID("_FogVolumeData");
+        public static readonly int VolumeAxis           = Shader.PropertyToID("_FogVolumeAxis");
+        public static readonly int VolumeColor          = Shader.PropertyToID("_FogVolumeColor");
+        public static readonly int VolumeCount          = Shader.PropertyToID("_FogVolumeCount");
+        public static readonly int VolumeFogExtinction  = Shader.PropertyToID("_FogVolumeExtinction");
+        public static readonly int VolumeNearStart      = Shader.PropertyToID("_FogVolumeNearStart");
+        public static readonly int VolumeNearEnd        = Shader.PropertyToID("_FogVolumeNearEnd");
+        public static readonly int VolumeNoiseScale     = Shader.PropertyToID("_FogVolumeNoiseScale");
+        public static readonly int VolumeNoiseAmount    = Shader.PropertyToID("_FogVolumeNoiseAmount");
+        public static readonly int VolumeNoiseSpeed     = Shader.PropertyToID("_FogVolumeNoiseSpeed");
     }
 
     // ── Construction ────────────────────────────────────────────────────────

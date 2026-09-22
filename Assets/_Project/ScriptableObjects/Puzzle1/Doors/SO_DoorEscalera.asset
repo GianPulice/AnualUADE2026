@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44f1a24a93d42544c892271d4a5057e7, type: 3}
+  m_Name: SO_DoorEscalera
+  m_EditorClassIdentifier: Assembly-CSharp::SO_DoorData
+  doorId: puerta_Stairs
+  requiredKey: {fileID: 11400000, guid: 3724921ce8d206f4db2678496ce56d96, type: 2}
+  consumeKey: 1
+  requiredCompletedPuzzleId: 
+  openPrompt: Open stairs door
+  lockedPrompt: You need Stairs Key
+  openSoundId: 
+  closeSoundId: 

@@ -40,8 +40,13 @@ public class WakeUpSkipPromptView : MonoBehaviour
         // back lets its fade-in play in view instead of finishing behind the loading screen.
         // Also for as long as the player is still getting up: the stand-up can outlast ARC_01a,
         // and F still cuts it.
-        bool show = (WakeUpCinematicEvents.IsCameraLocked || WakeUpCinematicView.IsPlayerWakingUp())
-                    && (config == null || config.Skippable)
+        // The escape cinematic (CinematicState) reuses this same text: its skip key and wording
+        // come from its own config, so it says what the escape director will actually listen for.
+        bool wakeUpShows = (WakeUpCinematicEvents.IsCameraLocked || WakeUpCinematicView.IsPlayerWakingUp())
+                           && (config == null || config.Skippable);
+        bool escapeShows = CinematicState.IsPlaying && CinematicState.IsSkippable;
+
+        bool show = (wakeUpShows || escapeShows)
                     && !PauseManager.IsGameplayInputBlocked
                     && !LoadingScreen.IsLoading;
 
@@ -53,7 +58,8 @@ public class WakeUpSkipPromptView : MonoBehaviour
 
         if (label != null)
         {
-            string text = config != null ? config.SkipPromptText : "[Press F to skip]";
+            string text = escapeShows ? CinematicState.PromptText
+                        : config != null ? config.SkipPromptText : "[Press F to skip]";
             if (label.text != text) label.text = text;
         }
 

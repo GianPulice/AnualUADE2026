@@ -56,6 +56,9 @@ public class NemesisAudio : MonoBehaviour
     [Tooltip("How fast the occlusion multiplier eases towards its target, per second.")]
     [SerializeField, Min(0.1f)] private float occlusionEaseSpeed = 3f;
 
+    // Set once the run has a result: from then on the loops only fade out.
+    private bool silenced;
+
     private AudioSource sourceA;
     private AudioSource sourceB;
 
@@ -77,6 +80,7 @@ public class NemesisAudio : MonoBehaviour
         }
 
         NemesisEvents.OnStateChanged += HandleStateChanged;
+        GameResultManager.OnGameResult += HandleGameResult;
 
         sourceA = CreateSource("NemesisLoopA");
         sourceB = CreateSource("NemesisLoopB");
@@ -120,7 +124,19 @@ public class NemesisAudio : MonoBehaviour
     // quietly stops listening. Here that would mean missing the state change that happened while
     // this was off and coming back playing the wrong loop, because OnStateChanged only fires on
     // the transition and there is no catch-up.
-    private void OnDestroy() => NemesisEvents.OnStateChanged -= HandleStateChanged;
+    private void OnDestroy()
+    {
+        NemesisEvents.OnStateChanged -= HandleStateChanged;
+        GameResultManager.OnGameResult -= HandleGameResult;
+    }
+
+    /// <summary>
+    /// The run is over — win, loss or game over. The crossfade runs on scaled time, and the result
+    /// screen sets timeScale to 0: left alone, the current loop would freeze at full volume and
+    /// play over the result screen forever. So the loops fade out on unscaled time instead (see
+    /// <see cref="FadeOutForResult"/>). Lives with the level, so a Retry reloads it clean.
+    /// </summary>
+    private void HandleGameResult(GameResultModel result) => silenced = true;
 
     private AudioSource CreateSource(string sourceName)
     {
@@ -141,6 +157,8 @@ public class NemesisAudio : MonoBehaviour
 
     private void HandleStateChanged(NemesisStateManager.ENemesisState state)
     {
+        if (silenced) return;
+
         if (!TryGetLoop(state, out AudioClip clip, out float volume))
         {
             // No entry authored for this state. Silence is a legitimate authoring choice for a
@@ -202,8 +220,33 @@ public class NemesisAudio : MonoBehaviour
 
     private void Update()
     {
+        if (silenced)
+        {
+            FadeOutForResult();
+            return;
+        }
+
         UpdateOcclusion();
         UpdateCrossfade();
+    }
+
+    // Unscaled: this runs under the result screen's timeScale 0, where deltaTime is always zero.
+    private void FadeOutForResult()
+    {
+        float step = Time.unscaledDeltaTime / Mathf.Max(crossfadeDuration, 0.01f);
+        FadeOut(sourceA, step);
+        FadeOut(sourceB, step);
+    }
+
+    private static void FadeOut(AudioSource source, float step)
+    {
+        if (source == null || !source.isPlaying) return;
+
+        source.volume = Mathf.MoveTowards(source.volume, 0f, step);
+        if (source.volume > 0f) return;
+
+        source.Stop();
+        source.clip = null;
     }
 
     private void UpdateOcclusion()

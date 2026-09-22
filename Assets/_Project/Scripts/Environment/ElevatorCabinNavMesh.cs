@@ -79,7 +79,7 @@ public class ElevatorCabinNavMesh : MonoBehaviour
     [Tooltip("How far inside the cabin floor the boarding point sits, measured from the edge.\n\n" +
              "It has to clear the agent's radius, or the point lands on the strip the NavMesh " +
              "shrinks away from every edge and the link connects to nothing. 0.9 covers this " +
-             "project's radius of 0.5 with room to spare.")]
+             "project's radius of 0.3 with room to spare.")]
     [SerializeField, Min(0.1f)] private float boardingInset = 0.9f;
 
     [Tooltip("Width of the landing-to-cabin links. Comfortably more than the agent radius: a " +
@@ -162,6 +162,13 @@ public class ElevatorCabinNavMesh : MonoBehaviour
         {
             // The shaft itself is misconfigured and has already said so. Adding a second error
             // about the cabin's NavMesh only buries the one that matters.
+            enabled = false;
+            return;
+        }
+
+        // The shaft declared it has no NavMesh, so there is nothing to build a cabin floor on.
+        if (elevator.NavMeshNotNeeded)
+        {
             enabled = false;
             return;
         }

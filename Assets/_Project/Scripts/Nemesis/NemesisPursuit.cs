@@ -52,6 +52,36 @@ public sealed class NemesisPursuit
     private Vector3 predictedPoint;
     private bool hasPredictedPoint;
 
+    /// <summary>
+    /// How far back the sensed trail counts as "the way they came" when a stalled chase looks for
+    /// the other side.
+    ///
+    /// The same number and the same reasoning as NemesisSearchingState's own TrailMemoryTime,
+    /// which reads the trail for a heading: long enough to hold a lap's worth of stamped
+    /// waypoints, short enough to describe this encounter rather than the last one. Not on the SO
+    /// for the reason given there — it is not a design value; what the designer tunes is how hard
+    /// the trail pushes (ChaseTrailPenalty) and how wide it is (ChaseTrailPenaltyRadius). Public so
+    /// NemesisGizmos draws the trail this class actually reads, rather than a guess at it.
+    /// </summary>
+    public const float TrailMemoryTime = 8f;
+
+    /// <summary>Flat metres to the target under which the chase stops leading it. See Predict.
+    /// Not on the SO for the same reason as TrailMemoryTime: it is a property of the steering (a
+    /// lead longer than the gap is always wrong), not a difficulty knob.</summary>
+    private const float CloseRangeNoLead = 3f;
+
+    /// <summary>How old a sighting may be and still be "where it lost them". The same 10 s the
+    /// ladder gives the walk back there (SO_NemesisPriorities, "va a donde lo vio por última vez").
+    /// </summary>
+    public const float RecentSightingSeconds = 10f;
+
+    /// <summary>How many detour candidates the last replan marked down for sitting on the sensed
+    /// trail. For the debug HUD: a stalled chase with nothing penalised is a stall the counterplay
+    /// had nothing to work with — the lap passes no waypoints, so there is no "way they came" to
+    /// steer away from — and that is a level problem (waypoints around the obstacle), not a tuning
+    /// one.</summary>
+    public int PenalizedLastReplan { get; private set; }
+
     /// <summary>Where the pursuit currently thinks the player is heading. Drawn by NemesisGizmos -
     /// see there for why an invisible decision is an untunable one.</summary>
     public Vector3 PredictedPoint => predictedPoint;
@@ -82,6 +112,7 @@ public sealed class NemesisPursuit
         hasRoutePoint = false;
         hasPredictedPoint = false;
         hasReplanned = false;
+        PenalizedLastReplan = 0;
     }
 
     /// <summary>
@@ -99,12 +130,53 @@ public sealed class NemesisPursuit
 
         if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
 
+        // LOST SIGHT: GO BACK TO WHERE IT LAST SAW THEM, NOTHING CLEVERER. Leading the target and
+        // routing through a flank only pay while it still sees them; with the sighting gone, the
+        // lead point is a guess that runs past the corner the player turned — or straight to the
+        // locker they were running for. Walking to the last known spot is what a player can read
+        // and play against, and it is what the search then starts from. Only when that spot can be
+        // reached: a partial path is the wall-hugging failure above, and the ladder's
+        // IsBeliefUnreachable rung owns that case.
+        //
+        // The SEEN spot, not the freshest belief: the belief follows whichever sense fired last,
+        // and a player who breaks line of sight and keeps running is heard all the way to the
+        // locker they dive into. Chasing that is not going back to where it lost them — it is
+        // being led to the hiding spot by the footsteps.
+        if (!stateManager.HasVisualTarget && TryGetRecentSighting(out Vector3 lastSeen) &&
+            stateManager.TryGetThrottledRoute(lastSeen, out NemesisNav.NavRoute toLastSeen) &&
+            toLastSeen.IsComplete)
+        {
+            predictedPoint = lastSeen;
+            hasPredictedPoint = true;
+            hasRoutePoint = false;
+            destination = lastSeen;
+            return true;
+        }
+
         predictedPoint = Predict(belief);
         hasPredictedPoint = true;
 
         TickRoute(belief);
 
         destination = hasRoutePoint ? routePoint : predictedPoint;
+        return true;
+    }
+
+    /// <summary>
+    /// Where the eyes last had the player, if that was recent enough to still be this chase. An
+    /// old sighting from another encounter is not where it lost them, so past
+    /// <see cref="RecentSightingSeconds"/> it does not count.
+    /// </summary>
+    public bool TryGetRecentSighting(out Vector3 position)
+    {
+        FieldOfView eyes = stateManager.FieldOfView;
+        position = Vector3.zero;
+
+        if (eyes == null || !eyes.HasLastKnownPosition ||
+            eyes.TimeSinceLastSighting >= RecentSightingSeconds)
+            return false;
+
+        position = eyes.LastKnownPosition;
         return true;
     }
 
@@ -134,6 +206,13 @@ public sealed class NemesisPursuit
     {
         SO_NemesisData data = Data;
         FieldOfView view = stateManager.FieldOfView;
+
+        // Up close there is nothing to cut off: the lead is longer than the gap, so every sidestep
+        // swings the target past the player — behind a table, to the far side of it. Close in, it
+        // goes at them and lets the path find the way round.
+        Vector3 toBelief = belief - stateManager.transform.position;
+        toBelief.y = 0f;
+        if (toBelief.sqrMagnitude < CloseRangeNoLead * CloseRangeNoLead) return belief;
 
         return PredictAhead(stateManager.transform.position, belief,
                             view != null ? view.LastKnownVelocity : Vector3.zero,
@@ -168,9 +247,33 @@ public sealed class NemesisPursuit
         // it would turn the Nemesis around and send it away from the person it is chasing.
         if (Vector3.Dot(toLead.normalized, toBelief.normalized) < 0f) return belief;
 
-        return NavMesh.SamplePosition(leadPoint, out NavMeshHit hit, 2f, NavMesh.AllAreas)
-            ? hit.position
-            : belief;
+        return KeepOnTargetSide(belief, leadPoint);
+    }
+
+    /// <summary>
+    /// The lead point, walked from the target along the NavMesh and stopped at the first edge.
+    ///
+    /// A plain SamplePosition of the lead point is what left the Nemesis mirroring a player across
+    /// a table. Strafing behind it puts the lead point inside the table's hole in the NavMesh, and
+    /// the nearest surface to a point inside a hole is just as likely the Nemesis's own side. It
+    /// ran to that side, "arrived", and stood there, never going round. NavMesh.Raycast walks the
+    /// surface from where the player IS, so the answer can never be across a gap from them: past
+    /// an edge it stops at the edge, on their side.
+    /// </summary>
+    private static Vector3 KeepOnTargetSide(Vector3 belief, Vector3 leadPoint)
+    {
+        const float SnapRadius = 1f;
+        int mask = NemesisNav.AreaMask;
+
+        if (!NavMesh.SamplePosition(belief, out NavMeshHit from, SnapRadius, mask)) return belief;
+
+        if (NavMesh.Raycast(from.position, leadPoint, out NavMeshHit edge, mask)) return edge.position;
+
+        // Clear run along the surface: the lead point is on the player's side, only lifted back
+        // onto the floor.
+        return NavMesh.SamplePosition(leadPoint, out NavMeshHit onFloor, SnapRadius, mask)
+            ? onFloor.position
+            : from.position;
     }
 
     // -- Route choice --------------------------------------------------------
@@ -212,12 +315,23 @@ public sealed class NemesisPursuit
     /// SEEING THEM ENDS THE ARGUMENT. With the player in view there is nothing a waypoint can add:
     /// the shortest way to someone you can see is at them, and detouring "cleverly" while looking
     /// straight at the player is the single most obviously broken thing an enemy can do.
+    ///
+    /// ...UNLESS GOING AT THEM HAS STOPPED WORKING. That argument assumes running at someone you
+    /// can see closes the gap, and a loop round a table is precisely the case where it does not:
+    /// the player is in view on every lap, the speed difference means the tail chase can never
+    /// end, and NemesisChaseProgress has measured a whole window of it. Keeping the early-out there
+    /// would leave the counterplay below as dead code in the one situation it exists for — a low
+    /// table never breaks line of sight at all. Every candidate still has to SEE the predicted
+    /// point, so this cannot send the Nemesis off to stand somewhere it has lost the player.
     /// </summary>
     private void Replan(Vector3 belief)
     {
         hasRoutePoint = false;
+        PenalizedLastReplan = 0;
 
-        if (stateManager.HasVisualTarget) return;
+        bool stagnant = stateManager.IsChaseStagnant;
+
+        if (stateManager.HasVisualTarget && !stagnant) return;
 
         Vector3 origin = stateManager.transform.position;
 
@@ -241,7 +355,7 @@ public sealed class NemesisPursuit
 
         float directTime = DirectTime(directWorks, route);
 
-        if (TryPickWaypoint(origin, belief, directWorks, directTime, out Vector3 point))
+        if (TryPickWaypoint(origin, belief, directWorks, directTime, stagnant, out Vector3 point))
         {
             hasRoutePoint = true;
             routePoint = point;
@@ -292,9 +406,21 @@ public sealed class NemesisPursuit
     /// A ROLL AND NOT AN ARGMAX, for the same reason NemesisController gives: always taking the
     /// single best-scoring position reads as the monster knowing exactly where you are, because
     /// functionally it does. Weighted tickets read as it having a good idea.
+    ///
+    /// AND WHEN THE CHASE HAS STALLED, THE WAY THEY CAME IS MARKED DOWN. This is the whole of the
+    /// answer to looping an obstacle, and it is deliberately not a behaviour: no "flank" state, no
+    /// point computed on the far side of the table. The waypoints the player was sensed running
+    /// past — NemesisController's sensed trail — lose most of their tickets, the detour budget
+    /// widens so the far side is affordable at all, and the roll does the rest: what is left is
+    /// the other way round. It works on the waypoint graph rather than on NavMesh area costs
+    /// because nothing here rebakes at runtime, and it is still a roll, so it is a tendency the
+    /// player can read and beat, not a certainty.
+    ///
+    /// Never faster: the speed gap is the design, and a monster that accelerates when you outwit it
+    /// reads as the game cheating, not as the monster being clever.
     /// </summary>
     private bool TryPickWaypoint(Vector3 origin, Vector3 belief, bool directWorks, float directTime,
-                                 out Vector3 point)
+                                 bool stagnant, out Vector3 point)
     {
         point = Vector3.zero;
 
@@ -324,8 +450,22 @@ public sealed class NemesisPursuit
         if (sampledBuffer.Count == 0) return false;
 
         float tolerance = data != null ? Mathf.Max(1f, data.ChaseDetourTolerance) : 1.25f;
+
+        // Raised, never lowered: a stagnant tolerance typed below the normal one would make the
+        // counterplay SHRINK the choice, which is the opposite of what a stall asks for.
+        if (stagnant)
+        {
+            tolerance = Mathf.Max(tolerance,
+                                  data != null ? data.ChaseStagnantDetourTolerance : 2.5f);
+        }
+
         float listenRange = data != null ? data.ListenRange : 10f;
         float speed = ChaseSpeed;
+
+        // Read once per replan rather than per candidate. Only consulted while stagnant.
+        float trailPenalty = data != null ? Mathf.Clamp01(data.ChaseTrailPenalty) : 0.2f;
+        float trailRadius = data != null ? Mathf.Max(0f, data.ChaseTrailPenaltyRadius) : 3f;
+        float floorBand = data != null ? data.FloorHeightThreshold : 2.5f;
 
         float freshness = controller != null ? controller.BeliefFreshness() : 1f;
 
@@ -372,6 +512,17 @@ public sealed class NemesisPursuit
 
             // Sooner is better. +1 so a candidate it is standing on does not divide by zero.
             weight /= 1f + ownTime;
+
+            // The way they came round, while the direct chase is getting nowhere. A multiplier
+            // and not a veto (unless the asset sets it to 0): if the trail side is the only place
+            // with a view of the player it still wins the roll, because a detour there beats
+            // tail-chasing them round the same lap again.
+            if (stagnant && graph.IsNearSensedTrail(candidate, trailRadius, floorBand,
+                                                    TrailMemoryTime))
+            {
+                weight *= trailPenalty;
+                PenalizedLastReplan++;
+            }
 
             weightBuffer.Add(weight);
             kept++;

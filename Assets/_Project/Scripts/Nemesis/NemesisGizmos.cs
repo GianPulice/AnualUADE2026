@@ -14,7 +14,7 @@ using UnityEngine;
 ///     Mode unless you click the root, which is exactly where this is most useful. Everything is
 ///     behind per-block toggles instead, so the cost of always drawing is a checkbox — plus a
 ///     master <c>drawGizmos</c> switch, because "always on" is right while tuning detection and
-///     wrong while dressing the level, and turning eleven checkboxes off one at a time is not a
+///     wrong while dressing the level, and turning a dozen checkboxes off one at a time is not a
 ///     workflow anyone repeats twice.
 ///   - <b>Every value is read from the ScriptableObject</b>, through NemesisStateManager, never
 ///     from a local copy. A gizmo with its own serialised radius drifts from the value the game
@@ -77,13 +77,23 @@ public class NemesisGizmos : MonoBehaviour
              "crouched. Usually far smaller than anyone expects.")]
     [SerializeField] private bool drawCrouchedVisionCone = true;
 
+    [Tooltip("The same cone shortened by UnderTableVisionMultiplier — how far it can make out a " +
+             "player hiding under a table. Suspicion meter only, never an instant sighting, and a " +
+             "full meter marks the spot as known instead of starting a chase (see " +
+             "FieldOfView.SenseThroughSpot). A locker's own fraction lives on SO_HidingData and is " +
+             "drawn round the spot itself, under 'Hiding spots' below, not here.")]
+    [SerializeField] private bool drawUnderTableVisionCone = true;
+
     [Tooltip("Inner cone (FocusAngle): where detection is INSTANT. Everything between it and the " +
              "outer cone is peripheral vision, where the Nemesis only builds suspicion instead of " +
              "spotting you outright. Drawn nested inside the vision cone, so the gap between the " +
              "two arcs IS the peripheral band.")]
     [SerializeField] private bool drawFocusCone = true;
 
-    [Tooltip("Hard detection radius: inside it you are seen with no cone and no hiding.")]
+    [Tooltip("Hard detection radius: inside it you are seen with no cone and no hiding. Measured " +
+             "flat from the body and only against a player on its own floor (within " +
+             "CatchMaxVerticalOffset), so it is drawn at the feet, where it applies — not at the " +
+             "eye.")]
     [SerializeField] private bool drawProximityDetection = true;
 
     [Header("Hearing")]
@@ -107,6 +117,21 @@ public class NemesisGizmos : MonoBehaviour
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
     [SerializeField] private bool drawProximityVignette = false;
 
+    [Header("Hiding spots")]
+    [Tooltip("The spot it KNOWS the player is in (orange) or only SUSPECTS (blue): a line to the " +
+             "approach point it walks to, and round the interior the range it can still make the " +
+             "player out at — through the slats (a half disc, the door side only) or under the " +
+             "table (all round). No ring means sealed. Play mode only: there is nothing to know " +
+             "outside it.")]
+    [SerializeField] private bool drawHidingKnowledge = true;
+
+    [Header("Chase")]
+    [Tooltip("While chasing: a ring of Chase Trail Penalty Radius around every waypoint on the " +
+             "sensed trail (where the player was sensed passing). Those are the detour waypoints " +
+             "the pursuit marks down once the chase stalls, so what is left outside the rings is " +
+             "'the other way round'. Faint while measuring, solid once stalled. Play mode only.")]
+    [SerializeField] private bool drawChaseTrail = true;
+
     [Header("Style")]
     [Tooltip("Segments per arc. Higher is smoother and costs nothing outside Play mode.")]
     [SerializeField, Range(8, 64)] private int arcSegments = 28;
@@ -119,6 +144,9 @@ public class NemesisGizmos : MonoBehaviour
     // gets it — a vision cone drawn red would read as "this is the kill zone", which it is not.
     private static readonly Color VisionColor    = new Color(1f, 0.784f, 0.314f);
     private static readonly Color CrouchColor    = new Color(0.55f, 0.75f, 0.45f);
+    // Teal, and nothing else in the palette: it nests between the crouched and the full cone, so
+    // it has to read against both green and amber at a glance. SO_NemesisDataEditor uses the same.
+    private static readonly Color UnderTableColor = new Color(0.35f, 0.82f, 0.80f);
     private static readonly Color HearingColor   = new Color(0.541f, 0.706f, 0.831f);
     private static readonly Color HardDetectColor = new Color(0.95f, 0.55f, 0.25f);
     private static readonly Color CatchColor     = new Color(0.8f, 0.10f, 0.10f);
@@ -166,7 +194,63 @@ public class NemesisGizmos : MonoBehaviour
         DrawSearchAndVignette(data);
         DrawIntercept();
         if (drawRoomSweep) DrawRoomSweep();
+        if (drawHidingKnowledge) DrawHidingKnowledge(manager);
         DrawPursuit();
+        if (drawChaseTrail) DrawChaseTrail(data);
+    }
+
+    /// <summary>
+    /// The sensed trail as the stalled-chase counterplay reads it, with the penalty radius around
+    /// each stamped waypoint.
+    ///
+    /// Same argument as DrawPursuit above, and it matters more here. "Did it come round the other
+    /// side" has two very different failure modes that look identical from the outside: the rings
+    /// cover BOTH sides of the obstacle (the radius is too big for it — nothing is left to pick),
+    /// or there is simply no waypoint outside the rings with a view of the player (the level
+    /// needs waypoints there, and no number will fix it). Seeing the rings over the real geometry
+    /// is what tells the two apart.
+    ///
+    /// Drawn from the same graph, the same age window and the same radius the pursuit uses, never
+    /// a copy — see the class summary for what a gizmo that disagrees with the game is worth.
+    /// Play mode only: there is no trail outside it.
+    /// </summary>
+    private void DrawChaseTrail(SO_NemesisData data)
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisChaseProgress progress = GetComponent<NemesisChaseProgress>();
+        if (progress == null || (!progress.IsMeasuring && !progress.IsChaseStagnant)) return;
+
+        NemesisStateManager manager = StateManager;
+        NemesisController controller = manager != null ? manager.NemesisController : null;
+        NemesisRouteGraph graph = controller != null ? controller.RouteGraph : null;
+
+        bool stagnant = progress.IsChaseStagnant;
+
+        // Faint while it is only measuring: the rings are a preview of what a stall would mark
+        // down, which is exactly what you want to see while tuning the radius before one fires.
+        Color color = stagnant
+            ? HardDetectColor
+            : new Color(HardDetectColor.r, HardDetectColor.g, HardDetectColor.b, 0.3f);
+
+        if (graph != null && graph.IsBuilt)
+        {
+            for (int i = 0; i < graph.NodeCount; i++)
+            {
+                if (graph.SensedAge(i) > NemesisPursuit.TrailMemoryTime) continue;
+
+                NemesisRouteGraph.Node node = graph.GetNode(i);
+                if (!node.IsValid) continue;
+
+                DrawDisc(node.Position, data.ChaseTrailPenaltyRadius, color);
+                Gizmos.DrawWireSphere(node.Position, 0.25f);
+            }
+        }
+
+        if (!stagnant) return;
+
+        DrawLabel(transform.position + Vector3.up * 2.6f,
+                  $"persecución estancada ({progress.ChaseStalledCount})", HardDetectColor);
     }
 
     /// <summary>
@@ -277,6 +361,64 @@ public class NemesisGizmos : MonoBehaviour
     }
 
     /// <summary>
+    /// The hiding spot the Nemesis knows or suspects the player is in (plan §3.4), against the
+    /// geometry it has to cross to get there.
+    ///
+    /// The HUD names the spot; the line is what shows the walk is measured to the APPROACH POINT
+    /// and whether the NavMesh actually reaches it. A certainty that goes unacted on for a whole
+    /// search budget is forgotten as a safety net (NemesisHidingAwareness), and a line to an
+    /// approach point behind a wall is how to tell that from a Nemesis that never knew.
+    ///
+    /// The ring round the interior is level B: how far it can still make the player out at through
+    /// the slats or under the table, from FieldOfView.HiddenViewRange and never a copy of the
+    /// multipliers. A locker's slats are in the DOOR, so it gets half a disc facing the way the
+    /// player inside looks out; a table is open all round. No ring means sealed — a container, or
+    /// a locker whose exposure is 0 — and that absence answers "why is the meter not filling".
+    ///
+    /// Orange for a certainty (the hard-detection colour: "inside this you are spotted") and the
+    /// passive blue for a suspicion, which is also the colour of the state that goes to look at
+    /// one (Investigating) in NemesisDebugHUD. Play mode only: there is nothing to know outside it.
+    /// </summary>
+    private void DrawHidingKnowledge(NemesisStateManager manager)
+    {
+        if (!Application.isPlaying) return;
+
+        HidingSpot known = manager.KnownHidingSpot;
+        HidingSpot spot = known != null ? known : manager.SuspectedHidingSpot;
+        if (spot == null) return;
+
+        Color color = known != null ? HardDetectColor : HearingColor;
+        Vector3 approach = spot.ApproachPoint.position;
+
+        Gizmos.color = color;
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, approach);
+        Gizmos.DrawWireSphere(approach, 0.3f);
+        DrawLabel(approach + Vector3.up * 0.8f, $"{(known != null ? "sabe" : "sospecha")} {NameOf(spot)}",
+                  color);
+
+        FieldOfView view = manager.FieldOfView;
+        float range = view != null ? view.HiddenViewRange(spot) : 0f;
+        if (range <= 0f) return;
+
+        Vector3 interior = spot.InteriorPose.position;
+        string label = $"distingue {range:0.#} m";
+
+        if (spot.Type == EHidingSpotType.Locker)
+        {
+            DrawCone(interior, spot.InteriorPose.forward, range, 180f, color, label);
+            return;
+        }
+
+        DrawDisc(interior, range, color);
+        DrawLabel(interior + Vector3.forward * range, label, color);
+    }
+
+    /// <summary>SpotId when the designer set one, the GameObject's name otherwise — the same name
+    /// NemesisDebugHUD prints, so the two pictures agree.</summary>
+    private static string NameOf(HidingSpot spot) =>
+        string.IsNullOrEmpty(spot.SpotId) ? spot.name : spot.SpotId;
+
+    /// <summary>
     /// Names the GameObject at its own base. On a level with a single Nemesis this looks
     /// redundant — but the moment there are two (a duplicate dropped in for testing, a second
     /// prefab variant), every one of the ranges below is otherwise unlabelled as to whose it is.
@@ -308,17 +450,31 @@ public class NemesisGizmos : MonoBehaviour
                      $"foco {data.FocusAngle:0.#}\u00b0");
         }
 
-        if (!drawCrouchedVisionCone) return;
+        if (drawCrouchedVisionCone)
+        {
+            // Crouching shortens the range rather than breaking line of sight — see FieldOfView.
+            // So it is the same cone at a shorter radius, drawn nested, which is what makes the
+            // size difference legible.
+            float crouched = data.ViewRange * data.CrouchVisionMultiplier;
+            DrawCone(eye, crouched, data.ViewAngle, CrouchColor, $"crouched {crouched:0.#} m");
+        }
 
-        // Crouching shortens the range rather than breaking line of sight — see FieldOfView. So it
-        // is the same cone at a shorter radius, drawn nested, which is what makes the size
-        // difference legible.
-        float crouched = data.ViewRange * data.CrouchVisionMultiplier;
-        DrawCone(eye, crouched, data.ViewAngle, CrouchColor, $"crouched {crouched:0.#} m");
+        if (drawUnderTableVisionCone)
+        {
+            // A table shortens the view the same way a crouch does (plan §3.4, level B), so it is
+            // the same nested cone again. What it feeds is different — the suspicion meter, never
+            // a sighting — and that is not something a shape can show; the tooltip says it.
+            float underTable = data.ViewRange * data.UnderTableVisionMultiplier;
+            DrawCone(eye, underTable, data.ViewAngle, UnderTableColor,
+                     $"bajo mesa {underTable:0.#} m");
+        }
 
         if (!drawProximityDetection || data.ProximityDetectionRange <= 0f) return;
 
-        DrawDisc(eye.position, data.ProximityDetectionRange, HardDetectColor);
+        // At the feet, not the eye: the test is flat from the body and gated on the Nemesis's own
+        // floor (FieldOfView.IsStandingOnMe). Drawn at the eye it floated 1.8 m above where it
+        // applies — the same picture that hid the old sphere never reaching the floor at all.
+        DrawDisc(transform.position, data.ProximityDetectionRange, HardDetectColor);
     }
 
     /// <summary>
@@ -457,14 +613,26 @@ public class NemesisGizmos : MonoBehaviour
                   $"{gait} {open:0.#} m  (wall {open * wall:0.#})", color);
     }
 
+#if UNITY_EDITOR
+    /// <summary>
+    /// Cached: FindAssets searches the whole project, and it used to run on every Scene-view repaint
+    /// for as long as a Nemesis was in the scene. Edits to the asset still show, since this is the
+    /// asset itself; a deleted or reimported one reads as null and is simply looked up again.
+    /// </summary>
+    private static SO_Movement cachedMovement;
+#endif
+
     private static SO_Movement FindPlayerMovement()
     {
 #if UNITY_EDITOR
+        if (cachedMovement != null) return cachedMovement;
+
         string[] guids = UnityEditor.AssetDatabase.FindAssets("t:SO_Movement");
         if (guids.Length == 0) return null;
 
         string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
-        return UnityEditor.AssetDatabase.LoadAssetAtPath<SO_Movement>(path);
+        cachedMovement = UnityEditor.AssetDatabase.LoadAssetAtPath<SO_Movement>(path);
+        return cachedMovement;
 #else
         return null;
 #endif

@@ -1,6 +1,12 @@
 # Plan — IA stalker y anti-cheese del Nemesis
 
-> **Plan de implementación futura. Nada de esto está construido.**
+> **Estado al 22/09/2026:** construidas las Fases 0, 1, 2, 4 y 5 (la 2 y la 5 falta jugarlas);
+> pendientes la 3, 6, 7 y 8. La Fase 2 pasó por una revisión de cuatro modelos ([§16](#16-revisión-del-consejo-21092026))
+> que encontró un bug bloqueante, ya corregido, y ajustó el modelo de los §3.3–§3.5. El Director de
+> Zona1, que se había perdido en el merge `16b1962c` (20/09), se rehízo el 22/09 con seis zonas que
+> cubren los 39 waypoints, y ahora ninguna palanca puede actuar a menos de 6 m del Hub (C5)
+> ([§14.1](#141-el-director-hoy-estado-en-zona1)).
+>
 > Compara el análisis *"IA de enemigos stalker"* (Alien: Isolation, Mr. X, Nemesis, Dimitrescu,
 > Requiem, GDC) contra lo que el Nemesis de WIRED ya tiene hoy, y propone qué construir, en qué
 > orden y dónde. **Asume que el sistema de escondites se construye** (spec *Hiding System v1.0*), y
@@ -40,6 +46,7 @@
 13. [Casos de prueba](#13-casos-de-prueba)
 14. [Cómo se arma en Unity](#14-cómo-se-arma-en-unity)
 15. [Bajadas entre pisos](#15-bajadas-entre-pisos)
+16. [Revisión del consejo (21/09/2026)](#16-revisión-del-consejo-21092026)
 
 ---
 
@@ -55,10 +62,10 @@ Lo que falta se concentra en cinco agujeros:
 
 | # | Agujero | Gravedad |
 |---|---|---|
-| 1 | **Escondites.** El lado jugador no existe. El lado Nemesis es binario (escondido = ciego) y, con los lockers del proyecto, **inmunidad total** — ver [§3.3](#33-hallazgo-con-los-lockers-actuales-esconderse-es-inmunidad-total). | Bloquea el feature |
+| 1 | **Escondites.** El lado jugador no existe. El lado Nemesis es binario (escondido = ciego) y, con los lockers del proyecto, **inmunidad total** — ver [§3.3](#33-hallazgo-con-los-lockers-actuales-esconderse-es-inmunidad-total). | ✅ Construido (Fases 1 y 2); falta jugarlo |
 | 2 | **Nadie cuenta los hábitos del jugador.** No hay ninguna contra-jugada. Es el anti-cheese entero. | Alta |
-| 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. Sigue siéndolo con M1 (3.6 m/s), y M2 ya no lo acorta porque es el módulo fatal ([C4](#c4--el-loop-alrededor-de-un-obstáculo-el-bug-de-la-mesa-de-dimitrescu)). | Alta, existe ya |
-| 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. Y en Zona1 hoy está **desactivado**, sin zonas ni disparadores ([§14.1](#141-el-director-hoy-estado-en-zona1)). | Media — pero sin esto el anti-cheese frustra |
+| 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. Sigue siéndolo con M1 (3.6 m/s), y M2 ya no lo acorta porque es el módulo fatal ([C4](#c4--el-loop-alrededor-de-un-obstáculo-el-bug-de-la-mesa-de-dimitrescu)). | ✅ Construido (Fase 4) |
+| 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. | ✅ Construido (Fase 5, 22/09); falta jugarlo |
 | 5 | **Escalada por progreso** (spec Nemesis §7.2) sin hacer. | Media, diferida por diseño |
 
 Y hay cosas que el análisis recomienda y que **acá no conviene hacer**: un `NoiseBus`, Unity
@@ -76,7 +83,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 | 1 | Separar percepción, conocimiento y decisión | ✅ | `FieldOfView` / `FieldOfListening` → `NemesisStateManager.TryGetBelief` / `BeliefAge` → `NemesisDecision` + `SO_NemesisPriorities`. Los estados sólo ejecutan. | Ninguna. Lo nuevo tiene que entrar igual: **un predicado y un peldaño, nunca un estado que decide**. |
 | 2 | El agente no hace trampa; el director sí | ✅ | Persecución y búsqueda leen la creencia y la velocidad **observada** (`FieldOfView.LastKnownVelocity`). Sólo dos lecturas del jugador real, ambas deliberadas: `ZoneBiasUsesRealPlayer` (elige zona, no waypoint) y `CanReachPlayerNow` (el agarre). | Las contra-jugadas nuevas tienen que pasar el mismo filtro (ver regla R4, §5). |
 | 3 | La detección es un acumulador | 🟡 | Banda periférica de 170° que llena `Awareness`; foco de 80° instantáneo a propósito (es un peldaño *interrupt*); agachado ×0.5 de alcance. | **Escondido es un `return` temprano**: 0 o todo. Sin término de luz. |
-| 4 | Administrar la tensión, no maximizarla | ❌ | `NemesisDirector` aplica presión cuando se la piden (`puzzleTriggers`, `RequestPressure`). | No hay medidor, ni estados de ritmo, ni retirada. El único alivio es la gracia post-captura (4 s) y que la búsqueda se agote (15 s). |
+| 4 | Administrar la tensión, no maximizarla | 🟡 | `NemesisTension` (medidor + BuildUp/SustainPeak/PeakFade/Relax) y `NemesisDirector` (retirada en Relax, sensibilidad creciente tras 90 s de silencio), con `SO_DirectorPacing`. | Construido el 22/09, sin jugar: los números del §12 son puntos de partida. |
 | 5 | Nada guionado para el "cuándo" y el "dónde" | 🟡 | Patrulla por ruleta, cúmulos, satélites; spawn y entrada muestreados. | Los disparadores del Director son siempre "al completar el puzzle". Aceptable: el *qué* puede ser fijo. |
 | 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint. | `patrolWaitVariance` está en 0.25 en el asset (el 0 es el default del código): la espera en cada waypoint varía 1.25–1.75 s, poco para que no se note el ritmo. Se arregla con un número. |
 | 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución. | `NemesisAudio.stateLoops` está cargado **sólo en la instancia de Zona1** (respiración de patrulla, búsqueda y persecución para Patrolling / Investigating / Chasing / Searching); faltan `Catch` y `Traversing`, y el prefab y la testbed no lo tienen. Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (ahora existe `NemesisEvents.OnActivated` para engancharlo). La música de persecución delata el estado interno — ver D5. |
@@ -186,7 +193,10 @@ La forma está decidida en `docs/CLAUDE.md` › *Hiding spots*. Resumen:
 La consola F10 conserva su toggle *Hide* como "escondido sin escondite", para seguir probando la
 visión sin armar un nivel.
 
-### 3.2 Lado Nemesis, hoy
+### 3.2 Lado Nemesis, antes de la Fase 2
+
+> Así estaba hasta el 21/09/2026. Lo que se construyó, con las correcciones del consejo, está en los
+> §3.3 a §3.5 y en el [§16](#16-revisión-del-consejo-21092026).
 
 - `FieldOfView.cs:383` — con `IsHidden`, `hasVisualTarget = false` y limpia la periferia, a
   propósito: para que no deduzca el locker por haber estado mirando justo cuando entraste.
@@ -228,15 +238,53 @@ El mismo arreglo cubre los dos casos, porque el tablero es un collider del escon
 spec pide además que la mesa **no ciegue** al Nemesis sino que le acorte la vista
 (`underTableVisionMultiplier`).
 
+✅ **Construido (21/09):** `HidingSpot.IsLineBlockedIgnoringSelf` (un `RaycastNonAlloc` que saltea los
+colliders propios del escondite); lo usan la proximidad, el agarre (vía
+`FieldOfListening.IsOccludedByWall(origen, destino, escondite)`) y la vista por las rendijas.
+
+**Segundo hallazgo, al construirlo: la proximidad extrema no disparaba nunca en el mismo piso.** Era
+una esfera de 1.5 m alrededor del **ojo** (el hueso de la cabeza, a ~1.8 m) medida hasta los **pies**
+del jugador: la diferencia de altura sola ya supera el radio. La regla "lo único que rompe `Hidden`"
+era código muerto también afuera de los escondites. Ahora es un **disco plano desde los pies del
+Nemesis**, sólo en su mismo piso (`|Δy| ≤ CatchMaxVerticalOffset`), y el rayo de pared apunta al
+cuerpo (+1 m), no al piso. Es lo que ya dibujaban el gizmo y el editor del SO. Cambia la dificultad
+de todo el juego, no sólo de los escondites: antes el alcance real era ~1 m de pie y ~0.6 m agachado
+(por `minDistance`); ahora es 1.5 m en cualquier postura. Vigilar pasillos de 2 m en Zona1.
+
+**Tercer hallazgo, del consejo ([§16](#16-revisión-del-consejo-21092026)): con sólo ignorar la
+carcasa, el Nemesis se quedaba clavado en la puerta.** La proximidad convertía al escondido en
+"lo está viendo" → `Chasing` corría a la pose interior, que está **fuera del NavMesh** (adentro del
+mueble); el agente frenaba 0.6 m antes del borde de la malla, a ~1.3 m del jugador, fuera del agarre
+de 1 m, mirando la puerta para siempre con la música de persecución. Ni el estancamiento ni el
+watchdog lo destrababan (para los dos, "llegó"). Arreglo:
+
+- **Detectado estando escondido = escondite conocido, no avistamiento.** La proximidad sobre alguien
+  en un escondite no prende `HasVisualTarget`: marca el escondite (`HiddenPlayerSpotted`) y el
+  Nemesis va a la puerta a abrir. `Chasing` nunca persigue a alguien escondido. El toggle *Hide* de
+  F10 (escondido sin escondite) sigue siendo un avistamiento: no hay puerta a la que ir.
+- **El agarre de un escondido se mide contra el `ApproachPoint`**, y sólo si conoce ese escondite:
+  "parado en la puerta = puede abrir". Pasar por la puerta de un locker ocupado que no conoce no saca
+  a nadie (sin detección previa).
+- Al revisar un escondite el agente frena a 0.25 m del `ApproachPoint`
+  (`NemesisStateManager.SpotCheckStoppingDistance`), no al metro de la patrulla.
+
 ### 3.4 Modelo propuesto: tres niveles de conocimiento
 
 **Nivel A — "Te vi entrar".** Inmediato, sin contador. Es la regla de Alien: si te ve entrar, te saca.
 
 - En `HidingEvents.OnEntered(spot)`: si el Nemesis tiene al jugador en el foco, o
   `FieldOfView.TimeSinceLastSighting < seenEnteringWindow` (0.75 s), y el escondite está a menos de
-  `ViewRange` de su ojo → `KnownSpot = spot`.
-- Si sólo había sospecha periférica (`Awareness` ≥ umbral, < 1) → el escondite queda **sospechoso**
-  y va a revisarlo (Nivel C), pero no es seguro. Esa es la zona gris.
+  `ViewRange` de su ojo **y ve la puerta** (línea de vista al `ApproachPoint` a la altura del cuerpo,
+  mirando a través de la carcasa del escondite) → `KnownSpot = spot`.
+  - **0.75 y no 0.6.** Se cuenta desde el FINAL de la subida (`enterDuration` 0.6), y la vista barre
+    cada 0.1 s: con 0.6 justo, alguien visto sólo en el primer barrido de la subida quedaría afuera.
+    El consejo lo discutió (§16): lo que faltaba no era un número más chico sino la línea de vista
+    a la puerta, que es lo que convierte "te vi hace un momento a la vuelta" en "te vi entrar".
+- Si sólo había sospecha periférica (`Awareness` ≥ umbral, < 1) **con contacto vivo en el último
+  barrido** → el escondite queda **sospechoso**: `Investigating` va a mirarlo, pero no es seguro. Esa
+  es la zona gris. El medidor que todavía está **bajando** de una persecución que ya te perdió no
+  cuenta: es memoria, no un vistazo, y castigaba al que cortó la línea de vista y se escondió bien
+  (caso 2 del §13; lo encontró el consejo).
 - No hace falta tocar el `return` de `FieldOfView`: su razón sigue valiendo. `TimeSinceLastSighting`
   no se borra al esconderse, así que se puede leer en el momento de entrar.
 
@@ -246,12 +294,23 @@ riesgo (locker medio, mesa alto, container bajo):
 | Tipo | Hoy | Propuesto |
 |---|---|---|
 | `Container` | ciego | ciego (el spec lo pide así) |
-| `Locker` | ciego | sólo acumula por las rendijas: alcance × `lockerVisionExposure` (0.25), **siempre por el acumulador, nunca instantáneo** |
-| `UnderTable` | ciego | alcance × `underTableVisionMultiplier` (spec), también por el acumulador |
+| `Locker` | ciego | sólo acumula por las rendijas y **sólo desde el lado de la puerta**: alcance × `lockerVisionExposure` (**0.35** → 2.45 m; ver §16.4), **siempre por el acumulador, nunca instantáneo** |
+| `UnderTable` | ciego | alcance × `underTableVisionMultiplier` (0.5 → 3.5 m, spec) desde cualquier lado, también por el acumulador |
 
-Si el medidor llega a 1 con el jugador escondido, no arranca una persecución: marca `KnownSpot`
-(Nivel A). Los números van a `SO_HidingData` por tipo; `underTableVisionMultiplier` va al final de
+Si el medidor pasa el umbral con el jugador escondido, el escondite queda **sospechoso** y
+`Investigating` camina a mirarlo (el mismo "fue a mirar" de la periferia; antes se iba al último
+ruido, que podía estar en cualquier lado). Si llega a 1, no arranca una persecución: marca
+`KnownSpot`. Los números van a `SO_HidingData` por tipo; `underTableVisionMultiplier` va al final de
 `SO_NemesisData`, al editor y a los gizmos, como pide `CLAUDE.md`.
+
+**Por qué el locker pasó de 0.25 a 0.5.** El alcance se mide desde el ojo (~1.8 m de alto) hasta el
+cuerpo: con 7 × 0.25 = 1.75 m, casi toda la banda caía adentro del disco de proximidad de 1.5 m, y
+el Nivel B del locker no existía. Locker y container eran lo mismo, que es justo lo que D7 dice que
+no tiene que pasar. La mesa se queda en 0.5: el consejo votó 2 a 1 no subirla, y el caso 4 del §13
+se corrigió a 3 m.
+
+**Proximidad y Nivel B son la misma respuesta.** Estar pegado a un escondite ocupado (≤1.5 m plano,
+sin pared en el medio salvo la carcasa) también lo marca conocido — ver el tercer hallazgo del §3.3.
 
 **Nivel C — Revisar escondites.** Dentro de `Searching`, los escondites que caen dentro del barrido
 de habitación entran como candidatos: ir al `ApproachPoint`, pararse, abrir o agacharse a mirar (la
@@ -268,11 +327,15 @@ pararse, mirar.
 
 | Pieza | Cambio |
 |---|---|
-| `NemesisSearchingState.PickNextPoint` | Prioridad: `KnownSpot.ApproachPoint` → escondites a revisar (Nivel C) → barrido de habitación → grafo. Al llegar a un escondite, la pausa es la de "revisar". |
-| `NemesisCatchState` | Fase nueva al principio, **sólo si el jugador está escondido**: abrir / sacarlo (animación), después `OnCaptured()` como siempre. `ECatchPhase` es privado, no se serializa: se puede insertar sin riesgo. |
-| `CanReachPlayerNow` y `CheckExtremeProximity` | Ignoran los colliders del escondite ocupado (§3.3). Así la captura normal funciona desde el `ApproachPoint` (que tiene que quedar a menos de `catchMaxReach`, 1 m, de la posición interior). |
-| `ENemesisPredicate` | Se agregan **al final**: `KnowsHidingSpot`, `IsCheckingSpot`. |
-| Escalera | Dos peldaños, **en el asset y en `BuildDefaultLadder()`**: <br>• `"sabe en qué escondite está"` → `Searching`, debajo de `"lo está viendo"` y **arriba de** `"lo perdió de vista recién"` (si no, la gracia de 2.5 s de `Chasing` le gana). <br>• `"está revisando un escondite"` → `Searching` (`InState(Searching)` + `IsCheckingSpot`), **arriba de** `"le queda presupuesto de búsqueda"`, para que el presupuesto de 15 s no lo arranque con la mano en la puerta. |
+| `NemesisSearchingState` (`TickSpotCheck`) | ✅ Prioridad: escondite **conocido** → **sospechoso** → barrido de habitación (con prioridad de la habitación donde te vio entrar) → grafo. Va al `ApproachPoint`, se queda `SearchPauseTime` y, si en ese rato no pasó nada, lo marca revisado (`MarkChecked`) y sigue. **No le pregunta al escondite si está ocupado**: si estás adentro, la proximidad te encontró apenas llegó a la puerta. |
+| `NemesisInvestigatingState` | ✅ Un escondite **sospechoso** le gana al ruido: camina a su puerta y mira `investigationDwellTime` (4 s). Si no pasó nada, lo marca revisado. |
+| `NemesisCatchState` | ✅ Fase nueva al principio, **sólo si el jugador está escondido** (`PullingOut`, `hiddenPullOutTime` 0.8 s): quieto, mirando al escondite, con la animación de agarre; después `OnCaptured()` como siempre, y el jugador **aparece en la `ExitPose`**, afuera del mueble (dejarlo adentro lo expulsaba PhysX). Si en ese rato salió y quedó fuera de alcance, suelta y la escalera retoma la persecución. `ECatchPhase` es privado, no se serializa: se pudo insertar sin riesgo. |
+| `CanReachPlayerNow` y `CheckExtremeProximity` | ✅ Ignoran la carcasa del escondite ocupado (§3.3). La proximidad sobre un escondido lo marca **conocido**; el agarre de un escondido se mide contra el `ApproachPoint` de un escondite **conocido**. |
+| `NemesisHidingAwareness` (nuevo, hermano de `NemesisStateManager`, se agrega solo) | ✅ `KnownSpot` / `SuspectedSpot`. Se olvida: revisado vacío (pero no mientras lo sigue viendo por las rendijas), visto afuera, captura, respawn, escondite quemado, o sin confirmar por `SearchTimeOut` / `InvestigationTimeOut` (cada confirmación reinicia el reloj). |
+| `ENemesisPredicate` | ✅ Se agregaron **al final**: `KnowsHidingSpot` (15), `IsCheckingSpot` (16), `SuspectsHidingSpot` (17). |
+| Escalera | ✅ Tres peldaños, **en el asset y en `BuildDefaultLadder()`** (verificados idénticos, 19 peldaños): <br>• `"sabe en qué escondite está"` → `Searching`, debajo de `"lo está viendo"` y **arriba de** `"lo perdió de vista recién"` (si no, la gracia de 2.5 s de `Chasing` le gana). <br>• `"está revisando un escondite"` → `Searching` (`InState(Searching)` + `IsCheckingSpot`), **arriba de** `"le queda presupuesto de búsqueda"`, para que el presupuesto de 15 s no lo arranque con la mano en la puerta. <br>• `"sospecha de un escondite"` → `Investigating`, **arriba de** `"vio algo de reojo"`: la sospecha periférica decae en menos de un segundo y sin este peldaño se soltaba antes de llegar a la puerta. |
+| Escape (`ChaseFloor`) | Sube "sabe en qué escondite está" a `Chasing`. Queda cubierto igual: la persecución termina en la puerta y el agarre se mide ahí. |
+| Debug | ✅ F9: fila `escondite` (sabe / sospecha / lo distingue por… · yendo / revisando). Gizmos: cono "bajo mesa", línea al escondite conocido o sospechoso y su alcance residual. Editor del SO: cuña "bajo mesa". |
 
 ### 3.6 Memoria por escondite
 
@@ -361,6 +424,25 @@ se aprende igual que el cheese.
 - **Nota de implementación:** contar que el jugador está en el Hub necesita un trigger que sólo
   **informe** presencia. No bloquea nada, así que no contradice la regla de que el Hub no tiene
   lado C#.
+- ✅ **Construido (22/09): el Director ya no puede fabricar C5.** `NemesisSafeZones` lee como
+  huellas los volúmenes *Not Walkable* que llevan un `SafeZoneMarker` (un componente sin lógica al
+  lado del `NavMeshModifierVolume` del Hub; sin trigger ni capa nueva) y responde "¿dentro del
+  Hub?" y "¿a qué distancia del Hub?". El marcador es necesario porque *Not Walkable* no quiere
+  decir refugio: los 28 `Bridges_support_2` de Zona1 llevan uno adentro (`NavMesh Blocker`,
+  0.86 × 1.11 m) y, contados como Hub, rechazaban `panel electrico`, `fondo norte` y `ala oeste`.
+  Sin ningún marcador, el Director lo avisa al arrancar y el validador lo reporta. Con eso:
+  - ninguna zona de presión puede tener el centro a menos de `NemesisSafeZones.Clearance` (6 m) del
+    Hub: el Director la rechaza en runtime, y el gizmo y el validador la marcan;
+  - el ruido sintético y la entrada tipo Mr. X descartan puntos a menos de 6 m del Hub en el mismo
+    piso;
+  - la gravitación por la posición real del jugador (`ZoneBiasUsesRealPlayer`) se apaga mientras el
+    jugador está dentro del Hub: si no, la patrulla rondaba la puerta todo el tiempo que se quedara
+    adentro;
+  - la sensibilidad creciente no presiona mientras el jugador está en el Hub, y su reloj de silencio
+    se pausa.
+  Lo que el Nemesis **sintió** sigue valiendo (si te vio entrar, busca en la puerta hasta que se le
+  vence la búsqueda). La contra-jugada (1) sale sola de la Fase 5: una persecución que termina en el
+  Hub es un pico, y el Relax que sigue es la retirada.
 
 ### C6 — Ruido de cebo *(futuro)*
 - Hoy no hay objetos para tirar. `SightCommitTime` (6 s) ya impide escaparse de una habitación
@@ -589,14 +671,20 @@ puede ir en paralelo con la 1.
   propio código anticipa). `Traversing` **no** hace falta autorarlo — si no tiene entrada, el código
   le presta el loop de `Chasing`.
 - ✅ D5 decidido e implementado (ver §12).
-- ✅ Director activado en Zona1, con 5 zonas de presión y 3 disparadores por puzzle
-  ([§14.1](#141-el-director-hoy-estado-en-zona1)). El Nemesis pasa a despertarse con
-  `sp1_panel_electrico`.
+- ✅ Director activado en Zona1 ([§14.1](#141-el-director-hoy-estado-en-zona1)). Se había perdido
+  (entró en `359081fd` y el merge `16b1962c` del 20/09 se quedó con la escena que no lo tenía); se
+  rehízo el 22/09 con seis zonas y dos disparadores. El Nemesis se despierta con `sp2_contenedores`
+  (valor del prefab, a propósito: las puertas del montacargas se abren con `sp1`). **Desde el 22/09
+  a la tarde en Zona1 no se despierta en el gameplay:** sólo en la cinemática final (§14.1).
 - **Pendiente de jugar:** F9 tiene que mostrar esperas distintas en cada waypoint; F10 tiene que
   listar las cinco zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
   o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
 
-### Fase 1 — Escondites, lado jugador *(prerrequisito)*
+### Fase 1 — Escondites, lado jugador *(prerrequisito)* — ✅ construida (commit `9eba9b46`)
+- Área de prueba: `TestIñaki.unity` → *Hiding Test Area* (`Tools/Hiding/Build Test Area (TestIñaki)`),
+  con los prefabs `Prefabs/HidingSpotFather/HidingSpot_Locker`, `_UnderTable` y `_Container`, y
+  blends de 0.3 s hacia la cámara interior (`CB_HidingSpotBlends`) en TestIñaki y la testbed. **Falta
+  en Zona1:** no hay ningún escondite puesto ni el blend asignado en su `CinemachineBrain`.
 - `HidingSpot`, `SO_HidingData`, enum de tipo, `PlayerHiddenState` real, cámaras interiores,
   respiración por pulsos, `F` para aguantar, guard de `Tab`, snapshots del mixer.
 - `CurrentHidingSpot`, `HidingEvents`, `ApproachPoint`, `SpotId`.
@@ -604,14 +692,32 @@ puede ir en paralelo con la 1.
 - **Verificación:** los casos del spec; con F10, el Nemesis no te ve; la respiración se oye a la
   distancia de los gizmos; después de salir el emisor queda como estaba (caminar vuelve a sonar a 4).
 
-### Fase 2 — El Nemesis sabe de escondites
-- `NemesisHidingAwareness`: Nivel A (visto entrando) y Nivel B (visibilidad residual por tipo).
-- **Arreglo de §3.3**: proximidad y captura ignoran el escondite ocupado.
-- `Searching` va primero al escondite conocido; `Catch` con fase de sacar al jugador.
-- Predicados `KnowsHidingSpot`, `IsCheckingSpot` (al final del enum) y los dos peldaños (**asset y
-  `BuildDefaultLadder()`**).
-- `underTableVisionMultiplier` al final de `SO_NemesisData` + editor + gizmos.
-- **Verificación:** casos 1–5 del [§13](#13-casos-de-prueba).
+### Fase 2 — El Nemesis sabe de escondites — ✅ construida (21/09, sin commitear), falta jugarla
+- ✅ `NemesisHidingAwareness`: Nivel A (visto entrando, con línea de vista a la puerta; sospecha sólo
+  con contacto vivo) y Nivel B (visibilidad residual por tipo; sospecha al pasar el umbral, conocido
+  al llenarse).
+- ✅ **Arreglo de §3.3**, más los dos hallazgos que aparecieron al construirlo: proximidad plana desde
+  los pies (antes nunca disparaba en el mismo piso) y "detectado escondido = escondite conocido", con
+  el agarre medido en la puerta.
+- ✅ `Searching` va primero al escondite conocido (después al sospechoso); `Investigating` revisa el
+  sospechoso; `Catch` con fase de sacar al jugador, que aparece en la `ExitPose`.
+- ✅ Predicados `KnowsHidingSpot`, `IsCheckingSpot`, `SuspectsHidingSpot` (al final del enum) y tres
+  peldaños (**asset y `BuildDefaultLadder()`**, verificados idénticos en Unity).
+- ✅ `underTableVisionMultiplier` al final de `SO_NemesisData` + editor + gizmos; fila `escondite` en F9.
+- ✅ Prioridad de habitación (pedido del 21/09): visto entrando a una habitación, los puntos de adentro
+  van primero (`NemesisRooms` lee la habitación del nombre del piso, `<SALA>_Floor_<n>`, o del padre).
+- **Verificación:** casos 1–5, 11 y 17–21 del [§13](#13-casos-de-prueba), en TestIñaki (la testbed no
+  tiene escondites). Checklist completo: `docs/Checklist-NemesisTestbed.md`.
+- **Pendiente:**
+  - Animación `Pull Out` (§15.5) y SFX de puerta: hoy el pull-out son 0.8 s de la animación de
+    agarre. Con la animación, revisar si 0.8 s alcanza (el consejo propuso 1.2 s).
+  - **Aviso audible al saber el escondite** (un sting de voz): hoy nada le dice al jugador, desde
+    adentro, que el Nemesis *sabe* y no que *adivina*. Es el margen real para decidir salir (D1).
+  - Alternativa a probar (D17): al pasar el umbral por las rendijas, clavar la mirada en el
+    escondite (`NemesisLookAround`) en vez de ir directo a la puerta.
+  - En escenas que no hornean `Default` (la testbed hornea `Ground|Wall|Props`), el collider sólido
+    del container no hace hueco en el NavMesh: pasarlo a `Props` o sumarle un
+    `NavMeshModifierVolume` en una capa horneada antes de poner containers ahí.
 
 ### Fase 3 — Contar sin reaccionar
 - `PlayerHabitTracker` (`ISessionResettable`), `SO_CounterplayRules`, `EExploitKind`, puntos de
@@ -619,17 +725,43 @@ puede ir en paralelo con la 1.
 - Panel de hábitos en F9 + log de cada registro.
 - **Sin contra-jugadas todavía.** Se juega para calibrar los umbrales con datos y no a ojo.
 
-### Fase 4 — Persecución estancada *(independiente)*
+### Fase 4 — Persecución estancada *(independiente)* — ✅ construida (commit `9eba9b46`), salvo "soltar y emboscar"
 - `NemesisChaseProgress`, predicado `IsChaseStagnant`, penalización del rastro en `NemesisPursuit`,
-  soltar y emboscar.
+  soltar y emboscar. *Soltar y emboscar no está: ningún peldaño lee `IsChaseStagnant` todavía; va con
+  la emboscada de la Fase 6.* La testbed tiene `Column_Loop` en ENTRADA, pero sin waypoints alrededor
+  la penalización del rastro no tiene de dónde elegir: sumar 2–3 o probar en `Cover_Pasillo`.
 - Autorar a mano una columna o una mesa aislada en `Scenes/Dev/NemesisTestbed.unity`, para tener el
   test de la mesa siempre a mano. (`NemesisTestSceneBuilder` se borró el 17/09; la testbed ya no se
   regenera, así que lo que se agregue queda.) Rebakear el NavMesh de la testbed.
 - **Verificación:** caso 7.
 
-### Fase 5 — Tensión y ritmo
-- `NemesisTension`, estados de ritmo en el Director, retirada, sensibilidad creciente, fila en F9.
-- **Verificación:** caso 9.
+### Fase 5 — Tensión y ritmo — ✅ construida (22/09, sin commitear), falta jugarla
+- ✅ `NemesisTension` (en el GameObject del Director; el Director lo agrega si falta): medidor 0..1
+  alimentado por proximidad, persecución, "el jugador lo ve" (raycast cabeza → pecho con el
+  `obstacleMask` de los sentidos, sin cámara) y "escondido con el Nemesis buscando cerca"; pico con
+  la captura. No decae en `Chasing` ni `Catch`. Arranca con `NemesisEvents.OnActivated` y se pausa
+  con el Nemesis dormido, durante una cinemática (`CinematicState`) y durante el escape
+  (`ChaseFloor`).
+- ✅ Estados `BuildUp → SustainPeak → PeakFade → Relax`. El pico sólo se dispara desde BuildUp: el
+  Relax arranca con el medidor todavía alto, y desde ahí volvía a picar en el frame siguiente.
+- ✅ En el Director: PeakFade corta la presión propia del ritmo; Relax presiona la zona más lejana
+  por NavMesh **sólo con ancla y pesos** (sin ruido ni sentidos); BuildUp con 90 s sin contacto
+  arranca la sensibilidad creciente (0.3 → +0.15 cada 20 s → 1.0) sobre la zona del jugador. Los
+  disparadores por puzzle y la API le ganan siempre: mientras hay uno vivo, el ritmo espera.
+- ✅ `SO_DirectorPacing` en `ScriptableObjects/Nemesis/`, asignado al Director de Zona1 y al de
+  `NemesisTestbed` (el de la testbed tiene 4 zonas que cubren 5 de sus 17 waypoints: alcanza para
+  ver la retirada y la sensibilidad, no para calibrarlas).
+- ✅ F9: filas `ritmo` (estado, tiempo, medidor, silencio) y `presión` (zona, intensidad, origen,
+  tiempo). F10: línea de ritmo y botones *Pico de tensión* / *Saltar silencio* (cambian entradas,
+  no estados).
+- **Diferencia con el §14.3:** no hay trigger informativo del Hub. Un `SafeZoneMarker` en el mismo
+  GameObject que el volumen *Not Walkable* del Hub reusa su caja, así que no hay capa que elegir ni
+  collider que mantener alineado. Están en los dos `Safe Area` de Zona1 y en
+  `SafeVolume (CORRECT - on Props)` de la testbed. El conteo de `SafeZoneEscape` (Fase 3) puede usar
+  lo mismo.
+- **Verificación:** caso 9. Con F10: *Pico de tensión* → F9 pasa por SustainPeak y PeakFade a Relax,
+  y la fila `presión` muestra la zona más lejana como `retirada`; *Saltar silencio* → la zona del
+  jugador aparece como `sensibilidad` y sube un escalón cada 20 s.
 
 ### Fase 6 — Contra-jugadas desbloqueables
 - `CheckHidingSpots`, `PrioritizeSuspiciousSpots`, `ExitAmbush`, `BurnHidingSpot` (necesita el
@@ -706,6 +838,11 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D10 | ¿*Generate Links* sigue prendido en la NavMeshSurface de Zona1? | **Apagarlo** y autorar cada link (§15.2). Un link generado es una bajada o un salto sin animación, sin validar y en lugares que nadie eligió. |
 | D11 | ¿Bajadas en patrulla o sólo cazando? | **Cazando** (`Chasing`, `Traversing`, `Searching` hacia una creencia), por costo de link alto en patrulla. Una patrulla que se tira por el hueco cada ronda deja de asustar a la tercera vez. |
 | D12 | ¿El Director puede usar una bajada como entrada tipo Mr. X? | Sí, más adelante: la entrada ya muestrea puntos fuera de vista a 10–22 m. Una variante "cae por el hueco de la zona presionada" es un candidato más, no un sistema nuevo. Fuera del alcance de la Fase 8. |
+| D13 | Un jugador escondido detectado por proximidad, ¿es un avistamiento o un escondite conocido? | **Decidido (21/09, consejo 4/4): escondite conocido.** Como avistamiento, `Chasing` corría a un punto dentro del mueble y se clavaba en la puerta (§3.3). Además gana el golpe de Alien: llega en silencio, la música pega cuando abre (`Catch` ya está en el set de persecución de la telemetría). |
+| D14 | La proximidad y el agarre a través de la carcasa, ¿desde cualquier lado o sólo desde la puerta? | **Decidido (consejo 2 a 1):** la **detección** desde cualquier lado — es presencia, no vista, y restringirla reabre pegarse a la chapa de atrás; una pared detrás del locker igual ocluye. El **agarre**, sólo desde la puerta (se mide contra el `ApproachPoint`). La vista por las rendijas (Nivel B), sólo desde la puerta. *Disidencia:* detección sólo desde la puerta en locker y container. A revisar con playtest si "te detectó por la espalda del locker" se siente omnisciente. |
+| D15 | El container (ciego + respiración ×0.5), ¿es dominante? | **No se toca por ahora (consejo 3 a 1).** Es el "riesgo bajo" del spec; lo compensan la colocación (rareza, cámara ±10/±10, el lowpass más pesado) y la Fase 6 (`CheckHidingSpots` revisa escondites fríos). Parecía dominante sobre todo porque el Nivel B del locker estaba muerto (0.25, ver §3.4). *Disidencia:* `containerNoiseMultiplier` a 1.0 ya. Si la Fase 3 muestra que todos eligen container, se sube. |
+| D16 | Los 0.8 s de sacarte del escondite, ¿son una ventana para escapar? | **No.** Salir en ese momento te deja en la `ExitPose`, a centímetros del Nemesis y quieto 0.6 s: te agarra igual. Es el golpe de verlo en la puerta. El margen real es **antes** (D1), y para que exista falta el aviso audible cuando el Nemesis **sabe** (Fase 2, pendiente). |
+| D17 | Viéndote por las rendijas, al pasar el umbral: ¿va a mirar o se frena y clava la mirada? | **Implementado: va a mirar** (es lo que promete "vio algo de reojo", y antes se iba a un ruido viejo). *Alternativa a probar (consejo):* clavar la mirada en el escondite a 0.4 y conocerlo recién a 1.0 — más legible desde adentro, pero con el mismo final si no cortás el contacto. |
 
 ---
 
@@ -715,9 +852,13 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 
 | Parámetro | Valor | Origen |
 |---|---|---|
-| `seenEnteringWindow` | 0.75 s | Ventana de la animación de entrada |
-| `lockerVisionExposure` | 0.25 del alcance, sólo por acumulador | Spec: riesgo medio |
-| `underTableVisionMultiplier` | 0.5 | Spec: riesgo alto |
+| `seenEnteringWindow` | 0.75 s, **y línea de vista a la puerta** | Subida 0.6 s + un barrido de la vista (0.1 s) + margen |
+| `lockerVisionExposure` | **0.35** del alcance (2.45 m), sólo por acumulador y sólo del lado de la puerta | Spec: riesgo medio. Con 0.25 quedaba adentro del disco de proximidad (§3.4); con 0.5 agarraba casi siempre en el playtest (§16.4) |
+| `underTableVisionMultiplier` | 0.5 (3.5 m) | Spec: riesgo alto. El consejo votó no subirla |
+| Proximidad extrema | 1.5 m **plano** desde los pies, sólo mismo piso (`CatchMaxVerticalOffset`) | Antes era una esfera desde el ojo que nunca llegaba al piso (§3.3) |
+| `hiddenPullOutTime` | 0.8 s | Placeholder hasta la animación `Pull Out`; el consejo propuso 1.2 s con SFX |
+| Frenado al revisar un escondite | 0.25 m del `ApproachPoint` | El de patrulla (1 m) dejaba al Nemesis fuera del agarre y de la proximidad |
+| Respiración escondido | Sin cambios (radio 0.8) | Se oye a ~2.3 m por la chapa: el oído mide por camino hasta el emisor proyectado al NavMesh, así que la franja 1.5–2.3 m, donde aguantar `F` decide, existe. El consejo propuso 1.6 y se descartó por eso |
 | Umbral sospechoso / quemado | 2 / 4 usos del mismo escondite | Requiem, Isolation (2–3) |
 | `CheckHidingSpots` | 3 escapes escondido | Isolation (lockers) |
 | `chanceAtUnlock` / por uso extra / tope | 0.35 / +0.1 / 0.85 | Que siga siendo apuesta |
@@ -726,6 +867,10 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Penalización del rastro en `NemesisPursuit` | ×0.2 al peso del waypoint | RE4R (Flanker) |
 | `SustainPeak` / `Relax` | 3–5 s / 30–45 s | Left 4 Dead (GDC 2009) |
 | `quietTimeout` (sensibilidad creciente) | 90 s sin contacto | Mr. X; ajustar al tamaño del nivel |
+| Medidor: ganancias por segundo | proximidad 0.05 (× 0..1) · persecución 0.08 · el jugador lo ve 0.05 (hasta 12 m) · escondido con búsqueda cerca 0.04 · captura = 1 | Una persecución de ~5–6 s llega al pico (0.85); con 0.12 bastaban 4 s y cualquier escapada corta compraba un Relax |
+| Medidor: decaimiento | 0.03/s, después de 4 s sin estímulos; nunca en `Chasing`/`Catch` | ~30 s de lleno a vacío, del orden del Relax |
+| Rampa de la sensibilidad creciente | 0.3, +0.15 cada 20 s, tope 1.0 | Llega al máximo en ~100 s después del `quietTimeout` |
+| Intensidad de la retirada | 0.8, sólo ancla y pesos | Si te lo cruzás, sus sentidos están intactos |
 | `patrolWaitVariance` | 0.6 s (hoy 0.25) | `docs/CLAUDE.md` |
 | Bajadas: alto mínimo / máximo | 1.5 m / 5 m (verificar el alto real entre `PISO_01` y `PISO_02` en el editor) | Debajo de 1.5 m lo cubre `agentClimb`/escalón; arriba de 5 m un humanoide no cae sin consecuencias |
 | Bajadas: umbral salto corto ↔ descolgarse | 2.5 m (= `FloorHeightThreshold`) | Mismo número que ya separa "otro piso" de "desnivel" |
@@ -744,14 +889,16 @@ persecución 2.5 s.
 ## 13. Casos de prueba
 
 En `Scenes/Dev/NemesisTestbed` (F9 HUD, F10 consola) y después en `WIRED_Zona1_Blockout` desde
-`Bootstrap`.
+`Bootstrap`. Los de escondites (1–5, 11, 17–21) van en `TestIñaki.unity` → *Hiding Test Area*
+mientras la testbed no tenga escondites. El checklist completo de la testbed, paso a paso, está en
+`docs/Checklist-NemesisTestbed.md`.
 
 | # | Situación | Esperado |
 |---|---|---|
-| 1 | Te persigue, entrás al locker a la vista. | Nivel A: va directo al `ApproachPoint`, lo abre y te captura. F9 muestra `"sabe en qué escondite está"`. |
-| 2 | Te persigue, doblás una esquina, entrás al locker fuera de su vista. | Barre la habitación y no revisa el locker (sin desbloqueo). Se va a los 15 s. Cuenta un `EscapedWhileHidden`. |
-| 3 | Escondido en el locker, el Nemesis pasa a 1 m. | Te detecta por proximidad aunque el collider del locker esté en el medio (arreglo §3.3). |
-| 4 | Debajo de la mesa, el Nemesis mirando de frente a 5 m. | La sospecha sube sin arrancar persecución; si llega a 1, pasa a Nivel A. |
+| 1 | Te persigue, entrás al locker a la vista. | Nivel A: va directo al `ApproachPoint`, lo abre y te captura. F9 muestra `"sabe en qué escondite está"` y `escondite: sabe … (lo vio entrar) · yendo → revisando`. No se queda clavado en la puerta. |
+| 2 | Te persigue, doblás una esquina, entrás al locker fuera de su vista. | Barre la habitación y no revisa el locker (sin desbloqueo). Se va a los 15 s. Cuenta un `EscapedWhileHidden`. Tampoco **sospecha** aunque el medidor siga bajando de la persecución. |
+| 3 | Escondido en el locker, el Nemesis pasa a 1 m. | Te detecta por proximidad aunque el collider del locker esté en el medio (arreglo §3.3): `escondite: sabe … (lo tiene encima)`, sin `Chasing`, y te saca. |
+| 4 | Debajo de la mesa, el Nemesis mirando de frente a **3 m**. | La sospecha sube sin arrancar persecución (`lo distingue por …`); al pasar el umbral va a mirar; si llega a 1, pasa a "sabe". **A 5 m no pasa nada:** el alcance bajo la mesa es 7 × 0.5 = 3.5 m. |
 | 5 | Escondido, soltás `F` (exhalás) con el Nemesis a 4 m. | `Investigating` hacia el escondite, no `Chasing`. |
 | 6 | Tres escapes escondido, cuarta búsqueda. | A veces (sorteado) revisa escondites dentro de su barrido. La primera vez que lo hace estás en rango de verlo u oírlo (R3). |
 | 7 | Loop alrededor de una columna corriendo. | En ~4 s F9 marca estancamiento; corta por el otro lado o suelta y embosca. Nunca se acelera. |
@@ -764,6 +911,11 @@ En `Scenes/Dev/NemesisTestbed` (F9 HUD, F10 consola) y después en `WIRED_Zona1_
 | 14 | Llega una captura o un respawn mientras está en el aire (forzarlo desde F10). | La caída termina igual; nada se cancela a mitad del salto. El respawn lo pone en tierra. |
 | 15 | Parado justo abajo del punto de aterrizaje. | Cae igual, **no** te agarra en el aire; la captura sólo puede empezar después de la recuperación. |
 | 16 | Patrullando, sin creencia. | No usa la bajada (costo de patrulla), salvo que no exista otra ruta al waypoint. |
+| 17 | Te ve de reojo (medidor subiendo, sin llegar a 1) mientras te subís al locker. | `sospecha de un escondite` → `Investigating` camina a la puerta y mira 4 s. Si seguís adentro, al llegar te detecta por proximidad y te saca; si saliste antes, lo da por revisado y se va. |
+| 18 | En el locker, él pasa de frente a 2–3.5 m. | Por las rendijas: `lo distingue por …`, sospecha → va a mirar → te saca. Por detrás del locker, o dentro del container, nada (salvo que pase a ≤1.5 m). |
+| 19 | Te saca de un escondite. | Después de 0.8 s quieto en la puerta, captura; aparecés en la `ExitPose`, afuera del mueble, no adentro ni despedido por la física. |
+| 20 | Pasa a ≤1 m de la puerta de un locker ocupado **por detrás de una pared**. | Nada: la pared ocluye; la carcasa es lo único que se atraviesa. |
+| 21 | Durante el escape (cinemática final en marcha, `ChaseFloor`), te escondés a su vista. | Sigue en `Chasing`, llega a la puerta y te agarra (el agarre de un escondido se mide en la puerta). |
 
 ---
 
@@ -776,16 +928,36 @@ pudo abrir.
 
 ### 14.1 El Director hoy: estado en Zona1
 
-| Qué | En la escena | Qué implica |
+> **22/09/2026: rehecho.** El setup de la Fase 0 (commit `359081fd`, 19/09) se perdió en el merge
+> `16b1962c` (20/09). Se volvió a armar con las cinco zonas de entonces, una sexta y la protección
+> contra C5. Los dos cambios de diseño respecto del 19/09 son decisiones del equipo: el Nemesis se
+> despierta con `sp2` (el montacargas está cerrado hasta `sp1`), y el puzzle central no tiene
+> disparador porque dispara la cinemática del escape.
+>
+> **22/09/2026, más tarde: el Nemesis ya no aparece en el gameplay de Zona1**, sólo en la cinemática
+> final (pedido del equipo). Ver la fila "Nemesis: activación": el Director, las zonas y los
+> disparadores quedan armados pero inertes mientras el Nemesis duerme.
+
+| Qué | En la escena (22/09) | Qué implica |
 |---|---|---|
-| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Activo** desde el 19/09/2026; estuvo desactivado desde el commit que lo agregó (`d69d4f6`, 06/09) | Corre `Awake` y hay singleton: la API responde y el ancla de presión llega a `NemesisController`. |
-| `Puzzle Triggers` | 3, cargados el 19/09: `sp1_panel_electrico` → `panel electrico` 0.5 / 45 s · `sp3_valvulas` → `valvulas` 0.7 / 60 s · `puzzle_central_piso1` → `montacargas` 1.0 / 60 s **+ entrada Mr. X** | La presión sube con el progreso. La entrada teatral está sólo en el último, y ninguno la pide en el puzzle que despierta al Nemesis. |
-| `NemesisPressureZone` | 5, creadas el 19/09 como hijas del Director: `montacargas` (r 11), `panel electrico` (r 10), `valvulas` (r 12), `fondo norte` (r 13), `ala oeste` (r 8) | Cubren 32 de los 39 waypoints, cada una con waypoints de los dos pisos, y ninguna toca el Hub (la más cercana queda a 12.2 m). |
-| Quién llama a la API | Sólo `NemesisTestConsole` (F10) | Ni los módulos ni la narrativa piden presión todavía. |
+| GameObject `Nemesis Director`, bajo `---- SISTEMA ----` | **Activo**, en el origen (su posición no se usa), con `NemesisDirector` + `NemesisTension` | Corre `Awake` y hay singleton: la API responde y el ancla de presión llega a `NemesisController`. |
+| `Puzzle Triggers` | 2: `sp2_contenedores` → `fondo norte` 0.5 / 45 s · `sp3_valvulas` → `valvulas` 0.7 / 60 s **+ entrada Mr. X** | La presión sube con el progreso. La entrada no va en `sp2` porque es el puzzle que despierta al Nemesis (§14.2), ni en el central (cinemática). |
+| `NemesisPressureZone` | 6, bajo `Nemesis Director / Pressure Zones`, reubicadas a mano en el editor el 22/09: `montacargas` (-16.6, 0, 9.9) r 10 · `panel electrico` (-23.1, 0, 22) r 10 · `valvulas` (28.6, 0, 25.6) r 12 · `fondo norte` (0.7, -0.8, 27.4) r 15 · `ala oeste` (-9.8, 0, 27.3) r 9 · `centro este` (15.9, 0, 12.3) r 11 | Cubren **38 de 39** waypoints (seleccionando el Director se ve cuál falta). Ningún centro queda a menos de 6 m del Hub: el más cercano es `centro este`, a 7.8 m. El ruido y la entrada igual evitan los 6 m alrededor de la puerta. |
+| `SafeZoneMarker` | En `'Safe Area '` y `Safe Area  (1)` | Es cómo el Director sabe dónde está el Hub (C5). Sin él la protección se apaga, y lo avisan el Director y el validador. |
+| Volúmenes del Hub | Agrandados 0.2 m por lado el 22/09: `'Safe Area '` 13.22 × 4.27 × 21.37, `Safe Area  (1)` 4.65 × 4.16 × 11.63 (centros sin cambio) | Con el radio del agente en 0.3 el Nemesis se paraba 0.2 m más cerca de las puertas; en la norte (`DoorMetalRed (7)`, la del escape, con la pared al ras del volumen) el agarre llegaba ~0.6 m adentro. Así vuelve a ~0.4 m, lo de antes. Necesita re-hornear Zona1. |
+| `SO_DirectorPacing` | Asignado | El ritmo de la Fase 5 está prendido. |
+| Quién llama a la API | Los disparadores, el ritmo y `NemesisTestConsole` (F10) | Ni los módulos ni la narrativa piden presión todavía. |
 | `noiseLayer` 8 (`DetectableAudio`) contra el `listenMask` del prefab (256) | ✅ Coinciden | El ruido sintético se oye. Si no coincidieran, `Start` lo reporta. |
 | El resto de la tuning del componente | Valores por defecto: evaluación cada 3 s, pesos ×3, ruido cada 9 s con radio 4, sentidos ×1.25, entrada a 10–22 m con 2.5 s de pausa | Sirven para arrancar. |
-| Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
-| Nemesis: `activatedByPuzzleId` en la instancia de Zona1 | `sp1_panel_electrico` (19/09; estaba vacío) | Aparece al completar el primer sub-puzzle, que es lo que `Nemesis-System.md` describe para el nivel. |
+| Rutas | 4 `NemesisRoute` asignadas al `NemesisController`, con pesos 3 / 1 / 1 / 2; la de peso 3 (`ROUTE 2 2F`) se abre con `sp1_panel_electrico` | La palanca 2 tiene con qué trabajar. |
+| Nemesis: activación | `wakeOnlyFromScript` prendido (override en la escena, 22/09). `activatedByPuzzleId` sigue en `sp2_contenedores` (prefab) pero se ignora | Duerme toda la partida hasta que el escape lo toma (`NemesisCinematicActor` → `ActivateInPlace`, sin buscar spawn point: la cinemática lo pone detrás de su puerta). Sin anuncio ARC_02. Los disparadores de `sp2`/`sp3` y la entrada Mr. X no hacen nada (salen si el Nemesis no está activo). Apagar el flag vuelve al despertar con `sp2`. |
+
+**Cómo se ven las zonas.** Cada zona se dibuja como un cilindro: un disco por cada piso donde tiene
+waypoints, con etiqueta de id, radio, waypoints cubiertos y presión en vivo (color según la
+intensidad), y en magenta si está pegada al Hub o no toca ningún waypoint. Seleccionada, traza una
+línea a cada waypoint que cubre. **Seleccionando el Director** se ve la cobertura: cada waypoint
+fuera de toda zona marcado como `sin zona`, el contorno del Hub y la banda de 6 m donde no puede ir
+ningún centro. *Validate Navigation Setup* lista lo mismo como texto.
 
 ### 14.2 Activar el Director en Zona1 (Fase 0, sin código)
 
@@ -796,8 +968,8 @@ pudo abrir.
 2. **Las zonas.** Un contenedor `Pressure Zones` como hijo del Director y, adentro, un GameObject
    vacío por área que valga la pena nombrar, cada uno con `NemesisPressureZone`:
    - **`Zone Id`:** el lugar, no el evento (`sala de bombas`, no `después del puzzle 2`). Es texto
-     libre, sin dropdown, y la comparación no distingue mayúsculas; un id que no coincide sólo da un
-     warning.
+     libre y la comparación no distingue mayúsculas; del lado de los disparadores es un dropdown
+     (`[PressureZoneId]`) con las zonas de la escena.
    - **Centro y `Radius`** (12 m por defecto): entre una habitación y un ala. El gizmo se dibuja
      siempre, a escala, y en Play pasa de ámbar a rojo según la presión.
    - **Cada zona tiene que tocar al menos un waypoint de una ruta desbloqueada.** La palanca 2 elige
@@ -807,7 +979,8 @@ pudo abrir.
      `PISO_02`, dentro del radio. Donde los pisos se superponen, radios más chicos o centros corridos.
    - **Ningún centro dentro del Hub ni pegado a su puerta.** El ancla tira la patrulla hacia el
      centro, y con el Hub `Not Walkable` eso deja al Nemesis rondando la entrada del Hub: el cheese
-     C5 fabricado por el propio Director.
+     C5 fabricado por el propio Director. Desde el 22/09 no es sólo una regla: a menos de 6 m el
+     Director rechaza la zona (ver C5 en el §4).
    - **Para la Fase 5, que cubran lo jugable.** La retirada del Relax elige la zona más lejana al
      jugador, y la sensibilidad creciente presiona la zona donde está el jugador. Con un par de zonas
      sueltas no hay adónde retirarse ni qué presionar. Mínimo: una por ala y una por piso, ninguna en
@@ -817,7 +990,7 @@ pudo abrir.
    | Campo | Qué poner |
    |---|---|
    | `puzzleId` | Dropdown (`[PuzzleId]`) con los ids que existen hoy: `sp1_panel_electrico`, `sp2_contenedores`, `sp3_valvulas`, `puzzle_central_piso1`. |
-   | `zoneId` | La zona a presionar, **escrita a mano** tal cual el `Zone Id`. Vacío = sólo la entrada, sin presión. |
+   | `zoneId` | La zona a presionar, del dropdown de zonas de la escena. Vacío = sólo la entrada, sin presión. |
    | `intensity` | 0..1; escala las cuatro palancas juntas. Empezar bajo (0.5) en el primer puzzle y subir con el progreso. |
    | `duration` | 45–60 s. Un pedido nuevo **reemplaza** al anterior; no se suman. |
    | `stageEntrance` | La entrada tipo Mr. X. No en el primer golpe, y **nunca en el puzzle que despierta al Nemesis**: `StageEntranceAsync` sale sin hacer nada si el Nemesis todavía no está activo (`NemesisDirector.cs:538`), y despertarlo puede tardar (reintenta el spawn dos veces por segundo hasta que un punto sirve). |
@@ -844,10 +1017,10 @@ pudo abrir.
 | Hay presión pero la patrulla no cambia | Ninguna ruta desbloqueada tiene waypoints dentro del radio, o las que la tocan pesan 0. |
 | Se completa el puzzle y no pasa nada | `zoneId` mal escrito, o un `puzzleId` cargado con *(escribir a mano…)* que no existe (el dropdown lo marca con ⚠). |
 
-### 14.3 Lo nuevo del Director (§6): cómo se va a armar
+### 14.3 Lo nuevo del Director (§6): cómo se armó
 
-Nada de esto existe todavía. Es la forma propuesta, para que la Fase 5 no tenga que inventar el
-setup.
+Construido el 22/09 así, salvo el trigger del Hub, que no hizo falta (lo reemplaza un
+`SafeZoneMarker` sobre el volumen del Hub, ver la Fase 5 en el §9).
 
 | Pieza | Dónde va | Qué se configura |
 |---|---|---|
@@ -855,14 +1028,14 @@ setup.
 | `SO_DirectorPacing` (asset nuevo, en `ScriptableObjects/Nemesis/`) | Referenciado desde el Director | Peso de cada entrada del medidor, velocidad de decaimiento, umbrales de pico y de fade, `SustainPeak` 3–5 s, `Relax` 30–45 s, `quietTimeout` 90 s, intensidad de la retirada. Va en un SO y no en el componente para poder cambiar el ritmo por nivel o por dificultad (D8) sin tocar la escena. |
 | Zonas de presión | Las mismas del 14.2 | Que cubran lo jugable (14.2, paso 2). La retirada reusa `RequestPressure` sobre la zona más lejana por NavMesh. |
 | "El jugador ve al Nemesis" | Código | Raycast desde la cabeza del jugador al pecho del Nemesis contra el mismo `obstacleMask` (6153). **No usa la cámara.** |
-| Trigger informativo del Hub (C5, `SafeZoneEscape`) | Un GameObject **aparte**, hijo de `Safe Area`, con un `BoxCollider` trigger que cubra el Hub | Capa **`Ignore Raycast`**, no `Props`. `Props` está en las máscaras de obstáculo, `Queries Hit Triggers` está prendido en `DynamicsManager` y los raycasts de visión no pasan `QueryTriggerInteraction`: un trigger en `Props` taparía la visión hacia el Hub. Sólo informa presencia; no bloquea nada. El patrón de código ya existe: `ZoneTrigger` / `ArchitectZoneTrigger` (trigger + tag `Player`). Revisar en qué capa quedaron los de Zona1 antes de copiarlos. |
+| Trigger informativo del Hub (C5, `SafeZoneEscape`) | Un GameObject **aparte**, hijo de `Safe Area`, con un `BoxCollider` trigger que cubra el Hub | Capa **`Ignore Raycast`**, no `Props`. `Props` está en las máscaras de obstáculo y `Queries Hit Triggers` está prendido en `DynamicsManager`. Desde el 21/09 (WIR-020) los raycasts de visión, oído y agarre pasan `QueryTriggerInteraction.Ignore`, así que un trigger ya no tapa la visión; igual va en `Ignore Raycast` para no depender de que todo código nuevo se acuerde. Sólo informa presencia; no bloquea nada. El patrón de código ya existe: `ZoneTrigger` / `ArchitectZoneTrigger` (trigger + tag `Player`). Revisar en qué capa quedaron los de Zona1 antes de copiarlos. |
 | F9 | `NemesisDebugHUD` | La fila de ritmo del §6.4: estado, tensión, tiempo restante, zona activa. |
 
 ### 14.4 Dónde va cada pieza nueva del plan
 
 | Pieza | Fase | Dónde | Qué configurar | Qué tiene que avisar el validador |
 |---|---|---|---|---|
-| `HidingSpot` | 1 | Raíz de `Locker.prefab` / `Locker2.prefab` (y de los prefabs de mesa y container) | Tipo; `SpotId`; hijo `ApproachPoint`; hijo `InteriorPose` con la cámara Cinemachine interior y los límites del spec; colliders propios (se llenan solos en `OnValidate`). El `BoxCollider` sólido **se queda en `Default`**. | `SpotId` vacío o repetido; `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` (1 m) de la pose interior. |
+| `HidingSpot` | 1 | Raíz de `Locker.prefab` / `Locker2.prefab` (y de los prefabs de mesa y container) | Tipo; `SpotId`; hijo `ApproachPoint`; hijo `InteriorPose` con la cámara Cinemachine interior y los límites del spec; colliders propios (se llenan solos en `OnValidate`). El `BoxCollider` sólido **se queda en `Default`**. Hoy se usan los prefabs de `Prefabs/HidingSpotFather/` (variantes Locker / UnderTable / Container de un padre con un `NavMeshModifier` *Not Walkable* en `Model`, capa `Props`). **Ojo:** en una escena que no hornea `Default` (la testbed: `Ground|Wall|Props`) el collider sólido del container no hace hueco y queda NavMesh adentro; ahí hay que pasarlo a `Props` o sumar un `NavMeshModifierVolume` en una capa horneada. `ExitPose` y `ApproachPoint` a ≤1 m del interior: la `ExitPose` es también donde aparece el jugador cuando lo sacan. | `SpotId` vacío o repetido; `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` (1 m) de la pose interior. *(Pendiente: que también mire la `ExitPose`.)* |
 | `SO_HidingData` | 1 | `ScriptableObjects/Hiding/` | Respiración, radios, multiplicadores por tipo, `lockerVisionExposure`. | — |
 | `NemesisHidingAwareness`, `NemesisChaseProgress` | 2 / 4 | Raíz de `Nemesis.prefab`, junto a `NemesisStateManager` | Nada: se enganchan solos, como `NemesisPathOracle`. Sus números van al final de `SO_NemesisData`. | — |
 | Peldaños nuevos | 2 / 4 | `SO_NemesisPriorities.asset` **y** `BuildDefaultLadder()` | En la posición que dice el §3.5. | Que el asset y el default no coincidan. |
@@ -873,12 +1046,12 @@ setup.
 
 ### 14.5 Mejoras chicas de editor para hacer en el camino
 
-- Un atributo `[PressureZoneId]` con drawer, igual que `[PuzzleId]`, para `PuzzleTrigger.zoneId` y
-  para lo que pida presión en la Fase 5, que liste las zonas de la escena abierta. Hoy es el único
-  id del Director que se escribe a mano.
-- Que *Validate Navigation Setup* reporte: el Director apagado habiendo zonas o disparadores; zonas
-  que no tocan ningún waypoint de ruta; centros dentro de un volumen `Not Walkable`; disparadores
-  con un `zoneId` que no existe.
+- ✅ (22/09) Un atributo `[PressureZoneId]` con drawer, igual que `[PuzzleId]`, para
+  `PuzzleTrigger.zoneId`, que lista las zonas de la escena abierta.
+- ✅ (22/09) *Validate Navigation Setup* reporta: el Director apagado habiendo zonas o disparadores;
+  zonas sin id, repetidas, que no tocan ningún waypoint o con el centro a menos de 6 m del Hub;
+  disparadores sin puzzle, sin efecto, con un `zoneId` que no existe o con entrada en el puzzle que
+  despierta al Nemesis; y, como nota, la cobertura (`N/M waypoints`) y si falta `SO_DirectorPacing`.
 
 ---
 
@@ -1097,3 +1270,92 @@ locker (en par con `Pull Out`).
 - **Abuso desde abajo.** El jugador se queda debajo de la bajada para que el Nemesis caiga y
   esquivarlo durante la recuperación. Es legítimo, porque es leer al enemigo. Si se vuelve dominante,
   se acorta la recuperación, nunca se quita.
+
+---
+
+## 16. Revisión del consejo (21/09/2026)
+
+La Fase 2 recién construida se revisó con un consejo local armado sobre la idea de
+[the-llm-council](https://github.com/sherifkozman/the-llm-council): borradores independientes en
+paralelo → crítica cruzada adversarial → síntesis. En vez de proveedores externos, cuatro subagentes
+de modelos distintos, cada uno con un enfoque, todos en sólo lectura sobre el código sin commitear.
+
+| Consejero | Modelo | Enfoque | Veredicto final | Confianza |
+|---|---|---|---|---|
+| 1 | Opus | Arquitectura y corrección | Aprobar con cambios | 0.75 |
+| 2 | Sonnet | Adversario: cheeses y trabas | Aprobar con cambios (bloqueante hasta verificar el fix de C1 #1) | 0.6 |
+| 3 | Fable | Diseño y experiencia del jugador | Aprobar con cambios (bloqueante C1 #1) | 0.85 |
+| 4 | Haiku | Unity, rendimiento y tests | Rehacer — sus hallazgos principales resultaron falsos en la ronda 2 y retiró dos | 0.25 |
+
+En la ronda 2 los tres primeros rankearon igual: el Consejero 1 como el más útil (encontró el bug
+bloqueante con la geometría real) y el 4 como el menos (tres premisas falsas).
+
+### 16.1 Qué se encontró y qué se hizo
+
+| Hallazgo | Acuerdo | Qué se hizo |
+|---|---|---|
+| **El Nemesis se clavaba frente al locker** (C1 #1): la proximidad lo pasaba a `Chasing`, que frenaba a ~1.3 m de un interior fuera del NavMesh, fuera del agarre de 1 m, para siempre. | 4/4, bloqueante | Detectado escondido = escondite conocido (D13); agarre medido en el `ApproachPoint` de un escondite conocido; frenado de 0.25 m al revisar. §3.3. |
+| Sospechaba con el medidor **bajando** de una persecución perdida (C3 #3). | 3/3 | Sospecha sólo con contacto periférico vivo. §3.4. |
+| "Te vi entrar" sin haber visto la puerta (C1 #2). | 2/2 (con distinto arreglo) | Línea de vista a la puerta; la ventana se queda en 0.75 s. §3.4. |
+| Con el medidor subiendo por las rendijas, `Investigating` se iba al último ruido (C1 #3). | 2/3 | Al pasar el umbral el escondite queda sospechoso y va a mirarlo (D17 deja abierta la alternativa). |
+| El Nivel B del locker no existía: 1.75 m desde el ojo cae dentro del disco de 1.5 m (C3 #2). | 3/3 | `lockerVisionExposure` 0.25 → 0.5. |
+| El caso 4 del §13 pedía sospecha a 5 m bajo la mesa, con alcance de 3.5 m (C3 #6). | 2/3 | Caso reescrito a 3 m; la mesa se queda en 0.5. |
+| Capturado adentro, el cuerpo volvía a ser dinámico **dentro del collider del mueble** (C1, ronda 2). | Nadie lo había visto antes | Al capturar desde adentro, el jugador aparece en la `ExitPose`. |
+| El "olvido por expiración" podía dejar al Nemesis sin volver a saber aunque siguiera viéndote (C1 #4). | — | Cada confirmación reinicia el reloj; no se da por revisado un escondite que está viendo por las rendijas. |
+| Un escondite destruido dejaba el frenado en 0.25 (C1 #5). | — | Guardas con `ReferenceEquals`. |
+| El tooltip decía que el pull-out era "la última ventana para salir corriendo" (C3 #4). | 3/3 | Tooltip corregido; D16. |
+| `ChaseFloor` del escape sube "sabe" a `Chasing` (C1, ronda 2). | — | Cubierto por el agarre en la puerta; documentado. |
+
+### 16.2 Lo que quedó abierto
+
+- **Aviso audible al saber el escondite** y SFX/animación del pull-out (C3). Sin eso el jugador no
+  distingue desde adentro "sabe" de "adivina", y el margen de D1 es teórico. Fase 2, pendiente.
+- **D14:** detección a través de la carcasa sólo desde la puerta (C3) — playtest.
+- **D15:** container a paridad de ruido (C2) — datos de la Fase 3.
+- **D17:** clavar la mirada en vez de ir a mirar (C3) — playtest.
+- Container en escenas que no hornean `Default` (C3, ronda 2) — §14.4.
+- `NemesisFreeRoam.AddSampledPoints` podría rechazar puntos con `|Δy| > 1` para no mezclar pisos en
+  el barrido (C2 #3 / C3). Hoy lo mitiga la prioridad por habitación.
+- Tests automáticos de Play mode (C4): el proyecto no tiene ninguno. El checklist
+  (`docs/Checklist-NemesisTestbed.md`) es el sustituto manual por ahora.
+
+### 16.3 Lo que se descartó, y por qué
+
+- **Respiración a 1.6** (C3, apoyado por C2): el oído mide por camino hasta el emisor proyectado al
+  NavMesh, que descuenta ~0.7 m frente al locker; ya se oye a ~2.3 m, así que la franja donde
+  aguantar `F` decide existe. Con 1.6 pasaría a ~3.9 m (C1).
+- **Mesa a 0.75** (C3): 5.25 m sin restricción de lado la vuelve casi tan visible como estar parado
+  afuera (C2); se mantiene el valor del spec.
+- **Pull-out a 1.2 s** (C3): se decide cuando exista la animación.
+- **"Rehacer por falta de tests"** (C4): desproporcionado en un proyecto sin ningún test (C1); sus
+  hallazgos de rendimiento eran falsos: la vista por las rendijas corre en el barrido de 0.1 s, no en
+  cada frame, y el evento `HiddenPlayerSpotted` estaba latcheado (ahora se dispara cada frame a
+  propósito, para que la confirmación renueve la memoria; es una invocación de delegado, no un
+  raycast).
+
+### 16.4 Playtest del 21/09 — ajustes
+
+- **Siempre te agarraba escondido.** Tres cosas empujaban al Nemesis hacia el locker: al perderte, el
+  `Chasing` corría al punto *predicho* (adelantado según tu velocidad, que es justo hacia el locker
+  al que ibas); ahí miraba alrededor y con `lockerVisionExposure` 0.5 (3.5 m) llenaba el medidor en
+  ~1 s; y a 1.5 m la proximidad lo delataba. Se bajó la exposición a **0.35** y se cambió la
+  persecución (abajo).
+- **Al perderte ya no volvía a donde te vio.** Seguía persiguiendo 2.5 s (`visionLossGracePeriod`)
+  hacia el punto predicho o un waypoint de flanqueo, y después `Searching` barría la sala o cortaba
+  el paso. Ahora, sin visión, `NemesisPursuit` va **derecho al último punto conocido** (si el camino
+  es completo) y la regla "va a donde lo vio por última vez" mantiene `Chasing` **hasta llegar**
+  (tope de seguridad: 10 s de antigüedad de la creencia). Recién ahí arranca la búsqueda.
+  `visionLossGracePeriod` ya no lo usa la escalera por defecto.
+- **Detrás de una mesa no la rodeaba.** El punto adelantado caía dentro del hueco de la mesa en el
+  NavMesh y `SamplePosition` (2 m) lo tiraba al lado del Nemesis: llegaba ahí y te espejaba. Ahora
+  el punto adelantado se camina por el NavMesh desde donde estás (`NavMesh.Raycast`) y se corta en
+  el primer borde, siempre de tu lado; y a menos de 3 m no se adelanta.
+
+- **Segundo playtest (21/09): la búsqueda no arrancaba en el último punto y el locker agarraba
+  igual.** Causa común: la creencia es "lo más reciente entre vista y oído", así que si el jugador
+  corta la línea de vista y sigue corriendo, los pasos llevan la creencia hasta el locker. La
+  persecución lo seguía hasta ahí (proximidad → agarre), y el barrido de sala nunca se armaba porque
+  un ruido no compromete barrido. Ahora `NemesisPursuit` vuelve al **último punto visto**
+  (`TryGetRecentSighting`, 10 s), `Searching` al entrar se queda un `SearchPauseTime` mirando ahí y
+  arma el barrido anclado en ese punto visto (si es más nuevo que `SightCommitTime`). Los ruidos que
+  se siguen oyendo después retargetean la búsqueda como antes.

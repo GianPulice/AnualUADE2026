@@ -73,21 +73,23 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
         view.OnMainMenuClicked -= HandleMenu;
     }
 
+    // Push before freezing and Pop before unfreezing: Push snapshots Time.timeScale and the last
+    // Pop restores it, so the other order saves a 0 and puts it back over the 1 (see WinController).
     protected override void OnBeforeOpen()
     {
-        Time.timeScale = 0f;
-
         // Frees the cursor and stops PlayerCameraController from re-locking it every frame — it
         // only holds off while UIStateManager reports a modal open.
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+
+        Time.timeScale = 0f;
 
         view.SetData(model);
     }
 
     protected override void OnBeforeClose()
     {
-        Time.timeScale = 1f;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        Time.timeScale = 1f;
     }
 
     private void HandleGameResult(GameResultModel incoming)
@@ -130,8 +132,8 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     /// </summary>
     private void HandleRetry()
     {
-        Time.timeScale = 1f;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        Time.timeScale = 1f;
 
         if (!ScreenManager.Exists)
         {
@@ -148,8 +150,8 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
 
     private void HandleMenu()
     {
-        Time.timeScale = 1f;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        Time.timeScale = 1f;
 
         if (_screenChannel == null)
         {

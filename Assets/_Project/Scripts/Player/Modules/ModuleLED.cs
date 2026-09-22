@@ -28,6 +28,9 @@ public class ModuleLED : MonoBehaviour
     [SerializeField] private Light ledLight;
     [Tooltip("The LED_Parpadeo Animator. Only runs while the module is Active.")]
     [SerializeField] private Animator blinkAnimator;
+    [Tooltip("The LED's own renderers, whose material swaps with the module status. Empty = every " +
+             "renderer under this object that starts on one of the LED materials below, so a " +
+             "decorative model parented to the LED (e.g. the module's base) keeps its own look.")]
     [SerializeField] private Renderer[] renderers;
 
     [Header("Materials")]
@@ -77,7 +80,7 @@ public class ModuleLED : MonoBehaviour
     {
         if (ledLight == null) ledLight = GetComponent<Light>();
         if (blinkAnimator == null) blinkAnimator = GetComponent<Animator>();
-        if (renderers == null || renderers.Length == 0) renderers = GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0) renderers = FindLedRenderers();
         if (activeMaterial == null && renderers.Length > 0) activeMaterial = renderers[0].sharedMaterial;
 
         if (ledLight != null)
@@ -88,6 +91,43 @@ public class ModuleLED : MonoBehaviour
 
         if (module == null)
             Debug.LogWarning($"[ModuleLED] '{name}' has no ModuleData assigned — it will stay off.", this);
+        else
+            // This LED's light must not flash on the other modules. See ModuleLightLayers.
+            ModuleLightLayers.Isolate(transform, ledLight, module.Penalty);
+    }
+
+    /// <summary>
+    /// The renderers under this object that belong to the LED itself: the ones starting on one of
+    /// its status materials. Anything else parented here — the module's base model, say — has its
+    /// own materials and must never be recoloured; taking every child renderer used to paint it
+    /// with the status colour (and only its first material slot, so just some parts changed).
+    /// Falls back to every child renderer when no LED material is assigned at all.
+    /// </summary>
+    private Renderer[] FindLedRenderers()
+    {
+        Renderer[] all = GetComponentsInChildren<Renderer>(true);
+
+        Material[] ledMaterials = { activeMaterial, offMaterial, resolvedMaterial, explodedMaterial };
+        bool anyLedMaterial = false;
+        foreach (Material m in ledMaterials) if (m != null) anyLedMaterial = true;
+        if (!anyLedMaterial) return all;
+
+        System.Collections.Generic.List<Renderer> led = new System.Collections.Generic.List<Renderer>();
+        foreach (Renderer r in all)
+        {
+            if (r == null) continue;
+            Material current = r.sharedMaterial;
+            foreach (Material m in ledMaterials)
+            {
+                if (m != null && current == m) { led.Add(r); break; }
+            }
+        }
+
+        if (led.Count == 0)
+            Debug.LogWarning($"[ModuleLED] '{name}' found no child renderer using one of its LED " +
+                             "materials, so nothing will change colour. Assign 'Renderers' by hand.", this);
+
+        return led.ToArray();
     }
 
     private void OnEnable()

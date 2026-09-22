@@ -24,8 +24,9 @@ using UnityEngine;
 ///
 /// WHERE IT APPLIES
 ///
-/// The two moments the Nemesis is deliberately standing still: waiting out a patrol waypoint, and
-/// pausing at a search point. Every other state is already pointed at something it cares about -
+/// The three moments the Nemesis is deliberately standing still: waiting out a patrol waypoint,
+/// pausing at a search point, and inspecting the spot a noise came from (InvestigationDwellTime).
+/// Every other state is already pointed at something it cares about -
 /// the belief, the noise, the player - and swinging the cone off that target would make it worse
 /// at the one job it is doing.
 ///
@@ -103,7 +104,7 @@ public class NemesisLookAround : MonoBehaviour
     }
 
     /// <summary>
-    /// Standing still on patrol, and nothing else.
+    /// Standing still on purpose: at a patrol waypoint, at a search point, or where a noise came from.
     ///
     /// HasArrived rather than a velocity check: it is the same definition of "got there" the patrol
     /// state uses to start counting down its wait, so the scan begins exactly when the waiting
@@ -126,6 +127,13 @@ public class NemesisLookAround : MonoBehaviour
             case NemesisStateManager.ENemesisState.Searching:
                 NemesisSearchingState searching = stateManager.SearchingState;
                 return searching != null && searching.IsPausing;
+
+            // Standing where it heard the noise, for InvestigationDwellTime (DIS-002). Same reason
+            // as the search pause: stopping without looking says nothing about whether it is about
+            // to find you.
+            case NemesisStateManager.ENemesisState.Investigating:
+                NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+                return investigating != null && investigating.IsInspecting;
 
             // Everything else is already pointed at something it cares about, and swinging the
             // cone off that target would make the Nemesis worse at the one job it is doing.

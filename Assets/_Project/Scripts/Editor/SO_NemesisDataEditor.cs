@@ -306,6 +306,7 @@ public class SO_NemesisDataEditor : Editor
     {
         Color vision = new Color(1f, 0.784f, 0.314f);
         Color crouch = new Color(0.55f, 0.75f, 0.45f);
+        Color underTable = new Color(0.35f, 0.82f, 0.80f);   // Same teal as NemesisGizmos.
 
         if (data.ViewRange > 0.01f)
         {
@@ -326,13 +327,26 @@ public class SO_NemesisDataEditor : Editor
         }
 
         float crouched = data.ViewRange * data.CrouchVisionMultiplier;
-        if (crouched <= 0.01f) return;
+        if (crouched > 0.01f)
+        {
+            float crouchedPx = crouched * pxPerMetre;
+            PlayerDiagramGUI.Arc(origin, crouchedPx, 0f, data.ViewAngle, crouch);
+            // Offset a little off dead-centre so it does not sit exactly under the healthy-range
+            // label when the two radii land close together.
+            LabelAt(origin, crouchedPx, -28f, $"agachado {crouched:0.##} m", crouch);
+        }
 
-        float crouchedPx = crouched * pxPerMetre;
-        PlayerDiagramGUI.Arc(origin, crouchedPx, 0f, data.ViewAngle, crouch);
-        // Offset a little off dead-centre so it does not sit exactly under the healthy-range
-        // label when the two radii land close together.
-        LabelAt(origin, crouchedPx, -28f, $"agachado {crouched:0.##} m", crouch);
+        // Under a table, the same shortened wedge again (plan §3.4, level B): a table shortens the
+        // view exactly the way a crouch does, and the picture should say so. What it feeds is
+        // different — the suspicion meter, never an instant sighting — and that is on the field's
+        // tooltip, not something an arc can show. Labelled on the opposite side from the crouched
+        // one, because the two radii routinely land within a metre of each other.
+        float underTableRange = data.ViewRange * data.UnderTableVisionMultiplier;
+        if (underTableRange <= 0.01f) return;
+
+        float underTablePx = underTableRange * pxPerMetre;
+        PlayerDiagramGUI.Arc(origin, underTablePx, 0f, data.ViewAngle, underTable);
+        LabelAt(origin, underTablePx, 28f, $"bajo mesa {underTableRange:0.##} m", underTable);
     }
 
     private static void DrawCatch(SO_NemesisData data, Vector2 origin, float pxPerMetre)
@@ -419,7 +433,8 @@ public class SO_NemesisDataEditor : Editor
         }
         PlayerDiagramGUI.Verdict(heard, heard ? "Te oye" : "No te oye");
         PlayerDiagramGUI.Verdict(hardDetected,
-            hardDetected ? "Detección dura: te nota igual, sin importar nada más"
+            hardDetected ? "Detección dura: te nota igual, sin importar cono ni escondite " +
+                           "(medida en plano, desde el cuerpo, contra un jugador en su mismo piso)"
                          : "Fuera de la detección dura");
         PlayerDiagramGUI.Verdict(catchable,
             catchable ? "Dentro del alcance de atrapada (sólo importa si ya te está persiguiendo)"
@@ -428,8 +443,10 @@ public class SO_NemesisDataEditor : Editor
         EditorGUILayout.HelpBox(
             "Prueba en 2D, sin paredes ni pisos de por medio: no reproduce oclusión " +
             "(WallOcclusionMultiplier / FloorOcclusionMultiplier / ProximityDetectionRespectsWalls) " +
-            "ni CatchMaxVerticalOffset, que es un eje aparte. Para eso, con el Nemesis en escena, " +
-            "mirá los gizmos (NemesisGizmos) contra la geometría real.",
+            "ni CatchMaxVerticalOffset, que es un eje aparte y gobierna las dos: la atrapada y la " +
+            "detección dura se miden en plano desde el cuerpo, sólo contra un jugador en su mismo " +
+            "piso. Para eso, con el Nemesis en escena, mirá los gizmos (NemesisGizmos) contra la " +
+            "geometría real.",
             MessageType.Info);
     }
 
@@ -554,6 +571,62 @@ public class SO_NemesisDataEditor : Editor
                 $"y a través de un piso hasta {data.ListenRange * data.FloorOcclusionMultiplier:0.##} m.",
                 EditorStyles.wordWrappedMiniLabel);
         }
+
+        DrawChaseProgressChecks(data);
+    }
+
+    /// <summary>
+    /// The loop-round-a-table counterplay (NemesisChaseProgress + NemesisPursuit). Every check here
+    /// is one that fails SILENTLY in game: the stall still gets detected and logged, the HUD still
+    /// says "estancado", and the Nemesis goes on tail-chasing exactly as before — so from the
+    /// outside it looks like the counterplay does not work, when it was simply tuned off.
+    /// </summary>
+    private static void DrawChaseProgressChecks(SO_NemesisData data)
+    {
+        // Backed by ChaseTrailPenalty's own tooltip: 1 is "off", and nothing else says so.
+        bool penaltyActs = data.ChaseTrailPenalty < 1f;
+        PlayerDiagramGUI.Verdict(penaltyActs,
+            penaltyActs
+                ? $"Estancado, los waypoints sobre el rastro pesan ×{data.ChaseTrailPenalty:0.##}: " +
+                  "la ruta tiende a salir por el otro lado"
+                : "Chase Trail Penalty en 1 — la penalización del rastro está apagada: " +
+                  "detecta el loop pero lo sigue persiguiendo por atrás");
+
+        // Backed by ChaseStagnantDetourTolerance's own tooltip: the code takes the larger of the
+        // two, so a stagnant value at or below the normal one means the budget never widens.
+        bool toleranceWidens = data.ChaseStagnantDetourTolerance > data.ChaseDetourTolerance;
+        PlayerDiagramGUI.Verdict(toleranceWidens,
+            toleranceWidens
+                ? $"Estancado acepta desvíos de hasta ×{data.ChaseStagnantDetourTolerance:0.##} " +
+                  $"(normal ×{data.ChaseDetourTolerance:0.##})"
+                : $"Chase Stagnant Detour Tolerance ({data.ChaseStagnantDetourTolerance:0.##}) no supera " +
+                  $"a la normal ({data.ChaseDetourTolerance:0.##}) — estancado no amplía nada, y el " +
+                  "otro lado del obstáculo casi nunca entra en el presupuesto");
+
+        // Backed by ChaseTrailPenaltyRadius's own tooltip. BeliefTraceRadius is documented as
+        // roughly the spacing between neighbouring waypoints, so a trail radius well past it
+        // reaches the waypoints on the FAR side of anything table-sized too — and a penalty on
+        // both sides is no preference at all.
+        bool radiusTight = data.ChaseTrailPenaltyRadius <= data.BeliefTraceRadius * 2f;
+        PlayerDiagramGUI.Verdict(radiusTight,
+            radiusTight
+                ? $"Radio del rastro ({data.ChaseTrailPenaltyRadius:0.##} m) del orden de la " +
+                  $"separación entre waypoints ({data.BeliefTraceRadius:0.##} m)"
+                : $"Radio del rastro ({data.ChaseTrailPenaltyRadius:0.##} m) mucho mayor que la " +
+                  $"separación entre waypoints ({data.BeliefTraceRadius:0.##} m) — marca los " +
+                  "dos lados de un obstáculo chico y ya no queda 'otro lado' que elegir");
+
+        // The number the two window knobs boil down to. Worth seeing as a rate because that is
+        // what it gets compared against in your head — a chase speed and a sprint speed — and
+        // neither of those lives on this asset, so they are left to the reader rather than
+        // hard-coded here to drift.
+        float closingRate = data.ChaseMinProgress / Mathf.Max(0.01f, data.ChaseProgressWindow);
+        EditorGUILayout.LabelField(
+            $"Para no estancarse tiene que acortar {data.ChaseMinProgress:0.##} m (por NavMesh) cada " +
+            $"{data.ChaseProgressWindow:0.#} s: {closingRate:0.##} m/s de promedio. Se mide solo en " +
+            $"Chasing y mientras lo vio hace menos de {data.VisionLossGracePeriod:0.#} s " +
+            "(Vision Loss Grace Period).",
+            EditorStyles.wordWrappedMiniLabel);
     }
 }
 #endif

@@ -69,7 +69,10 @@ public class CheckpointManager : Singleton<CheckpointManager>
 
     private void Awake()
     {
-        CreateSingleton(true);
+        // Scene-scoped, NOT DontDestroyOnLoad: it lives in the level scene. Persistent, the first
+        // run's instance survived into every later one (with its puzzle snapshot and settings) and
+        // each new level's own manager was destroyed as a duplicate (WIR-035).
+        CreateSingleton(false);
     }
 
     private void OnEnable()

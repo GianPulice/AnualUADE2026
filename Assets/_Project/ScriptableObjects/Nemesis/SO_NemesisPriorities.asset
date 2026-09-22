@@ -108,17 +108,57 @@ MonoBehaviour:
       state: 0
       threshold: 0
       customSeconds: 0
+    - predicate: 13
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "sabe en qu\xE9 escondite est\xE1"
+    conditions:
+    - predicate: 15
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
   - enabled: 1
     target: 2
     interrupts: 0
-    note: "lo perdi\xF3 de vista reci\xE9n"
+    note: "va a donde lo vio por \xFAltima vez"
     conditions:
     - predicate: 6
       negate: 0
       state: 2
       threshold: 0
       customSeconds: 0
+    - predicate: 5
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
     - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 5
+      customSeconds: 10
+    - predicate: 13
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "est\xE1 revisando un escondite"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 3
+      threshold: 0
+      customSeconds: 0
+    - predicate: 16
       negate: 0
       state: 0
       threshold: 0
@@ -137,6 +177,46 @@ MonoBehaviour:
       negate: 0
       state: 0
       threshold: 2
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "ven\xEDa persiguiendo y todav\xEDa cree algo"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 2
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 5
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: sospecha de un escondite
+    conditions:
+    - predicate: 17
+      negate: 0
+      state: 0
+      threshold: 0
       customSeconds: 0
   - enabled: 1
     target: 1
@@ -179,31 +259,16 @@ MonoBehaviour:
       threshold: 1
       customSeconds: 0
   - enabled: 1
-    target: 3
+    target: 1
     interrupts: 0
-    note: "ven\xEDa persiguiendo y todav\xEDa cree algo"
+    note: "revisa donde escuch\xF3 el ruido"
     conditions:
     - predicate: 6
       negate: 0
-      state: 2
+      state: 1
       threshold: 0
       customSeconds: 0
-    - predicate: 2
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 3
-    interrupts: 0
-    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 5
-      threshold: 0
-      customSeconds: 0
-    - predicate: 2
+    - predicate: 14
       negate: 0
       state: 0
       threshold: 0

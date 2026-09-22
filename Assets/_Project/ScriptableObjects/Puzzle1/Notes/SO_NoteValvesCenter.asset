@@ -13,17 +13,21 @@ MonoBehaviour:
   m_Name: SO_NoteValvesCenter
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: nota_valvulas
-  itemName: Valve Note
+  itemName: Engineer Note
   category: 2
-  itemDescription: Warning!
+  itemDescription: It's a small Post-it Note for a friend.
   itemIcon: {fileID: 21300000, guid: fd3d39e275654504a9db99d936816b3d, type: 3}
   isMetallic: 0
   isConsumable: 0
   consumeDescription: 
   isUnique: 1
   contentType: 1
-  textContent: 'NEVER touch the valve in the center.
+  textContent: 'I already told you this a thousand times, Johnny.
+
+    NEVER touch
+    the valve in the center.
 
 '
   audioClip: {fileID: 0}
   targetID: 
+  worldPickupPrefab: {fileID: 0}

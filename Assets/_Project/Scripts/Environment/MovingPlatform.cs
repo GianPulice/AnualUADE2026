@@ -201,6 +201,10 @@ public class MovingPlatform : MonoBehaviour
     /// </summary>
     public void SetRideDistance(float distance) => distanceOverride = Mathf.Max(0f, distance);
 
+    /// <summary>Raised the moment the cabin starts to move, with the direction of the trip: true is
+    /// up. Raised after the start delay, not on the request.</summary>
+    public event Action<bool> OnRideStarted;
+
     /// <summary>Raised when the trip ends, before anyone steps off.</summary>
     public event Action OnRideCompleted;
 
@@ -492,6 +496,8 @@ public class MovingPlatform : MonoBehaviour
                 // At departure and not on arrival: this is the last moment anything standing in
                 // the cabin is still standing on something.
                 CollectLooseRiders();
+
+                OnRideStarted?.Invoke(goingUp);
             }
             return;
         }

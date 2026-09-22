@@ -24,19 +24,20 @@ public class SequencePanelView : BaseScreenView
     [SerializeField] private Button closeButton;
 
     [Header("Feedback — keys")]
-    // Security keypad palette: dark metal at rest, amber on a correct press,
-    // red on a wrong one. These are the authority: Populate() repaints every key on open,
-    // so whatever the prefab was authored with is overwritten.
-    [SerializeField] private Color buttonDefaultColor = new Color(0.18f, 0.18f, 0.19f, 1f);
-    [SerializeField] private Color buttonActiveColor  = new Color(1f,    0.65f, 0.10f, 1f);
-    [SerializeField] private Color buttonWrongColor   = new Color(0.55f, 0.10f, 0.08f, 1f);
+    // Security keypad palette: at rest the SurfaceRaised of every other button in the game, amber on
+    // a correct press, the bright AccentHover on a wrong one. These are the authority: Populate()
+    // repaints every key on open, so whatever the prefab was authored with is overwritten — and so a
+    // UIThemeApplier on a key would be, which is why the tokens are copied here by hand.
+    [SerializeField] private Color buttonDefaultColor = new Color(0.16f, 0.036f, 0.036f, 1f);
+    [SerializeField] private Color buttonActiveColor  = new Color(1f,    0.65f,  0.10f,  1f);
+    [SerializeField] private Color buttonWrongColor   = new Color(1f,    0.297f, 0.297f, 1f);
     [Tooltip("Flash when the sequence is solved. Green so it reads as the opposite of the red one.")]
     [SerializeField] private Color buttonOkColor      = new Color(0.18f, 0.72f, 0.28f, 1f);
     [SerializeField] private float wrongFlashDuration = 0.6f;
 
     [Header("Feedback — status LED")]
-    [SerializeField] private Color ledIdleColor  = new Color(0.55f, 0.33f, 0.05f, 1f);
-    [SerializeField] private Color ledWrongColor = new Color(0.95f, 0.20f, 0.15f, 1f);
+    [SerializeField] private Color ledIdleColor  = new Color(0.55f, 0.33f,  0.05f,  1f);
+    [SerializeField] private Color ledWrongColor = new Color(1f,    0.297f, 0.297f, 1f);
     [SerializeField] private Color ledOkColor    = new Color(0.30f, 0.95f, 0.40f, 1f);
 
     [Header("Strings")]

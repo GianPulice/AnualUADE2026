@@ -294,6 +294,17 @@ public class ElevatorCallPanel : BaseRangeInteractable
         switchAnimator.SetTrigger(pressTriggerHash);
     }
 
+    /// <summary>
+    /// Where the refusal actually lands. Busy and CabinPresent make CanInteract false, so the
+    /// InteractionManager never calls OnInteract for those presses; the refusal branch there only
+    /// covers the one-frame race with the Nemesis.
+    /// </summary>
+    public override void OnInteractAttemptBlocked()
+    {
+        if (!isConfigured) return;
+        PlaySound(callRefusedSoundId);
+    }
+
     private void PlaySound(string id)
     {
         if (string.IsNullOrWhiteSpace(id) || !AudioManager.Exists) return;

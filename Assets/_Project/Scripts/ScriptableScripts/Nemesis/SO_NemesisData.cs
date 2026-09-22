@@ -70,11 +70,14 @@ public class SO_NemesisData : ScriptableObject
              "regla 'lo está viendo'.")]
     [SerializeField, Range(0f, 1f)] private float awarenessTriggerThreshold = 0.4f;
 
-    [Tooltip("Hard detection radius. Inside it the Nemesis notices the player no matter what: " +
-             "no cone, no occlusion raycast, and it is the only thing that defeats Hidden. " +
-             "Keep it well under viewRange — this is 'it is literally on top of me', not a " +
-             "second vision range. NOT the same as proximityRadius below, which only drives the " +
-             "HUD vignette and detects nothing. 0 disables it.")]
+    [Tooltip("Hard detection radius, measured FLAT from the Nemesis's feet and only on its own " +
+             "floor (height gap under Catch Max Vertical Offset). Inside it the Nemesis notices the " +
+             "player no matter what cone or hiding says — only a wall in between stops it, and only " +
+             "with Proximity Detection Respects Walls on; the shell of the spot the player hides in " +
+             "never does. A player out in the open is SEEN; one inside a hiding spot makes the spot " +
+             "KNOWN, and the Nemesis goes to open it. Keep it well under viewRange — this is 'it is " +
+             "literally on top of me', not a second vision range. NOT the same as proximityRadius " +
+             "below, which only drives the HUD vignette and detects nothing. 0 disables it.")]
     [SerializeField] private float proximityDetectionRange = 3f;
 
     [Tooltip("viewRange is multiplied by this while the player is crouching. " +
@@ -618,6 +621,98 @@ public class SO_NemesisData : ScriptableObject
              "vignette interpolates between measurements.")]
     [SerializeField, Min(0.05f)] private float proximityRecalcInterval = 0.2f;
 
+    [Header("Chase - progress (el loop de la mesa)")]
+    //
+    // At the end rather than beside the other chase knobs, so this change is a pure addition to
+    // both the inspector and the asset file. The initialisers are the plan's starting values
+    // (docs/Plan-IA-Stalker.md §12) and they matter: they are what an asset saved before these
+    // fields existed deserialises to. Without them it would get zeros — a trail penalty of 0 is a
+    // veto, not the plan's x0.2 — and nothing would say so.
+    //
+    // Corriendo, el jugador (4.5 m/s) siempre le gana al Nemesis (3.0 m/s), así que dar vueltas
+    // alrededor de una mesa es una persecución que no puede terminar. Estos knobs dicen cuándo el
+    // Nemesis se da cuenta de que no está acortando distancia (NemesisChaseProgress) y qué hace
+    // NemesisPursuit mientras tanto: marcar el camino por donde vino el jugador y aceptar
+    // desvíos más largos, para que la ruta salga por el otro lado. Nunca lo hace más rápido.
+
+    [Tooltip("Segundos que tiene una persecución para acortar Chase Min Progress antes de " +
+             "contar como estancada.\n\n" +
+             "Solo corre mientras está en Chasing y lo vio hace menos de Vision Loss Grace " +
+             "Period. Cada ventana que vence sin progreso suma un 'ChaseStalled' (se ve en F9 y " +
+             "en la consola).\n\n" +
+             "Más corto y cualquier persecución con una esquina de por medio se marca como " +
+             "estancada; más largo y el loop de la mesa dura eso de más antes de que reaccione.")]
+    [SerializeField, Min(0.5f)] private float chaseProgressWindow = 4f;
+
+    [Tooltip("Metros, medidos por NavMesh (no en línea recta: hay pisos), que la distancia " +
+             "hasta el jugador tiene que bajar dentro de la ventana para que cuente como " +
+             "progreso.\n\n" +
+             "Se compara contra la distancia al ABRIR la ventana, no contra la mejor lectura: " +
+             "en un loop se acerca de un lado y se aleja del otro, y eso no es progreso. Llegar " +
+             "al alcance de captura (Catch Max Reach) cuenta siempre como progreso.")]
+    [SerializeField, Min(0.05f)] private float chaseMinProgress = 1.5f;
+
+    [Tooltip("Reemplaza a Chase Detour Tolerance mientras la persecución está estancada: cuánto " +
+             "más puede tardar un desvío por un waypoint respecto de ir derecho.\n\n" +
+             "Sube para que 'el otro lado' del obstáculo entre en el presupuesto; con la " +
+             "tolerancia normal casi nunca entra, porque ir derecho al jugador que da vueltas " +
+             "siempre parece corto. Nunca baja la normal: si ponés menos, se usa la normal.")]
+    [SerializeField, Min(1f)] private float chaseStagnantDetourTolerance = 2.5f;
+
+    [Tooltip("Multiplicador del peso de los waypoints de desvío que están sobre el rastro " +
+             "sensado (por donde se lo sintió pasar al jugador), mientras la persecución está " +
+             "estancada.\n\n" +
+             "0.2 = esos waypoints tienen 5 veces menos chances en el sorteo, y lo que queda es " +
+             "el otro lado del obstáculo. 1 apaga la contra-jugada. 0 los veta del todo, y " +
+             "entonces si el único waypoint con vista al jugador está sobre el rastro, sigue " +
+             "persiguiéndolo por atrás.")]
+    [SerializeField, Range(0f, 1f)] private float chaseTrailPenalty = 0.2f;
+
+    [Tooltip("Metros (en planta, sin contar pisos) alrededor de cada waypoint del rastro dentro " +
+             "de los cuales un waypoint de desvío cuenta como 'por donde vino'.\n\n" +
+             "Del orden de la distancia entre waypoints vecinos (Belief Trace Radius). Si es más " +
+             "grande que el obstáculo, marca los DOS lados y ya no queda un 'otro lado' que " +
+             "elegir. Los gizmos lo dibujan alrededor del rastro durante la persecución.")]
+    [SerializeField, Min(0f)] private float chaseTrailPenaltyRadius = 3f;
+
+    [Header("Investigation - revisar el ruido (DIS-002 / WIR-006)")]
+    //
+    // Al final y no junto a InvestigationTimeOut, igual que el bloque de arriba: así el cambio es
+    // un agregado puro al inspector y al asset.
+    [Tooltip("Segundos que se queda mirando alrededor cuando llega a donde escuchó el ruido, antes " +
+             "de volver a patrullar.\n\n" +
+             "Antes llegar era terminar: con un ruido a menos de ~4 m llegaba en un segundo y se " +
+             "iba (DIS-002). Mientras dura, barre la mirada como en una pausa de búsqueda.")]
+    [SerializeField, Min(0f)] private float investigationDwellTime = 4f;
+
+    [Tooltip("Cada cuánto, como mucho, cambia de destino si sigue escuchando mientras camina.\n\n" +
+             "Investigar es ir a DONDE lo escuchó, no seguirlo en vivo: re-apuntar en cada " +
+             "barrido del oído lo convertía en una persecución sin feedback (WIR-006).")]
+    [SerializeField, Min(0.1f)] private float investigationRetargetInterval = 1.5f;
+
+    [Tooltip("Metros que tiene que estar el ruido nuevo del destino actual para que valga la pena " +
+             "cambiar. Por debajo, sigue yendo al mismo punto.")]
+    [SerializeField, Min(0f)] private float investigationRetargetDistance = 3f;
+
+    [Header("Escondites - lo que sabe el Nemesis (Fase 2)")]
+    [Tooltip("Cuánto ve debajo de una MESA, como fracción de View Range. La mesa no ciega: acorta " +
+             "la vista (spec de escondites §3). Nunca es instantáneo: pasa por el acumulador de la " +
+             "periferia, y si se llena no arranca una persecución, marca el escondite como conocido.")]
+    [SerializeField, Range(0f, 1f)] private float underTableVisionMultiplier = 0.5f;
+
+    [Tooltip("Segundos antes de esconderse en los que, si te vio, sabe en qué escondite te metiste " +
+             "(plan §3.4, Nivel A: \"te vi entrar\"). Se cuenta desde el FINAL de la subida, así " +
+             "que tiene que ser al menos la subida (SO_HidingData.EnterDuration, 0.6) más un barrido " +
+             "de la vista (0.1): con 0.6 justo, visto sólo en el primer barrido de la subida no " +
+             "cuenta. Además tiene que ver la puerta del escondite (línea de vista).")]
+    [SerializeField, Min(0f)] private float seenEnteringWindow = 0.75f;
+
+    [Tooltip("Segundos que tarda en sacarte de un escondite antes de la captura: abrir el locker, " +
+             "agacharse bajo la mesa. Es el golpe de efecto de ver al monstruo en la puerta, NO una " +
+             "ventana para escapar: salir en ese momento te deja en sus manos (plan D1, captura). " +
+             "El margen real del jugador es antes, mientras lo ve acercarse.")]
+    [SerializeField, Min(0f)] private float hiddenPullOutTime = 0.8f;
+
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
@@ -719,4 +814,15 @@ public class SO_NemesisData : ScriptableObject
     public bool ProximityDetectionRespectsWalls { get => proximityDetectionRespectsWalls; set => proximityDetectionRespectsWalls = value; }
     public bool ProximityUsesPathDistance { get => proximityUsesPathDistance; set => proximityUsesPathDistance = value; }
     public float ProximityRecalcInterval { get => proximityRecalcInterval; set => proximityRecalcInterval = value; }
+    public float ChaseProgressWindow { get => chaseProgressWindow; set => chaseProgressWindow = value; }
+    public float ChaseMinProgress { get => chaseMinProgress; set => chaseMinProgress = value; }
+    public float ChaseStagnantDetourTolerance { get => chaseStagnantDetourTolerance; set => chaseStagnantDetourTolerance = value; }
+    public float ChaseTrailPenalty { get => chaseTrailPenalty; set => chaseTrailPenalty = value; }
+    public float ChaseTrailPenaltyRadius { get => chaseTrailPenaltyRadius; set => chaseTrailPenaltyRadius = value; }
+    public float InvestigationDwellTime { get => investigationDwellTime; set => investigationDwellTime = value; }
+    public float InvestigationRetargetInterval { get => investigationRetargetInterval; set => investigationRetargetInterval = value; }
+    public float InvestigationRetargetDistance { get => investigationRetargetDistance; set => investigationRetargetDistance = value; }
+    public float UnderTableVisionMultiplier { get => underTableVisionMultiplier; set => underTableVisionMultiplier = value; }
+    public float SeenEnteringWindow { get => seenEnteringWindow; set => seenEnteringWindow = value; }
+    public float HiddenPullOutTime { get => hiddenPullOutTime; set => hiddenPullOutTime = value; }
 }

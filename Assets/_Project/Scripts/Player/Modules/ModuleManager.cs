@@ -214,6 +214,15 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
             return;
         }
 
+        // Never started: there is no countdown to stop. Marking it Resolved would unlock the next
+        // module out of order, and the debug explode (which picks the first never-activated module)
+        // would then blow up a module the HUD already shows as resolved.
+        if (!target.HasBeenActivated)
+        {
+            Log($"ResolveModule('{moduleId}') ignored: never activated.");
+            return;
+        }
+
         target.IsTimerRunning = false;
         target.Status = ModuleStatus.Resolved;
         if (activeRuntime == target) activeRuntime = null;

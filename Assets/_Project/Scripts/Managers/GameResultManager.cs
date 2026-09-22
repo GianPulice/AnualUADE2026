@@ -7,8 +7,13 @@ public static class GameResultManager
     /// Wire the static reset into <see cref="GameSession.BeginNewSession"/> so a New Game / Retry
     /// clears the reported flag alongside every instance manager. Runs on each Play so the hook
     /// survives domain-reload-disabled enters into Play mode.
+    ///
+    /// AfterAssembliesLoaded, NOT SubsystemRegistration: GameSession clears OnNewSessionStarting in
+    /// SubsystemRegistration, and Unity does not order methods of the same load type. When the clear
+    /// ran second the hook was wiped, the reported flag never reset, and every run after the first
+    /// result ignored its WinTrigger (WIR-035).
     /// </summary>
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
     private static void HookSessionReset()
     {
         GameSession.OnNewSessionStarting -= ResetSession;
@@ -33,11 +38,32 @@ public static class GameResultManager
         _model.Initialize();
     }
 
+    /// <summary>
+    /// Optional win presentation (the escape's last shot, the gate slamming shut). When set,
+    /// ReportWin lets it play first and only raises the result when it calls back. Null =
+    /// immediate, as before. Same contract as <see cref="GameOverPresenter"/>.
+    /// </summary>
+    public static IWinPresenter WinPresenter { get; set; }
+
     public static void ReportWin(float time, int completedModules)
     {
         if (_resultReported) return;
+
+        // Flagged before the presentation, as ReportGameOver does: a module running out while the
+        // shot plays must not end the run a second time.
         _resultReported = true;
 
+        if (WinPresenter != null)
+        {
+            WinPresenter.PresentWin(() => CommitWin(time, completedModules));
+            return;
+        }
+
+        CommitWin(time, completedModules);
+    }
+
+    private static void CommitWin(float time, int completedModules)
+    {
         _model.SetResult(GameState.Win, time, completedModules);
         OnGameResult?.Invoke(_model);
     }

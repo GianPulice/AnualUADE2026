@@ -478,8 +478,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ElevatorRideButton
   platform: {fileID: 672720782343905976}
-  rideAcceptedSoundId: 
-  rideRefusedSoundId: 
+  rideAcceptedSoundId: sfx_elevator_button_02
+  rideRefusedSoundId: sfx_interaction_panel_password_error
 --- !u!1 &6728083358861114661
 GameObject:
   m_ObjectHideFlags: 0
@@ -647,6 +647,7 @@ MonoBehaviour:
   traversalCost: 5
   linkWidth: 1.5
   giveCabinItsOwnNavMesh: 1
+  navMeshNotNeeded: 0
 --- !u!114 &998012208471940762
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -681,6 +682,7 @@ GameObject:
   - component: {fileID: 672720782343905976}
   - component: {fileID: 4405119832071456223}
   - component: {fileID: 1802285121253010275}
+  - component: {fileID: 8482459215994587531}
   m_Layer: 3
   m_Name: Montacargas
   m_TagString: Untagged
@@ -822,3 +824,23 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.710092, y: 1.3661281, z: 0.67687577}
   m_Center: {x: 0.00000024202882, y: 0.6775095, z: 0.00000016135255}
+--- !u!114 &8482459215994587531
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7791698240898696526}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baf2b76bffc720940898feb9868cf614, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ElevatorTravelSound
+  goingUp:
+    soundId: sfx_elevator_going_01
+    loopStart: 0.35
+    loopEnd: 1.15
+  goingDown:
+    soundId: sfx_elevator_going_02
+    loopStart: 0.35
+    loopEnd: 1.15

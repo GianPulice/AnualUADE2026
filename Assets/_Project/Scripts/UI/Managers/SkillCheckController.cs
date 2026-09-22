@@ -1,154 +1,281 @@
+using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
-// Controller of the Skill-Check (Central Puzzle 2 — Ventilation Hub).
-// IModalUI: PausesGame=false → Time.timeScale=1 during the checks.
-// The player cannot move (IsAnyModalOpen=true) but the Nemesis can.
-// Exposes Open(SO_SkillCheckData) so the puzzle can invoke it.
-// Exposes OnCompleted/OnFailed so the puzzle can react to the result.
-public class SkillCheckController : BaseScreenController<SkillCheckView, SkillCheckModel>, IModalUI
+/// <summary>
+/// Runs a skill check sequence, Dead by Daylight style (Central Puzzle 2 — Ventilation Hub).
+///
+/// Each attempt: a short pause, a warning ding with the success zone popping up somewhere on the
+/// ring, then the needle sweeps ONE lap from twelve o'clock. [E] inside the zone passes and moves on;
+/// inside its leading perfect slice it also gives the active module time back; anywhere else — or no
+/// press before the lap closes — is a miss that costs module time and replays the same check with
+/// the zone somewhere new. When the last check passes the overlay holds "stabilized" and closes.
+/// The tuning is all in <see cref="SO_SkillCheckData"/>.
+///
+/// A modal (<see cref="IModalUI"/>) that does not pause the game: the player cannot move or look
+/// around, but the world — the Nemesis included — keeps running. Everything here runs on scaled time
+/// and only while this is the TOP modal, so the pause menu, or the explosion cinematic of the very
+/// module it is timing, freezes the needle instead of letting a lap run out unseen.
+///
+/// Lives in the LevelUI scene next to its canvas, like <see cref="SequencePanelUIController"/>. The
+/// caller — the Hub panel, or <see cref="SkillCheckTestKey"/> for now — calls <see cref="Open"/> and
+/// is told how it ended. What this does NOT do: decide whether the Hub may start it, resolve the
+/// module (the caller completes the puzzle and the module resolves on that), or the spec's progressive
+/// calm-down of camera shake and ambience between checks.
+/// </summary>
+public class SkillCheckController
+    : BaseScreenController<SkillCheckView, SkillCheckModel>, IModalUI, ISessionResettable
 {
     public static SkillCheckController Instance { get; private set; }
-    public bool IsOpen { get; private set; }
 
-    [Header("Default configuration")]
+    [Header("Data")]
+    [Tooltip("Sequence played when Open() is called without one.")]
     [SerializeField] private SO_SkillCheckData defaultData;
 
-    // IModalUI
+    // ── IModalUI ────────────────────────────────────────────────────────────
+    // The module timer on the HUD stays visible over exactly this id (its ModalVisibilityGate lists
+    // it in ignoredModalIds), because this is where its penalties land. Renaming it hides the timer.
     public string ModalId       => "SkillCheck";
-    public bool ConsumesEscape  => false;
-    public bool BlocksPause     => false;
-    public bool PausesGame      => false;
+    public bool   ConsumesEscape => false;   // ESC opens the pause menu on top, and the needle waits.
+    public bool   BlocksPause   => false;
+    public bool   PausesGame    => false;    // the world keeps running
+    public void RequestClose() => Cancel();
 
-    public void RequestClose() => CloseSafe().Forget();
+    /// <summary>From <see cref="Open"/> until the overlay has closed again.</summary>
+    public bool IsOpen { get; private set; }
 
-    private bool _isRunning;
-    private SO_SkillCheckData _activeData;
+    private SO_SkillCheckData activeData;
+    private Action<bool> onFinished;
+    private CancellationTokenSource runCts;
 
-    // The puzzle waits on this callback to know whether the check was completed.
-    public System.Action OnCompleted;
-    public System.Action OnFailed;
+    // ── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Awake()
     {
         Instance = this;
+
         model = new SkillCheckModel();
         model.Initialize();
-        view.gameObject.SetActive(false);
+
+        if (view == null)
+            Debug.LogError($"[{nameof(SkillCheckController)}] view not assigned in the Inspector.", this);
+        else
+            view.gameObject.SetActive(false);
+
+        GameSession.Register(this);
+        GameResultManager.OnGameResult += HandleGameResult;
     }
 
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;
-        UnsubscribeModel();
+        GameSession.Unregister(this);
+        GameResultManager.OnGameResult -= HandleGameResult;
     }
 
-    // Called externally by the puzzle controller.
-    public void Open(SO_SkillCheckData data = null)
+    /// <summary>A new run never inherits a sequence left open by the last one.</summary>
+    public void ResetForNewSession() => Cancel();
+
+    /// <summary>The run is over (win, loss or game over): the dial has nothing left to time.</summary>
+    private void HandleGameResult(GameResultModel _) => Cancel();
+
+    // ── Public API ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts a sequence. <paramref name="finished"/> is called once the overlay has closed: true if
+    /// every check was passed, false if it was cancelled (<see cref="Cancel"/>, the run ending, a new
+    /// session). Returns false — and never calls back — when nothing started: already open, or no
+    /// data with at least one step.
+    /// </summary>
+    public bool Open(SO_SkillCheckData data = null, Action<bool> finished = null)
     {
-        if (IsOpen) return;
-        _activeData = data != null ? data : defaultData;
-        if (_activeData == null)
+        if (IsOpen || view == null) return false;
+
+        SO_SkillCheckData chosen = data != null ? data : defaultData;
+        if (chosen == null || chosen.TotalSteps == 0)
         {
-            Debug.LogError("[SkillCheckController] No SO_SkillCheckData assigned.");
-            return;
+            Debug.LogError($"[{nameof(SkillCheckController)}] No SO_SkillCheckData with at least one step to play.", this);
+            return false;
         }
 
         IsOpen = true;
-        model.Configure(_activeData);
-        OpenSafe().Forget();
+        activeData = chosen;
+        onFinished = finished;
+        model.Configure(chosen);
+
+        runCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
+        RunAsync(runCts.Token).Forget();
+        return true;
     }
 
-    private async UniTaskVoid OpenSafe()
-    {
-        await base.Open();
-    }
+    /// <summary>Aborts the sequence. Its progress is lost: the next Open starts from the first check.</summary>
+    public void Cancel() => runCts?.Cancel();
+
+    // ── BaseScreenController hooks ──────────────────────────────────────────
 
     protected override void OnBeforeOpen()
     {
-        UIStateManager.Instance.Push(this);
-        SubscribeModel();
-        //view.Initialize(
-        //    model.SuccessZoneStart,
-        //    model.SuccessZoneWidth,
-        //    model.TotalChecks,
-        //    _activeData.flashDuration);
-        _isRunning = true;
+        view.Setup(model.TotalSteps);
+
+        // Time.timeScale and the cursor are governed by UIStateManager.
+        if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
     }
 
     protected override void OnBeforeClose()
     {
-        _isRunning = false;
-        UIStateManager.Instance.Pop(this);
-        UnsubscribeModel();
+        if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
-    private void Update()
+    // ── Sequence ────────────────────────────────────────────────────────────
+
+    private async UniTaskVoid RunAsync(CancellationToken token)
     {
-        if (!_isRunning) return;
-        if (Time.timeScale == 0f) return;
-
-        view.Tick(model.NeedleSpeed);
-
-        if (GameInput.InteractPressed)
-            HandleEInput();
-    }
-
-    private void HandleEInput()
-    {
-        bool success = model.TryInput(view.NeedleAngle);
-
-        if (success)
+        bool completed = false;
+        try
         {
-            view.FlashSuccess();
-            view.UpdateCounter(model.CurrentCheck, model.TotalChecks);
-            view.UpdateSuccessZone(model.SuccessZoneStart, model.SuccessZoneWidth);
+            await base.Open();
+            token.ThrowIfCancellationRequested();
+
+            bool first = true;
+            while (true)
+            {
+                while (!model.IsRoundOver)
+                {
+                    await PlayAttemptAsync(first, token);
+                    first = false;
+                }
+
+                if (model.IsComplete) break;
+
+                // Any miss fails the whole round: every check has to be hit in a row.
+                view.ShowFailed(model.TotalSteps);
+                PlayClip(activeData.missClip);
+                await WaitAsync(activeData.failHoldTime, token);
+
+                model.RestartRound();
+                view.Setup(model.TotalSteps);
+            }
+
+            view.ShowComplete(model.TotalSteps);
+            PlayClip(activeData.completeClip);
+            await WaitAsync(activeData.completeHoldTime, token);
+            completed = true;
         }
-        else
+        catch (OperationCanceledException)
         {
-            view.FlashFail();
-            ApplyTimerPenalty();
+            // Cancelled: closed below like a completed run, only reported as not completed.
+        }
+        finally
+        {
+            await FinishAsync(completed);
         }
     }
 
-    private void ApplyTimerPenalty()
+    /// <summary>One attempt: the pause, the warning, the lap, the verdict.</summary>
+    private async UniTask PlayAttemptAsync(bool first, CancellationToken token)
     {
-        // Exists rather than 'Instance == null': the property logs a warning of its own every time
-        // it is read while null.
-        if (!ModuleManager.Exists) return;
-       // ModuleManager.Instance.ApplyTimePenalty(_activeData.failTimePenalty);
+        view.ShowStandby();
+        // The first check follows the overlay's own fade-in; the rest keep the player guessing.
+        if (!first)
+            await WaitAsync(RouletteSelection.GetRandom(activeData.gapBetweenChecksMin, activeData.gapBetweenChecksMax), token);
+
+        SO_SkillCheckData.SkillCheckStep step = model.CurrentStep;
+        int played = model.StepIndex;
+        view.ShowCheck(model.ZoneStart, model.ZoneWidth, model.PerfectWidth, model.StepIndex, model.TotalSteps);
+        PlayClip(activeData.warningClip);
+        await WaitAsync(activeData.warningLeadTime, token);   // [E] is not read in this window
+
+        SkillCheckResult result = await SweepAsync(step.sweepDuration, token);
+
+        model.Register(result);
+        ApplyModuleTime(result, step);
+        view.ShowResult(result, played, model.TotalSteps);
+        PlayClip(result switch
+        {
+            SkillCheckResult.Perfect => activeData.perfectClip,
+            SkillCheckResult.Good => activeData.goodClip,
+            _ => activeData.missClip
+        });
+
+        await WaitAsync(activeData.resultHoldTime, token);
     }
 
-    private void HandleCheckSuccess() { }
-
-    private void HandleCheckFailed() { }
-
-    private void HandleAllComplete()
+    /// <summary>
+    /// One lap of the needle from twelve o'clock. A press is judged against the angle that was on
+    /// screen when it was made — last frame's, since this frame's has not been drawn yet. No press
+    /// before the lap closes is a miss.
+    /// </summary>
+    private async UniTask<SkillCheckResult> SweepAsync(float lapSeconds, CancellationToken token)
     {
-        _isRunning = false;
-        OnCompleted?.Invoke();
-        OnCompleted = null;
-        CloseSafe().Forget();
+        float degreesPerSecond = 360f / Mathf.Max(0.01f, lapSeconds);
+        float angle = 0f;
+
+        while (true)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
+            if (!IsTopModal) continue;
+
+            if (GameInput.InteractPressed) return model.Judge(angle);
+
+            angle += degreesPerSecond * Time.deltaTime;
+            if (angle >= 360f) return SkillCheckResult.Miss;
+            view.SetNeedle(angle);
+        }
     }
 
-    private async UniTaskVoid CloseSafe()
+    /// <summary>
+    /// Scaled seconds that only count while this is the top modal — the same clock the needle runs
+    /// on, so no part of an attempt slips by under the pause menu or a cinematic.
+    /// </summary>
+    private async UniTask WaitAsync(float seconds, CancellationToken token)
     {
-        IsOpen = false;
+        float elapsed = 0f;
+        while (elapsed < seconds)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
+            if (IsTopModal) elapsed += Time.deltaTime;
+        }
+    }
+
+    private bool IsTopModal => UIStateManager.Exists && ReferenceEquals(UIStateManager.Instance.Peek(), this);
+
+    private async UniTask FinishAsync(bool completed)
+    {
+        runCts?.Dispose();
+        runCts = null;
+
+        // Destroyed with its scene: there is nothing left to close or to tell.
+        if (this == null) return;
+
         await base.Close();
+
+        IsOpen = false;
+        activeData = null;
+        Action<bool> callback = onFinished;
+        onFinished = null;
+        callback?.Invoke(completed);
     }
 
-    private void SubscribeModel()
+    // ── Consequences ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A miss costs the active module time, a perfect gives some back. Both are no-ops with no module
+    /// running — which includes an M2 that already exploded: the spec still makes the player finish
+    /// the sequence to move on.
+    /// </summary>
+    private static void ApplyModuleTime(SkillCheckResult result, SO_SkillCheckData.SkillCheckStep step)
     {
-        model.OnCheckSuccess       += HandleCheckSuccess;
-        model.OnCheckFailed        += HandleCheckFailed;
-        model.OnAllChecksComplete  += HandleAllComplete;
+        if (!ModuleManager.Exists) return;
+
+        if (result == SkillCheckResult.Miss) ModuleManager.Instance.ApplyTimePenalty(step.failTimePenalty);
+        else if (result == SkillCheckResult.Perfect) ModuleManager.Instance.ApplyTimeBonus(step.perfectTimeBonus);
     }
 
-    private void UnsubscribeModel()
+    /// <summary>On the UI bus, like the sequence panel's clicks: audible under the pause muffle.</summary>
+    private void PlayClip(AudioClip clip)
     {
-        model.OnCheckSuccess       -= HandleCheckSuccess;
-        model.OnCheckFailed        -= HandleCheckFailed;
-        model.OnAllChecksComplete  -= HandleAllComplete;
+        if (clip == null || activeData == null || !AudioManager.Exists) return;
+        AudioManager.Instance.PlayUIClip(clip, activeData.volume);
     }
 }

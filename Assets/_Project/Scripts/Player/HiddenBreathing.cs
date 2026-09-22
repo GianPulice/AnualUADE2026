@@ -16,9 +16,11 @@ using UnityEngine.Audio;
 /// in docs/CLAUDE.md. Wiring breathing into detection is a change to the hiding system, and it
 /// belongs there, alongside the hold-breath input, not here.
 ///
-/// WHAT DRIVES IT TODAY: <c>PlayerStateManager.IsHidden</c>, which as of now is toggled only by the
-/// `R` debug key — the hiding system does not exist yet. This component needs no changes when it
-/// lands; whatever sets IsHidden will start it.
+/// WHAT DRIVES IT: <c>PlayerStateManager.IsHidden</c> — a real <see cref="HidingSpot"/> since
+/// phase 1, or the F10 console's debug toggle in a scene with no spot built into it. The only
+/// thing the hiding system added here is the per-type VOLUME multiplier below: a steel locker next
+/// to your face is louder from the inside (spec's <c>closetBreathingMultiplier</c>), which is a mix
+/// decision and therefore belongs to the component that owns the mix.
 ///
 /// Setup: drop it on the player root, assign the loop. Everything else has a working default.
 /// </summary>
@@ -38,6 +40,23 @@ public class HiddenBreathing : MonoBehaviour
              "the module spec gives the chest penalty. Left empty, the normal loop is used " +
              "regardless of penalties.")]
     [SerializeField] private AudioClip hiddenLoopChestPenalty;
+
+    [Tooltip("Played once when the player lets go of a held breath: the gasp that comes after it. " +
+             "Only the first Gasp Seconds of it are used, so a breathing loop works here too. Empty = " +
+             "no gasp, the loop just comes back.")]
+    [SerializeField] private AudioClip exhaleGaspClip;
+
+    [Tooltip("Seconds of the gasp clip played on a release, before it fades out. Doubled when the " +
+             "lungs gave out on their own.")]
+    [SerializeField, Min(0.1f)] private float gaspSeconds = 1.2f;
+
+    [Tooltip("Gasp volume, relative to the loop's. Above 1 = louder than the loop, which is the " +
+             "point: letting go is the one audible slip.")]
+    [SerializeField, Range(0f, 2f)] private float gaspVolumeScale = 1.25f;
+
+    [Tooltip("Seconds the loop takes to go quiet when the player starts holding. Shorter than the " +
+             "normal fade: holding your breath is abrupt.")]
+    [SerializeField, Min(0.02f)] private float holdFadeSeconds = 0.12f;
 
     [Header("Source")]
     [Tooltip("The AudioSource to breathe through. The player prefab already carries an unused one " +
@@ -79,6 +98,10 @@ public class HiddenBreathing : MonoBehaviour
     private float currentVolume;
     private bool warnedNoClip;
 
+    private AudioSource gaspSource;
+    private float gaspLeft;
+    private float gaspTarget;
+
     private void Awake()
     {
         if (player == null) player = GetComponentInParent<PlayerStateManager>();
@@ -97,24 +120,104 @@ public class HiddenBreathing : MonoBehaviour
         source.rolloffMode = AudioRolloffMode.Linear;
         source.minDistance = minDistance;
         source.maxDistance = Mathf.Max(maxDistance, minDistance + 0.1f);
+
+        // The gasp gets its own source: it overlaps the loop coming back, and swapping the loop's
+        // clip for it would restart the loop on a fresh inhale every time.
+        var gaspGo = new GameObject("BreathingGasp");
+        gaspGo.transform.SetParent(source.transform, false);
+        gaspSource = gaspGo.AddComponent<AudioSource>();
+        gaspSource.playOnAwake = false;
+        gaspSource.loop = false;
+        gaspSource.volume = 0f;
+        gaspSource.spatialBlend = spatialBlend;
+        gaspSource.rolloffMode = AudioRolloffMode.Linear;
+        gaspSource.minDistance = minDistance;
+        gaspSource.maxDistance = source.maxDistance;
+
+        // Not preloaded on import: loaded now so the first release does not gasp late.
+        if (exhaleGaspClip != null) exhaleGaspClip.LoadAudioData();
+    }
+
+    private void OnEnable()
+    {
+        if (player != null) player.OnBreathExhaled += HandleExhaled;
+    }
+
+    private void OnDisable()
+    {
+        if (player != null) player.OnBreathExhaled -= HandleExhaled;
+        gaspLeft = 0f;
+        if (gaspSource != null) gaspSource.Stop();
     }
 
     private void Update()
     {
         bool shouldBreathe = player != null && player.IsHidden && !player.IsDisabled;
+        bool holding = shouldBreathe && player.IsHoldingBreath;
 
         if (shouldBreathe && !source.isPlaying) StartLoop();
 
-        float target = shouldBreathe ? volume : 0f;
+        // Quiet while holding, and while the gasp is out: the gasp IS the breath for that beat.
+        float target = shouldBreathe && !holding && gaspLeft <= 0f ? volume * SpotVolumeMultiplier() : 0f;
 
         // Unscaled: this fade is paired with the pause and the hiding lowpass, and a fade frozen
         // half way through by a modal is audible as a stuck drone. Same convention as
         // NemesisChaseMusic and the ambience layers.
-        float rate = fadeDuration > 0f ? volume / fadeDuration : volume;
+        float seconds = holding ? holdFadeSeconds : fadeDuration;
+        float rate = seconds > 0f ? volume / seconds : volume;
         currentVolume = Mathf.MoveTowards(currentVolume, target, rate * Time.unscaledDeltaTime);
         source.volume = currentVolume;
 
         if (!shouldBreathe && currentVolume <= 0f && source.isPlaying) source.Stop();
+
+        TickGasp(shouldBreathe);
+    }
+
+    // ── Gasp ────────────────────────────────────────────────────────────────
+
+    private const float GaspFadeOut = 0.35f;
+
+    private void HandleExhaled(bool forced)
+    {
+        if (exhaleGaspClip == null || gaspSource == null) return;
+
+        EnsureRouting();
+        gaspSource.outputAudioMixerGroup = source.outputAudioMixerGroup;
+        gaspSource.clip = exhaleGaspClip;
+        gaspSource.time = 0f;
+
+        gaspLeft = gaspSeconds * (forced ? 2f : 1f);
+        gaspTarget = Mathf.Clamp01(volume * SpotVolumeMultiplier() * gaspVolumeScale * (forced ? 1.2f : 1f));
+        gaspSource.volume = gaspTarget;
+        gaspSource.Play();
+    }
+
+    /// <summary>Scaled time: a gasp paused with the game resumes with it, like its AudioSource.</summary>
+    private void TickGasp(bool shouldBreathe)
+    {
+        if (gaspLeft <= 0f) return;
+
+        // Out of the spot (captured, released): cut it to its fade.
+        if (!shouldBreathe) gaspLeft = Mathf.Min(gaspLeft, GaspFadeOut);
+
+        gaspLeft -= Time.deltaTime;
+        gaspSource.volume = gaspTarget * Mathf.Clamp01(gaspLeft / GaspFadeOut);
+
+        if (gaspLeft > 0f && gaspSource.isPlaying) return;
+        gaspLeft = 0f;
+        gaspSource.Stop();
+    }
+
+    /// <summary>
+    /// How much louder (or quieter) the breath is inside THIS kind of spot. 1 when hidden with no
+    /// spot at all, which is what the F10 debug toggle does. Read every frame rather than cached
+    /// on entry so the fade follows a spot that releases the player mid-breath.
+    /// </summary>
+    private float SpotVolumeMultiplier()
+    {
+        HidingSpot spot = player != null ? player.CurrentHidingSpot : null;
+        if (spot == null || spot.Data == null) return 1f;
+        return spot.Data.BreathingVolumeMultiplierFor(spot.Type);
     }
 
     private void StartLoop()

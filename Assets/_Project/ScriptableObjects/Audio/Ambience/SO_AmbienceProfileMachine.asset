@@ -17,6 +17,7 @@ MonoBehaviour:
   bedTracks:
   - {fileID: 8300000, guid: 1f87c128d6c60fd48851508f3a1fdec7, type: 3}
   - {fileID: 8300000, guid: e44bd272d0a770c448f61dd39a7e852a, type: 3}
+  - {fileID: 8300000, guid: b5321d0c5047d7044bff879d69213e38, type: 3}
   bedVolume: 0.4
   bedTrackBalance: 0.7
   transitionDuration: 2.5

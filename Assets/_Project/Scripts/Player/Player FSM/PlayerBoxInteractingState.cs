@@ -142,8 +142,9 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         playerStateManager.PushDirection = Vector3.zero;
 
         // The box is driven by velocity now, so letting go mid-push would leave it gliding at the
-        // push speed. Gravity is left alone.
-        if (box != null)
+        // push speed. Gravity is left alone. Skipped when a basket has already taken the box over
+        // (kinematic): it is not gliding, and Unity refuses a velocity on a kinematic body.
+        if (box != null && !box.isKinematic)
         {
             Vector3 v = box.linearVelocity;
             box.linearVelocity = new Vector3(0f, v.y, 0f);
@@ -226,10 +227,10 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     /// </summary>
     private Vector3 ReadPushDirection()
     {
-        // Player/Move, same as the rest of the player's input.
-        Vector2 move = GameInput.MoveValue;
-        float vertical = move.y;
-        float horizontal = move.x;
+        // Raw, same as the rest of the player's input: the smoothed axis keeps reporting a value
+        // for a third of a second after release.
+        float vertical = Input.GetAxisRaw("Vertical");
+        float horizontal = Input.GetAxisRaw("Horizontal");
 
         Track(Forward, vertical > AxisThreshold);
         Track(Back, vertical < -AxisThreshold);

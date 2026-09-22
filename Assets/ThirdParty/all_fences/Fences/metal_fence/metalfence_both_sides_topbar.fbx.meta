@@ -3,7 +3,17 @@ guid: 3152d903595058b4aa233b6e4e9f0279
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: fence
+    second: {fileID: 2100000, guid: 719ab12a2f148fe43abb0458ea44b92e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rusted_pipe
+    second: {fileID: 2100000, guid: c3e0d03841922c541834beeb16097abb, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

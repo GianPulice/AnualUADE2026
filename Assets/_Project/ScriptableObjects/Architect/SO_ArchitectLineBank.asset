@@ -18,14 +18,16 @@ MonoBehaviour:
     variants:
     - There's a device on your body. | Three modules. One timer at a time. When it
       hits zero, it goes off.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 203931a37efb69b4c92da328a289b145, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 1
     category: 0
     variants:
     - 'The rules are simple: solve it, disarm it, get out.'
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 8c63bddd07c7f34449bdf54674acfcca, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 2
@@ -33,50 +35,57 @@ MonoBehaviour:
     variants:
     - You're not alone in the complex anymore. And there's more than time to worry
       about now.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 408be11c093d12a4a8fdc987bc6db6b9, type: 3}
     alert: '> CONTAINMENT BREACH'
     playsOverMenus: 0
   - id: 3
     category: 0
     variants:
     - You made it. You're the first.
-    clips: []
-    alert: '<color=#2EB847>> {0} DISARMED</color>'
+    clips:
+    - {fileID: 8300000, guid: f8f2cf034356cfe4c9d7582488b79a69, type: 3}
+    alert: <color=#2EB847>> {0} DISARMED</color>
     playsOverMenus: 1
   - id: 4
     category: 1
     variants:
     - Industrial sector. Three parts of the system to bring back online. Once all
       three are up, you can move on.
-    clips: []
-    alert: 
+    clips:
+    - {fileID: 8300000, guid: a8ff40e58a1b0e941bce32c5bb55cce9, type: 3}
+    alert: '|| Safe Zone || '
     playsOverMenus: 0
   - id: 5
     category: 1
     variants:
     - Down here you'll have to think a little harder before it goes off.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 6e23a4b3d9165bf4fa5c541eb40624ca, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 6
     category: 1
     variants:
     - Module disarmed. The gate is open. The complex goes on.
-    clips: []
-    alert: '<color=#2EB847>> M1 DISARMED</color>'
+    clips:
+    - {fileID: 8300000, guid: f215e5080b7f66f40908762989631900, type: 3}
+    alert: <color=#2EB847>> M1 DISARMED</color>
     playsOverMenus: 0
   - id: 7
     category: 1
     variants:
     - Two modules down. One left.
-    clips: []
-    alert: '<color=#2EB847>> M2 DISARMED</color>'
+    clips:
+    - {fileID: 8300000, guid: be2327f463e276c4da0d773edb889fa9, type: 3}
+    alert: <color=#2EB847>> M2 DISARMED</color>
     playsOverMenus: 0
   - id: 8
     category: 1
     variants:
     - Someone was here before you. They left something for whoever came next.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 637e5c48ba92ac24e84554fd7fdea9c5, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 9
@@ -84,29 +93,35 @@ MonoBehaviour:
     variants:
     - You're running out of time.
     - Almost.
-    - Tick Tack, Tick Tack.
-    clips: []
+    - Tick, Tick.
+    clips:
+    - {fileID: 8300000, guid: 0ee036151eb76ac4dbb711880acdc1fc, type: 3}
+    - {fileID: 8300000, guid: 9ec9015466b889c46b00819fcd3fbfef, type: 3}
+    - {fileID: 8300000, guid: d36eef5454276bb45b6d1aa6991cce1e, type: 3}
     alert: '> {0} CRITICAL'
     playsOverMenus: 0
   - id: 10
     category: 2
     variants:
     - The legs. Every step from now on will remind you.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 90873633d66157c45b1b023b940ac859, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 11
     category: 2
     variants:
     - The chest. Breathing will cost you more than it used to.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: c3420bf17fae94c45bf52080cf9e47fc, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 12
     category: 2
     variants:
     - The head. What you see won't always be real from now on.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: cd4965bda3e3ffd4ca7724f3588224c6, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
   - id: 13
@@ -114,7 +129,9 @@ MonoBehaviour:
     variants:
     - You made it in time.
     - Good.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: f017e756c009c9e4fb5da1c09d2c4375, type: 3}
+    - {fileID: 8300000, guid: 32ed9484b9e907541bb10c242df56d06, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 14

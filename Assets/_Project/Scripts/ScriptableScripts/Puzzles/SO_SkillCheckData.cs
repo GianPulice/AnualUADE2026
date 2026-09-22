@@ -8,10 +8,10 @@ using UnityEngine;
 /// up with a success zone somewhere on it, and the needle sweeps ONE lap clockwise from twelve
 /// o'clock. [E] inside the zone passes, inside its leading "perfect" slice passes and gives time back
 /// to the module; [E] anywhere else — or no press before the lap ends — is a miss: time is taken off
-/// the module and the same check is played again, with the zone somewhere new.
+/// the module, its pip turns red and the sequence moves on. A round with any miss in it fails once
+/// it is over and starts again from the first check: the only way through is every check hit.
 ///
-/// The steps go from hard to easy (slower needle, wider zone), so the sequence reads as the system
-/// calming down as it is stabilised (spec §3).
+/// The steps go from easy to hard (faster needle, narrower zone), so the last checks are the test.
 ///
 /// Angles follow a clock face: 0 = twelve o'clock, growing clockwise — the same convention as
 /// <see cref="UIRingArc"/>, so the data maps to the drawing one to one.
@@ -46,7 +46,9 @@ public class SO_SkillCheckData : ScriptableObject
         [Tooltip("Where the sector starts, in degrees (0 = twelve o'clock, clockwise).")]
         [Range(0f, 360f)] public float startDegrees;
 
-        [Tooltip("Where the sector ends. The whole success zone always fits inside the sector.")]
+        [Tooltip("Where the sector ends. The success zone fits inside the sector when it can; a zone " +
+                 "wider than the sector starts at the sector's start (so the perfect slice always " +
+                 "lands inside it), pulled back if needed so it never runs past twelve o'clock.")]
         [Range(0f, 360f)] public float endDegrees;
 
         [Tooltip("Relative chance of the zone landing in this sector (RouletteSelection). 0 = never, " +
@@ -54,14 +56,13 @@ public class SO_SkillCheckData : ScriptableObject
         [Min(0f)] public float weight;
     }
 
-    [Header("Checks (played in order, hardest first)")]
+    [Header("Checks (played in order, easiest first)")]
     public SkillCheckStep[] steps =
     {
-        // Zones are the 0.12 / 0.18 / 0.25 / 0.35 of a full circle from the spec.
-        new SkillCheckStep { sweepDuration = 1.00f, successZoneDegrees = 43f,  perfectZoneDegrees = 8f,  failTimePenalty = 5f, perfectTimeBonus = 3f },
-        new SkillCheckStep { sweepDuration = 1.15f, successZoneDegrees = 65f,  perfectZoneDegrees = 10f, failTimePenalty = 5f, perfectTimeBonus = 3f },
-        new SkillCheckStep { sweepDuration = 1.30f, successZoneDegrees = 90f,  perfectZoneDegrees = 12f, failTimePenalty = 5f, perfectTimeBonus = 3f },
-        new SkillCheckStep { sweepDuration = 1.45f, successZoneDegrees = 126f, perfectZoneDegrees = 14f, failTimePenalty = 5f, perfectTimeBonus = 3f },
+        new SkillCheckStep { sweepDuration = 1.45f, successZoneDegrees = 90f, perfectZoneDegrees = 14f, failTimePenalty = 5f, perfectTimeBonus = 3f },
+        new SkillCheckStep { sweepDuration = 1.15f, successZoneDegrees = 60f, perfectZoneDegrees = 10f, failTimePenalty = 5f, perfectTimeBonus = 3f },
+        new SkillCheckStep { sweepDuration = 0.95f, successZoneDegrees = 40f, perfectZoneDegrees = 6f, failTimePenalty = 5f, perfectTimeBonus = 3f },
+        new SkillCheckStep { sweepDuration = 0.8f, successZoneDegrees = 26f, perfectZoneDegrees = 4f, failTimePenalty = 5f, perfectTimeBonus = 3f },
     };
 
     [Header("Where the zone lands")]
@@ -88,6 +89,9 @@ public class SO_SkillCheckData : ScriptableObject
 
     [Tooltip("How long the final STABILIZED message holds before the overlay closes.")]
     [Min(0f)] public float completeHoldTime = 0.8f;
+
+    [Tooltip("How long SEQUENCE FAILED (and the red pips) holds before the round restarts from the first check.")]
+    [Min(0f)] public float failHoldTime = 1.2f;
 
     [Header("Audio (placeholders until audio delivers the skill check set)")]
     public AudioClip warningClip;

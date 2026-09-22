@@ -121,6 +121,11 @@ public sealed class NemesisDecision
     /// that this one is over.</summary>
     public bool HasGivenUpOnElevator => stateManager.HasGivenUpOnElevator;
 
+    /// <summary>The chase has spent a whole window without closing the distance over the NavMesh.
+    /// A measurement, not a sensor reading: NemesisChaseProgress takes it before this runs each
+    /// frame, so every rung of one pass reads the same answer.</summary>
+    public bool IsChaseStagnant => stateManager.IsChaseStagnant;
+
     public bool HasBelief => stateManager.TryGetBelief(out _);
 
     /// <summary>Seconds since either sensor last caught the player. Infinity if neither ever has.
@@ -158,6 +163,74 @@ public sealed class NemesisDecision
         }
     }
 
+    /// <summary>
+    /// Whether the route to the belief does not get there (WIR-018): a PARTIAL path, or no path
+    /// query possible at all. Through the same throttled oracle as
+    /// <see cref="RouteToBeliefCrossesFloors"/> and for the same reason: both questions are about
+    /// one path, and they must read one answer for it.
+    ///
+    /// A QUERY THAT CANNOT RUN COUNTS AS UNREACHABLE. It used to count as reachable, on the theory
+    /// that it meant a player standing on top of something with the floor right below — but that
+    /// case never gets here: the belief is snapped within NemesisNav.DefaultSampleRadius (2 m), which
+    /// already lands a player on a crate on the floor beside it, and the chase towards that spot
+    /// runs. What does get here is a player more than two metres from anything the Nemesis can
+    /// walk — the upper stairwell by its door, the Hub's interior, the edges of the catwalks. There
+    /// "lo está viendo" won every frame (an interrupt, with no timeout), and the monster stood
+    /// underneath staring up for as long as the player stayed in view.
+    ///
+    /// The decision only runs with the agent on the NavMesh (NemesisStateManager.TickDecision), so
+    /// the Nemesis's own end of the query is not what failed. The one exception, the capture
+    /// during a lift ride, is decided by "lo tiene al alcance de la mano", which sits above every
+    /// rung that asks this.
+    /// </summary>
+    public bool IsBeliefUnreachable
+    {
+        get
+        {
+            if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
+
+            if (!stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route)) return true;
+
+            return !route.IsComplete;
+        }
+    }
+
+    /// <summary>Investigating is standing where it heard the noise, looking around, and its dwell
+    /// has not run out. A reading of the state's own phase, the same shape as the plan's
+    /// IsCheckingSpot: the state executes, the ladder decides how long that is allowed to last.
+    /// </summary>
+    public bool IsInspectingNoise
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Investigating) return false;
+            NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+            return investigating != null && investigating.IsInspecting;
+        }
+    }
+
+    /// <summary>Whether it is sure which hiding spot the player is in. See
+    /// <see cref="NemesisStateManager.KnownHidingSpot"/>.</summary>
+    public bool KnowsHidingSpot => stateManager.KnownHidingSpot != null;
+
+    /// <summary>Searching is standing at a hiding spot's approach point, checking it. A reading of
+    /// the state's own phase, the same shape as <see cref="IsInspectingNoise"/>: the state executes,
+    /// the ladder decides how long that is allowed to last.</summary>
+    public bool IsCheckingSpot
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return false;
+            NemesisSearchingState searching = stateManager.SearchingState;
+            return searching != null && searching.IsCheckingSpot;
+        }
+    }
+
+    /// <summary>Whether it only suspects a hiding spot, with no certainty to act on instead. See
+    /// <see cref="NemesisStateManager.SuspectedHidingSpot"/>, which already goes null once
+    /// <see cref="KnowsHidingSpot"/> would be true.</summary>
+    public bool SuspectsHidingSpot => stateManager.SuspectedHidingSpot != null;
+
     // ── Why it decided what it decided ──────────────────────────────────────
 
     /// <summary>
@@ -180,12 +253,46 @@ public sealed class NemesisDecision
     // ── The ladder ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The state the Nemesis should be in this frame: the first rung whose conditions all hold.
+    /// When true, the Nemesis never falls back below Chasing: whatever the ladder answers that is
+    /// not a capture or a lift crossing (Patrolling, Investigating, Searching) becomes Chasing.
+    ///
+    /// For the escape sequence (<see cref="NemesisEscapePursuit"/>), where the Nemesis hunts the
+    /// player until the run ends. It sits ON TOP of the ladder rather than inside it: the ladder
+    /// still decides Catch and Traversing, so a floor of "keep chasing" cannot stop the Nemesis
+    /// from grabbing the player or taking the freight lift — which a pinned state would.
+    ///
+    /// A player hiding during the escape is covered too, though it lifts "sabe en qué escondite
+    /// está" out of Searching: Chasing runs at the belief inside the spot, the pursuit ends at the
+    /// spot's door, and the grab of a hidden player is measured at the door (CanReachPlayerNow).
+    /// </summary>
+    public bool ChaseFloor { get; set; }
+
+    /// <summary>
+    /// The state the Nemesis should be in this frame: the ladder's answer, raised to Chasing when
+    /// <see cref="ChaseFloor"/> is on.
+    /// </summary>
+    public NemesisStateManager.ENemesisState Decide()
+    {
+        NemesisStateManager.ENemesisState decided = DecideFromLadder();
+
+        if (!ChaseFloor) return decided;
+
+        bool belowChase = decided == NemesisStateManager.ENemesisState.Patrolling ||
+                          decided == NemesisStateManager.ENemesisState.Investigating ||
+                          decided == NemesisStateManager.ENemesisState.Searching;
+        if (!belowChase) return decided;
+
+        LastReason = "escape: no baja de Chasing";
+        return NemesisStateManager.ENemesisState.Chasing;
+    }
+
+    /// <summary>
+    /// The first rung whose conditions all hold.
     ///
     /// Order is the whole design, and it is the designer's to change — see
     /// <see cref="SO_NemesisPriorities"/> for the shipped order and why it reads the way it does.
     /// </summary>
-    public NemesisStateManager.ENemesisState Decide()
+    private NemesisStateManager.ENemesisState DecideFromLadder()
     {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // PINNED FROM THE TEST CONSOLE, AND THE ONLY SAFE PLACE TO DO IT.
@@ -428,6 +535,12 @@ public sealed class NemesisDecision
             ENemesisPredicate.IsInState => IsIn(condition.state),
             ENemesisPredicate.BeliefAgeUnder => BeliefAge < Resolve(condition),
             ENemesisPredicate.TimeInStateUnder => stateManager.TimeInCurrentState < Resolve(condition),
+            ENemesisPredicate.IsChaseStagnant => IsChaseStagnant,
+            ENemesisPredicate.IsBeliefUnreachable => IsBeliefUnreachable,
+            ENemesisPredicate.IsInspectingNoise => IsInspectingNoise,
+            ENemesisPredicate.KnowsHidingSpot => KnowsHidingSpot,
+            ENemesisPredicate.IsCheckingSpot => IsCheckingSpot,
+            ENemesisPredicate.SuspectsHidingSpot => SuspectsHidingSpot,
             _ => false,
         };
 

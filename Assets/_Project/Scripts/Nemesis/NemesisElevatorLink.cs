@@ -77,6 +77,14 @@ public class NemesisElevatorLink : MonoBehaviour
              "Turn it off only to compare against the old behaviour.")]
     [SerializeField] private bool giveCabinItsOwnNavMesh = true;
 
+    [Header("NavMesh")]
+    [Tooltip("This shaft is for the player only, and its scene has no NavMesh (a test scene, a " +
+             "blockout). On, nothing about the NavMesh is checked or built: no landing warnings, " +
+             "no cabin NavMesh, and the link stays off, so the Nemesis never paths through it. " +
+             "The lift itself, its call panels and its ride distance work as usual.\n\n" +
+             "Leave it OFF in any scene where the Nemesis can reach this elevator.")]
+    [SerializeField] private bool navMeshNotNeeded = false;
+
     private NavMeshLink link;
     private bool isUsable;
     private ElevatorCabinNavMesh cabinNav;
@@ -142,6 +150,9 @@ public class NemesisElevatorLink : MonoBehaviour
     /// </summary>
     public bool IsUsable => isUsable;
 
+    /// <summary>The shaft opted out of the NavMesh entirely. See the field's tooltip.</summary>
+    public bool NavMeshNotNeeded => navMeshNotNeeded;
+
     /// <summary>Where the Nemesis stands during the trip. Read every time rather than cached: if
     /// it is a child of the platform, its position changes constantly.</summary>
     public Vector3 RidePosition =>
@@ -162,6 +173,15 @@ public class NemesisElevatorLink : MonoBehaviour
             // own floor instead of getting wedged trying to use a misconfigured elevator.
             if (link != null) link.enabled = false;
             enabled = false;
+            return;
+        }
+
+        if (navMeshNotNeeded)
+        {
+            // Off, not destroyed: the component is required by the prefab. The distance is still
+            // calibrated because the platform needs it for the player's rides too.
+            if (link != null) link.enabled = false;
+            CalibrateRideDistance();
             return;
         }
 
@@ -251,7 +271,7 @@ public class NemesisElevatorLink : MonoBehaviour
 
     private void OnEnable()
     {
-        if (!isUsable || active.Contains(this)) return;
+        if (!isUsable || navMeshNotNeeded || active.Contains(this)) return;
         active.Add(this);
     }
 

@@ -98,6 +98,17 @@ public class ElevatorRideButton : BaseRangeInteractable
         else                        PlaySound(rideRefusedSoundId);
     }
 
+    /// <summary>
+    /// Where the refusal actually lands. CanInteract is false while the cabin is moving, claimed, or
+    /// the player is not aboard, so the InteractionManager never calls OnInteract for those presses
+    /// and the refusal branch there only covers the one-frame race with the Nemesis.
+    /// </summary>
+    public override void OnInteractAttemptBlocked()
+    {
+        if (!isConfigured) return;
+        PlaySound(rideRefusedSoundId);
+    }
+
     private void PlaySound(string id)
     {
         if (string.IsNullOrWhiteSpace(id) || !AudioManager.Exists) return;

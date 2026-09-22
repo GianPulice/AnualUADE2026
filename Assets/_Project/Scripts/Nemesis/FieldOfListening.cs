@@ -57,12 +57,6 @@ public class FieldOfListening : MonoBehaviour
 
     private float lastNoiseTime;
 
-    // Path-distance cache. A deadline on the Time.time clock rather than a countdown, so a paused
-    // game freezes it — nothing it measures can move while paused.
-    private float nextPathQueryTime;
-    private float cachedPathDistance;
-    private bool cachedPathValid;
-
     public bool HasAudioTarget { get => hasAudioTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
 
@@ -70,6 +64,12 @@ public class FieldOfListening : MonoBehaviour
     /// <see cref="FieldOfView.HasLastKnownPosition"/>: Vector3.zero is a valid level coordinate
     /// and cannot stand in for "I have not heard anything yet".</summary>
     public bool HasLastKnownPosition { get => hasLastKnownPosition; }
+
+    /// <summary>The decoy behind <see cref="LastKnownPosition"/>, or null when the last noise that
+    /// won was anything else (the player, a Director pulse). <see cref="NemesisDecoyBreaker"/>
+    /// reads it to know which decoy the Nemesis came for — proximity alone would let it smash a
+    /// radio it walked past while chasing a footstep.</summary>
+    public DecoyNoiseSource LastHeardDecoy { get; private set; }
 
     /// <summary>Seconds since the last noise was heard, or infinity if none ever was. Same
     /// purpose as <see cref="FieldOfView.TimeSinceLastSighting"/>: how much the memory is still
@@ -130,6 +130,7 @@ public class FieldOfListening : MonoBehaviour
     {
         hasAudioTarget = false;
         hasLastKnownPosition = false;
+        LastHeardDecoy = null;
     }
 
     /// <summary>
@@ -163,27 +164,116 @@ public class FieldOfListening : MonoBehaviour
         float listenRange = nemesisData.ListenRange;
 
         listenedTargets.Clear();
+        sweptEmitters.Clear();
+        bool heardAny = false;
+        Vector3 loudestPosition = default;
+        DecoyNoiseSource loudestDecoy = null;
+        float loudestMargin = float.NegativeInfinity;
+
         Collider[] targetsInListenRadius = Physics.OverlapSphere(transform.position, listenRange, listenMask);
         for (int i = 0; i < targetsInListenRadius.Length; i++)
         {
-            GameObject target = targetsInListenRadius[i].gameObject;
+            Collider emitter = targetsInListenRadius[i];
+            GameObject target = emitter.gameObject;
             if (listenedTargets.Contains(target)) continue;
+
+            // A noise is a TRIGGER sized to how loud it is — the player's emitter and the
+            // Director's synthetic pulses both are. A SOLID collider on the listen layer is level
+            // geometry on the wrong layer, and it is the worst kind of mistake this sensor can
+            // meet: it is always "on", it never moves, and its bounds read as a loud noise. Zona1's
+            // Stair_Divider was one, and it turned the whole stairwell into a permanent sound the
+            // monster kept walking over to investigate (WIR-018 / WIR-020). Ignored, and named once.
+            if (!emitter.isTrigger)
+            {
+                WarnSolidEmitter(emitter);
+                continue;
+            }
+
+            sweptEmitters.Add(emitter);
 
             // The OverlapSphere is only a broadphase now — how loud the emitter actually is
             // decides the real range, and that is read off the collider it just returned.
-            float loudness = GetEmitterRadius(targetsInListenRadius[i]);
-            if (!CanHear(target.transform.position, listenRange, loudness)) continue;
+            float loudness = GetEmitterRadius(emitter);
+            if (!TryHear(emitter, listenRange, loudness, out float margin)) continue;
 
             listenedTargets.Add(target);
+
+            // The one that is heard BEST, not the first the physics query happened to return:
+            // with the Director's synthetic pulse and the player both audible, which one the
+            // monster turns to must not depend on collider order.
+            if (margin > loudestMargin)
+            {
+                heardAny = true;
+                loudestMargin = margin;
+                loudestPosition = target.transform.position;
+                loudestDecoy = null;
+            }
         }
-        if(listenedTargets.Count > 0)
+
+        ListenDecoys(ref heardAny, ref loudestMargin, ref loudestPosition, ref loudestDecoy);
+
+        DropStalePathCaches();
+
+        if (heardAny)
         {
             hasAudioTarget = true;
-            lastKnownPosition = listenedTargets[0].transform.position;
+            lastKnownPosition = loudestPosition;
             hasLastKnownPosition = true;
             lastNoiseTime = Time.time;
+            LastHeardDecoy = loudestDecoy;
         }
         else hasAudioTarget = false;
+    }
+
+    /// <summary>
+    /// The second input channel: decoys (radio, fire alarm, chains) registered in
+    /// <see cref="DecoyNoiseSource.Active"/>.
+    ///
+    /// A channel of their own and not a trigger sphere on the listen layer, because the design
+    /// asks for two things a sphere cannot say. A decoy states how far it is heard in plain metres
+    /// ("the radio reaches a medium distance X"), with no NoiseRangeScale in between and no
+    /// ListenRange ceiling on top; and the fire alarm is heard from anywhere, which the
+    /// OverlapSphere broadphase — bounded by ListenRange — would never even return.
+    ///
+    /// Walls and floors still muffle a ranged decoy exactly as they muffle the player, through the
+    /// same TryHearAt. An audible-everywhere one skips all of it and competes with margin 0: it is
+    /// always heard, but a noise that is genuinely heard nearby still wins over it.
+    /// </summary>
+    private void ListenDecoys(ref bool heardAny, ref float loudestMargin, ref Vector3 loudestPosition,
+                              ref DecoyNoiseSource loudestDecoy)
+    {
+        IReadOnlyList<DecoyNoiseSource> decoys = DecoyNoiseSource.Active;
+        for (int i = 0; i < decoys.Count; i++)
+        {
+            DecoyNoiseSource decoy = decoys[i];
+            if (decoy == null || !decoy.IsEmitting) continue;
+
+            float margin = 0f;
+            if (!decoy.AudibleEverywhere)
+            {
+                sweptEmitters.Add(decoy);
+                if (!TryHearAt(decoy, decoy.NoisePosition, decoy.HearingDistance, out margin)) continue;
+            }
+
+            if (margin > loudestMargin)
+            {
+                heardAny = true;
+                loudestMargin = margin;
+                loudestPosition = decoy.NoisePosition;
+                loudestDecoy = decoy;
+            }
+        }
+    }
+
+    private readonly HashSet<Collider> warnedSolidEmitters = new HashSet<Collider>();
+
+    private void WarnSolidEmitter(Collider c)
+    {
+        if (!warnedSolidEmitters.Add(c)) return;
+        Debug.LogWarning($"[{nameof(FieldOfListening)}] '{c.name}' is a SOLID collider on a layer the " +
+                         $"Nemesis listens to ({LayerMask.LayerToName(c.gameObject.layer)}). It is ignored: " +
+                         "noise sources are triggers. Move it to Wall/Props/Default — as it is, it also " +
+                         "stays out of the NavMesh bake and out of the vision obstacle mask.", c);
     }
 
     /// <summary>
@@ -209,17 +299,28 @@ public class FieldOfListening : MonoBehaviour
     /// how far the Nemesis can ever hear without having to reason about the emitter.
     /// </summary>
     /// <param name="loudness">The noise emitter's own radius, in metres.</param>
-    private bool CanHear(Vector3 source, float listenRange, float loudness)
+    /// <param name="margin">How far inside its effective range the noise is, in metres — how
+    /// clearly it is heard. Only meaningful when this returns true.</param>
+    private bool TryHear(Collider emitter, float listenRange, float loudness, out float margin)
     {
         float effectiveRange = Mathf.Min(listenRange, loudness * nemesisData.NoiseRangeScale);
+        return TryHearAt(emitter, emitter.transform.position, effectiveRange, out margin);
+    }
 
+    /// <summary>The occlusion and distance half of <see cref="TryHear"/>, shared with the decoy
+    /// channel, which arrives with its range already in metres.</summary>
+    /// <param name="key">What the path-distance cache is keyed on: the emitter collider, or the
+    /// decoy.</param>
+    private bool TryHearAt(Object key, Vector3 source, float effectiveRange, out float margin)
+    {
         if (nemesisData.WallOcclusionEnabled)
         {
             if (IsBlockedBy(source, soundBlockerMask)) effectiveRange *= nemesisData.WallOcclusionMultiplier;
             if (IsBlockedBy(source, floorMask))        effectiveRange *= nemesisData.FloorOcclusionMultiplier;
         }
 
-        return MeasuredDistanceTo(source) <= effectiveRange;
+        margin = effectiveRange - MeasuredDistanceTo(key, source);
+        return margin >= 0f;
     }
 
     /// <summary>
@@ -258,26 +359,58 @@ public class FieldOfListening : MonoBehaviour
     /// twelve on foot, and every decision downstream of hearing was reading the first number.
     ///
     /// Throttled on NoiseUpdateCooldown, a field that has existed on SO_NemesisData since it was
-    /// written with no reader anywhere in the project. This is what it was for. One cached figure
-    /// rather than one per target is enough: the only thing that emits noise is the player.
+    /// written with no reader anywhere in the project. This is what it was for. Cached per emitter,
+    /// on the Time.time clock so a paused game freezes it — nothing it measures moves while paused.
     ///
     /// Falls back to the straight line when no path exists. Sound is not navigation — an
     /// unreachable player is still audible — and the states that act on a noise already have
     /// their own timeouts for a destination they cannot get to.
     /// </summary>
-    private float MeasuredDistanceTo(Vector3 source)
+    private float MeasuredDistanceTo(Object emitter, Vector3 source)
     {
         float straightLine = Vector3.Distance(transform.position, source);
         if (!nemesisData.HearingUsesPathDistance) return straightLine;
 
-        if (Time.time >= nextPathQueryTime)
+        // One cached figure PER EMITTER. It used to be a single figure on the assumption that the
+        // player is the only thing that makes noise — but the Director's synthetic pulses are
+        // emitters too, and a solid prop on the listen layer used to be one as well. With two
+        // sources in range, whichever was measured first lent its distance to the other for the
+        // whole cooldown: a pulse across the level could make the player beside the monster read
+        // as far away, or the reverse. That is detection "at random" (WIR-020).
+        pathCache.TryGetValue(emitter, out PathCache entry);
+        if (Time.time >= entry.NextQueryTime)
         {
-            nextPathQueryTime = Time.time + Mathf.Max(0.05f, nemesisData.NoiseUpdateCooldown);
-            cachedPathValid = NemesisNav.TryGetPathDistance(transform.position, source,
-                                                            out cachedPathDistance);
+            entry.NextQueryTime = Time.time + Mathf.Max(0.05f, nemesisData.NoiseUpdateCooldown);
+            entry.Valid = NemesisNav.TryGetPathDistance(transform.position, source, out entry.Distance);
+            pathCache[emitter] = entry;
         }
 
-        return cachedPathValid ? cachedPathDistance : straightLine;
+        return entry.Valid ? entry.Distance : straightLine;
+    }
+
+    private struct PathCache
+    {
+        public float NextQueryTime;
+        public float Distance;
+        public bool Valid;
+    }
+
+    // Keyed on Object and not Collider: a decoy is an emitter too, and it has no collider to be
+    // keyed on.
+    private readonly Dictionary<Object, PathCache> pathCache = new Dictionary<Object, PathCache>();
+    private readonly List<Object> sweptEmitters = new List<Object>();
+    private readonly List<Object> stalePathCaches = new List<Object>();
+
+    /// <summary>Forgets emitters that were not in range this sweep, so a pulse that is gone does
+    /// not keep an entry, and one that comes back is measured fresh.</summary>
+    private void DropStalePathCaches()
+    {
+        if (pathCache.Count == 0) return;
+
+        stalePathCaches.Clear();
+        foreach (Object c in pathCache.Keys)
+            if (c == null || !sweptEmitters.Contains(c)) stalePathCaches.Add(c);
+        for (int i = 0; i < stalePathCaches.Count; i++) pathCache.Remove(stalePathCaches[i]);
     }
 
     /// <summary>Whether geometry on the given mask stands between this sensor and the point. An
@@ -291,7 +424,9 @@ public class FieldOfListening : MonoBehaviour
         float distance = toTarget.magnitude;
         if (distance <= 0.0001f) return false;
 
-        return Physics.Raycast(transform.position, toTarget / distance, distance, mask);
+        // A trigger volume is not a wall: ambience zones and light zones sit on Default, and with
+        // Queries Hit Triggers on they used to muffle every sound that crossed their edge.
+        return Physics.Raycast(transform.position, toTarget / distance, distance, mask, QueryTriggerInteraction.Ignore);
     }
 
     /// <summary>
@@ -313,6 +448,19 @@ public class FieldOfListening : MonoBehaviour
         float distance = toTarget.magnitude;
         if (distance <= 0.0001f) return false;
 
-        return Physics.Raycast(origin, toTarget / distance, distance, obstacleMask);
+        // Triggers ignored: this answers four "is there a WALL in the way" questions (the grab, a
+        // spawn in view, a stuck-escape warp in view, the monster's own audio muffling), and an
+        // ambience or light-zone volume on Default is none of them — it used to stop the grab
+        // across a zone boundary and let the monster "see" nothing through a doorway.
+        return Physics.Raycast(origin, toTarget / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore);
     }
+
+    /// <summary>
+    /// The same test, blind to ONE hiding spot's own shell: the grab reaching the player inside
+    /// the locker they are hiding in (plan §3.3). The locker still counts as a wall for anything
+    /// else between the two points. Null behaves exactly like the overload above.
+    /// </summary>
+    public bool IsOccludedByWall(Vector3 origin, Vector3 targetPosition, HidingSpot through) =>
+        through != null ? through.IsLineBlockedIgnoringSelf(origin, targetPosition, obstacleMask)
+                        : IsOccludedByWall(origin, targetPosition);
 }

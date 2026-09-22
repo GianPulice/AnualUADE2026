@@ -305,8 +305,49 @@ public class NemesisStuckEscape : MonoBehaviour
         return agent.hasPath && agent.remainingDistance > agent.stoppingDistance;
     }
 
+    /// <summary>How many of the nearest waypoints are weighed for the escape. Each one costs up to
+    /// two path queries, paid once per warp — rare, but all in one frame, so it is bounded.</summary>
+    private const int EscapeCandidateCount = 16;
+
     /// <summary>
-    /// Nearest waypoint the player cannot see, so the Nemesis is not watched teleporting.
+    /// A warp that lands this close to where the body got wedged is not an escape.
+    ///
+    /// The stairs of Zona1 are the case that proved it (WIR-028): the Nemesis wedged in the funnel
+    /// at the top of the flight, and the nearest waypoint was 1.4 m away, on the landing it had
+    /// just walked off. It warped there, walked straight back into the funnel, and wedged again.
+    /// </summary>
+    private const float EscapeMinDistance = 3f;
+
+    /// <summary>Metres added to a candidate the Nemesis cannot walk to from where it stands, so a
+    /// waypoint on its own island always wins when there is one — and one on another island is
+    /// still taken when it is the only way off the island it is stranded on.</summary>
+    private const float OffIslandPenalty = 50f;
+
+    private struct EscapeCandidate
+    {
+        public Transform Waypoint;
+        public float StraightDistance;
+    }
+
+    private readonly List<EscapeCandidate> escapeCandidates = new List<EscapeCandidate>();
+
+    /// <summary>
+    /// Where to take the body: a waypoint the player cannot see, from which the Nemesis can still
+    /// get where it was going, not on top of the trap it is escaping, and as close ON FOOT as the
+    /// rest allows.
+    ///
+    /// It used to be the nearest hidden waypoint in a STRAIGHT LINE, which broke the project's own
+    /// rule — distances over the NavMesh, never Vector3.Distance, in a level with floors — in the
+    /// three ways that rule exists to prevent (WIR-028, WIR-050): the nearest marker through the
+    /// air can be on the other floor; it can sit on an island cut off from the rest, like the floor
+    /// of the freight elevator's shaft, where the Nemesis lands, cannot path out, wedges and warps
+    /// to the same nearest marker again; and it can be right back where it got stuck (see
+    /// <see cref="EscapeMinDistance"/>).
+    ///
+    /// Each requirement is a tier rather than a filter, so a level with too few waypoints degrades
+    /// to the old behaviour instead of leaving the Nemesis wedged: hidden comes first (being seen
+    /// to teleport is bad, staying wedged for the rest of the run is worse), then reaching the
+    /// goal, then clearing the trap; walking distance only breaks ties within a tier.
     /// </summary>
     private void TeleportToEscapeWaypoint()
     {
@@ -323,36 +364,78 @@ public class NemesisStuckEscape : MonoBehaviour
         }
 
         Vector3 position = transform.position;
-        Transform best = null;
-        float bestDistance = float.MaxValue;
-        Transform nearestOverall = null;
-        float nearestOverallDistance = float.MaxValue;
+        bool hasGoal = TryGetGoal(out Vector3 goal);
+        bool onMesh = NemesisNav.IsOnNavMesh(position);
 
+        // Nearest first, in a straight line: only a bound on how many are weighed. The ranking
+        // itself is over the NavMesh, below.
+        escapeCandidates.Clear();
         foreach (Transform wp in allWaypoints)
         {
             if (wp == null) continue;
 
-            float distance = Vector3.Distance(position, wp.position);
-
-            if (distance < nearestOverallDistance)
+            escapeCandidates.Add(new EscapeCandidate
             {
-                nearestOverallDistance = distance;
-                nearestOverall = wp;
-            }
-
-            if (!IsHiddenFromPlayer(wp.position)) continue;
-            if (distance >= bestDistance) continue;
-
-            bestDistance = distance;
-            best = wp;
+                Waypoint = wp,
+                StraightDistance = Vector3.Distance(position, wp.position),
+            });
         }
 
-        // Every waypoint is in view (open room, no cover): warp to the nearest one anyway.
-        // Being seen to teleport is bad, staying wedged for the rest of the run is worse.
-        if (best == null) best = nearestOverall;
+        escapeCandidates.Sort((a, b) => a.StraightDistance.CompareTo(b.StraightDistance));
+
+        Transform best = null;
+        int bestTier = int.MaxValue;
+        float bestCost = float.MaxValue;
+        int count = Mathf.Min(escapeCandidates.Count, EscapeCandidateCount);
+
+        for (int i = 0; i < count; i++)
+        {
+            EscapeCandidate candidate = escapeCandidates[i];
+            Vector3 point = candidate.Waypoint.position;
+
+            bool hidden = IsHiddenFromPlayer(point);
+            bool reachesGoal = !hasGoal || NemesisNav.IsReachable(point, goal);
+            bool clearOfTrap = candidate.StraightDistance >= EscapeMinDistance;
+
+            int tier = (hidden ? 0 : 3) + (reachesGoal ? (clearOfTrap ? 0 : 1) : 2);
+            if (tier > bestTier) continue;
+
+            float cost = onMesh && NemesisNav.TryGetPathDistance(position, point, out float walk)
+                ? walk
+                : candidate.StraightDistance + OffIslandPenalty;
+
+            if (tier == bestTier && cost >= bestCost) continue;
+
+            best = candidate.Waypoint;
+            bestTier = tier;
+            bestCost = cost;
+        }
+
         if (best == null) return;
 
         stateManager.WarpTo(best.position);
+    }
+
+    /// <summary>
+    /// Where the Nemesis was trying to get: the agent's own destination when it has one, else what
+    /// it believes about the player.
+    ///
+    /// Only ever a FILTER on the escape (can the landing still get there), never a pull towards it
+    /// — a warp that moved the monster closer to the player would be a shortcut nobody saw it take.
+    /// The destination is not read off an agent that is off the NavMesh: Unity logs an error for
+    /// that, and such an agent has nowhere meaningful to be going anyway.
+    /// </summary>
+    private bool TryGetGoal(out Vector3 goal)
+    {
+        NavMeshAgent agent = stateManager.NavAgent;
+
+        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
+        {
+            goal = agent.destination;
+            if ((goal - transform.position).sqrMagnitude > 1f) return true;
+        }
+
+        return stateManager.TryGetBelief(out goal);
     }
 
     private bool IsHiddenFromPlayer(Vector3 point)

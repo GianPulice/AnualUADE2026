@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SO_NoteSequence
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: nota_secuencia
-  itemName: Sequence Note
+  itemName: Newspaper
   category: 2
   itemDescription: 'This seems like a report, although these numbers are quite curious.
 
@@ -24,9 +24,13 @@ MonoBehaviour:
   consumeDescription: 
   isUnique: 1
   contentType: 1
-  textContent: '3 workers died at the factory after 1 serious incident where 4 gas
-    tanks exploded on the 2nd floor.
+  textContent: 'The first part is ilegible...
+
+
+    3 workers died at the factory
+    after 1 serious incident where 4 gas tanks exploded on the 2nd floor.
 
 '
   audioClip: {fileID: 0}
   targetID: 
+  worldPickupPrefab: {fileID: 0}

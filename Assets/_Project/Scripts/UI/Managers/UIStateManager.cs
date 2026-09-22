@@ -22,7 +22,7 @@ using UnityEngine.InputSystem;
 ///   - UIStateManager.IsBlockingPause -> the PauseManager asks before pausing.
 ///   - UIStateManager.TopConsumesEscape -> ESC is eaten by the modal or goes up to the PauseManager.
 /// </summary>
-public class UIStateManager : Singleton<UIStateManager>
+public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
 {
     public static event Action<IModalUI> OnModalPushed;
     public static event Action<IModalUI> OnModalPopped;
@@ -44,6 +44,29 @@ public class UIStateManager : Singleton<UIStateManager>
     private void Awake()
     {
         CreateSingleton(true);
+        GameSession.Register(this);
+    }
+
+    private void OnDestroy()
+    {
+        GameSession.Unregister(this);
+    }
+
+    /// <summary>
+    /// <see cref="ISessionResettable"/> — dispatched by <see cref="GameSession.BeginNewSession"/>.
+    ///
+    /// A modal left on the stack by the previous run (its controller destroyed with the level
+    /// before it could Pop) would keep IsAnyModalOpen true forever, and that alone blocks movement,
+    /// camera and interaction in the next one. The stack and the snapshot are dropped without
+    /// calling RequestClose: those modals belong to a level that is already gone. The cursor is
+    /// left alone — the menu frees it and the PlayerCameraController locks it again. Time.timeScale
+    /// is reset by GameSession itself.
+    /// </summary>
+    public void ResetForNewSession()
+    {
+        stack.Clear();
+        topPushedFrame = -1;
+        snapshotTaken = false;
     }
 
     private void OnEnable()

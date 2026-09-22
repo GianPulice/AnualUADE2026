@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8913cf3cb9af59468c6e9cae74c699b, type: 3}
+  m_Name: UIStyle_SkillCheckCanvas
+  m_EditorClassIdentifier: Assembly-CSharp-Editor::SO_UIStyleProfile
+  prefab: {fileID: 7328567402793577940, guid: a60708a8ee932e44793815618b51b9eb, type: 3}
+  revertNestedStyleOverrides: 0
+  theme:
+  - path: Window
+    role: 1
+    preserveAlpha: 0
+  - path: Window/TitleBar
+    role: 3
+    preserveAlpha: 0
+  - path: Window/TitleBar/TitleText
+    role: 10
+    preserveAlpha: 0
+  - path: Window/Body/HeaderText
+    role: 11
+    preserveAlpha: 0
+  - path: Window/Body/Dial/Glow
+    role: 10
+    preserveAlpha: 1
+  - path: Window/Body/Dial/NeedleTrail
+    role: 13
+    preserveAlpha: 0
+  - path: Window/Body/Dial/NeedlePivot/Needle
+    role: 13
+    preserveAlpha: 0
+  - path: Window/Body/Dial/StepText
+    role: 9
+    preserveAlpha: 0
+  - path: Window/Body/Dial/StepCaption
+    role: 11
+    preserveAlpha: 0
+  flatFills: []
+  frames:
+  - path: Window
+    style: 0
+    pressable: 0
+  minWellPadding: 8
+  restyleTexts: 1
+  titleTexts:
+  - Window/TitleBar/TitleText
+  - Window/Body/Dial/StepText
+  untouchedTexts: []
+  surfaceMaterial: {fileID: 2100000, guid: d5f0a8c2e7b94163a8d2c6f1b09e4a57, type: 2}
+  animatedSurfaces:
+  - Window
+  signalPanels:
+  - path: Window
+    trigger: 0
+    fullScreenOverlays: 0
+    typewriters: []
+  crt:
+    enabled: 1
+    contentPath: 
+    useVisibility: 1
+    visibilityPath: 
+    material: {fileID: 2100000, guid: b83e5d0a6c1f47e29d4a7b3c15f0e8d2, type: 2}

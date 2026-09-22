@@ -4,7 +4,7 @@ using UnityEngine;
 /// Applies resolution, window mode, FPS limit and VSync from PlayerPrefs to the engine.
 /// The indices map in the same order as the serialized arrays in SettingsPanelScreenView:
 ///   - Resolution: 1920x1080, 2560x1440, 3840x2160, 1366x768, 1280x720
-///   - Mode:       ExclusiveFullScreen, Windowed, FullScreenWindow
+///   - Mode:       FullScreenWindow ("Fullscreen"), Windowed, FullScreenWindow ("Borderless")
 ///   - FPS:        -1 (no limit), 30, 60, 120, 144
 ///
 /// IMPORTANT: Screen.SetResolution is a no-op in the Editor's Play Mode; test in a standalone build.
@@ -28,9 +28,13 @@ public class ScreenSettingsApplier : MonoBehaviour
         (1280, 720),
     };
 
+    // "Fullscreen" is borderless too, never ExclusiveFullScreen. Exclusive on DX12 crashes the
+    // player on some machines when it loses focus without minimizing (Win key, Win+Shift+S):
+    // Unity bug UUM-134743, present in our 6000.4.1f1 and only "reduced" in 6000.4.3f1, whose
+    // release note recommends FullScreenWindow. It is also the default, so it hit every first run.
     private static readonly FullScreenMode[] Modes =
     {
-        FullScreenMode.ExclusiveFullScreen,
+        FullScreenMode.FullScreenWindow,
         FullScreenMode.Windowed,
         FullScreenMode.FullScreenWindow,
     };

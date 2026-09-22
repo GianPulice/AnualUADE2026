@@ -43,6 +43,16 @@ public class SO_Movement : ScriptableObject
              "Crouch Pivot Drop, on SO_PlayerCamera.")]
     [SerializeField, Range(0.4f, 2f)] private float crouchHeight = 0.9f;
 
+    [Tooltip("Capsule radius while crouched, or once the legs module has exploded (limping), in " +
+             "metres — whichever applies first, restored the moment neither does. Wider than the " +
+             "standard radius (WIR-025): the crouch-idle/limp animations swing an arm out for " +
+             "balance far past the standard 0.3 m capsule (measured up to ~0.56 m at the wrist), " +
+             "so the mesh visibly pokes through nearby walls. This does not fully contain that " +
+             "reach — going that wide would break doorways and the crouch tunnels the standard " +
+             "radius is sized for — it only narrows the gap until the animations themselves are " +
+             "trimmed.")]
+    [SerializeField, Range(0.1f, 1f)] private float wideStanceRadius = 0.38f;
+
     [Header("Noise radius")]
     [Tooltip("Radius in metres of the noise the player makes while sprinting. This is what the " +
              "Nemesis' FieldOfListening picks up.")]
@@ -69,6 +79,7 @@ public class SO_Movement : ScriptableObject
     public float BoxPushSpeed { get => boxPushSpeed; set => boxPushSpeed = value; }
     public float StandingHeight { get => standingHeight; set => standingHeight = value; }
     public float CrouchHeight { get => crouchHeight; set => crouchHeight = value; }
+    public float WideStanceRadius { get => wideStanceRadius; set => wideStanceRadius = value; }
     public float RunNoiseRadius { get => runNoiseRadius; set => runNoiseRadius = value; }
     public float FootstepNoiseRadius { get => footstepNoiseRadius; set => footstepNoiseRadius = value; }
     public float CrouchNoiseRadius { get => crouchNoiseRadius; set => crouchNoiseRadius = value; }

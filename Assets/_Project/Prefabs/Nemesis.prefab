@@ -295,7 +295,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d9a17e5b0c34f628e71a9c0d3b56e82, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootstepAnimationRelay
-  emitter: {fileID: 0}
+  emitter: {fileID: 8823410557001220303}
+  minClipWeight: 0.5
 --- !u!1 &2335836970009676470
 GameObject:
   m_ObjectHideFlags: 0
@@ -1078,6 +1079,7 @@ GameObject:
   - component: {fileID: 2070260496085017616}
   - component: {fileID: 8823410557001220303}
   - component: {fileID: 7739481052210330915}
+  - component: {fileID: 9034987497469841307}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -1125,6 +1127,7 @@ MonoBehaviour:
   stuckEscape: {fileID: 151019658099850401}
   lifecycle: {fileID: 1161570539962797983}
   lookAround: {fileID: 2070260496085017616}
+  chaseProgress: {fileID: 9034987497469841307}
   nemesisAudio: {fileID: 0}
   elevatorUser: {fileID: 4677969932427935509}
   nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
@@ -1187,7 +1190,7 @@ NavMeshAgent:
   m_GameObject: {fileID: 6133474145954848426}
   m_Enabled: 1
   m_AgentTypeID: 0
-  m_Radius: 0.5
+  m_Radius: 0.3
   m_Speed: 3.5
   m_Acceleration: 8
   avoidancePriority: 50
@@ -1217,8 +1220,9 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  activatedByPuzzleId: 
+  activatedByPuzzleId: sp2_contenedores
   spawnPoints:
+  - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
@@ -1236,7 +1240,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisDoorUser
   detectionDistance: 3
-  detectionRadius: 0.6
+  detectionRadius: 0.35
   probeHeight: 1
   doorMask:
     serializedVersion: 2
@@ -1317,17 +1321,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisGizmos
   drawGizmos: 1
-  drawVisionCone: 1
-  drawCrouchedVisionCone: 1
-  drawFocusCone: 1
-  drawProximityDetection: 1
+  drawVisionCone: 0
+  drawCrouchedVisionCone: 0
+  drawFocusCone: 0
+  drawProximityDetection: 0
   drawHearing: 1
   drawCatchReach: 1
   drawSearchSweep: 1
   drawRoomSweep: 1
   drawProximityVignette: 0
-  arcSegments: 28
-  drawLabels: 1
+  drawChaseTrail: 1
+  arcSegments: 12
+  drawLabels: 0
 --- !u!114 &2743926386273877225
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1346,8 +1351,8 @@ MonoBehaviour:
   eyeColor: {r: 1, g: 0.12, b: 0.08, a: 1}
   intensity: 3.5
   worldRadius: 0.045
-  minPixelRadius: 3.5
-  facingAngle: 150
+  minPixelRadius: 5.5
+  facingAngle: 220
   nearFadeStart: 0
   nearFadeEnd: 0
   disableRealLights: 1
@@ -1363,7 +1368,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eaa505b70e13bf64ca60cfd8b0927e30, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisDebugHUD
-  visible: 1
+  visible: 0
   toggleKey: 290
   origin: {x: 12, y: 12}
   width: 500
@@ -1394,20 +1399,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c81e3a90d7f4b26ab34f9e1c6528d07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootstepEmitter
-  bank: {fileID: 11400000, guid: 6a19f5c83e2b4d719c04b8e5217fa3d0, type: 2}
+  bank: {fileID: 11400000, guid: d4b0c7e21a9f4e63b8527ac0f13d6e88, type: 2}
   bus: 1
   cadenceSource: 1
   strideLength: 1.6
   minSpeed: 0.35
   teleportThreshold: 2
-  minDistance: 2
-  maxDistance: 18
+  minStepInterval: 0.12
+  minDistance: 1.5
+  maxDistance: 24
+  rolloff: 0
+  pitchMultiplier: 0.72
   volumeScale: 1
   occlusionEnabled: 1
   occluderMask:
     serializedVersion: 2
     m_Bits: 2048
-  occludedVolume: 0.35
+  occludedVolume: 0.5
   probeMask:
     serializedVersion: 2
     m_Bits: 4121
@@ -1418,6 +1426,54 @@ MonoBehaviour:
   crouchVolumeScale: 0.45
   crouchStrideScale: 0.5
   sprintStrideScale: 1.28
+--- !u!114 &7739481052210330915
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b745aafaaddb8c4d81ba7e6488b9307, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisAudio
+  stateLoops:
+  - state: 0
+    clip: {fileID: 8300000, guid: 283946d0b0cc0d54a98934c841ea36f2, type: 3}
+    volume: 1
+  - state: 1
+    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
+    volume: 1
+  - state: 2
+    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
+    volume: 1
+  - state: 3
+    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
+    volume: 1
+  - state: 4
+    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
+    volume: 1
+  crossfadeDuration: 0.4
+  outputGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  minDistance: 2
+  maxDistance: 25
+  occlusionEnabled: 1
+  fieldOfListening: {fileID: 6366883338896328337}
+  occludedVolumeMultiplier: 0.5
+  occlusionEaseSpeed: 3
+--- !u!114 &9034987497469841307
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fab7ff8d1c35fde49a789305cc2a3222, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisChaseProgress
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0
@@ -1867,39 +1923,3 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4195913431897697815}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7739481052210330915
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6133474145954848426}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1b745aafaaddb8c4d81ba7e6488b9307, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NemesisAudio
-  stateLoops:
-  - state: 0
-    clip: {fileID: 8300000, guid: 283946d0b0cc0d54a98934c841ea36f2, type: 3}
-    volume: 1
-  - state: 1
-    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
-    volume: 1
-  - state: 2
-    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
-    volume: 1
-  - state: 3
-    clip: {fileID: 8300000, guid: e9543b7419e5965409fd0922ba1da71f, type: 3}
-    volume: 1
-  - state: 4
-    clip: {fileID: 8300000, guid: 3254df9e6e66ad04686ffba90cd1070a, type: 3}
-    volume: 1
-  crossfadeDuration: 0.4
-  outputGroup: {fileID: 5068872148286448934, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
-  minDistance: 2
-  maxDistance: 25
-  occlusionEnabled: 1
-  fieldOfListening: {fileID: 6366883338896328337}
-  occludedVolumeMultiplier: 0.35
-  occlusionEaseSpeed: 3

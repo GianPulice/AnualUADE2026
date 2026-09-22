@@ -29,6 +29,14 @@ public class ExplosionVFX : MonoBehaviour
     [Tooltip("Multiplies every burst count and the flash light's intensity.")]
     [SerializeField, Range(0f, 3f)] private float intensity = 1f;
 
+    [Tooltip("Multiplies the burst counts of the blood layers ONLY (BloodSpray, BloodMist, " +
+             "BloodChunks), on top of Intensity. 1 = as authored.\n\n" +
+             "Separate from Intensity because the two mean different things: Intensity is how big " +
+             "the blast is, and raising it for more blood drags sparks, smoke and debris up with " +
+             "it. This is how WET it is, and it is what the per-module variants move so the head " +
+             "reads as worse than the legs without the explosion itself changing size.")]
+    [SerializeField, Range(0f, 3f)] private float goreIntensity = 1f;
+
     [Tooltip("Uniform scale of the whole effect.")]
     [SerializeField, Range(0.1f, 5f)] private float size = 1f;
 
@@ -72,6 +80,35 @@ public class ExplosionVFX : MonoBehaviour
 
             return longest / Mathf.Max(simulationSpeed, 0.01f);
         }
+    }
+
+    /// <summary>
+    /// Names of the child systems <see cref="goreIntensity"/> applies to. They are built under
+    /// exactly these names by Tools/VFX/Module Explosion — renaming one there means renaming it
+    /// here, and the effect fails silently (no blood scaling) rather than erroring if they drift.
+    /// </summary>
+    private static readonly string[] GoreSystems = { "BloodSpray", "BloodMist", "BloodChunks" };
+
+    /// <summary>
+    /// Overrides <see cref="goreIntensity"/> before <see cref="Play"/>. Meant for a spawned
+    /// instance, so the per-module variant can be dialled in without one prefab per module.
+    /// Does nothing once the knobs have been applied.
+    /// </summary>
+    public void SetGore(float value)
+    {
+        goreIntensity = Mathf.Max(0f, value);
+    }
+
+    /// <summary>
+    /// Overrides <see cref="intensity"/> before <see cref="Play"/> — the "how big a bomb" knob:
+    /// Flash, Sparks, Smoke and Debris, everything except the blood layers. Same use as
+    /// <see cref="SetGore"/>: the per-module variant dials this in on a spawned instance.
+    /// Unclamped above the inspector's 0-3 preview range on purpose — a module variant is allowed
+    /// to ask for more punch than the slider shows, same as SetGore.
+    /// </summary>
+    public void SetIntensity(float value)
+    {
+        intensity = Mathf.Max(0f, value);
     }
 
     /// <summary>
@@ -121,14 +158,20 @@ public class ExplosionVFX : MonoBehaviour
             // Hierarchy so the root's scale reaches shapes and particle sizes, not just positions.
             main.scalingMode = ParticleSystemScalingMode.Hierarchy;
 
+            float burstScale = intensity * (IsGoreSystem(ps) ? goreIntensity : 1f);
+
             ParticleSystem.EmissionModule emission = ps.emission;
             for (int i = 0; i < emission.burstCount; i++)
             {
                 ParticleSystem.Burst burst = emission.GetBurst(i);
                 ParticleSystem.MinMaxCurve count = burst.count;
-                count.constantMin *= intensity;
-                count.constantMax *= intensity;
-                count.constant    *= intensity;
+                // constantMin and constantMax only. MinMaxCurve.constant is not a third value —
+                // it is an alias of constantMax — so also scaling it squared every multiplier:
+                // the authored Intensity of 2 was really multiplying by 4, and a gore dial of 1.8
+                // was landing at 3.24. The authored values are compensated for the fix, so what
+                // is on screen today does not change.
+                count.constantMin *= burstScale;
+                count.constantMax *= burstScale;
                 burst.count = count;
                 emission.SetBurst(i, burst);
             }
@@ -148,9 +191,22 @@ public class ExplosionVFX : MonoBehaviour
         }
     }
 
+    private static bool IsGoreSystem(ParticleSystem ps)
+    {
+        foreach (string gore in GoreSystems)
+        {
+            if (ps.name == gore) return true;
+        }
+
+        return false;
+    }
+
     private void StartFlash()
     {
         if (flashLight == null) return;
+        // Spawned mid-game, after ModuleLightLayers patched the scene's lights: without this the
+        // flash would not light the module bases it goes off on.
+        ModuleLightLayers.LetLightReachModules(flashLight);
         flashLight.enabled = true;
         flashLight.intensity = flashPeakIntensity * intensity;
         flashElapsed = 0f;

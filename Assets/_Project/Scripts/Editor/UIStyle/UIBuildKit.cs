@@ -7,9 +7,10 @@ using UnityEngine.UI;
 using Style = UIBevelFrame.BevelStyle;
 
 /// <summary>
-/// Small, idempotent building blocks for the one-shot UI builders (<see cref="ModuleTimerHUDBuilder"/>,
-/// <see cref="SkillCheckCanvasBuilder"/>): find-or-create a node, anchor it to a point, paint it with
-/// a theme role, give it the project's fonts and a Win95 frame, and wire a serialized field.
+/// Small, idempotent building blocks for the one-shot UI builders (<see cref="ModuleTimerHUDBuilder"/>;
+/// the skill check canvas was built with it too, and its builder already deleted): find-or-create a
+/// node, anchor it to a point, paint it with a theme role, give it the project's fonts and a Win95
+/// frame, and wire a serialized field.
 ///
 /// Everything here finds its own earlier work before creating anything, so running a builder twice
 /// changes nothing. The look is the same the style profiles produce (see <see cref="UIStyleTools"/>):

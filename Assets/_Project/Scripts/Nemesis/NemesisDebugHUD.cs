@@ -61,6 +61,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private NemesisStateManager stateManager;
     private NemesisTelemetry telemetry;
+    private NemesisChaseProgress chaseProgress;
     private readonly List<Sample> history = new List<Sample>();
 
     private NemesisStateManager.ENemesisState? lastState;
@@ -92,6 +93,7 @@ public class NemesisDebugHUD : MonoBehaviour
         // so by the time any Update runs it exists — but script order between two components on
         // one object is not guaranteed, so this is re-resolved lazily where it is read.
         telemetry = GetComponent<NemesisTelemetry>();
+        chaseProgress = GetComponent<NemesisChaseProgress>();
     }
 
     private void OnDestroy()
@@ -157,7 +159,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 14f + stripHeight + 26f;
+        float height = lineHeight * 17f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -167,12 +169,18 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "estado", DescribeState());
         Row(ref line, "regla", DescribeRung());
         Row(ref line, "sospecha", DescribeAwareness());
+        Row(ref line, "escondite", DescribeHidingSpot());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "distancia", DescribeDistance());
+        Row(ref line, "persecución", DescribeChaseProgress());
         Row(ref line, "búsqueda", DescribeSearch());
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
         Row(ref line, "trabas", DescribeStuck());
+
+        line.y += 6f;
+        Row(ref line, "ritmo", DescribePacing());
+        Row(ref line, "presión", DescribePressure());
 
         line.y += 6f;
         Row(ref line, "seguro en", lastSafeTime >= 0f ? $"{lastSafeTime:0.0} s" : "—");
@@ -258,6 +266,68 @@ public class NemesisDebugHUD : MonoBehaviour
         return $"[{bar}] {awareness:0.00} / {threshold:0.00}{state}";
     }
 
+    /// <summary>
+    /// Which hiding spot the Nemesis knows or suspects the player is in, why, and what the search
+    /// is doing about it.
+    ///
+    /// The levels of knowledge (plan §3.4) are indistinguishable from outside until the monster
+    /// has its hand on the door: a Nemesis walking to a locker it SAW you enter, one walking to a
+    /// locker it only glimpsed, and one that happens to be sweeping past it all produce the same
+    /// walk. The reason is the tell, and it is what SeenEnteringWindow and the slat/table ranges
+    /// get tuned against - "it knew" and "it guessed" have opposite fixes.
+    ///
+    /// The third case is level B in progress: the meter on the row above is filling THROUGH a
+    /// spot, the one situation where a full meter marks a spot known instead of starting a chase.
+    /// </summary>
+    private string DescribeHidingSpot()
+    {
+        NemesisHidingAwareness awareness = stateManager.HidingAwareness;
+
+        HidingSpot known = stateManager.KnownHidingSpot;
+        if (known != null)
+            return $"<b>sabe</b> {NameOf(known)}{ReasonOf(awareness)}{SpotCheckOf(known)}";
+
+        HidingSpot suspected = stateManager.SuspectedHidingSpot;
+        if (suspected != null)
+            return $"sospecha {NameOf(suspected)}{ReasonOf(awareness)}{SpotCheckOf(suspected)}";
+
+        FieldOfView view = stateManager.FieldOfView;
+        HidingSpot through = view != null ? view.SensedThroughSpot : null;
+        if (through != null) return $"lo distingue por {NameOf(through)}";
+
+        return "—";
+    }
+
+    /// <summary>SpotId when the designer set one, the GameObject's name otherwise.</summary>
+    private static string NameOf(HidingSpot spot) =>
+        string.IsNullOrEmpty(spot.SpotId) ? spot.name : spot.SpotId;
+
+    private static string ReasonOf(NemesisHidingAwareness awareness)
+    {
+        string reason = awareness != null ? awareness.Reason : null;
+        return string.IsNullOrEmpty(reason) ? "" : $" ({reason})";
+    }
+
+    /// <summary>
+    /// Whether the search is on its way to <paramref name="spot"/> or already standing at it.
+    /// Nothing while no search is heading there: the knowledge outlives the walk, and a known
+    /// spot nobody is going to is exactly the case worth noticing - it is the one the memory
+    /// safety net in NemesisHidingAwareness exists for.
+    /// </summary>
+    private string SpotCheckOf(HidingSpot spot)
+    {
+        NemesisSearchingState searching = stateManager.SearchingState;
+        if (searching != null && ReferenceEquals(searching.SpotTarget, spot))
+            return searching.IsCheckingSpot ? "  ·  <b>revisando</b>" : "  ·  yendo";
+
+        // A suspected spot is looked at by Investigating instead, on its own dwell.
+        NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+        if (investigating != null && ReferenceEquals(investigating.SpotTarget, spot))
+            return investigating.IsInspecting ? "  ·  <b>revisando</b>" : "  ·  yendo";
+
+        return "";
+    }
+
     private string DescribeBelief()
     {
         if (!stateManager.TryGetBelief(out _)) return "nunca lo sintió";
@@ -289,6 +359,63 @@ public class NemesisDebugHUD : MonoBehaviour
         return reachable
             ? $"recta {straight:0.0} m  ·  NavMesh {path:0.0} m"
             : $"recta {straight:0.0} m  ·  <b>sin camino</b>";
+    }
+
+    /// <summary>
+    /// Whether the chase is closing the distance, and what the pursuit is doing about it when it
+    /// is not.
+    ///
+    /// The loop round a table is the one chase failure nothing else on this panel can show: the
+    /// state says Chasing, the rung says "lo está viendo", the agent is moving, the watchdog is
+    /// quiet — every row reads healthy while the player runs rings round the monster. This row is
+    /// the window in progress (metres gained against the metres it needs, and the seconds left)
+    /// and, once it latches, how many detour waypoints the trail penalty actually had to push
+    /// against. "Estancado" with 0 penalised means the counterplay had nothing to choose between —
+    /// no waypoints near the obstacle — and no tuning will fix that; waypoints will.
+    ///
+    /// The ChaseStalled count stays on the row after the chase ends, because it is the number the
+    /// habit thresholds will be calibrated from.
+    /// </summary>
+    private string DescribeChaseProgress()
+    {
+        // Re-resolved lazily for the same reason as the telemetry: the state manager adds it in its
+        // own Awake, and script order between two components on one object is not guaranteed.
+        if (chaseProgress == null) chaseProgress = GetComponent<NemesisChaseProgress>();
+        if (chaseProgress == null) return "—";
+
+        int stalls = chaseProgress.ChaseStalledCount;
+        string count = stalls > 0 ? $"  ·  {stalls} ChaseStalled" : "";
+
+        if (!chaseProgress.IsMeasuring)
+        {
+            bool chasing = stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Chasing;
+            if (!chasing) return "—" + count;
+
+            // Said out loud because it is the one "not measuring" that is on purpose: the escape
+            // paces the gap by design (see NemesisChaseProgress.Tick).
+            NemesisDecision decision = stateManager.Decision;
+            if (decision != null && decision.ChaseFloor) return "no mide durante el escape" + count;
+
+            return "sin medir (sin vista reciente, sin camino o frenado)" + count;
+        }
+
+        float progress = chaseProgress.WindowProgress;
+
+        if (chaseProgress.IsChaseStagnant)
+        {
+            NemesisChasingState chasingState = stateManager.ChasingState;
+            NemesisPursuit pursuit = chasingState != null ? chasingState.Pursuit : null;
+            int penalized = pursuit != null ? pursuit.PenalizedLastReplan : 0;
+
+            return $"<b>ESTANCADO</b>  {progress:+0.0;-0.0;0.0} m  ·  rastro: " +
+                   $"{penalized} waypoints penalizados{count}";
+        }
+
+        SO_NemesisData data = stateManager.NemesisData;
+        float needed = data != null ? data.ChaseMinProgress : 0f;
+
+        return $"acortó {progress:+0.0;-0.0;0.0} / {needed:0.0} m  ·  " +
+               $"quedan {chaseProgress.WindowRemaining:0.0} s{count}";
     }
 
     private string DescribeSearch()
@@ -368,6 +495,46 @@ public class NemesisDebugHUD : MonoBehaviour
 
         string warpText = warps > 0 ? $"<b>{warps} warp</b>" : "0 warp";
         return $"{repaths} recalculo  ·  {warpText}";
+    }
+
+    /// <summary>The Director's pacing (plan §6.4): without it, "why did it leave just now" has no answer.</summary>
+    private static string DescribePacing()
+    {
+        if (!NemesisDirector.Exists) return "sin Director";
+
+        NemesisTension tension = NemesisDirector.Tension;
+        if (tension == null || tension.Pacing == null) return "apagado (sin SO_DirectorPacing)";
+        if (!tension.IsRunning) return "esperando que se despierte";
+
+        const int Cells = 10;
+        int filled = Mathf.Clamp(Mathf.RoundToInt(tension.Tension * Cells), 0, Cells);
+        string bar = new string('#', filled) + new string('.', Cells - filled);
+
+        string state = tension.IsSuspended ? $"en pausa: {tension.SuspendReason}" : tension.State.ToString();
+
+        string timer = tension.State == NemesisTension.EPacingState.SustainPeak ||
+                       tension.State == NemesisTension.EPacingState.Relax
+            ? $" {tension.StateTimeRemaining:0} s"
+            : "";
+
+        string quiet = tension.State == NemesisTension.EPacingState.BuildUp
+            ? tension.IsPlayerInSafeZone
+                ? "  ·  en el Hub"
+                : $"  ·  silencio {tension.QuietTime:0}/{tension.Pacing.QuietTimeout:0} s"
+            : "";
+
+        return $"<b>{state}</b>{timer}  ·  [{bar}] {tension.Tension:0.00}{quiet}";
+    }
+
+    private static string DescribePressure()
+    {
+        string zone = NemesisDirector.ActiveZoneId;
+        if (zone == null) return "—";
+
+        string step = NemesisDirector.RisingStep > 0 ? $" x{NemesisDirector.RisingStep}" : "";
+
+        return $"<b>{zone}</b> {NemesisDirector.ActiveIntensity:0.00}  ·  " +
+               $"{NemesisDirector.ActiveSourceLabel}{step}  ·  quedan {NemesisDirector.ActiveTimeRemaining:0} s";
     }
 
     private string DescribeSafeStats()

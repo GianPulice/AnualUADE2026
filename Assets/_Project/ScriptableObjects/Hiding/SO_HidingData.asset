@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 358b6cc8e4023494388c630a8224a146, type: 3}
+  m_Name: SO_HidingData
+  m_EditorClassIdentifier: Assembly-CSharp::SO_HidingData
+  breathingInterval: 3
+  breathingPulseDuration: 0.4
+  breathingNoiseRadius: 0.8
+  exhaleNoiseRadius: 2.5
+  exhalePulseDuration: 0.6
+  maxHoldSeconds: 6
+  breathRecoverySeconds: 5
+  containerNoiseMultiplier: 0.5
+  closetBreathingMultiplier: 1.2
+  enterDuration: 0.6
+  exitDuration: 0.6
+  outsideSnapshot: {fileID: 24500006, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  lockerSnapshot: {fileID: 933365523553591937, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  underTableSnapshot: {fileID: 0}
+  containerSnapshot: {fileID: 6236104856522793246, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  snapshotTransitionSeconds: 0.3

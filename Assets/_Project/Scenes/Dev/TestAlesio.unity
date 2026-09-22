@@ -1131,38 +1131,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
-    - target: {fileID: 1884531062299343120, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: Lens.FieldOfView
-      value: 72
-      objectReference: {fileID: 0}
-    - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.97698
-      objectReference: {fileID: 0}
-    - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.13501035
-      objectReference: {fileID: 0}
-    - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.16361886
-      objectReference: {fileID: 0}
-    - target: {fileID: 2232447445971585158, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0.022610728
-      objectReference: {fileID: 0}
-    - target: {fileID: 4711365722935488238, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: TargetOffset.x
-      value: 0.8
-      objectReference: {fileID: 0}
-    - target: {fileID: 4711365722935488238, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: TargetOffset.y
-      value: 0.6
-      objectReference: {fileID: 0}
-    - target: {fileID: 4711365722935488238, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
-      propertyPath: TargetOffset.z
-      value: 0.4
-      objectReference: {fileID: 0}
     - target: {fileID: 6866595372486211810, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.32

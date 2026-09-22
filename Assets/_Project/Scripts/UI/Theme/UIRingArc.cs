@@ -15,6 +15,11 @@ using UnityEngine.UI;
 ///    blockGapDegrees, and only the cells the arc fully covers are drawn — the ring version of
 ///    <see cref="UIBlockFill"/>, so a draining timer loses a whole block at a time, Win95-style.
 ///
+/// Either look can fade: four alpha multipliers over Graphic.color, one per end of the sweep and one
+/// per edge of the band. All at 1 (the default) is a flat ring. The skill check uses them for its
+/// needle trail (fading behind the needle and towards the centre), a zone that dims away from its
+/// perfect slice, and a phosphor glow in the middle of the dial (outer edge at 0).
+///
 /// The colour is Graphic.color — drive it with a <see cref="UIThemeApplier"/>. Sizes are in canvas
 /// units; the outer radius is half the rect's shorter side.
 /// </summary>
@@ -42,6 +47,19 @@ public class UIRingArc : MaskableGraphic
 
     [Tooltip("Empty space between two cells when blockCount > 0. Degrees.")]
     [Min(0f)] [SerializeField] private float blockGapDegrees = 2f;
+
+    [Header("Fade (alpha over Graphic.color)")]
+    [Tooltip("Alpha where the arc starts. With End Alpha it fades the arc along its sweep.")]
+    [Range(0f, 1f)] [SerializeField] private float startAlpha = 1f;
+
+    [Tooltip("Alpha where the arc ends.")]
+    [Range(0f, 1f)] [SerializeField] private float endAlpha = 1f;
+
+    [Tooltip("Alpha at the outer edge of the band. With Inner Alpha it fades the band across its width.")]
+    [Range(0f, 1f)] [SerializeField] private float outerAlpha = 1f;
+
+    [Tooltip("Alpha at the inner edge of the band.")]
+    [Range(0f, 1f)] [SerializeField] private float innerAlpha = 1f;
 
     public float StartAngle => startAngle;
     public float Sweep => sweep;
@@ -108,7 +126,10 @@ public class UIRingArc : MaskableGraphic
         AddBand(vh, centre, inner, outer, startAngle, startAngle + sweep, tint);
     }
 
-    /// <summary>One continuous band between two clock angles, as a strip of quads.</summary>
+    /// <summary>
+    /// One continuous band between two clock angles, as a strip of quads. The sweep fade is measured
+    /// over the whole arc, not the band, so the cells of a block ring fade as one.
+    /// </summary>
     private void AddBand(VertexHelper vh, Vector2 centre, float inner, float outer,
                          float fromDeg, float toDeg, Color32 tint)
     {
@@ -120,9 +141,11 @@ public class UIRingArc : MaskableGraphic
 
         for (int i = 0; i <= steps; i++)
         {
-            Vector2 dir = ClockDirection(fromDeg + span * i / steps);
-            vh.AddVert(centre + dir * outer, tint, Vector2.zero);
-            vh.AddVert(centre + dir * inner, tint, Vector2.zero);
+            float angle = fromDeg + span * i / steps;
+            float along = Mathf.Lerp(startAlpha, endAlpha, Mathf.Clamp01((angle - startAngle) / sweep));
+            Vector2 dir = ClockDirection(angle);
+            vh.AddVert(centre + dir * outer, Faded(tint, along * outerAlpha), Vector2.zero);
+            vh.AddVert(centre + dir * inner, Faded(tint, along * innerAlpha), Vector2.zero);
         }
 
         for (int i = 0; i < steps; i++)
@@ -134,6 +157,12 @@ public class UIRingArc : MaskableGraphic
             vh.AddTriangle(o0, o1, i1);
             vh.AddTriangle(i1, i0, o0);
         }
+    }
+
+    private static Color32 Faded(Color32 tint, float alpha)
+    {
+        tint.a = (byte)Mathf.RoundToInt(tint.a * Mathf.Clamp01(alpha));
+        return tint;
     }
 
     /// <summary>Unit vector for a clock angle: 0 = up, 90 = right.</summary>

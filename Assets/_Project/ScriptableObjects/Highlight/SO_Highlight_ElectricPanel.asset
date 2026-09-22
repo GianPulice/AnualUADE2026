@@ -14,10 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_HighlightProfile
   farTint: 0
   farEmission: 0
-  nearTint: 0
-  nearEmission: 0.15
+  nearTint: 0.125
+  nearEmission: 0.3
   litEmissionScale: 1
   lerpDuration: 0.3
   tintColor: {r: 1, g: 1, b: 1, a: 1}
   emissionColor: {r: 0.878, g: 0.878, b: 0.878, a: 1}
   categoryConfig: {fileID: 0}
+  overlayMaterial: {fileID: 0}

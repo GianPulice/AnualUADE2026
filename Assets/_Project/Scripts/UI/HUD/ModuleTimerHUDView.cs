@@ -13,8 +13,8 @@ using UnityEngine.UI;
 ///
 /// Lifecycle:
 ///  • Slides in when a module goes Active, and stays while it runs.
-///  • When that module resolves or explodes it shows the outcome for <see cref="settledHoldSeconds"/>
-///    and slides out. Nothing is shown between modules.
+///  • When that module resolves or explodes it stays on the outcome (RESOLVED / EXPLODED) until the
+///    next module goes Active (optionally slides out, see <see cref="hideWhenSettled"/>).
 ///  • Slides out when the Nemesis grabs the player and back in once the player is up with control
 ///    again (<see cref="PlayerStateManager.IsRecoveringFromCapture"/>) — the same span the module
 ///    timer is frozen, so it comes back showing the time it left with.
@@ -39,6 +39,13 @@ public class ModuleTimerHUDView : MonoBehaviour
     [SerializeField] private TMP_Text moduleLabel;
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private UIRingArc ring;
+    [Tooltip("Time and ring color while the module is running (not in warning).")]
+    [SerializeField] private Color timerColor = new Color(1f, 0.6f, 0f); // amber/orange
+    [Tooltip("Static background track behind the ring (sibling named \"RingTrack\"). Optional — " +
+             "found automatically next to ring if left empty.")]
+    [SerializeField] private UIRingArc ringTrack;
+    [Tooltip("Dim amber-gray shade for the track, instead of the theme's neutral gray.")]
+    [SerializeField] private Color ringTrackColor = new Color(0.32f, 0.24f, 0.12f); // amber shadow
     [Tooltip("Scaled on every beep. Its own object, so the pulse does not fight the slide.")]
     [SerializeField] private RectTransform pulseTarget;
 
@@ -58,6 +65,9 @@ public class ModuleTimerHUDView : MonoBehaviour
     [SerializeField, Min(0f)] private float fallbackWarningSeconds = 30f;
 
     [Header("Feel")]
+    [Tooltip("Slide the window out Settled Hold Seconds after a module resolves or explodes. Off = " +
+             "it stays on the outcome until the next module starts.")]
+    [SerializeField] private bool hideWhenSettled = false;
     [SerializeField, Min(0f)] private float settledHoldSeconds = 2f;
     [Tooltip("Blink cycles per second of the time while in warning.")]
     [SerializeField, Min(0.1f)] private float blinkSpeed = 2f;
@@ -77,6 +87,10 @@ public class ModuleTimerHUDView : MonoBehaviour
 
     private void Awake()
     {
+        if (ringTrack == null && ring != null)
+            ringTrack = ring.transform.parent.Find("RingTrack")?.GetComponent<UIRingArc>();
+        if (ringTrack != null) ringTrack.color = ringTrackColor;
+
         ModuleEvents.OnStateChanged += HandleStateChanged;
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnTimeAdjusted += HandleTimeAdjusted;
@@ -188,7 +202,10 @@ public class ModuleTimerHUDView : MonoBehaviour
         ApplyVisibility();
     }
 
-    /// <summary>Freezes the window on the outcome, then slides it out.</summary>
+    /// <summary>
+    /// Freezes the window on the outcome and leaves it there: the window sliding away the moment a
+    /// module ends read as the HUD breaking. The next module going Active replaces it (<see cref="Show"/>).
+    /// </summary>
     private void Settle(ModuleRuntime module)
     {
         inWarning = false;
@@ -208,7 +225,8 @@ public class ModuleTimerHUDView : MonoBehaviour
         SetStatus(resolved ? "RESOLVED" : "EXPLODED", outcome);
 
         LeanTween.cancel(gameObject);
-        LeanTween.delayedCall(gameObject, settledHoldSeconds, Hide).setIgnoreTimeScale(true);
+        if (hideWhenSettled)
+            LeanTween.delayedCall(gameObject, settledHoldSeconds, Hide).setIgnoreTimeScale(true);
     }
 
     private void Hide()
@@ -249,7 +267,7 @@ public class ModuleTimerHUDView : MonoBehaviour
         if (timerText != null)
         {
             timerText.text = FormatTime(left);
-            Color c = warning ? Accent : Primary;
+            Color c = timerColor;
             // The blink owns the alpha while in warning.
             c.a = warning ? timerText.alpha : 1f;
             timerText.color = c;
@@ -258,7 +276,7 @@ public class ModuleTimerHUDView : MonoBehaviour
         if (ring != null)
         {
             ring.SetSweep(360f * module.TimerProgress);
-            ring.color = warning ? Accent : (theme != null ? theme.TextSecondary : Color.gray);
+            ring.color = warning ? Accent : timerColor;
         }
     }
 

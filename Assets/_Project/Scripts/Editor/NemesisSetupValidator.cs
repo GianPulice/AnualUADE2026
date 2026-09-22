@@ -59,15 +59,20 @@ public static class NemesisSetupValidator
 
         problems += ValidateSurfaces(report);
         problems += ValidateModifierVolumes(report);
+        problems += ValidateModifiers(report);
+        problems += ValidateNoiseLayer(report);
         problems += ValidateSensors(report);
         problems += ValidateCameraAndInteraction(report);
         problems += ValidateWaypoints(report);
         problems += ValidateDoorUsers(report);
+        problems += ValidateDirector(report);
 
         if (problems == 0)
         {
-            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifier volumes, sensors, " +
-                      "camera, interaction, waypoints and doors are set up correctly.");
+            // The notes (sweep points, zone coverage) are still worth reading when nothing is wrong.
+            Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifiers and modifier " +
+                      "volumes, the noise layer, sensors, camera, interaction, waypoints, doors and " +
+                      "the Director are set up correctly." + (report.Length > 0 ? $"\n\n{report}" : ""));
             return;
         }
 
@@ -129,7 +134,9 @@ public static class NemesisSetupValidator
         // and nothing else is meant to notice it. A pickup or a wall-mounted socket does not need
         // to carve the NavMesh any more than it needs to block a sightline, so flagging it here
         // would be the same false positive repeated for a second system.
-        int ignored = BuildMask(new[] { "Default", "Interactable" });
+        // Player: a body, not geometry. Baking the player's capsule into the NavMesh would carve a
+        // hole wherever the scene happens to have them standing.
+        int ignored = BuildMask(new[] { "Default", "Interactable", "Player" });
         int mask = surface.layerMask.value | ignored;
 
         List<string> examples = new List<string>();
@@ -187,6 +194,75 @@ public static class NemesisSetupValidator
         {
             problems += ReportVolumeReachesNoSurface(report, volume, surfaces);
             problems += ReportVolumeAreaIsNotBlocking(report, volume);
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// A per-object NavMeshModifier is filtered exactly like a volume: NavMeshSurface.CollectSources
+    /// SKIPS every modifier whose own GameObject is not on one of its Include Layers — and with it
+    /// everything it was meant to do to its children.
+    ///
+    /// This is the one that closed every doorway in Zona1 (WIR-028). The Door prefab carried its
+    /// "ignore from build" modifier on the root, and the root sits on Interactable for the
+    /// crosshair. Interactable is not baked, so the modifier was dropped, and the leaf (on Default)
+    /// was baked as a wall. It went unnoticed for as long as Default itself was not baked either.
+    /// </summary>
+    private static int ValidateModifiers(StringBuilder report)
+    {
+        NavMeshSurface[] surfaces = FindAll<NavMeshSurface>();
+        if (surfaces.Length == 0) return 0;
+
+        int problems = 0;
+        foreach (NavMeshModifier modifier in FindAll<NavMeshModifier>())
+        {
+            int layerBit = 1 << modifier.gameObject.layer;
+            bool reached = false;
+            foreach (NavMeshSurface surface in surfaces)
+            {
+                if ((surface.layerMask.value & layerBit) != 0 && modifier.AffectsAgentType(surface.agentTypeID))
+                {
+                    reached = true;
+                    break;
+                }
+            }
+            if (reached) continue;
+
+            report.AppendLine(
+                $"- NavMeshModifier on '{modifier.gameObject.name}' does nothing: it sits on layer " +
+                $"'{LayerMask.LayerToName(modifier.gameObject.layer)}', which no NavMeshSurface bakes, and " +
+                "the surface drops such modifiers in silence — including what they were meant to do " +
+                "to their children. Move the modifier onto a child that IS on a baked layer (the door " +
+                "prefab keeps it on its Hinge), then rebake.");
+            problems++;
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// Anything SOLID on a layer the Nemesis listens to. FieldOfListening ignores those now, but
+    /// the object is still misplaced: that layer is not baked into the NavMesh and not in the vision
+    /// obstacle mask, so it is invisible to both. Zona1's Stair_Divider sat on DetectableAudio and
+    /// was a permanent noise source in the stairwell, a wall the monster could see through, and a
+    /// gap in the NavMesh (WIR-018 / WIR-020 / WIR-028).
+    /// </summary>
+    private static int ValidateNoiseLayer(StringBuilder report)
+    {
+        int listen = 0;
+        foreach (FieldOfListening ears in FindAll<FieldOfListening>()) listen |= ears.ListenMask.value;
+        if (listen == 0) return 0;
+
+        int problems = 0;
+        foreach (Collider c in FindAll<Collider>())
+        {
+            if (c.isTrigger || ((1 << c.gameObject.layer) & listen) == 0) continue;
+            report.AppendLine(
+                $"- '{c.gameObject.name}' is a SOLID {c.GetType().Name} on '{LayerMask.LayerToName(c.gameObject.layer)}', " +
+                "a layer the Nemesis listens to. Noise sources are triggers; level geometry belongs on " +
+                "Wall/Props/Default, or it is left out of the NavMesh and out of the monster's sight.");
+            problems++;
         }
 
         return problems;
@@ -514,6 +590,233 @@ public static class NemesisSetupValidator
         }
 
         return layers;
+    }
+
+    /// <summary>Plan §14.5: the Director, its zones and its triggers. Coverage is reported as a note.</summary>
+    private static int ValidateDirector(StringBuilder report)
+    {
+        NemesisPressureZone[] zones = FindAll<NemesisPressureZone>();
+        NemesisDirector[] directors = FindAll<NemesisDirector>();
+
+        if (zones.Length == 0 && directors.Length == 0) return 0;
+
+        int problems = 0;
+
+        NemesisDirector director = directors.Length > 0 ? directors[0] : null;
+        SerializedProperty triggers = director != null
+            ? new SerializedObject(director).FindProperty("puzzleTriggers")
+            : null;
+        int triggerCount = triggers != null ? triggers.arraySize : 0;
+
+        if (director == null || !director.isActiveAndEnabled)
+        {
+            if (zones.Length > 0 || triggerCount > 0)
+            {
+                report.AppendLine($"- The Director is {(director == null ? "missing" : "switched off")} but the " +
+                                  $"scene has {zones.Length} pressure zone(s) and {triggerCount} trigger(s). " +
+                                  "None of them will ever act.");
+                problems++;
+            }
+        }
+
+        problems += ValidateSafeZoneMarkers(report, director != null);
+        problems += ValidateZones(report, zones);
+
+        if (triggers != null) problems += ValidateTriggers(report, triggers, zones);
+
+        if (director != null && new SerializedObject(director).FindProperty("pacing").objectReferenceValue == null)
+        {
+            report.AppendLine("- Note: the Director has no SO_DirectorPacing, so pacing (tension, Relax " +
+                              "retreat, rising sensitivity) is off.");
+        }
+
+        ReportCoverage(report, zones);
+        return problems;
+    }
+
+    /// <summary>The C5 guard only knows the Hub through SafeZoneMarker: none means it is off, in silence.</summary>
+    private static int ValidateSafeZoneMarkers(StringBuilder report, bool hasDirector)
+    {
+        const int notWalkableArea = 1;
+        int problems = 0;
+
+        SafeZoneMarker[] markers = FindAll<SafeZoneMarker>();
+
+        if (markers.Length == 0 && hasDirector)
+        {
+            report.AppendLine("- No SafeZoneMarker in the scene: the Director cannot tell where the Hub is, so " +
+                              "nothing keeps its levers away from the Hub's door (C5). Add one next to the Hub's " +
+                              "Not Walkable NavMeshModifierVolume.");
+            problems++;
+        }
+
+        foreach (SafeZoneMarker marker in markers)
+        {
+            NavMeshModifierVolume volume = marker.GetComponent<NavMeshModifierVolume>();
+            if (volume != null && volume.area == notWalkableArea) continue;
+
+            report.AppendLine($"- SafeZoneMarker on '{marker.name}' is not on a Not Walkable NavMeshModifierVolume: " +
+                              "the Nemesis can walk in there, so it is not a refuge and is ignored.");
+            problems++;
+        }
+
+        return problems;
+    }
+
+    private static int ValidateZones(StringBuilder report, NemesisPressureZone[] zones)
+    {
+        int problems = 0;
+        HashSet<string> seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        foreach (NemesisPressureZone zone in zones)
+        {
+            if (string.IsNullOrWhiteSpace(zone.ZoneId))
+            {
+                report.AppendLine($"- Pressure zone '{zone.name}' has no Zone Id: it never registers.");
+                problems++;
+                continue;
+            }
+
+            if (!seen.Add(zone.ZoneId))
+            {
+                report.AppendLine($"- Two pressure zones are called '{zone.ZoneId}'. Find() returns whichever " +
+                                  "registered first, so one of them can never be pressured.");
+                problems++;
+            }
+
+            if (!NemesisSafeZones.IsCentreClear(zone.Center))
+            {
+                report.AppendLine($"- Pressure zone '{zone.ZoneId}': its centre is " +
+                                  $"{NemesisSafeZones.FlatDistance(zone.Center):0.0} m from the Hub (minimum " +
+                                  $"{NemesisSafeZones.Clearance:0} m). Its anchor would park the Nemesis at the " +
+                                  "Hub's door (cheese C5), so the Director refuses it. Move the centre away.");
+                problems++;
+            }
+
+            if (CountWaypointsIn(zone) == 0)
+            {
+                report.AppendLine($"- Pressure zone '{zone.ZoneId}' contains no route waypoint: the route " +
+                                  "weight lever does nothing there. Move it or grow its radius.");
+                problems++;
+            }
+        }
+
+        return problems;
+    }
+
+    private static int ValidateTriggers(StringBuilder report, SerializedProperty triggers,
+                                        NemesisPressureZone[] zones)
+    {
+        int problems = 0;
+
+        string wakePuzzle = null;
+        foreach (NemesisController controller in FindAll<NemesisController>())
+        {
+            if (!string.IsNullOrWhiteSpace(controller.ActivatedByPuzzleId)) wakePuzzle = controller.ActivatedByPuzzleId;
+        }
+
+        for (int i = 0; i < triggers.arraySize; i++)
+        {
+            SerializedProperty trigger = triggers.GetArrayElementAtIndex(i);
+            string puzzleId = trigger.FindPropertyRelative("puzzleId").stringValue;
+            string zoneId = trigger.FindPropertyRelative("zoneId").stringValue;
+            bool entrance = trigger.FindPropertyRelative("stageEntrance").boolValue;
+            string name = string.IsNullOrWhiteSpace(puzzleId) ? $"#{i}" : $"'{puzzleId}'";
+
+            if (string.IsNullOrWhiteSpace(puzzleId))
+            {
+                report.AppendLine($"- Director trigger {name} has no puzzle id: it never fires.");
+                problems++;
+            }
+
+            if (string.IsNullOrWhiteSpace(zoneId) && !entrance)
+            {
+                report.AppendLine($"- Director trigger {name} has no zone and no entrance: it does nothing.");
+                problems++;
+            }
+
+            if (!string.IsNullOrWhiteSpace(zoneId) && !HasZone(zones, zoneId))
+            {
+                report.AppendLine($"- Director trigger {name} asks for zone '{zoneId}', which is not in the scene.");
+                problems++;
+            }
+
+            if (entrance && wakePuzzle != null &&
+                string.Equals(puzzleId, wakePuzzle, System.StringComparison.OrdinalIgnoreCase))
+            {
+                report.AppendLine($"- Director trigger {name} stages an entrance on the puzzle that WAKES the " +
+                                  "Nemesis: it is still dormant then, so the entrance is skipped (plan §14.2).");
+                problems++;
+            }
+        }
+
+        return problems;
+    }
+
+    private static bool HasZone(NemesisPressureZone[] zones, string zoneId)
+    {
+        foreach (NemesisPressureZone zone in zones)
+        {
+            if (string.Equals(zone.ZoneId, zoneId, System.StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
+    }
+
+    private static int CountWaypointsIn(NemesisPressureZone zone)
+    {
+        int count = 0;
+        foreach (Transform waypoint in AllWaypoints())
+        {
+            if (zone.Contains(waypoint.position)) count++;
+        }
+
+        return count;
+    }
+
+    private static void ReportCoverage(StringBuilder report, NemesisPressureZone[] zones)
+    {
+        List<string> uncovered = new List<string>();
+        int total = 0;
+
+        foreach (Transform waypoint in AllWaypoints())
+        {
+            total++;
+
+            bool inAny = false;
+            foreach (NemesisPressureZone zone in zones)
+            {
+                if (zone.Contains(waypoint.position))
+                {
+                    inAny = true;
+                    break;
+                }
+            }
+
+            if (!inAny) uncovered.Add($"{waypoint.parent.name}/{waypoint.name}");
+        }
+
+        if (total == 0) return;
+
+        string list = uncovered.Count == 0
+            ? ""
+            : $" Outside every zone: {string.Join(", ", uncovered.GetRange(0, Mathf.Min(8, uncovered.Count)))}" +
+              (uncovered.Count > 8 ? $" (+{uncovered.Count - 8})" : "") + ".";
+
+        report.AppendLine($"- Note: pressure zones cover {total - uncovered.Count}/{total} waypoints.{list} " +
+                          "Select the Director to see them in the Scene view.");
+    }
+
+    private static IEnumerable<Transform> AllWaypoints()
+    {
+        foreach (NemesisRoute route in FindAll<NemesisRoute>())
+        {
+            for (int i = 0; i < route.transform.childCount; i++)
+            {
+                Transform child = route.transform.GetChild(i);
+                if (child.CompareTag(NemesisRoute.WaypointTag)) yield return child;
+            }
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
