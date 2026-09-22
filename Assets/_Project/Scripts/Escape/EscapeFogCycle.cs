@@ -21,8 +21,10 @@ using UnityEngine;
 /// (<see cref="EscapeCorridorFlicker"/>) whatever the fog does. They used to be powered from here,
 /// dying every time the fog closed (WIR-038); the fog is what breathes now.
 ///
-/// The amber lights (<see cref="EscapeGuideDoor"/>) are fixed and stay on for the whole escape:
-/// they are the path, and they are what pierces the closed fog (WIR-039).
+/// The amber lights (<see cref="EscapeGuideDoor"/>) are fixed and stay on for the whole escape
+/// when the config's <see cref="SO_EscapeSequenceConfig.GuideLightsEnabled"/> asks for them. Off by
+/// default: the corridor's sirens (<see cref="EscapeAlarmLights"/>) are what pierces the closed fog
+/// now (WIR-039 was about the path showing through it).
 ///
 /// The fog presets (<see cref="SO_EscapeSequenceConfig.ClosedFog"/> and
 /// <see cref="SO_EscapeSequenceConfig.OpenFog"/>) are pushed onto the <see cref="VisionRangeController"/>'s
@@ -228,11 +230,14 @@ public class EscapeFogCycle : MonoBehaviour
         }
     }
 
+    // Off unless the config asks for them: the corridor's sirens mark the way now. The route still
+    // counts the doors reached either way; only the lamps stay dark (and use no fog slots).
     private void LightPath()
     {
+        float lit = config != null && config.GuideLightsEnabled ? 1f : 0f;
         for (int i = 0; i < route.Length; i++)
         {
-            if (route[i] != null) route[i].Apply(config, 1f);
+            if (route[i] != null) route[i].Apply(config, lit);
         }
     }
 

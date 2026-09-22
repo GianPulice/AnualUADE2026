@@ -43,6 +43,8 @@ public class DoorInteractable : BaseRangeInteractable
     private Quaternion hingeClosedLocalRot;
     private bool isOpen;
     private bool isAnimating;
+    // The swing in progress, so a slam can cut it short (see Slam).
+    private Coroutine swing;
     private bool wasEverOpened;
     // When the "locked door" bump is still audibly playing. Player mashing E while the clip is
     // ringing must not stack another instance on top; we skip until Time.unscaledTime passes this.
@@ -256,7 +258,7 @@ public void OpenDoor()
         if (playUnlockSound && AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_interaction_puerta_desbloqueada", transform.position);
 
-        StartCoroutine(AnimateOpen(suppressOpenSound: playUnlockSound));
+        swing = StartCoroutine(AnimateOpen(suppressOpenSound: playUnlockSound));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door opened: {logId} (openedSign={openedSign}, opener={(openerPos.HasValue ? openerPos.Value.ToString("F2") : "null")})", this);
@@ -355,7 +357,7 @@ public void OpenDoor()
         if (nemesis != null) nemesisOpenerPos = nemesis.transform.position;
         else nemesisOpenerPos = ResolvePlayerPosition();
         openedSign = ResolveOpenSign(nemesisOpenerPos);
-        StartCoroutine(AnimateOpen(suppressOpenSound: false));
+        swing = StartCoroutine(AnimateOpen(suppressOpenSound: false));
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"[Nemesis] Door forced open: {logId}", this);
@@ -366,10 +368,31 @@ public void CloseDoor()
     {
         if (!isOpen || isAnimating) return;
 
-        StartCoroutine(AnimateClose());
+        swing = StartCoroutine(AnimateClose());
 
         string logId = doorData != null ? doorData.DoorId : gameObject.name;
         Debug.Log($"Door closed: {logId}");
+    }
+
+    /// <summary>
+    /// Slams the door shut for a scripted sequence (the escape shuts every open door on the player
+    /// at once): from wherever the leaf is — open, or mid-swing either way — to closed in
+    /// <paramref name="seconds"/>, accelerating into the frame. A swing in progress is cut short.
+    /// Plays the door's close sound unless <paramref name="soundId"/> names another one.
+    ///
+    /// It does not lock anything: a sequence seals the door with <see cref="SetSequenceLocked"/>.
+    /// </summary>
+    /// <returns>false when the door was already shut and still.</returns>
+    public bool Slam(float seconds, string soundId = null)
+    {
+        if (!isOpen && !isAnimating) return false;
+
+        if (swing != null) StopCoroutine(swing);
+        swing = StartCoroutine(AnimateSlam(Mathf.Max(0.01f, seconds), soundId));
+
+        string logId = doorData != null ? doorData.DoorId : gameObject.name;
+        Debug.Log($"Door slammed: {logId}", this);
+        return true;
     }
 
 
@@ -420,6 +443,40 @@ private IEnumerator AnimateClose()
         if (hinge != null) hinge.localRotation = to;
 
         isAnimating = false;
+    }
+
+    private IEnumerator AnimateSlam(float seconds, string soundId)
+    {
+        PlayDoorSound(!string.IsNullOrWhiteSpace(soundId) ? soundId
+                    : doorData != null ? doorData.CloseSoundId : SO_DoorData.DefaultCloseSoundId);
+
+        isAnimating = true;
+
+        // From where the leaf IS, not from fully open: the slam may cut a swing in half.
+        Quaternion from = hinge != null ? hinge.localRotation : hingeClosedLocalRot;
+
+        float t = 0f;
+        while (t < seconds)
+        {
+            t += Time.deltaTime;
+
+            // Squared, not SmoothStep: it accelerates all the way into the frame and stops dead —
+            // a slam, not a swing.
+            float k = Mathf.Clamp01(t / seconds);
+            k *= k;
+
+            if (hinge != null)
+                hinge.localRotation = Quaternion.Slerp(from, hingeClosedLocalRot, k);
+
+            yield return null;
+        }
+
+        if (hinge != null) hinge.localRotation = hingeClosedLocalRot;
+
+        isAnimating = false;
+        isOpen = false;
+        swing = null;
+        InteractionEvents.RequestPromptRefresh();
     }
 
 

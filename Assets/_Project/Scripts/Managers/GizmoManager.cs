@@ -62,7 +62,7 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool interactionRange = true;
 
     [Tooltip("Secuencia de escape: EscapeRevealTrigger, EscapeGuideDoor, EscapeFogCycle, " +
-             "EscapeCorridorLock, EscapeCorridorFlicker.")]
+             "EscapeCorridorLock, EscapeCorridorFlicker, EscapeAlarmLights.")]
     [SerializeField] private bool escapeSequence = true;
 
     [Tooltip("Ascensor: ElevatorCabinNavMesh, ElevatorCallPanel.")]
@@ -123,7 +123,7 @@ public class GizmoManager : MonoBehaviour
         yield return (escapeSequence, new[]
         {
             typeof(EscapeRevealTrigger), typeof(EscapeGuideDoor), typeof(EscapeFogCycle),
-            typeof(EscapeCorridorLock), typeof(EscapeCorridorFlicker),
+            typeof(EscapeCorridorLock), typeof(EscapeCorridorFlicker), typeof(EscapeAlarmLights),
         });
         yield return (elevator, new[] { typeof(ElevatorCabinNavMesh), typeof(ElevatorCallPanel) });
         yield return (hidingItemsDecoys, new[] { typeof(HidingSpot), typeof(ItemGlint), typeof(DecoyNoiseSource) });

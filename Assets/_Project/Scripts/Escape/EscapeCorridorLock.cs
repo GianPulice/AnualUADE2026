@@ -3,17 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Locks a list of doors one after another, in rapid sequence, with the lock sound on each (Paso 2B:
-/// "el resto de las puertas del pasillo se bloquean"). One job. The doors are sealed through
+/// Seals the corridor's doors for the escape. One job. The doors are sealed through
 /// <see cref="DoorInteractable.SetSequenceLocked"/>, which is separate from the key / puzzle lock
 /// of their SO_DoorData, so this never touches what a door needs to open in the rest of the game.
 ///
-/// A door that is open when it locks swings shut first: a sealed door the player can still walk
+/// Two ways to do it: <see cref="SlamAllNow"/> — every open door slams shut on the same frame and
+/// every door locks, the moment the player steps out into the corridor — and <see cref="LockAll"/>,
+/// one after another with the lock sound on each (the older lock-down, kept for whoever wants it).
+///
+/// A door that is open when it locks is shut first: a sealed door the player can still walk
 /// through the doorway of is not locked at all.
 ///
-/// Do NOT put the safe-zone door in the list — it is the one that stays usable. It is sealed later,
-/// on its own, as the player comes out of it (<see cref="LockDoor"/>). The hub's other exits need
-/// not be listed either: the director seals every door around the hub itself.
+/// Do NOT put the safe-zone door in the list — it is the one the player leaves through. It is sealed
+/// on its own, as they come out of it (<see cref="SlamDoor"/> / <see cref="LockDoor"/>). The hub's
+/// other exits need not be listed either: the director seals every door around the hub itself.
 /// </summary>
 public class EscapeCorridorLock : MonoBehaviour
 {
@@ -48,6 +51,36 @@ public class EscapeCorridorLock : MonoBehaviour
         routine = null;
 
         for (int i = 0; i < doors.Length; i++) Seal(doors[i]);
+    }
+
+    /// <summary>Every open door of the list slams shut on this frame, and every door of it locks —
+    /// the open ones and the ones already shut, which lock without a sound.</summary>
+    public void SlamAllNow(SO_EscapeSequenceConfig config)
+    {
+        IsLocked = true;
+        if (routine != null) StopCoroutine(routine);
+        routine = null;
+
+        for (int i = 0; i < doors.Length; i++) SealBySlam(doors[i], config);
+    }
+
+    /// <summary>Seals one more door the same way: slammed shut if it is open (or swinging), locked
+    /// either way. For the safe door behind the player and the hub's other exits.</summary>
+    public void SlamDoor(DoorInteractable door, SO_EscapeSequenceConfig config)
+    {
+        if (door == null) return;
+        if (!extra.Contains(door) && System.Array.IndexOf(doors, door) < 0) extra.Add(door);
+
+        SealBySlam(door, config);
+    }
+
+    private static void SealBySlam(DoorInteractable door, SO_EscapeSequenceConfig config)
+    {
+        if (door == null) return;
+
+        door.SetSequenceLocked(true);
+        door.Slam(config != null ? config.DoorSlamSeconds : 0.15f,
+                  config != null ? config.DoorSlamSoundId : null);
     }
 
     /// <summary>Seals one more door, shutting it first if it is open, with the lock sound once it is

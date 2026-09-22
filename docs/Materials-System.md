@@ -428,6 +428,17 @@ Dos componentes que alimentan las globales de linterna y bypass.
 
 > **Alternativa más fiel al spec §3.4**: en vez del componente estático, disparar `VisionRangeController.RegisterBypass(...)` desde `ZoneLightController.OnActivate()` (evento del generador) y `UnregisterBypass(...)` en `OnDeactivate()`. Migrable cuando exista ese sistema.
 
+#### 6.4.1 `FogBeacon` y `FogLightVolume` — luces que se leen a través de la niebla
+
+El brillo de un `FogLightBypass` se suma **antes** de la extinción, así que pasado `visionEnd` llega multiplicado por ~0.004 (preset Dark). No hay intensidad que lo haga leer de lejos sin quemar lo que esté debajo, y el player y el Nemesis son **Unlit**: ninguna Light real los ilumina, lo único que los aclara es este shader. Por eso lo que tiene que verse de lejos se compone **después** de la extinción:
+
+- **`FogBeacon`** — un punto en pantalla, con piso en píxeles y tapado por la geometría. No ilumina nada. Lo usan los ojos del Nemesis (`NemesisEyes`), las luces guía del escape (`EscapeGuideDoor`) y las lámparas del switch. Tope: `MaxBeacons` = `VISION_FOG_MAX_BEACONS` = 16. Entran por orden de registro y los ojos se re-registran al despertar el Nemesis, así que un array lleno tira los ojos primero.
+- **`FogLightVolume`** — el aire que ilumina una Light: el cono de una Spot (o la esfera de una Point) integrado a lo largo del rayo de vista (`vfLightVolumes`). Es el look de "se ve por dónde pasa la luz", sólo en las lámparas que lo llevan. Forma, alcance, color y dirección salen de la Light; si la Light o el objeto se apagan, el haz también. Los knobs globales están en `VisionRangeController` → *Light volumes*: cuánto los apaga la niebla (`volumeFogExtinction`), el fundido cerca del player (`volumeNearFade*`, para que el haz entre la cámara y el personaje no le deje una pátina) y el polvo (`volumeDust*`). Tope: `MaxLightVolumes` = `VISION_FOG_MAX_VOLUMES` = 8.
+
+Cambiar cualquiera de los topes pide reiniciar el editor: un array global conserva el largo de su primer upload durante toda la sesión.
+
+**`Light Base Switch.prefab`** (variante de `Light Base`, para las lámparas que prende un `PoweredLightSwitch`) junta las piezas: FogBeacon en el artefacto, FogLightVolume, un `FogLightBypass` esfera que sólo limpia niebla (intensity 0, clear 0.8, centrado en la pasarela) para que se vea el charco que pinta la Spot, y la Spot con range ≈ 1.6× la altura. No lleva `FogLightBypassPlayerFade`.
+
 ### 6.5 `VisionFog.mat` — Material instancia del shader fullscreen
 
 Es la instancia del `Fullscreen_VisionFog.shadergraph`. Asignado al **Full Screen Pass Renderer Feature** en `PC_Renderer.asset`.
@@ -486,7 +497,7 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Regla del spec | Cómo lo respeta el sistema |
 |---|---|
 | Rojo solo para peligro | Solo `mat_luz_emergencia_emissive` tiene rojo. Ningún material de item ni de UI lo usa. |
-| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Componentes usa marrón oscuro (`#4E342E`), no ámbar puro. |
+| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Componentes usa marrón oscuro (`#4E342E`), no ámbar puro. **Excepción (22/09, pedido de Iñaki):** las sirenas del pasillo del escape (`EscapeAlarmLights`) alternan rojo `#CC1A1A` (peligro, que es lo que son) y el ámbar del escape `(1, 0.72, 0.38)`, el de sus luces del camino. Colores en `SO_EscapeSequenceConfig` → *Sirenas del pasillo*. |
 | Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. |
 | Verde solo para "módulo alimentado / núcleo colocado" | Solo `SocketEmissionShift` (zona emisiva de las estaciones de núcleo al insertar la pieza, HDR `(0.25, 2.4, 0.55)`). No usar en otro lado. |
 | Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. |

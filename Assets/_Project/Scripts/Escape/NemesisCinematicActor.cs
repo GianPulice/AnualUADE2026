@@ -54,6 +54,17 @@ public class NemesisCinematicActor : MonoBehaviour
         }
     }
 
+    /// <summary>The Nemesis is awake: not dormant, waiting for a script (or its puzzle) to wake it.
+    /// </summary>
+    public bool IsNemesisAwake
+    {
+        get
+        {
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            return nemesis != null && nemesis.IsActive;
+        }
+    }
+
     /// <summary>Walking or running to a marker (false once it has arrived and stands).</summary>
     public bool IsMoving => hasControl && moving;
 
@@ -113,6 +124,20 @@ public class NemesisCinematicActor : MonoBehaviour
     public void WalkTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Walking, walkSpeed);
 
     public void RunTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Running, runSpeed);
+
+    /// <summary>
+    /// Shows or hides the Nemesis's eyes (the two points that read through the fog), so a shot can
+    /// keep it a shape in the dark until the moment its eyes open. Only the escape's own business:
+    /// dormancy sets them again the next time the Nemesis sleeps or wakes.
+    /// </summary>
+    public void SetEyesVisible(bool visible)
+    {
+        if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+        if (nemesis == null) return;
+
+        NemesisEyes eyes = nemesis.GetComponentInChildren<NemesisEyes>();
+        if (eyes != null) eyes.SetLightsEnabled(visible);
+    }
 
     /// <summary>Turns in place to look at the marker (standing still; ignored while moving).</summary>
     public void FaceTowards(Transform marker)

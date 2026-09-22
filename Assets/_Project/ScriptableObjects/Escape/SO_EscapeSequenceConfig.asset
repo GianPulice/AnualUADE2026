@@ -16,10 +16,10 @@ MonoBehaviour:
   skippable: 1
   skipKey: 102
   skipPromptFormat: '[Press {0} to skip]'
-  openSeconds: 1
-  holdSeconds: 1.5
-  closeSeconds: 1.2
-  darkGapSeconds: 1
+  openSeconds: 2.2
+  holdSeconds: 3
+  closeSeconds: 2.2
+  darkGapSeconds: 2.5
   arrivalRadius: 2.5
   lightColor: {r: 1, g: 0.72, b: 0.38, a: 1}
   lightRadius: 3
@@ -28,8 +28,9 @@ MonoBehaviour:
   beaconIntensity: 3
   lampIntensity: 6
   closedFog: {fileID: 11400000, guid: 85e7d0e29935b754397313a3947dd609, type: 2}
-  openFog: {fileID: 11400000, guid: 9c6d7413934cc7e4596386b4964f8f31, type: 2}
+  openFog: {fileID: 0}
   revealShotFog: {fileID: 0}
+  gateShotFog: {fileID: 11400000, guid: e28b129b194c9aebafd223c828726d59, type: 2}
   paceNear: 0.92
   paceFar: 1.25
   paceNearDistance: 2.5

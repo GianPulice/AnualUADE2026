@@ -1,12 +1,21 @@
 using UnityEngine;
 
+/// <summary>What a capture during the chase means. Stored as a number in the asset: only append.</summary>
+public enum EscapeCaptureOutcome
+{
+    /// <summary>The run ends: the defeat screen.</summary>
+    GameOver = 0,
+
+    /// <summary>The chase starts over from Player_Spot.</summary>
+    RestartChase = 1,
+}
+
 /// <summary>
 /// Every number of the escape sequence that is meant to be tuned in playtest, in one asset: the
-/// skip key, the fog cycle (Paso 4), the amber path lights (Paso 5), the Nemesis's reveal in the
-/// corridor, its trot (Paso 6), the chase restart after a capture, the gate slamming shut at the
-/// end, and the audio layers (Paso 7). What is NOT here is the opening's timing — its shot and
-/// beats are a clip and markers in the Timeline (open the EscapeSequence object, Window ▸
-/// Sequencing ▸ Timeline).
+/// skip key, the slam as the player steps out into the corridor, the pan, the Nemesis's eyes and
+/// its charge, the fog cycle (Paso 4), the corridor's sirens, the amber path lights (Paso 5, off
+/// by default now), its trot (Paso 6), what a capture means, the gate slamming shut at the end,
+/// and the audio layers (Paso 7).
 ///
 /// Read live: the fog cycle and the pursuit re-read this asset every frame, so dragging a slider
 /// in Play mode is visible right away (and, as with any ScriptableObject, it sticks in the
@@ -20,21 +29,88 @@ public class SO_EscapeSequenceConfig : ScriptableObject
 {
     // ── Trigger ─────────────────────────────────────────────────────────────
     [Header("Disparo (Paso 1)")]
-    [Tooltip("Puzzle que dispara la secuencia al completarse: el hub de los tres núcleos. Si ya " +
-             "estaba completo al cargar la escena (partida cargada) la cinemática NO se repite.")]
+    [Tooltip("Puzzle que arma la secuencia al completarse: el hub de los tres núcleos. No corta el " +
+             "juego: la cinemática arranca cuando el jugador sale al pasillo. Si ya estaba " +
+             "completo al cargar la escena (partida cargada) la secuencia NO se repite.")]
     [SerializeField, PuzzleId] private string triggerPuzzleId = "puzzle_central_piso1";
 
     // ── Skip ────────────────────────────────────────────────────────────────
     [Header("Skip")]
-    [Tooltip("Deja saltear las cinemáticas del escape (la apertura, la aparición del Nemesis en el " +
-             "pasillo y el portón del final) con la tecla de abajo. El cartel '[Press F to skip]' " +
-             "se ve mientras duran.")]
+    [Tooltip("Deja saltear las cinemáticas del escape (del portazo a la carga del Nemesis, y el " +
+             "portón del final) con la tecla de abajo. El cartel '[Press F to skip]' se ve " +
+             "mientras duran.")]
     [SerializeField] private bool skippable = true;
 
     [SerializeField] private KeyCode skipKey = KeyCode.F;
 
     [Tooltip("{0} = la tecla de skip.")]
     [SerializeField] private string skipPromptFormat = "[Press {0} to skip]";
+
+    // ── The slam ────────────────────────────────────────────────────────────
+    [Header("Portazo al salir al pasillo — A DEFINIR EN TESTEO")]
+    // Después del último núcleo se sigue jugando. Cuando el jugador sale por la puerta del centro
+    // y ya dio unos pasos en el pasillo (RevealTrigger, fuera del barrido de la hoja): corte seco
+    // al plano general, todas las puertas abiertas se cierran de golpe a la vez (la del centro,
+    // atrás suyo, incluida: no hay vuelta) y se traban. Después, la tensión y el paneo.
+    [Tooltip("Segundos que tarda cada puerta en cerrarse de golpe. Acelera hasta el marco.")]
+    [SerializeField, Min(0.01f)] private float doorSlamSeconds = 0.15f;
+
+    [Tooltip("Sonido del portazo (id de AudioManager), en cada puerta. Vacío = el sonido de cerrar " +
+             "de cada puerta.")]
+    [SerializeField, SoundId] private string doorSlamSoundId = "";
+
+    [Tooltip("En el corte, el jugador se acomoda en Player_CorridorMark (a lo sumo un par de " +
+             "metros, el corte lo tapa) para que el plano general lo encuadre siempre igual. " +
+             "Apagado = queda donde estaba.")]
+    [SerializeField] private bool snapPlayerToMark = true;
+
+    [Tooltip("Segundos del plano fijo después del portazo: silencio, el jugador encerrado. 0 = " +
+             "pasa directo al paneo.")]
+    [SerializeField, Min(0f)] private float tensionSeconds = 3f;
+
+    [Tooltip("Al poner el último núcleo se cierran y traban TODAS las puertas del hub, la del " +
+             "centro incluida. Estos son los segundos que pasan hasta que la del centro se abre " +
+             "sola: la única salida. 0 = se abre en el acto.")]
+    [SerializeField, Min(0f)] private float safeDoorOpensAfter = 1.5f;
+
+    // ── Pan, eyes, charge ───────────────────────────────────────────────────
+    [Header("Paneo, ojos y carga del Nemesis — A DEFINIR EN TESTEO")]
+    // La misma cámara del portazo gira hacia el fondo del pasillo, donde espera el Nemesis
+    // (Nemesis_CorridorEnd). Corte al detalle de los ojos: la niebla cerrada se come el cuerpo.
+    // Corte al plano general: arranca a correr hacia el jugador y, cuando recorrió unos metros,
+    // corte al jugador mirándolo: vuelve el control y arranca la persecución.
+    [Tooltip("El giro de 180° hacia el fondo lo hace el JUGADOR, en su propia cámara: gira solo, " +
+             "ve el pasillo como lo va a ver cuando le devuelvan el control, y no se desorienta al " +
+             "recuperarlo. Apagado = lo hace la cámara del portazo (Cam_Slam) con un paneo.")]
+    [SerializeField] private bool panOnPlayerView = true;
+
+    [Tooltip("La carga del Nemesis también se ve desde el jugador, así el control vuelve sin " +
+             "ningún corte. Apagado = corta al plano general (Cam_Charge).")]
+    [SerializeField] private bool chargeOnPlayerView = true;
+
+    [Tooltip("Segundos que tarda el giro de 180° hacia el fondo del pasillo.")]
+    [SerializeField, Min(0.05f)] private float panSeconds = 2.2f;
+
+    [Tooltip("Forma del paneo (0..1 en los dos ejes). Vacía = arranca y frena suave.")]
+    [SerializeField] private AnimationCurve panCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
+    [Tooltip("SÓLO para el paneo de cámara (con 'Pan On Player View' apagado): para qué lado gira " +
+             "Cam_Slam. -1 = izquierda, +1 = derecha, 0 = por el lado corto. Con Cam_Slam como " +
+             "viene, +1 pasa por la puerta del centro recién cerrada antes de llegar al fondo.\n\n" +
+             "El giro del jugador va siempre por el lado corto: saliendo por la puerta, el fondo " +
+             "del pasillo le queda a un cuarto de vuelta a la izquierda.")]
+    [SerializeField, Range(-1, 1)] private int panTurnSign = 1;
+
+    [Tooltip("Segundos del plano detalle de los ojos.")]
+    [SerializeField, Min(0f)] private float eyesHoldSeconds = 1.6f;
+
+    [Tooltip("Metros que corre el Nemesis hacia el jugador en el plano general antes de que vuelva " +
+             "el control.")]
+    [SerializeField, Min(0.5f)] private float chargeDistance = 6f;
+
+    [Tooltip("Tope (s) de la carga: si por lo que sea no recorre la distancia, el control vuelve " +
+             "igual.")]
+    [SerializeField, Min(0.5f)] private float chargeMaxSeconds = 4f;
 
     // ── Fog cycle (Paso 4) ──────────────────────────────────────────────────
     // Sólo la niebla: las luces del pasillo titilan todo el escape por su cuenta
@@ -60,6 +136,10 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [SerializeField, Min(0.5f)] private float arrivalRadius = 2.5f;
 
     [Header("Luces ámbar del camino (Paso 5)")]
+    [Tooltip("Prende las luces ámbar del camino durante el escape. Apagado (lo normal ahora) = el " +
+             "pasillo lo marcan las sirenas; el recorrido igual cuenta las puertas alcanzadas.")]
+    [SerializeField] private bool guideLightsEnabled = false;
+
     [Tooltip("Color de las luces del camino al portón: fijas en cada puerta del recorrido, " +
              "prendidas todo el escape. ROJO NO: está reservado al Nemesis.")]
     [ColorUsage(showAlpha: false, hdr: false)]
@@ -91,48 +171,74 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "(las que titilan).")]
     [SerializeField, Min(0f)] private float lampIntensity = 6f;
 
+    // ── Sirens ──────────────────────────────────────────────────────────────
+    [Header("Sirenas del pasillo — A DEFINIR EN TESTEO")]
+    // Las lámparas del pasillo se vuelven sirenas cuando vuelve el control: rojo y ámbar
+    // alternando, estilo patrullero. Misma receta que las Light Base Switch: un punto que
+    // atraviesa cualquier niebla (FogBeacon), el haz del cono en el aire (FogLightVolume), un
+    // charco que sólo aclara la niebla sin inyectar luz (el jugador y el Nemesis son Unlit: la luz
+    // inyectada los quemaba) y el Spot para las paredes.
+    [Tooltip("Color de un grupo de sirenas. Rojo peligro #CC1A1A.")]
+    [ColorUsage(showAlpha: false, hdr: false)]
+    [SerializeField] private Color alarmRed = new Color(0.8f, 0.102f, 0.102f);
+
+    [Tooltip("Color del otro grupo. El ámbar del escape (el de las luces del camino).")]
+    [ColorUsage(showAlpha: false, hdr: false)]
+    [SerializeField] private Color alarmAmber = new Color(1f, 0.72f, 0.38f);
+
+    [Tooltip("Segundos de una vuelta completa: la mitad prende un grupo, la otra mitad el otro. " +
+             "Más de 0.66 s = menos de 3 destellos por segundo (fotosensibilidad).")]
+    [SerializeField, Min(0.34f)] private float alarmPeriod = 0.8f;
+
+    [Tooltip("Fracción de cada mitad que queda apagada entre un grupo y el otro. 0 = cambia de " +
+             "color sin apagarse.")]
+    [SerializeField, Range(0f, 0.8f)] private float alarmGap = 0.15f;
+
+    [Tooltip("Intensidad del Spot de cada sirena prendida (lo que pinta paredes y piso).")]
+    [SerializeField, Min(0f)] private float alarmLampIntensity = 12f;
+
+    [Tooltip("Brillo del punto de la sirena que atraviesa cualquier niebla (FogBeacon). 0 = sin " +
+             "punto: no se ven de lejos.")]
+    [SerializeField, Min(0f)] private float alarmBeaconIntensity = 3f;
+
+    [Tooltip("Tamaño real (m) del punto de la sirena. Más grande que un ojo del Nemesis.")]
+    [SerializeField, Min(0.001f)] private float alarmBeaconRadius = 0.18f;
+
+    [Tooltip("Radio mínimo (px) del punto. Más grande que el de los ojos (5.5) para no " +
+             "confundirlos.")]
+    [SerializeField, Min(0f)] private float alarmBeaconMinPixels = 6f;
+
+    [Tooltip("Distancia (m) por debajo de la cual el punto de la sirena se apaga: de cerca no " +
+             "encandila.")]
+    [SerializeField, Min(0f)] private float alarmBeaconNearFadeStart = 1.5f;
+
+    [Tooltip("Distancia (m) a partir de la cual el punto está a brillo completo.")]
+    [SerializeField, Min(0f)] private float alarmBeaconNearFadeEnd = 4f;
+
+    [Tooltip("Cuánta niebla aclara el charco de cada sirena. Sólo aclara: no mete luz, así no " +
+             "quema al jugador que pasa por abajo. 0 = sin charco.")]
+    [SerializeField, Range(0f, 1f)] private float alarmPoolClear = 0.6f;
+
+    [Tooltip("Brillo del haz de cada sirena en el aire (FogLightVolume): el cono rojo / ámbar que " +
+             "se ve bajar del techo a través de la niebla. 0.3 = sutil, 1 = exagerado. 0 = sin haz.")]
+    [SerializeField, Min(0f)] private float alarmBeamIntensity = 0.9f;
+
     [Header("Preset de niebla del escape (opcionales)")]
-    [Tooltip("Niebla espesa que rige durante todo el escape: entra con la aparición del Nemesis (se " +
-             "le ven los ojos a través de ella) y es a la que vuelve el ciclo cada vez que se " +
+    [Tooltip("Niebla espesa que rige durante todo el escape: entra con el portazo (del Nemesis se " +
+             "ven los ojos a través de ella) y es a la que vuelve el ciclo cada vez que se " +
              "cierra. Vacío = no toca la niebla global.")]
     [SerializeField] private SO_VisionFogConfig closedFog;
 
-    [Tooltip("Niebla más baja que se aplica mientras el ciclo está abierto. También es la que se " +
-             "abre cuando el Nemesis carga en la aparición. Vacío = la niebla no respira.")]
+    [Tooltip("Niebla más baja que se aplica mientras el ciclo está abierto, en la persecución. " +
+             "Vacío = la niebla no respira.")]
     [SerializeField] private SO_VisionFogConfig openFog;
 
-    // ── Nemesis reveal in the corridor ──────────────────────────────────────
-    [Header("Aparición del Nemesis en el pasillo — A DEFINIR EN TESTEO")]
-    // Se dispara cuando el jugador sale por la puerta del centro (entra al RevealTrigger y se aleja
-    // de la hoja), todavía con la cámara fija de la puerta. Corte al plano del pasillo frente al
-    // montacargas (Cam_2A): la puerta lateral se abre y el Nemesis sale, mira a un lado y al otro y
-    // corre hacia la cámara. Mientras, la puerta de la zona segura se cierra y se traba atrás tuyo.
-    // Cuando el Nemesis pasa a través de la cámara, corte al jugador, ya mirando hacia él: vuelve el
-    // control y arranca la persecución.
-    [Tooltip("Otra niebla para el plano del Nemesis, sólo si hace falta. Vacío (lo normal) = la " +
-             "niebla cerrada del escape: se le ven sólo los ojos y el cuerpo aparece recién cerca " +
-             "de la cámara. SO_VisionFog_EscapeCinematic es la del plano 2A viejo, casi sin niebla.")]
+    // ── The cinematic's fog and the handover ────────────────────────────────
+    [Header("Niebla de la cinemática y vuelta del control")]
+    [Tooltip("Otra niebla para la cinemática del portazo a la carga, sólo si hace falta. Vacío (lo " +
+             "normal) = la niebla cerrada del escape: del Nemesis se ven sólo los ojos y el cuerpo " +
+             "aparece recién cerca de la cámara.")]
     [SerializeField] private SO_VisionFogConfig revealShotFog;
-
-    [Tooltip("Segundos desde el corte hasta que se abre la puerta del Nemesis.")]
-    [SerializeField, Min(0f)] private float revealDoorOpenAt = 0.6f;
-
-    [Tooltip("Segundos desde el corte hasta que sale caminando hasta el umbral.")]
-    [SerializeField, Min(0f)] private float revealWalkOutAt = 1.4f;
-
-    [Tooltip("Segundos desde el corte hasta que mira a un lado (Nemesis_LookLeft).")]
-    [SerializeField, Min(0f)] private float revealLookLeftAt = 2.8f;
-
-    [Tooltip("Segundos desde el corte hasta que mira al otro (Nemesis_LookRight).")]
-    [SerializeField, Min(0f)] private float revealLookRightAt = 3.8f;
-
-    [Tooltip("Segundos desde el corte hasta que arranca a correr hacia el jugador (con el rugido).")]
-    [SerializeField, Min(0f)] private float revealChargeAt = 4.6f;
-
-    [Tooltip("Corriendo hacia la cámara del plano, cuando está a esta distancia (m) delante de la " +
-             "lente se corta al jugador y vuelve el control. Cerca de 0 = pasa a través de la " +
-             "cámara; más = el corte llega antes.")]
-    [SerializeField, Min(0f)] private float revealCutDistance = 0.3f;
 
     [Tooltip("Cuánto (grados) se corre la cámara del jugador de la línea hacia el Nemesis al " +
              "volver el control, para que la cabeza del jugador no le tape los ojos.")]
@@ -143,18 +249,19 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "positivo = más alta, mira más al piso (el 17.5 por defecto del rig ya mira al piso).")]
     [SerializeField, Range(-40f, 40f)] private float revealCameraVertical = -5f;
 
-    [Tooltip("Tope (s) de toda la escena: si por lo que sea se traba, el control vuelve igual.")]
-    [SerializeField, Min(0.5f)] private float revealMaxSeconds = 9f;
-
     [Tooltip("Sonido cuando arranca a correr (id de AudioManager), en la posición del Nemesis. " +
              "Vacío = ninguno.")]
     [SerializeField, SoundId] private string revealSoundId = "sfx_nemesis_activacion";
 
     // ── Capture during the chase ────────────────────────────────────────────
-    [Header("Si te agarra: la persecución vuelve a empezar")]
-    // No es game over: volvés a Player_Spot (un checkpoint), el portón se vuelve a cerrar, la
-    // niebla arranca cerrada y el Nemesis espera detrás tuyo en Nemesis_ApproachStart.
-    [Tooltip("Segundos desde que te levantás con el control hasta que el Nemesis vuelve a correr.")]
+    [Header("Si te agarra en la persecución")]
+    [Tooltip("Game Over = se termina la partida (pantalla de derrota). Restart Chase = volvés a " +
+             "Player_Spot (un checkpoint), el portón se vuelve a cerrar, la niebla arranca cerrada " +
+             "y el Nemesis espera detrás tuyo en Nemesis_ApproachStart.")]
+    [SerializeField] private EscapeCaptureOutcome captureOutcome = EscapeCaptureOutcome.GameOver;
+
+    [Tooltip("Sólo con Restart Chase: segundos desde que te levantás con el control hasta que el " +
+             "Nemesis vuelve a correr.")]
     [SerializeField, Min(0f)] private float restartNemesisDelay = 1f;
 
     // ── Ending: the gate slams shut ─────────────────────────────────────────
@@ -164,20 +271,27 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos desde el corte al plano del portón hasta que empieza a caer. Va de la mano " +
              "con dónde arranca el Nemesis (Nemesis_GateStart): el portón tiene que tocar el piso " +
              "un instante antes de que él llegue.")]
-    [SerializeField, Min(0f)] private float gateDropDelay = 0.55f;
+    [SerializeField, Min(0f)] private float gateDropDelay = 1f;
 
     [Tooltip("Segundos que tarda en caer. Acelera como algo pesado: arranca lento y llega a fondo.")]
     [SerializeField, Min(0.05f)] private float gateSlamSeconds = 0.35f;
 
     [Tooltip("Sonido del golpe contra el piso (id de AudioManager). Vacío = sin sonido: todavía no " +
              "hay uno de portón cayendo.")]
-    [SerializeField, SoundId] private string gateSlamSoundId = "";
+    [SerializeField, SoundId] private string gateSlamSoundId = "sfx_interaction_cerrar_puerta";
 
     [Tooltip("Cuánto (m) se sacude la cámara con el golpe.")]
     [SerializeField, Min(0f)] private float gateShakeAmplitude = 0.06f;
 
     [Tooltip("Cuánto dura la sacudida (s).")]
     [SerializeField, Min(0.05f)] private float gateShakeSeconds = 0.45f;
+
+    [Tooltip("Niebla del plano del portón. Tiene que cerrarse justo pasando el portón, así del otro " +
+             "lado no se ve nada (ni el jugador). Vacío = la niebla cerrada del escape.")]
+    [SerializeField] private SO_VisionFogConfig gateShotFog;
+
+    [Tooltip("Segundos después del golpe hasta el corte al plano medio del Nemesis entre el polvo.")]
+    [SerializeField, Min(0f)] private float dustShotDelay = 0.35f;
 
     [Tooltip("Segundos con el Nemesis trabado atrás del portón antes de la pantalla de victoria.")]
     [SerializeField, Min(0f)] private float endingHoldSeconds = 2.5f;
@@ -225,7 +339,8 @@ public class SO_EscapeSequenceConfig : ScriptableObject
 
     // ── Audio (Paso 7) ──────────────────────────────────────────────────────
     [Header("Audio (Paso 7)")]
-    [Tooltip("Alarma de instalación. Loop desde que arranca la secuencia hasta que termina.")]
+    [Tooltip("Alarma de instalación. Loop desde que vuelve el control (arranca la persecución, " +
+             "con las sirenas) hasta que termina el escape.")]
     [SerializeField] private AudioClip alarmClip;
     [SerializeField, Range(0f, 1f)] private float alarmVolume = 0.6f;
 
@@ -242,10 +357,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos que tarda la capa de tensión en seguir a la cercanía del Nemesis.")]
     [SerializeField, Min(0.05f)] private float tensionSmoothing = 1.5f;
 
-    [Tooltip("Sonido de traba de cada puerta del pasillo (id de AudioManager).")]
+    [Tooltip("Sonido de traba de cada puerta (id de AudioManager): las otras salidas del hub al " +
+             "poner el último núcleo.")]
     [SerializeField, SoundId] private string doorLockSoundId = "sfx_interaction_puerta_bloqueada";
 
-    [Tooltip("Segundos entre una puerta y la siguiente al trabarse (secuencia rápida).")]
+    [Tooltip("Segundos entre una puerta y la siguiente cuando se traban de a una (EscapeCorridorLock.LockAll).")]
     [SerializeField, Min(0f)] private float doorLockInterval = 0.12f;
 
     public string TriggerPuzzleId => triggerPuzzleId;
@@ -254,12 +370,28 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public KeyCode SkipKey => skipKey;
     public string SkipPromptText => string.Format(skipPromptFormat, skipKey);
 
+    public float DoorSlamSeconds => doorSlamSeconds;
+    public string DoorSlamSoundId => doorSlamSoundId;
+    public bool SnapPlayerToMark => snapPlayerToMark;
+    public float TensionSeconds => tensionSeconds;
+    public float SafeDoorOpensAfter => safeDoorOpensAfter;
+    public bool PanOnPlayerView => panOnPlayerView;
+    public bool ChargeOnPlayerView => chargeOnPlayerView;
+
+    public float PanSeconds => panSeconds;
+    public AnimationCurve PanCurve => panCurve;
+    public int PanTurnSign => panTurnSign;
+    public float EyesHoldSeconds => eyesHoldSeconds;
+    public float ChargeDistance => chargeDistance;
+    public float ChargeMaxSeconds => chargeMaxSeconds;
+
     public float OpenSeconds => openSeconds;
     public float HoldSeconds => holdSeconds;
     public float CloseSeconds => closeSeconds;
     public float DarkGapSeconds => darkGapSeconds;
     public float ArrivalRadius => arrivalRadius;
 
+    public bool GuideLightsEnabled => guideLightsEnabled;
     public Color LightColor => lightColor;
     public float LightRadius => lightRadius;
     public float LightFogIntensity => lightFogIntensity;
@@ -271,23 +403,29 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public SO_VisionFogConfig ClosedFog => closedFog;
     public SO_VisionFogConfig OpenFog => openFog;
 
+    public Color AlarmRed => alarmRed;
+    public Color AlarmAmber => alarmAmber;
+    public float AlarmPeriod => alarmPeriod;
+    public float AlarmGap => alarmGap;
+    public float AlarmLampIntensity => alarmLampIntensity;
+    public float AlarmBeaconIntensity => alarmBeaconIntensity;
+    public float AlarmBeaconRadius => alarmBeaconRadius;
+    public float AlarmBeaconMinPixels => alarmBeaconMinPixels;
+    public float AlarmBeaconNearFadeStart => alarmBeaconNearFadeStart;
+    public float AlarmBeaconNearFadeEnd => alarmBeaconNearFadeEnd;
+    public float AlarmPoolClear => alarmPoolClear;
+    public float AlarmBeamIntensity => alarmBeamIntensity;
+
     public SO_VisionFogConfig RevealShotFog => revealShotFog;
-    public float RevealDoorOpenAt => revealDoorOpenAt;
-    public float RevealWalkOutAt => revealWalkOutAt;
-    public float RevealLookLeftAt => revealLookLeftAt;
-    public float RevealLookRightAt => revealLookRightAt;
-    public float RevealChargeAt => revealChargeAt;
-    public float RevealCutDistance => revealCutDistance;
     public float RevealCameraSideAngle => revealCameraSideAngle;
     public float RevealCameraVertical => revealCameraVertical;
-
-    /// <summary>Never shorter than the scene as written plus a run: the cap is for one that stalls.
-    /// </summary>
-    public float RevealMaxSeconds => Mathf.Max(revealMaxSeconds, revealChargeAt + 4f);
     public string RevealSoundId => revealSoundId;
 
+    public EscapeCaptureOutcome CaptureOutcome => captureOutcome;
     public float RestartNemesisDelay => restartNemesisDelay;
 
+    public SO_VisionFogConfig GateShotFog => gateShotFog;
+    public float DustShotDelay => dustShotDelay;
     public float GateDropDelay => gateDropDelay;
     public float GateSlamSeconds => gateSlamSeconds;
     public string GateSlamSoundId => gateSlamSoundId;

@@ -28,8 +28,19 @@ public class VisionRangeController : MonoBehaviour
     /// <summary>Must match VISION_FOG_MAX_BYPASS in VisionFog_HLSL.shader.</summary>
     public const int MaxBypassZones = 16;
 
-    /// <summary>Must match VISION_FOG_MAX_BEACONS in VisionFog_HLSL.shader.</summary>
-    public const int MaxBeacons = 8;
+    /// <summary>
+    /// Must match VISION_FOG_MAX_BEACONS in VisionFog_HLSL.shader.
+    ///
+    /// Sized for everything that can be lit at once, with room to spare: the Nemesis's two eyes,
+    /// the escape's three guide lamps and the six SP2 ceiling lamps make eleven. Slots go out in
+    /// registration order and the eyes re-register every time the Nemesis wakes, so a full array
+    /// drops the eyes first. Changing this needs an editor restart: a global array keeps the
+    /// length of its first upload for the whole session.
+    /// </summary>
+    public const int MaxBeacons = 16;
+
+    /// <summary>Must match VISION_FOG_MAX_VOLUMES in VisionFog_HLSL.shader.</summary>
+    public const int MaxLightVolumes = 16;
 
     [Header("Default config")]
     [Tooltip("Preset applied when the player is not inside any LightZone. " +
@@ -52,6 +63,30 @@ public class VisionRangeController : MonoBehaviour
              "más bajo = un halo blando y grande.")]
     [SerializeField, Min(0.01f)] private float beaconFalloff = 4f;
 
+    [Header("Light volumes (FogLightVolume)")]
+    [Tooltip("How much the fog dims the beams, relative to how much it dims a surface at the same " +
+             "distance.\n\n" +
+             "0 = a beam looks the same near and far. 1 = the fog swallows it like the wall behind " +
+             "it, so it is not seen from afar.")]
+    [SerializeField, Range(0f, 1f)] private float volumeFogExtinction = 0.25f;
+
+    [Tooltip("Distance to the player (m) below which the beam is not drawn. It keeps the stretch of " +
+             "beam between the camera and the character from laying a haze over them.")]
+    [SerializeField, Min(0f)] private float volumeNearFadeStart = 1f;
+
+    [Tooltip("Distance to the player (m) from which the beam is at full brightness. Between this and " +
+             "the start it fades in.")]
+    [SerializeField, Min(0f)] private float volumeNearFadeEnd = 3.5f;
+
+    [Tooltip("Size (m) of the dust patches drifting inside the beam.")]
+    [SerializeField, Min(0.05f)] private float volumeDustSize = 1.2f;
+
+    [Tooltip("How visible the dust is. 0 = a smooth beam; 1 = strong patches.")]
+    [SerializeField, Range(0f, 1f)] private float volumeDustAmount = 0.5f;
+
+    [Tooltip("Speed (m/s) at which the dust sinks through the beam.")]
+    [SerializeField, Min(0f)] private float volumeDustSpeed = 0.15f;
+
     [Header("Player")]
     [Tooltip("Optional manual assignment, mainly for Timeline preview. If empty, the player " +
              "comes from PlayerRegistry.")]
@@ -71,6 +106,7 @@ public class VisionRangeController : MonoBehaviour
     private FogLightSource _playerLight;
     private static readonly List<FogLightBypass> s_bypassZones = new List<FogLightBypass>(MaxBypassZones);
     private static readonly List<FogBeacon> s_beacons = new List<FogBeacon>(MaxBeacons);
+    private static readonly List<FogLightVolume> s_volumes = new List<FogLightVolume>(MaxLightVolumes);
 
     // Reusable buffers. Unity locks a global array's size on first upload, so these are allocated
     // at full length once and the unused tail is zeroed rather than the array being resized.
@@ -80,6 +116,10 @@ public class VisionRangeController : MonoBehaviour
 
     private readonly Vector4[] _beaconData  = new Vector4[MaxBeacons]; // xyz = world pos, w = radius in metres
     private readonly Vector4[] _beaconColor = new Vector4[MaxBeacons]; // rgb = linear colour * intensity, a = min pixel radius
+
+    private readonly Vector4[] _volumeData  = new Vector4[MaxLightVolumes]; // xyz = apex, w = range in metres
+    private readonly Vector4[] _volumeAxis  = new Vector4[MaxLightVolumes]; // xyz = axis, w = cos(outer half-angle); < -1.5 => sphere
+    private readonly Vector4[] _volumeColor = new Vector4[MaxLightVolumes]; // rgb = linear colour * strength, a = cos(inner half-angle)
 
     // Current values (interpolated frame by frame) and where they are heading.
     private VisionFogState _current;
@@ -143,6 +183,7 @@ public class VisionRangeController : MonoBehaviour
             Shader.SetGlobalFloat(VisionFogState.Ids.PlayerLightRange, 0f);
             Shader.SetGlobalInt(VisionFogState.Ids.BypassCount, 0);
             Shader.SetGlobalInt(VisionFogState.Ids.BeaconCount, 0);
+            Shader.SetGlobalInt(VisionFogState.Ids.VolumeCount, 0);
             return;
         }
 
@@ -175,6 +216,7 @@ public class VisionRangeController : MonoBehaviour
         frame.PushToShader(centre, lightPos);
         PushBypassZones(frame);
         PushBeacons(centre);
+        PushLightVolumes();
     }
 
     // ── Public API for LightZones ───────────────────────────────────────────
@@ -272,6 +314,20 @@ public class VisionRangeController : MonoBehaviour
     {
         if (beacon == null) return;
         s_beacons.Remove(beacon);
+    }
+
+    // -- API for FogLightVolume ---------------------------------------------
+
+    public static void RegisterLightVolume(FogLightVolume volume)
+    {
+        if (volume == null || s_volumes.Contains(volume)) return;
+        s_volumes.Add(volume);
+    }
+
+    public static void UnregisterLightVolume(FogLightVolume volume)
+    {
+        if (volume == null) return;
+        s_volumes.Remove(volume);
     }
 
     // ── API for VisionFogTrack (Timeline) and the config inspector ──────────
@@ -398,6 +454,52 @@ public class VisionRangeController : MonoBehaviour
         Shader.SetGlobalFloat(VisionFogState.Ids.BeaconDepthBias, beaconDepthBias);
         Shader.SetGlobalFloat(VisionFogState.Ids.BeaconMaxPixels, beaconMaxPixels);
         Shader.SetGlobalFloat(VisionFogState.Ids.BeaconFalloff, beaconFalloff);
+    }
+
+    /// <summary>
+    /// Compacts the lit light volumes into the shader arrays. Same pattern as the beacons: only the
+    /// ones that resolve go out, colours convert through <see cref="VisionFogState.ToLinear"/>, and
+    /// the unused tail is zeroed. The shader integrates each one along the view ray — see
+    /// <see cref="FogLightVolume"/> for why that is not a bypass zone.
+    /// </summary>
+    private void PushLightVolumes()
+    {
+        int count = 0;
+        for (int i = 0; i < s_volumes.Count && count < MaxLightVolumes; i++)
+        {
+            FogLightVolume volume = s_volumes[i];
+            if (volume == null || !volume.isActiveAndEnabled) continue;
+            if (!volume.Resolve(out Vector3 apex, out float range, out Vector3 axis, out float cosOuter,
+                                out float cosInner, out Color color, out float strength)) continue;
+
+            _volumeData[count] = new Vector4(apex.x, apex.y, apex.z, range);
+            _volumeAxis[count] = new Vector4(axis.x, axis.y, axis.z, cosOuter);
+
+            Vector4 linear = VisionFogState.ToLinear(color) * strength;
+            _volumeColor[count] = new Vector4(linear.x, linear.y, linear.z, cosInner);
+
+            count++;
+        }
+
+        for (int i = count; i < MaxLightVolumes; i++)
+        {
+            _volumeData[i]  = Vector4.zero;
+            _volumeAxis[i]  = Vector4.zero;
+            _volumeColor[i] = Vector4.zero;
+        }
+
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.VolumeData, _volumeData);
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.VolumeAxis, _volumeAxis);
+        Shader.SetGlobalVectorArray(VisionFogState.Ids.VolumeColor, _volumeColor);
+        Shader.SetGlobalInt(VisionFogState.Ids.VolumeCount, count);
+
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeFogExtinction, volumeFogExtinction);
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeNearStart, volumeNearFadeStart);
+        // Kept apart from the start: the shader fades with a smoothstep between the two.
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeNearEnd, Mathf.Max(volumeNearFadeEnd, volumeNearFadeStart + 0.01f));
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeNoiseScale, 1f / Mathf.Max(volumeDustSize, 0.05f));
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeNoiseAmount, volumeDustAmount);
+        Shader.SetGlobalFloat(VisionFogState.Ids.VolumeNoiseSpeed, volumeDustSpeed);
     }
 
 #if UNITY_EDITOR
