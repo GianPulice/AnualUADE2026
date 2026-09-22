@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// The corridor's own lamps failing while the escape runs (Paso 4/5). One job: make a set of
 /// <see cref="Light"/>s flicker like dying fluorescent tubes, as a wave that travels down the
-/// corridor. These are the white lights of the escape: while they burn the fog is open and the whole
-/// corridor shows, and when they die only the amber of the <see cref="EscapeGuideDoor"/>s is left.
+/// corridor. They flicker from the alarm to the end of the escape and nothing dims them: the fog is
+/// what opens and closes (<see cref="EscapeFogCycle"/>), the lamps just keep failing under it.
 ///
 /// Each lamp's flicker is three things on top of each other, none of them a clean sine:
 ///   1. one Perlin channel SHARED by the whole corridor, which every lamp reads with its own
@@ -29,14 +29,12 @@ using UnityEngine;
 /// matter, it sorts them), and have the director call <see cref="Begin"/> when the escape starts
 /// and <see cref="End"/> when it ends, next to <see cref="EscapeFogCycle"/>'s own Begin / End.
 ///
-/// <see cref="Power"/> scales all of it: 1 = the tubes fail as described, 0 = the corridor is out.
-/// <see cref="EscapeFogCycle"/> drives it once the escape runs, so the lamps come on as the fog
-/// opens and die as it closes (WIR-038). Before that — the cinematic — it stays at 1.
+/// The fog cycle used to power them too, so they died every time the fog closed (WIR-038). They
+/// read better failing on their own while the fog breathes, so that link is gone.
 ///
-/// Left out on purpose: it does not decide when the lamps have power (that is the fog cycle) or when
-/// the escape starts (the director), does not touch the fog or the guide doors, does not move or
-/// spawn anything, and does not touch the lamps' colour — the corridor's colour is the scene's, and
-/// the emergency amber belongs to the guide doors.
+/// Left out on purpose: it does not decide when the escape starts (the director), does not touch
+/// the fog or the guide doors, does not move or spawn anything, and does not touch the lamps'
+/// colour — the corridor's colour is the scene's, and the emergency amber belongs to the guide doors.
 /// </summary>
 [DisallowMultipleComponent]
 public class EscapeCorridorFlicker : MonoBehaviour
@@ -111,15 +109,6 @@ public class EscapeCorridorFlicker : MonoBehaviour
 
     /// <summary>The corridor is flickering.</summary>
     public bool IsRunning { get; private set; }
-
-    /// <summary>How much power the lamps get, 0..1, on top of the flicker. Set by the fog cycle.</summary>
-    public float Power
-    {
-        get => power;
-        set => power = Mathf.Clamp01(value);
-    }
-
-    private float power = 1f;
 
     /// <summary>Starts the flicker, remembering how every lamp was. Safe to call twice.</summary>
     public void Begin(SO_EscapeSequenceConfig config)
@@ -207,7 +196,7 @@ public class EscapeCorridorFlicker : MonoBehaviour
             Light lamp = states[i].light;
             if (lamp == null) continue;
 
-            float factor = Tick(ref states[i], dt) * power;
+            float factor = Tick(ref states[i], dt);
             bool on = factor > OffThreshold && states[i].baseIntensity > OffThreshold;
 
             lamp.enabled = on;

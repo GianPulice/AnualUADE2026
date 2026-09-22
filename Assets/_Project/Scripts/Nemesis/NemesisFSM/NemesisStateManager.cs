@@ -297,6 +297,56 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (navAgent != null) navAgent.stoppingDistance = Mathf.Max(0f, distance);
     }
 
+    // ── Facade: steering ────────────────────────────────────────────────────
+
+    private Vector3 steeredDestination;
+    private bool hasSteeredDestination;
+    private float steeringRefreshAt;
+
+    /// <summary>Longest a destination goes without being re-sent even though it has not moved.
+    /// The safety net for whatever clears the agent's path without telling anyone.</summary>
+    private const float SteeringRefreshInterval = 1f;
+
+    /// <summary>
+    /// Points the agent at a destination that moves every frame, WITHOUT re-sending it every frame.
+    ///
+    /// For the two states that steer continuously, Chasing (the pursuit's prediction slides with
+    /// the player) and Traversing (the belief it is heading for). Both used to assign
+    /// NavAgent.destination on every frame, and every assignment restarts the path request — the
+    /// cost NemesisPatrolState already documents and avoids: pathPending comes up often enough to
+    /// blur the arrival test, which in Chasing flipped the gait between Idle and Running (WIR-024),
+    /// and on a long route across floors a request superseded every frame may never finish, leaving
+    /// the agent on the quick partial path Unity plans first — one that ends below the player
+    /// (WIR-018).
+    ///
+    /// Re-sent only when the target has really moved: half a metre far away, down to fifteen
+    /// centimetres at arm's length, where a stale point could cost the grab. Plus once a second
+    /// regardless, which covers a path cleared by something outside the Nemesis (a platform
+    /// dropping its riders) at the price of one pending frame per second.
+    /// </summary>
+    public void SteerTo(Vector3 destination)
+    {
+        if (!IsAgentReady) return;
+
+        float distanceToTarget = Vector3.Distance(transform.position, destination);
+        float resend = Mathf.Clamp(distanceToTarget * 0.1f, 0.15f, 0.5f);
+
+        if (hasSteeredDestination && Time.time < steeringRefreshAt &&
+            (destination - steeredDestination).sqrMagnitude <= resend * resend)
+        {
+            return;
+        }
+
+        navAgent.destination = destination;
+        steeredDestination = destination;
+        hasSteeredDestination = true;
+        steeringRefreshAt = Time.time + SteeringRefreshInterval;
+    }
+
+    /// <summary>Makes the next <see cref="SteerTo"/> send its destination whatever it is. For a
+    /// state taking over the agent, and after anything that clears the path (a warp).</summary>
+    public void ForgetSteering() => hasSteeredDestination = false;
+
     /// <summary>
     /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
     /// another one.
@@ -339,20 +389,35 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // its grace, so the monster sprinted on the spot for as long as it was stuck. Only an
         // order that changes something is a fresh one.
         bool fresh = gait != currentGait || !Mathf.Approximately(speed, currentGaitSpeed);
+        bool wasMoving = IsMovingGait(currentGait);
 
         currentGait = gait;
         currentGaitSpeed = speed;
 
         if (!fresh) return;
 
-        // A fresh order gets the benefit of the doubt: the body has not had a frame to move yet —
+        // SETTING OFF gets the benefit of the doubt: the body has not had a frame to move yet —
         // the path may still be computing and the agent has to accelerate — and judging it from
         // the first frame would blank the first steps of every walk that follows a pause.
-        stillTimer = 0f;
-        gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
+        //
+        // A change BETWEEN TWO MOVING GAITS does not (WIR-024). Every state runs at its own speed
+        // (chase 3, search and patrol 2.75, investigate 2.5), so each transition used to count as
+        // setting off and re-armed the grace, and a Nemesis traded between two states while it was
+        // wedged was never judged at all: it sprinted on the spot for as long as the trading went
+        // on. A body that was already meant to be moving is either moving or stuck, and neither
+        // needs half a second to find out.
+        if (!wasMoving && IsMovingGait(gait))
+        {
+            stillTimer = 0f;
+            gaitBenefitOfDoubtUntil = Time.time + GaitStartGrace;
+        }
 
         ApplyGaitToAnimator(gait);
     }
+
+    /// <summary>The gaits that claim the body is getting somewhere — the only ones
+    /// <see cref="TickLocomotionAnimation"/> second-guesses.</summary>
+    private static bool IsMovingGait(EGait gait) => gait == EGait.Walking || gait == EGait.Running;
 
     /// <summary>How the Nemesis was last TOLD to move. What it is actually doing is
     /// <see cref="TickLocomotionAnimation"/>'s business.</summary>
@@ -963,6 +1028,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         InvalidateRouteVerdict();
         if (stuckEscape != null) stuckEscape.ResetSample();
 
+        // Whatever SteerTo last sent was a route from the old position. Re-sending it costs one
+        // query; trusting it could leave the agent standing where it landed.
+        ForgetSteering();
+
         return true;
     }
 
@@ -1092,6 +1161,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // switch itself off, and the monster would be equally loud through every wall in the level
         // — with nothing in the log to say so.
         nemesisAudio = ResolveSibling(nemesisAudio);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // A debug tool, not a sibling the FSM talks to: nothing here holds a reference to it, it
+        // only reads this facade (see NemesisTraceRecorder). Added on the same terms as the rest so
+        // every playtest in the editor leaves a trace without anyone opening the prefab.
+        if (GetComponent<NemesisTraceRecorder>() == null) gameObject.AddComponent<NemesisTraceRecorder>();
+#endif
     }
 
     private T ResolveSibling<T>(T current) where T : Component
@@ -1143,6 +1219,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public override void Start()
     {
         stuckEscape.ResetSample();
+
+        // Asleep until a script takes it (the escape cinematic, through ActivateInPlace): no
+        // puzzle and no catch-up.
+        if (WakesOnlyFromScript)
+        {
+            lifecycle.SetDormant(true);
+            return;
+        }
 
         string gate = nemesisController != null ? nemesisController.ActivatedByPuzzleId : null;
 
@@ -1259,24 +1343,22 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     //
     // The Nemesis used to be live from the first frame, patrolling out of wherever it happened to
     // be dropped in the scene — which is what made its first appearance feel random. It now stays
-    // dormant until its activation puzzle is solved, and only then picks a spawn point.
+    // dormant until its activation puzzle is solved, and only then picks a spawn point. A scene can
+    // also keep it asleep for a script instead (WakeOnlyFromScript: Zona1, where it only appears in
+    // the escape cinematic).
 
     private void HandleActivationPuzzleCompleted(string completedId)
     {
+        if (WakesOnlyFromScript) return;
+
         string gate = nemesisController != null ? nemesisController.ActivatedByPuzzleId : null;
         if (string.IsNullOrWhiteSpace(gate) || completedId != gate) return;
 
         Activate();
     }
 
-    /// <summary>
-    /// Wakes the Nemesis up: warps it to a spawn point away from the player and starts the FSM.
-    /// Idempotent, so re-completing the activation puzzle never re-spawns it mid-run.
-    ///
-    /// Entering the first state is the one part that cannot move to NemesisLifecycle: it touches
-    /// the protected State dictionary of the shared FSM base, and reaching into that from a
-    /// sibling component would give the machine a second owner.
-    /// </summary>
+    private bool WakesOnlyFromScript => nemesisController != null && nemesisController.WakeOnlyFromScript;
+
     /// <summary>
     /// Retries the spawn-in while the Nemesis waits for somewhere safe to appear.
     ///
@@ -1298,7 +1380,25 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Activate();
     }
 
-    public void Activate()
+    /// <summary>
+    /// Wakes the Nemesis up: warps it to a spawn point away from the player and starts the FSM.
+    /// Idempotent, so re-completing the activation puzzle never re-spawns it mid-run.
+    ///
+    /// Entering the first state is the one part that cannot move to NemesisLifecycle: it touches
+    /// the protected State dictionary of the shared FSM base, and reaching into that from a
+    /// sibling component would give the machine a second owner.
+    /// </summary>
+    public void Activate() => Activate(chooseSpawnPoint: true);
+
+    /// <summary>
+    /// Wakes the Nemesis where it stands, with no spawn-point search: for a script that places it
+    /// itself on the same frame — the escape cinematic, which warps it behind its door. The search
+    /// has nothing to add there and can only get in the way: it refuses every point the player is
+    /// near or can see, and its "nowhere safe yet" would leave the cinematic without its Nemesis.
+    /// </summary>
+    public void ActivateInPlace() => Activate(chooseSpawnPoint: false);
+
+    private void Activate(bool chooseSpawnPoint)
     {
         if (isActive) return;
 
@@ -1315,7 +1415,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // "never": it clears itself the moment the player walks on or turns round. So the Nemesis
         // goes back to sleep and tries again, rather than appearing somewhere it should not. See
         // TickDeferredSpawn.
-        if (nemesisController != null && nemesisController.ChooseSpawnPoint() == null)
+        if (chooseSpawnPoint && nemesisController != null && nemesisController.ChooseSpawnPoint() == null)
         {
             lifecycle.SetDormant(true);
             awaitingSafeSpawn = true;

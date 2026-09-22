@@ -94,25 +94,164 @@ public class NemesisPressureZone : MonoBehaviour
         return offset.sqrMagnitude <= radius * radius;
     }
 
+#if UNITY_EDITOR
+    private static readonly Color IdleColor = new Color(0.45f, 0.62f, 0.75f, 0.8f);
+    private static readonly Color LiveLowColor = new Color(1f, 0.7f, 0.1f, 0.95f);
+    private static readonly Color LiveHighColor = new Color(1f, 0.15f, 0.1f, 0.95f);
+    private static readonly Color WarningColor = new Color(1f, 0.3f, 0.85f, 0.95f);
+
+    private static readonly List<Transform> WaypointCache = new List<Transform>();
+    private static double lastWaypointScan = double.NegativeInfinity;
+
+    private readonly List<Transform> coveredScratch = new List<Transform>();
+    private readonly List<float> levelScratch = new List<float>();
+
     /// <summary>
     /// Drawn always, not only when selected: a selected-only gizmo is invisible while the game is
     /// running, which is precisely when someone wants to see where the pressure is.
     /// </summary>
     private void OnDrawGizmos()
     {
+        if (!NemesisGizmos.DrawingEnabled) return;
+        DrawZone(selected: false);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (!NemesisGizmos.DrawingEnabled) return;
+        DrawZone(selected: true);
+    }
+
+    /// <summary>
+    /// The zone as what it is: a vertical cylinder. One disc per floor its waypoints stand on, so the
+    /// floors it reaches are visible; the label says what it covers and what is wrong with it.
+    /// </summary>
+    private void DrawZone(bool selected)
+    {
+        CollectCoveredWaypoints(coveredScratch);
+        CollectLevels(coveredScratch, levelScratch);
+
         float intensity = NemesisDirector.IntensityOf(zoneId);
         bool live = intensity > 0f;
+        bool atHub = !NemesisSafeZones.IsCentreClear(Center);
+        bool empty = coveredScratch.Count == 0;
 
-        Gizmos.color = live
-            ? Color.Lerp(new Color(1f, 0.7f, 0.1f, 0.9f), new Color(1f, 0.15f, 0.1f, 0.9f), intensity)
-            : new Color(0.4f, 0.45f, 0.5f, 0.35f);
+        Color color = atHub || empty ? WarningColor
+                    : live ? Color.Lerp(LiveLowColor, LiveHighColor, intensity)
+                    : IdleColor;
 
-        Gizmos.DrawWireSphere(Center, radius);
+        UnityEditor.Handles.color = new Color(color.r, color.g, color.b, selected || live ? 0.14f : 0.05f);
+        UnityEditor.Handles.DrawSolidDisc(Center, Vector3.up, radius);
 
-#if UNITY_EDITOR
-        string label = live ? $"{zoneId}  ·  presión {intensity:0.00}" : zoneId;
-        UnityEditor.Handles.color = Gizmos.color;
-        UnityEditor.Handles.Label(Center + Vector3.up * 1.5f, label);
-#endif
+        UnityEditor.Handles.color = color;
+
+        float minY = float.PositiveInfinity;
+        float maxY = float.NegativeInfinity;
+
+        for (int i = 0; i < levelScratch.Count; i++)
+        {
+            float y = levelScratch[i];
+            UnityEditor.Handles.DrawWireDisc(new Vector3(Center.x, y, Center.z), Vector3.up, radius,
+                                             selected ? 2.5f : 1.5f);
+            minY = Mathf.Min(minY, y);
+            maxY = Mathf.Max(maxY, y);
+        }
+
+        if (maxY > minY)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float angle = i * Mathf.PI * 0.5f;
+                Vector3 rim = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+                UnityEditor.Handles.DrawDottedLine(new Vector3(Center.x + rim.x, minY, Center.z + rim.z),
+                                                   new Vector3(Center.x + rim.x, maxY, Center.z + rim.z), 3f);
+            }
+        }
+
+        if (selected) DrawCoverageLines(color);
+
+        UnityEditor.Handles.Label(new Vector3(Center.x, maxY, Center.z) + Vector3.up * 1.5f,
+                                  BuildLabel(intensity, atHub, empty));
     }
+
+    private string BuildLabel(float intensity, bool atHub, bool empty)
+    {
+        string label = $"{(string.IsNullOrWhiteSpace(zoneId) ? "(sin id)" : zoneId)}  ·  r {radius:0.#} m  ·  " +
+                       $"{coveredScratch.Count} waypoints";
+
+        if (intensity > 0f)
+            label += $"  ·  presión {intensity:0.00} ({NemesisDirector.ActiveSourceLabel})";
+
+        if (atHub)
+            label += $"\n⚠ centro a {NemesisSafeZones.FlatDistance(Center):0.0} m del Hub " +
+                     $"(mínimo {NemesisSafeZones.Clearance:0}): el Director la rechaza";
+
+        if (empty) label += "\n⚠ no toca ningún waypoint: la palanca de rutas no hace nada";
+
+        return label;
+    }
+
+    private void DrawCoverageLines(Color color)
+    {
+        UnityEditor.Handles.color = new Color(color.r, color.g, color.b, 0.6f);
+
+        for (int i = 0; i < coveredScratch.Count; i++)
+        {
+            Vector3 waypoint = coveredScratch[i].position;
+            Vector3 hub = new Vector3(Center.x, waypoint.y, Center.z);
+
+            UnityEditor.Handles.DrawLine(hub, waypoint);
+            Gizmos.color = color;
+            Gizmos.DrawSphere(waypoint, 0.25f);
+        }
+    }
+
+    private void CollectCoveredWaypoints(List<Transform> covered)
+    {
+        RefreshWaypointCache();
+        covered.Clear();
+
+        for (int i = 0; i < WaypointCache.Count; i++)
+        {
+            Transform waypoint = WaypointCache[i];
+            if (waypoint != null && Contains(waypoint.position)) covered.Add(waypoint);
+        }
+    }
+
+    /// <summary>Floors this zone reaches: its own height plus every distinct waypoint height, to half a metre.</summary>
+    private void CollectLevels(List<Transform> covered, List<float> levels)
+    {
+        levels.Clear();
+        levels.Add(Center.y);
+
+        for (int i = 0; i < covered.Count; i++)
+        {
+            float y = Mathf.Round(covered[i].position.y * 2f) * 0.5f;
+
+            bool known = false;
+            for (int l = 0; l < levels.Count && !known; l++) known = Mathf.Abs(levels[l] - y) < 1f;
+
+            if (!known) levels.Add(y);
+        }
+    }
+
+    /// <summary>Every tagged waypoint in the open scene, rescanned at most once a second.</summary>
+    private static void RefreshWaypointCache()
+    {
+        double now = UnityEditor.EditorApplication.timeSinceStartup;
+        if (now - lastWaypointScan < 1.0) return;
+        lastWaypointScan = now;
+
+        WaypointCache.Clear();
+
+        foreach (NemesisRoute route in FindObjectsByType<NemesisRoute>(FindObjectsInactive.Exclude))
+        {
+            for (int i = 0; i < route.transform.childCount; i++)
+            {
+                Transform child = route.transform.GetChild(i);
+                if (child.CompareTag(NemesisRoute.WaypointTag)) WaypointCache.Add(child);
+            }
+        }
+    }
+#endif
 }

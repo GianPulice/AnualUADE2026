@@ -4,7 +4,10 @@ using UnityEngine;
 /// <summary>
 /// The light of a socket when the alarm goes off (Paso 1): flickering amber for a moment, then
 /// fixed red. One job. Put it next to <see cref="SocketInteractable"/> on each of the three
-/// sockets; <see cref="EscapeSequenceDirector"/> triggers the one the third core just went into.
+/// sockets; whoever raises the alarm calls <see cref="Activate"/>.
+///
+/// NOT used by the escape since 22/09: the three cores of the safe zone stay green when the last
+/// one goes in (Iñaki's call). Left on the sockets, inert, in case the alarm comes back.
 ///
 /// Drives the same emissive slots as <see cref="SocketEmissionShift"/> (the setup copies them
 /// across) and stops that component's fade to green first, so the two do not fight over the

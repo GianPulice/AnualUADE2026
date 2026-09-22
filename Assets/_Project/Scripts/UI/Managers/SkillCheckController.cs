@@ -138,10 +138,23 @@ public class SkillCheckController
             token.ThrowIfCancellationRequested();
 
             bool first = true;
-            while (!model.IsComplete)
+            while (true)
             {
-                await PlayAttemptAsync(first, token);
-                first = false;
+                while (!model.IsRoundOver)
+                {
+                    await PlayAttemptAsync(first, token);
+                    first = false;
+                }
+
+                if (model.IsComplete) break;
+
+                // Any miss fails the whole round: every check has to be hit in a row.
+                view.ShowFailed(model.TotalSteps);
+                PlayClip(activeData.missClip);
+                await WaitAsync(activeData.failHoldTime, token);
+
+                model.RestartRound();
+                view.Setup(model.TotalSteps);
             }
 
             view.ShowComplete(model.TotalSteps);
@@ -168,6 +181,7 @@ public class SkillCheckController
             await WaitAsync(RouletteSelection.GetRandom(activeData.gapBetweenChecksMin, activeData.gapBetweenChecksMax), token);
 
         SO_SkillCheckData.SkillCheckStep step = model.CurrentStep;
+        int played = model.StepIndex;
         view.ShowCheck(model.ZoneStart, model.ZoneWidth, model.PerfectWidth, model.StepIndex, model.TotalSteps);
         PlayClip(activeData.warningClip);
         await WaitAsync(activeData.warningLeadTime, token);   // [E] is not read in this window
@@ -176,7 +190,7 @@ public class SkillCheckController
 
         model.Register(result);
         ApplyModuleTime(result, step);
-        view.ShowResult(result, model.StepIndex, model.TotalSteps);
+        view.ShowResult(result, played, model.TotalSteps);
         PlayClip(result switch
         {
             SkillCheckResult.Perfect => activeData.perfectClip,

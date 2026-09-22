@@ -258,6 +258,34 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
                  NemesisCondition.TimeInStateUnder(ENemesisThreshold.SearchTimeOut)),
 
+            // Coming off a pursuit still believing something: sweep rather than file it away.
+            // Two rungs and not one because a rung is an AND — splitting the old
+            // "(chasing OR traversing) AND has belief" into two lines is what keeps every rung
+            // readable as a single sentence.
+            //
+            // ABOVE EVERY INVESTIGATING RUNG, FOR THE SAME REASON THE SEARCH BUDGET IS (WIR-006).
+            // These two used to sit at the bottom, under "escucha un ruido". A chase that lost
+            // sight runs to the last SEEN point (NemesisPursuit), and the player who broke line
+            // of sight is usually still running — so on arrival "escucha un ruido" won, and the
+            // Nemesis dropped into Investigating instead of the search the chase was built to hand
+            // over to. That skipped the SearchPauseTime look at the spot where it lost them and the
+            // sweep anchored there (Plan-IA-Stalker §16.4), ended the red vignette and cut the
+            // music tail (D5 keeps it only through Searching/Traversing), and then followed the
+            // player by ear at walking pace: a pursuit with none of its feedback. Searching already
+            // absorbs a fresh noise itself (RetargetSearch) and checks known and suspected hiding
+            // spots first, so nothing below needs to outrank it on the way out of a chase.
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "venía persiguiendo y todavía cree algo",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
+                 NemesisCondition.Is(ENemesisPredicate.HasBelief)),
+
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "venía hacia el montacargas y todavía cree algo",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
+                 NemesisCondition.Is(ENemesisPredicate.HasBelief)),
+
             // A SUSPECTED SPOT IS SOMEWHERE CONCRETE TO WALK TO AND LOOK AT — EXACTLY WHAT
             // INVESTIGATING IS FOR.
             //
@@ -321,22 +349,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Is(ENemesisPredicate.IsInspectingNoise)),
-
-            // Coming off a pursuit still believing something: sweep rather than file it away.
-            // Two rungs and not one because a rung is an AND — splitting the old
-            // "(chasing OR traversing) AND has belief" into two lines is what keeps every rung
-            // readable as a single sentence.
-            Rung(NemesisStateManager.ENemesisState.Searching,
-                 "venía persiguiendo y todavía cree algo",
-                 interrupts: false,
-                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
-                 NemesisCondition.Is(ENemesisPredicate.HasBelief)),
-
-            Rung(NemesisStateManager.ENemesisState.Searching,
-                 "venía hacia el montacargas y todavía cree algo",
-                 interrupts: false,
-                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
-                 NemesisCondition.Is(ENemesisPredicate.HasBelief)),
 
             // No conditions: always true. The ladder must end in something unconditional or it
             // can fall through to "stay where you are", which reads as a frozen Nemesis.
@@ -527,10 +539,11 @@ public enum ENemesisPredicate
 
     /// <summary>
     /// The route to where the Nemesis believes the player is does not arrive: the path is PARTIAL
-    /// and stops at the closest point it can reach. On a player seen from another floor with no
-    /// stair or lift connecting them, or behind a door the monster cannot open. Read through the
-    /// same throttled oracle as <see cref="RouteToBeliefCrossesFloors"/>, so the two never
-    /// disagree about one path.
+    /// and stops at the closest point it can reach, or the belief is too far from the NavMesh for
+    /// a path to be asked for at all. On a player seen from another floor with no stair or lift
+    /// connecting them, behind a door the monster cannot open, or somewhere it cannot walk. Read
+    /// through the same throttled oracle as <see cref="RouteToBeliefCrossesFloors"/>, so the two
+    /// never disagree about one path.
     ///
     /// WIR-018: without this, "lo está viendo" held Chasing for as long as the player stayed in
     /// view, and a chase towards a partial path ends standing still at the end of it — the

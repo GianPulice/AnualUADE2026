@@ -34,7 +34,13 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
     private float pulseLeft;
 
     private bool holdingBreath;
-    private float heldFor;
+
+    // Air left, 1 = full. Drains while holding, refills gradually after (SO_HidingData).
+    private float air = 1f;
+
+    // Set when the lungs gave out with the key still down: the key has to come up before another
+    // hold, or holding it would chain exhale after exhale.
+    private bool mustReleaseHold;
 
     public PlayerHiddenState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
@@ -56,8 +62,10 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
         emitter.gameObject.SetActive(false);
 
         holdingBreath = false;
-        heldFor = 0f;
+        air = 1f;
+        mustReleaseHold = false;
         pulseLeft = 0f;
+        Publish();
 
         // Not a full interval: the first breath lands soon enough that a player who dived into a
         // locker with the monster on their heels has to decide about holding it straight away.
@@ -76,6 +84,9 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
 
         holdingBreath = false;
         pulseLeft = 0f;
+        air = 1f;
+        mustReleaseHold = false;
+        Publish();
     }
 
     public override void UpdateState()
@@ -96,6 +107,7 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
         // The body is kinematic and parked at the interior pose by HidingSpot, so there is nothing
         // to zero and nothing to drive here. Writing linearVelocity would fight that freeze.
         TickBreathing();
+        Publish();
     }
 
     // ── Breathing ───────────────────────────────────────────────────────────
@@ -108,6 +120,11 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
 
         float dt = Time.deltaTime;
         SO_HidingData data = Data();
+        float maxHold = data != null ? data.MaxHoldSeconds : 0f;
+        bool keyHeld = GameInput.HoldBreathHeld;
+
+        if (!keyHeld) mustReleaseHold = false;
+        if (!holdingBreath) Recover(data, maxHold, dt);
 
         // A running pulse always finishes, even if the player starts holding their breath in the
         // middle of it: a breath that is already out cannot be taken back, and cutting it short
@@ -119,29 +136,48 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
             return;
         }
 
-        bool wantsToHold = GameInput.HoldBreathHeld && !PauseManager.IsGameplayInputBlocked;
+        bool wantsToHold = keyHeld && !mustReleaseHold && (maxHold <= 0f || air > 0f);
 
         if (wantsToHold)
         {
             holdingBreath = true;
-            heldFor += dt;
+            if (maxHold <= 0f) return;
 
             // The lungs give out. The exhale happens whether the player let go or not, which is
             // what stops "hold F forever" from being total immunity.
-            float maxHold = data != null ? data.MaxHoldSeconds : 0f;
-            if (maxHold > 0f && heldFor >= maxHold) Exhale();
+            air = Mathf.Max(0f, air - dt / maxHold);
+            if (air <= 0f)
+            {
+                mustReleaseHold = true;
+                Exhale(forced: true);
+            }
             return;
         }
 
         if (holdingBreath)
         {
             // Let go: the involuntary exhale, louder than a breath. This is the cost of holding.
-            Exhale();
+            Exhale(forced: false);
             return;
         }
 
         nextBreathIn -= dt;
         if (nextBreathIn <= 0f) Breathe();
+    }
+
+    /// <summary>The air a hold used comes back gradually, not all at once on release.</summary>
+    private void Recover(SO_HidingData data, float maxHold, float dt)
+    {
+        if (maxHold <= 0f) { air = 1f; return; }
+        float recovery = data != null ? data.BreathRecoverySeconds : 5f;
+        air = Mathf.Min(1f, air + dt / Mathf.Max(0.1f, recovery));
+    }
+
+    /// <summary>What the audio and the HUD read. See PlayerStateManager's Breath section.</summary>
+    private void Publish()
+    {
+        playerStateManager.IsHoldingBreath = holdingBreath;
+        playerStateManager.BreathAir = air;
     }
 
     private void Breathe()
@@ -151,10 +187,9 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
         nextBreathIn = Interval();
     }
 
-    private void Exhale()
+    private void Exhale(bool forced)
     {
         holdingBreath = false;
-        heldFor = 0f;
 
         StartPulse(RadiusOf(Data() != null ? Data().ExhaleNoiseRadius : 0f),
                    Data() != null ? Data().ExhalePulseDuration : 0.6f);
@@ -162,6 +197,9 @@ public class PlayerHiddenState : BaseState<PlayerStateManager.EPlayerState>
         // A full interval after an exhale, not half: the player has just emptied their lungs and
         // the exhale itself was the noise for this beat.
         nextBreathIn = Interval();
+
+        Publish();
+        playerStateManager.RaiseBreathExhaled(forced);
     }
 
     private void StartPulse(float radius, float duration)

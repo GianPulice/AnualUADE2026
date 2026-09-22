@@ -41,6 +41,9 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
         // the far side of the level, chosen for a belief that has nothing to do with this one.
         pursuit.Reset();
 
+        // Whatever the agent was last sent belongs to the state that sent it.
+        nemesisStateManager.ForgetSteering();
+
         // The patrol stopping distance is sized for waypoints and is wider than the capture
         // reach, so leaving it in place here halts the agent outside the only range a grab can
         // fire from. See NemesisStateManager.PursuitStoppingDistance.
@@ -78,11 +81,13 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
         // doorway and stand in it while it could plainly hear you leaving.
         if (!pursuit.TryGetDestination(out Vector3 destination)) return;
 
-        // Set every frame: the prediction moves continuously even though the route decision behind
-        // it is throttled. Keeps running at the remembered position after both sensors go quiet,
-        // for as long as the grace rung keeps the Nemesis in this state - which is what turns
-        // breaking line of sight into a few seconds of grace rather than an instant reprieve.
-        nemesisStateManager.NavAgent.destination = destination;
+        // Asked for every frame, because the prediction moves continuously even though the route
+        // decision behind it is throttled — but only SENT when it has really moved (see SteerTo:
+        // re-sending every frame kept the path pending and blurred the arrival test below). Keeps
+        // running at the remembered position after both sensors go quiet, for as long as the
+        // grace rung keeps the Nemesis in this state - which is what turns breaking line of sight
+        // into a few seconds of grace rather than an instant reprieve.
+        nemesisStateManager.SteerTo(destination);
 
         // Standing over the player with the capture cooldown still closed, or against the wall at
         // the end of a partial path: either way there is nowhere left to run, and continuing to
@@ -93,8 +98,13 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
             nemesisStateManager.NavAgent.velocity = Vector3.zero;
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
         }
-        else
+        else if (!nemesisStateManager.NavAgent.pathPending)
         {
+            // Not while a path is pending: HasArrived is false for that frame whatever the answer
+            // will be, and taking it as "set off again" flipped Idle -> Running -> Idle around every
+            // re-send, each flip a fresh gait order with its own half second of benefit of the
+            // doubt — the run cycle on the spot (WIR-024). The gait it already has stands until the
+            // path is in.
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Running,
                                         nemesisStateManager.NemesisMovement.ChaseSpeed);
         }

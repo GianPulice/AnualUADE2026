@@ -20,7 +20,9 @@ using UnityEngine;
 ///
 /// 3. OCCLUSION is solid geometry only, and it is judged from that same start point. Interaction
 ///    volumes may be triggers — which is what lets a door's interaction box stop being a wall that
-///    seals its own doorway — while walls and props stay solid and still block.
+///    seals its own doorway — while walls stay solid and still block. Which layers count as solid
+///    is <see cref="SO_InteractionManager.BlockingLayers"/>; Props is left out of it, so set
+///    dressing (barrels, cabinets, pallets) never hides a pickup behind or on top of it.
 ///
 /// 4. CLOSE RANGE works. Starting exactly at the player breaks down when the player is pressed
 ///    against something at an angle: the start lands INSIDE the crate or door, or already past the
@@ -95,7 +97,7 @@ public static class InteractionProbe
         if (target == null)
         {
             // Legacy layout: the interactable's own SOLID collider lives on a blocking layer — a
-            // door leaf on Default, a crate on Props. Resolving through the blocker keeps every
+            // door leaf or a push box on Default. Resolving through the blocker keeps every
             // prop that works today working, without re-layering the scene.
             if (!blocked) return null;
 

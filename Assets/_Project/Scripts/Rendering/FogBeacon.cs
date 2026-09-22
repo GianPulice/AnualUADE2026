@@ -115,7 +115,7 @@ public class FogBeacon : MonoBehaviour
     /// Returns <c>false</c> when it contributes nothing (out of range, facing away, faded out), so
     /// the controller can leave the shader slot empty instead of uploading a black point — the
     /// shader skips empty slots before it does any matrix work, so this is what keeps the cost at
-    /// two beacons rather than eight.
+    /// the beacons actually lit rather than the whole array.
     /// </summary>
     /// <param name="viewerPosition">Where the player is.</param>
     /// <param name="resolvedColor">Colour, still in sRGB — the controller converts.</param>

@@ -6,8 +6,9 @@ using UnityEngine;
 /// the Nemesis debug HUD and the Nemesis test console.
 ///
 /// Editor and development builds only, so it cannot ship as a way to start the sequence.
-/// Pressing it again after the run ended plays it again; pressing it during a cinematic does
-/// nothing (F skips that).
+/// Pressing it again mid-chase plays it again from the hub; pressing it during a cinematic does
+/// nothing (F skips that), and during a capture it waits for the capture to end. Like every gameplay
+/// key it is ignored under a menu — the win / result screens included: use their own buttons.
 /// </summary>
 public class EscapeSequenceTestKey : MonoBehaviour
 {

@@ -56,7 +56,7 @@ public class NemesisTestConsole : MonoBehaviour
     /// <summary>Fixed rather than auto-sized: a panel that resizes as zones come and go is harder
     /// to click than one that is simply big enough. Grown once already, with the director
     /// section.</summary>
-    private static readonly Vector2 PanelSize = new Vector2(360f, 560f);
+    private static readonly Vector2 PanelSize = new Vector2(360f, 640f);
 
     /// <summary>
     /// Where the panel goes, and where the closed-state hint goes with it.
@@ -335,6 +335,29 @@ public class NemesisTestConsole : MonoBehaviour
         // a puzzle trigger uses; this one is the quickest way to look at the entrance itself.
         if (GUILayout.Button("Staged entrance"))
             NemesisDirector.RequestEntrance();
+
+        GUILayout.EndHorizontal();
+
+        DrawPacing();
+    }
+
+    /// <summary>Pacing inputs, not states: a full meter plays out Sustain → Fade → Relax on its own.</summary>
+    private static void DrawPacing()
+    {
+        NemesisTension tension = NemesisDirector.Tension;
+        if (tension == null || tension.Pacing == null)
+        {
+            GUILayout.Label("Ritmo apagado: el Director no tiene SO_DirectorPacing.");
+            return;
+        }
+
+        string state = tension.IsSuspended ? $"pausa ({tension.SuspendReason})" : tension.State.ToString();
+        GUILayout.Label($"Ritmo: {state}  ·  tensión {tension.Tension:0.00}  ·  silencio {tension.QuietTime:0} s");
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Pico de tensión")) tension.DebugSpike();
+        if (GUILayout.Button("Saltar silencio")) tension.DebugSkipQuiet();
 
         GUILayout.EndHorizontal();
     }

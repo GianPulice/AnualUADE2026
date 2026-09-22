@@ -10,6 +10,10 @@ using UnityEngine;
 /// Con <c>opensOnPuzzleCompleted</c> apagado el puzzle no lo abre: lo abre otro sistema con
 /// <see cref="Open"/>, cuando le sirva (el portón del escape lo abre la secuencia durante la
 /// persecución). La duración es siempre openDuration: el sonido está cortado a ella.
+///
+/// El escape también lo cierra: <see cref="CloseImmediate"/> lo deja cerrado al instante cuando la
+/// persecución vuelve a empezar, y <see cref="SlamShutAsync"/> lo deja caer en la cara del Nemesis
+/// en el plano final.
 /// </summary>
 public class PuzzleGate : MonoBehaviour
 {
@@ -74,12 +78,7 @@ public class PuzzleGate : MonoBehaviour
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
     }
 
-    private void OnDestroy()
-    {
-        openCts?.Cancel();
-        openCts?.Dispose();
-        openCts = null;
-    }
+    private void OnDestroy() => CancelMotion();
 
     /// <summary>Seconds the opening takes, sound included. Whoever times the gate from outside
     /// schedules around this; it is not theirs to change, the sound is cut to it.</summary>
@@ -130,6 +129,61 @@ public class PuzzleGate : MonoBehaviour
 
         door.localPosition = toPosition;
         door.localScale = toScale;
+    }
+
+    /// <summary>
+    /// Shut at once and silent, as the scene has it, so that <see cref="Open"/> can play again —
+    /// for a chase that starts over (the escape, after a capture). Cuts an opening in progress.
+    /// </summary>
+    public void CloseImmediate()
+    {
+        CancelMotion();
+        if (door == null) return;
+
+        door.localPosition = closedLocalPosition;
+        door.localScale = closedLocalScale;
+    }
+
+    /// <summary>
+    /// Drops the gate shut from wherever it is — open, or still opening — slow off the top and
+    /// fastest at the floor, like something heavy falling. Completes on the frame it hits. Once
+    /// down it stays down: a later <see cref="Open"/> is ignored. No sound of its own: whoever drops
+    /// it decides what the impact sounds like.
+    /// </summary>
+    public async UniTask SlamShutAsync(float seconds, CancellationToken token)
+    {
+        CancelMotion();
+        if (door == null) return;
+
+        // Kept as the gate's motion, so a late Open (the escape's own schedule) finds it taken.
+        openCts = CancellationTokenSource.CreateLinkedTokenSource(token, this.GetCancellationTokenOnDestroy());
+        CancellationToken slamToken = openCts.Token;
+
+        Vector3 fromPosition = door.localPosition;
+        Vector3 fromScale = door.localScale;
+
+        float elapsed = 0f;
+        while (elapsed < seconds)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, slamToken);
+            elapsed += Time.deltaTime;
+
+            // Squared: gravity. The gate barely moves at first and arrives at full speed.
+            float t = Mathf.Clamp01(elapsed / seconds);
+            t *= t;
+            door.localPosition = Vector3.LerpUnclamped(fromPosition, closedLocalPosition, t);
+            door.localScale = Vector3.LerpUnclamped(fromScale, closedLocalScale, t);
+        }
+
+        door.localPosition = closedLocalPosition;
+        door.localScale = closedLocalScale;
+    }
+
+    private void CancelMotion()
+    {
+        openCts?.Cancel();
+        openCts?.Dispose();
+        openCts = null;
     }
 
     private Vector3 OpenPosition() => closedLocalPosition + Vector3.up * openHeight;

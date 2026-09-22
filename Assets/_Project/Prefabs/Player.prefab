@@ -415,6 +415,10 @@ MonoBehaviour:
   player: {fileID: 6697063734817033035}
   hiddenLoop: {fileID: 8300000, guid: 29aefd4a1785950439ae61ea8be8e9f2, type: 3}
   hiddenLoopChestPenalty: {fileID: 8300000, guid: 39568cf3c72da2b44bd4049d26d402fd, type: 3}
+  exhaleGaspClip: {fileID: 8300000, guid: 7f3e2acd077214347a91c533ba18550b, type: 3}
+  gaspSeconds: 1.2
+  gaspVolumeScale: 1.25
+  holdFadeSeconds: 0.12
   source: {fileID: 5563071216055759055}
   volume: 0.8
   fadeDuration: 0.45

@@ -18,6 +18,6 @@ MonoBehaviour:
   loop: 0
   volume: 1
   ignoreListenerPause: 0
-  minDistance: 3
-  maxDistance: 40
+  minDistance: 2
+  maxDistance: 16
   rolloff: 1

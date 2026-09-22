@@ -92,6 +92,13 @@ public static class InputHintEvents
     {
         OnHint = null;
         shown.Clear();
+    }
+
+    // After GameSession clears its event in SubsystemRegistration (same load type = no order), or
+    // the hook is wiped and the hints never show again on a second run.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+    private static void HookSessionReset()
+    {
         GameSession.OnNewSessionStarting -= ClearShown;
         GameSession.OnNewSessionStarting += ClearShown;
     }

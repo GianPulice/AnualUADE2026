@@ -179,6 +179,36 @@ MonoBehaviour:
       threshold: 2
       customSeconds: 0
   - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "ven\xEDa persiguiendo y todav\xEDa cree algo"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 2
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 5
+      threshold: 0
+      customSeconds: 0
+    - predicate: 2
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
     target: 1
     interrupts: 0
     note: sospecha de un escondite
@@ -239,36 +269,6 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
     - predicate: 14
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 3
-    interrupts: 0
-    note: "ven\xEDa persiguiendo y todav\xEDa cree algo"
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 2
-      threshold: 0
-      customSeconds: 0
-    - predicate: 2
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 3
-    interrupts: 0
-    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 5
-      threshold: 0
-      customSeconds: 0
-    - predicate: 2
       negate: 0
       state: 0
       threshold: 0

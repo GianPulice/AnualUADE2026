@@ -32,10 +32,21 @@ public class SkillCheckModel : BaseScreenModel
     // Reused on every roll so picking a sector allocates nothing.
     private readonly List<float> sectorWeights = new List<float>();
 
-    /// <summary>Index of the check being played. Equal to <see cref="TotalSteps"/> once complete.</summary>
+    /// <summary>Index of the check being played. Equal to <see cref="TotalSteps"/> once the round is over.</summary>
     public int StepIndex { get; private set; }
     public int TotalSteps => steps.Length;
-    public bool IsComplete => TotalSteps > 0 && StepIndex >= TotalSteps;
+
+    /// <summary>Every check of this round has been played, hit or missed.</summary>
+    public bool IsRoundOver => TotalSteps > 0 && StepIndex >= TotalSteps;
+
+    /// <summary>Misses in the current round. One is enough to fail it.</summary>
+    public int RoundMisses { get; private set; }
+
+    /// <summary>The round is over and every check in it was hit: the only way to finish.</summary>
+    public bool IsComplete => IsRoundOver && RoundMisses == 0;
+
+    /// <summary>The round is over with at least one miss: it has to be played again from the first check.</summary>
+    public bool IsRoundFailed => IsRoundOver && RoundMisses > 0;
 
     /// <summary>Misses over the whole sequence, for logging.</summary>
     public int Misses { get; private set; }
@@ -72,6 +83,7 @@ public class SkillCheckModel : BaseScreenModel
 
         StepIndex = 0;
         Misses = 0;
+        RoundMisses = 0;
         IsInitialized = true;
 
         if (TotalSteps > 0) RollZone();
@@ -84,7 +96,7 @@ public class SkillCheckModel : BaseScreenModel
     /// </summary>
     public SkillCheckResult Judge(float needleAngle)
     {
-        if (TotalSteps == 0 || IsComplete) return SkillCheckResult.Miss;
+        if (TotalSteps == 0 || IsRoundOver) return SkillCheckResult.Miss;
 
         float intoZone = needleAngle - ZoneStart;
         if (intoZone < 0f || intoZone > ZoneWidth) return SkillCheckResult.Miss;
@@ -92,17 +104,33 @@ public class SkillCheckModel : BaseScreenModel
     }
 
     /// <summary>
-    /// A hit moves on to the next check, a miss replays this one. Either way the next attempt gets a
-    /// zone somewhere new, so a miss cannot be retried from muscle memory.
+    /// Every check gets one attempt: hit or miss, the sequence moves on to the next one. A miss is
+    /// remembered, and a round with any miss in it fails as a whole once it is over
+    /// (<see cref="IsRoundFailed"/>) — the only way through is every check hit in a row.
     /// </summary>
     public void Register(SkillCheckResult result)
     {
-        if (TotalSteps == 0 || IsComplete) return;
+        if (TotalSteps == 0 || IsRoundOver) return;
 
-        if (result == SkillCheckResult.Miss) Misses++;
-        else StepIndex++;
+        if (result == SkillCheckResult.Miss)
+        {
+            Misses++;
+            RoundMisses++;
+        }
+        StepIndex++;
 
-        if (!IsComplete) RollZone();
+        if (!IsRoundOver) RollZone();
+        NotifyDataChanged();
+    }
+
+    /// <summary>Starts the round again from the first check, with a fresh zone.</summary>
+    public void RestartRound()
+    {
+        if (TotalSteps == 0) return;
+
+        StepIndex = 0;
+        RoundMisses = 0;
+        RollZone();
         NotifyDataChanged();
     }
 

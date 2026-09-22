@@ -72,7 +72,7 @@ public class SkillCheckPanelInteractable : BaseRangeInteractable, IPuzzleInterac
         PuzzleStateManager.Instance.SetPuzzleCompleted(puzzleData.PuzzleId);
 
         if (AudioManager.Exists)
-            AudioManager.Instance.PlaySFX("sfx_subpuzzle_completo");
+            AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
 
         Debug.Log($"[{nameof(SkillCheckPanelInteractable)}] Puzzle completed: {puzzleData.PuzzleId}");
     }

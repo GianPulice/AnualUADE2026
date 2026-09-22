@@ -118,6 +118,30 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// </summary>
     public void SetHidingSpot(HidingSpot spot) => currentHidingSpot = spot;
 
+    // ── Breath (hidden only) ──────────────────────────────────────────────
+    //
+    // Written by PlayerHiddenState only; read by what the player perceives of it — the breathing
+    // audio (HiddenBreathing) and the HUD meter (BreathHoldMeterView). Neither of those is allowed
+    // to touch the noise emitter, which stays the hidden state's business.
+
+    /// <summary>True while the player is holding their breath inside a spot.</summary>
+    public bool IsHoldingBreath { get; internal set; }
+
+    /// <summary>
+    /// Air left in the lungs, 1 = full, 0 = the forced exhale. Drains while holding and refills
+    /// over <see cref="SO_HidingData.BreathRecoverySeconds"/> after. Stays 1 when the hiding data
+    /// sets no hold limit.
+    /// </summary>
+    public float BreathAir { get; internal set; } = 1f;
+
+    /// <summary>
+    /// Raised on the involuntary exhale: letting go of the hold, or the lungs giving out. The
+    /// argument is true when the lungs gave out (the loud, ragged one).
+    /// </summary>
+    public event System.Action<bool> OnBreathExhaled;
+
+    internal void RaiseBreathExhaled(bool forced) => OnBreathExhaled?.Invoke(forced);
+
     /// <summary>
     /// True while the player cannot act: disabled (captured, wake-up, explosion) or lying down /
     /// getting up. The FSM states go to Disabled on this, not on <see cref="IsDisabled"/> alone.

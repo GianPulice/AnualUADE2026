@@ -42,11 +42,41 @@ public class NemesisCinematicActor : MonoBehaviour
 
     public bool HasControl => hasControl;
 
-    /// <summary>
-    /// Takes the Nemesis, waking it if it was still dormant.
+    /// <summary>The Nemesis is in its own Catch state, its machine running: a capture is being
+    /// resolved and it must not be taken (its Catch would freeze, and the capture never end).</summary>
+    public bool IsNemesisCatching
+    {
+        get
+        {
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            return nemesis != null && nemesis.enabled &&
+                   nemesis.CurrentStateKey == NemesisStateManager.ENemesisState.Catch;
+        }
+    }
+
+    /// <summary>The Nemesis is awake: not dormant, waiting for a script (or its puzzle) to wake it.
     /// </summary>
-    /// <returns>false when there is no Nemesis (or it could not appear): the cinematic then plays
-    /// without it.</returns>
+    public bool IsNemesisAwake
+    {
+        get
+        {
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            return nemesis != null && nemesis.IsActive;
+        }
+    }
+
+    /// <summary>Walking or running to a marker (false once it has arrived and stands).</summary>
+    public bool IsMoving => hasControl && moving;
+
+    /// <summary>The Nemesis's body, for a camera to follow. Null until it has been found.</summary>
+    public Transform Body => nemesis != null ? nemesis.transform : null;
+
+    /// <summary>
+    /// Takes the Nemesis, waking it if it was still dormant. In Zona1 it always is the first time:
+    /// it sleeps until this cinematic (NemesisController.WakeOnlyFromScript).
+    /// </summary>
+    /// <returns>false when there is no Nemesis in the scene: the cinematic then plays without it.
+    /// </returns>
     public bool TryTakeControl()
     {
         if (hasControl) return true;
@@ -59,13 +89,10 @@ public class NemesisCinematicActor : MonoBehaviour
             return false;
         }
 
-        if (!nemesis.IsActive) nemesis.Activate();
-        if (!nemesis.IsActive)
-        {
-            Debug.LogWarning($"[{nameof(NemesisCinematicActor)}] The Nemesis is dormant and found " +
-                             "no safe spawn: the cinematic plays without it.", this);
-            return false;
-        }
+        // Woken where it stands, not at a spawn point: every caller warps it onto a marker right
+        // after this. The spawn search refuses anywhere near the player or in their sight, and
+        // waiting for it would leave the cinematic without its Nemesis.
+        if (!nemesis.IsActive) nemesis.ActivateInPlace();
 
         nemesis.enabled = false;
         nemesis.SetStoppingDistance(arrivalDistance);
@@ -78,10 +105,18 @@ public class NemesisCinematicActor : MonoBehaviour
     /// <summary>Puts the Nemesis on the marker, facing where the marker faces.</summary>
     public void WarpTo(Transform marker)
     {
-        if (!hasControl || marker == null) return;
+        if (marker == null) return;
+        WarpTo(marker.position, marker.eulerAngles.y);
+    }
 
-        nemesis.WarpTo(marker.position);
-        nemesis.transform.rotation = Quaternion.Euler(0f, marker.eulerAngles.y, 0f);
+    /// <summary>Puts the Nemesis on a point with no marker (a skip placing it where the run would
+    /// have got to), facing the given yaw.</summary>
+    public void WarpTo(Vector3 position, float yaw)
+    {
+        if (!hasControl) return;
+
+        nemesis.WarpTo(position);
+        nemesis.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         nemesis.ResetGaitSampling();
         Stand();
     }
@@ -89,6 +124,20 @@ public class NemesisCinematicActor : MonoBehaviour
     public void WalkTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Walking, walkSpeed);
 
     public void RunTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Running, runSpeed);
+
+    /// <summary>
+    /// Shows or hides the Nemesis's eyes (the two points that read through the fog), so a shot can
+    /// keep it a shape in the dark until the moment its eyes open. Only the escape's own business:
+    /// dormancy sets them again the next time the Nemesis sleeps or wakes.
+    /// </summary>
+    public void SetEyesVisible(bool visible)
+    {
+        if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+        if (nemesis == null) return;
+
+        NemesisEyes eyes = nemesis.GetComponentInChildren<NemesisEyes>();
+        if (eyes != null) eyes.SetLightsEnabled(visible);
+    }
 
     /// <summary>Turns in place to look at the marker (standing still; ignored while moving).</summary>
     public void FaceTowards(Transform marker)

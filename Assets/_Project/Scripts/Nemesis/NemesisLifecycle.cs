@@ -102,6 +102,10 @@ public class NemesisLifecycle : MonoBehaviour
 
     // ── Agent tuning ────────────────────────────────────────────────────────
 
+    /// <summary>The built-in NavMesh area Unity assigns to the links a NavMeshSurface generates on
+    /// its own. See <see cref="ApplyMovementTuning"/> for why the Nemesis may not use it.</summary>
+    private const string GeneratedLinkArea = "Jump";
+
     /// <summary>
     /// Pushes the agent tuning from <see cref="SO_NemesisMovement"/> onto the NavMeshAgent.
     ///
@@ -129,6 +133,26 @@ public class NemesisLifecycle : MonoBehaviour
         agent.acceleration = movement.Acceleration;
         agent.stoppingDistance = movement.StoppingDistance;
         agent.autoBraking = false;
+
+        // NO GENERATED LINKS (Plan-IA-Stalker D10, WIR-028).
+        //
+        // Zona1's NavMeshSurface still bakes with Generate Links on, and Unity puts every link it
+        // generates — drops of up to ledgeDropHeight, jumps of up to maxJumpAcrossDistance — on
+        // the built-in "Jump" area. NemesisElevatorUser crosses any link that is not a lift by
+        // lerping the transform in a straight line (TraverseSimpleLinkAsync), and the bake laid
+        // dozens of those straight through the pillars of the box room: the Nemesis walked
+        // through the columns. Worse, a simple link raises IsTraversing, which the ladder reads
+        // as "riding the lift", so every one of them also parked it in Traversing for up to
+        // ElevatorCommitTime — running at chase speed with none of the chase feedback.
+        //
+        // D10's real fix is turning Generate Links off and rebaking, which needs the editor. This
+        // is the same decision taken on the agent's side, so it holds with or without that bake.
+        // Authored links are untouched: the freight elevator's are on Walkable and Forklift, and
+        // the planned drops (§15) get an area of their own. Cleared BEFORE the mask is published
+        // below, so the oracle, the route graph and the hearing sensor stop counting those links
+        // too, instead of measuring routes the body will refuse to walk.
+        int generatedLinkArea = UnityEngine.AI.NavMesh.GetAreaFromName(GeneratedLinkArea);
+        if (generatedLinkArea >= 0) agent.areaMask &= ~(1 << generatedLinkArea);
 
         // Published so every NemesisNav query measures over the same NavMesh the agent is allowed
         // to walk on. This is what makes an off-limits area (a safe room painted with a custom

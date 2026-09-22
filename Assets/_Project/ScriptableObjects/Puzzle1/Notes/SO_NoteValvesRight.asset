@@ -15,7 +15,7 @@ MonoBehaviour:
   itemID: nota_valvulas
   itemName: Valve Note
   category: 2
-  itemDescription: Note describing the valve configuration.
+  itemDescription: It's one half of a notice
   itemIcon: {fileID: 21300000, guid: fd3d39e275654504a9db99d936816b3d, type: 3}
   isMetallic: 0
   isConsumable: 0
@@ -27,3 +27,4 @@ MonoBehaviour:
 '
   audioClip: {fileID: 0}
   targetID: 
+  worldPickupPrefab: {fileID: 0}

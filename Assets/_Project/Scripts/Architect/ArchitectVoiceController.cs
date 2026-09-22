@@ -135,7 +135,8 @@ public class ArchitectVoiceController : MonoBehaviour
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnStateChanged += HandleModuleStateChanged;
         PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
-        NemesisEvents.OnActivated += HandleNemesisActivated;
+        // ARC_02 (NemesisReleased) has no trigger on purpose: the Nemesis only wakes up for the
+        // escape cinematic, and the announcement is not wanted there.
         InteractionEvents.OnInteracted += HandleInteracted;
         InventoryEvents.OnItemAdded += HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
@@ -151,7 +152,6 @@ public class ArchitectVoiceController : MonoBehaviour
         ModuleEvents.OnTimerTick -= HandleTimerTick;
         ModuleEvents.OnStateChanged -= HandleModuleStateChanged;
         PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
-        NemesisEvents.OnActivated -= HandleNemesisActivated;
         InteractionEvents.OnInteracted -= HandleInteracted;
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
@@ -553,8 +553,6 @@ public class ArchitectVoiceController : MonoBehaviour
     }
 
     private void HandlePlayerCaptured(PlayerStateManager _) => TriggerLine(ArchitectLineID.Captured);
-
-    private void HandleNemesisActivated() => TriggerLine(ArchitectLineID.NemesisReleased);
 
     private void HandleInteracted(IInteractable interactable)
     {

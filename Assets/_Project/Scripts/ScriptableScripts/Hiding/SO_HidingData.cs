@@ -55,6 +55,12 @@ public class SO_HidingData : ScriptableObject
              "immunity. Set it if playtests show players camping with the key held.")]
     [SerializeField, Min(0f)] private float maxHoldSeconds = 0f;
 
+    [Tooltip("Seconds for empty lungs to fill back up once the player stops holding. The air a hold " +
+             "used comes back gradually, so letting go and holding again straight away only buys " +
+             "what has been recovered since — the breath meter in the HUD shows it. Ignored when " +
+             "Max Hold Seconds is 0.")]
+    [SerializeField, Min(0.1f)] private float breathRecoverySeconds = 5f;
+
     [Header("Per type")]
     [Tooltip("Multiplies the breathing and exhale RADII inside a cargo container: it is sealed, so " +
              "what leaks out is quieter. Spec value 0.5.")]
@@ -114,6 +120,7 @@ public class SO_HidingData : ScriptableObject
     public float ExhaleNoiseRadius { get => exhaleNoiseRadius; set => exhaleNoiseRadius = value; }
     public float ExhalePulseDuration { get => exhalePulseDuration; set => exhalePulseDuration = value; }
     public float MaxHoldSeconds { get => maxHoldSeconds; set => maxHoldSeconds = value; }
+    public float BreathRecoverySeconds { get => breathRecoverySeconds; set => breathRecoverySeconds = value; }
     public float ContainerNoiseMultiplier { get => containerNoiseMultiplier; set => containerNoiseMultiplier = value; }
     public float ClosetBreathingMultiplier { get => closetBreathingMultiplier; set => closetBreathingMultiplier = value; }
     public float EnterDuration { get => enterDuration; set => enterDuration = value; }

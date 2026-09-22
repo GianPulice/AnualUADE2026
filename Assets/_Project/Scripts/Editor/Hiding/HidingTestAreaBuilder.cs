@@ -119,7 +119,7 @@ public static class HidingTestAreaBuilder
     //  - The player stands in the middle. The 0.3 m capsule is wider than the locker is deep, so the
     //    body pokes 0.1 m out front and back; it is kinematic in there and the camera sits in front
     //    of the face, so the player never sees it.
-    //  - The NavMesh stops ~0.5 m (the agent radius) out from the door. The approach point goes
+    //  - The NavMesh stops ~0.3 m (the agent radius) out from the door. The approach point goes
     //    0.6 m out, which keeps it 0.8 m from the player, inside the 1 m catch reach.
     //  - Camera just behind the door, at eye height.
     private static readonly SpotSpec LockerSpec = new SpotSpec
@@ -137,8 +137,9 @@ public static class HidingTestAreaBuilder
     };
 
     // Under the table: a 1.8 x 0.9 m top at 0.9 m, front edge at z = 0.45.
-    //  - The NavMesh stops ~0.5 m past that edge, so the approach point cannot be closer than ~0.95 m
-    //    to the middle of the table. The player is pulled forward to z = 0.05 to keep the gap at 0.9.
+    //  - The NavMesh stops ~0.3 m (the agent radius) past that edge, so the approach point could sit
+    //    ~0.75 m from the middle of the table; it stays at 0.95 m. The player is pulled forward to
+    //    z = 0.05 to keep the gap at 0.9.
     //  - Camera low (0.6 m) and just inside the front edge, ahead of the body.
     //  - Tilt: the spec's "-5..+15" counts UP as positive — under a table there is nothing to look
     //    down at, and a 2 m tall monster 5 m away is ~15 degrees up from 0.6 m. Cinemachine counts
