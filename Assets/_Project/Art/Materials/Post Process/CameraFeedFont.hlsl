@@ -3,9 +3,8 @@
 // Cam_4_Gate) and PlayerCameraFeed_HLSL.shader (the camera that follows the player).
 //
 // 5x7 bitmap. x = rows 0..3 (5 bits each, bit 4 = left column), y = rows 4..6.
-// Plus a 3x5 one in the same order, for small text (the player feed's readout).
-// The glyph order has to match CameraFeedFont.GlyphOf (C#). New glyphs ALWAYS go at the end, in both
-// tables: the feeds publish their text as glyph indices.
+// The glyph order has to match CameraFeedFont.GlyphOf (C#). New glyphs ALWAYS go at the end: the
+// feeds publish their text as glyph indices.
 
 #ifndef WIRED_CAMERA_FEED_FONT_INCLUDED
 #define WIRED_CAMERA_FEED_FONT_INCLUDED
@@ -75,70 +74,6 @@ float GlyphBit(uint glyph, int2 pixel)
     uint row = pixel.y < 4 ? (g.x >> (uint)((3 - pixel.y) * 5))
                            : (g.y >> (uint)((6 - pixel.y) * 5));
     return (float)((row >> (uint)(4 - pixel.x)) & 1u);
-}
-
-// 3x5 bitmap, same order: 5 rows of 3 bits, row 0 in bits 14..12, bit 2 = left column.
-static const uint kSmallGlyphs[GLYPH_COUNT] =
-{
-    0x0000, //  0 ' '
-    0x7B6F, //  1 '0'
-    0x2C97, //  2 '1'
-    0x73E7, //  3 '2'
-    0x72CF, //  4 '3'
-    0x5BC9, //  5 '4'
-    0x79CF, //  6 '5'
-    0x79EF, //  7 '6'
-    0x7292, //  8 '7'
-    0x7BEF, //  9 '8'
-    0x7BCF, // 10 '9'
-    0x2BED, // 11 'A'
-    0x6BAE, // 12 'B'
-    0x3923, // 13 'C'
-    0x6B6E, // 14 'D'
-    0x79A7, // 15 'E'
-    0x79A4, // 16 'F'
-    0x396B, // 17 'G'
-    0x5BED, // 18 'H'
-    0x7497, // 19 'I'
-    0x126A, // 20 'J'
-    0x5BAD, // 21 'K'
-    0x4927, // 22 'L'
-    0x5FED, // 23 'M'
-    0x6B6D, // 24 'N'
-    0x2B6A, // 25 'O'
-    0x6BA4, // 26 'P'
-    0x2B73, // 27 'Q'
-    0x6BAD, // 28 'R'
-    0x388E, // 29 'S'
-    0x7492, // 30 'T'
-    0x5B6F, // 31 'U'
-    0x5B6A, // 32 'V'
-    0x5BFD, // 33 'W'
-    0x5AAD, // 34 'X'
-    0x5A92, // 35 'Y'
-    0x72A7, // 36 'Z'
-    0x0410, // 37 ':'
-    0x01C0, // 38 '-'
-    0x12A4, // 39 '/'
-    0x0002, // 40 '.'
-    0x5F7D, // 41 '#'
-    0x4454, // 42 '>'
-    0x52A5, // 43 '%'
-    0x0007, // 44 '_'
-    0x2482, // 45 '!'
-    0x05D0, // 46 '+'
-    0x6926, // 47 '['
-    0x324B, // 48 ']'
-    0x0E38, // 49 '='
-    0x2492, // 50 '|'
-};
-
-// pixel.x = column 0..2 (left to right), pixel.y = row 0..4 (top to bottom).
-float SmallGlyphBit(uint glyph, int2 pixel)
-{
-    if (glyph >= GLYPH_COUNT) return 0.0;
-    uint row = kSmallGlyphs[glyph] >> (uint)((4 - pixel.y) * 3);
-    return (float)((row >> (uint)(2 - pixel.x)) & 1u);
 }
 
 float Hash21(float2 p)

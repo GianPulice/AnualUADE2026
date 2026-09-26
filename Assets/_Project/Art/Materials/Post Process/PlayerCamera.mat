@@ -48,7 +48,6 @@ Material:
     - _RollStrength: 0.02
     - _RollWidth: 0.07
     - _Saturation: 1
-    - _SmallReadout: 1
     - _StaticFps: 30
     - _StaticTear: 0.04
     - _Vignette: 0.35

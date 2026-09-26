@@ -4,8 +4,7 @@ using UnityEngine;
 /// The C# half of the bitmap font the camera feeds burn into the picture
 /// (<c>CameraFeedFont.hlsl</c>, shared by <c>SecurityCamera_HLSL.shader</c> and
 /// <c>PlayerCameraFeed_HLSL.shader</c>). Text reaches the shaders as glyph indices in a float
-/// array, one float per character; this is where a string becomes those indices. The indices are the
-/// same in both of the shader's fonts (5x7 and the small 3x5).
+/// array, one float per character; this is where a string becomes those indices.
 /// </summary>
 public static class CameraFeedFont
 {

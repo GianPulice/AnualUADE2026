@@ -22,9 +22,9 @@
 //   6) Grain, rolling band and vignette, in perceptual space like the security feed.
 //   7) Static: analogue snow over the picture, when the signal comes in and on cuts.
 //   8) Overlay burnt in by the camera (not through the lens): label, a blinking recording dot, the
-//      readout (recording counter or device module, in the small 3x5 font, its time amber then red
-//      as the module runs out), a status line and corner brackets — or, while it boots, the boot
-//      screen with its bar, over the picture on a darkened plate.
+//      readout (recording counter or device module, its time amber then red as the module runs
+//      out), a status line and corner brackets — or, while it boots, the boot screen with its bar,
+//      over the picture on a darkened plate.
 //
 // _OverlayGridRows has to equal PS1Effect.mat's _PixelSize (256): each overlay cell then lands on
 // exactly one PSX block and the text comes out whole.
@@ -66,7 +66,6 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         _RecDotRadius       ("Recording Dot Radius (cells)", Range(1, 8)) = 3.5
         _TimerWarningColor  ("Timer Warning Color (module time, a quarter left)", Color) = (1, 0.6, 0, 1)
         _TimerCriticalColor ("Timer Critical Color (a tenth left, last seconds)", Color) = (0.8, 0.1, 0.1, 1)
-        [ToggleUI] _SmallReadout    ("Small Readout (3x5 font, bottom left)", Float) = 1
         _OverlayGridRows    ("Overlay Grid Rows (= PS1Effect _PixelSize)", Float) = 256
         _OverlayMargin      ("Overlay Margin (cells)", Range(0, 40)) = 12
         _OverlayShadow      ("Overlay Shadow", Range(0, 1)) = 0.7
@@ -109,7 +108,6 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float  _RecDotRadius;
         float4 _TimerWarningColor;
         float4 _TimerCriticalColor;
-        float  _SmallReadout;
         float  _OverlayGridRows;
         float  _OverlayMargin;
         float  _OverlayShadow;
@@ -173,22 +171,6 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         return GlyphBit(glyph, int2(column, 6 - p.y));
     }
 
-    // The same in the 3x5 font: cells 4 wide (3 of letter + 1 of air), 5 tall.
-    float SmallLineMask(int2 cell, int2 origin, int textLine, int length)
-    {
-        int2 p = cell - origin;
-        if (p.x < 0 || p.y < 0 || p.y > 4) return 0.0;
-
-        uint index = (uint)p.x / 4u;
-        if (index >= (uint)length) return 0.0;
-
-        uint column = (uint)p.x - index * 4u;
-        if (column > 2u) return 0.0;
-
-        uint glyph = (uint)_PlayerFeedText[textLine * FEED_LINE + (int)index];
-        return SmallGlyphBit(glyph, int2(column, 4 - p.y));
-    }
-
     // The same line, centred on column `centreX`. Unsigned halving: signed divisions make the
     // compiler warn that they are slow.
     float CentredLineMask(int2 cell, int centreX, int bottom, int textLine, int length)
@@ -208,10 +190,8 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         ink = LineMask(cell, int2(margin, topRow), 0, (int)_PlayerFeedInfo.x);
         ink = max(ink, LineMask(cell, int2(margin, topRow - 10), 2, (int)_PlayerFeedInfo.z));
 
-        bool smallFont = _SmallReadout > 0.5;
-        float readout = smallFont ? SmallLineMask(cell, int2(margin, margin), 1, (int)_PlayerFeedInfo.y)
-                                  : LineMask(cell, int2(margin, margin), 1, (int)_PlayerFeedInfo.y);
-        uint readoutChar = (uint)max(cell.x - margin, 0) / (smallFont ? 4u : 6u);
+        float readout = LineMask(cell, int2(margin, margin), 1, (int)_PlayerFeedInfo.y);
+        uint readoutChar = (uint)max(cell.x - margin, 0) / 6u;
         bool isTime = readoutChar >= (uint)_PlayerFeedTimer.x && readoutChar < (uint)_PlayerFeedTimer.y;
         timer = isTime ? readout * step(0.5, _PlayerFeedTimer.w) : 0.0;
         ink = max(ink, isTime ? 0.0 : readout);
