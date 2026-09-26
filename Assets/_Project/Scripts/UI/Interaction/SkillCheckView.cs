@@ -57,7 +57,6 @@ public class SkillCheckView : BaseScreenView
     [SerializeField] private string perfectString = "PERFECT";
     [SerializeField] private string missString = "MISS";
     [SerializeField] private string completeString = "SYSTEM STABILIZED";
-    [SerializeField] private string failedString = "SEQUENCE FAILED - RESTART";
 
     [Header("Feel")]
     [SerializeField, Min(0f)] private float shakeDistance = 10f;
@@ -154,17 +153,6 @@ public class SkillCheckView : BaseScreenView
         else Pulse();
     }
 
-    /// <summary>The round ended with a miss in it: the red pips stay up while the failure holds.</summary>
-    public void ShowFailed(int totalSteps)
-    {
-        HideZone();
-        SetNeedleVisible(false);
-        if (track != null) track.color = Accent;
-        SetPips(totalSteps, totalSteps);
-        SetStatus(failedString, Accent);
-        Shake();
-    }
-
     /// <summary>Every check passed: the whole ring lights up.</summary>
     public void ShowComplete(int totalSteps)
     {
@@ -200,7 +188,7 @@ public class SkillCheckView : BaseScreenView
 
     private const byte PipNone = 0, PipHit = 1, PipMiss = 2;
 
-    // What each check of the current round came out as. Sized for any pip count the prefab has.
+    // What each check of the current sequence came out as. Sized for any pip count the prefab has.
     private byte[] pipResults = new byte[32];
 
     /// <summary>Played checks lit (hit) or red (miss), the current one dimmed, the rest off.</summary>

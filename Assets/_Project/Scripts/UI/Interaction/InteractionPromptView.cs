@@ -23,7 +23,7 @@ using UnityEngine.UI;
 ///
 /// The title bar is painted here from <see cref="SO_UIThemeConfig"/> rather than by a
 /// UIThemeApplier: the applier repaints on enable and would overwrite the per-kind colour. Every
-/// other node of the window is themed by UIStyle_InteractionCanvas.
+/// other node of the window is themed by its own UIThemeApplier.
 /// </summary>
 public class InteractionPromptView : BaseScreenView
 {
@@ -252,7 +252,7 @@ public class InteractionPromptView : BaseScreenView
         if (currentTarget.CanInteract())
         {
             ApplyVariant(variant, icon);
-            SetLine(currentTarget.GetInteractText(), normalColor, appearing);
+            SetLine(currentTarget.GetPromptText(), normalColor, appearing);
             lastRenderedTarget = currentTarget;
             if (animate) ShowWindow();
         }

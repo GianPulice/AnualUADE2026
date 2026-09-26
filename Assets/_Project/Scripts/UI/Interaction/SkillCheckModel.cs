@@ -32,24 +32,18 @@ public class SkillCheckModel : BaseScreenModel
     // Reused on every roll so picking a sector allocates nothing.
     private readonly List<float> sectorWeights = new List<float>();
 
-    /// <summary>Index of the check being played. Equal to <see cref="TotalSteps"/> once the round is over.</summary>
+    /// <summary>Index of the check being played. Equal to <see cref="TotalSteps"/> once every check has been hit.</summary>
     public int StepIndex { get; private set; }
     public int TotalSteps => steps.Length;
 
-    /// <summary>Every check of this round has been played, hit or missed.</summary>
-    public bool IsRoundOver => TotalSteps > 0 && StepIndex >= TotalSteps;
+    /// <summary>A check was missed: the sequence ends there, failed.</summary>
+    public bool IsFailed { get; private set; }
 
-    /// <summary>Misses in the current round. One is enough to fail it.</summary>
-    public int RoundMisses { get; private set; }
+    /// <summary>Every check has been hit: the only way to finish.</summary>
+    public bool IsComplete => TotalSteps > 0 && StepIndex >= TotalSteps;
 
-    /// <summary>The round is over and every check in it was hit: the only way to finish.</summary>
-    public bool IsComplete => IsRoundOver && RoundMisses == 0;
-
-    /// <summary>The round is over with at least one miss: it has to be played again from the first check.</summary>
-    public bool IsRoundFailed => IsRoundOver && RoundMisses > 0;
-
-    /// <summary>Misses over the whole sequence, for logging.</summary>
-    public int Misses { get; private set; }
+    /// <summary>Nothing left to play, whichever way it went.</summary>
+    public bool IsOver => IsComplete || IsFailed;
 
     /// <summary>Where this attempt's success zone starts, in degrees.</summary>
     public float ZoneStart { get; private set; }
@@ -67,7 +61,7 @@ public class SkillCheckModel : BaseScreenModel
         steps = new SO_SkillCheckData.SkillCheckStep[0];
         sectors = new SO_SkillCheckData.ZoneSector[0];
         StepIndex = 0;
-        Misses = 0;
+        IsFailed = false;
         ZoneStart = 0f;
         IsInitialized = true;
     }
@@ -82,8 +76,7 @@ public class SkillCheckModel : BaseScreenModel
         foreach (SO_SkillCheckData.ZoneSector sector in sectors) sectorWeights.Add(sector.weight);
 
         StepIndex = 0;
-        Misses = 0;
-        RoundMisses = 0;
+        IsFailed = false;
         IsInitialized = true;
 
         if (TotalSteps > 0) RollZone();
@@ -96,7 +89,7 @@ public class SkillCheckModel : BaseScreenModel
     /// </summary>
     public SkillCheckResult Judge(float needleAngle)
     {
-        if (TotalSteps == 0 || IsRoundOver) return SkillCheckResult.Miss;
+        if (TotalSteps == 0 || IsOver) return SkillCheckResult.Miss;
 
         float intoZone = needleAngle - ZoneStart;
         if (intoZone < 0f || intoZone > ZoneWidth) return SkillCheckResult.Miss;
@@ -104,33 +97,24 @@ public class SkillCheckModel : BaseScreenModel
     }
 
     /// <summary>
-    /// Every check gets one attempt: hit or miss, the sequence moves on to the next one. A miss is
-    /// remembered, and a round with any miss in it fails as a whole once it is over
-    /// (<see cref="IsRoundFailed"/>) — the only way through is every check hit in a row.
+    /// Every check gets one attempt. A hit moves on to the next check; a miss ends the sequence on
+    /// the spot (<see cref="IsFailed"/>), and the next one starts again from the first check — the
+    /// only way through is every check hit in a row.
     /// </summary>
     public void Register(SkillCheckResult result)
     {
-        if (TotalSteps == 0 || IsRoundOver) return;
+        if (TotalSteps == 0 || IsOver) return;
 
         if (result == SkillCheckResult.Miss)
         {
-            Misses++;
-            RoundMisses++;
+            IsFailed = true;
         }
-        StepIndex++;
+        else
+        {
+            StepIndex++;
+            if (!IsComplete) RollZone();
+        }
 
-        if (!IsRoundOver) RollZone();
-        NotifyDataChanged();
-    }
-
-    /// <summary>Starts the round again from the first check, with a fresh zone.</summary>
-    public void RestartRound()
-    {
-        if (TotalSteps == 0) return;
-
-        StepIndex = 0;
-        RoundMisses = 0;
-        RollZone();
         NotifyDataChanged();
     }
 

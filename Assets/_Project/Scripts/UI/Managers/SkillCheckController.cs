@@ -9,8 +9,9 @@ using UnityEngine;
 /// Each attempt: a short pause, a warning ding with the success zone popping up somewhere on the
 /// ring, then the needle sweeps ONE lap from twelve o'clock. [E] inside the zone passes and moves on;
 /// inside its leading perfect slice it also gives the active module time back; anywhere else — or no
-/// press before the lap closes — is a miss that costs module time and replays the same check with
-/// the zone somewhere new. When the last check passes the overlay holds "stabilized" and closes.
+/// press before the lap closes — is a miss: it costs module time and ends the sequence there, the
+/// overlay closing on its MISS, so the panel has to be used again from the first check. When the
+/// last check passes the overlay holds "stabilized" and closes.
 /// The tuning is all in <see cref="SO_SkillCheckData"/>.
 ///
 /// A modal (<see cref="IModalUI"/>) that does not pause the game: the player cannot move or look
@@ -84,9 +85,9 @@ public class SkillCheckController
 
     /// <summary>
     /// Starts a sequence. <paramref name="finished"/> is called once the overlay has closed: true if
-    /// every check was passed, false if it was cancelled (<see cref="Cancel"/>, the run ending, a new
-    /// session). Returns false — and never calls back — when nothing started: already open, or no
-    /// data with at least one step.
+    /// every check was passed, false if one was missed or it was cancelled (<see cref="Cancel"/>, the
+    /// run ending, a new session). Returns false — and never calls back — when nothing started:
+    /// already open, or no data with at least one step.
     /// </summary>
     public bool Open(SO_SkillCheckData data = null, Action<bool> finished = null)
     {
@@ -138,33 +139,25 @@ public class SkillCheckController
             token.ThrowIfCancellationRequested();
 
             bool first = true;
-            while (true)
+            while (!model.IsOver)
             {
-                while (!model.IsRoundOver)
-                {
-                    await PlayAttemptAsync(first, token);
-                    first = false;
-                }
-
-                if (model.IsComplete) break;
-
-                // Any miss fails the whole round: every check has to be hit in a row.
-                view.ShowFailed(model.TotalSteps);
-                PlayClip(activeData.missClip);
-                await WaitAsync(activeData.failHoldTime, token);
-
-                model.RestartRound();
-                view.Setup(model.TotalSteps);
+                await PlayAttemptAsync(first, token);
+                first = false;
             }
 
-            view.ShowComplete(model.TotalSteps);
-            PlayClip(activeData.completeClip);
-            await WaitAsync(activeData.completeHoldTime, token);
-            completed = true;
+            // A miss ends the sequence on the spot: the overlay closes on its MISS, with nothing
+            // completed, and the panel starts again from the first check.
+            if (model.IsComplete)
+            {
+                view.ShowComplete(model.TotalSteps);
+                PlayClip(activeData.completeClip);
+                await WaitAsync(activeData.completeHoldTime, token);
+                completed = true;
+            }
         }
         catch (OperationCanceledException)
         {
-            // Cancelled: closed below like a completed run, only reported as not completed.
+            // Cancelled: closed below like any other run, reported as not completed.
         }
         finally
         {

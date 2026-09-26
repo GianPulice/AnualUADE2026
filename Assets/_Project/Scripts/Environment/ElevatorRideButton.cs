@@ -69,7 +69,7 @@ public class ElevatorRideButton : BaseRangeInteractable
     protected override bool CanInteractInCloseRange() =>
         isConfigured && platform.IsPlayerAboard && platform.IsAvailable;
 
-    public override string GetInteractText() =>
+    public override string GetPromptText() =>
         isConfigured ? "Operate forklift" : string.Empty;
 
     /// <summary>

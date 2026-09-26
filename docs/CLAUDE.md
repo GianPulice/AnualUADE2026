@@ -16,10 +16,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`ThirdParty/`** — imported packs, each kept exactly as it shipped so a future re-import
   from the Asset Store overwrites cleanly. **Never edit or reorganize a pack in place.** If you
   need a variant of a pack asset, copy it into `_Project/` and change the copy.
-- **`_Archive/`** — kept but not part of the game: the Unity URP template leftovers
-  (`UnityTemplate/`), old screenshots, and a recovery scene. Nothing here should be referenced
-  by a shipping scene.
+- **`_Archive/`** — kept but not part of the game: crash-recovery scenes (`Recovery/`) and old
+  screenshots. Nothing here should be referenced by a shipping scene.
 - **`Resources/`** and **`TextMesh Pro/`** — Unity resolves both by folder name; do not move them.
+
+Where imported content goes (the folders drifted twice; these are the rules the 2026-09-25 cleanup applied):
+
+- A pack with its own folder tree (Asset Store, a `.unitypackage`) imports at the `Assets/` root by
+  default: move its folder into `ThirdParty/` right after importing.
+- A single downloaded model (Sketchfab and the like) goes to `_Project/Art/Models/Downloaded/<name>/`
+  with the `source/` and `textures/` it came with. Prefabs built from it go to `_Project/Prefabs/`.
+- `Prefabs/` holds prefabs only, and `Materials/` holds materials and shaders only. Loose models go
+  to `Art/Models/`, textures to `Art/Textures/`, materials to `Art/Materials/`.
+- Exception: a texture that an FBX's embedded material finds **by file name** at import time stays
+  next to that FBX. Moved elsewhere, a re-import (any fresh `Library/`) can come out untextured.
+  Example: `Art/Models/Environment/LampBaked1k.png`.
+- Unity drops crash-recovery scenes in `Assets/_Recovery/`: move them to `_Archive/Recovery/` or
+  delete them. Never commit them at the root.
+- Always commit an asset together with its `.meta`, and never regenerate a `.meta`: the GUID in it
+  is what every reference points to. Almost every broken reference found in the cleanup came from
+  assets created before 2026-06-07, when `.meta` files were git-ignored.
 
 Scenes live in `_Project/Scenes/` under `Bootstrapper/`, `Data/`, `GameScenes/`, `UI/`, and
 `Dev/` (test and sandbox scenes). Editor tooling that hardcodes an `"Assets/..."` string —
@@ -100,7 +116,7 @@ real system and the two disagree. The mapping:
 | "the Hub blocks the Nemesis" (in code) | A NavMesh `Not Walkable` modifier volume. There is no C# side — see *Safe zones* |
 | `ModuleManager.GetActiveModuleTimeRemaining()` / `GetActiveModuleTotalTime()` | `GetActiveModule()` returns the `ModuleRuntime`; it already exposes `TimeRemaining`, `TimerProgress` (the bar fill the spec computes by hand), `FormattedTime` and `BarColor`. The total is `Data.TimerDuration`. `GetExplodedCount()` exists exactly as specified |
 | `AudioManager.PlaySFX(AudioClip, pos)` — an `AudioClip` argument | Every `Play*` takes a **string id** that must resolve to an `SO_SoundData` asset dragged into the `AudioManager.sounds` array. A clip sitting in `_Project/Audio/` with no SO is unreachable; a wrong id logs a warning and plays nothing |
-| `IInteractable.GetPromptText()` | `GetInteractText()` **plus** `GetInfoText()` — the second is exactly the spec's §6.1 "Necesitas X" informative prompt, and it already exists |
+| `IInteractable.GetPromptText()` | `GetPromptText()` (the same name since 2026-09-25; it was `GetInteractText()`) **plus** `GetInfoText()` — the second is exactly the spec's §6.1 "Necesitas X" informative prompt, and it already exists |
 | `IInteractable.OnInteract(PlayerController player)` | `Interact()`, no argument. Interactables reach the player through `PlayerRegistry` and the manager singletons |
 | `PlayerController.OnDangerDetected()` | **Does not exist**, and neither does the `InDanger` state it would set. The danger *feedback* survives as `VignetteProximityView` / `VignetteChaseView`, driven straight off `NemesisEvents` |
 | `MusicManager` (`SetZone`, `PlayChaseMusic`, `OnEnterHiding`, `OnPuzzleResolved`, stinger source) | **Does not exist.** `NemesisChaseMusic` covers the chase cue only; `AudioManager.PlayMusic(id)` owns one 2D source and has **zero callers** |
@@ -435,7 +451,7 @@ if (PauseManager.IsGameplayInputBlocked) return;
 
 ### Interactable System
 
-`IInteractable` (`_Project/Scripts/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetInteractText()`, `GetInfoText()`.
+`IInteractable` (`_Project/Scripts/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetPromptText()`, `GetInfoText()`.
 
 Detection is a **camera SphereCast**, not trigger registration: `InteractionManager.RaycastForInteractable()` casts from `Camera.main` forward with `SO_InteractionManager.InteractionDistance`, a 0.1 radius, against `InteractableLayers | BlockingLayers`. It resolves the `IInteractable` on the hit collider or its parents; if the first hit has none, it is a wall and nothing is targeted. `BaseRangeInteractable` no longer registers anything — it only describes *what* the interaction is. Each interactable needs a Collider on itself or on a child in the Interactable layer so the cast has something to hit.
 
@@ -759,7 +775,7 @@ What the project already gives you, and where the spec's implementation notes sh
   rubble cleared. Not baked geometry — a bake is static and cannot be undone at runtime — and not
   `NavMesh.BuildNavMesh()` mid-run, which the spec suggests and which this project cannot afford.
 - **Interaction is `IInteractable`.** `[E] Push shelf`, `Clear rubble`, `Climb` are
-  `BaseRangeInteractable` subclasses: `GetInteractText()` is the prompt, `CanInteract()` goes false
+  `BaseRangeInteractable` subclasses: `GetPromptText()` is the prompt, `CanInteract()` goes false
   once the obstacle is done, `OnInteractAttemptBlocked()` is the refusal feedback, and
   `InteractionManager` owns targeting and the 0.2 s cooldown. The spec's "the climb prompt must not
   appear mid-puzzle" is already true — the player is in `Interacting` and the raycast targets one

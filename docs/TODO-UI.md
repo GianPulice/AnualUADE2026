@@ -113,7 +113,7 @@ ensanche (pivot 0.5) para que el borde izquierdo del texto no se moviera ni un p
 Pendiente en esta zona:
 
 - [x] **Bordes de 1px** en chips y botones. Obsoleto: el look pasó a Win95 y el borde lo pone un
-      `UIBevelFrame` (nodo `BevelFrame`) que aplica `UIStyle_InventoryCanvas`: lo tienen
+      `UIBevelFrame` (nodo `BevelFrame`, puesto por el perfil de estilo del inventario): lo tienen
       `OpenDocButton`, `CloseInventoryButton`, `CloseDocButton` y el chip de categoría
       (`Item Type Color Box`). Ya no se resuelve solo con fondo.
 - [ ] **Sweep del `CloseDocButton`** — ya tiene `ButtonHoverColorSwap` (la cruz se aclara a blanco)
@@ -122,7 +122,7 @@ Pendiente en esta zona:
       tampoco; el botón de descarte ya no existe).
 - [ ] **Calibrar el gris del cuerpo de la nota.** La referencia usa `#3a3a3a` sobre `#070707`, que
       a 10px en un browser lee bien pero a pantalla completa queda casi ilegible. Hoy `DocText` va en
-      blanco `#FFFFFF`: el rol `TextPrimary` del tema, aplicado por `UIStyle_InventoryCanvas`. Bajarlo
+      blanco `#FFFFFF`: el rol `TextPrimary` del tema, vía su `UIThemeApplier`. Bajarlo
       solo si en algún momento se prioriza fidelidad al mockup sobre legibilidad.
 - [x] **Override huérfano en `LevelUI.unity`** — la instancia del prefab forzaba `Doc Box` a
       `m_IsActive: 1`. Ya no está: el override se fue en `e21b6de2` y hoy `LevelUI.unity` no tiene
@@ -151,10 +151,11 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
       el valor final antes de una build.
 
 > El look de la UI (tema, bordes Win95, fuentes con contorno, fondos animados, transición, tubo CRT)
-> se aplica con **perfiles de estilo**: un `SO_UIStyleProfile` por prefab en
-> `ScriptableObjects/UI/Style/`, aplicado con `Tools/UI/Style/Apply All Profiles`. Un perfil nuevo
-> sale de `Tools/UI/Style/Draft Profile From Prefab` y se revisa antes de aplicar. Ver
-> `Scripts/Editor/UIStyle/UIStyleTools.cs`.
+> está serializado en los prefabs: `UIThemeApplier`, `UIBevelFrame`, los presets de contorno de TMP,
+> `UISignalTransition` y `CanvasCRTPresenter`. Lo aplicaban los **perfiles de estilo**
+> (`SO_UIStyleProfile`, menú `Tools/UI/Style`), borrados el 2026-09-25 junto con sus assets de
+> `ScriptableObjects/UI/Style/`. Una pantalla nueva se estila a mano, copiando esos componentes de
+> una que ya exista. Si hace falta de nuevo, están en git (`3d262aef`, `Scripts/Editor/UIStyle/`).
 
 ### Reproductor de audio (mediano)
 
@@ -193,8 +194,8 @@ Cuando se implemente la Variante B de interacción con puzzles, completar:
 El sistema de puzzles está parcialmente implementado:
 - ✅ Sub-Puzzle 1: panel eléctrico + caja de fusibles (`SequencePanelInteractable` + `SequencePanelUIController`). Es el único puzzle que se completa de punta a punta; escribe directo en `PuzzleStateManager` sin pasar por `PuzzleController`.
 - ✅ Sub-Puzzle 2: cajas empujables — **unificado**. Se eligió la variante física y se borraron `ContainerInteractable`, `ContainerSlot` y el muerto `PushableBall`. Queda `BallPuzzleItem` + `BasketTrigger` + `GrabbableBall` + `PushBoxTriggerLogic`, con `ContainerPuzzleController.CheckContainers()` como verificador. Ya no hay dos semánticas de clave: `PuzzleStateManager.SetContainerSlot()` se escribe **siempre con el `BallId`**, y `SO_ContainerPuzzleData.ContainerRequirement.containerId` conserva el nombre viejo pero se autora con un id de caja (documentado en su tooltip). Pendiente: **reprobar el puzzle de punta a punta en escena**.
-- 🟡 Sub-Puzzle 3: 3 válvulas — la lógica existe (`ValveInteractable` + `ValvePuzzleController`) pero **no hay feedback visual**: la válvula no rota ni cambia de estado al interactuar. Además `InitializeValveState()` espera con un `WaitForSeconds(3)` hardcodeado para que exista el singleton (workaround de race condition, no fix).
-- 🟡 **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación), **estilo Dead by Daylight, funcionando pero sin disparador real**. `SkillCheckModel` (estado puro: paso, zona sorteada, juicio de la aguja) / `SkillCheckView` (dial Win95 con estela de radar, zona con degradé, pips) / `SkillCheckController` (modal que no pausa; corre en tiempo escalado y sólo siendo el modal de arriba, así la pausa o la cinemática de explosión congelan la aguja). Prefab `Prefabs/UI/Canvas/SkillCheckCanvas.prefab` con perfil `UIStyle_SkillCheckCanvas` (CRT + transición), datos en `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset` con clips placeholder. Vive en `LevelUI` (objeto `SkillCheckController`). **Para probar: F6** (`SkillCheckTestKey`, sólo editor/dev) — sólo loguea el resultado, no completa nada. **Disparador del Hub hecho**: `SkillCheckPanelInteractable` + `SO_SkillCheckPuzzle_VentilationHub` (`puzzle_central_piso2`, ya puesto como `associatedPuzzleId` de `M2_Chest`); completar la secuencia completa el puzzle y M2 se resuelve. Probar en `TestIñaki` → `SkillCheck Test Area`: trigger M1 → `M1 Test Panel` (resuelve M1 con `SO_SkillCheckPuzzle_Test_M1`, sólo de prueba) → trigger M2 → `Ventilation Hub Panel`. M2 no arranca si M1 no está resuelto. **Falta colocarlo en el nivel real** (no hay Hub de Ventilación armado todavía). Falta también: la calma progresiva de shake/ambiente entre checks (spec §3), clips reales, y probarlo en Play (no se pudo con el editor sin foco).
+- ✅ Sub-Puzzle 3: 3 válvulas — `ValveInteractable` + `ValvePuzzleController`. La rueda gira un paso por interacción (`RotateRotator`). `InitializeValveState()` ya no espera 3 s fijos: publica la posición inicial apenas existe `PuzzleStateManager`, sin esperar nada si ya estaba (2026-09-25; falta verlo en Play).
+- 🟡 **Skill-Check UI** (Puzzle Central 2 — Hub de Ventilación), **estilo Dead by Daylight, funcionando pero sin disparador real**. `SkillCheckModel` (estado puro: paso, zona sorteada, juicio de la aguja) / `SkillCheckView` (dial Win95 con estela de radar, zona con degradé, pips) / `SkillCheckController` (modal que no pausa; corre en tiempo escalado y sólo siendo el modal de arriba, así la pausa o la cinemática de explosión congelan la aguja). Prefab `Prefabs/UI/Canvas/SkillCheckCanvas.prefab` (CRT + transición), datos en `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset` con clips placeholder. **Fallar un check corta la secuencia en el acto** (2026-09-25): el overlay muestra el MISS y se cierra, y hay que volver a usar el panel desde el primer check. El último check pasó de 24° a 28° de zona porque era demasiado difícil (también en `SO_SkillCheck_TestF6`). Vive en `LevelUI` (objeto `SkillCheckController`). **Para probar: F6** (`SkillCheckTestKey`, sólo editor/dev) — sólo loguea el resultado, no completa nada. **Disparador del Hub hecho**: `SkillCheckPanelInteractable` + `SO_SkillCheckPuzzle_VentilationHub` (`puzzle_central_piso2`, ya puesto como `associatedPuzzleId` de `M2_Chest`); completar la secuencia completa el puzzle y M2 se resuelve. Probar en `TestIñaki` → `SkillCheck Test Area`: trigger M1 → `M1 Test Panel` (resuelve M1 con `SO_SkillCheckPuzzle_Test_M1`, sólo de prueba) → trigger M2 → `Ventilation Hub Panel`. M2 no arranca si M1 no está resuelto. **Falta colocarlo en el nivel real** (no hay Hub de Ventilación armado todavía). Falta también: la calma progresiva de shake/ambiente entre checks (spec §3) y clips reales. Ya se probó en Play (Iñaki, 2026-09-25); el cierre al fallar es posterior y falta verlo.
 - ❌ Hub Central: 3 ranuras de inserción. `SocketInteractable` + `HubPuzzleController.CheckHubCompletion()` existen, pero al completarse solo setean el flag y loguean — la cinemática, el acceso al Piso 3 y el ascensor son un comentario `// TO DO HERE`. Es el endgame del Piso 1.
 - ❌ Cinemática post-Hub
 
@@ -207,10 +208,11 @@ También pendiente en la capa de mundo (no es UI pero bloquea el testeo de puzzl
   hoja sobre la bisagra (`AnimateHinge`), el collider sólido va con la hoja, y la caja de interacción
   del root es trigger (ver `InteractionManager`), así que el vano queda libre al abrir.
   `DisableBlockingCollider()` ya no existe.
-- [ ] **`PuzzleController.CompletePuzzle()` y `PuzzleReward.GiveReward()` no los llama nadie.**
+- [x] **`PuzzleController.CompletePuzzle()` y `PuzzleReward.GiveReward()` no los llama nadie.**
   `SocketInteractable` puede arrancar un puzzle genérico (`StartPuzzle()`) pero nada lo completa.
   Además ni `PuzzleController` ni `PuzzleReward` están puestos en ninguna escena o prefab: los puzzles
-  reales escriben directo en `PuzzleStateManager`. Decidir si se borran (código muerto) o se cablean.
+  reales escriben directo en `PuzzleStateManager`. Decidido (Iñaki, 2026-09-25): **se dejan como
+  están**, ni se borran ni se cablean.
 
 ---
 
@@ -238,7 +240,7 @@ Detalles diferidos:
       a "Pick up X": la tecla ahora se dibuja.
 - [x] **Borrar `Scripts/Editor/UIStyle/InteractionPromptWindowBuilder.cs`** una vez commiteado el prefab. Es un
       builder de un solo uso; el prefab es la fuente de verdad. Borrado el 2026-09-22.
-- [ ] **Renombrar `IInteractable.GetInteractText()` → `GetPromptText()`** para alinear con spec interaction §1.1. Cambio cosmético, alto número de archivos afectados.
+- [x] **Renombrar `IInteractable.GetInteractText()` → `GetPromptText()`** para alinear con spec interaction §1.1. Hecho el 2026-09-25: 19 archivos (interfaz, `BaseRangeInteractable`, las implementaciones e `InteractionPromptView`), ninguna escena ni prefab lo referenciaba.
 - [x] **Priorizar por dot product de mirada** cuando hay múltiples interactables solapados. Spec interaction §10. Obsoleto: ya no hay orden de registro. `InteractionManager` elige con `InteractionProbe.Find`, que tira un SphereCast por el punto exacto de la mira y se queda con el hit más cercano al player sobre ese rayo: lo que se mira es lo que se elige.
 
 ---
@@ -261,7 +263,7 @@ Lo que sigue pendiente:
 
 - [ ] **Keybinds rebinding** — requiere InputSystem rebinding UI. `SettingsPanelControlsView` muestra labels estáticos.
 - [ ] **Toggle de glitch VHS** — `GlitchController` y `UISignalStaticBurst` ya leen `Settings_VHSGlitch` de PlayerPrefs, pero ni `SettingsModel` ni Options la tienen. Hay que sumarla al model (con snapshot/revert, como las demás) y agregar el control. Mismo caso: `Settings_AudioInBackground` y `Settings_LowFreqAmbience` ya están en `SettingsModel` y tienen applier (`AudioBackgroundApplier`, `AmbienceComfortApplier`), pero ningún panel de Options los escribe.
-- [ ] **Verificar en build standalone** — `Screen.SetResolution` es no-op en Play Mode del Editor. Ojo al probar: "Fullscreen" ya no es `ExclusiveFullScreen` sino `FullScreenWindow`, igual que "Borderless" (crash DX12 al perder el foco, UUM-134743; ver `ScreenSettingsApplier`).
+- [x] **Verificar en build standalone** — verificado por Iñaki el 2026-09-25: resolución y fullscreen andan bien. `Screen.SetResolution` es no-op en Play Mode del Editor. Ojo al probar: "Fullscreen" ya no es `ExclusiveFullScreen` sino `FullScreenWindow`, igual que "Borderless" (crash DX12 al perder el foco, UUM-134743; ver `ScreenSettingsApplier`).
 
 ---
 
@@ -314,7 +316,7 @@ Estado real:
 ## 🧹 Limpieza / refactor menor
 
 - [x] **`PauseManager.OnEnable/OnDisable` con InputAction** — resuelto con `pauseActionHandler` cached. Lambda ya no se pierde en `-=`.
-- [x] **Editor setup `SequencePanelUISetup.cs`** — Obsoleto: el script se borró en `26bcc941` (2026-09-03) y `SequencePanelCanvas.prefab` es la fuente de verdad (estilado con `UIStyle_SequencePanelCanvas`).
+- [x] **Editor setup `SequencePanelUISetup.cs`** — Obsoleto: el script se borró en `26bcc941` (2026-09-03) y `SequencePanelCanvas.prefab` es la fuente de verdad (su estilo quedó serializado en el prefab).
 - [x] **`PausesGame` en IModalUI** — propiedad agregada a la interfaz. `UIStateManager.ApplyModalEnvironment` solo pone `timeScale = 0` si alguna modal en el stack declara `PausesGame = true`. `DocumentReader` integrado al sistema con `PausesGame = false` (tiempo corre, input bloqueado).
   - ✅ **Caveat cerrado en modo lectura**: `BlocksPause` pasó a ser `isOpen && pausesWhileOpen`, así que la nota que se abre al agarrarla se come el ESC sin que la pausa dispare en el mismo frame. En lectura in situ (`NoteInteractable`) sigue en `false` a propósito — ahí el mundo corre y la pausa tiene que andar. Ver UI-System §10.4.
 - [x] **`GameResultManager.ResetSession()` en flujo real** — corre en cada `GameSession.BeginNewSession()`, que llama `MainMenuController.EnterGameplay()` tanto para New Game como al elegir un slot, así que el Load Game futuro ya queda cubierto.

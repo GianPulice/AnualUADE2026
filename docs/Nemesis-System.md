@@ -327,7 +327,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 ## Cómo verificar
 
-**Escena de pruebas**: abrí `Scenes/Dev/NemesisTestbed.unity` (lista de chequeo en `docs/Checklist-NemesisTestbed.md`). `Tools > Nemesis > Build Bug Lab (NemesisTestbed)` le arma estaciones que reproducen los bugs de QA que necesitan geometría (escalera con puertas, pilares, balcón inalcanzable, trigger en una puerta). Para escondites, `Tools > Hiding > Build Test Area (TestIñaki)` arma un área con los tres tipos en `Scenes/Dev/TestIñaki.unity`, con su propio Nemesis.
+**Escena de pruebas**: abrí `Scenes/Dev/NemesisTestbed.unity` (lista de chequeo en `docs/Checklist-NemesisTestbed.md`). `Tools > Nemesis > Build Bug Lab (NemesisTestbed)` le arma estaciones que reproducen los bugs de QA que necesitan geometría (escalera con puertas, pilares, balcón inalcanzable, trigger en una puerta). Para escondites, `Scenes/Dev/TestIñaki.unity` tiene la *Hiding Test Area*: los tres tipos, con su propio Nemesis.
 
 **En Play** (las dos teclas funcionan sólo en el editor):
 
@@ -344,10 +344,9 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 **Validación de nivel**:
 
 - `Tools > Nemesis > Validate Navigation Setup` reporta geometría que se quedó afuera del bake, máscaras mal puestas, waypoints sin tag o fuera del NavMesh, y modifier volumes que el bake descarta.
-- `WIRED > Nemesis > Diagnose doors` responde, puerta por puerta, si el agente pasa, y por qué no.
 - `Tools > Player > Validate Hiding Spots`, ver *Escondites*.
 
-El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la testbed, Ground + Wall + Props (a propósito). `WIRED > NavMesh > Set NavMeshSurface layers to Ground, Wall, Props` (de `NavMeshLayerFixer`) le sacaría Default al de Zona1.
+El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la testbed, Ground + Wall + Props (a propósito).
 
 ---
 

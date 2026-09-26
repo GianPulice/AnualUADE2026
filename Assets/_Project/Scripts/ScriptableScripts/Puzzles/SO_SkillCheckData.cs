@@ -8,8 +8,8 @@ using UnityEngine;
 /// up with a success zone somewhere on it, and the needle sweeps ONE lap clockwise from twelve
 /// o'clock. [E] inside the zone passes, inside its leading "perfect" slice passes and gives time back
 /// to the module; [E] anywhere else — or no press before the lap ends — is a miss: time is taken off
-/// the module, its pip turns red and the sequence moves on. A round with any miss in it fails once
-/// it is over and starts again from the first check: the only way through is every check hit.
+/// the module and the sequence ends there, the overlay closing on it. The next try starts again from
+/// the first check: the only way through is every check hit in a row.
 ///
 /// The steps go from easy to hard (faster needle, narrower zone), so the last checks are the test.
 ///
@@ -80,7 +80,8 @@ public class SO_SkillCheckData : ScriptableObject
     [Tooltip("From the warning ding to the needle starting to move. [E] is ignored in this window.")]
     [Min(0f)] public float warningLeadTime = 0.6f;
 
-    [Tooltip("How long the result (GOOD / PERFECT / MISS) holds on screen.")]
+    [Tooltip("How long the result (GOOD / PERFECT / MISS) holds on screen. After a MISS the overlay " +
+             "closes as soon as it is over.")]
     [Min(0f)] public float resultHoldTime = 0.35f;
 
     [Tooltip("Random pause between one check's result and the next warning.")]
@@ -89,9 +90,6 @@ public class SO_SkillCheckData : ScriptableObject
 
     [Tooltip("How long the final STABILIZED message holds before the overlay closes.")]
     [Min(0f)] public float completeHoldTime = 0.8f;
-
-    [Tooltip("How long SEQUENCE FAILED (and the red pips) holds before the round restarts from the first check.")]
-    [Min(0f)] public float failHoldTime = 1.2f;
 
     [Header("Audio (placeholders until audio delivers the skill check set)")]
     public AudioClip warningClip;

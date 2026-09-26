@@ -84,7 +84,7 @@ public class PoweredLightSwitch : BaseRangeInteractable
 
     // ── IInteractable ───────────────────────────────────────────────────────
 
-    public override string GetInteractText() => IsOn ? turnOffPrompt : turnOnPrompt;
+    public override string GetPromptText() => IsOn ? turnOffPrompt : turnOnPrompt;
 
     // Shown by the prompt in its grey info style while the switch cannot be used.
     public override string GetInfoText() => sp1Completed ? string.Empty : noPowerInfo;

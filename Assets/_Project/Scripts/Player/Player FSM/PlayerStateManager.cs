@@ -168,6 +168,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
     private enum EStandUpPhase { None, Lying, Playing }
 
+    [Header("Ground clearance")]
+    [Tooltip("PSX blocks the model always sits above the floor. Every clip rests the soles on the " +
+             "floor (within 1 mm), and at zero clearance the PSX filter eats the bottom of the " +
+             "shoe: it reads as the feet sinking into the floor. A block is about 2 cm at the " +
+             "gameplay camera distance and under 1 cm in close shots, so the lift follows the " +
+             "camera's distance and field of view. Read every frame: tune it in Play. 0 = off.")]
+    [SerializeField, Range(0f, 2f)] private float groundClearanceBlocks = 1f;
+
+    [Tooltip("Rows of the PSX filter's pixel grid. Must match _PixelSize on PS1Effect.mat.")]
+    [SerializeField, Min(1)] private int psxRows = 256;
+
+    // Cap on that lift, for far cameras (a security shot across the level), where a block is big
+    // enough that one of them would read as the player floating.
+    private const float MaxGroundClearance = 0.05f;
+
     [Header("Stand-up animations")]
     [Tooltip("Animator state played when the player gets up at the start of the level, during the " +
              "wake-up cinematic's camera pan.")]
@@ -189,6 +204,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
              "anyway. Safety net only: normally control comes back on the clip's last frame.")]
     [SerializeField, Min(1f)] private float standUpTimeout = 3f;
 
+    [Tooltip("Metres the model is raised AT LEAST while the player lies on the floor and gets up. " +
+             "The ground clearance above covers it at gameplay distance; this keeps the close, low " +
+             "stand-up shots as they were tuned. It comes back down with the blend into Idle. 0 = off.")]
+    [SerializeField, Range(0f, 0.05f)] private float standUpGroundClearance = 0.012f;
+
     private EStandUpPhase standUpPhase = EStandUpPhase.None;
     private EStandUp standUpKind;
     private int standUpStateHash;
@@ -196,6 +216,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private float standUpClipSeconds;
     private float captureFallbackAt = -1f;
     private bool initStandUpHandled;
+
+    // The model root's authored height, and how much of standUpGroundClearance is applied right
+    // now (1 = fully raised). See UpdateModelHeight.
+    private float modelRestHeight;
+    private float standUpClearanceWeight;
 
     // True while this player holds a ModuleManager.PauseTicking from a capture: from the grab,
     // through the black screen and the respawn, until the stand-up ends and control is back.
@@ -436,6 +461,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // to widen it — see RefreshCapsuleRadius.
         baseCapsuleRadius = capsuleColl.radius;
 
+        // Same idea: before the ground clearance raises it — see UpdateModelHeight.
+        modelRestHeight = playerBody.localPosition.y;
+
         SetupClipOverrides();
         hasLocomotionSpeedParam = HasAnimatorParameter(LOCOMOTION_SPEED_PARAM, AnimatorControllerParameterType.Float);
 
@@ -591,6 +619,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         base.Update();
         UpdateLocomotionAnimSpeed();
     }
+
+    // After the Animator: the stand-up clearance follows the blend it has just evaluated.
+    private void LateUpdate() => UpdateModelHeight();
 
     /// <summary>
     /// Plays Walking / Running / Crouched Walking (and the injured clips standing in for them)
@@ -1189,6 +1220,85 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Keeps the model <see cref="groundClearanceBlocks"/> PSX blocks above the floor at all times,
+    /// and at least <see cref="standUpGroundClearance"/> from the moment the player lies down until
+    /// the stand-up has blended into Idle — that part lowered in step with the blend (the Animator's
+    /// own transition), so it is gone exactly when Idle's pose has taken over.
+    ///
+    /// Nothing actually goes through the floor: measured on the rig with the real Animator, the
+    /// lowest point of the mesh stays within 1 mm of it in every clip (Idle, walk, run, crouch,
+    /// push, the injured overrides and both stand-ups). What reads as a sunken sole is that zero
+    /// clearance through the PSX filter, which takes each block's colour from one edge of it and so
+    /// can drop up to a whole block of the shoe. Hence a lift of one block, measured from where the
+    /// camera actually is: about 2 cm in gameplay, under 1 cm in the close stand-up shots.
+    ///
+    /// Only the model root moves; the capsule, the camera pivot and the colliders stay where
+    /// physics put them. No clip in PlayerController animates the model root and the scripts only
+    /// ever turn it (PlayerBody.forward), so the height written here is the only one it gets.
+    /// </summary>
+    private void UpdateModelHeight()
+    {
+        if (playerBody == null) return;
+
+        float lift = Mathf.Max(GroundClearance(), standUpGroundClearance * StandUpClearanceWeight());
+
+        Vector3 local = playerBody.localPosition;
+        local.y = modelRestHeight + lift;
+        playerBody.localPosition = local;
+    }
+
+    /// <summary>
+    /// <see cref="groundClearanceBlocks"/> in metres at the feet: one PSX block is the height the
+    /// camera sees at that distance divided by the grid's rows.
+    /// </summary>
+    private float GroundClearance()
+    {
+        if (groundClearanceBlocks <= 0f) return 0f;
+
+        Camera cam = Camera.main;
+        if (cam == null) return 0f;
+
+        float distance = Vector3.Distance(cam.transform.position, transform.position);
+        float block = 2f * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / psxRows;
+        return Mathf.Min(groundClearanceBlocks * block, MaxGroundClearance);
+    }
+
+    /// <summary>
+    /// How much of <see cref="standUpGroundClearance"/> applies now: 1 while lying down and getting
+    /// up, then falling with the blend into Idle, and 0 at rest.
+    /// </summary>
+    private float StandUpClearanceWeight()
+    {
+        float weight;
+        if (IsStandingUp)
+        {
+            weight = 1f;
+        }
+        else if (standUpClearanceWeight <= 0f)
+        {
+            weight = 0f;
+        }
+        else
+        {
+            // While a state blends out it is still the current one. Past the clip's last frame
+            // but before the blend has started, hold.
+            weight = 0f;
+            if (animController.GetCurrentAnimatorStateInfo(0).shortNameHash == standUpStateHash)
+            {
+                weight = animController.IsInTransition(0)
+                    ? 1f - Mathf.Clamp01(animController.GetAnimatorTransitionInfo(0).normalizedTime)
+                    : standUpClearanceWeight;
+            }
+
+            // Once the stand-up is over it only ever comes down.
+            weight = Mathf.Min(weight, standUpClearanceWeight);
+        }
+
+        standUpClearanceWeight = weight;
+        return weight;
     }
 
     /// <summary>The capture fade finished clearing at the checkpoint: get up.</summary>

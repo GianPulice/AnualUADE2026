@@ -607,29 +607,29 @@ resultado sale en el acto. La victoria de gameplay la reporta `WinTrigger` (en `
 
 `SkillCheckCanvas.prefab` en `LevelUI`, manejado por el objeto `SkillCheckController`. Estilo Dead by
 Daylight: en cada intento aparece la zona en un lugar sorteado (`zoneSectors` con peso) y la aguja da
-**una** vuelta desde las 12. Cada check tiene un solo intento: [E] en la zona acierta, y en su franja
-inicial "perfect" además devuelve tiempo al módulo; fuera de la zona, o sin apretar, resta tiempo. Acierto
-o fallo, pasa al siguiente check. Al terminar la ronda, si hubo **algún** fallo la ronda entera se da
-por perdida (`SEQUENCE FAILED - RESTART`, `failHoldTime`) y vuelve a empezar desde el primer check con
-zonas nuevas (`SkillCheckModel.RestartRound`): hay que acertarlos todos seguidos. Todo el tuning está en
-`SO_SkillCheckData` (`ScriptableObjects/Puzzle2/`).
+**una** vuelta desde las 12. Cada check tiene un solo intento: [E] en la zona acierta y pasa al
+siguiente, y en su franja inicial "perfect" además devuelve tiempo al módulo. Fuera de la zona, o sin
+apretar, resta tiempo y **corta la secuencia en el acto**: el overlay muestra el MISS durante
+`resultHoldTime` y se cierra, y hay que volver a usar el panel, que arranca desde el primer check. Hay
+que acertarlos todos seguidos. Todo el tuning está en `SO_SkillCheckData` (`ScriptableObjects/Puzzle2/`);
+en `SO_SkillCheck_Ventilation` el último check tiene 28° de zona (antes 24°, demasiado difícil).
 
 - **MVC**: `SkillCheckModel` es estado puro (paso, zona, juicio de un ángulo), `SkillCheckView` sólo
   dibuja y `SkillCheckController` corre la secuencia con UniTask.
 - **Modal que no pausa** (`PausesGame = false`, `ConsumesEscape = false`): el mundo sigue y ESC abre
   la pausa encima. La aguja y las esperas corren en tiempo escalado y **sólo mientras es el modal de
   arriba**, así que la pausa o la cinemática de explosión la congelan en vez de gastar una vuelta.
-- **Look**: ventana Win95 como el panel de secuencia (perfil `UIStyle_SkillCheckCanvas`: CRT,
-  transición de señal sólo en la ventana, superficie animada). El dial usa `UIRingArc` con los fades
+- **Look**: ventana Win95 como el panel de secuencia (CRT, transición de señal sólo en la ventana,
+  superficie animada). El dial usa `UIRingArc` con los fades
   de alfa (`startAlpha/endAlpha/outerAlpha/innerAlpha`): estela de radar detrás de la aguja, zona que
   se apaga desde el perfect y un brillo de fósforo en el centro.
 - **API**: `Open(data, completed => …)` devuelve `false` si ya estaba abierto; el callback llega
-  cuando el overlay se cerró (`true` = completó, `false` = cancelado por `Cancel()`, fin de la run o
-  sesión nueva). **Prueba: F6** (`SkillCheckTestKey`, sólo editor/dev).
+  cuando el overlay se cerró (`true` = completó, `false` = falló un check, o se canceló por `Cancel()`,
+  fin de la run o sesión nueva). **Prueba: F6** (`SkillCheckTestKey`, sólo editor/dev).
 - **Disparador en el mundo**: `SkillCheckPanelInteractable` con un `SO_SkillCheckPuzzleData` (puzzle id +
   secuencia). Al completar llama `PuzzleStateManager.SetPuzzleCompleted`, y el módulo cuyo
-  `associatedPuzzleId` coincide (`M2_Chest` → `puzzle_central_piso2`) se resuelve. Cancelar no completa
-  nada; el panel se puede volver a usar desde el primer check. Hoy sólo está colocado en `TestIñaki`.
+  `associatedPuzzleId` coincide (`M2_Chest` → `puzzle_central_piso2`) se resuelve. Fallar o cancelar no
+  completa nada; el panel se puede volver a usar desde el primer check. Hoy sólo está colocado en `TestIñaki`.
 
 ### Interaction Prompt — ventana Win95 y tipos de mensaje
 
@@ -650,8 +650,8 @@ Muestra **dos tipos** en el mismo slot, cada uno ligeramente distinto:
   usada, un ítem que entró al inventario) va al feed de notificaciones de abajo: compartiendo este slot,
   el prompt de lo siguiente que mirabas lo pisaba al instante.
 - El estado "info" (`GetInfoText`) conserva el tipo pero va en gris y sin tecla.
-- **La barra de título NO está en el perfil de estilo**: la pinta la view según el tipo, y un `UIThemeApplier`
-  la repintaría en `OnEnable`. El resto del prompt lo estila `UIStyle_InteractionCanvas.asset`.
+- **La barra de título NO lleva `UIThemeApplier`**: la pinta la view según el tipo, y un applier la
+  repintaría en `OnEnable`. El resto del prompt sí se tiñe con sus propios `UIThemeApplier`.
 
 ### Notificaciones de interacción
 

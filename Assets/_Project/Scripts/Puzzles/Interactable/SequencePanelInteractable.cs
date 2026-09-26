@@ -57,7 +57,7 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
         }
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (sequenceData == null) return "Unconfigured panel";
         if (isCompleted) return string.Empty;

@@ -136,7 +136,7 @@ protected override void Awake()
         if (isOpen) ApplyOpenStateImmediate();
     }
 
-public override string GetInteractText()
+public override string GetPromptText()
     {
         if (isOpen) return "Close door";
 

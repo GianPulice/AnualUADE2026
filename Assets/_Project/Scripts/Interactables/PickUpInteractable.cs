@@ -61,7 +61,7 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
         }
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         return itemToPick != null
             ? $"Pick up {itemToPick.ItemName}"

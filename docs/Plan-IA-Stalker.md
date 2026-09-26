@@ -681,7 +681,7 @@ puede ir en paralelo con la 1.
   o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
 
 ### Fase 1 — Escondites, lado jugador *(prerrequisito)* — ✅ construida (commit `9eba9b46`)
-- Área de prueba: `TestIñaki.unity` → *Hiding Test Area* (`Tools/Hiding/Build Test Area (TestIñaki)`),
+- Área de prueba: `TestIñaki.unity` → *Hiding Test Area* (la armó `HidingTestAreaBuilder`, borrado el 2026-09-25; está en `3d262aef`),
   con los prefabs `Prefabs/HidingSpotFather/HidingSpot_Locker`, `_UnderTable` y `_Container`, y
   blends de 0.3 s hacia la cámara interior (`CB_HidingSpotBlends`) en TestIñaki y la testbed. **Falta
   en Zona1:** no hay ningún escondite puesto ni el blend asignado en su `CinemachineBrain`.

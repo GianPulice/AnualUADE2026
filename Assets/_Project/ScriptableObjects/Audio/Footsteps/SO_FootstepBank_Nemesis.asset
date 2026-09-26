@@ -32,15 +32,11 @@ MonoBehaviour:
       m_Bits: 0
   - surface: 1
     clips:
-    - {fileID: 8300000, guid: 97db7cbc5279939f5ff2091603d3e4a0, type: 3}
-    - {fileID: 8300000, guid: 6a974ffcb2f0010fe01a6a77d6154338, type: 3}
     - {fileID: 8300000, guid: 3a2eafa0c7033df73adbca9e764c8da1, type: 3}
     - {fileID: 8300000, guid: ba96fd09dbfd032019023153451acdf3, type: 3}
     - {fileID: 8300000, guid: 61b3513be07923c86c9c16289a7b4905, type: 3}
     - {fileID: 8300000, guid: 7b8f5657d31aa94706a112a526471354, type: 3}
     - {fileID: 8300000, guid: e4fb894221d772d633fbd9f5e916b125, type: 3}
-    - {fileID: 8300000, guid: 42a57dc91baee4747a434c6f5ceff143, type: 3}
-    - {fileID: 8300000, guid: 6b41a2d80b0260d47b82a0074336e55d, type: 3}
     volume: 1
     pitchRange: {x: 0.97, y: 1.05}
     layers:

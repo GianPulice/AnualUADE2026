@@ -2,7 +2,7 @@ using UnityEngine;
 
 public interface IInteractable
 {
-    string GetInteractText();
+    string GetPromptText();
     string GetInfoText();
     bool CanInteract();
     void Interact();

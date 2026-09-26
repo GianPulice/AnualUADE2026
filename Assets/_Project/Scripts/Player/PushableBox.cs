@@ -328,7 +328,7 @@ public class PushableBox : BaseRangeInteractable
 
     // ── IInteractable ───────────────────────────────────────────────────────
 
-    public override string GetInteractText() => isGrabbed ? releasePrompt : grabPrompt;
+    public override string GetPromptText() => isGrabbed ? releasePrompt : grabPrompt;
 
     public override bool IsRepeatable() => true;
 

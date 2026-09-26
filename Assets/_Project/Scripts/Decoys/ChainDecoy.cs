@@ -36,7 +36,7 @@ public class ChainDecoy : BaseRangeInteractable
             Debug.LogError($"[{nameof(ChainDecoy)}] '{name}' has no SO_ChainDecoy assigned.", this);
     }
 
-    public override string GetInteractText() => data != null ? data.InteractText : "Mover cadenas";
+    public override string GetPromptText() => data != null ? data.InteractText : "Mover cadenas";
 
     protected override bool CanInteractInCloseRange() => data != null && Time.time >= readyAt;
 

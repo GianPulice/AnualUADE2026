@@ -717,6 +717,7 @@ GameObject:
   - component: {fileID: 6846287691701151233}
   - component: {fileID: 4823901756230984512}
   - component: {fileID: 6776761930762992951}
+  - component: {fileID: 7318052244869130153}
   m_Layer: 7
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -1108,6 +1109,82 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   shoulderBlendDuration: 1.2
+--- !u!114 &7318052244869130153
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088243688451712710}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9c3fd80406ed65841ad59f81566cd2cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CaptureStandUpCameraPan
+  startAngle: 180
+  orbitByRightSide: 1
+  startVertical: -10
+  startPivotDrop: 1.1
+  endHorizontal: 0
+  endVertical: 10
+  orbitEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.35
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  riseEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  shoulderBlendDuration: 0.8
 --- !u!1 &1234706075858165138
 GameObject:
   m_ObjectHideFlags: 0
@@ -2294,7 +2371,7 @@ BoxCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4796329002958933011}
-  m_Material: {fileID: 13400000, guid: df00322edabc06a44a2e750a49f7210f, type: 2}
+  m_Material: {fileID: 13400000, guid: 1b3f83f725718a74b93197eab0c5c2e2, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
