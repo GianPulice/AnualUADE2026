@@ -13,18 +13,19 @@
 //   4) Casi blanco y negro, contraste alto, negros levantados.
 //   5) Grano a pocos FPS, banda clara que rueda, viñeta.
 //   6) Teñido azul de monitor (#8AB4D4: el azul frío del spec es SOLO de monitores, y esto es uno).
-//   7) Overlay "quemado" por el grabador (no pasa por la lente): etiqueta de cámara, REC que titila,
+//   7) Overlay "quemado" por el grabador (no pasa por la lente): etiqueta de cámara, punto rojo que titila,
 //      fecha y hora, esquineros de visor.
 //
 // El texto lo publica SecurityCameraFeed como globales (_SecurityFeedText, _SecurityFeedInfo).
-// La tipografía es un bitmap de 5x7 embebido abajo (kGlyphs); el orden de los glifos tiene que
-// coincidir con SecurityCameraFeed.GlyphOf.
+// La tipografía es un bitmap de 5x7 compartido con el feed del jugador (CameraFeedFont.hlsl); el
+// orden de los glifos tiene que coincidir con CameraFeedFont.GlyphOf (C#).
 //
 // OJO con _OverlayGridRows: tiene que ser igual al _PixelSize de PS1Effect.mat (256). Así cada pixel
 // de letra cae en exactamente un bloque del PSX y el texto sale entero; con otro valor las letras
 // salen mordidas.
 //
-// Rojo: el REC NO es rojo a propósito (rojo #CC1A1A = solo peligro). Si se quiere rojo, _RecColor.
+// Rojo: el punto de grabación es el rojo de peligro (#CC1A1A), pedido el 26/09 igual que en la cámara
+// del jugador; sin la palabra REC. _RecColor / _RecDotRadius.
 
 Shader "Hidden/Custom/SecurityCameraFeed"
 {
@@ -58,7 +59,8 @@ Shader "Hidden/Custom/SecurityCameraFeed"
         [Header(Overlay)]
         [ToggleUI] _EnableOverlay   ("Enable Overlay (texto, REC, esquineros)", Float) = 1
         _OverlayColor       ("Overlay Color", Color) = (0.9, 0.93, 0.95, 1)
-        _RecColor           ("REC Dot Color", Color) = (0.9, 0.93, 0.95, 1)
+        _RecColor           ("Recording Dot Color", Color) = (0.8, 0.1, 0.1, 1)
+        _RecDotRadius       ("Recording Dot Radius (celdas)", Range(1, 8)) = 3.5
         _OverlayGridRows    ("Overlay Grid Rows (= _PixelSize de PS1Effect)", Float) = 256
         _OverlayMargin      ("Overlay Margin (celdas)", Range(0, 40)) = 12
         _OverlayShadow      ("Overlay Shadow", Range(0, 1)) = 0.7
@@ -96,6 +98,7 @@ Shader "Hidden/Custom/SecurityCameraFeed"
         float  _EnableOverlay;
         float4 _OverlayColor;
         float4 _RecColor;
+        float  _RecDotRadius;
         float  _OverlayGridRows;
         float  _OverlayMargin;
         float  _OverlayShadow;
@@ -112,76 +115,9 @@ Shader "Hidden/Custom/SecurityCameraFeed"
     float  _SecurityFeedText[64];
     float4 _SecurityFeedInfo;
 
-    // Bitmap 5x7. x = filas 0..3 (5 bits cada una, bit 4 = columna izquierda), y = filas 4..6.
-    // Orden: espacio, 0-9, A-Z, : - / . # >  (ver SecurityCameraFeed.GlyphOf).
-    #define GLYPH_COUNT 43
-    static const uint2 kGlyphs[GLYPH_COUNT] =
-    {
-        uint2(0x00000, 0x0000), //  0 ' '
-        uint2(0x74675, 0x662E), //  1 '0'
-        uint2(0x23084, 0x108E), //  2 '1'
-        uint2(0x74422, 0x111F), //  3 '2'
-        uint2(0xF8882, 0x062E), //  4 '3'
-        uint2(0x11952, 0x7C42), //  5 '4'
-        uint2(0xFC3C1, 0x062E), //  6 '5'
-        uint2(0x3221E, 0x462E), //  7 '6'
-        uint2(0xF8444, 0x2108), //  8 '7'
-        uint2(0x7462E, 0x462E), //  9 '8'
-        uint2(0x7462F, 0x044C), // 10 '9'
-        uint2(0x7463F, 0x4631), // 11 'A'
-        uint2(0xF463E, 0x463E), // 12 'B'
-        uint2(0x74610, 0x422E), // 13 'C'
-        uint2(0xE4A31, 0x465C), // 14 'D'
-        uint2(0xFC21E, 0x421F), // 15 'E'
-        uint2(0xFC21E, 0x4210), // 16 'F'
-        uint2(0x74617, 0x462F), // 17 'G'
-        uint2(0x8C63F, 0x4631), // 18 'H'
-        uint2(0x71084, 0x108E), // 19 'I'
-        uint2(0x38842, 0x0A4C), // 20 'J'
-        uint2(0x8CA98, 0x5251), // 21 'K'
-        uint2(0x84210, 0x421F), // 22 'L'
-        uint2(0x8EEB5, 0x4631), // 23 'M'
-        uint2(0x8C735, 0x4E31), // 24 'N'
-        uint2(0x74631, 0x462E), // 25 'O'
-        uint2(0xF463E, 0x4210), // 26 'P'
-        uint2(0x74631, 0x564D), // 27 'Q'
-        uint2(0xF463E, 0x5251), // 28 'R'
-        uint2(0x7C20E, 0x043E), // 29 'S'
-        uint2(0xF9084, 0x1084), // 30 'T'
-        uint2(0x8C631, 0x462E), // 31 'U'
-        uint2(0x8C631, 0x4544), // 32 'V'
-        uint2(0x8C635, 0x56AA), // 33 'W'
-        uint2(0x8C544, 0x2A31), // 34 'X'
-        uint2(0x8C544, 0x1084), // 35 'Y'
-        uint2(0xF8444, 0x221F), // 36 'Z'
-        uint2(0x03180, 0x3180), // 37 ':'
-        uint2(0x0001F, 0x0000), // 38 '-'
-        uint2(0x00444, 0x2200), // 39 '/'
-        uint2(0x00000, 0x018C), // 40 '.'
-        uint2(0x52BEA, 0x7D4A), // 41 '#'
-        uint2(0x41041, 0x0888), // 42 '>'
-    };
-
-    #define GLYPH_R 28u
-    #define GLYPH_E 15u
-    #define GLYPH_C 13u
-
-    // pixel.x = columna 0..4 (izquierda a derecha), pixel.y = fila 0..6 (arriba hacia abajo).
-    float GlyphBit(uint glyph, int2 pixel)
-    {
-        if (glyph >= GLYPH_COUNT) return 0.0;
-        uint2 g = kGlyphs[glyph];
-        uint row = pixel.y < 4 ? (g.x >> (uint)((3 - pixel.y) * 5))
-                               : (g.y >> (uint)((6 - pixel.y) * 5));
-        return (float)((row >> (uint)(4 - pixel.x)) & 1u);
-    }
-
-    float Hash21(float2 p)
-    {
-        p = frac(p * float2(233.34, 851.73));
-        p += dot(p, p + 23.45);
-        return frac(p.x * p.y);
-    }
+    // Tipografía 5x7 y Hash21: compartidos con el feed del jugador. El orden de los glifos
+    // tiene que coincidir con CameraFeedFont.GlyphOf (C#).
+    #include "CameraFeedFont.hlsl"
 
     // Una línea de texto con su esquina inferior izquierda en la celda `origin`: 1 donde la letra
     // pinta la celda. Celdas de 6 de ancho (5 de letra + 1 de aire).
@@ -201,20 +137,7 @@ Shader "Hidden/Custom/SecurityCameraFeed"
         return GlyphBit(glyph, int2(column, 6 - p.y));
     }
 
-    float RecMask(int2 cell, int2 origin)
-    {
-        int2 p = cell - origin;
-        if (p.x < 0 || p.x > 16 || p.y < 0 || p.y > 6) return 0.0;
-
-        uint index = (uint)p.x / 6u;
-        uint column = (uint)p.x - index * 6u;
-        if (column > 4u) return 0.0;
-
-        uint glyph = index == 0u ? GLYPH_R : (index == 1u ? GLYPH_E : GLYPH_C);
-        return GlyphBit(glyph, int2(column, 6 - p.y));
-    }
-
-    // Todo lo que el grabador pinta en la celda: `ink` en el color del overlay, `rec` el punto de REC.
+    // Todo lo que el grabador pinta en la celda: `ink` en el color del overlay, `rec` el punto rojo.
     // `lastCell` es la última celda de la grilla (la de la esquina superior derecha).
     void OverlayAt(int2 cell, int2 lastCell, out float ink, out float rec)
     {
@@ -225,12 +148,10 @@ Shader "Hidden/Custom/SecurityCameraFeed"
         ink = TextMask(cell, int2(margin, topRow), 0, (int)_SecurityFeedInfo.x);
         ink = max(ink, TextMask(cell, int2(margin, margin), 32, (int)_SecurityFeedInfo.y));
 
-        // REC arriba a la derecha, con el punto a su izquierda titilando a 1 Hz.
-        int recX = lastCell.x - margin - 16;
-        ink = max(ink, RecMask(cell, int2(recX, topRow)));
-
-        float2 toDot = float2(cell) - float2(recX - 5, topRow + 3);
-        rec = step(dot(toDot, toDot), 6.5) * step(frac(_Time.y), 0.5);
+        // El punto de grabación arriba a la derecha, a la altura de la etiqueta, titilando a 1 Hz.
+        float radius = max(_RecDotRadius, 1.0);
+        float2 toDot = float2(cell) - float2(lastCell.x - margin - radius, topRow + 3);
+        rec = step(dot(toDot, toDot), radius * radius) * step(frac(_Time.y), 0.5);
 
         // Esquineros de visor, a medio margen del borde.
         if (_EnableBrackets > 0.5)

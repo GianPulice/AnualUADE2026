@@ -226,9 +226,9 @@ Built to spec, and in one place stricter than it:
   inspeccionar, abrir puerta) all shipping.
 - **Target selection does not use the spec's dot-product rule.** `InteractionProbe` fires a sphere
   cast through the crosshair's own viewport point, measures reach **from the player** rather than
-  from the lens, and runs a second solid-only pass for occlusion so interaction volumes may stay
-  triggers. On a rig whose camera orbits ~3.4 m behind the character, the dot-product rule picks the
-  wrong object. Do not replace this with the spec's version.
+  from the lens, and judges occlusion separately, with a thin solid-only line of sight, so
+  interaction volumes may stay triggers. On a rig whose camera orbits ~3.4 m behind the character,
+  the dot-product rule picks the wrong object. Do not replace this with the spec's version.
 - **Variant A ships** (`SocketInteractable`: E plus the item in the inventory = immediate insertion).
 - **Variant B is a skeleton nothing opens.** `LateralInventoryView` renders the item list and raises
   a selection event; the camera pan to `puzzleCameraPoint`, the `Interacting` lock, the ESC cancel
@@ -453,11 +453,18 @@ if (PauseManager.IsGameplayInputBlocked) return;
 
 `IInteractable` (`_Project/Scripts/Interfaces/IInteractable/IInteractable.cs`) defines `CanInteract()`, `Interact()`, `IsRepeatable()`, `GetPromptText()`, `GetInfoText()`.
 
-Detection is a **camera SphereCast**, not trigger registration: `InteractionManager.RaycastForInteractable()` casts from `Camera.main` forward with `SO_InteractionManager.InteractionDistance`, a 0.1 radius, against `InteractableLayers | BlockingLayers`. It resolves the `IInteractable` on the hit collider or its parents; if the first hit has none, it is a wall and nothing is targeted. `BaseRangeInteractable` no longer registers anything — it only describes *what* the interaction is. Each interactable needs a Collider on itself or on a child in the Interactable layer so the cast has something to hit.
+Detection is a **crosshair SphereCast**, not trigger registration, and all of it lives in `InteractionProbe` (`_Project/Scripts/Interactables/InteractionProbe.cs`), shared by `InteractionManager` and the Scene-view `InteractionRangeGizmo`. The cast goes through the crosshair's viewport point but **starts at the point of that line closest to the player's chest**, and reaches `SO_InteractionManager.InteractionDistance` from there. It runs in steps:
+
+- **Candidate**: the thick ray (`CastRadius`) against `InteractableLayers` only, triggers included, so aiming at small items stays forgiving. The nearest collider that resolves to an `IInteractable` (on itself or a parent) wins.
+- **Line of sight**: a **thin** raycast against `BlockingLayers` (solid only) from the start to the point the thick ray touched. Judging it with the thick ray made the surface an item rests on hide the item. Never hiding the candidate: its own solid parts, and its **support** — a solid met within 3 cm of the aimed point, or a convex/primitive collider that holds the candidate whole (a key inside a toilet's convex MeshCollider). A wall between the player and a panel on its far side still hides it. A solid *interactable* in front (a crate, a door leaf) replaces the candidate.
+- **Legacy layout**: with no candidate, the thick ray against `BlockingLayers` resolves interactables whose own collider is solid (door leaves, push boxes on Default). The same pass makes a solid interactable the player is pressed into win over what lies past it.
+- **Close range**: with nothing ahead, the last `CloseRangeLead` metres before the player.
+
+`Props` is left out of `BlockingLayers` (since `9330589e`), so set dressing on it never hides anything. `BaseRangeInteractable` only describes *what* the interaction is. Each interactable needs a Collider on itself or on a child in the Interactable layer so the cast has something to hit. When something is not detected, `InteractionRangeGizmo` (Show Hit Point) labels the candidate, the line of sight, what blocked it and what was skipped as its support, each with its layer.
 
 The manager fires `InteractionEvents.TargetChanged(interactable)` when the target changes. Key `[E]` is processed in `InteractionManager.Interact()` with a 0.2s cooldown.
 
-Selection is by **first hit along the ray**, with no dot-product priority when several interactables overlap — see `docs/TODO-UI.md` · Interaction Prompt.
+Selection is the **nearest candidate along the crosshair line**, with no dot-product priority when several interactables overlap — see `docs/TODO-UI.md` · Interaction Prompt.
 
 ### Puzzles
 
@@ -532,18 +539,17 @@ unpaused frame) and `ApplyTimeBonus(seconds)` (capped at `TimerDuration`, so it 
 exploded module). Both raise `ModuleEvents.OnTimeAdjusted(module, delta)` with the delta actually
 applied — it also fires while the timer is paused, where no tick would follow to show it.
 
-**On screen.** The countdown is readable outside the inventory: `ModuleTimerHUDView`
-(`UI/HUD/`, in `HUDCanvas.prefab` → `ModuleTimerHUD`) is a top-left Win95 window that slides in when a
-module goes Active, shows MM:SS inside a draining block ring (`UIRingArc`), the module's label, one
-pip per module and a "-5s" / "+3s" popup on `OnTimeAdjusted`, and slides out ~2 s after the module
-resolves or explodes. It also slides out when the Nemesis grabs the player and back in once they are up
-with control again (`PlayerStateManager.IsRecoveringFromCapture`, the same span the timer is
-frozen). Its `ModalVisibilityGate` hides it under every modal **except** `SkillCheck`
-(`ignoredModalIds`), because that is exactly when its penalties land. `ModuleTimerBeeper`, on the
-same object, beeps from 30 s left (1/s, `sfx_modulo_tick_normal`) and faster under 10 s (2/s,
-`sfx_modulo_tick_urgente`); it runs off `OnTimerTick`, so it goes quiet by itself whenever the timer
-is paused. The window was built by a one-shot editor builder (since deleted) and then re-laid out
-by hand: the prefab is the source of truth.
+**On screen.** Outside the inventory the countdown is read off the player's camera feed
+(`PlayerCameraFeed`, burnt into the picture bottom left): `00:00` until a module starts; its start
+types the line in at 00:00, counts the time up to the module's and hands over to the countdown
+(`M1:IN PROGRESS  14:35`), once per module. With none running it keeps the last one that ran
+(`DISARMED` / `FAILED`). Its time turns amber with a quarter of the module's time left, red with a
+tenth, and blinks red in the last 30 s (`FAILED` stays red). The old top-left Win95
+window (`ModuleTimerHUDView`) was removed on 2026-09-26 at the designer's request; see
+`docs/Materials-System.md` §7.3. `ModuleTimerBeeper` stays in `HUDCanvas.prefab` (object
+`ModuleTimerBeeper`): it beeps from 30 s left (1/s, `sfx_modulo_tick_normal`) and faster under 10 s
+(2/s, `sfx_modulo_tick_urgente`), and runs off `OnTimerTick`, so it goes quiet by itself whenever the
+timer is paused.
 
 ### Capture, checkpoints and session reset
 
@@ -1584,6 +1590,14 @@ all of that: if the Nemesis can never reach the space, there is nothing to gate.
 `NemesisSafeZones` does not change that. It only reads the same volumes back ("is this point in the
 Hub?", "how far from it?") so the Director can stay away from the door — see *The Director*.
 
+Two readers outside the Nemesis use the same answer: `SocketEmissionShift.dimOutsideSafeZone` caps the
+pressure regulator's glow while the player is out of the Hub, and `SafeZoneAlert` raises the
+`|| Safe Zone ||` HUD alert (`HUDMessageEvents.ShowAlert`) every time the player walks in. The alert is
+a level object (in Zona1, `Safe Zone Alert` under `---- SISTEMA ----`): in at the volume's edge,
+re-armed only `rearmDistance` (1.5 m) out so the doorway does not repeat it, and the position is only
+read while the player has control, so arriving behind a black screen is announced when control comes
+back. It replaced the one-off alert on ARC_CTX_01, which now has none.
+
 One consequence worth knowing: this only blocks *movement*. The Nemesis can still **see or hear**
 the player inside the Hub if line of sight allows it (e.g. through a doorway) — it just cannot walk
 in. If that turns out to read as a bug in playtest ("it grabbed me through the door" is different
@@ -1599,7 +1613,9 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 
 **Color spec rules** (`color_visual_language_spec.docx` in Downloads): `#CC1A1A` red is exclusive to danger/emergency lights. `#FFC850` amber is exclusive to the player device. No outlines or waypoints — items are distinguished only by tint and emission.
 
-**Renderer Feature order** (`PC_Renderer.asset`): SSAO then Vision Fog (BeforeRenderingPostProcessing) then PS1Effect (BeforeRenderingPostProcessing). Fog must precede PS1 so world-space coherence is preserved before the pixelation pass.
+**Renderer Feature order** (`PC_Renderer.asset`): SSAO, then Vision Fog (BeforeRenderingPostProcessing, 550), then at AfterRenderingPostProcessing (600, where list order decides) SecurityCameraFeed, PlayerCameraFeed and PS1Effect last. Fog must precede PS1 so world-space coherence is preserved before the pixelation pass; the two camera feeds must precede it so their burnt-in overlay is pixelated with the picture.
+
+**Camera feeds**: `SecurityCameraFeed` (security shots) and `PlayerCameraFeed` (the player's FreeLook rig) each drive a fullscreen pass that is only enqueued while their Cinemachine camera is live on the brain — see `docs/Materials-System.md` §7.3. The player feed also draws the camera's boots — the wake-up's (`WakeUpCinematicView`, `OpeningStyle.CameraBoot`) and its own reboot after a capture — through the shared static state in `PlayerCameraBoot`, and opens the lens for their fisheye through `PlayerCameraFeed.LensFovOffset`, which `CameraSprintEffect` — still the only writer of the lens FOV — adds on top.
 
 ### Footsteps and breathing (`FootstepEmitter`, `HiddenBreathing`)
 

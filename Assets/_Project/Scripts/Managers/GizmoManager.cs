@@ -144,7 +144,7 @@ public class GizmoManager : MonoBehaviour
             typeof(BoxCollider), typeof(SphereCollider), typeof(CapsuleCollider), typeof(MeshCollider),
             typeof(CharacterController),
         });
-        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera) });
+        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone) });
         yield return (lights, new[] { typeof(Light), typeof(ReflectionProbe), typeof(LightProbeGroup) });
         yield return (audioSources, new[] { typeof(AudioSource), typeof(AudioReverbZone), typeof(AudioListener) });
         yield return (navMesh, new[]

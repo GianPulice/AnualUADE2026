@@ -16,6 +16,22 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &384041524205376192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088243688451712710}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7015e33c77954dd49d472bbd5d070310, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraFeed
+  config: {fileID: 11400000, guid: fdb6ef80225d4ed7b43579dcf0921635, type: 2}
+  previewInEditMode: 0
+  previewStage: 0
+  previewAmount: 1
 --- !u!4 &4871168440167061593
 Transform:
   m_ObjectHideFlags: 0
@@ -718,6 +734,7 @@ GameObject:
   - component: {fileID: 4823901756230984512}
   - component: {fileID: 6776761930762992951}
   - component: {fileID: 7318052244869130153}
+  - component: {fileID: 384041524205376192}
   m_Layer: 7
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -1056,7 +1073,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WakeUpCameraPan
   endHorizontal: -3
-  endVertical: 10
+  endVertical: -28
   startAngle: 145
   startVertical: -35
   startPivotDrop: 1.3

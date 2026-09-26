@@ -7,8 +7,8 @@ using UnityEngine;
 /// <summary>
 /// Makes a Cinemachine shot read as a security camera: while the shot is live, the frame goes
 /// through <c>SecurityCamera.mat</c> (drawn by <see cref="SecurityFeedRendererFeature"/> on
-/// PC_Renderer) with this camera's label, a blinking REC and a running date and time burnt into the
-/// corners. On the escape: Cam_Slam and Cam_4_Gate.
+/// PC_Renderer) with this camera's label, a blinking REC and a running clock (the date too, with
+/// <see cref="showDate"/>) burnt into the corners. On the escape: Cam_Slam and Cam_4_Gate.
 ///
 /// Nothing has to call it. Every frame it renders a game camera, the renderer feature asks whether
 /// that camera's brain has one of these on the air (<see cref="FindLive"/>), so the look comes and
@@ -28,6 +28,9 @@ public class SecurityCameraFeed : MonoBehaviour
     [Tooltip("Arriba a la izquierda. Letras, números y : - / . # > (los acentos se sacan; lo demás " +
              "sale como espacio). Máximo 32.")]
     [SerializeField] private string label = "CAM 01";
+
+    [Tooltip("Show the date before the time, bottom left. Off: the time alone.")]
+    [SerializeField] private bool showDate;
 
     [Tooltip("La fecha de abajo a la izquierda, tal cual. Vacío = la de hoy (dd-MM-yyyy).")]
     [SerializeField] private string date = "";
@@ -134,50 +137,28 @@ public class SecurityCameraFeed : MonoBehaviour
 
     private void WriteText(int second)
     {
-        labelLength = WriteLine(label, 0);
+        labelLength = CameraFeedFont.WriteLine(Text, 0, LineCapacity, label);
+        clockLength = CameraFeedFont.WriteLine(Text, LineCapacity, LineCapacity, FormatClock(showDate, date, second));
+    }
+
+    /// <summary>"HH:mm:ss", the clock <paramref name="second"/> seconds into the day — with
+    /// <paramref name="withDate"/>, "dd-MM-yyyy  HH:mm:ss", <paramref name="date"/> as written or
+    /// today's when empty. Shared with <see cref="PlayerCameraFeed"/>, so every camera in a run reads
+    /// the same time.</summary>
+    public static string FormatClock(bool withDate, string date, int second)
+    {
+        int s = ((second % 86400) + 86400) % 86400;
+        string time = $"{s / 3600:00}:{s / 60 % 60:00}:{s % 60:00}";
+        if (!withDate) return time;
 
         string day = string.IsNullOrWhiteSpace(date)
             ? DateTime.Today.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture)
             : date;
-        int s = ((second % 86400) + 86400) % 86400;
-        clockLength = WriteLine($"{day}  {s / 3600:00}:{s / 60 % 60:00}:{s % 60:00}", LineCapacity);
+        return $"{day}  {time}";
     }
 
-    private static int WriteLine(string text, int start)
-    {
-        int length = Mathf.Min(text != null ? text.Length : 0, LineCapacity);
-        for (int i = 0; i < LineCapacity; i++) Text[start + i] = i < length ? GlyphOf(text[i]) : 0f;
-        return length;
-    }
-
-    /// <summary>Index of <paramref name="c"/> in the shader's font (kGlyphs in
-    /// SecurityCamera_HLSL.shader) — the two orders have to match. 0 is the space.</summary>
-    private static float GlyphOf(char c)
-    {
-        c = char.ToUpperInvariant(c);
-        if (c >= '0' && c <= '9') return 1 + (c - '0');
-        if (c >= 'A' && c <= 'Z') return 11 + (c - 'A');
-
-        switch (c)
-        {
-            case ':': return 37;
-            case '-': return 38;
-            case '/': return 39;
-            case '.': return 40;
-            case '#': return 41;
-            case '>': return 42;
-            case 'Á': case 'À': case 'Â': case 'Ä': return GlyphOf('A');
-            case 'É': case 'È': case 'Ê': case 'Ë': return GlyphOf('E');
-            case 'Í': case 'Ì': case 'Î': case 'Ï': return GlyphOf('I');
-            case 'Ó': case 'Ò': case 'Ô': case 'Ö': return GlyphOf('O');
-            case 'Ú': case 'Ù': case 'Û': case 'Ü': return GlyphOf('U');
-            case 'Ñ': return GlyphOf('N');
-            case 'Ç': return GlyphOf('C');
-            default: return 0;
-        }
-    }
-
-    private static float ParseClock(string value)
+    /// <summary>Seconds into the day of an "HH:mm:ss" string; 0 when it does not parse.</summary>
+    public static float ParseClock(string value)
     {
         return TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out TimeSpan time)
             ? (float)time.TotalSeconds

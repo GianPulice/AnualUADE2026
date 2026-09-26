@@ -182,6 +182,11 @@ El bloqueo sigue sin tener código, y no hay que agregárselo. Lo que sí hay es
 - el sesgo de patrulla hacia la posición real del jugador se apaga mientras está adentro;
 - `NemesisTension` no cuenta el silencio mientras el jugador está en el Hub.
 
+Fuera del Nemesis también los leen el tope de emisión del regulador de presión fuera del Hub
+(`SocketEmissionShift.dimOutsideSafeZone`) y la alerta `|| Safe Zone ||` que aparece cada vez que el
+jugador entra (`SafeZoneAlert`, objeto `Safe Zone Alert` bajo `---- SISTEMA ----`). Sacar un marker
+también los apaga para ese volumen.
+
 Ojo con la capa del volumen: `NavMeshSurface` filtra los modifier volumes por sus Include Layers, así que uno en una capa que el surface no recolecta se descarta sin avisar y el Nemesis entra. `Validate Navigation Setup` lo reporta.
 
 ---

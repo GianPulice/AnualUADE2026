@@ -1261,8 +1261,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         Camera cam = Camera.main;
         if (cam == null) return 0f;
 
+        // Without the wake-up fisheye's lens opening: the feed shows the centre, where the player
+        // is, at the normal FOV's scale.
+        float fov = Mathf.Max(cam.fieldOfView - PlayerCameraFeed.LensFovOffset, 1f);
         float distance = Vector3.Distance(cam.transform.position, transform.position);
-        float block = 2f * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / psxRows;
+        float block = 2f * distance * Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) / psxRows;
         return Mathf.Min(groundClearanceBlocks * block, MaxGroundClearance);
     }
 

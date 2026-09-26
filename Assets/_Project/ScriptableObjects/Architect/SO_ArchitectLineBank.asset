@@ -54,7 +54,7 @@ MonoBehaviour:
       three are up, you can move on.
     clips:
     - {fileID: 8300000, guid: a8ff40e58a1b0e941bce32c5bb55cce9, type: 3}
-    alert: '|| Safe Zone || '
+    alert: 
     playsOverMenus: 0
   - id: 5
     category: 1

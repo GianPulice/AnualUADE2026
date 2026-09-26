@@ -47,9 +47,10 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
   - {fileID: 8124642854980022056}
+  - {fileID: 7203076373880299520}
   - {fileID: 285766949494637414}
   - {fileID: -2270395459139402818}
-  m_RendererFeatureMap: ad6b866f10d7b46c28efff61a187c07066c32cc9863ff703be0356e65bef7de0
+  m_RendererFeatureMap: ad6b866f10d7b46c28efff61a187c07000e0246bcc77f66366c32cc9863ff703be0356e65bef7de0
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -95,6 +96,26 @@ MonoBehaviour:
   fetchColorBuffer: 1
   requirements: 0
   passMaterial: {fileID: 2100000, guid: 0d31ae4c45afb6c48ba3ba314d6f30fe, type: 2}
+  passIndex: 0
+  bindDepthStencilAttachment: 0
+  m_Version: 1
+--- !u!114 &7203076373880299520
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd498161c5264e6db7d890d577e284b8, type: 3}
+  m_Name: PlayerCameraFeed
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFeedRendererFeature
+  m_Active: 1
+  injectionPoint: 600
+  fetchColorBuffer: 1
+  requirements: 0
+  passMaterial: {fileID: 2100000, guid: f9af9076ab54440eb8d50529141e2969, type: 2}
   passIndex: 0
   bindDepthStencilAttachment: 0
   m_Version: 1

@@ -1550,38 +1550,10 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
-    - target: {fileID: 6245823556161848206, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.b
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6245823556161848206, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.g
-      value: 0.1569919
-      objectReference: {fileID: 0}
-    - target: {fileID: 6245823556161848206, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.r
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6724099804196172207, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.b
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6724099804196172207, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.g
-      value: 0.47070253
-      objectReference: {fileID: 0}
-    - target: {fileID: 6724099804196172207, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Color.r
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 7651802258769972220, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_Sprite
       value: 
       objectReference: {fileID: 21300000, guid: 99ef4b1b6c988c54f992f3b96981549a, type: 3}
-    - target: {fileID: 7860919145934984392, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: timerColor.g
-      value: 0.11284235
-      objectReference: {fileID: 0}
     - target: {fileID: 9129640566100514954, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901

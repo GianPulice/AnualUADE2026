@@ -514,7 +514,7 @@ Assets/_Project/Scripts/
 │   │   ├─ InteractionPromptView.cs       ← prompt "Pick up X", "You need X"
 │   │   └─ SequencePanel*/SkillCheck*     ← model + view de cada puzzle
 │   └─ HUD/
-│       ├─ ModuleTimerHUDView.cs          ← timer del módulo (+ ModuleTimerBeeper)
+│       ├─ ModuleTimerBeeper.cs           ← bip de los últimos segundos del módulo
 │       ├─ InteractionNotificationFeed.cs ← feed de notificaciones
 │       ├─ HidingOverlayView.cs           ← lo que se ve desde el escondite
 │       ├─ BreathHoldMeterView.cs         ← medidor de aliento
@@ -564,10 +564,11 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView, DocumentReaderController (auto-close in situ), ItemGlint, ItemProximityHighlight |
 | `InteractionEvents.OnGlobalMessage` | cualquier sistema publica un mensaje de interacción | InteractionNotificationFeed |
 | `InventoryEvents.OnItemAdded/Removed` | item entra/sale del inventario | InteractionPromptView, InventoryManagerUI, InteractionNotificationFeed (sólo Added) |
-| `ModuleEvents.OnTimerTick/OnStateChanged/OnExploded` | `ModuleManager` (los viejos `InventoryEvents.OnModule*` ya no existen) | ModuleHUDView, ActiveModuleDisplay, ModuleTimerHUDView, ModuleTimerBeeper |
-| `ModuleEvents.OnTimeAdjusted` | `ModuleManager.ApplyTimePenalty` / `ApplyTimeBonus`, con el delta aplicado | ModuleTimerHUDView (popup "-5s"/"+3s"), ActiveModuleDisplay |
+| `ModuleEvents.OnTimerTick/OnStateChanged/OnExploded` | `ModuleManager` (los viejos `InventoryEvents.OnModule*` ya no existen) | ModuleHUDView, ActiveModuleDisplay, ModuleTimerBeeper (el feed de la cámara lee el ModuleManager directo) |
+| `ModuleEvents.OnTimeAdjusted` | `ModuleManager.ApplyTimePenalty` / `ApplyTimeBonus`, con el delta aplicado | ActiveModuleDisplay |
 | `UIStateManager.OnModalPushed/Popped` | se abre/cierra un modal | ModalVisibilityGate, InteractionPromptView, CameraInputBlocker, ArchitectSubtitleView, InputHintView (sólo Popped) |
 | `HidingEvents.OnEntered/OnExited` | el player entra/sale de un escondite | HidingOverlayView |
+| `HUDMessageEvents.OnAlert` | `ShowAlert`: las líneas del Arquitecto con `alert`, y `SafeZoneAlert` al entrar al Hub | HUDAlertView |
 
 **Presenters de resultado.** `GameResultManager.ReportWin` y `ReportGameOver` marcan el resultado
 como reportado y, si hay un presenter registrado (`WinPresenter` / `GameOverPresenter`), le dejan
@@ -575,33 +576,18 @@ correr su plano antes de disparar `OnGameResult`. Hoy `EscapeSequenceDirector` r
 portón que se cierra) y `ModuleExplosionSequence` el de GameOver (la explosión); sin presenter el
 resultado sale en el acto. La victoria de gameplay la reporta `WinTrigger` (en `WIRED_Zona1_Blockout`).
 
-### Timer del módulo en el HUD
+### Timer del módulo
 
-`HUDCanvas.prefab` → `ModuleTimerHUD`: ventana Win95 arriba a la izquierda (anclada a un punto, en 24, -24) con el MM:SS del módulo activo adentro de un anillo de bloques que se vacía (`UIRingArc`,
-30 bloques), la etiqueta `M2 // CHEST`, un pip por módulo y el popup de salto de tiempo.
+La ventana Win95 del timer (`ModuleTimerHUDView`, arriba a la izquierda con el anillo) **se eliminó el
+26/09**. El tiempo del módulo ahora lo muestra la cámara del jugador, quemado en la imagen abajo a la
+izquierda: `00:00` hasta que arranca un módulo, y al arrancar se escribe `M1:IN PROGRESS`, el tiempo sube
+de 00:00 al del módulo y sigue la cuenta regresiva (`DISARMED` / `FAILED` al terminar). Como hacía la
+ventana, el tiempo avisa: ámbar con un cuarto del tiempo del módulo, rojo con un décimo, y rojo titilando
+en los últimos 30 s (`FAILED` queda rojo). Ver `docs/Materials-System.md` §7.3.
 
-- **Visibilidad**: entra deslizándose cuando un módulo pasa a Active; al resolverse o explotar se queda
-  quieta mostrando el resultado (`RESOLVED` / `EXPLODED`) hasta que el siguiente módulo pasa a Active y
-  la reemplaza (con `hideWhenSettled`, apagado en el prefab, saldría a los `settledHoldSeconds`). Cuando
-  el Nemesis agarra al player sale, y vuelve a entrar cuando se levantó y recuperó el control
-  (`PlayerStateManager.IsRecoveringFromCapture`, el mismo tramo en que el timer está frenado).
-- **Planos sin HUD** (`CinematicState.HudHidden`): los planos de cámara de seguridad del escape (el
-  portazo al salir al pasillo y el portón del final, hasta la pantalla de victoria) lo prenden con
-  `CinematicState.SetHudHidden(true)` desde `EscapeSequenceDirector`. Mientras está prendido el timer
-  sale **en el mismo frame**, sin slide (es un corte duro: una ventana deslizándose sobre el plano nuevo
-  es justo lo que el plano no quiere), y vuelve a entrar deslizándose cuando se apaga. Es un flag, no
-  un evento: la view lo lee en su `Update`. Otros planos de la misma cinemática conservan el HUD.
-- El root nunca se desactiva (ahí viven las suscripciones): la muestra/oculta el `UISlideTransition` de
-  `Window`, y el corte instantáneo apaga sólo `Window` (`SlideIn` la vuelve a prender). El pulso de cada
-  bip escala `RingRoot` (el slide cancela todos los tweens de su propio objeto).
-- **`ModalVisibilityGate.ignoredModalIds`**: el gate del root lleva `SkillCheck`, así el timer queda
-  visible durante el skill check (ahí caen las penalizaciones) y se oculta con inventario, pausa, etc.
-  Con la lista vacía el gate se comporta como siempre.
-- **Urgencia**: en marcha van en ámbar (`timerColor`); con ≤30 s el tiempo y el anillo pasan a Accent y titilan; `ModuleTimerBeeper` bipea
-  1/s y 2/s por debajo de 10 s, alineado a la grilla del intervalo (un salto de tiempo = un bip, no una
-  ráfaga).
-- La armó un builder de un solo uso (ya borrado) y después se retocó a mano (380×210, sin barra de
-  título). El prefab es la fuente de verdad.
+Queda en `HUDCanvas.prefab` el objeto `ModuleTimerBeeper`: bipea 1/s desde 30 s y 2/s por debajo de
+10 s, alineado a la grilla del intervalo (un salto de tiempo = un bip, no una ráfaga). Corre con
+`OnTimerTick`, así que se calla solo cuando el timer está frenado.
 
 ### Skill check (Puzzle Central 2)
 
@@ -671,7 +657,23 @@ Reglas:
 - `ModalVisibilityGate` en el root la oculta bajo cualquier modal.
 - Las filas se clonan de `RowTemplate` (inactivo): la consola del input hint con barra de acento a la
   izquierda. Para cambiar el look se edita el template en el prefab, no el código.
-- Las alertas del Arquitecto (`HUDAlertView`, arriba al centro, de a una) NO pasan por acá.
+- Las alertas de arriba al centro (`HUDAlertView`: las del Arquitecto y la de la zona segura) NO pasan por acá.
+
+### Alertas arriba al centro (`HUDAlertView`)
+
+`HUDCanvas.prefab` → `HUDAlert`: una línea corta de sistema que baja desde arriba, se tipea, espera y se
+retira. De a una, en cola (quedan las 3 más nuevas). Se pide con `HUDMessageEvents.ShowAlert(texto,
+segundos)`. Hoy la usan:
+
+- **El Arquitecto**: el campo `alert` de cada línea de `SO_ArchitectLineBank` sale mientras suena la
+  línea (`> M1 DISARMED`, `> {0} CRITICAL`…), como mucho `alertDuration` (3 s).
+- **`SafeZoneAlert`**: `|| Safe Zone ||` cada vez que el player entra al Hub. Es un objeto de la escena
+  del nivel (en Zona1, `Safe Zone Alert` bajo `---- SISTEMA ----`) y lee los mismos volúmenes que el
+  Director (`NemesisSafeZones.Contains`, los `SafeZoneMarker`). La entrada cuenta en el borde del volumen
+  y se rearma recién a `rearmDistance` (1.5 m) afuera, así no se repite en la puerta. Sólo mira mientras
+  el player tiene control (sin pantalla de carga, cinemática, pausa, modal, despertar ni captura): si
+  llega al Hub detrás de una de esas, la alerta sale cuando vuelve el control. Antes salía una sola vez,
+  como `alert` de ARC_CTX_01; esa línea ya no la lleva, porque la primera visita la mostraba dos veces.
 
 ### HUD del escondite: overlay y medidor de aliento
 

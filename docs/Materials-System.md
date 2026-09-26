@@ -510,10 +510,12 @@ PC_Renderer.asset (en orden de ejecución):
   1. ScreenSpaceAmbientOcclusion                      (existente)
   2. Full Screen Pass "Vision Fog"  → VisionFog.mat   (BeforeRenderingPostProcessing, 550)
      … post-process de URP (Volumes) …
-  3. Full Screen Pass "PSXEffect"   → PS1Effect.mat   (AfterRenderingPostProcessing, 600)
+  3. "SecurityCameraFeed" → SecurityCamera.mat        (AfterRenderingPostProcessing, 600; sólo con un plano de seguridad al aire)
+  4. "PlayerCameraFeed"   → PlayerCamera.mat          (AfterRenderingPostProcessing, 600; sólo con la cámara del jugador al aire)
+  5. Full Screen Pass "PSXEffect"   → PS1Effect.mat   (AfterRenderingPostProcessing, 600)
 ```
 
-En la lista del asset están como SSAO, PSXEffect, Vision Fog, pero manda el injection point. Vision Fog corre antes del post-process de URP, así que lo que suma después de la extinción (beacons, haces) todavía pasa por lo que tengan los Volumes (el Global Volume de `Data.unity` trae Color Adjustments y Lift Gamma Gain). El PS1, en cambio, corre después. Vision Fog va antes del PSX porque el fog se calcula con world-space coherente (depth + matrices reales); el PSX pixela y warpea la imagen final. Si se invirtiera el orden, la niebla quedaría deformada siguiendo el warp en vez de tener forma natural.
+Los dos feeds (§7.3) nunca están al aire juntos; lo que importa es que vayan antes del PSXEffect, que tiene su mismo injection point: entre features del mismo injection point manda el orden de la lista. En la lista del asset están como SSAO, SecurityCameraFeed, PlayerCameraFeed, PSXEffect, Vision Fog; entre injection points distintos manda el injection point. Vision Fog corre antes del post-process de URP, así que lo que suma después de la extinción (beacons, haces) todavía pasa por lo que tengan los Volumes (el Global Volume de `Data.unity` trae Color Adjustments y Lift Gamma Gain). El PS1, en cambio, corre después. Vision Fog va antes del PSX porque el fog se calcula con world-space coherente (depth + matrices reales); el PSX pixela y warpea la imagen final. Si se invirtiera el orden, la niebla quedaría deformada siguiendo el warp en vez de tener forma natural.
 
 ---
 
@@ -547,6 +549,48 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 - Gate por modales: setear `GlitchController.SuspendTriggering = true` al abrir Inventory/SkillCheck/Examine y `false` al cerrar (spec §6.10: no dispara ahí).
 
 **Setup**: componente en un GameObject persistente (o el mismo del `PS1EffectApplier`, que está en `Data.unity`), arrastrar `PS1Effect.mat` al campo `Ps1 Material`. **Hoy no está puesto en ninguna escena ni prefab**, así que el glitch no dispara en juego. `UISignalStaticBurst` (UI) lee `GlitchController.SuspendTriggering` y la misma key `Settings_VHSGlitch`.
+
+### 7.3 Feeds de cámara — seguridad y jugador
+
+Dos looks de "esto lo está grabando una cámara", armados igual: un componente en la cámara de Cinemachine que publica globals, una renderer feature (subclase de Full Screen Pass) que **sólo se encola mientras esa cámara está al aire en el brain**, y un shader HLSL. El resto del tiempo no cuestan nada, y el look entra y sale en el mismo frame del corte, lo haga quien lo haga.
+
+| | Feed de seguridad | Feed del jugador |
+|---|---|---|
+| Componente | `SecurityCameraFeed` (Cam_Slam, Cam_4_Gate) | `PlayerCameraFeed` (FreeLook Camera de `Player.prefab`) |
+| Feature en `PC_Renderer` | `SecurityCameraFeed` → `SecurityFeedRendererFeature` | `PlayerCameraFeed` → `PlayerFeedRendererFeature` |
+| Material / shader | `SecurityCamera.mat` / `SecurityCamera_HLSL.shader` | `PlayerCamera.mat` / `PlayerCameraFeed_HLSL.shader` |
+| Imagen | Casi blanco y negro, tinte azul de monitor (#8AB4D4) | Los colores del juego, intactos: barril suave, grano, viñeta |
+| Ajustes | El material + los campos del componente | El material + `SO_PlayerCameraFeed` (`ScriptableObjects/Rendering/`) |
+
+Los dos queman su overlay con la misma tipografía bitmap 5×7 (`CameraFeedFont.hlsl` + `CameraFeedFont.cs`; el include trae además una 3×5 con los mismos glifos, que usa la lectura del jugador) y esquineros de visor. El de seguridad: etiqueta arriba a la izquierda, el mismo punto rojo que titila arriba a la derecha (sin la palabra REC, `_RecColor` / `_RecDotRadius` en `SecurityCamera.mat`) y la hora abajo a la izquierda (`clockStart` + tiempo desde que cargó el nivel), **sin fecha por ahora** (pedido del 26/09; `showDate` en el componente la vuelve a poner). Glifos: letras, números y `: - / . # > % _ ! + [ ] =  |`. **Un glifo nuevo va siempre al final de la tabla** (los textos viajan como índices). `_OverlayGridRows` = `_PixelSize` del PS1 (256) en los dos materiales, o las letras salen mordidas.
+
+**El feed del jugador** está al aire siempre que la cámara del jugador lo esté; cualquier otro plano (cinemática, cámara de seguridad, derrota) sale sin él, y al volver entra con un tirón de estática (`cutStatic`). Con `overlayDuringGameplay` apagado, en gameplay el pase ni se encola. Su overlay (pedidos del 26/09):
+
+- **Arriba a la izquierda, el área**: `CameraAreaZone` (un BoxCollider trigger + el nombre del área, **sin "CAM"**: `HUB`, `CORRIDOR`) puesto en el nivel. Adentro de una zona se ve su nombre; afuera, `label` del SO (vacío = nada). Zonas anidadas: gana la más interna. En Zona1 están las 13 bajo `----- ZONE CHANGES -----` (algunas áreas son varias cajas con el mismo nombre, pegadas o solapadas, así que pasar de una a otra no re-escribe la etiqueta). Su caja celeste se ve sólo con la zona o su padre seleccionados, y además está en la familia "cámaras" del `GizmoManager`.
+- **Arriba a la derecha, un punto rojo** (#CC1A1A, pedido explícito aunque la regla del rojo lo reserva para peligro) que titila a 1 Hz, sin la palabra REC. `_RecColor` / `_RecDotRadius` en `PlayerCamera.mat`.
+- **Abajo a la izquierda, la lectura**, en letra chica (fuente 3×5, pedido del 26/09; `_SmallReadout` en `PlayerCamera.mat` la vuelve a la 5×7): `00:00` fijo (`idleReadout`) hasta que arranca un módulo. **La activación del módulo se ve una sola vez**: la línea se re-escribe a `M1:IN PROGRESS  00:00`, el tiempo sube de 00:00 al del `ModuleData` (15:00 para M1) en `activationCountUpSeconds` (1.2) y sigue la cuenta regresiva (`M1:IN PROGRESS  14:35`). Con M2 y M3 pasa lo mismo cuando arrancan. Sin módulo corriendo queda el último que corrió: `DISARMED` (con el tiempo que le quedaba) o `FAILED` (explotó). **El tiempo cambia de color** a medida que se acaba (26/09, como hacía el HUD viejo): ámbar con un cuarto del tiempo del módulo (`moduleWarningFraction` 0.25), rojo con un décimo (`moduleCriticalFraction` 0.1) y rojo titilando en los últimos `moduleWarningSeconds` (30), sea la fracción que sea (en un módulo de 3:00 el ámbar va de 0:45 a 0:30). `FAILED` queda en rojo fijo; `DISARMED` vuelve al color normal. Cambian sólo los dígitos del tiempo, no el resto de la línea. Colores en `PlayerCamera.mat`: `_TimerWarningColor` (el ámbar del HUD viejo, `(1, 0.6, 0)`) y `_TimerCriticalColor` (#CC1A1A). Formato y textos en el SO (`moduleReadoutFormat`, `inProgressText`…). El trigger de M1 está adentro del Hub, así que en la práctica aparece al entrar a la zona segura.
+- Etiqueta y lectura cambian **tipo máquina de escribir** (borran con cursor y escriben: `eraseCharsPerSecond` / `typeCharsPerSecond`), y se escriben de cero cada vez que el overlay vuelve a aparecer (fin del booteo, fin del reboot).
+
+**El booteo del despertar** (`WakeUpCinematicView`, `opening = CameraBoot`, el default; `EyeLids` vuelve a los párpados):
+
+1. Nivel en negro: la cámara está apagada.
+2. `pictureLeadSeconds` (1.5) antes de ARC_01a (dentro de la cuenta regresiva de `ArchitectVoiceController.wakeUpDelay`, 2 s; tiene que ser ≥ ese valor) entra la imagen: estática (`revealStatic`), sobreexpuesta (`revealExposure`), buscando foco (`revealFocus`), en **ojo de pez extremo tipo 360** (círculo con negro alrededor), con la pantalla de booteo encima (sobre una placa oscura, a `_BootBlockY` 0.32 de la altura). Con la imagen arrancan el stand-up y el paneo de cámara.
+3. **El booteo dura toda la cinemática**: la barra sigue el avance del stand-up (`bootBar`: sube despareja, **se frena un rato en 75%** y termina justo antes del final). ARC_01a ("There's a device on your body…") suena con el booteo en pantalla y sus subtítulos debajo de la placa.
+4. La lente se calibra en **saltos de motor** (`lensJumps`: momentos del despertar, 0 = entra la imagen, 1 = parado; cada salto es un paso igual, rápido, con un pequeño rebote `lensJumpOvershoot` y desenfoque `lensJumpBlur`). Con `lensJumps` vacío la lente sigue la curva `calibration` de forma continua.
+5. Al quedar parado termina el booteo, la cámara empieza a grabar (se escribe el marco: área, punto rojo, `00:00`, esquineros), se ve `LENS OK` un momento y vuelve el control. El paneo termina cerca, casi a la altura de la cabeza (`WakeUpCameraPan.endVertical` −28 en `Player.prefab`: ~1.4 m atrás; con 10 quedaba 1.9 m atrás y 1.3 m arriba).
+6. Skip (F): salta a la imagen normal con un tirón de estática.
+
+**Subtítulos del Arquitecto**: `ArchitectSubtitle` subió a y=130 (estaba en 90) y su texto usa su propio material, `ShareTechMono-Regular SDF - Subtitle` (outline 0.4; el `- Outline` compartido por el resto de la UI sigue en 0.2). Desde el 26/09 el texto es blanco puro (antes gris `#AAAAAA`), para que se lea sobre la imagen.
+
+**Reboot después de una captura** (`rebootOnCapture`): cuando el Nemesis agarra al player, la señal se cae a negro con estática (`signalLostSeconds`) mientras `CaptureFadeView` tapa la pantalla. Cuando el negro empieza a levantarse en el checkpoint (`CaptureFadeView.OnCaptureRevealStarted`), corre un booteo corto (`rebootSeconds` 1, título `REBOOTING`) sobre el ojo de pez 360, después REC, y la lente se calibra con los mismos saltos siguiendo el stand-up del checkpoint (`CaptureStandUpCameraPan` no cambia: el ojo de pez viaja con el lente). Lo maneja el propio `PlayerCameraFeed`, atado a `PlayerStateManager.IsRecoveringFromCapture`.
+
+El estado compartido (apagada / booteando / grabando / nada) vive en `PlayerCameraBoot` (estático): lo escriben `WakeUpCinematicView` y el reboot de captura, lo lee el feed. Cada `PlayerCameraFeed` nuevo (nivel nuevo) lo limpia, así un booteo que quedó a medias (una captura que terminó la partida) no deja la pantalla en negro.
+
+El ojo de pez es de verdad: `PlayerCameraFeed.LensFovOffset` abre el lente de Cinemachine `lensWidening` grados (85 → renderiza a 160°; lo suma `CameraSprintEffect`, el único que escribe el FOV) y el shader repliega ese cuadro más ancho a una proyección fisheye equidistante (`fisheyeProjection` 0), con el centro a la escala normal por `fisheyeZoom` (0.55: la imagen queda en un círculo del alto de la pantalla). Donde el render no tiene imagen queda negro con borde suave. Cada salto de motor interpola lente, proyección y zoom hacia lo normal. `PlayerStateManager.GroundClearance` resta ese offset para medir el bloque PSX. En modo `CameraBoot`, `standUpLeadSeconds` no se usa (es de `EyeLids`).
+
+**Preview sin Play**: en `PlayerCameraFeed`, `Preview In Edit Mode` + `Preview Stage` (Boot / Calibrating / Gameplay) + `Preview Amount`. Fuera de Play el lente no se abre, así que el fisheye muestra más negro que en el juego.
+
+**HUD**: el HUD de módulos (la ventana `M1 // LEGS` con el anillo, `ModuleTimerHUDView`) **se eliminó** el 26/09: lo reemplaza la lectura de abajo a la izquierda. En `HUDCanvas.prefab` quedó el objeto `ModuleTimerBeeper`, sólo con el pitido de los últimos segundos. Las ventanas de las esquinas que quedan están adentro del visor (margen 50 a los costados, 96 arriba/abajo): `InteractionFeed` y `BreathMeter`. El overlay ocupa la franja de ~25–80 unidades de canvas desde cada borde.
 
 ---
 
@@ -665,6 +709,9 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 | Que una lámpara se lea de lejos a través de la niebla | `FogBeacon` (el punto) y/o `FogLightVolume` (el haz) — §6.4.1. Receta armada: `Light Base Switch.prefab`. |
 | Velocidad del scroll del noise de la niebla | `VisionFog.mat → Enable Noise` + `_FogScrollSpeed` en Inspector. |
 | Intensidad de scanlines / dither / pixelado | `PS1Effect.mat` → `_ScanlineIntensity` / `_DitherStrength` / `_PixelSize`. |
+| Booteo de la cámara del despertar (duración, barra, textos), cuánto ojo de pez y cómo se calibra, overlay en gameplay | `SO_PlayerCameraFeed.asset` (`ScriptableObjects/Rendering/`), §7.3. |
+| Look del feed del jugador (barril, grano, viñeta, color del overlay, estática) | `PlayerCamera.mat` (`Art/Materials/Post Process/`), §7.3. |
+| Volver a los párpados en el despertar | `WakeUpCinematicView` → `Opening = EyeLids` (en `HUDCanvas.prefab`). |
 | Frecuencia/intensidad del glitch VHS | `GlitchController` → `Interval Range` / `Duration Range` / `Max CA Offset` en Inspector. |
 | Frecuencia del flicker del monitor | `MonitorFlicker.flickerSpeed` en Inspector. |
 | Patrón de parpadeo del tubo fluorescente | `FlickerLight.flickerCurve` en Inspector (editor visual de AnimationCurve). |

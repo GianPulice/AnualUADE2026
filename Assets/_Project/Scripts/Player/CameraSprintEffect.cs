@@ -13,7 +13,8 @@ using UnityEngine;
 /// This is the only thing that writes the lens FOV after Start, and it has to stay that way: it
 /// writes every frame, so a second component setting the FOV would just be overwritten. The walk,
 /// sprint and crouch FOVs themselves live in <see cref="SO_CameraConfig"/>, read through the
-/// <see cref="PlayerCameraController"/> on the same rig.
+/// <see cref="PlayerCameraController"/> on the same rig. Anything else that needs the lens wider
+/// asks through a term added here — today the wake-up fisheye (<see cref="PlayerCameraFeed.LensFovOffset"/>).
 ///
 /// Place this on the same GameObject as the CinemachineOrbitalFollow (the player's camera rig).
 /// </summary>
@@ -117,9 +118,12 @@ public class CameraSprintEffect : MonoBehaviour
         // lerped in sequence because both can be partway at once — going straight from a sprint
         // into a crouch eases one out while the other eases in, with no jump in between.
         // Read off the asset every frame so the three FOVs can be tuned live in Play mode.
+        // The wake-up fisheye opens the lens on top; the feed's shader folds the extra field back
+        // into a fisheye with the centre at its normal scale. 0 the rest of the game.
         float walk = config.WalkFov;
         _camera.Lens.FieldOfView = walk
                                  + (config.SprintFov - walk) * _sprint01
-                                 + (config.CrouchFov - walk) * _crouch01;
+                                 + (config.CrouchFov - walk) * _crouch01
+                                 + PlayerCameraFeed.LensFovOffset;
     }
 }
