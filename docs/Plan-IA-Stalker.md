@@ -7,6 +7,11 @@
 > cubren los 39 waypoints, y ahora ninguna palanca puede actuar a menos de 6 m del Hub (C5)
 > ([§14.1](#141-el-director-hoy-estado-en-zona1)).
 >
+> **27/09/2026:** se agregó el [§17](#17-percepción-y-creencia) (percepción y creencia) y la
+> Fase 2B. Un análisis del código mostró que vista, oído y creencia **no suman: compiten** — lo que se
+> sintió en el último playtest — y que el plan daba ese punto por resuelto (§1, principio 1). Va antes
+> de la Fase 3.
+>
 > Compara el análisis *"IA de enemigos stalker"* (Alien: Isolation, Mr. X, Nemesis, Dimitrescu,
 > Requiem, GDC) contra lo que el Nemesis de WIRED ya tiene hoy, y propone qué construir, en qué
 > orden y dónde. **Asume que el sistema de escondites se construye** (spec *Hiding System v1.0*), y
@@ -47,6 +52,7 @@
 14. [Cómo se arma en Unity](#14-cómo-se-arma-en-unity)
 15. [Bajadas entre pisos](#15-bajadas-entre-pisos)
 16. [Revisión del consejo (21/09/2026)](#16-revisión-del-consejo-21092026)
+17. [Percepción y creencia](#17-percepción-y-creencia)
 
 ---
 
@@ -58,7 +64,7 @@ oído atenuado por paredes y pisos y medido sobre el NavMesh; persecución con p
 búsqueda legible con barrido de habitación; un Director que nunca toca el FSM; la entrada tipo
 Mr. X; y un set de herramientas de debug que el análisis pide construir "primero".
 
-Lo que falta se concentra en cinco agujeros:
+Lo que falta se concentra en seis agujeros:
 
 | # | Agujero | Gravedad |
 |---|---|---|
@@ -67,6 +73,7 @@ Lo que falta se concentra en cinco agujeros:
 | 3 | **No se detecta la persecución estancada.** El jugador corriendo (4.5 m/s) es más rápido que el Nemesis persiguiendo (3.0 m/s): **un loop alrededor de una columna es un exploit hoy**, sin escondites. Sigue siéndolo con M1 (3.6 m/s), y M2 ya no lo acorta porque es el módulo fatal ([C4](#c4--el-loop-alrededor-de-un-obstáculo-el-bug-de-la-mesa-de-dimitrescu)). | ✅ Construido (Fase 4) |
 | 4 | **El Director no mide tensión ni administra ritmo.** Sólo reacciona a pedidos (puzzles, API). No hay Relax ni retirada. | ✅ Construido (Fase 5, 22/09); falta jugarlo |
 | 5 | **Escalada por progreso** (spec Nemesis §7.2) sin hacer. | Media, diferida por diseño |
+| 6 | **La creencia no fusiona los sentidos.** Vista y oído no suman: `TryGetBelief` se queda con el más fresco y descarta el otro, el oído no distingue al jugador de un señuelo o del Director, y cada estado parcha esa desconfianza a su manera. Se siente como sentidos que se contradicen — ver [§17](#17-percepción-y-creencia). | **Alta.** Va antes de la Fase 3: hábitos y contra-jugadas leen la creencia |
 
 Y hay cosas que el análisis recomienda y que **acá no conviene hacer**: un `NoiseBus`, Unity
 Behavior, cuatro conos nuevos, ductos/backstage, santuarios de luz, roles de escuadra y LOD de IA.
@@ -80,18 +87,18 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 
 | # | Principio del análisis | Estado | Dónde está hoy | Brecha |
 |---|---|---|---|---|
-| 1 | Separar percepción, conocimiento y decisión | ✅ | `FieldOfView` / `FieldOfListening` → `NemesisStateManager.TryGetBelief` / `BeliefAge` → `NemesisDecision` + `SO_NemesisPriorities`. Los estados sólo ejecutan. | Ninguna. Lo nuevo tiene que entrar igual: **un predicado y un peldaño, nunca un estado que decide**. |
+| 1 | Separar percepción, conocimiento y decisión | 🟡 | `FieldOfView` / `FieldOfListening` → `NemesisStateManager.TryGetBelief` / `BeliefAge` → `NemesisDecision` + `SO_NemesisPriorities`. La **decisión** sí está separada: los estados sólo ejecutan. | El **conocimiento** no: `TryGetBelief` no es un modelo sino un selector (el sensor más fresco gana, el otro se descarta), y los estados vuelven a leer los sensores directo para esquivarlo. Ver [§17](#17-percepción-y-creencia). Lo nuevo sigue entrando igual: **un predicado y un peldaño, nunca un estado que decide**. |
 | 2 | El agente no hace trampa; el director sí | ✅ | Persecución y búsqueda leen la creencia y la velocidad **observada** (`FieldOfView.LastKnownVelocity`). Sólo dos lecturas del jugador real, ambas deliberadas: `ZoneBiasUsesRealPlayer` (elige zona, no waypoint) y `CanReachPlayerNow` (el agarre). | Las contra-jugadas nuevas tienen que pasar el mismo filtro (ver regla R4, §5). |
-| 3 | La detección es un acumulador | 🟡 | Banda periférica de 170° que llena `Awareness`; foco de 80° instantáneo a propósito (es un peldaño *interrupt*); agachado ×0.5 de alcance. | **Escondido es un `return` temprano**: 0 o todo. Sin término de luz. |
+| 3 | La detección es un acumulador | 🟡 | Banda periférica de 170° que llena `Awareness`; foco de 80° instantáneo a propósito (es un peldaño *interrupt*); agachado ×0.5 de alcance; escondido, visibilidad residual por tipo (Nivel B, Fase 2). | **El oído no acumula:** un solo barrido audible ya es `HearsPlayer` y manda a `Investigating`. **Los sentidos no se cruzan:** un vistazo y un paso en el mismo lugar no suman certeza. Sin término de luz. Ver [§17](#17-percepción-y-creencia). |
 | 4 | Administrar la tensión, no maximizarla | 🟡 | `NemesisTension` (medidor + BuildUp/SustainPeak/PeakFade/Relax) y `NemesisDirector` (retirada en Relax, sensibilidad creciente tras 90 s de silencio), con `SO_DirectorPacing`. | Construido el 22/09, sin jugar: los números del §12 son puntos de partida. |
 | 5 | Nada guionado para el "cuándo" y el "dónde" | 🟡 | Patrulla por ruleta, cúmulos, satélites; spawn y entrada muestreados. | Los disparadores del Director son siempre "al completar el puzzle". Aceptable: el *qué* puede ser fijo. |
-| 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint. | `patrolWaitVariance` está en 0.25 en el asset (el 0 es el default del código): la espera en cada waypoint varía 1.25–1.75 s, poco para que no se note el ritmo. Se arregla con un número. |
-| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución. | `NemesisAudio.stateLoops` está cargado **sólo en la instancia de Zona1** (respiración de patrulla, búsqueda y persecución para Patrolling / Investigating / Chasing / Searching); faltan `Catch` y `Traversing`, y el prefab y la testbed no lo tienen. Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (ahora existe `NemesisEvents.OnActivated` para engancharlo). La música de persecución delata el estado interno — ver D5. |
+| 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint; `patrolWaitVariance` 0.6 (Fase 0): la espera en cada waypoint varía 0.9–2.1 s. | La creencia no tiene incertidumbre propia: es un punto, no una zona, y la búsqueda no puede achicar un radio que no existe ([§17](#17-percepción-y-creencia)). |
+| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución que se sostiene durante la búsqueda (D5); `NemesisAudio.stateLoops` en el prefab con los cinco estados (Fase 0). | Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (existe `NemesisEvents.OnActivated` para engancharlo). Sin aviso cuando **sabe** en qué escondite estás (Fase 2, pendiente). No muestra la duda: no gira hacia un ruido antes de ir ([§17](#17-percepción-y-creencia)). |
 | 8 | Legibilidad por encima de inteligencia | ✅ | `SearchPauseTime` + `NemesisLookAround`; el HUD F9 muestra el peldaño ganador. | Las contra-jugadas nuevas tienen que **verse** (regla R3). |
 | 9 | Anti-cheese con comportamiento | ❌ | Nada cuenta hábitos. | Todo [§4](#4-catálogo-de-cheeses-de-wired) y [§5](#5-hábitos-del-jugador-y-contra-jugadas). |
-| 10 | Detectar el estancamiento | 🟡 | `NemesisStuckEscape` (cuerpo trabado: repath → warp). `NemesisPursuit` predice e intercepta. | Nadie mide "persigo pero no acorto". Ver C4. |
+| 10 | Detectar el estancamiento | 🟡 | `NemesisStuckEscape` (cuerpo trabado: repath → warp). `NemesisPursuit` predice e intercepta. `NemesisChaseProgress` mide "persigo pero no acorto" y penaliza el rastro (Fase 4). | Ningún peldaño lee `IsChaseStagnant` todavía: "soltar y emboscar" va con la Fase 6. |
 | 11 | El NavMesh expresa personalidad | 🟡 | Hub `Not Walkable`, puertas con carve, montacargas con links. | Área 3 `NemesisAvoid` sin uso. Sin rutas de flanqueo. |
-| 12 | Herramientas de debug primero | ✅ | F9 HUD, F10 consola, `NemesisGizmos`, validadores, `SO_NemesisDataEditor`. | Falta un panel de hábitos y otro de tensión. |
+| 12 | Herramientas de debug primero | ✅ | F9 HUD (con filas de escondite, ritmo y presión), F10 consola, `NemesisGizmos`, validadores, `SO_NemesisDataEditor`. | Falta el panel de hábitos (Fase 3) y una fila de creencia con radio, confianza y procedencia ([§17](#17-percepción-y-creencia)). Sin tests automáticos. |
 
 ---
 
@@ -102,7 +109,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 | El análisis propone | En WIRED es | Diferencias que importan |
 |---|---|---|
 | `NoiseEmitter` + `HearingSensor` | `PlayerStateManager.AudioEmitingZone` (esfera en la capa `DetectableAudio`, radios agachado 1 / caminando 4 / corriendo 10 en `SO_PlayerMovement`, apagada en quieto; 1 / 2 / 6 son los defaults del código, no lo que corre) + `FieldOfListening` | El ruido **dura**, no es un evento: tiene que vivir más de 0.1 s o cae entre dos barridos. Alcance = radio × `NoiseRangeScale` (2.5), tope `ListenRange` (15): agachado 2.5 m, caminando 10 m, corriendo 15 m (tope). ×0.8 por pared, ×0.75 por piso, distancia medida sobre el NavMesh. |
-| `StalkerBlackboard` | La creencia de `NemesisStateManager`: `TryGetBelief(out pos, out fromSight)`, `BeliefAge`; más `FieldOfView.Awareness` y `LastKnownVelocity` | Usa el sensor **más fresco** y dice si la creencia viene de la vista o del oído. El análisis no tiene esa distinción y acá es central (el barrido de habitación sólo se compromete con una creencia de vista). |
+| `StalkerBlackboard` | La creencia de `NemesisStateManager`: `TryGetBelief(out pos, out fromSight)`, `BeliefAge`; más `FieldOfView.Awareness` y `LastKnownVelocity` | Usa el sensor **más fresco** y dice si la creencia viene de la vista o del oído. La procedencia sirve (el barrido de habitación sólo se compromete con una creencia de vista), pero **quedarse con uno y descartar el otro** es lo que hace que los sentidos compitan en vez de sumar. Se reemplaza por `NemesisBelief` ([§17](#17-percepción-y-creencia)). |
 | `VisionSensor`, 4 conos | `FieldOfView`: foco 80° (Normal/Focused), periferia 170° con acumulador (Peripheral), `minDistance` 1 m (Close), proximidad extrema 1.5 m (rompe `Hidden`) | Equivalente funcional. Además muestrea pies, centro y cabeza. |
 | `PlayerVisibilityState` | `PlayerStateManager.IsCrouch` / `IsHidden` | `IsHidden` es un bool suelto. Hace falta saber **en qué** escondite (§3.1). |
 | `StalkerAgent` (FSM) | `NemesisStateManager` + 6 estados + `NemesisDecision` (escalera en `SO_NemesisPriorities`) | Una sola voz decide. Los estados no transicionan. |
@@ -121,6 +128,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 - El medidor de tensión y el ritmo (`NemesisTension`, junto al Director).
 - La escalada por puzzles (spec §7.2).
 - Las bajadas entre pisos (`NemesisDropLink`, [§15](#15-bajadas-entre-pisos)) y sus animaciones.
+- La creencia fusionada (`NemesisBelief`) y la sospecha compartida entre sentidos ([§17](#17-percepción-y-creencia)).
 
 ### 2.3 Lo que no conviene copiar
 
@@ -444,11 +452,27 @@ se aprende igual que el cheese.
   vence la búsqueda). La contra-jugada (1) sale sola de la Fase 5: una persecución que termina en el
   Hub es un pico, y el Relax que sigue es la retirada.
 
-### C6 — Ruido de cebo *(futuro)*
-- Hoy no hay objetos para tirar. `SightCommitTime` (6 s) ya impide escaparse de una habitación
-  comprometida con un ruido de afuera. Si se agregan tirables: contar los ruidos que no son del
-  jugador; al N-ésimo el Nemesis va, pero busca en dona alrededor de **quien lo tiró** y no del
-  impacto.
+### C6 — Ruido de cebo (señuelos)
+- **Ya existe, y el plan lo tenía como futuro.** Tres señuelos en `Prefabs/Decoys/`, que
+  `FieldOfListening` escucha por un canal propio (`DecoyNoiseSource.Active`):
+
+| Señuelo | Se oye | Dura | Usos |
+|---|---|---|---|
+| `Decoy_Radio` | 12 m | hasta que el Nemesis la rompe (`NemesisDecoyBreaker`) | 1 |
+| `Decoy_Chains` | 8 m | 1.5 s por sacudida | infinitos |
+| `Decoy_FireAlarm` | **en todo el nivel** | 30 s (`ringDuration`) | 1 |
+
+- **Por qué hoy es un cheese.** El señuelo entra por el mismo lugar que tus pasos: `HearsPlayer` es
+  "oye cualquier cosa", y `TryGetBelief` toma el ruido más fresco como tu posición. Mientras la
+  alarma suena, la creencia sobre *vos* apunta a la alarma y su edad no pasa de 0.1 s durante 30 s:
+  los peldaños que sostienen persecución y búsqueda por edad de creencia no vencen. Si te ve mientras
+  suena, la creencia salta entre vos y la alarma según qué sentido barrió último. Y las cadenas, con
+  usos infinitos, son un botón de "mandalo allá" repetible.
+- **Contra-jugada (con el [§17](#17-percepción-y-creencia)):** un señuelo es una **pista**, no el
+  jugador (D18). Se investiga (y la radio se rompe), pero no renueva la creencia sobre el jugador ni
+  mantiene viva una persecución. Sigue valiendo lo de antes: `SightCommitTime` (6 s) impide escaparse
+  de una habitación comprometida con un ruido de afuera. A futuro (Fase 6): contar los señuelos que
+  usa el jugador y, al N-ésimo, que vaya pero busque en dona alrededor de la pista y no sólo en ella.
 
 ### C7 — Montacargas de ida y vuelta *(vigilar)*
 - Subir y bajar para cortar la persecución. El claim, el compromiso de 12 s y el enfriamiento de 10 s
@@ -625,7 +649,7 @@ Siguiendo al análisis (§12.2), la escalada mueve sentidos y tiempos, **nunca l
                               │ eventos (HidingEvents ★, NemesisEvents, PlayerEvents)
 ┌─────────────────────────────┼─────────────── AGENTE (sólo lo que sintió) ───────────────────────┐
 │ PERCEPCIÓN                  │  CREENCIA                        DECISIÓN (una sola voz)          │
-│ FieldOfView ─(★ nivel B)────┼─▶ TryGetBelief / BeliefAge ────▶ NemesisDecision                  │
+│ FieldOfView ─(★ nivel B)────┼─▶ ★ NemesisBelief (§17) ───────▶ NemesisDecision                  │
 │ FieldOfListening            │   ★ NemesisHidingAwareness        + SO_NemesisPriorities           │
 │                             │     (KnownSpot, sospechas)        ★ KnowsHidingSpot, IsCheckingSpot│
 │                             │   ★ NemesisChaseProgress          ★ IsChaseStagnant                │
@@ -653,8 +677,9 @@ Siguiendo al análisis (§12.2), la escalada mueve sentidos y tiempos, **nunca l
 | `NemesisTension` | Calcular el medidor y el estado de ritmo | Aplicar palancas (eso sigue siendo `NemesisDirector`) |
 | `NoisePulse` | Emitir una esfera de ruido en un punto por un tiempo | Decidir cuándo |
 | `NemesisDropLink` | Configurar una bajada de un solo sentido y describirla (alto, tipo, dirección) | Cruzarla (eso sigue siendo `NemesisElevatorUser`); decidir cuándo usarla (eso es el costo de área y la escalera) |
+| `NemesisBelief` | Fusionar la evidencia de los sentidos en posición + radio + confianza + procedencia; separar las pistas del jugador; llevar la sospecha compartida | Sentir (eso siguen siendo `FieldOfView` y `FieldOfListening`); decidir (eso es `NemesisDecision`) |
 
-`NemesisHidingAwareness` y `NemesisChaseProgress` son hermanos del facade, como `NemesisPathOracle`:
+`NemesisHidingAwareness`, `NemesisChaseProgress` y `NemesisBelief` son hermanos del facade, como `NemesisPathOracle`:
 se agregan solos y el estado los consulta a través de `NemesisStateManager`.
 
 ---
@@ -677,7 +702,7 @@ puede ir en paralelo con la 1.
   (valor del prefab, a propósito: las puertas del montacargas se abren con `sp1`). **Desde el 22/09
   a la tarde en Zona1 no se despierta en el gameplay:** sólo en la cinemática final (§14.1).
 - **Pendiente de jugar:** F9 tiene que mostrar esperas distintas en cada waypoint; F10 tiene que
-  listar las cinco zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
+  listar las seis zonas y un botón de presión tiene que inclinar la patrulla hacia esa zona en uno
   o dos ciclos de ruta (12 s). Nada de esto se puede verificar sin entrar a Play.
 
 ### Fase 1 — Escondites, lado jugador *(prerrequisito)* — ✅ construida (commit `9eba9b46`)
@@ -718,6 +743,25 @@ puede ir en paralelo con la 1.
   - En escenas que no hornean `Default` (la testbed hornea `Ground|Wall|Props`), el collider sólido
     del container no hace hueco en el NavMesh: pasarlo a `Props` o sumarle un
     `NavMeshModifierVolume` en una capa horneada antes de poner containers ahí.
+
+### Fase 2B — Creencia fusionada *(antes de la 3)*
+- `NemesisBelief` (hermano del facade, se agrega solo) según el [§17](#17-percepción-y-creencia):
+  evidencia con posición, tiempo, precisión y procedencia; creencia = posición + radio + confianza;
+  regla de plausibilidad; pistas separadas del jugador.
+- `TryGetBelief` / `BeliefAge` pasan a leer `NemesisBelief`, con la misma firma para no romper a los
+  llamadores. `HearsPlayer` pasa a significar el jugador; un predicado nuevo **al final del enum**
+  para "hay una pista que revisar" (`HasLead`), con su peldaño en **el asset y en
+  `BuildDefaultLadder()`**.
+- Sospecha compartida: vistazo y ruido suave suben el mismo medidor; `Investigating` va a la
+  posición de la creencia o del vistazo, no a la del oído.
+- Reapuntado por evento: `Searching` e `Investigating` reaccionan a evidencia **nueva**, no a
+  `HasAudioTarget`.
+- Se sacan los parches que esto vuelve innecesarios, de a uno y con su caso de prueba: el "punto
+  visto y no la creencia" de `NemesisPursuit` (§16.4), el ancla de vista forzada de `Searching`, el
+  filtro de intervalo y distancia de `Investigating`.
+- Fila `creencia` en F9 (posición, radio, confianza, procedencia, pista activa) y gizmo del radio.
+- Primeros tests EditMode del proyecto: la fusión es lógica pura, sin escena (§16.2).
+- **Verificación:** casos 22–27.
 
 ### Fase 3 — Contar sin reaccionar
 - `PlayerHabitTracker` (`ISessionResettable`), `SO_CounterplayRules`, `EExploitKind`, puntos de
@@ -787,7 +831,9 @@ esconderse rompe el juego. La 3 va antes que la 6 para que los umbrales salgan d
 antes que la 6 porque contra-jugadas sin Relax frustran (y cada captura de más le cuesta 30 s de
 módulo al jugador). La 4 es independiente y arregla algo que hoy ya se puede explotar. La 8 también
 es independiente: puede ir apenas termine la Fase 0, y conviene que llegue antes de la 6, porque
-`ZoneDefense` y la emboscada de C7 la pueden aprovechar.
+`ZoneDefense` y la emboscada de C7 la pueden aprovechar. La 2B va antes de la 3 y de
+la 6: la 3 cuenta escapes con el barrido anclado en la creencia, y la 6 aplica las contra-jugadas
+"donde lo sintió" (R4). Construidas sobre la creencia de hoy, heredan el conflicto.
 
 ---
 
@@ -819,6 +865,11 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
   `CompleteOffMeshLink`, como el link simple.)
 - **Todo valor tuneable tiene dónde verse:** `SO_NemesisDataEditor`, `NemesisGizmos`, F9.
 - **Nada depende de la cámara del jugador.**
+- **Los estados leen la creencia, no los sensores.** Si un estado necesita algo que la creencia no
+  dice (el punto visto, una pista), se agrega a la creencia; no se vuelve a leer `FieldOfView` o
+  `FieldOfListening` por atrás. Así se llegó a tres parches distintos al mismo problema (§17.2).
+- **Una pista no es el jugador.** Señuelos y ruido del Director se investigan, pero no renuevan la
+  creencia sobre el jugador ni mantienen viva una persecución.
 
 ---
 
@@ -843,6 +894,9 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D15 | El container (ciego + respiración ×0.5), ¿es dominante? | **No se toca por ahora (consejo 3 a 1).** Es el "riesgo bajo" del spec; lo compensan la colocación (rareza, cámara ±10/±10, el lowpass más pesado) y la Fase 6 (`CheckHidingSpots` revisa escondites fríos). Parecía dominante sobre todo porque el Nivel B del locker estaba muerto (0.25, ver §3.4). *Disidencia:* `containerNoiseMultiplier` a 1.0 ya. Si la Fase 3 muestra que todos eligen container, se sube. |
 | D16 | Los 0.8 s de sacarte del escondite, ¿son una ventana para escapar? | **No.** Salir en ese momento te deja en la `ExitPose`, a centímetros del Nemesis y quieto 0.6 s: te agarra igual. Es el golpe de verlo en la puerta. El margen real es **antes** (D1), y para que exista falta el aviso audible cuando el Nemesis **sabe** (Fase 2, pendiente). |
 | D17 | Viéndote por las rendijas, al pasar el umbral: ¿va a mirar o se frena y clava la mirada? | **Implementado: va a mirar** (es lo que promete "vio algo de reojo", y antes se iba a un ruido viejo). *Alternativa a probar (consejo):* clavar la mirada en el escondite a 0.4 y conocerlo recién a 1.0 — más legible desde adentro, pero con el mismo final si no cortás el contacto. |
+| D18 | ¿Un señuelo renueva la creencia sobre el jugador? | **No.** Es una pista: se investiga (y la radio se rompe), pero no mueve ni rejuvenece la creencia sobre el jugador. Si no, la alarma —audible en todo el nivel durante 30 s— mantiene viva cualquier persecución. |
+| D19 | El ruido sintético del Director, ¿es pista o evidencia? | **Pista.** El Director "no toca el FSM" y tampoco tendría que tocar la creencia: hoy su ruido, al ser el más fresco, se vuelve la posición del jugador. Como pista sigue empujando a `Investigating`, igual que antes. |
+| D20 | Evidencia que contradice la creencia (un ruido lejos de donde te vio hace un segundo): ¿qué gana? | **Ninguna de las dos de golpe.** Si el jugador no pudo llegar ahí en ese tiempo (plausibilidad), es una pista aparte. Si pudo, la creencia se corre y el radio crece; sólo se achica con evidencia coherente. |
 
 ---
 
@@ -877,6 +931,13 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Bajadas: costo del link | 2 cazando / 20 en patrulla (D11) | Más barato que el montacargas (10) al cazar |
 | Bajadas: recuperación al aterrizar | 0.6–0.9 s (la duración del clip) | La ventana del jugador; menos se siente injusto |
 | Bajadas: enfriamiento por link | 8 s | Que no suba por la escalera y vuelva a tirarse en loop |
+| Creencia: radio de la vista | 0.5 m | Un avistamiento es una posición |
+| Creencia: radio del oído | 1 m + 15 % de la distancia; ×1.5 por pared, ×1.3 por piso | Un ruido es "por ahí", y crece con lo que lo tapa |
+| Creencia: crecimiento del radio sin evidencia | 4.5 m/s | Velocidad del jugador corriendo: donde pudo haber ido |
+| Plausibilidad | Dentro del radio + 4.5 m/s × tiempo transcurrido + 2 m | Si cae afuera, es una pista, no el jugador |
+| Sospecha compartida: umbral | 0.4 | El `awarenessTriggerThreshold` de hoy: mismo comportamiento de la periferia |
+| Sospecha compartida: aporte de un ruido | 0.25 por ruido nuevo del jugador, escalado por qué tan bien se oye | Dos pasos suaves ≈ un vistazo; un paso fuerte cerca dispara solo |
+| Reapuntado por evento | Evidencia nueva **y** desplazamiento ≥ 3 m | Reusa `InvestigationRetargetDistance` |
 
 Referencias del proyecto para calibrar: jugador 2.5 m/s (agachado 1.25, corriendo 4.5; con M1
 2.0 / 3.6); ruido del jugador agachado 2.5 m / caminando 10 m / corriendo 15 m (tope); Nemesis
@@ -916,6 +977,12 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 19 | Te saca de un escondite. | Después de 0.8 s quieto en la puerta, captura; aparecés en la `ExitPose`, afuera del mueble, no adentro ni despedido por la física. |
 | 20 | Pasa a ≤1 m de la puerta de un locker ocupado **por detrás de una pared**. | Nada: la pared ocluye; la carcasa es lo único que se atraviesa. |
 | 21 | Durante el escape (cinemática final en marcha, `ChaseFloor`), te escondés a su vista. | Sigue en `Chasing`, llega a la puerta y te agarra (el agarre de un escondido se mide en la puerta). |
+| 22 | Suena la alarma de incendio mientras te persigue y te ve. | Te sigue persiguiendo a vos. F9: creencia de *vista*, la alarma como *pista*. Al perderte, busca donde te vio, no en la alarma. |
+| 23 | Buscándote, con las cadenas sonando cerca (o cualquier ruido continuo). | La búsqueda mantiene sus pausas de mirar (`SearchPauseTime`); el destino cambia sólo cuando llega evidencia nueva. |
+| 24 | Te ve de reojo en campo abierto (sin escondite), sin haber hecho ruido antes. | Va al punto donde te vio de reojo; no a un ruido viejo, y no se queda quieto. |
+| 25 | Activás la alarma lejos y te quedás quieto en otra zona, sin que te haya sentido. | Va a revisar la alarma (pista). No arranca ni sostiene una persecución; la búsqueda vence a su tiempo. |
+| 26 | Un paso suave y un vistazo de reojo en el mismo lugar, casi juntos. | La sospecha pasa el umbral más rápido que con cualquiera de los dos solo. |
+| 27 | Te pierde de vista y seguís corriendo detrás de una pared. | La creencia se corre con tus pasos, pero su radio crece: no lo lleva de la mano al escondite (el bug del §16.4, sin el parche de `NemesisPursuit`). |
 
 ---
 
@@ -1359,3 +1426,108 @@ bloqueante con la geometría real) y el 4 como el menos (tres premisas falsas).
   (`TryGetRecentSighting`, 10 s), `Searching` al entrar se queda un `SearchPauseTime` mirando ahí y
   arma el barrido anclado en ese punto visto (si es más nuevo que `SightCommitTime`). Los ruidos que
   se siguen oyendo después retargetean la búsqueda como antes.
+
+---
+
+## 17. Percepción y creencia
+
+> Agregado el 27/09/2026. Sale de un análisis del código, sin cambios, después de que en el playtest
+> los sentidos se sintieron "no aditivos: se contraponen y generan conflicto". No se reprodujo en
+> Play: todo lo que sigue está leído del código, con el archivo y la línea donde pasa.
+
+### 17.1 Qué pasa hoy
+
+Tres elecciones de "un solo ganador", una encima de la otra:
+
+| Capa | Qué hace | Dónde |
+|---|---|---|
+| Oído | En cada barrido (0.1 s) se queda con **un** ruido, el que mejor se oye, y pisa la memoria anterior. No distingue jugador, señuelo ni pulso del Director. | `FieldOfListening.cs:201-224` |
+| Vista | La periferia acumula, pero **no guarda dónde vio algo** hasta que el medidor llega a 1. | `FieldOfView.cs:300-347` |
+| Creencia | `TryGetBelief` toma el sensor **más fresco** y descarta el otro. `BeliefAge` toma el mínimo de los dos. | `NemesisStateManager.cs:835-869` |
+
+### 17.2 Cómo se nota
+
+1. **La creencia salta.** Vista y oído barren cada 0.1 s con timers independientes: cuando los dos
+   te perciben, cuál es "el más fresco" depende del desfasaje. Con tus pasos no se nota (el emisor
+   está en vos), pero con un señuelo o un pulso del Director sonando en otro lado, la creencia —y la
+   persecución, que apunta a ella (`NemesisPursuit.cs:131`)— salta entre vos y el ruido.
+2. **Cualquier ruido rejuvenece la creencia sobre el jugador.** `BeliefAge` es el mínimo de los dos
+   sentidos: la alarma de incendio (C6) la deja en 0.1 s durante 30 s, y los peldaños que sostienen
+   persecución y búsqueda por edad de creencia no vencen.
+3. **`HearsPlayer` es "oye algo".** El predicado lee `HasAudioTarget` (`NemesisDecision.cs:104`): un
+   señuelo o el Director cuentan como el jugador para toda la escalera.
+4. **`Searching` reapunta cada frame mientras oye algo.** La condición es "el sensor está prendido",
+   no "llegó evidencia nueva" (`NemesisSearchingState.cs:175-183`). Cada reapuntado borra los puntos
+   barridos, cancela la pausa de mirar y recalcula la intercepción: con un ruido continuo, busca sin
+   frenar nunca. El §16.4 lo dejó así ("como antes").
+5. **De reojo en campo abierto, va al último ruido.** "Vio algo de reojo" lleva a `Investigating`,
+   que sólo lee el oído (`NemesisInvestigatingState.cs:190-217`). El arreglo de la Fase 2 (D17) cubre
+   el escondite sospechoso; sin escondite, va a un ruido viejo o, si nunca oyó nada, se queda quieto
+   hasta el timeout.
+6. **Los sentidos no suman.** El oído es binario (un barrido audible = `Investigating`), la
+   periferia acumula, el foco es instantáneo, y nada cruza entre ellos.
+7. **Cada estado desconfía a su manera.** `NemesisPursuit` usa el punto *visto* en vez de la
+   creencia (§16.4, `NemesisPursuit.cs:141-154`); `Searching` fuerza el ancla de vista al entrar;
+   `Investigating` filtra con intervalo y distancia mínima. Tres parches al mismo problema, y por eso
+   el comportamiento cambia según el estado.
+
+### 17.3 Modelo propuesto
+
+**Evidencia.** Cada vez que un sentido capta algo, produce una evidencia: posición, momento,
+precisión (un radio) y procedencia.
+
+| Procedencia | Qué es | ¿Mueve la creencia sobre el jugador? |
+|---|---|---|
+| `Sight` | Foco, periferia llena, proximidad | Sí, con radio chico |
+| `Glimpse` | Periferia con contacto, medidor < 1 | No; sube la sospecha y guarda **dónde** |
+| `PlayerNoise` | El emisor del jugador (pasos, respiración) | Sí, con radio según distancia y oclusión, si es plausible |
+| `Lead` | Señuelo o pulso del Director | **No**: queda como pista aparte |
+
+La procedencia sale de quién emite: el emisor del jugador cuelga de `PlayerStateManager`; los
+señuelos ya llegan por su propio canal (`DecoyNoiseSource`); el pulso del Director se marca al
+crearlo (el `NoisePulse` del §2.3 es el lugar natural).
+
+**Creencia.** Posición + radio + confianza + procedencia de la última evidencia que la movió.
+
+- Sin evidencia, el radio crece a la velocidad máxima del jugador: es "donde pudo haber ido".
+- Una evidencia coherente (cae dentro de lo alcanzable) la corre y **achica** el radio: así suman
+  los sentidos.
+- **Plausibilidad:** una evidencia de jugador que cae fuera de lo alcanzable (radio + velocidad ×
+  tiempo) no es el jugador; se trata como pista. Resuelve los señuelos sin casos especiales.
+- La confianza sube con evidencia coherente y baja con el tiempo. Reemplaza a `BeliefAge` en la
+  escalera, con umbrales equivalentes para no retunear todo de una.
+
+**Pistas.** Una lista corta de cosas para revisar que no son el jugador. `Investigating` las atiende
+cuando no hay creencia fresca sobre el jugador; nunca pisan una persecución.
+
+**Sospecha compartida.** Un solo medidor, que suben los vistazos (como hoy) y los ruidos suaves del
+jugador (nuevo), con decaimiento. Al pasar el umbral, `Investigating` va a la posición de la creencia
+o del vistazo, no al último ruido.
+
+**Reacción por evento.** Cada evidencia lleva un número de secuencia. Los estados reapuntan cuando
+cambia el número **y** el punto se movió lo suficiente, no mientras un sensor esté prendido.
+
+**Legibilidad.** Radio y confianza se pueden mostrar sin UI: girar la cabeza hacia un ruido antes de
+caminar (`NemesisLookAround`), barrer un área del tamaño del radio, y el aviso de la Fase 2 cuando
+**sabe** como el caso de confianza máxima.
+
+### 17.4 Qué no cambia
+
+- **Una sola voz decide.** `NemesisBelief` no escribe estados: es conocimiento, como
+  `NemesisHidingAwareness`.
+- **El agente no hace trampa.** Todo sale de evidencia que los sentidos ganaron. La plausibilidad
+  usa la velocidad máxima del jugador (un dato de diseño), no su posición real.
+- **Los sensores siguen siendo los mismos:** cambia qué se hace con lo que devuelven. No es el
+  `NoiseBus` descartado en el §2.3: la esfera del emisor sigue siendo el ruido; lo nuevo es anotarle
+  la procedencia.
+- **`TryGetBelief` mantiene la firma** mientras se migra, para no romper a los llamadores de una vez.
+
+### 17.5 Riesgos
+
+- **Retuneo.** Los tiempos de la escalera (`BeliefAgeUnder`, gracia de persecución, presupuesto de
+  búsqueda) se calibraron contra la creencia de hoy. Empezar con umbrales de confianza equivalentes y
+  calibrar con los casos 22–27.
+- **Sacar los parches antes de tiempo.** Cada parche del §16.4 existe por un bug de playtest. Se saca
+  de a uno, con su caso de prueba.
+- **Un Nemesis "más tonto".** Si las pistas no se atienden nunca, un señuelo deja de distraer. Tienen
+  que seguir funcionando como distracción **cuando no te está sintiendo** (caso 25).
