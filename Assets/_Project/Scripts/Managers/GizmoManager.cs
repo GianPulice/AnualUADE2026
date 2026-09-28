@@ -45,7 +45,8 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool nemesisPressureZones = true;
 
     [Tooltip("Debug que aparece al seleccionar: NemesisDirector, NemesisController, " +
-             "NemesisElevatorLink, NemesisDoorUser.")]
+             "NemesisElevatorLink, NemesisDoorUser. También NemesisDropLink, cuyo arco se ve " +
+             "siempre (verde: salto corto; ámbar: se descuelga; gris: en enfriamiento).")]
     [SerializeField] private bool nemesisDebug = true;
 
     [Header("Nivel y gameplay")]
@@ -113,7 +114,7 @@ public class GizmoManager : MonoBehaviour
         yield return (nemesisDebug, new[]
         {
             typeof(NemesisDirector), typeof(NemesisController), typeof(NemesisElevatorLink),
-            typeof(NemesisDoorUser),
+            typeof(NemesisDoorUser), typeof(NemesisDropLink),
         });
 
         yield return (inputHints, new[] { typeof(InputHintTrigger) });

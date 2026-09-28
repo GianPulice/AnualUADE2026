@@ -30,7 +30,15 @@ Id* vacío, en negrita). A1 lo verifica.
     arriba a 4.98 m.
   - **S4** al sur, entrando por el vano de z 12: Room A (z 5.5..12) → vano con línea amarilla en
     z 5.5 → Room B (z −1.5..5.5, adentro del trigger).
-- **Rutas** (peso 1, abiertas): Spine, Oeste, Alcove, Alta y BugLab (WP_00..06).
+- **Drop Lab** (desde el 27/09; x −9..9, z −29..−9): se entra desde ENTRADA por una puerta de 3 m en
+  su pared sur, detrás del spawn. Al fondo hay dos entrepisos, cada uno con una rampa contra la pared
+  lateral para volver a subir:
+  - al oeste, el de **3.6 m**, con `Drop_Hang` en su borde norte (x −4.5);
+  - al este, el de **2 m**, con `Drop_Hop` (x 4.5).
+
+  Las barandas del borde son invisibles y sólo te frenan a vos: el Nemesis se tira a través de ellas.
+  Lo arma *Tools/Nemesis/Build Drop Lab (NemesisTestbed)*.
+- **Rutas** (peso 1, abiertas): Spine, Oeste, Alcove, Alta, BugLab (WP_00..06) y DropLab (WP_00..03).
 - **Spawns**: Carga (0, 41), Lateral (−16, 20), Alcove (0, 50), Alta (5, y 5.3, 46.4).
 - **Director**: `Testbed/Director` con 4 zonas: `entrada` (0, 0) r 8, `sala lateral` (−16, 20) r 10,
   `carga` (0, 40) r 9 y `planta alta` (9, y 5.3, 45.4) r 10. Sin disparadores por puzzle.
@@ -151,7 +159,9 @@ Id* vacío, en negrita). A1 lo verifica.
   **Bug si:** entra.
 - [ ] **G21. SALA_ROTA.** → **Sí entra** (roto a propósito). Si no entra, alguien cambió el bake.
 
-**Montacargas**
+**Montacargas** (arreglado el 27/09: el hueco ya no es caminable en el NavMesh estático, la cabina
+llega al ras del piso alto, y al llegar suelta `Traversing`). En la consola **no** tiene que aparecer
+`could not WALK aboard` ni `the boarding link at 'End' … joins NOTHING`.
 - [ ] **G22. Que te siga.** Subí (E en la cabina) mientras te siente. → «para llegar hay que tomar el
   montacargas» → `Traversing` (verde); espera la cabina **quieto**; en el viaje `agente: apagado…`;
   al bajar sigue. Sin loop en `Traversing`. No hay panel de llamada y la cabina baja sola a los 12 s.
@@ -204,6 +214,22 @@ Id* vacío, en negrita). A1 lo verifica.
 - [ ] **S4-c.** Caminá en Room B fuera de su vista, él a ≤8 m por camino. → Te oye como sin trigger.
 - [ ] **S4-d. Pared fina.** Pegate detrás de un tramo de `Wall A|B` con él a ~1 m del otro lado. → No
   te detecta ni te agarra; da la vuelta por el vano.
+
+**Bajadas — Drop Lab (plan Fase 8, casos 12–16 y 55)**
+F9 fila `bajada`. Con gizmos, el arco de cada bajada: verde la `Hop` y ámbar la `Hang`.
+- [ ] **D1. Te persigue arriba y bajás por la rampa** (caso 12). Hacete ver en el entrepiso de 3.6 m y
+  bajá por la rampa. → Va al borde, se asoma y gruñe, se da vuelta y se descuelga, aterriza y queda un
+  momento abajo, y sigue persiguiendo. Igual con la `Hop` (salta, sin descolgarse). **Bug si:** baja
+  por la rampa detrás tuyo mientras la bajada es más corta, o se queda en `Traversing` al aterrizar.
+- [ ] **D2. Los dos abajo** (caso 13). → Nunca intenta subir por una bajada; sube por las rampas.
+- [ ] **D3. Captura o respawn con él en el aire** (caso 14; forzalo con F10). → La bajada termina igual.
+- [ ] **D4. Parado justo debajo del aterrizaje** (caso 15). → No te agarra en el aire.
+- [ ] **D5. Patrullando, sin creencia** (caso 16). Seguilo por `Route_DropLab`. → Baja de los
+  entrepisos por las rampas, no por las bajadas. **Bug si:** se tira patrullando.
+- [ ] **D6. Llega al borde con vos arriba y a la vista** (caso 55). → Se echa atrás y te persigue
+  arriba. F9 "— · 1 en enfriamiento"; por 8 s usa la rampa.
+- [ ] **D7. Barandas.** Caminá por el borde de los entrepisos y de las rampas. → Una baranda invisible
+  te frena; a él no. **Bug si:** te caés o él choca contra algo en el borde.
 
 **WIR-020, collider sólido en la capa de ruido**
 - [ ] **W20.** En Play, creá un Cube en la capa `DetectableAudio` sobre su camino en el PASILLO. →
@@ -308,9 +334,10 @@ E entra y sale; mantener F aguanta la respiración.
 - **Director por puzzles:** los disparadores no se pueden probar en ningún lado. En el testbed están
   vacíos y no hay puzzles; **en Zona1 el Director de la Fase 0 se perdió en el merge `16b1962c`**
   (hoy apagado, 0 zonas, 0 disparadores; Plan §14.1). La Fase 5 (tensión, ritmo, retirada) no existe.
-- **La palanca 2 del Director (pesos de ruta) no se ve** con la patrulla por cúmulos: el sorteo usa
-  `Cluster.Weight`, que se congela al armar el grafo. Para verla habría que apagar
-  `clusterPatrolEnabled`, que es un SO compartido y persiste.
+- ~~**La palanca 2 del Director (pesos de ruta) no se ve** con la patrulla por cúmulos: el sorteo usa
+  `Cluster.Weight`, que se congela al armar el grafo.~~ **Arreglado el 27/09 (plan Fase 2B parte
+  3):** el sorteo lee el peso vivo de las rutas de cada cúmulo (`NemesisRouteGraph.ClusterWeight`).
+  El peso se ve cambiar en la etiqueta del cúmulo activo.
 - No hay música de persecución; el montacargas no tiene `ElevatorCallPanel` y baja solo a los 12 s
   (si quedás varado arriba, F10).
 - `NemesisRooms` toma Room A y Room B de S4 como una sola habitación (y el vestíbulo y el cuarto de

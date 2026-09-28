@@ -18,7 +18,9 @@ using UnityEngine;
 /// table at a reduced range, into the suspicion meter only. Past the threshold the spot becomes
 /// suspected — which sends Investigating to it rather than off after some old noise, and the meter
 /// keeps filling on the way — and once full, <see cref="FieldOfView.HiddenPlayerSpotted"/> makes it
-/// known. Standing right next to a spot is the same event from the proximity rule (§3.3).
+/// known. Standing right next to a spot is the same event from the proximity rule (§3.3) — unless
+/// the player is holding their breath (plan §17.6, D21): then only OPENING a spot it already
+/// suspects or knows finds them (<see cref="Open"/>).
 ///
 /// NOTHING HERE ASKS WHERE THE PLAYER REALLY IS. The event says which spot was entered; whether the
 /// Nemesis gets to know it is decided entirely by what its own sensors had at the time. Leaving the
@@ -149,9 +151,9 @@ public class NemesisHidingAwareness : MonoBehaviour
     }
 
     /// <summary>
-    /// The Nemesis stood at <paramref name="spot"/> for the whole check and nothing came of it — had
-    /// the player been inside, the proximity rule would have found them. Nobody is there: forget it.
-    /// Called by the state that did the checking.
+    /// The Nemesis stood at <paramref name="spot"/> for the whole check and nothing came of it — it
+    /// opened it on arrival (<see cref="Open"/>) and nobody was inside. Forget it. Called by the
+    /// state that did the checking.
     /// </summary>
     public void MarkChecked(HidingSpot spot)
     {
@@ -166,6 +168,28 @@ public class NemesisHidingAwareness : MonoBehaviour
         if (ReferenceEquals(KnownSpot, spot)) KnownSpot = null;
         if (ReferenceEquals(SuspectedSpot, spot)) SuspectedSpot = null;
         if (KnownSpot == null && SuspectedSpot == null) Reason = null;
+    }
+
+    /// <summary>
+    /// The Nemesis opens the spot it walked up to check — the locker door, a look under the table —
+    /// and sees whether anyone is in it (plan §17.6: suspecting a spot makes the player prey).
+    /// Returns true, and makes the spot known, when the player is inside.
+    ///
+    /// This used to be the proximity rule's job: standing at the door found whoever was in there.
+    /// Holding your breath now takes a player out of that rule (D21), so without an explicit open a
+    /// checked spot would come back "empty" with the player in it. Opening is a sense like any
+    /// other — it looks inside the one spot it is standing at — and the states only call it at a
+    /// spot the Nemesis already suspects or knows, never at one it merely walked past.
+    /// </summary>
+    public bool Open(HidingSpot spot)
+    {
+        if (spot == null) return false;
+
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player == null || !ReferenceEquals(player.CurrentHidingSpot, spot)) return false;
+
+        Know(spot, "lo abrió");
+        return true;
     }
 
     /// <summary>Forgets everything. The capture and the respawn use it, and so does being seen out

@@ -59,6 +59,11 @@ public sealed class NemesisRouteGraph
     ///
     /// Every member is in the same NavMesh island by construction, so anything picked out of a
     /// cluster the Nemesis is standing in is guaranteed reachable.
+    ///
+    /// IT CARRIES NO WEIGHT, AND THAT IS DELIBERATE. Everything stored here is geometry, fixed
+    /// until the next rebuild. How often the zone gets patrolled is not: it follows its routes'
+    /// weights, which the Director rescales while the game runs, so it is read live through
+    /// <see cref="ClusterWeight"/> — see there for the bug a stored copy caused.
     /// </summary>
     public readonly struct Cluster
     {
@@ -74,17 +79,12 @@ public sealed class NemesisRouteGraph
         /// <summary>The NavMesh island every member sits on.</summary>
         public readonly int Component;
 
-        /// <summary>Average of the members' route weights, so the designer's per-zone frequency
-        /// still steers which cluster gets patrolled.</summary>
-        public readonly float Weight;
-
-        public Cluster(int firstMember, int memberCount, Vector3 centroid, int component, float weight)
+        public Cluster(int firstMember, int memberCount, Vector3 centroid, int component)
         {
             FirstMember = firstMember;
             MemberCount = memberCount;
             Centroid = centroid;
             Component = component;
-            Weight = weight;
         }
     }
 
@@ -115,12 +115,14 @@ public sealed class NemesisRouteGraph
     ///
     /// This is the Nemesis's memory of your route through the level, and it is what a bare
     /// last-known-position cannot give it: a single point says where you were, a trail of stamped
-    /// waypoints says which way you were travelling — measured over seconds of real navigation
-    /// rather than over the half-second window the velocity estimate is capped to.
+    /// waypoints says which way you CAME — the lap you just ran round a column is several
+    /// waypoints, not one. That is the question a stalled chase asks when it looks for the other
+    /// way round (<see cref="NemesisPursuit"/>, through <see cref="IsNearSensedTrail"/>), and the
+    /// trail NemesisGizmos draws while it does.
     ///
     /// Written only from actual detections (see <see cref="NemesisController.MarkBeliefTrace"/>),
     /// never by polling the player, so it stays belief and not truth: break line of sight and
-    /// double back, and the trail keeps pointing the way you were going.
+    /// double back, and the trail still marks the way you were going.
     /// </summary>
     private readonly List<float> lastSensedAt = new List<float>();
 
@@ -133,8 +135,8 @@ public sealed class NemesisRouteGraph
     /// somewhere to walk; it is not a place the Nemesis reasons ABOUT. Promoting them to entries
     /// in <see cref="nodes"/> would have pulled them into the cluster centroid and weight (moving
     /// the zone the director bias aims at), the per-waypoint patrol roll, the pursuit's detour
-    /// candidates, the search's interception, and the sensed trail — and would have multiplied the
-    /// cost of <see cref="AssignComponents"/> (a path query per node) and
+    /// candidates, the search sweep's waypoint candidates, and the sensed trail — and would have
+    /// multiplied the cost of <see cref="AssignComponents"/> (a path query per node) and
     /// <see cref="FindDensestUnassigned"/> (N squared) by however many satellites each waypoint
     /// got. One authored waypoint still means one node everywhere; it just means a small area when
     /// it comes to walking it.
@@ -202,55 +204,6 @@ public sealed class NemesisRouteGraph
         if (best >= 0) lastSensedAt[best] = Time.time;
     }
 
-    /// <summary>
-    /// The direction the player was last observed travelling, taken from the two most recently
-    /// stamped waypoints.
-    ///
-    /// Preferred over <see cref="FieldOfView.LastKnownVelocity"/> for deciding where to cut
-    /// someone off, and the difference is the timescale. That velocity is measured between
-    /// sightings less than half a second apart, so it captures a sidestep as faithfully as a
-    /// commitment — aim a ten-second interception with it and a player who strafed once at the
-    /// moment of the last glimpse sends the Nemesis down the wrong corridor. Two waypoints are
-    /// metres apart and seconds apart: they describe where someone is actually GOING.
-    /// </summary>
-    /// <param name="maxAge">How old the newer of the two stamps may be. Past this the trail is
-    /// not evidence of anything current.</param>
-    /// <returns>false when fewer than two waypoints were stamped inside the window, or when both
-    /// stamps landed on the same waypoint and there is no direction to read.</returns>
-    public bool TryGetSensedTrail(float maxAge, out Vector3 from, out Vector3 to)
-    {
-        from = to = Vector3.zero;
-
-        int newest = -1, previous = -1;
-        float newestTime = float.NegativeInfinity, previousTime = float.NegativeInfinity;
-        float cutoff = Time.time - maxAge;
-
-        for (int i = 0; i < nodes.Count; i++)
-        {
-            float stamp = lastSensedAt[i];
-            if (stamp < cutoff) continue;
-
-            if (stamp > newestTime)
-            {
-                previous = newest;         previousTime = newestTime;
-                newest = i;                newestTime = stamp;
-            }
-            else if (stamp > previousTime)
-            {
-                previous = i;              previousTime = stamp;
-            }
-        }
-
-        if (newest < 0 || previous < 0) return false;
-
-        from = nodes[previous].Position;
-        to = nodes[newest].Position;
-
-        // Two waypoints on top of each other give a zero vector, which LookRotation and
-        // normalisation both handle badly. Report "no usable trail" instead.
-        return Vector3.SqrMagnitude(to - from) > 0.01f;
-    }
-
     /// <summary>Seconds since this node was last stamped by a detection, or infinity if it never
     /// has been (or the index does not exist). Read by NemesisGizmos to draw the trail the
     /// pursuit is steering away from.</summary>
@@ -264,10 +217,9 @@ public sealed class NemesisRouteGraph
     /// seconds — that is, on the route the player was sensed taking.
     ///
     /// The question <see cref="NemesisPursuit"/> asks of each detour candidate when a chase has
-    /// stalled. <see cref="TryGetSensedTrail"/> is not enough for it: that answers with the two
-    /// newest stamps because a HEADING needs no more, while "which side did they come round" is
-    /// the whole recent trail — around a column, the lap they just ran is several waypoints, not
-    /// two.
+    /// stalled. It tests the WHOLE recent trail rather than its newest stamp or two, because
+    /// "which side did they come round" is a lap and not a heading: around a column, the lap they
+    /// just ran is several waypoints, not two.
     ///
     /// A FLOOR-PLAN NEIGHBOURHOOD AND A HEIGHT BAND, NOT A PATH QUERY. A path query per stamped
     /// node per candidate would put a NavMesh query inside a double loop for an answer that is
@@ -318,6 +270,11 @@ public sealed class NemesisRouteGraph
     /// Fingerprint of the unlocked set. Compared against the stored one to decide whether a
     /// rebuild is needed: it changes when a route unlocks, when waypoints are added or removed at
     /// runtime, and when the controller's route list changes.
+    ///
+    /// Route WEIGHTS are deliberately not in it. They are not structure — the Director rescales
+    /// them while the game runs — and nothing the build produces depends on them: the zone roll
+    /// reads them live through <see cref="ClusterWeight"/>, which explains why following them with
+    /// rebuilds would be the wrong trade.
     /// </summary>
     public static string Fingerprint(IReadOnlyList<NemesisRoute> routes)
     {
@@ -342,6 +299,14 @@ public sealed class NemesisRouteGraph
 
     public bool NeedsRebuild(IReadOnlyList<NemesisRoute> routes) =>
         Fingerprint(routes) != fingerprint;
+
+    /// <summary>
+    /// Goes up every time the graph is actually rebuilt (not on a call the fingerprint turned
+    /// away). Node and cluster INDICES only mean something within one version: anything that keeps
+    /// them across calls — NemesisClusterPatrol's current tour and its recency list — has to be
+    /// reset when this moves, or it points at whatever lands in those slots.
+    /// </summary>
+    public int BuildVersion { get; private set; }
 
     /// <summary>
     /// Rebuilds the merged set and its clusters. Cheap to over-call: it does nothing when the
@@ -369,6 +334,7 @@ public sealed class NemesisRouteGraph
         if (!force && next == fingerprint) return;
 
         fingerprint = next;
+        BuildVersion++;
         nodes.Clear();
         componentOf.Clear();
         representatives.Clear();
@@ -393,9 +359,10 @@ public sealed class NemesisRouteGraph
         BuildClusters(clusterRadius, maxClusterSize);
 
         // AFTER BuildClusters, and the order is a guarantee rather than a convenience: the
-        // centroid and the weight are computed from member nodes in the loop above, so generating
-        // the satellites here makes it structurally impossible for them to shift the zone the
-        // director bias aims at. See the satellites field.
+        // centroid is computed from member nodes in the loop above, so generating the satellites
+        // here makes it structurally impossible for them to shift the zone the director bias aims
+        // at. The weight is read from those same members at roll time (ClusterWeight), and a
+        // satellite is never a member. See the satellites field.
         BuildSatellites(satellitesPerWaypoint, satelliteRadius);
     }
 
@@ -608,7 +575,6 @@ public sealed class NemesisRouteGraph
             int clusterIndex = clusters.Count;
 
             Vector3 sum = nodes[seed].Position;
-            float weightSum = RouteWeightOf(seed);
 
             clusterMembers.Add(seed);
             clusterOf[seed] = clusterIndex;
@@ -623,19 +589,15 @@ public sealed class NemesisRouteGraph
                 clusterMembers.Add(next);
                 clusterOf[next] = clusterIndex;
                 sum += nodes[next].Position;
-                weightSum += RouteWeightOf(next);
                 assigned++;
             }
 
             int count = clusterMembers.Count - first;
-            clusters.Add(new Cluster(first, count, sum / count, component, weightSum / count));
+            clusters.Add(new Cluster(first, count, sum / count, component));
         }
 
         WarnIfClusteringIsPointless(radius);
     }
-
-    private float RouteWeightOf(int nodeIndex) =>
-        nodes[nodeIndex].Route != null ? Mathf.Max(0f, nodes[nodeIndex].Route.Weight) : 0f;
 
     private int FindFirstUnassigned()
     {
@@ -725,6 +687,53 @@ public sealed class NemesisRouteGraph
     }
 
     public Cluster GetCluster(int index) => clusters[index];
+
+    /// <summary>
+    /// How many tickets a cúmulo gets in the zone roll: the average of its members' route
+    /// weights, read NOW, each one clamped at 0 the way every other roll reads a route weight.
+    ///
+    /// LIVE, AND NEVER STORED ON THE <see cref="Cluster"/>. <see cref="NemesisRoute.Weight"/> is
+    /// not a property of the level: it is the authored weight times whatever the Director is doing
+    /// to that route right now (its route-weight lever, NemesisDirector.ApplyRouteWeights →
+    /// <see cref="NemesisRoute.SetPressureMultiplier"/>), and it moves at the start and end of
+    /// every pressure request. This mean used to be computed once, while building the clusters,
+    /// and since a build only re-runs when the unlocked set changes (<see cref="Fingerprint"/>
+    /// carries no weights), the zone roll went on reading the numbers from the last unlock:
+    /// every boost and every retreat silently did nothing to the cluster patrol, and pressure
+    /// reached it through the zone anchor alone. The per-waypoint roll
+    /// (NemesisController.PickWeightedNode) always read the route weight at pick time; reading it
+    /// here the same way is also what keeps "clusters on" and "clusters off" from answering the
+    /// Director differently.
+    ///
+    /// READ, NOT REBUILT. Putting the weights in the fingerprint would have fixed it too, at the
+    /// price of a full rebuild — a path query per waypoint, re-rolled sweep points, a dropped
+    /// sensed trail — every time a request starts or ends, to recompute a number the graph's
+    /// structure does not depend on. A cluster holds at most MaxClusterSize members and the roll
+    /// weighs a handful of candidates, so reading the weights at pick time costs a few dozen
+    /// property reads.
+    /// </summary>
+    /// <returns>0 for an index that does not exist: no tickets, rather than an exception.</returns>
+    public float ClusterWeight(int clusterIndex)
+    {
+        if (clusterIndex < 0 || clusterIndex >= clusters.Count) return 0f;
+
+        Cluster cluster = clusters[clusterIndex];
+        if (cluster.MemberCount <= 0) return 0f;
+
+        float sum = 0f;
+        for (int i = 0; i < cluster.MemberCount; i++)
+        {
+            sum += RouteWeightOf(clusterMembers[cluster.FirstMember + i]);
+        }
+
+        return sum / cluster.MemberCount;
+    }
+
+    /// <summary>One node's route weight as the rolls see it right now. Clamped per member, so a
+    /// route mistyped below zero counts as switched off instead of eating its neighbours' tickets
+    /// in the average.</summary>
+    private float RouteWeightOf(int nodeIndex) =>
+        nodes[nodeIndex].Route != null ? Mathf.Max(0f, nodes[nodeIndex].Route.Weight) : 0f;
 
     /// <summary>The cluster a node belongs to, or -1 when the index does not exist.</summary>
     public int ClusterOf(int nodeIndex) =>

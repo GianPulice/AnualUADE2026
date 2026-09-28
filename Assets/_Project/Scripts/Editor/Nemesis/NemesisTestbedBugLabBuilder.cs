@@ -63,7 +63,7 @@ using Object = UnityEngine.Object;
 /// and modifier volumes into the testbed's NavMesh, on top of it, at the same coordinates. So the
 /// sources are collected root by root from this scene only, with the surface's own settings, and
 /// built synchronously — which also means the scene is only saved once the NavMesh it references
-/// exists.
+/// exists. The bake itself lives in TestbedNavMeshBake, shared with the Drop Lab.
 ///
 /// THE TESTBED DOES NOT BAKE DEFAULT (its surface is Ground | Wall | Props, on purpose: the ceiling
 /// and the "broken" SafeVolume rely on it), while Zona1 bakes Default too. So the pieces that are
@@ -1049,144 +1049,11 @@ public static class NemesisTestbedBugLabBuilder
             return allBaked;
         }
 
-        /// <summary>
-        /// NavMeshSurface's own build, collected from THIS scene's roots only. Same settings, same
-        /// markups, same agent/obstacle filtering, same modifier volumes and the same bounds rule
-        /// as the package — the one difference is that other loaded scenes are not part of it.
-        /// </summary>
-        private NavMeshData BakeThisSceneOnly(NavMeshSurface surface)
-        {
-            int mask = surface.layerMask.value;
-            int agentType = surface.agentTypeID;
+        /// <summary>Shared with the Drop Lab: see <see cref="TestbedNavMeshBake"/> for why this is
+        /// not the Bake button.</summary>
+        private NavMeshData BakeThisSceneOnly(NavMeshSurface surface) => TestbedNavMeshBake.BakeSceneOnly(scene, surface, log);
 
-            // No public getter in this version of the package.
-            SerializedProperty linksProperty = new SerializedObject(surface).FindProperty("m_GenerateLinks");
-            bool generateLinks = linksProperty != null && linksProperty.boolValue;
-
-            var markups = new List<NavMeshBuildMarkup>();
-            foreach (NavMeshModifier modifier in NavMeshModifier.activeModifiers)
-            {
-                if (modifier == null || modifier.gameObject.scene != scene) continue;
-                if ((mask & (1 << modifier.gameObject.layer)) == 0 || !modifier.AffectsAgentType(agentType)) continue;
-
-                markups.Add(new NavMeshBuildMarkup
-                {
-                    root = modifier.transform,
-                    overrideArea = modifier.overrideArea,
-                    area = modifier.area,
-                    ignoreFromBuild = modifier.ignoreFromBuild,
-                    applyToChildren = modifier.applyToChildren,
-                    overrideGenerateLinks = modifier.overrideGenerateLinks,
-                    generateLinks = modifier.generateLinks,
-                });
-            }
-
-            var sources = new List<NavMeshBuildSource>();
-            var fromRoot = new List<NavMeshBuildSource>();
-            foreach (GameObject rootObject in scene.GetRootGameObjects())
-            {
-                if (!rootObject.activeInHierarchy) continue;
-
-                // Clears its results list on every call, hence one list per root.
-                UnityEditor.AI.NavMeshEditorHelpers.CollectSourcesInStage(
-                    rootObject.transform, mask, surface.useGeometry, surface.defaultArea, generateLinks,
-                    markups, false, scene, fromRoot);
-                sources.AddRange(fromRoot);
-            }
-
-            if (surface.ignoreNavMeshAgent)
-                sources.RemoveAll(source => source.component != null && source.component.GetComponent<NavMeshAgent>() != null);
-            if (surface.ignoreNavMeshObstacle)
-                sources.RemoveAll(source => source.component != null && source.component.GetComponent<NavMeshObstacle>() != null);
-
-            // After the filters, like the package: a volume on a GameObject that also carries an
-            // obstacle still counts. That is precisely what protects Zona1's obstacle pillars.
-            int volumes = 0;
-            foreach (NavMeshModifierVolume volume in NavMeshModifierVolume.activeModifiers)
-            {
-                if (volume == null || volume.gameObject.scene != scene) continue;
-                if ((mask & (1 << volume.gameObject.layer)) == 0 || !volume.AffectsAgentType(agentType)) continue;
-
-                Vector3 scale = volume.transform.lossyScale;
-                sources.Add(new NavMeshBuildSource
-                {
-                    shape = NavMeshBuildSourceShape.ModifierBox,
-                    transform = Matrix4x4.TRS(volume.transform.TransformPoint(volume.center), volume.transform.rotation, Vector3.one),
-                    size = new Vector3(volume.size.x * Mathf.Abs(scale.x), volume.size.y * Mathf.Abs(scale.y),
-                                       volume.size.z * Mathf.Abs(scale.z)),
-                    area = volume.area,
-                });
-                volumes++;
-            }
-
-            Bounds bounds = SourceBounds(surface, sources);
-            NavMeshData data = UnityEngine.AI.NavMeshBuilder.BuildNavMeshData(
-                surface.GetBuildSettings(), sources, bounds, surface.transform.position, surface.transform.rotation);
-
-            log.AppendLine($"Baked {surface.name} from NemesisTestbed alone: {sources.Count} sources " +
-                           $"({volumes} modifier volumes), layers {mask}.");
-            return data;
-        }
-
-        /// <summary>The package's CalculateWorldBounds, which is private: every source in the
-        /// surface's unscaled local space, grown by 0.1 m so coplanar sources are not clipped.</summary>
-        private Bounds SourceBounds(NavMeshSurface surface, List<NavMeshBuildSource> sources)
-        {
-            Matrix4x4 worldToLocal = Matrix4x4.TRS(surface.transform.position, surface.transform.rotation, Vector3.one).inverse;
-            var result = new Bounds();
-            bool warned = false;
-
-            foreach (NavMeshBuildSource source in sources)
-            {
-                switch (source.shape)
-                {
-                    case NavMeshBuildSourceShape.Mesh:
-                        if (source.sourceObject is Mesh mesh)
-                            result.Encapsulate(TransformBounds(worldToLocal * source.transform, mesh.bounds));
-                        break;
-                    case NavMeshBuildSourceShape.Box:
-                    case NavMeshBuildSourceShape.Sphere:
-                    case NavMeshBuildSourceShape.Capsule:
-                    case NavMeshBuildSourceShape.ModifierBox:
-                        result.Encapsulate(TransformBounds(worldToLocal * source.transform, new Bounds(Vector3.zero, source.size)));
-                        break;
-                    default:
-                        // Terrain: the testbed has none, and the package needs the terrain module to size it.
-                        if (!warned) log.AppendLine($"Warning: a {source.shape} source was left out of the bake bounds.");
-                        warned = true;
-                        break;
-                }
-            }
-
-            result.Expand(0.1f);
-            return result;
-        }
-
-        /// <summary>
-        /// What the Bake button does with the result: the old asset — when it is this scene's own,
-        /// in the folder named after it — is deleted and the new data is saved in its place.
-        /// </summary>
-        private void Install(NavMeshSurface surface, NavMeshData data)
-        {
-            string folder = Path.Combine(Path.GetDirectoryName(scene.path) ?? "Assets",
-                                         Path.GetFileNameWithoutExtension(scene.path)).Replace('\\', '/');
-            EnsureFolder(folder);
-
-            NavMeshData old = surface.navMeshData;
-            string oldPath = old != null ? AssetDatabase.GetAssetPath(old) : string.Empty;
-            bool ownsOld = !string.IsNullOrEmpty(oldPath) && oldPath.StartsWith(folder + "/", StringComparison.Ordinal);
-            string path = ownsOld ? oldPath : AssetDatabase.GenerateUniqueAssetPath($"{folder}/NavMesh-{surface.name}.asset");
-
-            surface.RemoveData();
-            var serialized = new SerializedObject(surface);
-            serialized.FindProperty("m_NavMeshData").objectReferenceValue = data;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-            if (surface.isActiveAndEnabled) surface.AddData();
-
-            if (ownsOld) AssetDatabase.DeleteAsset(oldPath);
-            AssetDatabase.CreateAsset(data, path);
-            log.AppendLine($"NavMesh saved to {path}.");
-        }
+        private void Install(NavMeshSurface surface, NavMeshData data) => TestbedNavMeshBake.Install(scene, surface, data, log);
 
         // ── Verification ────────────────────────────────────────────────────
 
@@ -1724,13 +1591,6 @@ public static class NemesisTestbedBugLabBuilder
         EditorUtility.SetDirty(target);
     }
 
-    private static void EnsureFolder(string folder)
-    {
-        if (AssetDatabase.IsValidFolder(folder)) return;
-        string parent = Path.GetDirectoryName(folder)?.Replace('\\', '/');
-        if (!string.IsNullOrEmpty(parent)) EnsureFolder(parent);
-        AssetDatabase.CreateFolder(parent, Path.GetFileName(folder));
-    }
 
     private static int NotWalkableArea()
     {

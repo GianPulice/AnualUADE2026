@@ -47,7 +47,7 @@ MonoBehaviour:
     TagLabel: DOC
     pickupSoundId: sfx_interaction_nota
     shaderTintColor: {r: 0.13171947, g: 0.27175757, b: 0.754717, a: 1}
-    shaderEmissionColor: {r: 0, g: 0.23760088, b: 0.4811321, a: 1}
+    shaderEmissionColor: {r: 0, g: 0.6543069, b: 1, a: 1}
   Special:
     MainColor: {r: 0.54901963, g: 0.3254902, b: 0.09803922, a: 1}
     BackgroundColor: {r: 0.24705882, g: 0.14509805, b: 0.043137256, a: 1}

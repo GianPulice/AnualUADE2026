@@ -12,6 +12,11 @@ using UnityEngine.AI;
 /// (<see cref="SO_NemesisData.InvestigationRetargetDistance"/>) and no more often than
 /// <see cref="SO_NemesisData.InvestigationRetargetInterval"/>.
 ///
+/// WHAT IT WALKS TO (playtest 27/09): what brought it here, in the ladder's order — a glimpse, the
+/// player's own noise, a lead — and, for the player, their LATEST noise even after they have gone
+/// out of earshot, so the walk ends where they were last heard. It used to walk to the loudest noise
+/// of the last sweep whoever made it.
+///
 /// ARRIVING IS NOT FINISHING (DIS-002). The ladder used to let go the moment the agent arrived,
 /// so a noise closer than the stopping distance was investigated for about a second. On arrival the
 /// Nemesis now stops and sweeps its gaze for <see cref="SO_NemesisData.InvestigationDwellTime"/>
@@ -35,6 +40,21 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     private bool hasDestination;
     private float lastRetargetTime;
     private float arrivedAt = -1f;
+
+    /// <summary>What the destination came from. Runtime only.</summary>
+    private enum ESource
+    {
+        None,
+        Player,
+        Lead,
+        Glimpse,
+    }
+
+    private ESource source;
+
+    /// <summary>When the evidence the destination came from was sensed (Time.time), so a newer one
+    /// can be told from the same one heard again.</summary>
+    private float sourceAt = float.NegativeInfinity;
 
     /// <summary>The suspected hiding spot this investigation is walking to or looking at, or null.
     /// </summary>
@@ -72,6 +92,42 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         }
     }
 
+    /// <summary>
+    /// For the ladder's "investigó un ruido tuyo y sigue tibio" (D26): the silence about the player is
+    /// still inside the search's window (as lent by the Director, scaled by how good the evidence
+    /// was), so the investigation turns into a short search instead of back into patrol.
+    ///
+    /// WALKING TO THEIR OWN NOISE, THE SILENCE COUNTS FROM WHEN IT GOT THERE, like the search's
+    /// (NemesisSearchingState.Silence), and it is warm all the way there: the walk is not silence it
+    /// has listened to. It used to be the plain belief age, so a noise far enough away to take five or
+    /// six seconds to reach, plus the four of the look-around, was past the window by the end of it —
+    /// the far noise never turned into a search and the Nemesis went back to patrol (playtest 27/09).
+    ///
+    /// Anything else (a lead, a glimpse, a suspected spot) keeps the plain gate: the belief itself is
+    /// younger than the window. A lead alone never escalates that way (D26) — a decoy found empty says
+    /// nothing about the player — and a glimpse is not evidence the belief keeps.
+    /// </summary>
+    public bool IsWarm
+    {
+        get
+        {
+            NemesisBelief belief = nemesisStateManager.Belief;
+            SO_NemesisData data = nemesisStateManager.NemesisData;
+            if (data == null || belief == null || !belief.HasBelief) return false;
+
+            float window = data.SearchQuietWindow *
+                           SearchCooling.Quality(belief.IsAnchoredBySight, belief.LastEvidenceMuffled,
+                                                 data.SearchQualitySight, data.SearchQualityMuffled);
+
+            if (source != ESource.Player) return belief.Age < window;
+
+            if (arrivedAt < 0f) return true;
+
+            float evidenceAt = Time.time - belief.Age;
+            return Time.time - Mathf.Max(evidenceAt, arrivedAt) < window;
+        }
+    }
+
     public override void EnterState()
     {
         NextState = StateKey;
@@ -79,14 +135,16 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         hasDestination = false;
         arrivedAt = -1f;
         lastRetargetTime = float.NegativeInfinity;
+        source = ESource.None;
+        sourceAt = float.NegativeInfinity;
 
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
                                     nemesisStateManager.NemesisMovement.InvestigationSpeed);
 
-        // A suspected hiding spot first; otherwise aim at what was heard straight away — the sensor
-        // has already sampled it this frame.
+        // A suspected hiding spot first; otherwise aim at what brought it here straight away — the
+        // sensors have already sampled it this frame.
         spotTarget = null;
-        if (!TrackSuspectedSpot()) TryRetarget(force: true);
+        if (!TrackSuspectedSpot()) AimOnEntry();
     }
 
     public override void ExitState()
@@ -112,10 +170,10 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             return;
         }
 
-        // A new noise somewhere else is worth walking to — but only a meaningfully different one,
-        // and not more often than the retarget interval. That is the whole difference between
+        // Something newer somewhere else is worth walking to — but only a meaningfully different
+        // place, and not more often than the retarget interval. That is the whole difference between
         // investigating a sound and following the player by ear.
-        if (spotTarget == null && TryRetarget(force: false))
+        if (spotTarget == null && TryRetarget())
         {
             arrivedAt = -1f;
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
@@ -132,6 +190,16 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             arrivedAt = Time.time;
             nemesisStateManager.NavAgent.velocity = Vector3.zero;
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
+
+            // At a suspected spot, looking means opening it: a player inside is found here, holding
+            // their breath or not (plan §17.6). At a plain noise it is only the look around —
+            // NemesisLookAround scans while IsInspecting — and a player holding their breath in a
+            // spot it does not suspect is not found by it standing nearby (D21).
+            if (spotTarget != null)
+            {
+                NemesisHidingAwareness hiding = nemesisStateManager.HidingAwareness;
+                if (hiding != null) hiding.Open(spotTarget);
+            }
         }
 
         // Looked at the suspected spot for the whole dwell and nothing came of it: nobody is in
@@ -168,6 +236,11 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         hasDestination = true;
         lastRetargetTime = Time.time;
 
+        // A suspected spot is the player glimpsed getting in: a look that comes back empty may still
+        // escalate to a short search (IsWarm).
+        source = ESource.Glimpse;
+        sourceAt = Time.time;
+
         // Right up to the approach point: see NemesisStateManager.SpotCheckStoppingDistance.
         nemesisStateManager.SetStoppingDistance(NemesisStateManager.SpotCheckStoppingDistance);
         nemesisStateManager.NavAgent.destination = destination;
@@ -184,36 +257,126 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     }
 
     /// <summary>
-    /// Points the agent at the last heard position if it is new enough and far enough from the
-    /// current destination. Returns true when it did.
+    /// Aims at whatever brought it here, in the ladder's own order: a glimpse ("vio algo de reojo"),
+    /// the player's noise ("escucha un ruido"), a lead ("oye un señuelo u otro ruido").
+    ///
+    /// It used to aim at the loudest noise of the last sweep whatever the rung (playtest 27/09): a
+    /// Director pulse over the player's footsteps, and — entered on a glimpse — whatever it had last
+    /// heard, however long ago, or nothing at all. That was half of "it contradicts itself".
     /// </summary>
-    private bool TryRetarget(bool force)
+    private void AimOnEntry()
     {
         // Entering during the lift ride: writing a destination to the disabled agent errors.
-        if (!nemesisStateManager.IsAgentReady) return false;
+        if (!nemesisStateManager.IsAgentReady) return;
 
         FieldOfListening ears = nemesisStateManager.FieldOfListening;
-        if (ears == null || !ears.HasLastKnownPosition) return false;
+        NemesisBelief belief = nemesisStateManager.Belief;
 
-        // Only a sound heard NOW moves the destination. Memory of an old one is what it is already
-        // walking to.
-        if (!force && !nemesisStateManager.HasAudioTarget) return false;
+        if (nemesisStateManager.IsSuspicious && belief != null &&
+            belief.TryGetGlimpse(out Vector3 glimpse, out float glimpseAge) && glimpseAge < GlimpseFreshness)
+        {
+            Aim(glimpse, ESource.Glimpse, Time.time - glimpseAge);
+            return;
+        }
+
+        if (ears == null) return;
+
+        if (nemesisStateManager.HearsPlayer && ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise))
+        {
+            Aim(noise.Position, ESource.Player, noise.HeardAt);
+            return;
+        }
+
+        if (nemesisStateManager.HearsLead && ears.TryGetLastLead(out FieldOfListening.HeardNoise lead))
+        {
+            Aim(lead.Position, ESource.Lead, lead.HeardAt);
+            return;
+        }
+
+        // Entered on a rung that asks none of those this frame: whatever it heard last, as before.
+        if (ears.HasLastKnownPosition) Aim(ears.LastKnownPosition, ESource.None, Time.time - ears.TimeSinceLastNoise);
+    }
+
+    /// <summary>How old a glimpse may be and still be where the corner of its eye caught something
+    /// this moment. A few sensor sweeps.</summary>
+    private const float GlimpseFreshness = 0.5f;
+
+    /// <summary>
+    /// Moves the destination when there is something newer worth walking to, somewhere meaningfully
+    /// different, and not more often than the retarget interval. Returns true when it did.
+    ///
+    /// THE PLAYER FIRST, AND THEIR LATEST NOISE, HEARD NOW OR NOT. Only a sound heard this very sweep
+    /// used to move the destination, and the interval swallowed the ones in between: a player running
+    /// out of earshot left the Nemesis walking to where they were a second and a half before their
+    /// last footstep — metres short of the last point, and over a long distance it never got near
+    /// them (playtest 27/09). Now a player noise newer than the one it is walking to always wins once
+    /// the interval allows, so the walk ends where they were last heard.
+    ///
+    /// A lead takes over from the player only once they have gone quiet for an interval: with the
+    /// two sounding together the player's own noise outranks a radio, the same order as the ladder's
+    /// two rungs, and letting "whichever is newer" decide flipped the Nemesis between them every
+    /// interval. Which one deserves the attention when both are current is plan Fase 2B part 4.
+    /// </summary>
+    private bool TryRetarget()
+    {
+        if (!nemesisStateManager.IsAgentReady) return false;
 
         SO_NemesisData data = nemesisStateManager.NemesisData;
         float interval = data != null ? data.InvestigationRetargetInterval : 1.5f;
         float minShift = data != null ? data.InvestigationRetargetDistance : 3f;
 
-        Vector3 heard = ears.LastKnownPosition;
-        if (!force)
+        if (Time.time - lastRetargetTime < interval) return false;
+
+        FieldOfListening ears = nemesisStateManager.FieldOfListening;
+
+        FieldOfListening.HeardNoise noise = default;
+        bool hasPlayerNoise = ears != null && ears.TryGetLastPlayerNoise(out noise);
+
+        // Walking to their noise: any newer one of theirs. Walking to anything else: their noise heard
+        // right now — a footstep outranks a lead or a glimpse, and a memory from before this walk
+        // started is not a reason to change it.
+        bool newerPlayerNoise = hasPlayerNoise &&
+            (source == ESource.Player ? noise.HeardAt > sourceAt : nemesisStateManager.HearsPlayer);
+
+        if (newerPlayerNoise && IsWorthMoving(noise.Position, minShift))
         {
-            if (Time.time - lastRetargetTime < interval) return false;
-            if (hasDestination && Vector3.Distance(heard, destination) < minShift) return false;
+            Aim(noise.Position, ESource.Player, noise.HeardAt);
+            return true;
         }
 
-        destination = heard;
+        bool playerQuiet = !hasPlayerNoise || Time.time - noise.HeardAt >= interval;
+
+        if (ears != null && nemesisStateManager.HearsLead && playerQuiet &&
+            ears.TryGetLastLead(out FieldOfListening.HeardNoise lead) &&
+            lead.HeardAt > sourceAt && IsWorthMoving(lead.Position, minShift))
+        {
+            Aim(lead.Position, ESource.Lead, lead.HeardAt);
+            return true;
+        }
+
+        // A glimpse that moved, while the glimpse is still all it has.
+        NemesisBelief belief = nemesisStateManager.Belief;
+        if ((source == ESource.Glimpse || source == ESource.None) && nemesisStateManager.IsSuspicious &&
+            belief != null && belief.TryGetGlimpse(out Vector3 glimpse, out float glimpseAge) &&
+            glimpseAge < GlimpseFreshness && IsWorthMoving(glimpse, minShift))
+        {
+            Aim(glimpse, ESource.Glimpse, Time.time - glimpseAge);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsWorthMoving(Vector3 point, float minShift) =>
+        !hasDestination || Vector3.Distance(point, destination) >= minShift;
+
+    private void Aim(Vector3 point, ESource from, float sensedAt)
+    {
+        destination = point;
         hasDestination = true;
+        source = from;
+        sourceAt = sensedAt;
         lastRetargetTime = Time.time;
         nemesisStateManager.NavAgent.destination = destination;
-        return true;
     }
 }

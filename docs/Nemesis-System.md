@@ -44,7 +44,7 @@ Si nunca aparece, la consola dice cuál de los tres tests falló para todos los 
 
 Quien decide es `NemesisDecision`, leyendo una **escalera de prioridades** que vive en `SO_NemesisPriorities.asset`. Cada peldaño es "si se cumplen estas condiciones, el estado pedido es X", y se leen en orden hasta que uno da verdadero. El asset es reordenable desde el inspector, así que **cambiar el orden de la escalera no recompila nada**.
 
-Hoy son 19 peldaños, y el asset coincide con la escalera por defecto de `SO_NemesisPriorities.BuildDefaultLadder()`, donde cada uno tiene comentado por qué está en ese lugar (incluidos los de escondites: "sabe en qué escondite está", "está revisando un escondite", "sospecha de un escondite"). El peldaño que ganó en cada frame se ve en F9, fila *regla*.
+Hoy son 21 peldaños, y el asset coincide con la escalera por defecto de `SO_NemesisPriorities.BuildDefaultLadder()`, donde cada uno tiene comentado por qué está en ese lugar (incluidos los de escondites: "sabe en qué escondite está", "está revisando un escondite", "sospecha de un escondite"; y los de pistas, desde el 27/09: "oye un señuelo u otro ruido", "sigue yendo hacia la pista"). El peldaño que ganó en cada frame se ve en F9, fila *regla*.
 
 Los seis estados:
 
@@ -54,7 +54,7 @@ Los seis estados:
 | `Investigating` | Escuchó algo, vio algo de reojo o sospecha de un escondite, y va a ver. Al llegar se queda `investigationDwellTime` (4 s) mirando. | 2.5 |
 | `Chasing` | Te ve. Persecución activa con predicción e intercepción. Si te pierde, corre hasta donde te vio por última vez. | 3.0 |
 | `Searching` | Te perdió pero sabe por dónde andabas. Barre la zona; si sabe en qué escondite estás, va a ese. | 2.75 |
-| `Traversing` | "Para llegar necesito el montacargas". | 3.0 |
+| `Traversing` | "Para llegar necesito el montacargas" (o una bajada, ver *Bajadas entre pisos*). | 3.0 |
 | `Catch` | Te agarró (o te está sacando de un escondite). | — |
 
 `Traversing` existe porque una losa corta la línea de visión durante todo el viaje: sin un estado propio que sostenga la decisión por `ElevatorCommitTime` (12 s), el Nemesis abandonaba el ascensor cada vez. El montacargas se marca con `NemesisElevatorLink` en su raíz estática (el header del script tiene la jerarquía). Uno que es sólo para el jugador, en una escena sin NavMesh, lleva `navMeshNotNeeded`: el link queda apagado y el Nemesis nunca lo usa.
@@ -95,6 +95,8 @@ Estar `Hidden` (escondido) **ya no** salta la vista por completo: según el esco
 
 `FieldOfListening` barre cada 0.1 s, lee el radio real del collider y lo escala por `noiseRangeScale` (2.5), con `listenRange` (15) como tope, antes de atenuar por paredes (`wallOcclusionMultiplier` 0.8) y por pisos (`floorOcclusionMultiplier` 0.75). La distancia se mide **por camino de NavMesh**, no en línea recta. Si oye varias cosas a la vez va hacia la que oye mejor, no hacia la primera que devolvió la física.
 
+**Jugador o pista (desde el 27/09, plan §17).** El oído distingue el ruido del jugador (su emisor: pasos, respiración) de todo lo demás (señuelos, pulsos del Director). Sólo el del jugador mueve la **creencia** sobre dónde está; lo demás es una **pista**: lo hace ir a investigar (peldaños "oye un señuelo u otro ruido" y "sigue yendo hacia la pista"), pero no rejuvenece la creencia ni le cambia el objetivo a una persecución. La creencia junta vista y oído en una posición con un radio: con evidencia que coincide se achica (los sentidos suman), sin evidencia crece a la velocidad del jugador corriendo. Se ve en F9, fila *creencia* (vista u oído, antigüedad, radio y pista activa), y se tunea en `SO_NemesisData` › *Creencia*.
+
 Que los pisos atenúen en vez de cortar es deliberado: es el único canal que tiene el Nemesis hacia el piso de arriba.
 
 Sólo cuentan los **triggers**. Un collider sólido en una capa que el Nemesis escucha es geometría en la capa equivocada (el `Stair_Divider` de Zona1 convertía la escalera en un ruido permanente, WIR-018/020): se ignora y la consola lo nombra una vez. Los señuelos son un segundo canal, aparte de las esferas — ver *Señuelos*.
@@ -103,7 +105,7 @@ Sólo cuentan los **triggers**. Un collider sólido en una capa que el Nemesis e
 
 ### Proximidad extrema
 
-`proximityDetectionRange` = 1.5, en horizontal y con el mismo tope de altura que la captura (`catchMaxVerticalOffset`, 1). A esa distancia te detecta **aunque estés escondido**, y existe para que un escondite pegado al Nemesis no sea un exploit. Respeta paredes (`proximityDetectionRespectsWalls`), pero no la carcasa del escondite en el que estás. Si estás escondido no arranca una persecución: marca ese escondite como conocido y el Nemesis va a sacarte (ver *Escondites*).
+`proximityDetectionRange` = 1.5, en horizontal y con el mismo tope de altura que la captura (`catchMaxVerticalOffset`, 1). A esa distancia te detecta **aunque estés escondido**, y existe para que un escondite pegado al Nemesis no sea un exploit. Respeta paredes (`proximityDetectionRespectsWalls`), pero no la carcasa del escondite en el que estás. Si estás escondido no arranca una persecución: marca ese escondite como conocido y el Nemesis va a sacarte (ver *Escondites*). **Salvo que estés aguantando la respiración** dentro del escondite: ahí la proximidad no te detecta (plan D21).
 
 `proximityRadius` (12) es otra cosa: alimenta la viñeta de proximidad del HUD, no la detección. Se mide por NavMesh (`proximityUsesPathDistance`), para que no se prenda con el Nemesis en otro piso.
 
@@ -113,7 +115,7 @@ Sólo cuentan los **triggers**. Un collider sólido en una capa que el Nemesis e
 
 Código en `Scripts/Hiding/` (`HidingSpot`, `HidingEvents`, `EHidingSpotType`), un solo asset para todos en `ScriptableObjects/Hiding/SO_HidingData.asset`, prefabs en `Prefabs/HidingSpotFather/` (un padre y las variantes Locker, UnderTable y Container). Hoy sólo hay escondites colocados en `Scenes/Dev/TestIñaki.unity`.
 
-**Del lado del jugador.** Entrar tarda `enterDuration` (0.6 s) con el jugador quieto y **completamente visible**: esa ventana es la que le permite al Nemesis "verte entrar". Adentro, `PlayerHiddenState` respira prendiendo el emisor de ruido: radio 0.8 cada 3 s (unos 2 m de alcance). Mantener **F** (`HoldBreath`) corta la respiración; soltarla larga una exhalación de radio 2.5 (unos 6 m), peor que no haber aguantado. El asset limita el aire a `maxHoldSeconds` 6 (el código trae 0 = sin tope) y lo recupera en `breathRecoverySeconds` (5 s). En el container los dos radios van ×0.5. El emisor es el mismo de los estados de movimiento, y al salir se devuelve como estaba.
+**Del lado del jugador.** Entrar tarda `enterDuration` (0.6 s) con el jugador quieto y **completamente visible**: esa ventana es la que le permite al Nemesis "verte entrar". Adentro, `PlayerHiddenState` respira prendiendo el emisor de ruido: radio 0.8 cada 3 s (unos 2 m de alcance). Mantener **F** (`HoldBreath`) corta la respiración; soltarla larga una exhalación de radio 2.0 (unos 5 m), peor que no haber aguantado. El aire dura `maxHoldSeconds` 8 (asset y código) y se recupera en `breathRecoverySeconds` (5 s). **Aguantando, el Nemesis no te detecta ni por proximidad ni por las rendijas**: llega a donde oyó algo, mira a los lados y se va. Si te quedás sin aire con él cerca, la exhalación lo trae de vuelta. Por eso el tope ya no es opcional: sin él, aguantar sería inmunidad. En el container los dos radios van ×0.5. El emisor es el mismo de los estados de movimiento, y al salir se devuelve como estaba.
 
 **Lo que ve el Nemesis de alguien escondido** (`FieldOfView.HiddenViewRange`):
 
@@ -123,7 +125,7 @@ Código en `Scripts/Hiding/` (`HidingSpot`, `HidingEvents`, `EHidingSpotType`), 
 | UnderTable | `viewRange` × `underTableVisionMultiplier` (0.5 → 3.5 m) | La mesa acorta la vista, no ciega |
 | Container | nada | Sellado |
 
-Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. Pasado `awarenessTriggerThreshold` el escondite queda *sospechado* y va a mirar (`Investigating`); con el medidor lleno queda *conocido*.
+Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. Mientras aguantás la respiración, no acumula. Pasado `awarenessTriggerThreshold` el escondite queda *sospechado* y va a mirar (`Investigating`); con el medidor lleno queda *conocido*.
 
 **Lo que sabe** (`NemesisHidingAwareness`, se agrega solo al Nemesis):
 
@@ -132,7 +134,7 @@ Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. P
 - **Se olvida** cuando lo revisa y está vacío, cuando te ve afuera, con una captura o un respawn, y como red de seguridad cuando nada lo confirma por más de `searchTimeOut` (conocido) o `investigationTimeOut` (sospechado).
 - Salir sin que te vea no se le informa: va, encuentra vacío y se olvida. Puede equivocarse; no es omnisciente.
 
-**Cómo te saca.** "sabe en qué escondite está" lo manda a `Searching`, que camina al `ApproachPoint` del escondite. El alcance del agarre se mide contra ese punto, y sólo para un escondite que conoce: pasar por delante de un locker que no sabe ocupado no saca a nadie. Antes de llamar a `OnCaptured()` se queda `hiddenPullOutTime` (0.8 s) parado en la puerta — todavía no hay animación propia, se reproduce la del agarre. No es una ventana para escapar: salís al lado de la puerta, al alcance.
+**Cómo te saca.** "sabe en qué escondite está" lo manda a `Searching`, que camina al `ApproachPoint` del escondite. El alcance del agarre se mide contra ese punto, y sólo para un escondite que conoce: pasar por delante de un locker que no sabe ocupado no saca a nadie. Un escondite que **sospecha o conoce**, en cambio, lo **abre** al llegar (en `Searching` y en `Investigating`): si estás adentro, te saca aunque aguantes la respiración. Antes de llamar a `OnCaptured()` se queda `hiddenPullOutTime` (0.8 s) parado en la puerta — todavía no hay animación propia, se reproduce la del agarre. No es una ventana para escapar: salís al lado de la puerta, al alcance.
 
 **Armado**: el header de `HidingSpot.cs` tiene la jerarquía (`InteriorPose`, `ApproachPoint`, `ExitPose`, cámara interior) y el plan §14.4 dónde va cada pieza. `Tools > Player > Validate Hiding Spots` reporta `SpotId` vacío o repetido y un `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` del interior.
 
@@ -193,11 +195,75 @@ Ojo con la capa del volumen: `NavMeshSurface` filtra los modifier volumes por su
 
 ## Persecución
 
-**Te pierde de vista → va a donde te vio.** Sin la vista no predice ni flanquea: corre al último punto donde te **vio** —no al último ruido: el que corta la línea de visión y sigue corriendo se oye hasta el locker— y recién al llegar pasa a `Searching`. Tope de 10 s (peldaño "va a donde lo vio por última vez"). La búsqueda arranca ahí mismo, parado `searchPauseTime` (1.2 s) mirando alrededor. Si te vio meterte en un cuarto a menos de `roomCommitRange` (12 m de camino), barre ese cuarto (`roomSweepRadius` 8) y durante `sightCommitTime` (6 s) ignora los ruidos de afuera. Qué es "el cuarto" lo decide `NemesisRooms` por el collider del piso: en Zona1, el nombre `<CUARTO>_Floor_<n>`.
+**Te pierde de vista → va a donde te vio.** Sin la vista no predice ni flanquea: corre al último punto donde te **vio** —no al último ruido: el que corta la línea de visión y sigue corriendo se oye hasta el locker— y recién al llegar pasa a `Searching`. Tope de 10 s (peldaño "va a donde lo vio por última vez"). La búsqueda arranca ahí mismo, parado `searchPauseTime` (1.2 s) mirando alrededor, salvo que después te haya oído más allá: entonces va directo ahí.
+
+**Cómo busca (desde el 27/09, plan §18, Fase 2B parte 2).** Barre puntos del NavMesh alrededor de la creencia, no waypoints:
+- **Primero el punto.** Va al punto de la evidencia —donde te vio o te oyó por última vez— y recién después barre alrededor. También cuando te oye en un lugar del disco donde todavía no miró. No con un ruido desde un escondite (D22): ese punto es la puerta del locker. F9: "yendo al último punto".
+- **El disco.** El radio sale de la precisión de la última evidencia: `searchSweepMinRadius` (3 m) para un avistamiento; más ancho para un paso a través de una pared; ×2 (`beliefNoiseHidingSpotFactor`) para una respiración que sale de un escondite. Se le suma `searchSweepEvidenceMargin` (1 m) y el tope es `roomSweepRadius` (8).
+- **Cuando lo cubre**, se abre de a 2.5 m hasta el tope.
+- **Te oye adentro del disco:** corre el centro sin cortar lo que está haciendo.
+- **Te oye afuera:** re-centra el disco ahí, sin olvidar lo que ya barrió.
+- **Los señuelos y el ruido del Director no mueven el barrido.**
+- **Sin creencia** barre `searchSweepRadius` (5 m) alrededor de donde está.
+- **La habitación.** Si te vio entrar a un cuarto, lo barre primero mientras le queden puntos sin mirar. Qué es "el cuarto" lo decide `NemesisRooms` por el collider del piso: en Zona1, el nombre `<CUARTO>_Floor_<n>`.
+
+La intercepción (cortarte el paso en un waypoint) se sacó (D24).
+
+**Cuánto busca (desde el 27/09, plan §18.5 B, Fase 2B parte 3): se enfría, no se vence.** Ya no son 15 s fijos. Sigue buscando mientras:
+- **Mínimo:** lleva menos de `searchMinTime` (6 s). Siempre mira un poco, y queda por debajo del aire que aguantás (8 s).
+- **Silencio:** o, si no, mientras el silencio es menor que `searchQuietWindow` (8 s) × la calidad de esa evidencia: ×1.25 si te vio (`searchQualitySight`) y ×0.75 si te oyó a través de una pared, un piso o un escondite (`searchQualityMuffled`). El silencio cuenta desde tu última evidencia o desde que llegó a ese punto, lo que sea más tarde, y no corre mientras camina hasta ahí (F9: "tibia (sin contar)").
+- **Tope:** nunca más de `searchHardCap` (30 s), aunque te siga oyendo. Al tope, si te oye, va a investigar.
+- **Revisó todo:** termina antes si ya barrió todo lo que alcanza con el disco en su tamaño máximo.
+- **Qué lo renueva:** cada paso o exhalación tuya pone el silencio en cero. Los señuelos y lo que oye desde adentro del Hub, no (C5).
+- **Búsqueda corta (D26):** si investigó un ruido tuyo y no te encontró, pero el silencio (contado desde que llegó al ruido) es menor que la ventana, pasa a una búsqueda corta alrededor de la creencia, con el tope ×0.5 (`searchEscalatedCapScale`). Si lo que investigó era sólo un señuelo, no escala.
+- **El Director** estira o acorta la ventana y el tope según el ritmo (persistencia).
+- `searchTimeOut` sigue existiendo: es cuánto recuerda un escondite conocido.
 
 **Donde no llega, no insiste.** Si tu posición no tiene camino completo (`IsBeliefUnreachable`, WIR-018), ni "lo está viendo" ni "va a donde lo vio" lo sostienen en `Chasing`: no se queda mirándote desde el borde del NavMesh.
 
 **El loop de la mesa.** Corriendo, el jugador (4.5 m/s) siempre le gana al Nemesis (3.0), así que dar vueltas a un obstáculo no termina nunca. `NemesisChaseProgress` mide, por NavMesh, si acorta distancia: si en `chaseProgressWindow` (4 s) no bajó `chaseMinProgress` (1.5 m), la persecución queda estancada (`ChaseStalled`, en F9). Mientras tanto `NemesisPursuit` castiga los waypoints de desvío que están sobre el rastro por donde vino el jugador (×`chaseTrailPenalty` 0.2 dentro de `chaseTrailPenaltyRadius`, 3 m) y acepta desvíos más largos (`chaseStagnantDetourTolerance` 2.5), para que la ruta salga por el otro lado. **Nunca lo hace más rápido.** Si no hay waypoints cerca del obstáculo no hay otro lado que elegir: eso se arregla con waypoints, no con tuning.
+
+---
+
+## Bajadas entre pisos
+
+El Nemesis puede **bajar** de un piso a otro por puntos que elige diseño: un hueco en el piso, una baranda rota, el borde de una pasarela. Es de un solo sentido: para subir sigue usando la escalera o el montacargas. Hay dos en la testbed, en el *Drop Lab* al sur de ENTRADA: una Hop de 2 m y una Hang de 3.6 m, con rampas de vuelta. En Zona1 no hay ninguna. Diseño completo: plan §15.
+
+**Cómo se arma** (el header de `NemesisDropLink` tiene la receta):
+
+```
+Drop_<lugar>        ← NemesisDropLink. Agrega solo el NavMeshLink y los dos hijos. Estático, escala 1.
+|-- TopEdge         ← sobre el NavMesh de arriba, a 0.3–0.5 m del borde
+\-- BottomLanding   ← sobre el NavMesh de abajo, a 0.8–1.5 m de la vertical del borde
+```
+
+- **El link se configura solo en `Awake`** (un solo sentido, área `NemesisDrop`), y lo que se cargue a mano en el `NavMeshLink` se pisa.
+- **El alto decide el tipo:** hasta `floorHeightThreshold` (2.5 m) salta (**Hop**); más alto, se descuelga (**Hang**). Va de 1.5 a 5 m.
+- **Mira hacia donde está el aterrizaje**, así que la rotación de los hijos no importa.
+- **Si el jugador no la tiene que usar**, una baranda en el borde en la capa `Ignore Raycast`. Choca con el jugador, y no la ven ni el horneado, ni los sentidos, ni el chequeo del arco. No en `Props`, que le tapa la vista al Nemesis, ni en `Player`, porque la máscara de objetivos de su vista la tomaría por el jugador.
+- **Desde abajo tiene que haber vuelta**, por escalera o montacargas. *Validate Navigation Setup* revisa esto y lo del plan §15.6.
+
+**Qué hace** (F9, fila `bajada`):
+
+1. Llega al borde caminando y gira hacia el hueco (`dropAlignTurnSpeed`, 360°/s).
+2. **Se asoma y gruñe** (`dropLookTime`, 0.6 s). Es el aviso: desde abajo se lo ve y se lo oye antes de que caiga.
+3. *Hop:* flexiona (`hopTakeoffTime`, 0.35 s) y salta, subiendo `hopApexHeight` (0.3 m) para no rozar el canto. *Hang:* se da vuelta de espaldas al hueco con un golpe de manos (`hangTurnTime`, 0.75 s), se cuelga `hangDepth` (1.9 m) bajo el borde (`hangReleaseTime`, 0.4 s) y se suelta.
+4. Cae en arco: `dropGravity` 12 m/s², y como mínimo `dropMinAirTime` (0.35 s) en el aire.
+5. Aterriza con un impacto y **se queda `dropRecoveryTime` (0.75 s) sin poder agarrar a nadie**. Es la ventana del jugador: no agarra en el aire ni al aterrizar, aunque caiga al lado tuyo.
+
+Mientras sigue en el piso (asomarse, flexionar, darse vuelta), una captura corta la bajada; desde que se tira o se descuelga, nada la corta. Si mientras se asoma **te ve en su mismo piso**, se echa atrás y te persigue arriba (plan D30). Si te ve abajo, por el hueco, se tira igual.
+
+**Cuándo la usa:**
+
+- **Costo según lo que hace** (plan D11). El área `NemesisDrop` cuesta `dropCostWhileHunting` (2) cazando, más barato que el montacargas, y `dropCostWhilePatrolling` (20) patrullando: patrullando sólo la usa si no hay otra ruta.
+- **Cuenta como otro piso**, así que `Traversing` sostiene el camino hasta el borde como con el montacargas.
+- **Al aterrizar suelta ese compromiso** y persigue (plan D29).
+- **Después descansa:** la bajada queda `dropLinkCooldown` (8 s, en `SO_NemesisData`) fuera de las rutas, así no se tira en loop si das vueltas entre pisos.
+
+**Animaciones y sonido provisorios:**
+
+- **El controller no tiene los estados de la bajada:** `Drop Look`, `Hop Takeoff`, `Hang Turn`, `Hang Release`, `Fall Loop` y `Land Heavy`, con los nombres en `SO_NemesisMovement`. Cada fase sin estado se hace igual, sin animación, y la consola avisa una vez.
+- **Sonidos** (`NemesisAudio`, sección *Bajadas*): `voice_chase` como gruñido y `pasos_chase_05` con pitch 0.85 como impacto. El golpe de manos está vacío.
 
 ---
 
@@ -262,6 +328,45 @@ Las zonas son `NemesisPressureZone` (un id y un radio, 12 por defecto). Piden pr
 
 ---
 
+## Hábitos del jugador (Fase 3 del plan)
+
+`PlayerHabitTracker`, en la escena `Data`, cuenta lo que el jugador repite para escaparse y recuerda qué escondites usa. **Por ahora sólo cuenta: nada del juego reacciona todavía** (las contra-jugadas son la Fase 6). Esta etapa se juega con F9 abierto, para calibrar los umbrales con datos y no a ojo.
+
+Es del lado del Director: sabe dónde está el jugador de verdad, pero sólo decide *qué* comportamientos existen, nunca *adónde* va el Nemesis. Sobrevive a la captura y al checkpoint, y se borra con New Game.
+
+**Qué cuenta:**
+
+| Qué | Cuándo |
+|---|---|
+| Escapó escondido (`EscapedWhileHidden`) | Una búsqueda termina sin encontrarlo, a ≤ 8 m por NavMesh de donde está escondido. Cuenta recién cuando la estadía se vuelve escape (ver abajo), una por cacería aguantada. Una cacería dura hasta que el Nemesis vuelve a patrullar: buscar, investigar un suspiro y volver a buscar es una sola. Con el *Hide* de F10 (sin escondite), cuenta en el acto. |
+| Repitió escondite (`SameSpotReused`) | Un escape de un escondite del que ya se había escapado antes. |
+| Persecución estancada (`ChaseStalled`) | Cada ventana de 4 s en la que el Nemesis persigue y no acorta distancia (el loop alrededor de una columna). |
+| Escapó al Hub (`SafeZoneEscape`) | Una persecución termina con el jugador adentro del Hub, sin captura de por medio. |
+
+**Cuándo una escondida es un escape.** Hacen falta tres cosas:
+
+1. Mientras estaba adentro, el Nemesis cazó cerca: investigó, persiguió o buscó a ≤ 8 m por NavMesh, o terminó una búsqueda cerca.
+2. Salió él. Si lo sacaron, si lo tomó una cinemática o si se descargó el nivel, no cuenta.
+3. Pasaron 5 s sin que lo agarraran y sin persecución andando.
+
+Salir justo cuando el Nemesis abre la puerta, o que te vea salir y te agarre en la persecución, es que te agarraron, no un escape. Esconderse "por las dudas" no se castiga.
+
+**Medidor de cada escondite.** Esconderse en uno le suma 1 al entrar y 1 más cuando esa escondida se vuelve escape. Baja 0.1 por minuto. Con 2 el escondite se revisaría primero y con 4 se podría romper. Ojo al calibrar: una sola escapada con el Nemesis cerca ya lo deja en 2, y dos lo dejan en 4.
+
+Los contadores de hábitos, en cambio, aguantan 5 minutos sin bajar y después bajan 0.1 por minuto. Así, apenas un contador llega a su umbral, el desbloqueo no se vuelve a cerrar solo.
+
+**Qué desbloquearía** (`SO_CounterplayRules`, en `ScriptableObjects/Nemesis/`): 3 escapes escondido → emboscada a la salida; 1 persecución estancada → flanqueo desde el arranque; 2 estancadas o 2 escapes al Hub → defensa de salidas. Cada una arranca con 35 % de chance, suma 10 % por uso extra y nunca pasa de 85 %.
+
+**Dónde se ve:**
+
+- F9: filas `hábitos` (los cuatro contadores), `desbloquea` (qué se desbloquearía —`emboscada`, `flanqueo`, `defensa`— con qué chance, y hace cuánto fue el último registro) y `escondites` (los más usados con su medidor; `adentro, cazado` si salir ahora dejaría un escape por confirmar, `N búsq.` con las cacerías que ya aguantó adentro, y `escape pendiente` durante los 5 s de confirmación).
+- F10, sección HABITS: *Log ledger* vuelca todo a la consola y *Clear habits* lo borra sin New Game.
+- La consola escribe una línea por cada escondida y por cada registro. Se apaga con `logRegistrations` en el SO.
+
+**Para que cuente bien, cada escondite necesita un `SpotId` único.** Sin id, se lo recuerda por el nombre del GameObject (con un warning), y dos escondites con el mismo nombre se mezclan. `Tools > Player > Validate Hiding Spots` los lista.
+
+---
+
 ## Audio
 
 Tres caminos independientes al mixer. **Ninguno de los tres es intercambiable con los otros** — la regla es: *loops continuos que comunican estado* van por `NemesisAudio`; *one-shots posicionales* van por el pool del `AudioManager`; *señales de score* van por el bus Music.
@@ -273,6 +378,7 @@ Tres caminos independientes al mixer. **Ninguno de los tres es intercambiable co
 | Voz por estado | `NemesisAudio` | Nemesis | **Falta enganchar** |
 | Música de persecución | `NemesisChaseMusic`, objeto suelto en la escena | **Music** | Funciona |
 | Puertas que abre | `DoorInteractable.AnimateOpen/Close` | SFX | Funciona |
+| Bajadas: gruñido, golpe de manos, impacto | `NemesisAudio.PlayDropCue`, uno por fase | Nemesis | Clips provisorios (ver *Bajadas entre pisos*) |
 | Stinger de captura | — | — | **No existe** |
 | Cue de activación | El escape, cuando arranca a correr (`SO_EscapeSequenceConfig.revealSoundId`) | Nemesis | **Falta el clip** |
 
@@ -292,7 +398,9 @@ El Nemesis usa el mismo `FootstepEmitter` que el jugador, con `bus = Nemesis` y 
 
 Se agrega solo a cualquier Nemesis que no lo tenga, pero el contenido —el array `stateLoops`, una entrada por estado con clip y volumen— se autora en el prefab. Un estado sin entrada hace crossfade a silencio; si el array está vacío avisa una vez por consola al arrancar.
 
-Hoy el prefab tiene respiración: `breathing_patrol` en `Patrolling`, `breathing_search` en `Investigating` y `Searching`, `breathing_chase` en `Chasing` y `Catch`; `Traversing` no tiene entrada. Las voces (`voice_chase`, `voice_lost_01/02`, en `Audio/SFX/Nemesis/`) no las reproduce nada: los dos `SO_sfx_nemesis_voice_lost_*` están registrados en el `AudioManager` pero ningún código los pide.
+Hoy el prefab tiene respiración: `breathing_patrol` en `Patrolling`, `breathing_search` en `Investigating` y `Searching`, `breathing_chase` en `Chasing` y `Catch`; `Traversing` no tiene entrada. De las voces (`voice_chase`, `voice_lost_01/02`, en `Audio/SFX/Nemesis/`), sólo `voice_chase` suena, y únicamente como gruñido de las bajadas. Los dos `SO_sfx_nemesis_voice_lost_*` están registrados en el `AudioManager` pero ningún código los pide.
+
+También tiene los one-shots de las bajadas (sección *Bajadas*: gruñidos, golpe de manos, impacto, volumen y pitch del impacto). No son loops: van por el pool del `AudioManager` al bus Nemesis, en 3D y sin oclusión, porque se tienen que oír a través del piso.
 
 Crossfade de 0.4 s entre estados, `spatialBlend` 1 (3D puro), y oclusión que **atenúa, nunca corta** (`occludedVolumeMultiplier`: 0.35 en el código, 0.5 en el prefab): que el monstruo desaparezca del audio apenas se mete detrás de una columna es peor información que que se escuche de más.
 
@@ -318,9 +426,10 @@ En `ScriptableObjects/Nemesis/`:
 | Asset | Qué contiene |
 |---|---|
 | `SO_NemesisData` | Todo lo que no es velocidad: rangos, tiempos, umbrales, sesgos de ruta, cúmulos, captura, persecución estancada, investigación, escondites. |
-| `SO_NemesisMovement` | Velocidades por estado + tuning del `NavMeshAgent` (angular 160, aceleración 14, stopping 1) + el movimiento a mano cuando el agente está apagado (links 2.5, subir y bajar del montacargas 1.5, giro 180). |
+| `SO_NemesisMovement` | Velocidades por estado + tuning del `NavMeshAgent` (angular 160, aceleración 14, stopping 1) + el movimiento a mano cuando el agente está apagado (links 2.5, subir y bajar del montacargas 1.5, giro 180) + las bajadas: costo por estado, tiempo de cada fase, arco y nombres de los estados del Animator (ver *Bajadas entre pisos*). El enfriamiento de cada bajada (`dropLinkCooldown`) está en `SO_NemesisData`. |
 | `SO_NemesisPriorities` | La escalera de prioridades. Reordenable. Incluye `minimumStateDwell` (0.35 s): la histéresis que evita que dos peldaños se lo pasen ida y vuelta cada frame. |
 | `SO_DirectorPacing` | El ritmo del Director (ver *Director y ritmo*). Lo lee `NemesisDirector`, no el Nemesis. |
+| `SO_CounterplayRules` | Qué desbloquean los hábitos y cómo se puntúa cada escondite (ver *Hábitos del jugador*). Lo lee `PlayerHabitTracker`, en la escena `Data`. |
 
 Fuera de esa carpeta pero leídos del lado del Nemesis: `SO_HidingData` (`ScriptableObjects/Hiding/`) y los tres de señuelos (`ScriptableObjects/Decoys/`).
 
@@ -338,17 +447,26 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 | Tecla | Qué abre |
 |---|---|
-| `F9` | HUD de debug (`NemesisDebugHUD`, está en el prefab): estado y la regla que ganó, sospecha, escondite conocido, creencia, distancia recta y por NavMesh, progreso de la persecución (`ChaseStalled`), búsqueda, cúmulo, agente, trabas, ritmo y presión del Director, y "seguro en": segundos desde la última detección hasta volver a patrullar. |
-| `F10` | Consola de test (`NemesisTestConsole`, hoy en la testbed y en `TestIñaki`; en otra escena se agrega a mano al Nemesis): armar situaciones (Nemesis detrás o delante tuyo, vos encima de él, escondido, captura), la sección del Director (un botón por zona, *Release*, *Staged entrance*, pico de tensión, saltar el silencio). |
+| `F9` | HUD de debug (`NemesisDebugHUD`, está en el prefab): estado y la regla que ganó, sospecha, escondite conocido, creencia, distancia recta y por NavMesh, progreso de la persecución (`ChaseStalled`), búsqueda, cúmulo, agente, trabas, bajada (tipo, alto, fase y si puede agarrar; entre bajadas, cuántas están en enfriamiento), ritmo y presión del Director, hábitos (ver *Hábitos del jugador*), y "seguro en": segundos desde la última detección hasta volver a patrullar. |
+| `F10` | Consola de test (`NemesisTestConsole`, hoy en la testbed y en `TestIñaki`; en otra escena se agrega a mano al Nemesis): armar situaciones (Nemesis detrás o delante tuyo, vos encima de él, escondido, captura), la sección del Director (un botón por zona, *Release*, *Staged entrance*, pico de tensión, saltar el silencio) y la de hábitos (*Log ledger*, *Clear habits*). |
 | `1`–`6` / `0` | Con la consola en la escena, aunque esté cerrada: fija el estado que responde la escalera (Patrol, Investig, Chase, Search, Traverse, Catch); `0` o la misma tecla lo suelta. |
 
 **Registro**: `NemesisTraceRecorder` (se agrega solo; editor y development build) escribe un CSV por sesión en `Logs/NemesisTrace/` (en un development build, en `persistentDataPath/NemesisTrace`): regla ganadora, sentidos, estado del camino y velocidad real, cada 0.25 s y en cada cambio de estado. La ruta sale una vez por consola. Se apaga con `record` en el componente.
 
-**Gizmos** (`NemesisGizmos`): se dibujan siempre, no sólo con el Nemesis seleccionado, con un toggle por bloque y un interruptor maestro `drawGizmos` que también apaga las rutas. Conos de visión a escala (normal, agachado, bajo mesa, foco), proximidad, oído, los tres radios de ruido del jugador por paso, alcance de captura, barrido de búsqueda y de cuarto, lo que sabe de escondites, el rastro de la persecución, el punto predicho, el de flanqueo y el de intercepción. En Zona1, el `GizmoManager` de la escena (`Scripts/Managers/GizmoManager.cs`) oculta gizmos por familia; un script nuevo que dibuje gizmos va en su `Families()`, no con un bool propio.
+**Gizmos** (`NemesisGizmos`): se dibujan siempre, no sólo con el Nemesis seleccionado, con un toggle por bloque y un interruptor maestro `drawGizmos` que también apaga las rutas. Conos de visión a escala (normal, agachado, bajo mesa, foco), proximidad, oído, los tres radios de ruido del jugador por paso, alcance de captura, el barrido de la búsqueda (disco, centro, punto al que va y puntos ya barridos), lo que sabe de escondites, el rastro de la persecución, el punto predicho y el de flanqueo. En Zona1, el `GizmoManager` de la escena (`Scripts/Managers/GizmoManager.cs`) oculta gizmos por familia; un script nuevo que dibuje gizmos va en su `Families()`, no con un bool propio.
 
 **Validación de nivel**:
 
-- `Tools > Nemesis > Validate Navigation Setup` reporta geometría que se quedó afuera del bake, máscaras mal puestas, waypoints sin tag o fuera del NavMesh, y modifier volumes que el bake descarta.
+- `Tools > Nemesis > Validate Navigation Setup` reporta geometría que se quedó afuera del bake, máscaras mal puestas, waypoints sin tag o fuera del NavMesh, modifier volumes que el bake descarta, y filas de `SO_CounterplayRules` con umbral 0 o chances fuera de 0..1. En las bajadas revisa:
+  - que las dos puntas estén en el NavMesh;
+  - que el alto esté entre 1.5 y 5 m y que haya avance horizontal;
+  - que haya vuelta desde abajo;
+  - que el arco no atraviese geometría;
+  - que el aterrizaje tenga 1 m libre y quede lejos del Hub;
+  - los links a mano en el área `NemesisDrop`.
+
+  Como nota, avisa *Generate Links* prendido y los estados de animación que faltan.
+- `Tests/EditMode` (Window > General > Test Runner, pestaña EditMode): los tests de la aritmética de los hábitos (`HabitLedgerTests`) y del arco de las bajadas (`DropPathTests`).
 - `Tools > Player > Validate Hiding Spots`, ver *Escondites*.
 
 El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la testbed, Ground + Wall + Props (a propósito).
@@ -361,7 +479,14 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 
 **"Se queda trabado contra una esquina."** Hay un watchdog (`NemesisStuckEscape`) que escala: primero recalcula el camino y le da `stuckRepathGrace` (1.5 s), después lo teletransporta a un waypoint fuera de la vista del jugador, desde el que pueda seguir hacia donde iba y a 3 m o más de donde se trabó. Si pasa seguido en un lugar concreto, es geometría, no IA — corré el validador.
 
-**"Ignora un NavMeshLink que puse."** Si está en el área `Jump` es a propósito: ahí caen los links que genera el bake solo, y el Nemesis no la usa (`NemesisLifecycle` la saca de su `areaMask`; atravesaba columnas por esos links, WIR-028). Un link autorado para él va en otra área.
+**"Ignora un NavMeshLink que puse."** Si está en el área `Jump` es a propósito: ahí caen los links que genera el bake solo, y el Nemesis no la usa (`NemesisLifecycle` la saca de su `areaMask`; atravesaba columnas por esos links, WIR-028). Un link autorado para él va en otra área. Si es una bajada, poné un `NemesisDropLink` en vez de un `NavMeshLink` suelto: sin él, la cruza como un link cualquiera, en línea recta y sin aviso.
+
+**"No usa la bajada."** Mirá, en orden:
+
+1. Si está en enfriamiento: F9, fila `bajada`, `N en enfriamiento`. Dura 8 s después de usarla o de echarse atrás.
+2. Si patrulla: cuesta 20 y prefiere la escalera.
+3. Si las puntas no están sobre el NavMesh: lo dice la consola al arrancar, y el validador.
+4. Si el aterrizaje está justo abajo del borde.
 
 **"La consola dice que un collider SÓLIDO está en una capa que escucha el Nemesis."** Es geometría en la capa de ruido (`DetectableAudio`). Se ignora, pero así también queda afuera del bake y de la máscara de visión: pasala a Wall, Props o Default.
 
@@ -386,6 +511,7 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 | Definir qué es la cinemática de captura del spec §5.6, y la animación de sacar al jugador de un escondite | Diseño |
 | Poner `NemesisDecoyBreaker` en el prefab antes de colocar radios en un nivel (ver *Señuelos*), y los ids de sonido de los tres señuelos | Nivel + audio |
 | Escalada de dificultad del spec §7.2 — diferida a propósito, ver arriba | Diseño + código |
+| Bajadas: las animaciones del plan §15.5 y el setup del Animator, clips propios de golpe de manos e impacto, apagar *Generate Links* y rebakear (D10), y jugarlas en el *Drop Lab* de la testbed (casos 12–16 y 55) | Arte + audio + nivel |
 
 ### Dos `SO_SoundData` esperando clip
 

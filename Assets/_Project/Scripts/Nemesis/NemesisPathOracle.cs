@@ -167,11 +167,12 @@ public class NemesisPathOracle : MonoBehaviour
 
     /// <summary>
     /// Whether the target sits far enough above or below to count as another floor, and getting
-    /// there means the lift.
+    /// there means the lift or a drop (plan §15).
     ///
     /// The two conditions are separate on purpose. A big height difference alone is a mezzanine
-    /// or a crate the agent walks up to. A link alone is a shortcut on the same floor. Together
-    /// they are the case this whole system exists for.
+    /// or a crate the agent walks up to. A link alone is a shortcut on the same floor — or a short
+    /// hop down to a landing, which a chase takes in its stride. Together they are the case this
+    /// whole system exists for.
     /// </summary>
     public bool IsAcrossFloors(in NemesisNav.NavRoute route) =>
         route.CrossesLink && Mathf.Abs(route.VerticalDelta) >= FloorHeightThreshold;

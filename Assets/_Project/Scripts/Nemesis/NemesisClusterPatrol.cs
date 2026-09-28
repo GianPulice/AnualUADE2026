@@ -518,8 +518,9 @@ public sealed class NemesisClusterPatrol
     }
 
     /// <summary>
-    /// Weighted roll among candidate cúmulos: route weight, times the player bias, times the
-    /// "next door" bonus when one applies.
+    /// Weighted roll among candidate cúmulos: their routes' weight as it stands right now — the
+    /// Director's pressure included — times the player bias, times the "next door" bonus when one
+    /// applies.
     ///
     /// It stays a roll and not an argmax for the same reason the per-waypoint pick does: "the zone
     /// you are in gets more tickets" reads as the Nemesis prowling around you, "it always goes
@@ -556,8 +557,14 @@ public sealed class NemesisClusterPatrol
 
         for (int i = 0; i < sampledBuffer.Count; i++)
         {
-            NemesisRouteGraph.Cluster cluster = graph.GetCluster(sampledBuffer[i]);
-            float weight = Mathf.Max(0f, cluster.Weight);
+            int clusterIndex = sampledBuffer[i];
+            NemesisRouteGraph.Cluster cluster = graph.GetCluster(clusterIndex);
+
+            // Read off the routes NOW, never off a copy taken when the graph was built: the
+            // Director's route-weight lever rescales NemesisRoute.Weight while the game runs, and
+            // the frozen copy this replaced left that lever doing nothing to this roll. Already
+            // clamped at 0 per member. See NemesisRouteGraph.ClusterWeight.
+            float weight = graph.ClusterWeight(clusterIndex);
 
             if (weight > 0f && settings.HasBelief && settings.PlayerBiasStrength > 1f)
             {
@@ -583,7 +590,7 @@ public sealed class NemesisClusterPatrol
             // Applied LAST, so it cuts whatever the two biases built up rather than being
             // swamped by them. The neighbour bias in particular pulls hard towards the zone next
             // door — which, right after leaving it, is the zone it just swept.
-            if (weight > 0f && recentClusters.Contains(sampledBuffer[i]))
+            if (weight > 0f && recentClusters.Contains(clusterIndex))
             {
                 weight *= settings.RecencyPenalty;
             }

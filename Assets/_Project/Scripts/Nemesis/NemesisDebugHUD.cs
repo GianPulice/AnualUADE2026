@@ -60,7 +60,6 @@ public class NemesisDebugHUD : MonoBehaviour
     }
 
     private NemesisStateManager stateManager;
-    private NemesisTelemetry telemetry;
     private NemesisChaseProgress chaseProgress;
     private readonly List<Sample> history = new List<Sample>();
 
@@ -92,7 +91,6 @@ public class NemesisDebugHUD : MonoBehaviour
         // NemesisStateManager adds this itself during its own Awake when the prefab is missing it,
         // so by the time any Update runs it exists — but script order between two components on
         // one object is not guaranteed, so this is re-resolved lazily where it is read.
-        telemetry = GetComponent<NemesisTelemetry>();
         chaseProgress = GetComponent<NemesisChaseProgress>();
     }
 
@@ -159,7 +157,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 17f + stripHeight + 32f;
+        float height = lineHeight * 22f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -177,10 +175,16 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
         Row(ref line, "trabas", DescribeStuck());
+        Row(ref line, "bajada", DescribeDrop());
 
         line.y += 6f;
         Row(ref line, "ritmo", DescribePacing());
         Row(ref line, "presión", DescribePressure());
+
+        line.y += 6f;
+        Row(ref line, "hábitos", DescribeHabits());
+        Row(ref line, "  desbloquea", DescribeUnlocks());
+        Row(ref line, "  escondites", DescribeSpotMemory());
 
         line.y += 6f;
         Row(ref line, "seguro en", lastSafeTime >= 0f ? $"{lastSafeTime:0.0} s" : "—");
@@ -330,13 +334,28 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private string DescribeBelief()
     {
-        if (!stateManager.TryGetBelief(out _)) return "nunca lo sintió";
+        NemesisBelief belief = stateManager.Belief;
+        string lead = DescribeLead(belief);
 
-        float age = stateManager.BeliefAge;
+        if (belief == null || !belief.HasBelief) return "nunca lo sintió" + lead;
+
+        string source = belief.IsAnchoredBySight ? "vista" : "oído";
         NemesisController controller = stateManager.NemesisController;
         float freshness = controller != null ? controller.BeliefFreshness() : 0f;
 
-        return $"{age:0.0} s  ·  frescura {freshness:0.00}";
+        return $"{source}  ·  {belief.Age:0.0} s  ·  radio {belief.Radius:0.0} m  ·  " +
+               $"frescura {freshness:0.00}{lead}";
+    }
+
+    /// <summary>The lead it carries besides the player, if a recent one exists (plan §17: a decoy or
+    /// a Director pulse is a lead, not the player).</summary>
+    private static string DescribeLead(NemesisBelief belief)
+    {
+        if (belief == null || !belief.TryGetLead(out _, out float age, out DecoyNoiseSource decoy)) return "";
+        if (age > 10f) return "";
+
+        string what = decoy != null ? decoy.name : "ruido";
+        return $"  ·  pista: {what} ({age:0.0} s)";
     }
 
     /// <summary>
@@ -373,13 +392,13 @@ public class NemesisDebugHUD : MonoBehaviour
     /// against. "Estancado" with 0 penalised means the counterplay had nothing to choose between —
     /// no waypoints near the obstacle — and no tuning will fix that; waypoints will.
     ///
-    /// The ChaseStalled count stays on the row after the chase ends, because it is the number the
-    /// habit thresholds will be calibrated from.
+    /// The ChaseStalled count stays on the row after the chase ends. The one the habit thresholds
+    /// read is PlayerHabitTracker's (the "hábitos" row), which also survives the level.
     /// </summary>
     private string DescribeChaseProgress()
     {
-        // Re-resolved lazily for the same reason as the telemetry: the state manager adds it in its
-        // own Awake, and script order between two components on one object is not guaranteed.
+        // Re-resolved lazily: the state manager adds it in its own Awake, and script order between
+        // two components on one object is not guaranteed.
         if (chaseProgress == null) chaseProgress = GetComponent<NemesisChaseProgress>();
         if (chaseProgress == null) return "—";
 
@@ -423,41 +442,44 @@ public class NemesisDebugHUD : MonoBehaviour
         if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching)
             return "—";
 
-        if (telemetry == null) telemetry = GetComponent<NemesisTelemetry>();
-        if (telemetry == null) return "—";
-
         NemesisSearchingState searching = stateManager.SearchingState;
+        if (searching == null) return "—";
 
-        // The pause outranks everything else on this row: while it is standing still looking
-        // around, "where is it heading" is not the question - it has already got there.
-        if (searching != null && searching.IsPausing) return "<b>mirando alrededor</b>";
+        // How warm it still is first (plan §18.5 B): the silence since the player's last evidence
+        // against the window it tolerates, and the time in the state against the cap. This is the
+        // number that says when it will give up; "se enfrió" means the ladder is about to let go.
+        // Then what it is doing — looking around at a point it reached, or walking to the next —
+        // and the sweep behind it (§18.5 A). The sweep numbers are the ones to check against the
+        // "creencia" row above: the centre follows the belief, and the radius comes from the
+        // precision of its last evidence.
+        //
+        // "al último punto": still walking to where the evidence came from, so the silence does not
+        // count yet (it counts from the arrival — playtest 27/09).
+        string cooling = !searching.IsWarm ? "<b>se enfrió</b>"
+                       : searching.IsHeadingToEvidence ? $"tibia (sin contar)/{searching.QuietWindow:0.#} s"
+                       : $"tibia {searching.Silence:0.0}/{searching.QuietWindow:0.#} s";
+        string cap = $"tope {stateManager.TimeInCurrentState:0}/{searching.Cap:0} s" +
+                     (searching.IsEscalated ? " (corta, D26)" : "");
 
-        // A committed room sweep outranks the intercept line below because the two are mutually
-        // exclusive by construction (see NemesisSearchingState.TryCommitRoomSweep) and this is the
-        // one the designer asked for: it is the row that answers "did it actually go in after me".
-        if (searching != null && searching.IsSweepingRoom)
+        string doing;
+        if (searching.IsPausing) doing = "<b>mirando alrededor</b>";
+        else
         {
-            NemesisFreeRoam roam = searching.FreeRoam;
-            float toAnchor = Vector3.Distance(transform.position, roam.Anchor);
-
-            return $"<b>barriendo habitación</b>  r {roam.Radius:0.#} m  ·  " +
-                   $"centro a {toAnchor:0.0} m  ·  {roam.SweptPoints.Count} puntos";
+            float toTarget = Vector3.Distance(transform.position, searching.SearchTarget);
+            string where = searching.IsHeadingToEvidence ? " al último punto" : "";
+            doing = $"<b>yendo</b>{where} a {toTarget:0.0} m";
         }
 
-        Vector3? intercept = telemetry.SearchInterceptPoint;
-        if (intercept.HasValue)
-        {
-            float interceptDistance = Vector3.Distance(transform.position, intercept.Value);
-            return $"<b>interceptando</b> a {interceptDistance:0.0} m";
-        }
+        if (!searching.IsSweeping) return $"{cooling}  ·  {cap}  ·  {doing}";
 
-        // No cut-off to be had, so it is working the weighted roll. Reporting the target and how
-        // far it is turns "barrido" from a label into something that can be checked against the
-        // last known position: if the two keep diverging, the LKP bias is too low.
-        if (searching == null) return "barrido (sin intercepción)";
+        NemesisFreeRoam roam = searching.FreeRoam;
+        float toAnchor = Vector3.Distance(transform.position, roam.Anchor);
+        string covered = searching.SearchedEverything ? "  ·  <b>revisó todo</b>"
+                       : roam.IsFullySwept ? "  ·  cubierto" : "";
+        string room = roam.Room != null ? $"  ·  {roam.Room}" : "";
 
-        float distance = Vector3.Distance(transform.position, searching.SearchTarget);
-        return $"buscando a {distance:0.0} m (sin intercepción)";
+        return $"{cooling}  ·  {cap}  ·  {doing}  ·  barrido r {roam.Radius:0.#} m, centro a " +
+               $"{toAnchor:0.0} m, {roam.SweptPoints.Count} puntos{covered}{room}";
     }
 
     private string DescribeCluster()
@@ -497,6 +519,43 @@ public class NemesisDebugHUD : MonoBehaviour
         return $"{repaths} recalculo  ·  {warpText}";
     }
 
+    /// <summary>
+    /// The drop between floors in progress (plan §15.4): which kind, how tall, which phase and for
+    /// how long, and whether the grab is off. Between drops, how many are cooling down — the reason
+    /// it takes the stairs down a way it used a moment ago.
+    /// </summary>
+    private string DescribeDrop()
+    {
+        NemesisElevatorUser user = stateManager.ElevatorUser;
+        if (user == null) return "—";
+
+        if (user.CurrentDrop == null)
+        {
+            int cooling = user.SuspendedDropCount;
+            return cooling > 0 ? $"—  ·  {cooling} en enfriamiento" : "—";
+        }
+
+        string grab = user.IsDroppingOrRecovering ? "  ·  <b>no agarra</b>" : "";
+
+        return $"<b>DROP</b> {user.CurrentDropKind} {user.CurrentDropHeight:0.0} m  ·  " +
+               $"fase {DescribeDropPhase(user.CurrentDropPhase)}  ·  {user.DropPhaseTime:0.0} s{grab}";
+    }
+
+    private static string DescribeDropPhase(EDropPhase phase)
+    {
+        switch (phase)
+        {
+            case EDropPhase.Align:       return "Alinear";
+            case EDropPhase.Look:        return "Anticipar";
+            case EDropPhase.HopTakeoff:  return "Despegar";
+            case EDropPhase.HangTurn:    return "Darse vuelta";
+            case EDropPhase.HangRelease: return "Colgarse";
+            case EDropPhase.Fall:        return "En el aire";
+            case EDropPhase.Land:        return "Recuperarse";
+            default:                     return phase.ToString();
+        }
+    }
+
     /// <summary>The Director's pacing (plan §6.4): without it, "why did it leave just now" has no answer.</summary>
     private static string DescribePacing()
     {
@@ -526,15 +585,151 @@ public class NemesisDebugHUD : MonoBehaviour
         return $"<b>{state}</b>{timer}  ·  [{bar}] {tension.Tension:0.00}{quiet}";
     }
 
-    private static string DescribePressure()
+    /// <summary>
+    /// Who is pulling the patrol, and how long a search holds out (plan §18.5 C6).
+    ///
+    /// With no Director pressure the patrol is not unsteered: NemesisController's zone roll leans on
+    /// the player's REAL position (see <see cref="DescribeStalking"/>), which is the most constant
+    /// stalking in the game and used to show here as a bare "—". The search persistence the Director
+    /// lends (lever 5) is appended whenever it is not 1, with the reason — the pacing state, or the
+    /// rising sensitivity — and a pending "vuelve a pasar" shows its countdown.
+    /// </summary>
+    private string DescribePressure()
     {
+        float persistence = NemesisDirector.SearchPersistence;
+        string persistenceText = Mathf.Approximately(persistence, 1f)
+            ? ""
+            : $"  ·  persistencia ×{persistence:0.##} ({NemesisDirector.SearchPersistenceReason})";
+
         string zone = NemesisDirector.ActiveZoneId;
-        if (zone == null) return "—";
+        if (zone == null)
+        {
+            string head = NemesisDirector.Exists ? "sin presión" : "sin Director";
+
+            float revisitIn = NemesisDirector.RevisitTimeRemaining;
+            string revisit = revisitIn >= 0f ? $"  ·  vuelta en {revisitIn:0} s" : "";
+
+            return $"{head}  ·  acecho: {DescribeStalking()}{revisit}{persistenceText}";
+        }
 
         string step = NemesisDirector.RisingStep > 0 ? $" x{NemesisDirector.RisingStep}" : "";
 
         return $"<b>{zone}</b> {NemesisDirector.ActiveIntensity:0.00}  ·  " +
-               $"{NemesisDirector.ActiveSourceLabel}{step}  ·  quedan {NemesisDirector.ActiveTimeRemaining:0} s";
+               $"{NemesisDirector.ActiveSourceLabel}{step}  ·  quedan {NemesisDirector.ActiveTimeRemaining:0} s" +
+               persistenceText;
+    }
+
+    /// <summary>
+    /// Whether the cluster roll is leaning on the player's real position right now. Mirrors the
+    /// fallback of NemesisController.TryGetZoneAnchor (private, and it asks the Director first, which
+    /// the caller already has): SO_NemesisData.ZoneBiasUsesRealPlayer on, a player registered, and
+    /// that player not in the Hub (C5). Plus the one condition around it: the anchor only feeds the
+    /// cluster patrol, so with ClusterPatrolEnabled off nothing reads it.
+    /// </summary>
+    private string DescribeStalking()
+    {
+        SO_NemesisData data = stateManager.NemesisData;
+        if (data == null || !data.ZoneBiasUsesRealPlayer) return "no";
+        if (!data.ClusterPatrolEnabled) return "no (sin cúmulos)";
+
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null) return "no (sin jugador)";
+        if (NemesisSafeZones.Contains(player.position)) return "no (jugador en el Hub)";
+
+        return "<b>jugador</b>";
+    }
+
+    private static readonly ECounterplay[] Counterplays =
+        (ECounterplay[])System.Enum.GetValues(typeof(ECounterplay));
+
+    private readonly List<HabitLedger.SpotReading> spotReadings = new List<HabitLedger.SpotReading>();
+
+    /// <summary>What PlayerHabitTracker has counted (plan Fase 3), drain applied: the numbers the
+    /// thresholds of SO_CounterplayRules get calibrated from.</summary>
+    private static string DescribeHabits()
+    {
+        if (!PlayerHabitTracker.Exists) return "sin tracker (va en la escena Data)";
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+
+        return $"esc {habits.GetExploitCount(EExploitKind.EscapedWhileHidden):0.#}  ·  " +
+               $"repite {habits.GetExploitCount(EExploitKind.SameSpotReused):0.#}  ·  " +
+               $"estanca {habits.GetExploitCount(EExploitKind.ChaseStalled):0.#}  ·  " +
+               $"Hub {habits.GetExploitCount(EExploitKind.SafeZoneEscape):0.#}";
+    }
+
+    /// <summary>What those counts WOULD unlock, and at what chance. Nothing acts on it yet: in
+    /// Fase 3 this is the answer to "how soon would it have started ambushing me".</summary>
+    private static string DescribeUnlocks()
+    {
+        if (!PlayerHabitTracker.Exists) return "—";
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+        string text = "";
+
+        foreach (ECounterplay counterplay in Counterplays)
+        {
+            if (!habits.IsUnlocked(counterplay)) continue;
+
+            if (text.Length > 0) text += "  ·  ";
+            text += $"{ShortName(counterplay)} {habits.CounterplayChance(counterplay):0%}";
+        }
+
+        string last = habits.LastRegistration != null
+            ? $"hace {Time.time - habits.LastRegistrationAt:0} s"
+            : "";
+
+        if (text.Length == 0) return last.Length > 0 ? $"—  ·  {last}" : "—";
+        return last.Length > 0 ? $"{text}  ·  {last}" : text;
+    }
+
+    /// <summary>Short enough that three of them and the time fit on one row of the panel.</summary>
+    private static string ShortName(ECounterplay counterplay)
+    {
+        switch (counterplay)
+        {
+            case ECounterplay.CheckHidingSpots: return "revisar";
+            case ECounterplay.PrioritizeSuspiciousSpots: return "priorizar";
+            case ECounterplay.BurnHidingSpot: return "romper";
+            case ECounterplay.ExitAmbush: return "emboscada";
+            case ECounterplay.ChaseFlank: return "flanqueo";
+            case ECounterplay.ZoneDefense: return "defensa";
+            default: return counterplay.ToString();
+        }
+    }
+
+    /// <summary>The spot memory (plan Fase 2D): the most used spots and their meter; whether getting
+    /// out of the current one would leave an escape to confirm ("cazado"); and, once out, whether
+    /// one is still waiting out its window ("escape pendiente").</summary>
+    private string DescribeSpotMemory()
+    {
+        if (!PlayerHabitTracker.Exists) return "—";
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+        SO_CounterplayRules rules = habits.ActiveRules;
+
+        int survived = habits.StaySearchesSurvived;
+        string text = habits.StaySpotKey != null
+            ? $"adentro{(habits.IsStayHunted ? ", cazado" : "")}{(survived > 0 ? $", {survived} búsq." : "")}"
+            : habits.HasPendingEscape ? "escape pendiente" : "";
+
+        // One spot fewer while inside one, so the row still fits on a single line.
+        int count = habits.CollectSpotReadings(spotReadings);
+        int shown = Mathf.Min(habits.StaySpotKey != null ? 1 : 2, count);
+        for (int i = 0; i < shown; i++)
+        {
+            HabitLedger.SpotReading spot = spotReadings[i];
+
+            // Same "0 = never" reading of a threshold as HabitLedger.
+            string flag = rules.SpotBurnThreshold > 0f && spot.Meter >= rules.SpotBurnThreshold ? " (rompe)"
+                        : rules.SpotPriorityThreshold > 0f && spot.Meter >= rules.SpotPriorityThreshold ? " (primero)"
+                        : "";
+
+            if (text.Length > 0) text += "  ·  ";
+            text += $"{spot.SpotId} {spot.Meter:0.#}{flag}";
+        }
+
+        return text.Length > 0 ? text : "—";
     }
 
     private string DescribeSafeStats()

@@ -8,12 +8,12 @@ using UnityEngine.AI;
 ///
 /// WHAT IT REPLACES
 ///
-/// NemesisSearchingState.PickSearchTarget can only ever return a graph node's position. The free
-/// NavMesh scatter beside it is reachable only when the graph is missing, empty, or holds no
-/// belief — that is, it is an error path, not a movement mode. The consequence is the one the game
-/// designer reported: a room with no waypoint inside it is a room the Nemesis cannot search, no
-/// matter how plainly it just watched you walk into it. It stands in the corridor outside, picks
-/// the nearest corridor waypoint, and leaves.
+/// NemesisSearchingState.PickSearchTarget (removed 27/09) could only ever return a graph node's
+/// position. The free NavMesh scatter beside it was reachable only when the graph was missing,
+/// empty, or held no belief — an error path, not a movement mode. The consequence was the one the
+/// game designer reported: a room with no waypoint inside it was a room the Nemesis could not
+/// search, no matter how plainly it had just watched you walk into it. It stood in the corridor
+/// outside, picked the nearest corridor waypoint, and left.
 ///
 /// This is the other half of the movement dichotomy — see NemesisStateManager.MovementOf. Patrol
 /// is NODE-BOUND: the waypoints are the route, and the designer's authored order is the point of
@@ -42,6 +42,22 @@ using UnityEngine.AI;
 /// Same shape as <see cref="NemesisPursuit"/>, which it sits beside: a plain object constructed
 /// with the state manager and owned by the state that uses it. It needs no Update of its own — the
 /// state ticks it — and nothing about it belongs on a GameObject.
+///
+/// SINCE 27/09 IT IS THE WHOLE SEARCH (plan §18, Fase 2B part 2). It used to be a special case —
+/// "it watched you walk into that room" — beside a search that otherwise rolled over waypoints and
+/// cut the player off at them. Now every search is a sweep of an area around the belief, so:
+///   - NavMesh points come FIRST and waypoints are two extra candidates, not the head of the list.
+///     With eight waypoints inside the disc the old order never sampled the NavMesh at all, which
+///     was one of the ways the Nemesis ended up at "a node nearby" instead of where you went.
+///   - The area can MOVE and GROW without forgetting what it swept (<see cref="Recenter"/>,
+///     <see cref="Follow"/>, <see cref="Widen"/>): a footstep inside the room it is searching
+///     used to recommit the sweep and wipe the memory.
+///   - A point counts as swept when the Nemesis gets THERE (<see cref="MarkSwept"/>), not when it
+///     is picked: a destination abandoned half way was never looked at.
+///   - The anchor itself — the point the evidence came from — is visited first
+///     (<see cref="IsAnchorPending"/>), and the disc around it after.
+///   - It can tell "I have looked everywhere here" (<see cref="IsFullySwept"/>) from "there is
+///     nowhere reachable here" (<see cref="HasCoverage"/> false).
 /// </summary>
 public sealed class NemesisFreeRoam
 {
@@ -82,6 +98,32 @@ public sealed class NemesisFreeRoam
     /// </summary>
     private const float MinTravel = 2f;
 
+    /// <summary>
+    /// Metres of height a candidate may sit above or below the centre and still be on its floor.
+    ///
+    /// Sampling a flat disc and snapping it with SamplePosition cheerfully returns the storey above
+    /// or below where the two overlap (plan §16.2, C2 #3). Loose enough for a ramp or a few steps
+    /// inside a room, well under a storey.
+    ///
+    /// Public because the search asks "is this the same place" with the same band: two definitions
+    /// of "same floor" let evidence 1.5–2.5 m up count as inside a disc whose candidates it filtered
+    /// out.
+    /// </summary>
+    public const float FloorBand = 1.5f;
+
+    /// <summary>
+    /// How many waypoints inside the area join the sampled points as candidates.
+    ///
+    /// A waypoint the designer put in a room is still a considered opinion about where someone would
+    /// be, so it stays in the draw — as one or two tickets among the NavMesh points, never as the
+    /// whole list.
+    /// </summary>
+    private const int WaypointCandidates = 2;
+
+    /// <summary>How much wider the area gets each time it has been fully swept. The sweep's own
+    /// resolution: one step is one more ring of new places to look.</summary>
+    public const float WidenStep = SweptRadius;
+
     // Reused across calls. This runs once per arrival at a sweep point, which is often enough that
     // allocating five lists each time is worth avoiding, and rare enough that the path queries
     // below are affordable. Same pattern as NemesisPursuit's own buffers.
@@ -103,9 +145,26 @@ public sealed class NemesisFreeRoam
     private float radius;
     private bool committed;
     private bool exhausted;
+    private bool fullySwept;
+    private bool anchorPending;
 
     /// <summary>Whether a sweep is currently committed to an area.</summary>
     public bool IsCommitted => committed;
+
+    /// <summary>
+    /// The sweep still owes a visit to the anchor itself — the point the evidence came from — and
+    /// <see cref="TryGetNextPoint"/> will offer it before anything else in the disc.
+    ///
+    /// WHY THE ANCHOR FIRST (playtest 27/09): the pick is a roll over the disc, weighted only a
+    /// little towards the centre and a lot towards "sooner". The Nemesis ended up at the near edge of
+    /// the area, metres short of where it heard or last saw the player, and read as not caring where
+    /// they went — worst over long distances, where the disc is widest and the near edge furthest
+    /// from the point. Walking to the point and then sweeping around it is what a person looking for
+    /// someone does.
+    ///
+    /// Not for a noise from inside a hiding spot (D22): that point is the locker door.
+    /// </summary>
+    public bool IsAnchorPending => committed && anchorPending;
 
     /// <summary>The centre of the committed area — where the Nemesis believes you went. Drawn by
     /// NemesisGizmos: an invisible decision is an untunable one.</summary>
@@ -127,6 +186,17 @@ public sealed class NemesisFreeRoam
     /// </summary>
     public bool HasCoverage => committed && !exhausted;
 
+    /// <summary>
+    /// The last pick found reachable places to look, but every one of them was already swept: the
+    /// area has been covered. Distinct from <see cref="HasCoverage"/> going false, which means there
+    /// was nowhere reachable at all — covering an area and failing to get into it are not the same
+    /// thing, and only the first one is "I looked everywhere here".
+    ///
+    /// Like HasCoverage, it is the answer of the last <see cref="TryGetNextPoint"/>, not a fresh
+    /// query: the candidates are sampled, so this is an estimate that gets better with every pick.
+    /// </summary>
+    public bool IsFullySwept => committed && fullySwept;
+
     public NemesisFreeRoam(NemesisStateManager manager)
     {
         stateManager = manager;
@@ -139,7 +209,7 @@ public sealed class NemesisFreeRoam
     /// anchor is new information, and carrying the old visited set into it would have the Nemesis
     /// skipping parts of a room it has never been in.
     /// </summary>
-    public void Commit(Vector3 sweepAnchor, float sweepRadius) => Commit(sweepAnchor, sweepRadius, null);
+    public void Commit(Vector3 sweepAnchor, float sweepRadius) => Commit(sweepAnchor, sweepRadius, null, false);
 
     /// <summary>
     /// Commits the sweep to an area and to the ROOM the player was seen going into (see
@@ -151,25 +221,127 @@ public sealed class NemesisFreeRoam
     /// corridor outside is exactly as visible as the room. The wall test cannot tell them apart,
     /// and the corridor points competed on equal terms with the room the Nemesis watched you walk
     /// into. Null room: the disc alone, as before.
+    ///
+    /// <paramref name="visitAnchor"/>: go to the anchor itself before sweeping (see
+    /// <see cref="IsAnchorPending"/>).
     /// </summary>
-    public void Commit(Vector3 sweepAnchor, float sweepRadius, string enteredRoom)
+    public void Commit(Vector3 sweepAnchor, float sweepRadius, string enteredRoom, bool visitAnchor)
+    {
+        sweptPoints.Clear();
+        Recenter(sweepAnchor, sweepRadius, enteredRoom, visitAnchor);
+    }
+
+    /// <summary>
+    /// Moves the sweep to a new area WITHOUT forgetting what it has swept: the evidence came from
+    /// somewhere else (plan §17.4, question 4 answered "no"). The swept points are positions, so
+    /// they stay true wherever the area goes — re-walking a corner it looked at ten seconds ago just
+    /// because the player was heard again is the "restarting on every noise" this replaces.
+    /// </summary>
+    public void Recenter(Vector3 sweepAnchor, float sweepRadius, string enteredRoom, bool visitAnchor)
     {
         anchor = sweepAnchor;
         radius = Mathf.Max(1f, sweepRadius);
         room = string.IsNullOrEmpty(enteredRoom) ? null : enteredRoom;
         committed = true;
         exhausted = false;
-        sweptPoints.Clear();
+        fullySwept = false;
+        anchorPending = visitAnchor;
     }
 
-    /// <summary>Drops the commitment. Called on leaving the state, and when the area runs dry.
+    /// <summary>
+    /// Follows fresh evidence inside the area it is already sweeping (question 4 answered "yes"):
+    /// the centre slides to it, nothing it has swept is forgotten and nothing restarts.
+    ///
+    /// The radius only ever GROWS here, to at least <paramref name="radiusAtLeast"/>: evidence less
+    /// precise than the one the disc was sized for — a breath from inside a locker after a footstep
+    /// in the open (D22) — has to widen it, or the search keeps pacing the small disc in front of the
+    /// door. More precise evidence does not shrink it: it is the same place, and a disc that tightens
+    /// on every footstep would drop what it was about to look at.
+    ///
+    /// The room is replaced: the player may have walked out of the one it saw them go into, and a
+    /// room that no longer matches the evidence would keep pulling half the candidates back into it.
+    ///
+    /// The new point is owed a visit unless the sweep has already stood there: heard somewhere it has
+    /// not looked yet, it goes to look. <paramref name="mayVisitAnchor"/> false (a noise from inside a
+    /// hiding spot, D22) cancels any visit instead: the new point is the locker door.
     /// </summary>
+    public void Follow(Vector3 sweepAnchor, float radiusAtLeast, string enteredRoom, bool mayVisitAnchor)
+    {
+        if (!committed) return;
+
+        anchor = sweepAnchor;
+        room = string.IsNullOrEmpty(enteredRoom) ? null : enteredRoom;
+        anchorPending = mayVisitAnchor && !WasSwept(sweepAnchor);
+
+        if (radiusAtLeast > radius)
+        {
+            radius = radiusAtLeast;
+            exhausted = false;
+            fullySwept = false;
+        }
+    }
+
+    /// <summary>
+    /// Opens a covered area one <see cref="WidenStep"/> wider, up to <paramref name="maxRadius"/>.
+    /// Returns false when it is already at the maximum — then the area really has been searched.
+    /// </summary>
+    public bool Widen(float maxRadius)
+    {
+        if (!committed || radius >= maxRadius) return false;
+
+        radius = SearchSweepRules.Widen(radius, WidenStep, maxRadius);
+        exhausted = false;
+        fullySwept = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Records a place the Nemesis actually stood and looked around at. Called on ARRIVAL: marking
+    /// on the pick counted a point it then walked away from as searched.
+    /// </summary>
+    public void MarkSwept(Vector3 point)
+    {
+        if (!committed) return;
+
+        // Standing on the anchor is the visit it owed, whichever pick brought it there.
+        if (anchorPending && Vector3.SqrMagnitude(point - anchor) < SweptRadius * SweptRadius)
+            anchorPending = false;
+
+        if (WasSwept(point)) return;
+        sweptPoints.Add(point);
+    }
+
+    /// <summary>Drops the commitment. Called on leaving the state.</summary>
     public void Release()
     {
         committed = false;
         exhausted = false;
+        fullySwept = false;
+        anchorPending = false;
         room = null;
         sweptPoints.Clear();
+    }
+
+    /// <summary>
+    /// The anchor, when a visit to it is still owed and it can be walked to. Settles the debt without
+    /// a walk when the Nemesis is already standing there (marked swept, as an arrival would) or when
+    /// it cannot get there — then the sweep around it is all there is to do.
+    /// </summary>
+    private bool TryTakeAnchor(Vector3 origin, out Vector3 point)
+    {
+        point = anchor;
+        if (!anchorPending) return false;
+
+        if (Vector3.SqrMagnitude(anchor - origin) < MinTravel * MinTravel)
+        {
+            MarkSwept(anchor);
+            return false;
+        }
+
+        if (NemesisNav.IsReachable(origin, anchor)) return true;
+
+        anchorPending = false;
+        return false;
     }
 
     private string room;
@@ -178,31 +350,24 @@ public sealed class NemesisFreeRoam
     /// For the debug HUD and the gizmos.</summary>
     public string Room => room;
 
-    /// <summary>Whether a position falls inside the committed area, walls included. Used by the
-    /// search to decide whether a noise is confirming the sweep or contradicting it.</summary>
-    public bool Contains(Vector3 point)
-    {
-        if (!committed) return false;
-        if (Vector3.SqrMagnitude(point - anchor) > radius * radius) return false;
-
-        return !IsOutsideSweep(point);
-    }
-
     /// <summary>
     /// The next place to look inside the committed area.
     ///
-    /// WHAT IT MIXES, and the order matters because the first source is the one that makes this
-    /// "supported by the waypoints but not restricted by them" rather than "ignores the waypoints":
+    /// WHAT IT MIXES:
     ///
-    ///   WAYPOINTS INSIDE THE AREA come first. A waypoint the designer placed in this room is a
-    ///   considered opinion about where someone would hide in it, and throwing that away in the
-    ///   name of moving freely would be discarding the level design to prove a point.
+    ///   SAMPLED NAVMESH POINTS come first. They are what lets the sweep go wherever the player
+    ///   could be — a room nobody ever put a waypoint in included — which is the entire reason this
+    ///   class exists.
     ///
-    ///   SAMPLED NAVMESH POINTS fill the rest. They are what lets the sweep enter a room nobody
-    ///   ever put a waypoint in, which is the entire reason this class exists.
+    ///   A COUPLE OF WAYPOINTS INSIDE THE AREA join them. A waypoint the designer placed in this
+    ///   room is a considered opinion about where someone would hide in it, so it stays in the
+    ///   draw. It used to be offered FIRST, filling the list before any sampling: with enough
+    ///   waypoints in the disc the sweep was a waypoint tour (plan §18.1).
     ///
-    /// Both go through the same two filters and the same weighting afterwards, so a waypoint gets
-    /// no special treatment beyond being offered first — it competes on the same terms.
+    /// Both go through the same filters and the same weighting afterwards: a waypoint gets no
+    /// special treatment, it competes on the same terms.
+    ///
+    /// It does NOT mark the pick as swept: the caller does that on arrival (<see cref="MarkSwept"/>).
     ///
     /// A ROLL AND NOT AN ARGMAX, like every other selection in this system: always walking to the
     /// single best-scoring point is indistinguishable from knowing where you are.
@@ -221,10 +386,20 @@ public sealed class NemesisFreeRoam
 
         Vector3 origin = stateManager.transform.position;
 
+        // The point the evidence came from, before any of the disc around it (IsAnchorPending).
+        if (TryTakeAnchor(origin, out point))
+        {
+            exhausted = false;
+            fullySwept = false;
+            return true;
+        }
+
         SO_NemesisData data = Data;
         int sampleCount = data != null ? Mathf.Max(2, data.WaypointBiasSampleCount) : 8;
 
         CollectCandidates(sampleCount);
+
+        fullySwept = false;
 
         if (candidateBuffer.Count == 0)
         {
@@ -240,6 +415,7 @@ public sealed class NemesisFreeRoam
 
         weightBuffer.Clear();
         int kept = 0;
+        int unswept = 0;
 
         for (int i = 0; i < candidateBuffer.Count; i++)
         {
@@ -272,11 +448,11 @@ public sealed class NemesisFreeRoam
             // shared helper measures over the NavMesh so "close" means close to walk to.
             float weight = NemesisClusterPatrol.ProximityWeight(candidate, anchor, 2f, radius);
 
-            // Already looked there. Reduced rather than removed, for the reason
-            // NemesisSearchingState gives about its own swept set: a search that refuses to double
+            // Already looked there. Reduced rather than removed: a search that refuses to double
             // back runs out of places to go, and doubling back is a thing people looking for you
-            // actually do.
+            // actually do. Counted, so the caller can tell a covered area from a fresh one.
             if (WasSwept(candidate)) weight *= sweptPenalty;
+            else unswept++;
 
             // Sooner is better. +1 so a candidate it is standing on does not divide by zero.
             weight /= 1f + ownTime;
@@ -291,6 +467,10 @@ public sealed class NemesisFreeRoam
             return false;
         }
 
+        // Somewhere reachable to go, and all of it already looked at: the area is covered. The pick
+        // still happens (doubling back), but the caller now knows it could widen instead.
+        fullySwept = unswept == 0;
+
         PreferEnteredRoom();
 
         int index = RouletteSelection.Roulette(weightBuffer);
@@ -301,16 +481,18 @@ public sealed class NemesisFreeRoam
         }
 
         point = candidateBuffer[index];
-        sweptPoints.Add(point);
-
         return true;
     }
 
     /// <summary>
-    /// Strict priority for the room the player was seen entering: if any live candidate is in it,
-    /// every candidate outside it is zeroed for this pick. A roll between the two would still send
-    /// the Nemesis out into the corridor a fair share of the time, which is the behaviour the rule
-    /// exists to stop. Once the room has nothing left, this does nothing and the disc takes over.
+    /// Strict priority for the room the player was seen entering: if any live candidate in it is
+    /// still UNSWEPT, every candidate outside it is zeroed for this pick. A roll between the two
+    /// would still send the Nemesis out into the corridor a fair share of the time, which is the
+    /// behaviour the rule exists to stop.
+    ///
+    /// Only unswept ones hold the priority. Counting swept ones too kept the Nemesis pacing a room it
+    /// had finished for as long as any point in it was reachable (plan §18.1); once the room is
+    /// covered, this does nothing and the disc takes over.
     /// </summary>
     private void PreferEnteredRoom()
     {
@@ -319,7 +501,7 @@ public sealed class NemesisFreeRoam
         bool anyInRoom = false;
         for (int i = 0; i < candidateBuffer.Count; i++)
         {
-            if (weightBuffer[i] <= 0f) continue;
+            if (weightBuffer[i] <= 0f || WasSwept(candidateBuffer[i])) continue;
             if (NemesisRooms.TryGetRoom(candidateBuffer[i], out string r) && r == room) { anyInRoom = true; break; }
         }
         if (!anyInRoom) return;
@@ -334,25 +516,26 @@ public sealed class NemesisFreeRoam
     // -- Candidates ----------------------------------------------------------
 
     /// <summary>
-    /// Fills <see cref="candidateBuffer"/> with places inside the area worth considering: the
-    /// waypoints that happen to be in it first, then sampled NavMesh points to make up the number.
+    /// Fills <see cref="candidateBuffer"/> with places inside the area worth considering: sampled
+    /// NavMesh points first, then up to <see cref="WaypointCandidates"/> waypoints that happen to be
+    /// in it.
     /// </summary>
     private void CollectCandidates(int sampleCount)
     {
         candidateBuffer.Clear();
 
-        AddWaypointsInArea(sampleCount);
         AddSampledPoints(sampleCount);
+        AddWaypointsInArea(candidateBuffer.Count + WaypointCandidates);
     }
 
     /// <summary>
-    /// The waypoints the designer put inside this area.
+    /// A few of the waypoints the designer put inside this area, on top of the sampled points.
     ///
     /// Restricted to the Nemesis's own NavMesh island, which is the graph's one real guarantee and
-    /// worth keeping even here — a waypoint four metres away through a floor slab passes the
-    /// radius test and is not in the room.
+    /// worth keeping even here — and to the floor of the area: a waypoint four metres away through a
+    /// floor slab passes the radius test and is not in the room.
     /// </summary>
-    private void AddWaypointsInArea(int sampleCount)
+    private void AddWaypointsInArea(int upTo)
     {
         NemesisController controller = stateManager.NemesisController;
         NemesisRouteGraph graph = controller != null ? controller.RouteGraph : null;
@@ -362,14 +545,13 @@ public sealed class NemesisFreeRoam
 
         graph.CollectNodesInComponent(component, nodeBuffer);
 
-        float sqrRadius = radius * radius;
-
-        for (int i = 0; i < nodeBuffer.Count && candidateBuffer.Count < sampleCount; i++)
+        for (int i = 0; i < nodeBuffer.Count && candidateBuffer.Count < upTo; i++)
         {
             Vector3 position = graph.GetNode(nodeBuffer[i]).Position;
 
-            if (Vector3.SqrMagnitude(position - anchor) > sqrRadius) continue;
+            if (!SearchSweepRules.IsInside(anchor, radius, position, FloorBand)) continue;
             if (IsOutsideSweep(position)) continue;
+            if (IsDuplicate(position)) continue;
 
             candidateBuffer.Add(position);
         }
@@ -407,6 +589,9 @@ public sealed class NemesisFreeRoam
 
                 if (!NavMesh.SamplePosition(raw, out NavMeshHit hit, SweptRadius, NemesisNav.AreaMask))
                     continue;
+
+                // The snap can land on the storey above or below where the two overlap.
+                if (Mathf.Abs(hit.position.y - anchor.y) > FloorBand) continue;
 
                 if (inRoomOnly && (!NemesisRooms.TryGetRoom(hit.position, out string r) || r != room)) continue;
                 if (IsOutsideSweep(hit.position)) continue;

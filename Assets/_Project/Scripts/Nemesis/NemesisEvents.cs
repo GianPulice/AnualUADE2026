@@ -21,6 +21,8 @@ public static class NemesisEvents
         OnStateChanged = null;
         OnCaptureResolved = null;
         OnActivated = null;
+        OnSearchEnded = null;
+        OnChaseStalled = null;
     }
 
     // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
@@ -61,10 +63,37 @@ public static class NemesisEvents
     /// </summary>
     public static event Action OnActivated;
 
+    /// <summary>
+    /// A search is over: the Nemesis left Searching for anything but another storey. The area is
+    /// where it believed the player was as it left — the belief, not the player — and found says
+    /// whether it left for Chasing or Catch.
+    ///
+    /// A search carried to another floor has not ended: Searching → Traversing keeps it open, and it
+    /// is reported once the Nemesis settles into something else. A Nemesis switched off mid-search
+    /// keeps it open too, and reports it when it next leaves Searching (see NemesisTelemetry).
+    ///
+    /// Leaving for Investigating is an end, even when what it goes to investigate is the player's own
+    /// breath: a listener that wants "it gave up" rather than "it stopped searching" has to tell the
+    /// two apart itself — PlayerHabitTracker counts one per hunt, a hunt lasting until Patrolling.
+    ///
+    /// PlayerHabitTracker counts EscapedWhileHidden off it (plan §5.3); the Director's "comes back
+    /// past an empty search" (plan §18) is the other listener it is meant for.
+    /// </summary>
+    public static event Action<Vector3, bool> OnSearchEnded;
+
+    /// <summary>
+    /// A chase window went by without the Nemesis closing the distance (plan C4). Raised by
+    /// NemesisChaseProgress the moment it judges a window, so a long loop raises it once per window.
+    /// Never during the escape: the chase floor clears the measurement.
+    /// </summary>
+    public static event Action OnChaseStalled;
+
     public static void ChaseStarted()                    => OnChaseStarted?.Invoke();
     public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
     public static void CaptureResolved()                 => OnCaptureResolved?.Invoke();
     public static void Activated()                       => OnActivated?.Invoke();
+    public static void SearchEnded(Vector3 area, bool found) => OnSearchEnded?.Invoke(area, found);
+    public static void ChaseStalled()                    => OnChaseStalled?.Invoke();
 }

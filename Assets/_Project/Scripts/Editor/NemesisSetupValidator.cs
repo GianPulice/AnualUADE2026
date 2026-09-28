@@ -26,6 +26,8 @@ using UnityEngine.AI;
 ///     it differently: the camera clipped through floors and the player interacted through walls.
 ///   - That waypoints are tagged and land on the NavMesh.
 ///   - That NemesisDoorUser has a usable door mask.
+///   - The drops between floors (plan §15.6): both ends on the mesh, a height between 1.5 and 5 m,
+///     a way back up, a fall clear of geometry and a landing with room, away from the Hub.
 ///
 /// It checks nothing that depends on Play mode: for what only shows up at runtime (NavMesh
 /// islands, elevator links) the warnings come from NemesisRouteGraph and NemesisElevatorLink.
@@ -66,13 +68,16 @@ public static class NemesisSetupValidator
         problems += ValidateWaypoints(report);
         problems += ValidateDoorUsers(report);
         problems += ValidateDirector(report);
+        problems += ValidateHabitRules(report);
+        problems += ValidateDropLinks(report);
 
         if (problems == 0)
         {
             // The notes (sweep points, zone coverage) are still worth reading when nothing is wrong.
             Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifiers and modifier " +
-                      "volumes, the noise layer, sensors, camera, interaction, waypoints, doors and " +
-                      "the Director are set up correctly." + (report.Length > 0 ? $"\n\n{report}" : ""));
+                      "volumes, the noise layer, sensors, camera, interaction, waypoints, doors, " +
+                      "the Director, the habit rules and the drops are set up correctly." +
+                      (report.Length > 0 ? $"\n\n{report}" : ""));
             return;
         }
 
@@ -136,7 +141,11 @@ public static class NemesisSetupValidator
         // would be the same false positive repeated for a second system.
         // Player: a body, not geometry. Baking the player's capsule into the NavMesh would carve a
         // hole wherever the scene happens to have them standing.
-        int ignored = BuildMask(new[] { "Default", "Interactable", "Player" });
+        // Ignore Raycast: the player-only rails at the edge of a drop (plan §15.6 step 4, D9). They
+        // are meant to be invisible to everything but the player's capsule — the bake, the Nemesis's
+        // senses, the drop's arc check — because the Nemesis drops straight through them. On the
+        // Player layer instead, the Nemesis's target mask would read a rail as the player.
+        int ignored = BuildMask(new[] { "Default", "Interactable", "Player", "Ignore Raycast" });
         int mask = surface.layerMask.value | ignored;
 
         List<string> examples = new List<string>();
@@ -632,6 +641,447 @@ public static class NemesisSetupValidator
 
         ReportCoverage(report, zones);
         return problems;
+    }
+
+    /// <summary>
+    /// Plan §14.4: the rows of SO_CounterplayRules. Checked as assets and not through the scene,
+    /// because the tracker that reads them lives in the Data scene, which is rarely the one open.
+    /// </summary>
+    private static int ValidateHabitRules(StringBuilder report)
+    {
+        int problems = 0;
+        int assets = 0;
+
+        foreach (SO_CounterplayRules rules in FindAllAssets<SO_CounterplayRules>())
+        {
+            assets++;
+            IReadOnlyList<CounterplayRule> rows = rules.Rules;
+
+            for (int i = 0; rows != null && i < rows.Count; i++)
+            {
+                CounterplayRule row = rows[i];
+                if (row == null) continue;
+
+                if (row.Threshold < 1)
+                {
+                    report.AppendLine($"- {rules.name}, row {i} ({row.Kind} -> {row.Unlocks}): threshold " +
+                                      $"{row.Threshold}. It is read as 1: a counterplay unlocked before the " +
+                                      "player has done anything is never what was meant.");
+                    problems++;
+                }
+
+                if (!IsChance(row.ChanceAtUnlock) || !IsChance(row.ChancePerExtraUse))
+                {
+                    report.AppendLine($"- {rules.name}, row {i} ({row.Kind} -> {row.Unlocks}): the chances " +
+                                      $"have to be 0..1 (at unlock {row.ChanceAtUnlock}, per extra use " +
+                                      $"{row.ChancePerExtraUse}).");
+                    problems++;
+                }
+            }
+
+            if (rules.SpotPriorityThreshold > 0f && rules.SpotBurnThreshold > 0f &&
+                rules.SpotBurnThreshold <= rules.SpotPriorityThreshold)
+            {
+                report.AppendLine($"- {rules.name}: Spot Burn Threshold ({rules.SpotBurnThreshold}) is not " +
+                                  $"above Spot Priority Threshold ({rules.SpotPriorityThreshold}): a spot would " +
+                                  "be torn apart before it was ever checked first.");
+                problems++;
+            }
+        }
+
+        if (assets == 0)
+        {
+            report.AppendLine("- Note: there is no SO_CounterplayRules asset, so PlayerHabitTracker runs on " +
+                              "its defaults.");
+        }
+
+        return problems;
+    }
+
+    private static bool IsChance(float value) => value >= 0f && value <= 1f;
+
+    // ── Drops between floors (plan §15.6) ───────────────────────────────────
+
+    /// <summary>How close to the NavMesh each end of a drop has to be (plan §15.6).</summary>
+    private const float DropEndSampleRadius = 0.3f;
+
+    /// <summary>A landing closer than this, in plan, to the Hub manufactures C5 (plan §15.3).
+    /// </summary>
+    private const float DropHubClearance = 3f;
+
+    /// <summary>The least the landing has to be out from below the top: straight down reads as a
+    /// lift, and the arc has no forward travel to fly (plan §15.6 asks for 0.8-1.5 m).</summary>
+    private const float DropMinForwardReach = 0.5f;
+
+    /// <summary>
+    /// Plan §15.6: every NemesisDropLink in the scene, plus the NavMesh settings the drops depend
+    /// on. Measured against the NavMesh and the colliders the scene has loaded, like the waypoint
+    /// checks, so it needs the bake to be current.
+    /// </summary>
+    private static int ValidateDropLinks(StringBuilder report)
+    {
+        int problems = 0;
+
+        ReportGeneratedLinks(report);
+        problems += ValidateHandMadeDropLinks(report);
+
+        NemesisDropLink[] drops = FindAll<NemesisDropLink>();
+        if (drops.Length == 0) return problems;
+
+        if (NavMesh.GetAreaFromName(NemesisDropLink.AreaName) < 0)
+        {
+            report.AppendLine($"- Note: no NavMesh area is named '{NemesisDropLink.AreaName}', so the drops use " +
+                              $"index {NemesisDropLink.FallbackArea} unnamed. It works; naming it in Project " +
+                              "Settings > Navigation > Areas keeps anything else from taking it.");
+        }
+
+        DropTuning tuning = FindDropTuning(out float bodyHeight);
+        int solid = BuildMask(OcclusionLayerNames);
+        int walkable = WalkableAreaMask();
+
+        // The drops go quiet while the way back is measured: a path up them would be nonsense, and
+        // in the editor they are not configured yet (NemesisDropLink does that in Awake), so their
+        // serialised settings could be anything, bidirectional included.
+        List<NavMeshLink> silenced = SilenceDropLinks(drops);
+        Physics.SyncTransforms();
+
+        try
+        {
+            foreach (NemesisDropLink drop in drops) problems += ValidateDrop(report, drop, tuning, bodyHeight, solid, walkable);
+        }
+        finally
+        {
+            foreach (NavMeshLink link in silenced)
+            {
+                if (link != null) link.activated = true;
+            }
+        }
+
+        ReportMissingDropAnimations(report);
+        return problems;
+    }
+
+    private static int ValidateDrop(StringBuilder report, NemesisDropLink drop, DropTuning tuning, float bodyHeight,
+                                    int solid, int walkable)
+    {
+        Transform top = drop.TopEdge;
+        Transform bottom = drop.BottomLanding;
+        string label = $"Drop '{drop.name}'";
+
+        if (top == null || bottom == null)
+        {
+            report.AppendLine($"- {label}: TopEdge or BottomLanding is not assigned. It switches itself off at " +
+                              "runtime and the Nemesis never uses it.");
+            return 1;
+        }
+
+        int problems = 0;
+
+        bool topOnMesh = NavMesh.SamplePosition(top.position, out NavMeshHit topHit, DropEndSampleRadius, walkable);
+        bool bottomOnMesh = NavMesh.SamplePosition(bottom.position, out NavMeshHit bottomHit, DropEndSampleRadius, walkable);
+
+        if (!topOnMesh || !bottomOnMesh)
+        {
+            string which = !topOnMesh && !bottomOnMesh ? "Neither end is" : !topOnMesh ? "TopEdge is not" : "BottomLanding is not";
+            report.AppendLine($"- {label}: {which} on the NavMesh (nothing baked within {DropEndSampleRadius} m). " +
+                              "The link does not register and the drop does not exist.");
+            problems++;
+        }
+
+        float height = drop.Height;
+        if (height < NemesisDropLink.MinHeight || height > NemesisDropLink.MaxHeight)
+        {
+            report.AppendLine($"- {label}: {height:0.00} m tall. A drop goes from {NemesisDropLink.MinHeight} to " +
+                              $"{NemesisDropLink.MaxHeight} m: below that the step covers it, above it no body walks " +
+                              "away from the fall.");
+            problems++;
+        }
+
+        Vector3 forward = bottom.position - top.position;
+        forward.y = 0f;
+
+        if (forward.magnitude < DropMinForwardReach)
+        {
+            report.AppendLine($"- {label}: BottomLanding is {forward.magnitude:0.00} m out from below TopEdge. It needs " +
+                              "forward room (0.8-1.5 m out from the edge): straight down reads as a lift.");
+            problems++;
+        }
+
+        // Only asked when both ends are on the mesh: otherwise it is the problem above, again.
+        if (topOnMesh && bottomOnMesh && !HasWayBackUp(bottomHit.position, topHit.position, walkable))
+        {
+            report.AppendLine($"- {label}: there is no way back up from BottomLanding to TopEdge (stairs or lift). " +
+                              "A one-way drop with no way back splits NemesisRouteGraph's islands, and the Nemesis " +
+                              "can end up trapped downstairs.");
+            problems++;
+        }
+
+        DropPath path = drop.PlanFrom(top.position, bottom.position, tuning, walkable);
+        if (TryFindArcObstruction(path.Arc, tuning.BodyRadius, bodyHeight, solid, out RaycastHit obstruction))
+        {
+            report.AppendLine($"- {label}: the fall ({path.Kind}) passes through '{obstruction.collider.name}' " +
+                              $"({LayerMask.LayerToName(obstruction.collider.gameObject.layer)}) at " +
+                              $"{obstruction.point}. The Nemesis would fly through it.");
+            problems++;
+        }
+
+        problems += ValidateLanding(report, label, bottom.position, solid);
+        return problems;
+    }
+
+    /// <summary>The landing has room, and is not somewhere the Nemesis must not stand.</summary>
+    private static int ValidateLanding(StringBuilder report, string label, Vector3 landing, int solid)
+    {
+        int problems = 0;
+        float radius = NemesisDropLink.LandingClearRadius;
+
+        // From just above the floor to head height, so the floor itself is not a finding.
+        Collider[] inTheWay = Physics.OverlapBox(landing + Vector3.up * 1.05f, new Vector3(radius, 0.95f, radius),
+                                                 Quaternion.identity, solid, QueryTriggerInteraction.Ignore);
+        if (inTheWay.Length > 0)
+        {
+            report.AppendLine($"- {label}: {inTheWay.Length} solid collider(s) within {radius} m of BottomLanding, " +
+                              $"starting with '{inTheWay[0].name}'. It would land inside it.");
+            problems++;
+        }
+
+        if (NemesisSafeZones.Contains(landing) || NemesisSafeZones.DistanceOnSameLevel(landing) < DropHubClearance)
+        {
+            report.AppendLine($"- {label}: BottomLanding is inside the Hub or less than {DropHubClearance} m from it. " +
+                              "A monster landing at the Hub's door manufactures cheese C5.");
+            problems++;
+        }
+        else if (IsInsideNotWalkableVolume(landing))
+        {
+            report.AppendLine($"- {label}: BottomLanding is inside a Not Walkable volume. There is no floor there " +
+                              "for it to land on.");
+            problems++;
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// Whether the bottom of a drop can walk back to its top. Stairs are a plain path; a lift is
+    /// walked to on one floor and from on the other, because in the editor its link is not
+    /// configured either (NemesisElevatorLink does that in Awake) and a plain path cannot see it.
+    /// </summary>
+    private static bool HasWayBackUp(Vector3 bottom, Vector3 top, int walkable)
+    {
+        if (Reaches(bottom, top, walkable)) return true;
+
+        foreach (NemesisElevatorLink lift in FindAll<NemesisElevatorLink>())
+        {
+            if (lift.BottomLanding == null || lift.TopLanding == null) continue;
+
+            Vector3 low = lift.BottomLanding.position;
+            Vector3 high = lift.TopLanding.position;
+
+            if (Reaches(bottom, low, walkable) && Reaches(high, top, walkable)) return true;
+            if (Reaches(bottom, high, walkable) && Reaches(low, top, walkable)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool Reaches(Vector3 from, Vector3 to, int areaMask)
+    {
+        if (!NavMesh.SamplePosition(from, out NavMeshHit a, 1f, areaMask)) return false;
+        if (!NavMesh.SamplePosition(to, out NavMeshHit b, 1f, areaMask)) return false;
+
+        NavMeshPath path = new NavMeshPath();
+        return NavMesh.CalculatePath(a.position, b.position, areaMask, path) &&
+               path.status == NavMeshPathStatus.PathComplete;
+    }
+
+    /// <summary>
+    /// Sweeps the Nemesis's body along the fall. Only the fall: the legs a Hang is walked through by
+    /// hand hug the edge by design (hands on it, body against the wall), and any sweep of them would
+    /// graze the slab every time.
+    ///
+    /// A little slimmer than the body and a little off the ground, so the floor it leaves and the one
+    /// it lands on are not findings, and neither is brushing the wall below the edge it hangs from.
+    /// </summary>
+    private static bool TryFindArcObstruction(DropArc arc, float bodyRadius, float bodyHeight, int solid,
+                                              out RaycastHit hit)
+    {
+        const int Segments = 12;
+        const float Skin = 0.1f;
+
+        float radius = Mathf.Max(0.05f, bodyRadius * 0.8f);
+        Vector3 lower = Vector3.up * (radius + Skin);
+        Vector3 upper = Vector3.up * Mathf.Max(radius + Skin, bodyHeight - radius);
+
+        for (int i = 0; i < Segments; i++)
+        {
+            Vector3 from = arc.PointAt(arc.Duration * i / Segments);
+            Vector3 to = arc.PointAt(arc.Duration * (i + 1) / Segments);
+
+            Vector3 step = to - from;
+            float distance = step.magnitude;
+            if (distance < 0.0001f) continue;
+
+            if (Physics.CapsuleCast(from + lower, from + upper, radius, step / distance, out hit, distance, solid,
+                                    QueryTriggerInteraction.Ignore))
+            {
+                return true;
+            }
+        }
+
+        hit = default;
+        return false;
+    }
+
+    private static bool IsInsideNotWalkableVolume(Vector3 point)
+    {
+        int notWalkable = NavMesh.GetAreaFromName("Not Walkable");
+        if (notWalkable < 0) notWalkable = 1;
+
+        foreach (NavMeshModifierVolume volume in FindAll<NavMeshModifierVolume>())
+        {
+            if (!volume.isActiveAndEnabled || volume.area != notWalkable) continue;
+
+            Vector3 local = volume.transform.InverseTransformPoint(point) - volume.center;
+            Vector3 half = volume.size * 0.5f;
+
+            if (Mathf.Abs(local.x) <= half.x && Mathf.Abs(local.y) <= half.y && Mathf.Abs(local.z) <= half.z)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>D10, as a note: the Nemesis already refuses generated links (they are on "Jump",
+    /// cleared from its mask since WIR-028), but the bake still lays them, and Show Links should
+    /// only show the authored ones.</summary>
+    private static void ReportGeneratedLinks(StringBuilder report)
+    {
+        foreach (NavMeshSurface surface in FindAll<NavMeshSurface>())
+        {
+            // Serialised only: AI Navigation 2.0 has no public property for it.
+            SerializedProperty generateLinks = new SerializedObject(surface).FindProperty("m_GenerateLinks");
+            if (generateLinks == null || !generateLinks.boolValue) continue;
+
+            report.AppendLine($"- Note: NavMeshSurface '{surface.name}' has Generate Links on (plan D10). The " +
+                              "Nemesis already ignores those links, but turn it off and rebake so the only ones " +
+                              "left are the authored lifts and drops. Check first where they were (Show Links): a " +
+                              "spot that needed one becomes a NemesisDropLink or a geometry fix.");
+        }
+    }
+
+    /// <summary>A NavMeshLink on the drops' area with no NemesisDropLink: crossed as a plain link, in
+    /// a straight line, with no tell and no recovery — and both ways, if it was left bidirectional.
+    /// </summary>
+    private static int ValidateHandMadeDropLinks(StringBuilder report)
+    {
+        int problems = 0;
+        int area = NemesisDropLink.Area;
+
+        foreach (NavMeshLink link in FindAll<NavMeshLink>())
+        {
+            if (link.area != area || link.GetComponent<NemesisDropLink>() != null) continue;
+
+            string way = link.bidirectional ? " It is bidirectional, too: the Nemesis would climb UP it." : "";
+            report.AppendLine($"- NavMeshLink '{link.name}' is on the {NemesisDropLink.AreaName} area but has no " +
+                              "NemesisDropLink, so the Nemesis crosses it as a plain link: in a straight line, with " +
+                              $"no warning and no recovery.{way} Add a NemesisDropLink to it.");
+            problems++;
+        }
+
+        return problems;
+    }
+
+    /// <summary>Switches every drop's link off, and returns the ones it switched, to turn back on.
+    /// </summary>
+    private static List<NavMeshLink> SilenceDropLinks(NemesisDropLink[] drops)
+    {
+        List<NavMeshLink> silenced = new List<NavMeshLink>();
+
+        foreach (NemesisDropLink drop in drops)
+        {
+            NavMeshLink link = drop.GetComponent<NavMeshLink>();
+            if (link == null || !link.activated) continue;
+
+            link.activated = false;
+            silenced.Add(link);
+        }
+
+        return silenced;
+    }
+
+    /// <summary>Every area but the generated links' "Jump", which the Nemesis refuses (WIR-028):
+    /// the NavMesh it can actually walk.</summary>
+    private static int WalkableAreaMask()
+    {
+        int jump = NavMesh.GetAreaFromName("Jump");
+        return jump >= 0 ? NavMesh.AllAreas & ~(1 << jump) : NavMesh.AllAreas;
+    }
+
+    /// <summary>The drop's shape with the scene's own Nemesis numbers, when there is one; the
+    /// defaults otherwise. Also the body height, for the sweep.</summary>
+    private static DropTuning FindDropTuning(out float bodyHeight)
+    {
+        bodyHeight = 2f;
+
+        foreach (NemesisStateManager nemesis in FindAll<NemesisStateManager>())
+        {
+            SO_NemesisMovement movement = nemesis.NemesisMovement;
+            SO_NemesisData data = nemesis.NemesisData;
+            if (movement == null || data == null) continue;
+
+            NavMeshAgent agent = nemesis.GetComponent<NavMeshAgent>();
+            float radius = agent != null ? agent.radius : DropTuning.DefaultBodyRadius;
+            if (agent != null) bodyHeight = agent.height;
+
+            return movement.DropTuningFor(data.FloorHeightThreshold, radius);
+        }
+
+        return DropTuning.Default;
+    }
+
+    /// <summary>
+    /// Plan §15.5, as a note and never a failure: without its states a drop plays no animation, and
+    /// works. Listed against the names the scene's Nemesis would ask for.
+    /// </summary>
+    private static void ReportMissingDropAnimations(StringBuilder report)
+    {
+        EDropPhase[] phases =
+        {
+            EDropPhase.Look, EDropPhase.HopTakeoff, EDropPhase.HangTurn,
+            EDropPhase.HangRelease, EDropPhase.Fall, EDropPhase.Land,
+        };
+
+        foreach (NemesisStateManager nemesis in FindAll<NemesisStateManager>())
+        {
+            SO_NemesisMovement movement = nemesis.NemesisMovement;
+            Animator animator = nemesis.GetComponentInChildren<Animator>(true);
+            UnityEditor.Animations.AnimatorController controller = animator != null
+                ? animator.runtimeAnimatorController as UnityEditor.Animations.AnimatorController
+                : null;
+
+            if (movement == null || controller == null || controller.layers.Length == 0) continue;
+
+            HashSet<string> states = new HashSet<string>();
+            CollectStateNames(controller.layers[0].stateMachine, states);
+
+            List<string> missing = new List<string>();
+            foreach (EDropPhase phase in phases)
+            {
+                string state = movement.AnimatorStateFor(phase);
+                if (!string.IsNullOrEmpty(state) && !states.Contains(state) && !missing.Contains(state)) missing.Add(state);
+            }
+
+            if (missing.Count == 0) continue;
+
+            report.AppendLine($"- Note: the Nemesis's Animator ('{controller.name}') has no {string.Join(", ", missing)}. " +
+                              "The drops work without them, with no animation (plan §15.5).");
+        }
+    }
+
+    private static void CollectStateNames(UnityEditor.Animations.AnimatorStateMachine machine, HashSet<string> names)
+    {
+        foreach (UnityEditor.Animations.ChildAnimatorState child in machine.states) names.Add(child.state.name);
+        foreach (UnityEditor.Animations.ChildAnimatorStateMachine sub in machine.stateMachines) CollectStateNames(sub.stateMachine, names);
     }
 
     /// <summary>The C5 guard only knows the Hub through SafeZoneMarker: none means it is off, in silence.</summary>

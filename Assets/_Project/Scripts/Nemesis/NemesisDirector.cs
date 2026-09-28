@@ -37,6 +37,18 @@ using UnityEngine.AI;
 ///      itself would write the boost into the project — in the Editor those writes persist — and a
 ///      designer would find their tuning silently changed by a playtest.
 ///
+/// And a fifth that belongs to the pacing rather than to any pressure (plan §18.5 C1):
+///
+///   5. PERSISTENCE. How much silence a search tolerates before it cools down, and its hard cap —
+///      SO_NemesisData.SearchQuietWindow and SearchHardCap — scaled by the pacing state: Relax gives
+///      up sooner and leaves, which is what makes the retreat visible; rising sensitivity insists.
+///      It never makes the Nemesis ignore what it senses — fresh evidence renews a search exactly as
+///      before — it only moves how long the quiet has to last. Same channel as the senses: the
+///      Searching state reads its SO every frame, and the Director hands it a different one.
+///
+/// Levers 4 and 5 travel in ONE borrowed copy (<see cref="RefreshLoan"/>). Two copies would each be
+/// built from the baseline, and whichever was installed second would silently undo the other.
+///
 /// And one theatrical move that is not a lever but a scene: <see cref="StageEntranceAsync"/>, the
 /// Mr. X entrance. See its own doc for why a teleport can be honest.
 ///
@@ -45,8 +57,10 @@ using UnityEngine.AI;
 /// static, and answers itself when there is no Director in the scene.
 ///
 /// Pacing (plan §6): with an SO_DirectorPacing assigned, <see cref="NemesisTension"/> measures the
-/// encounter and the Director retreats in Relax and ramps pressure after a long silence. No lever may
-/// act within <see cref="NemesisSafeZones.Clearance"/> of the Hub (C5).
+/// encounter and the Director retreats in Relax, ramps pressure after a long silence, lends the search
+/// its persistence, and comes back past a search that ended empty ("vuelve a pasar", plan §18.5 C2).
+/// No lever may act within <see cref="NemesisSafeZones.Clearance"/> of the Hub (C5), and none at all
+/// while the Nemesis is suspended — asleep, in a cinematic, in the escape — puzzle beats included.
 /// </summary>
 public class NemesisDirector : Singleton<NemesisDirector>
 {
@@ -164,6 +178,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
         Scripted,
         RisingSensitivity,
         Retreat,
+
+        /// <summary>"Vuelve a pasar": back past where a search ended empty (plan §18.5 C2).</summary>
+        Revisit,
     }
 
     [Flags]
@@ -177,8 +194,13 @@ public class NemesisDirector : Singleton<NemesisDirector>
         All = Anchor | RouteWeights | Noise | Senses,
     }
 
-    /// <summary>Retreat moves the patrol and nothing else: its senses stay as they are.</summary>
-    private const ELevers RetreatLevers = ELevers.Anchor | ELevers.RouteWeights;
+    /// <summary>Retreat and the revisit move the patrol and nothing else: no noise, and its senses stay
+    /// as they are. A bias on where it walks, never a reason to notice anyone.</summary>
+    private const ELevers PatrolLevers = ELevers.Anchor | ELevers.RouteWeights;
+
+    /// <summary>Seconds a revisit that falls due mid-hunt waits before it asks again. See
+    /// <see cref="TickRevisit"/>.</summary>
+    private const float RevisitRetrySeconds = 10f;
 
     private NemesisPressureZone activeZone;
     private float activeIntensity;
@@ -189,6 +211,11 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private NemesisTension tension;
     private int risingStep;
     private float nextRisingAt;
+
+    // "Vuelve a pasar": one pending at a time, from the LAST search that ended empty.
+    private bool revisitPending;
+    private Vector3 revisitArea;
+    private float revisitDueAt;
 
     private float nextEvaluationAt;
     private float nextNoiseAt;
@@ -203,12 +230,19 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private NemesisRoute[] allRoutes;
     private NemesisStateManager nemesis;
 
-    // The baseline the boost is built from is NOT cached here. It lives on the Nemesis as
+    // The baseline the loan is built from is NOT cached here. It lives on the Nemesis as
     // NemesisStateManager.BaselineData and is read fresh at both ends of the loan — see
-    // ApplySensoryBoost for why holding onto it broke difficulty escalation.
+    // RefreshLoan for why holding onto it broke difficulty escalation.
 
-    /// <summary>The live copy carrying the boost, or null when no boost is installed.</summary>
-    private SO_NemesisData boostedData;
+    /// <summary>The live copy carrying every borrowed number (senses and persistence), or null
+    /// when nothing is lent.</summary>
+    private SO_NemesisData loanedData;
+
+    // What the copy above was built with: 1 and 1 when nothing is lent. The persistence is also
+    // what F9 shows, so it is the number the Searching state is actually reading.
+    private float loanedSenses = 1f;
+    private float loanedPersistence = 1f;
+    private string loanedPersistenceReason;
 
     private void Awake()
     {
@@ -219,14 +253,33 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (tension == null) tension = gameObject.AddComponent<NemesisTension>();
 
         tension.PacingStateChanged += HandlePacingStateChanged;
+        tension.SuspensionChanged += HandleSuspensionChanged;
+
+        // Awake/OnDestroy and not OnEnable/OnDisable (docs/CLAUDE.md): static events outlive the
+        // component's enabled state. The handlers check it themselves.
+        NemesisEvents.OnSearchEnded += HandleSearchEnded;
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
     }
 
     private void OnDestroy()
     {
-        if (tension != null) tension.PacingStateChanged -= HandlePacingStateChanged;
+        if (tension != null)
+        {
+            tension.PacingStateChanged -= HandlePacingStateChanged;
+            tension.SuspensionChanged -= HandleSuspensionChanged;
+        }
+
+        NemesisEvents.OnSearchEnded -= HandleSearchEnded;
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
     }
 
-    private void OnEnable() => PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+    private void OnEnable()
+    {
+        PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+
+        // Back from a disable that returned everything: the rhythm may still want its persistence.
+        RefreshLoan();
+    }
 
     private void OnDisable()
     {
@@ -235,7 +288,11 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // Everything this class does is a temporary edit to somebody else's state. A Director torn
         // down mid-request would otherwise leave boosted route weights and a cloned data asset
         // installed on the Nemesis for the rest of the run, with nothing left alive to undo them.
-        ClearPressure();
+        // The persistence goes back too, not only what a pressure lent, and a pending revisit is
+        // dropped rather than left to fire whenever this is enabled again.
+        EndPressure();
+        ReturnLoan();
+        CancelRevisit();
     }
 
     // ── API ─────────────────────────────────────────────────────────────────
@@ -337,6 +394,15 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// </summary>
     private void Evaluate()
     {
+        // Suspended: the tension says so on the frame it happens (HandleSuspensionChanged), and this
+        // is the net under it. Checked before the pacing, which may not exist: the guard is about the
+        // escape, not about the rhythm.
+        if (tension != null && tension.IsSuspended)
+        {
+            StandDown();
+            return;
+        }
+
         if (activeZone != null)
         {
             if (Time.time >= pressureEndsAt)
@@ -389,10 +455,21 @@ public class NemesisDirector : Singleton<NemesisDirector>
             return;
         }
 
+        // Nothing leans on a Nemesis the escape or a cinematic owns, a puzzle beat included: the
+        // pressure would ride into the chase with its senses boost on (plan §14.1). Before the first
+        // wake-up the tension is not suspended, so Zona1's puzzle triggers still land on the sleeping
+        // Nemesis as before — and are cleared the moment it wakes into the escape.
+        if (tension != null && tension.IsSuspended)
+        {
+            Debug.LogWarning($"[{nameof(NemesisDirector)}] Pressure on '{zone.ZoneId}' ignored: the Nemesis " +
+                             $"is suspended ({tension.SuspendReason}).", this);
+            return;
+        }
+
         // Whatever the last request left behind goes back first. Without this, a second request
         // over a first one would boost the new zone's routes without ever restoring the old
         // zone's — and the level would slowly turn into one where every route is boosted.
-        ClearPressure();
+        EndPressure();
 
         activeZone = zone;
         activeIntensity = intensity;
@@ -404,7 +481,10 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // level's pacing, and up to evaluationInterval of nothing happening blunts it.
         nextNoiseAt = Time.time + Mathf.Max(0f, noiseInterval);
         if ((levers & ELevers.RouteWeights) != 0) ApplyRouteWeights();
-        if ((levers & ELevers.Senses) != 0) ApplySensoryBoost();
+
+        // Senses from this request, persistence from the rhythm (a rising-sensitivity request also
+        // moves the persistence, through its intensity): one copy for both.
+        RefreshLoan();
 
         Debug.Log($"[{nameof(NemesisDirector)}] Pressure on '{zone.ZoneId}' at {intensity:0.00} " +
                   $"for {duration:0}s ({LabelOf(source)}).", this);
@@ -412,11 +492,33 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private void ClearPressure()
     {
+        EndPressure();
+
+        // Settled again without this pressure: its senses go back, and the persistence drops to
+        // what the rhythm alone asks for (a rising-sensitivity request was holding it up).
+        RefreshLoan();
+    }
+
+    /// <summary>Puts back what the pressure in flight touched, and forgets it. Does NOT settle the
+    /// loan: the callers do, once, after deciding what replaces it.</summary>
+    private void EndPressure()
+    {
         RestoreRouteWeights();
-        RemoveSensoryBoost();
 
         activeZone = null;
         activeIntensity = 0f;
+    }
+
+    /// <summary>
+    /// The Nemesis is off-limits (asleep, in a cinematic, in the escape): every pressure goes,
+    /// scripted included, and a pending revisit with it. The pacing only ever cleared its own, and a
+    /// puzzle trigger fired less than its duration before the escape woke the Nemesis into the chase
+    /// with the Director's senses on (plan §14.1, §18.5 C4).
+    /// </summary>
+    private void StandDown()
+    {
+        if (activeZone != null) ClearPressure();
+        CancelRevisit();
     }
 
     // ── Palanca 1-2: pesos de ruta ──────────────────────────────────────────
@@ -528,10 +630,14 @@ public class NemesisDirector : Singleton<NemesisDirector>
         return NemesisNav.TrySnapToNavMesh(zone.Center, out point) && NemesisSafeZones.IsClear(point);
     }
 
-    // ── Palanca 4: sentidos ─────────────────────────────────────────────────
+    // ── Palancas 4-5: el préstamo (sentidos y persistencia) ─────────────────
 
     /// <summary>
-    /// Installs a widened copy of the tuning asset.
+    /// Settles what is lent to the Nemesis: hearing and sight (lever 4, from the pressure in flight)
+    /// and the search's persistence (lever 5, from the rhythm), in ONE copy of its tuning asset.
+    /// Called whenever either could have changed: a pressure applied or cleared (which covers every
+    /// rising-sensitivity renewal, since its intensity is what moves the persistence), the pacing
+    /// state changing, and the Nemesis becoming suspended or not.
     ///
     /// A COPY, AND A FRESH ONE EVERY TIME. Writing the boost into SO_NemesisData itself would be
     /// simpler by one line and wrong in a way that only shows up days later: ScriptableObject
@@ -539,41 +645,137 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// to run a pressure request would leave the boosted ranges in the project, and the next
     /// person to open the asset would find numbers nobody typed. Cloning from the authored asset
     /// at install time also means a designer's edits between two requests are picked up.
+    ///
+    /// ONE COPY FOR BOTH (plan §18.8). Each lever with its own copy, each cloned from the baseline,
+    /// and whichever went in second would throw the other away without a trace — the Relax
+    /// persistence silently dropped by the next puzzle's senses boost, or the other way round.
+    /// Rebuilt from the baseline with every multiplier applied at once instead, and when every
+    /// multiplier is 1 there is no copy at all: the Nemesis gets its baseline back.
     /// </summary>
-    private void ApplySensoryBoost()
+    private void RefreshLoan()
     {
-        if (sensoryBoost <= 1f) return;
+        float senses = SensesMultiplier();
+        float persistence = PersistenceMultiplier(out string reason);
+
+        if (Mathf.Approximately(senses, 1f) && Mathf.Approximately(persistence, 1f))
+        {
+            ReturnLoan();
+            return;
+        }
+
         if (!TryResolveNemesis()) return;
 
-        // Read fresh every time, never cached with '??='. The boost is a LOAN and this is what it
+        // Already out with these very numbers and still the one installed (the pacing handler and
+        // the pressure it just applied both ask): nothing to rebuild.
+        if (loanedData != null && nemesis.NemesisData == loanedData &&
+            Mathf.Approximately(loanedSenses, senses) && Mathf.Approximately(loanedPersistence, persistence))
+        {
+            loanedPersistenceReason = reason;
+            return;
+        }
+
+        // Read fresh every time, never cached with '??='. This is a LOAN and the baseline is what it
         // has to give back — but difficulty escalation replaces what the Nemesis's tuning IS
         // between one pressure request and the next. Caching the first asset ever seen would make
-        // RemoveSensoryBoost restore a baseline that stopped being current several puzzles ago,
-        // quietly undoing the whole escalation. Nothing would look broken: the monster keeps
-        // behaving, just at the difficulty of the opening room.
+        // ReturnLoan restore a baseline that stopped being current several puzzles ago, quietly
+        // undoing the whole escalation. Nothing would look broken: the monster keeps behaving, just
+        // at the difficulty of the opening room.
         SO_NemesisData baseline = nemesis.BaselineData;
         if (baseline == null) return;
 
-        boostedData = Instantiate(baseline);
-        boostedData.name = baseline.name + " (director)";
+        SO_NemesisData copy = Instantiate(baseline);
+        copy.name = baseline.name + " (director)";
 
-        float multiplier = Mathf.Lerp(1f, sensoryBoost, activeIntensity);
-        boostedData.ListenRange *= multiplier;
-        boostedData.ViewRange *= multiplier;
+        copy.ListenRange *= senses;
+        copy.ViewRange *= senses;
+        copy.SearchQuietWindow *= persistence;
+        copy.SearchHardCap *= persistence;
 
-        nemesis.OverrideData(boostedData);
+        nemesis.OverrideData(copy);
+
+        // The old copy goes only once the new one is installed: the Nemesis never points at a
+        // destroyed asset, not even between two lines.
+        if (loanedData != null) Destroy(loanedData);
+
+        loanedData = copy;
+        loanedSenses = senses;
+        loanedPersistence = persistence;
+        loanedPersistenceReason = reason;
     }
 
-    private void RemoveSensoryBoost()
+    /// <summary>Hands the baseline back and throws the copy away. Nothing lent afterwards.</summary>
+    private void ReturnLoan()
     {
-        if (boostedData == null) return;
+        loanedSenses = 1f;
+        loanedPersistence = 1f;
+        loanedPersistenceReason = null;
+
+        if (loanedData == null) return;
 
         // Read now rather than remembered from the install, for the same reason: a puzzle solved
-        // DURING the pressure request has to survive the restore.
+        // DURING the loan has to survive the restore.
         if (nemesis != null && nemesis.BaselineData != null) nemesis.OverrideData(nemesis.BaselineData);
 
-        Destroy(boostedData);
-        boostedData = null;
+        Destroy(loanedData);
+        loanedData = null;
+    }
+
+    /// <summary>Lever 4: wider hearing and sight while the pressure in flight carries the Senses lever.
+    /// Retreat and the revisit never do.</summary>
+    private float SensesMultiplier()
+    {
+        if (activeZone == null || activeIntensity <= 0f || (activeLevers & ELevers.Senses) == 0) return 1f;
+
+        return Mathf.Lerp(1f, sensoryBoost, activeIntensity);
+    }
+
+    /// <summary>
+    /// Lever 5: what the search's quiet window and hard cap are multiplied by, by pacing state (plan
+    /// §18.5 C1). BuildUp as authored, rising towards RisingMaxPersistence with the intensity of a live
+    /// rising-sensitivity request — it has been quiet for a long time, so once it does find the player
+    /// it insists (Mr. X, C1). PeakFade shorter, which helps the encounter end on its own, and that is
+    /// what PeakFade is waiting for. Relax shortest: it gives up sooner and leaves, and the retreat
+    /// stops being invisible. 1 with no pacing, before the Nemesis wakes, and while it is suspended.
+    ///
+    /// Rising is lerped from the BuildUp value rather than from 1, which is the same thing with the
+    /// defaults, and keeps a rising request from ever lowering the persistence of a designer who
+    /// raised BuildUp's.
+    /// </summary>
+    private float PersistenceMultiplier(out string reason)
+    {
+        reason = null;
+
+        if (pacing == null || tension == null || !tension.IsRunning || tension.IsSuspended) return 1f;
+
+        NemesisTension.EPacingState state = tension.State;
+
+        switch (state)
+        {
+            case NemesisTension.EPacingState.BuildUp:
+                if (activeZone != null && activeSource == EPressureSource.RisingSensitivity)
+                {
+                    reason = LabelOf(EPressureSource.RisingSensitivity);
+                    return Mathf.Lerp(pacing.BuildUpPersistence, pacing.RisingMaxPersistence, activeIntensity);
+                }
+
+                reason = state.ToString();
+                return pacing.BuildUpPersistence;
+
+            case NemesisTension.EPacingState.SustainPeak:
+                reason = state.ToString();
+                return pacing.SustainPeakPersistence;
+
+            case NemesisTension.EPacingState.PeakFade:
+                reason = state.ToString();
+                return pacing.PeakFadePersistence;
+
+            case NemesisTension.EPacingState.Relax:
+                reason = state.ToString();
+                return pacing.RelaxPersistence;
+
+            default:
+                return 1f;
+        }
     }
 
     // ── La entrada en escena ────────────────────────────────────────────────
@@ -828,8 +1030,42 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private void HandlePacingStateChanged(NemesisTension.EPacingState state)
     {
-        if (state != NemesisTension.EPacingState.BuildUp) risingStep = 0;
+        if (!isActiveAndEnabled) return;
+
+        if (state != NemesisTension.EPacingState.BuildUp)
+        {
+            risingStep = 0;
+
+            // "Vuelve a pasar" is a BuildUp move: a peak on the way cancels it (plan §18.5 C2).
+            CancelRevisit();
+        }
+
         TickPacing();
+
+        // Lever 5 follows the rhythm. If TickPacing just applied or cleared a pressure, the loan is
+        // already settled for this state and this is a no-op.
+        RefreshLoan();
+    }
+
+    /// <summary>
+    /// The Nemesis became suspended (asleep, in a cinematic, in the escape) or stopped being so, or
+    /// the tension just started. Raised by NemesisTension on the frame it happens — on waking, from
+    /// inside NemesisEvents.OnActivated — rather than found on the next evaluation tick, up to
+    /// <see cref="evaluationInterval"/> later: the escape wakes the Nemesis already inside its
+    /// cinematic, and it must not take a single step with a puzzle's senses boost on.
+    ///
+    /// Taken through the tension and not by subscribing to OnActivated here: the tension has to have
+    /// started and measured the suspension first, and two listeners on one static event run in
+    /// whatever order they happened to subscribe.
+    /// </summary>
+    private void HandleSuspensionChanged()
+    {
+        if (!isActiveAndEnabled) return;
+
+        if (tension.IsSuspended) StandDown();
+
+        // Suspended, the persistence is 1; back from it, whatever the rhythm says.
+        RefreshLoan();
     }
 
     /// <summary>
@@ -840,13 +1076,17 @@ public class NemesisDirector : Singleton<NemesisDirector>
     {
         if (pacing == null || tension == null || !tension.IsRunning) return;
 
-        bool ownsPressure = activeZone != null && activeSource != EPressureSource.Scripted;
-
         if (tension.IsSuspended)
         {
-            if (ownsPressure) ClearPressure();
+            StandDown();
             return;
         }
+
+        // Before the scripted early-out: a revisit falling due under a puzzle's pressure is dropped,
+        // not held back until that pressure lapses.
+        TickRevisit();
+
+        bool ownsPressure = activeZone != null && activeSource != EPressureSource.Scripted;
 
         if (activeZone != null && activeSource == EPressureSource.Scripted) return;
 
@@ -882,7 +1122,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
             return;
         }
 
-        // Contact resets the ramp; a live request lapses on its own or is cleared at PeakFade.
+        // An encounter resets the ramp; a live request lapses on its own or is cleared at PeakFade.
         if (!tension.IsQuiet)
         {
             risingStep = 0;
@@ -894,13 +1134,16 @@ public class NemesisDirector : Singleton<NemesisDirector>
         ApplyRisingSensitivity();
     }
 
-    /// <summary>Mr. X's anti-stall: pressure where the player is, a step stronger every renewal.</summary>
+    /// <summary>
+    /// Mr. X's anti-stall: pressure where the player is, a step stronger every renewal. Each renewal
+    /// also raises the search persistence with it (lever 5, through the loan the pressure settles).
+    /// </summary>
     private void ApplyRisingSensitivity()
     {
         Transform player = PlayerRegistry.CurrentTransform;
         if (player == null) return;
 
-        NemesisPressureZone zone = FindPlayerZone(player.position);
+        NemesisPressureZone zone = FindZoneAt(player.position);
         if (zone == null) return;
 
         float intensity = Mathf.Min(pacing.RisingMaxIntensity,
@@ -925,11 +1168,99 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (zone == null) return;
 
         float duration = Mathf.Max(1f, tension.StateTimeRemaining);
-        ApplyPressure(zone, pacing.RetreatIntensity, duration, EPressureSource.Retreat, RetreatLevers);
+        ApplyPressure(zone, pacing.RetreatIntensity, duration, EPressureSource.Retreat, PatrolLevers);
     }
 
-    /// <summary>The zone the player stands in (flat, nearest centre), else the nearest one by NavMesh.</summary>
-    private static NemesisPressureZone FindPlayerZone(Vector3 playerPosition)
+    // ── Vuelve a pasar (plan §18.5 C2) ──────────────────────────────────────
+
+    /// <summary>
+    /// A search ended. Empty, on a quiet BuildUp: schedule the patrol to come back past it later —
+    /// the version of C1's "it never comes back on purpose" that needs no habits (Fase 6 turns it into
+    /// an ambush). Found (it left for Chasing or Catch): whatever was pending belonged to an older
+    /// search the Nemesis has since moved past, so it goes.
+    ///
+    /// The LAST empty end wins, replacing the pending one. With Investigating escalating into a short
+    /// search (D26), and Searching → Investigating counting as an end too, one hunt can end several
+    /// searches in a row; the revisit belongs to where it gave up last. A search interrupted by the
+    /// Nemesis being switched off is reported when it next leaves Searching (NemesisEvents), by which
+    /// time the rhythm has moved on or not — the BuildUp check below is made then, which is what counts.
+    /// </summary>
+    private void HandleSearchEnded(Vector3 area, bool found)
+    {
+        if (!isActiveAndEnabled) return;
+
+        if (found)
+        {
+            CancelRevisit();
+            return;
+        }
+
+        if (pacing == null || tension == null || !tension.IsRunning || tension.IsSuspended) return;
+
+        // In Relax it does not come back (plan §18.5 C2): that is the retreat, and coming back would
+        // undo it. SustainPeak and PeakFade are an encounter still resolving.
+        if (tension.State != NemesisTension.EPacingState.BuildUp) return;
+
+        revisitPending = true;
+        revisitArea = area;
+        revisitDueAt = Time.time + pacing.RollRevisitDelay();
+    }
+
+    /// <summary>A capture is the encounter, not a search it gave up on: nothing to come back to.</summary>
+    private void HandlePlayerCaptured(PlayerStateManager player) => CancelRevisit();
+
+    private void CancelRevisit() => revisitPending = false;
+
+    /// <summary>
+    /// Applies the pending revisit once it falls due: anchor and route weights on the zone of that
+    /// search (the one containing it, else the nearest by NavMesh; never one at the Hub's door), at
+    /// RevisitIntensity for RevisitDuration. A patrol bias, not an order: it rolls towards the area in
+    /// a cycle or two, and never learns anything about where the player is.
+    ///
+    /// Only onto a Nemesis that is PATROLLING, in BuildUp, with no other pressure live. A scripted or
+    /// rising-sensitivity pressure wins and the revisit is dropped; an older revisit still running is
+    /// replaced, since the newer one comes from a later search. Leaving BuildUp and a capture cancel it
+    /// before it gets here.
+    ///
+    /// Mid-hunt when it falls due (Searching, Investigating, Chasing, Catch or Traversing), it is
+    /// RETRIED <see cref="RevisitRetrySeconds"/> later rather than dropped. Either the hunt ends a
+    /// search — and that end replaces it (empty) or cancels it (found) on its own — or it does not: a
+    /// lead investigated and let go, which says nothing about the search the player got away from,
+    /// and dropping the revisit there would make it depend on a decoy. A hunt that turns into an
+    /// encounter peaks the tension, and leaving BuildUp cancels it anyway.
+    /// </summary>
+    private void TickRevisit()
+    {
+        if (!revisitPending || Time.time < revisitDueAt) return;
+
+        if (tension.State != NemesisTension.EPacingState.BuildUp ||
+            (activeZone != null && activeSource != EPressureSource.Revisit))
+        {
+            CancelRevisit();
+            return;
+        }
+
+        NemesisStateManager.ENemesisState? state = nemesis != null ? nemesis.CurrentStateKey : null;
+
+        if (state != NemesisStateManager.ENemesisState.Patrolling)
+        {
+            // Null is a dormant Nemesis, which the suspension should already have caught.
+            if (state.HasValue) revisitDueAt = Time.time + RevisitRetrySeconds;
+            else CancelRevisit();
+            return;
+        }
+
+        CancelRevisit();
+
+        NemesisPressureZone zone = FindZoneAt(revisitArea);
+        if (zone == null) return;
+
+        ApplyPressure(zone, pacing.RevisitIntensity, pacing.RevisitDuration, EPressureSource.Revisit, PatrolLevers);
+    }
+
+    /// <summary>The zone containing a point (flat, nearest centre), else the nearest one by NavMesh.
+    /// The player's position for rising sensitivity; where a search ended for the revisit.</summary>
+    private static NemesisPressureZone FindZoneAt(Vector3 point)
     {
         IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
 
@@ -939,9 +1270,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
         for (int i = 0; i < zones.Count; i++)
         {
             NemesisPressureZone zone = zones[i];
-            if (!IsUsable(zone) || !zone.Contains(playerPosition)) continue;
+            if (!IsUsable(zone) || !zone.Contains(point)) continue;
 
-            Vector3 offset = playerPosition - zone.Center;
+            Vector3 offset = point - zone.Center;
             offset.y = 0f;
 
             if (offset.sqrMagnitude >= bestFlat) continue;
@@ -959,7 +1290,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
             NemesisPressureZone zone = zones[i];
             if (!IsUsable(zone)) continue;
 
-            float distance = NemesisNav.PathDistanceOrInfinity(playerPosition, zone.Center);
+            float distance = NemesisNav.PathDistanceOrInfinity(point, zone.Center);
             if (distance >= bestPath) continue;
 
             bestPath = distance;
@@ -1009,6 +1340,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     {
         EPressureSource.RisingSensitivity => "sensibilidad",
         EPressureSource.Retreat => "retirada",
+        EPressureSource.Revisit => "vuelta",
         _ => "puzzle/API",
     };
 
@@ -1029,6 +1361,22 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     /// <summary>Rising-sensitivity renewals so far in this silence (0 when the ramp is idle).</summary>
     public static int RisingStep => Exists ? Instance.risingStep : 0;
+
+    /// <summary>
+    /// What the search's quiet window and hard cap are multiplied by right now (lever 5): the number
+    /// actually lent to the Nemesis, so the one its Searching state is reading. 1 with nothing lent,
+    /// and with no Director in the scene.
+    /// </summary>
+    public static float SearchPersistence => Exists ? Instance.loanedPersistence : 1f;
+
+    /// <summary>Why <see cref="SearchPersistence"/> is what it is: the pacing state, or "sensibilidad"
+    /// while a rising-sensitivity request drives it. Null with nothing lent.</summary>
+    public static string SearchPersistenceReason => Exists ? Instance.loanedPersistenceReason : null;
+
+    /// <summary>Seconds until the pending "vuelve a pasar" falls due, or -1 when none is pending.
+    /// </summary>
+    public static float RevisitTimeRemaining =>
+        Exists && Instance.revisitPending ? Mathf.Max(0f, Instance.revisitDueAt - Time.time) : -1f;
 
 #if UNITY_EDITOR
     private static readonly Vector3[] FootprintScratch = new Vector3[4];

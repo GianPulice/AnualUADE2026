@@ -107,11 +107,13 @@ public class NemesisGizmos : MonoBehaviour
     [SerializeField] private bool drawCatchReach = true;
 
     [Header("Search & feedback")]
-    [Tooltip("Radius of the Searching state's fallback scatter (SearchSweepRadius).")]
+    [Tooltip("Radius of the sweep the Searching state runs around itself when it has no belief " +
+             "to centre one on (SearchSweepRadius).")]
     [SerializeField] private bool drawSearchSweep = true;
 
-    [Tooltip("The room the search has committed to sweeping, its centre, and the points it has " +
-             "already looked at. Play mode only — nothing to draw until a search commits.")]
+    [Tooltip("The area the search is sweeping around the belief, its centre, where it is heading, " +
+             "and the points it has already looked at. Play mode only — nothing to draw until a " +
+             "search starts.")]
     [SerializeField] private bool drawRoomSweep = true;
 
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
@@ -192,8 +194,7 @@ public class NemesisGizmos : MonoBehaviour
         DrawHearing(data, manager);
         DrawCatch(data);
         DrawSearchAndVignette(data);
-        DrawIntercept();
-        if (drawRoomSweep) DrawRoomSweep();
+        if (drawRoomSweep) DrawSweep();
         if (drawHidingKnowledge) DrawHidingKnowledge(manager);
         DrawPursuit();
         if (drawChaseTrail) DrawChaseTrail(data);
@@ -257,7 +258,7 @@ public class NemesisGizmos : MonoBehaviour
     /// Where the chase is aiming: the predicted point, and the waypoint it decided to route
     /// through when it took one.
     ///
-    /// Same argument as DrawIntercept below. A Nemesis that swung round a corner to open the angle
+    /// An invisible decision is an untunable one. A Nemesis that swung round a corner to open the angle
     /// on you and a Nemesis that wandered into you from the side are indistinguishable from the
     /// outside, so without this "did the flanking work" is not a question anyone can answer - and
     /// ChaseDetourTolerance is a number nobody can tune. The ABSENCE of the detour line is
@@ -292,52 +293,26 @@ public class NemesisGizmos : MonoBehaviour
     }
 
     /// <summary>
-    /// A line to wherever the Searching state is aiming its cut-off.
+    /// The search's sweep: the area around the belief, its centre, where it is heading, and every
+    /// point already looked at (plan §18.5 A).
     ///
-    /// It is drawn because the interception is the one decision in the system with no visible
-    /// tell: a Nemesis heading somewhere clever and a Nemesis heading somewhere by accident look
-    /// identical from outside. Without this, "did it cut me off or did it wander into me" is not
-    /// answerable, and neither is the tuning that depends on it.
-    ///
-    /// Nothing is drawn when it fell back to the sweep, so the ABSENCE of the line is information
-    /// too: it means the belief, the heading or the waypoints were not good enough to commit to.
-    /// </summary>
-    private void DrawIntercept()
-    {
-        // Fetched rather than cached, like the state manager above it: the Scene view draws
-        // outside Play mode where Awake has not run.
-        NemesisTelemetry telemetry = GetComponent<NemesisTelemetry>();
-        if (telemetry == null) return;
-
-        Vector3? intercept = telemetry.SearchInterceptPoint;
-        if (!intercept.HasValue) return;
-
-        Gizmos.color = SearchColor;
-        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, intercept.Value);
-        Gizmos.DrawWireCube(intercept.Value, Vector3.one * 0.5f);
-
-        DrawLabel(intercept.Value + Vector3.up * 0.8f, "intercepción", SearchColor);
-    }
-
-    /// <summary>
-    /// The committed room sweep: the area, its centre, and every point already looked at.
-    ///
-    /// WITHOUT THIS THE FEATURE IS UNTUNABLE. RoomSweepRadius decides how much of a room counts as
-    /// the room, and the wall test that clips it is invisible by nature — the difference between
-    /// "the radius is too small" and "a wall is cutting the room in half" is not something anyone
-    /// can tell from watching the Nemesis walk. Drawing the anchor with its radius and the swept
-    /// trail alongside it makes both readable at a glance.
+    /// WITHOUT THIS THE SEARCH IS UNTUNABLE. The radius comes from the precision of the last
+    /// evidence and opens up as the area gets covered, and the wall test that clips it is invisible
+    /// by nature — "the radius is too small", "a wall is cutting the room in half" and "it is
+    /// following the belief somewhere else" all look the same from watching the Nemesis walk.
+    /// Drawing the disc, the line to the current point and the swept trail makes them readable.
     ///
     /// Play mode only, and deliberately: unlike the ranges below, there is nothing to draw until a
-    /// search has actually committed to somewhere.
+    /// search has actually started.
     /// </summary>
-    private void DrawRoomSweep()
+    private void DrawSweep()
     {
         if (!Application.isPlaying) return;
 
         NemesisStateManager manager = GetComponent<NemesisStateManager>();
         NemesisSearchingState searching = manager != null ? manager.SearchingState : null;
-        if (searching == null || !searching.IsSweepingRoom) return;
+        if (searching == null || !searching.IsSweeping) return;
+        if (manager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return;
 
         NemesisFreeRoam roam = searching.FreeRoam;
 
@@ -345,6 +320,11 @@ public class NemesisGizmos : MonoBehaviour
 
         Gizmos.color = SearchColor;
         Gizmos.DrawWireSphere(roam.Anchor, 0.4f);
+
+        // Where it is heading now: a point of the NavMesh inside the disc, never a waypoint it was
+        // sent to because it happened to be nearby (plan §18.1).
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, searching.SearchTarget);
+        Gizmos.DrawWireCube(searching.SearchTarget, Vector3.one * 0.5f);
 
         IReadOnlyList<Vector3> swept = roam.SweptPoints;
         for (int i = 0; i < swept.Count; i++)
@@ -356,8 +336,8 @@ public class NemesisGizmos : MonoBehaviour
             if (i > 0) Gizmos.DrawLine(swept[i - 1], swept[i]);
         }
 
-        DrawLabel(roam.Anchor + Vector3.up * 1.2f,
-                  $"barrido de habitación {roam.Radius:0.#} m", SearchColor);
+        string covered = roam.IsFullySwept ? " · cubierto" : "";
+        DrawLabel(roam.Anchor + Vector3.up * 1.2f, $"barrido {roam.Radius:0.#} m{covered}", SearchColor);
     }
 
     /// <summary>

@@ -56,6 +56,25 @@ public class NemesisAudio : MonoBehaviour
     [Tooltip("How fast the occlusion multiplier eases towards its target, per second.")]
     [SerializeField, Min(0.1f)] private float occlusionEaseSpeed = 3f;
 
+    [Header("Bajadas entre pisos (plan §15.5)")]
+    [Tooltip("Gruñido al asomarse al borde antes de tirarse. Es la mitad audible del aviso: desde " +
+             "abajo el jugador lo oye antes de verlo. Uno al azar por bajada. Vacío = se tira en " +
+             "silencio (la bajada anda igual).")]
+    [SerializeField] private AudioClip[] dropGrowls = Array.Empty<AudioClip>();
+
+    [Tooltip("Golpe de manos en el borde al descolgarse (sólo en las bajadas altas).")]
+    [SerializeField] private AudioClip dropHandSlam;
+
+    [Tooltip("Impacto al aterrizar. Más fuerte que un paso de persecución: se oye desde lejos, y es " +
+             "lo que le dice al jugador que ya está abajo.")]
+    [SerializeField] private AudioClip dropImpact;
+
+    [SerializeField, Range(0f, 1f)] private float dropCueVolume = 1f;
+
+    [Tooltip("Pitch del impacto. Debajo de 1 suena más pesado, y permite usar un paso como impacto " +
+             "provisorio.")]
+    [SerializeField, Range(0.5f, 1.5f)] private float dropImpactPitch = 0.85f;
+
     // Set once the run has a result: from then on the loops only fade out.
     private bool silenced;
 
@@ -182,6 +201,37 @@ public class NemesisAudio : MonoBehaviour
         }
 
         StartCrossfade(clip, volume);
+    }
+
+    /// <summary>
+    /// A one-shot of a drop between floors (plan §15.5): the growl when it looks down, the hands on
+    /// the edge, the landing. Played by NemesisElevatorUser at the start of each phase, not by
+    /// animation events: the phases are timed by code, and the placeholder drop has no clips to
+    /// carry events at all.
+    ///
+    /// On the Nemesis bus and in 3D, like the loops; never through DetectableAudio, which is what
+    /// the Nemesis HEARS, not what it does. Fire-and-forget through AudioManager's pool, so no
+    /// occlusion: at the range these carry, a floor slab between is the point.
+    /// </summary>
+    public void PlayDropCue(EDropCue cue)
+    {
+        if (silenced || !AudioManager.Exists) return;
+
+        AudioClip clip;
+        switch (cue)
+        {
+            case EDropCue.Growl:
+                clip = dropGrowls.Length > 0 ? dropGrowls[UnityEngine.Random.Range(0, dropGrowls.Length)] : null;
+                break;
+            case EDropCue.HandSlam: clip = dropHandSlam; break;
+            case EDropCue.Impact:   clip = dropImpact;   break;
+            default:                clip = null;         break;
+        }
+
+        if (clip == null) return;
+
+        float pitch = cue == EDropCue.Impact ? dropImpactPitch : 1f;
+        AudioManager.Instance.PlayNemesis(clip, transform.position, dropCueVolume, pitch, minDistance, maxDistance);
     }
 
     /// <summary>The loop authored for a state, if any.</summary>

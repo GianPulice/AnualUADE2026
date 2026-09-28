@@ -101,7 +101,31 @@ public sealed class NemesisDecision
 
     public bool SeesPlayer => stateManager.HasVisualTarget;
 
-    public bool HearsPlayer => stateManager.HasAudioTarget;
+    /// <summary>The player's own noise, this sweep — footsteps, breathing. Not a decoy or a Director
+    /// pulse: those are <see cref="HearsLead"/> (plan §17, Fase 2B). It used to read HasAudioTarget,
+    /// which is any noise at all, and that is how a radio became the player.</summary>
+    public bool HearsPlayer => stateManager.HearsPlayer;
+
+    /// <summary>A lead this sweep: a noise that is not the player (D18, D19).</summary>
+    public bool HearsLead => stateManager.HearsLead;
+
+    /// <summary>
+    /// Carries a lead younger than InvestigationTimeOut. What holds a walk towards a decoy now that
+    /// leads no longer keep <see cref="BeliefAge"/> young — without it the Nemesis would give up on a
+    /// radio halfway there (plan Fase 2B: leads and BeliefAge change together).
+    /// </summary>
+    public bool HasFreshLead
+    {
+        get
+        {
+            NemesisBelief belief = stateManager.Belief;
+            if (belief == null) return false;
+
+            SO_NemesisData data = stateManager.NemesisData;
+            float window = data != null ? data.InvestigationTimeOut : 8f;
+            return belief.LeadAge < window;
+        }
+    }
 
     /// <summary>
     /// Something in the corner of its eye that it has not resolved into a sighting yet.
@@ -113,13 +137,43 @@ public sealed class NemesisDecision
     public bool IsSuspicious => stateManager.IsSuspicious;
 
     /// <summary>Its body is on the freight elevator - waiting for it, boarding, riding or stepping
-    /// off. A fact about who is driving, not a sensor reading.</summary>
+    /// off - or on a drop between floors (plan §15). A fact about who is driving, not a sensor
+    /// reading.</summary>
     public bool IsUsingElevator => stateManager.IsUsingElevator;
 
     /// <summary>It has just given up on a lift and shelved it for the cooldown. Also a fact about
     /// execution rather than about the world: the component that drives the crossing is reporting
-    /// that this one is over.</summary>
+    /// that this one is over. Also true for a moment after a drop ends (D29).</summary>
     public bool HasGivenUpOnElevator => stateManager.HasGivenUpOnElevator;
+
+    /// <summary>
+    /// Searching has not cooled down yet (plan §18.5 B). A reading of the state's own clock, the same
+    /// shape as <see cref="IsCheckingSpot"/>: the state tracks the silence since the last evidence
+    /// about the player, the ladder decides that the search ends when it runs out.
+    /// </summary>
+    public bool IsSearchWarm
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return false;
+            NemesisSearchingState searching = stateManager.SearchingState;
+            return searching != null && searching.IsWarm;
+        }
+    }
+
+    /// <summary>
+    /// Investigating is still warm enough to turn into a short search (D26). Same shape as
+    /// <see cref="IsSearchWarm"/>: the state keeps the clock, the ladder decides what it means.
+    /// </summary>
+    public bool IsInvestigationWarm
+    {
+        get
+        {
+            if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Investigating) return false;
+            NemesisInvestigatingState investigating = stateManager.InvestigatingState;
+            return investigating != null && investigating.IsWarm;
+        }
+    }
 
     /// <summary>The chase has spent a whole window without closing the distance over the NavMesh.
     /// A measurement, not a sensor reading: NemesisChaseProgress takes it before this runs each
@@ -128,8 +182,8 @@ public sealed class NemesisDecision
 
     public bool HasBelief => stateManager.TryGetBelief(out _);
 
-    /// <summary>Seconds since either sensor last caught the player. Infinity if neither ever has.
-    /// </summary>
+    /// <summary>Seconds since the PLAYER was last sensed, by sight or by their own noise. Leads do
+    /// not count (plan §17). Infinity if never.</summary>
     public float BeliefAge => stateManager.BeliefAge;
 
     public bool IsIn(NemesisStateManager.ENemesisState key) => stateManager.CurrentStateKey == key;
@@ -142,8 +196,8 @@ public sealed class NemesisDecision
     public bool CanCatchPlayer => stateManager.CanEnterCatch && stateManager.CanReachPlayerNow;
 
     /// <summary>
-    /// Whether getting to where the Nemesis believes the player is means taking the freight
-    /// elevator.
+    /// Whether getting to where the Nemesis believes the player is means changing floor by the
+    /// freight elevator or a drop (plan §15).
     ///
     /// GOES THROUGH THE THROTTLED ORACLE, AND THAT IS NOT AN OPTIMISATION. NemesisPathOracle holds
     /// one answer for RouteVerdictInterval seconds so that everything asking this question reads
@@ -313,7 +367,13 @@ public sealed class NemesisDecision
         // (Catch with nobody to grab falls straight back to Searching, by design), and a pinned
         // state whose preconditions are absent simply has nothing to do — pinned Traversing with
         // no route across floors stands still, which is correct and not a bug.
-        if (PinnedState.HasValue)
+        //
+        // EXCEPT WHILE ITS BODY IS ON THE LIFT (playtest 27/09). A pinned Searching went on steering
+        // the agent through the wait for the cabin and the walk aboard, and the crossing came apart:
+        // it hopped between the landing and the cabin door, then jumped to the far end of the shaft.
+        // In normal play nothing re-decides a crossing ("esta cruzando el montacargas" is an
+        // interrupt), so a pin does not either; it takes over again the moment the crossing ends.
+        if (PinnedState.HasValue && !stateManager.IsUsingElevator)
         {
             LastRungIndex = -1;
             LastReason = $"FIJADO a mano ({PinnedState.Value})";
@@ -541,6 +601,10 @@ public sealed class NemesisDecision
             ENemesisPredicate.KnowsHidingSpot => KnowsHidingSpot,
             ENemesisPredicate.IsCheckingSpot => IsCheckingSpot,
             ENemesisPredicate.SuspectsHidingSpot => SuspectsHidingSpot,
+            ENemesisPredicate.HearsLead => HearsLead,
+            ENemesisPredicate.HasFreshLead => HasFreshLead,
+            ENemesisPredicate.IsSearchWarm => IsSearchWarm,
+            ENemesisPredicate.IsInvestigationWarm => IsInvestigationWarm,
             _ => false,
         };
 
@@ -567,6 +631,7 @@ public sealed class NemesisDecision
             ENemesisThreshold.SearchTimeOut => data != null ? data.SearchTimeOut : 4f,
             ENemesisThreshold.ElevatorCommitTime => data != null ? data.ElevatorCommitTime : 12f,
             ENemesisThreshold.BeliefMemoryTime => data != null ? data.BeliefMemoryTime : 45f,
+            ENemesisThreshold.SearchQuietWindow => data != null ? data.SearchQuietWindow : 8f,
             _ => 0f,
         };
     }

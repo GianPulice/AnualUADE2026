@@ -92,6 +92,10 @@ public class FieldOfView : MonoBehaviour
     /// difference between "I glimpsed you climbing in" and "I was chasing you a moment ago".</summary>
     public bool HasPeripheralContact => peripheralContact;
 
+    /// <summary>Where the corner of its eye last caught something. A glimpse is evidence too (plan
+    /// §17): the belief keeps where it was, so a suspicion has somewhere to be walked to.</summary>
+    public Vector3 PeripheralPoint => peripheralPoint;
+
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
 
@@ -192,6 +196,11 @@ public class FieldOfView : MonoBehaviour
     /// </summary>
     public float TimeSinceLastSighting =>
         hasLastKnownPosition ? Time.time - lastSightingTime : float.PositiveInfinity;
+
+    /// <summary>When the target was last seen, on the Time.time clock. What NemesisBelief compares
+    /// to fold each sighting in exactly once. Meaningless while HasLastKnownPosition is false.
+    /// </summary>
+    public float LastSightingTime => lastSightingTime;
 
     private void Awake()
     {
@@ -379,6 +388,16 @@ public class FieldOfView : MonoBehaviour
         if (!IsStandingOnMe(playerPosition, range)) return false;
 
         HidingSpot spot = player.CurrentHidingSpot;
+
+        // HOLDING YOUR BREATH INSIDE A SPOT TAKES YOU OUT OF ARM'S REACH (plan §17.6, D21). The
+        // classic beat: it walks up to where it heard something, looks left and right, and leaves
+        // because it did not see anyone. Breathing, a player at the door is found here exactly as
+        // before; holding, only OPENING the spot finds them, and the Nemesis only opens a spot it
+        // already suspects or knows (NemesisHidingAwareness.Open). What keeps this from being
+        // immunity is SO_HidingData.MaxHoldSeconds and the exhale at the end of it, which is loud
+        // enough to bring the Nemesis straight back.
+        if (spot != null && player.IsHoldingBreath) return false;
+
         if (nemesisData.ProximityDetectionRespectsWalls &&
             IsOccluded(playerPosition + Vector3.up * BodyProbeHeight, spot)) return false;
 
@@ -620,6 +639,11 @@ public class FieldOfView : MonoBehaviour
     private void SenseThroughSpot(PlayerStateManager player)
     {
         HidingSpot spot = player.CurrentHidingSpot;
+
+        // Holding your breath: still and silent behind the slats, it makes nothing out (plan §17.6,
+        // D21). A spot it already suspects does not need the slats — it walks up and opens it.
+        if (player.IsHoldingBreath) return;
+
         float range = HiddenViewRange(spot);
         if (range <= 0f) return;
 

@@ -54,9 +54,9 @@ public class NemesisTestConsole : MonoBehaviour
     [SerializeField, Min(0f)] private float screenMargin = 10f;
 
     /// <summary>Fixed rather than auto-sized: a panel that resizes as zones come and go is harder
-    /// to click than one that is simply big enough. Grown once already, with the director
-    /// section.</summary>
-    private static readonly Vector2 PanelSize = new Vector2(360f, 640f);
+    /// to click than one that is simply big enough. Grown twice already: with the director section
+    /// and with the habits one.</summary>
+    private static readonly Vector2 PanelSize = new Vector2(360f, 720f);
 
     /// <summary>
     /// Where the panel goes, and where the closed-state hint goes with it.
@@ -166,6 +166,8 @@ public class NemesisTestConsole : MonoBehaviour
         DrawSituations();
         GUILayout.Space(6f);
         DrawDirector();
+        GUILayout.Space(6f);
+        DrawHabits();
 
         GUILayout.EndArea();
     }
@@ -358,6 +360,31 @@ public class NemesisTestConsole : MonoBehaviour
 
         if (GUILayout.Button("Pico de tensión")) tension.DebugSpike();
         if (GUILayout.Button("Saltar silencio")) tension.DebugSkipQuiet();
+
+        GUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// The habit tracker (plan Fase 3). No button adds a count: counts have to come from play, or
+    /// the calibration they exist for is measuring the console. Clearing does not need a New Game,
+    /// and the full ledger goes to the Console, where there is room for it.
+    /// </summary>
+    private static void DrawHabits()
+    {
+        GUILayout.Label("HABITS", GUI.skin.box);
+
+        if (!PlayerHabitTracker.Exists)
+        {
+            GUILayout.Label("No PlayerHabitTracker: it lives in the Data scene (start from Bootstrap).");
+            return;
+        }
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Log ledger")) habits.DebugLogLedger();
+        if (GUILayout.Button("Clear habits")) habits.DebugReset();
 
         GUILayout.EndHorizontal();
     }
