@@ -38,6 +38,9 @@ Id* vacío, en negrita). A1 lo verifica.
 
   Las barandas del borde son invisibles y sólo te frenan a vos: el Nemesis se tira a través de ellas.
   Lo arma *Tools/Nemesis/Build Drop Lab (NemesisTestbed)*.
+- **Señuelos** (desde el 28/09, *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)*): radio en
+  SALA_LATERAL, sobre una mesa contra la pared norte (x −19); alarma en la pared oeste de PASILLO_CARGA
+  (z 38), audible en todo el nivel; cadenas en la pared oeste de PASILLO_OESTE (z 30). Se prenden con E.
 - **Rutas** (peso 1, abiertas): Spine, Oeste, Alcove, Alta, BugLab (WP_00..06) y DropLab (WP_00..03).
 - **Spawns**: Carga (0, 41), Lateral (−16, 20), Alcove (0, 50), Alta (5, y 5.3, 46.4).
 - **Director**: `Testbed/Director` con 4 zonas: `entrada` (0, 0) r 8, `sala lateral` (−16, 20) r 10,
@@ -168,6 +171,12 @@ llega al ras del piso alto, y al llegar suelta `Traversing`). En la consola **no
   **Bug si:** corre en el lugar esperando o abandona a mitad de camino.
 - [ ] **G23. Viajar con él / bajar mientras espera.** En la cabina con él te puede agarrar; si le
   aparecés en su piso mientras espera, suelta el viaje y te persigue.
+- [ ] **G26. Estado fijado durante el cruce.** Fijá un estado en F10 (p. ej. 4, Search) mientras
+  cruza. → Termina el cruce y recién después obedece el pin. **Bug si:** va y viene entre la parada y
+  la puerta de la cabina, o aparece del otro lado del hueco.
+- [ ] **G27. Arriba, te oye abajo.** Que llegue arriba y te oiga abajo por el hueco. → Al llegar
+  suelta `Traversing` y decide de nuevo: vuelve a bajar sólo si la ruta hacia vos sigue pasando por el
+  montacargas. **Bug si:** queda 12 s en `Traversing` ("ya se comprometió con el montacargas").
 
 **Audio y pausa**
 - [ ] **G24. Audio.** → Cada estado con su loop y crossfade (Investigating comparte con Searching,
@@ -214,6 +223,29 @@ llega al ras del piso alto, y al llegar suelta `Traversing`). En la consola **no
 - [ ] **S4-c.** Caminá en Room B fuera de su vista, él a ≤8 m por camino. → Te oye como sin trigger.
 - [ ] **S4-d. Pared fina.** Pegate detrás de un tramo de `Wall A|B` con él a ~1 m del otro lado. → No
   te detecta ni te agarra; da la vuelta por el vano.
+
+**Señuelos y la elección (plan Fase 2B parte 4, casos 22–33 y 37)**
+F9 fila `foco`: qué persigue (vos, una pista o un vistazo), cuánto vale, y la última decisión con su
+pregunta, p. ej. `cambió: radio 0.36 > vos 0.28 [11]`. Antes, poner los señuelos (ver el mapa).
+- [ ] **E1. Alarma sin que te sienta** (caso 25). → Va a revisarla y vuelve a patrullar; no te
+  persigue. **Bug si:** arranca una persecución.
+- [ ] **E2. Te ve y prendés la radio o la alarma** (casos 22 y 30). → Te sigue a vos. Al perderte
+  busca primero donde te vio; si la alarma sigue sonando, a los ~7 s el foco pasa a ella
+  (`cambió: alarma … > vos …`). **Bug si:** con la alarma sonando, termina la búsqueda y vuelve a
+  patrullar sin ir nunca.
+- [ ] **E3. Radio lejos con la creencia vieja** (caso 31). Hacete perder, quedate quieto ~10 s y que
+  suene la radio. → Va y la rompe. Con sólo ~3 s de perderte, no va.
+- [ ] **E4. Cadenas tres veces desde lejos** (caso 32). → La primera y la segunda viene; la tercera ya
+  no (`ignoró cadenas … [7]`, "2 visitas vacías"). Después de cada visita vacía el foco vuelve a
+  `vos` (`soltó cadenas: revisó: nada → vos`), no a `nada`.
+- [ ] **E5. Cambia de idea** (caso 28). Mientras va a las cadenas, un paso suave del otro lado. → Se
+  frena ~0.4 s girando hacia vos y va hacia el paso.
+- [ ] **E6. Dos ruidos alternados** (caso 29). → No va y viene; termina lo que eligió.
+- [ ] **E7. Señuelo donde te está buscando** (caso 33). → Sigue barriendo ahí (`siguió con vos … [5]`).
+- [ ] **E8. Rompiendo la radio, te ve** (caso 37). → Corta y te persigue.
+- [ ] **E9. Paso suave + vistazo** (caso 26). → La `sospecha` sube más rápido que con uno solo; un
+  ruido solo nunca llega a 1, y tampoco la baja si ya estaba más arriba. Un vistazo por debajo del
+  umbral no cambia el `foco`.
 
 **Bajadas — Drop Lab (plan Fase 8, casos 12–16 y 55)**
 F9 fila `bajada`. Con gizmos, el arco de cada bajada: verde la `Hop` y ámbar la `Hang`.

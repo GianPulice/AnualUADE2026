@@ -23,6 +23,7 @@ public static class NemesisEvents
         OnActivated = null;
         OnSearchEnded = null;
         OnChaseStalled = null;
+        OnBaselineChanged = null;
     }
 
     // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
@@ -88,7 +89,15 @@ public static class NemesisEvents
     /// </summary>
     public static event Action OnChaseStalled;
 
-    public static void ChaseStarted()                    => OnChaseStarted?.Invoke();
+    /// <summary>
+    /// The Nemesis's permanent tuning changed: <see cref="NemesisStateManager.BaselineData"/> now
+    /// points at a different asset (an escalation tier, plan Fase 7). NemesisDirector listens to
+    /// rebuild a loan that was cloned from the old baseline; otherwise the new tier would wait until
+    /// the loan ended.
+    /// </summary>
+    public static event Action OnBaselineChanged;
+
+    public static void ChaseStarted()                   => OnChaseStarted?.Invoke();
     public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
@@ -96,4 +105,5 @@ public static class NemesisEvents
     public static void Activated()                       => OnActivated?.Invoke();
     public static void SearchEnded(Vector3 area, bool found) => OnSearchEnded?.Invoke(area, found);
     public static void ChaseStalled()                    => OnChaseStalled?.Invoke();
+    public static void BaselineChanged()                 => OnBaselineChanged?.Invoke();
 }

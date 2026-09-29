@@ -98,6 +98,11 @@ MonoBehaviour:
       state: 0
       threshold: 3
       customSeconds: 0
+    - predicate: 22
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
   - enabled: 1
     target: 2
     interrupts: 1
@@ -159,6 +164,16 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
     - predicate: 16
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: "su atenci\xF3n est\xE1 en una pista"
+    conditions:
+    - predicate: 22
       negate: 0
       state: 0
       threshold: 0
@@ -234,16 +249,6 @@ MonoBehaviour:
     note: escucha un ruido
     conditions:
     - predicate: 1
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 1
-    interrupts: 0
-    note: "oye un se\xF1uelo u otro ruido"
-    conditions:
-    - predicate: 18
       negate: 0
       state: 0
       threshold: 0

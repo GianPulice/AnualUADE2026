@@ -95,7 +95,7 @@ Estar `Hidden` (escondido) **ya no** salta la vista por completo: según el esco
 
 `FieldOfListening` barre cada 0.1 s, lee el radio real del collider y lo escala por `noiseRangeScale` (2.5), con `listenRange` (15) como tope, antes de atenuar por paredes (`wallOcclusionMultiplier` 0.8) y por pisos (`floorOcclusionMultiplier` 0.75). La distancia se mide **por camino de NavMesh**, no en línea recta. Si oye varias cosas a la vez va hacia la que oye mejor, no hacia la primera que devolvió la física.
 
-**Jugador o pista (desde el 27/09, plan §17).** El oído distingue el ruido del jugador (su emisor: pasos, respiración) de todo lo demás (señuelos, pulsos del Director). Sólo el del jugador mueve la **creencia** sobre dónde está; lo demás es una **pista**: lo hace ir a investigar (peldaños "oye un señuelo u otro ruido" y "sigue yendo hacia la pista"), pero no rejuvenece la creencia ni le cambia el objetivo a una persecución. La creencia junta vista y oído en una posición con un radio: con evidencia que coincide se achica (los sentidos suman), sin evidencia crece a la velocidad del jugador corriendo. Se ve en F9, fila *creencia* (vista u oído, antigüedad, radio y pista activa), y se tunea en `SO_NemesisData` › *Creencia*.
+**Jugador o pista (desde el 27/09, plan §17).** El oído distingue el ruido del jugador (su emisor: pasos, respiración) de todo lo demás (señuelos, pulsos del Director). Sólo el del jugador mueve la **creencia** sobre dónde está; lo demás es una **pista**: puede hacerlo ir a investigar si la **elección** la prefiere (ver *A qué le presta atención*), pero no rejuvenece la creencia ni le cambia el objetivo a una persecución. La creencia junta vista y oído en una posición con un radio: con evidencia que coincide se achica (los sentidos suman), sin evidencia crece a la velocidad del jugador corriendo. Se ve en F9, fila *creencia* (vista u oído, antigüedad, radio y pista activa), y se tunea en `SO_NemesisData` › *Creencia*.
 
 Que los pisos atenúen en vez de cortar es deliberado: es el único canal que tiene el Nemesis hacia el piso de arriba.
 
@@ -136,13 +136,18 @@ Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. M
 
 **Cómo te saca.** "sabe en qué escondite está" lo manda a `Searching`, que camina al `ApproachPoint` del escondite. El alcance del agarre se mide contra ese punto, y sólo para un escondite que conoce: pasar por delante de un locker que no sabe ocupado no saca a nadie. Un escondite que **sospecha o conoce**, en cambio, lo **abre** al llegar (en `Searching` y en `Investigating`): si estás adentro, te saca aunque aguantes la respiración. Antes de llamar a `OnCaptured()` se queda `hiddenPullOutTime` (0.8 s) parado en la puerta — todavía no hay animación propia, se reproduce la del agarre. No es una ventana para escapar: salís al lado de la puerta, al alcance.
 
-**Armado**: el header de `HidingSpot.cs` tiene la jerarquía (`InteriorPose`, `ApproachPoint`, `ExitPose`, cámara interior) y el plan §14.4 dónde va cada pieza. `Tools > Player > Validate Hiding Spots` reporta `SpotId` vacío o repetido y un `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` del interior.
+**Armado**: el header de `HidingSpot.cs` tiene la jerarquía (`InteriorPose`, `ApproachPoint`, `ExitPose`, cámara interior) y el plan §14.4 dónde va cada pieza. `Tools > Player > Validate Hiding Spots` reporta:
+
+- un `SpotId` vacío o repetido;
+- un `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` del interior;
+- desde el 28/09, una `ExitPose` a más de 0.75 m del `ApproachPoint`: el alcance del agarre menos lo que frena el Nemesis en la puerta. Más lejos, salir mientras te saca sería un escape gratis (D16);
+- una `ExitPose` adentro de un collider sólido o sin piso abajo.
 
 ---
 
 ## Señuelos
 
-Código en `Scripts/Decoys/`, datos en `ScriptableObjects/Decoys/`, prefabs en `Prefabs/Decoys/` (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`). **Todavía no están colocados en ninguna escena.**
+Código en `Scripts/Decoys/`, datos en `ScriptableObjects/Decoys/`, prefabs en `Prefabs/Decoys/` (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`). En la testbed los pone *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)*: la radio en SALA_LATERAL, la alarma en PASILLO_CARGA y las cadenas en PASILLO_OESTE, con carteles. En Zona1 todavía no hay ninguno.
 
 Un señuelo es un `DecoyNoiseSource` más el componente que decide cuándo suena. No es una esfera en la capa de escucha: `FieldOfListening` los lee de un registro propio (`DecoyNoiseSource.Active`), porque un señuelo dice en metros reales hasta dónde se oye —sin `noiseRangeScale` y sin el tope de `listenRange`— o que se oye desde cualquier lado. Paredes y pisos lo atenúan igual que al jugador. Uno que se oye en todos lados compite con margen 0: un ruido de verdad cerca le gana. El Nemesis va al `investigatePoint` proyectado al NavMesh; ponelo en el piso, del lado desde el que tiene que llegar.
 
@@ -152,7 +157,25 @@ Un señuelo es un `DecoyNoiseSource` más el componente que decide cuándo suena
 | `FireAlarmDecoy` | 1 | desde cualquier lado | Suena 10 s después de activarla, durante 30 s, y abre los rociadores |
 | `ChainDecoy` | infinitos | a 8 m | 1.5 s de ruido, 2 s de enfriamiento |
 
-La rotura la hace `NemesisDecoyBreaker`, que va en la raíz del Nemesis y **no** se agrega solo: **hoy el prefab no lo tiene**. Sin él la radio no se rompe, y con `maxPlayTime` 0 suena para siempre y lo sigue llamando. Sólo rompe el señuelo que lo trajo (`FieldOfListening.LastHeardDecoy`), no cualquiera por el que pase; si te ve durante el corte, lo abandona y la radio sigue sonando. Los tres assets tienen los ids de sonido vacíos.
+La rotura la hace `NemesisDecoyBreaker`, que **se agrega solo** a la raíz del Nemesis desde el 28/09 (antes no estaba en ningún lado y la radio no se rompía nunca). Sólo rompe el señuelo que es su **foco**, no cualquiera por el que pase; si te ve durante el corte, lo abandona y la radio sigue sonando. Los tres assets tienen los ids de sonido vacíos.
+
+### A qué le presta atención (plan §17.4, Fase 2B parte 4)
+
+`NemesisChoice` (se agrega solo) elige un **foco**: vos, una pista (un señuelo, un pulso del Director) o un vistazo de reojo. Cada vez que llega algo nuevo —nunca por tener un sentido prendido— le pregunta a `FocusArbiter` si vale más que lo que está persiguiendo:
+
+- **Valor** = base × confianza (el radio de la evidencia) × frescura (se reduce a la mitad cada 6 s) × costo de llegar × habituación. Las bases: vos 1, alarma 0.7, radio 0.6, cadenas 0.45, otro ruido 0.4 y vistazo 0.5. Todo está en `SO_NemesisData` › *Elección*.
+- **Verte gana siempre y al instante.** Mientras rompe la radio o abre un escondite no cambia, salvo que te vea.
+- **Lo mismo no es cambio**: el mismo señuelo, vos otra vez, o algo del mismo tipo a menos de 3 m actualizan el foco sin cortar lo que hacía.
+- **Lo nuevo tiene que ganar por un margen** (0.05). Lo recién elegido tiene una ventaja de 0.3 que se va en 3 s, y lo que tiene a menos de 4 m, 0.15 más. Además, dos pistas seguidas no lo hacen cambiar de una a otra en menos de 2 s.
+- **Habituación**: cada vez que un señuelo lo hace ir sin encontrar nada, vale ×0.6 para el resto de la sesión. Debajo de 0.12 no le presta atención. Por eso unas cadenas del otro lado del nivel lo mueven dos veces y a la tercera ya no.
+- **Un señuelo donde ya te está buscando suma**: sigue barriendo ahí.
+- **Un escondite que sospecha o conoce le gana a cualquier señuelo.**
+
+Cuando cambia de idea se frena ~0.4 s girando hacia lo nuevo antes de caminar. F9, fila *foco*: qué es, cuánto vale, hace cuánto y la última decisión con su pregunta (`cambió: radio 0.36 > vos 0.28 [11]`).
+
+**Sospecha compartida.** Un ruido **suave** tuyo (agachado) sube el mismo medidor que un vistazo: juntos lo ponen en sospecha más rápido. Un ruido solo nunca llega a ser un avistamiento.
+
+**Escondites que usaste.** Cuando busca o investiga una zona, sortea los escondites que usaste **ahí**: el más usado primero, con la chance del medidor de la Fase 3 (×0.25, tope 0.85). Si sale uno, lo sospecha y va a abrirlo. Nunca cruza el nivel por uno. La primera vez sólo pasa si estás a ≤ 12 m, para que lo veas u oigas. Y un segundo ruido desde el mismo escondite (una exhalación, un suspiro) lo vuelve sospechoso: va y lo abre.
 
 ---
 
@@ -316,7 +339,7 @@ En Zona1 el Nemesis sólo existe acá. La secuencia vive en `Scripts/Escape/` y 
 1. **Ancla de patrulla**: el sesgo de zona de la patrulla apunta al centro de la zona presionada en vez de a vos.
 2. **Pesos de ruta**: las rutas desbloqueadas con algún waypoint dentro de la zona multiplican su peso hasta ×`routeWeightBoost` (3).
 3. **Ruido sintético**: cada `noiseInterval` (9 s), un emisor de radio 4 que vive 0.8 s en la capa `DetectableAudio` (tiene que estar en el `listenMask` del Nemesis, o no existe para nadie).
-4. **Sentidos**: una copia en runtime de `SO_NemesisData` con oído y vista ×`sensoryBoost` (1.25). Nunca modifica el asset.
+4. **Sentidos**: una copia en runtime de `SO_NemesisData` con oído y vista ×`sensoryBoost` (1.25). El oído alarga tus ruidos y su tope juntos (`Noise Range Scale` y `Listen Range`), así que caminando te oye a ~12.5 m en vez de 10 (desde el 28/09; antes sólo subía el tope y caminando no se notaba). Nunca modifica el asset.
 
 Aparte, la **entrada tipo Mr. X**: aparece a 10–22 m por NavMesh, fuera de tu vista, y se queda `entranceStareSeconds` (2.5 s) mirándote antes de moverse. Sale sin hacer nada si el Nemesis no está activo.
 
@@ -375,12 +398,13 @@ Tres caminos independientes al mixer. **Ninguno de los tres es intercambiable co
 |---|---|---|---|
 | Pasos | `FootstepEmitter` en la raíz del prefab | Nemesis | Funciona |
 | Respiración por estado | `NemesisAudio` (en el prefab; se agrega solo si falta) | Nemesis | Funciona |
-| Voz por estado | `NemesisAudio` | Nemesis | **Falta enganchar** |
+| Voz: aviso de "sabe tu escondite" | `NemesisAudio` (sección *Voz y avisos*) | Nemesis | Clip provisorio: `voice_chase` a pitch 0.8 |
+| Voz: "te perdí" al volver a patrullar | `NemesisAudio` | Nemesis | Funciona (`voice_lost_01/02`) |
 | Música de persecución | `NemesisChaseMusic`, objeto suelto en la escena | **Music** | Funciona |
 | Puertas que abre | `DoorInteractable.AnimateOpen/Close` | SFX | Funciona |
 | Bajadas: gruñido, golpe de manos, impacto | `NemesisAudio.PlayDropCue`, uno por fase | Nemesis | Clips provisorios (ver *Bajadas entre pisos*) |
 | Stinger de captura | — | — | **No existe** |
-| Cue de activación | El escape, cuando arranca a correr (`SO_EscapeSequenceConfig.revealSoundId`) | Nemesis | **Falta el clip** |
+| Cue de activación | Cuando lo despierta un puzzle, `NemesisAudio` (`activationSoundId`). En el escape, cuando arranca a correr (`SO_EscapeSequenceConfig.revealSoundId`) | Nemesis | **Falta el clip**: los dos piden `sfx_nemesis_activacion`, que está vacío |
 
 La música de persecución no se corta cuando te pierde de vista: sigue durante la búsqueda que viene después (también en `Traversing`) y termina cuando termina la búsqueda, así el silencio quiere decir "dejó de buscar" y no "dejó de verte" (decisión D5 del plan). `searchTailTimeout` (25 s) es la red de seguridad.
 
@@ -398,24 +422,36 @@ El Nemesis usa el mismo `FootstepEmitter` que el jugador, con `bus = Nemesis` y 
 
 Se agrega solo a cualquier Nemesis que no lo tenga, pero el contenido —el array `stateLoops`, una entrada por estado con clip y volumen— se autora en el prefab. Un estado sin entrada hace crossfade a silencio; si el array está vacío avisa una vez por consola al arrancar.
 
-Hoy el prefab tiene respiración: `breathing_patrol` en `Patrolling`, `breathing_search` en `Investigating` y `Searching`, `breathing_chase` en `Chasing` y `Catch`; `Traversing` no tiene entrada. De las voces (`voice_chase`, `voice_lost_01/02`, en `Audio/SFX/Nemesis/`), sólo `voice_chase` suena, y únicamente como gruñido de las bajadas. Los dos `SO_sfx_nemesis_voice_lost_*` están registrados en el `AudioManager` pero ningún código los pide.
+Hoy el prefab tiene respiración: `breathing_patrol` en `Patrolling`, `breathing_search` en `Investigating` y `Searching`, `breathing_chase` en `Chasing` y `Catch`; `Traversing` no tiene entrada.
 
-También tiene los one-shots de las bajadas (sección *Bajadas*: gruñidos, golpe de manos, impacto, volumen y pitch del impacto). No son loops: van por el pool del `AudioManager` al bus Nemesis, en 3D y sin oclusión, porque se tienen que oír a través del piso.
+También tiene one-shots, que no son loops: van por el pool del `AudioManager` al bus Nemesis, en 3D y sin oclusión.
+
+- **Bajadas** (sección *Bajadas*): gruñido, golpe de manos e impacto, más el volumen y el pitch del impacto. Sin oclusión porque se tienen que oír a través del piso.
+- **Voz y avisos** (plan §16.2), con un enfriamiento común (`voiceCooldown`, 3 s) para que no hable encima de sí mismo:
+  - **"Sabe tu escondite"** (`knownSpotStings`). Suena cuando pasa a saber en qué escondite estás (te vio entrar, o te distinguió por las rendijas) y todavía está a más de `knownSpotStingMinDistance` (2 m) de la puerta. Desde adentro es lo único que separa "sabe" de "adivina": el margen para salir antes de que llegue (D1, D16, D34). Si sólo sospecha no suena, y tampoco en la puerta, donde el golpe es la música al abrir (D13). Clip provisorio: `voice_chase` a pitch 0.8.
+  - **"Te perdí"** (`lostVoices`: `voice_lost_01/02`). Suena al volver a patrullar después de una búsqueda que terminó sin encontrarte, y confirma lo que ya dice el silencio de la música (D5). Si en el medio se fue a investigar un ruido, espera a que vuelva a patrullar. Si te encontró, no suena.
+  - **Cue de activación** (`activationSoundId`, `sfx_nemesis_activacion`). Suena cuando lo despierta un puzzle, no un script: el escape toca el suyo. El SO todavía no tiene clip.
 
 Crossfade de 0.4 s entre estados, `spatialBlend` 1 (3D puro), y oclusión que **atenúa, nunca corta** (`occludedVolumeMultiplier`: 0.35 en el código, 0.5 en el prefab): que el monstruo desaparezca del audio apenas se mete detrás de una columna es peor información que que se escuche de más.
 
 ---
 
-## Escalada de dificultad — no implementada
+## Escalada de dificultad
 
-El spec §7.2 pide que el Nemesis se ponga más agresivo a medida que se completan módulos. **No está construido**, y el propio spec lo marca como pulido diferido: pide mantener los valores base constantes en la primera iteración.
+A medida que se completan puzzles, el Nemesis ve y oye más lejos y patrulla de forma menos previsible (spec §7.2, plan Fase 7, 28/09). **Nunca se vuelve más rápido.** Lo hace `NemesisEscalation`, en la escena `Data`; los niveles están en `SO_NemesisEscalation`.
 
-Dos cosas quedan decididas de antemano para cuando se construya:
+| Desde | Vista | Oído | Búsqueda | Variación de ruta |
+|---|---|---|---|---|
+| 0 puzzles | ×1 | ×1 | ×1 | como está (0.15) |
+| 2 puzzles | ×1.1 | ×1 | ×1 | al menos 0.25 |
+| 3 o más | ×1.15 | ×1.1 | ×1 | al menos 0.40 |
 
-- **Cuenta puzzles, no módulos.** `ModuleManager` son los timers de los dispositivos y nunca avanza la historia. La espina de progresión de este proyecto es completar puzzles: es lo que desbloquea rutas, despierta al Nemesis y arma los checkpoints.
-- **Tiene que leer un contador, no sumar eventos.** `PuzzleStateManager.RestoreSnapshot` rellena los puzzles resueltos **sin** emitir `OnPuzzleCompleted`, así que algo que cuente eventos volvería de una partida guardada creyendo que el jugador recién empieza.
-
-Y una trampa que ya está desarmada: cuando esto se implemente, va a cambiar la sintonía del Nemesis de forma **permanente**, mientras que el boost sensorial de `NemesisDirector` la cambia de forma **temporal** y la devuelve. El Director ya lee su punto de retorno desde `NemesisStateManager.BaselineData` en vez de cachearlo, justamente para que las dos cosas se compongan en lugar de pisarse.
+- **Cuenta puzzles, no módulos.** `ModuleManager` son los timers de los dispositivos y nunca avanza la historia. El primer puzzle es el que despierta al Nemesis, así que el "módulo 1" del spec son 0–1 puzzles.
+- **Lee la cuenta, no suma eventos.** Si un checkpoint deshace un puzzle, el nivel baja con él. New Game vuelve a empezar de 0.
+- **Vista** alarga `View Range`, y con él las rendijas del locker y lo que ve bajo la mesa. **Oído** alarga todos los ruidos y su tope juntos: caminando, en el nivel 3 te oye a 11 m en vez de 10.
+- **Búsqueda** queda ×1: el spec la acortaba, pero con la búsqueda que se enfría eso premiaría esconderse y esperar (D31). **Variación de ruta** es un piso para las chances de invertir la ronda y de saltear un waypoint: nunca las baja.
+- **Convive con el Director.** La escalada es permanente, y el préstamo de sentidos o de persistencia del Director es temporal y se suma encima. Si el nivel cambia en medio de un préstamo, el Director lo rearma sobre el nivel nuevo.
+- **Dónde se ve:** F9 fila `escalada`; F10 sección *ESCALATION* (*Tier +* / *Tier -* / *Auto*), porque la testbed no tiene puzzles. En Zona1 el Nemesis sólo aparece en el escape, ya con todos los puzzles hechos: donde se va a notar es la Zona 2.
 
 ---
 
@@ -430,6 +466,7 @@ En `ScriptableObjects/Nemesis/`:
 | `SO_NemesisPriorities` | La escalera de prioridades. Reordenable. Incluye `minimumStateDwell` (0.35 s): la histéresis que evita que dos peldaños se lo pasen ida y vuelta cada frame. |
 | `SO_DirectorPacing` | El ritmo del Director (ver *Director y ritmo*). Lo lee `NemesisDirector`, no el Nemesis. |
 | `SO_CounterplayRules` | Qué desbloquean los hábitos y cómo se puntúa cada escondite (ver *Hábitos del jugador*). Lo lee `PlayerHabitTracker`, en la escena `Data`. |
+| `SO_NemesisEscalation` | Los niveles de la escalada por puzzles (ver *Escalada de dificultad*). Lo lee `NemesisEscalation`, en la escena `Data`. |
 
 Fuera de esa carpeta pero leídos del lado del Nemesis: `SO_HidingData` (`ScriptableObjects/Hiding/`) y los tres de señuelos (`ScriptableObjects/Decoys/`).
 
@@ -447,7 +484,8 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 | Tecla | Qué abre |
 |---|---|
-| `F9` | HUD de debug (`NemesisDebugHUD`, está en el prefab): estado y la regla que ganó, sospecha, escondite conocido, creencia, distancia recta y por NavMesh, progreso de la persecución (`ChaseStalled`), búsqueda, cúmulo, agente, trabas, bajada (tipo, alto, fase y si puede agarrar; entre bajadas, cuántas están en enfriamiento), ritmo y presión del Director, hábitos (ver *Hábitos del jugador*), y "seguro en": segundos desde la última detección hasta volver a patrullar. |
+| `F9` | HUD de debug (`NemesisDebugHUD`, está en el prefab): estado y la regla que ganó, sospecha, escondite conocido, creencia, distancia recta y por NavMesh, progreso de la persecución (`ChaseStalled`), búsqueda, cúmulo, agente, trabas, bajada (tipo, alto, fase y si puede agarrar; entre bajadas, cuántas están en enfriamiento), ritmo y presión del Director, hábitos (ver *Hábitos del jugador*), y "seguro en": segundos desde la última detección hasta volver a patrullar. **Mientras está abierto, lo que muestra se guarda** en `Logs/NemesisF9/`, un .txt por cada vez que lo abrís: segundo de juego (el mismo reloj que el CSV de `Logs/NemesisTrace/`), hora y las filas que cambiaron, con una foto completa cada 10 s. |
+| `F7` | Con F9 abierto: deja una marca numerada en el .txt de F9, con una foto completa del panel. Para el momento en que algo se ve mal. |
 | `F10` | Consola de test (`NemesisTestConsole`, hoy en la testbed y en `TestIñaki`; en otra escena se agrega a mano al Nemesis): armar situaciones (Nemesis detrás o delante tuyo, vos encima de él, escondido, captura), la sección del Director (un botón por zona, *Release*, *Staged entrance*, pico de tensión, saltar el silencio) y la de hábitos (*Log ledger*, *Clear habits*). |
 | `1`–`6` / `0` | Con la consola en la escena, aunque esté cerrada: fija el estado que responde la escalera (Patrol, Investig, Chase, Search, Traverse, Catch); `0` o la misma tecla lo suelta. |
 
@@ -504,13 +542,13 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 
 | Qué | Quién |
 |---|---|
-| Enganchar la voz (`voice_chase`, `voice_lost_01/02`): la respiración ya está en `stateLoops`, la voz no la reproduce nada | Audio + código |
+| Voz: el aviso de "sabe tu escondite" usa `voice_chase` provisorio. Falta un clip propio, que no se confunda con el gruñido de las bajadas | Audio |
 | Decidir qué hacer con `SO_FootstepBank_Nemesis` y los `pasos_chase_*`: quedaron sin uso desde que los pasos usan el banco del jugador | Audio |
 | **Conseguir dos clips**: el stinger de captura y el cue de activación — ver abajo | Audio |
 | Marcar superficies con `FootstepSurface` en el blockout | Nivel |
 | Definir qué es la cinemática de captura del spec §5.6, y la animación de sacar al jugador de un escondite | Diseño |
 | Poner `NemesisDecoyBreaker` en el prefab antes de colocar radios en un nivel (ver *Señuelos*), y los ids de sonido de los tres señuelos | Nivel + audio |
-| Escalada de dificultad del spec §7.2 — diferida a propósito, ver arriba | Diseño + código |
+| Revisar los umbrales de la escalada (0 / 2 / 3 puzzles) cuando exista la Zona 2 | Diseño |
 | Bajadas: las animaciones del plan §15.5 y el setup del Animator, clips propios de golpe de manos e impacto, apagar *Generate Links* y rebakear (D10), y jugarlas en el *Drop Lab* de la testbed (casos 12–16 y 55) | Arte + audio + nivel |
 
 ### Dos `SO_SoundData` esperando clip

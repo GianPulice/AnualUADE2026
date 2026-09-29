@@ -12,7 +12,9 @@ using UnityEngine.AI;
 /// <b>Almost every failure here is silent in play.</b> A duplicate id merges two spots' histories
 /// in the habit tracker; an approach point off the NavMesh means the Nemesis can never walk up to
 /// check the spot; one further than its grab reach from the interior pose means it walks up, stands
-/// there, and cannot open it. Nothing errors in any of those cases — the monster just looks broken.
+/// there, and cannot open it. An exit pose out of its reach from the door, inside the prop or over
+/// nothing breaks the pull-out (see ValidateExitPose). Nothing errors in any of those cases — the
+/// monster just looks broken.
 ///
 /// Reports the way <see cref="NemesisSetupValidator"/> and <see cref="ItemHighlightValidator"/> do:
 /// one warning with everything in it, so a whole level can be fixed in one pass.
@@ -27,6 +29,17 @@ public static class HidingSpotValidator
     // Used when no SO_NemesisData asset can be found. The shipped value.
     private const float FallbackCatchReach = 1f;
 
+    // The player's capsule (Player.prefab: radius 0.3, height 1.86), a little slimmer so a pose
+    // authored flush against a wall is not a finding, and lifted off the floor it stands on.
+    private const float PlayerRadius = 0.28f;
+    private const float PlayerHeight = 1.86f;
+    private const float FloorSkin = 0.05f;
+
+    // What counts as solid for "the player would appear inside it": the same layers the Nemesis's
+    // senses treat as solid (NemesisSetupValidator.OcclusionLayerNames). The spot's own solid
+    // collider stays on Default by design (plan §14.4), so it is in here too.
+    private static readonly string[] SolidLayerNames = { "Default", "Ground", "Wall", "Props" };
+
     [MenuItem("Tools/Player/Validate Hiding Spots")]
     private static void Validate()
     {
@@ -39,6 +52,11 @@ public static class HidingSpotValidator
 
         float catchReach = ResolveCatchReach();
         int interactableLayer = LayerMask.NameToLayer("Interactable");
+        int solid = LayerMask.GetMask(SolidLayerNames);
+
+        // Edit-mode physics only sees where things were at the last sync, and this project runs with
+        // autoSyncTransforms off: without this a pose moved a moment ago is checked where it was.
+        Physics.SyncTransforms();
 
         StringBuilder report = new StringBuilder();
         int problems = 0;
@@ -115,6 +133,10 @@ public static class HidingSpotValidator
                 }
             }
 
+            // ── Exit pose (plan §14.4) ──
+            Transform exit = so.FindProperty("exitPose").objectReferenceValue as Transform;
+            if (exit != null) problems += ValidateExitPose(report, where, spot, exit, approach, catchReach, solid);
+
             // ── Camera ──
             if (so.FindProperty("interiorCamera").objectReferenceValue == null)
             {
@@ -140,6 +162,70 @@ public static class HidingSpotValidator
 
         Debug.LogWarning($"[HidingSpotValidator] {problems} problem(s) across {spots.Length} " +
                          $"spot(s):\n\n{report}\nSee docs/Plan-IA-Stalker.md §14.4 for the setup.");
+    }
+
+    /// <summary>
+    /// The Exit Pose is where the player is put back down: leaving on their own, and pulled out by
+    /// the Nemesis (plan §3.5, D16). Three ways it goes wrong, none of which errors in play.
+    ///
+    /// - <b>Out of reach from the door.</b> D16 rests on "bailing out while it opens the spot leaves
+    ///   you at the Exit Pose, inches from the Nemesis, and it grabs you anyway". The Nemesis stands
+    ///   at the Approach Point, up to the spot-check stopping distance off it, and grabs within its
+    ///   catch reach. An Exit Pose further than that turns climbing out mid pull-out into a free
+    ///   escape (NemesisCatchState sends it back to Chasing).
+    /// - <b>Inside something.</b> The player's capsule would start overlapping the spot's own shell
+    ///   or the wall behind it, and the physics throws it out, which is exactly case 19's "despedido
+    ///   por la física".
+    /// - <b>Over nothing.</b> No floor under it: the player drops out of the spot.
+    ///
+    /// Only an authored Exit Pose is checked. Without one the Approach Point is the exit, and that
+    /// one is checked above.
+    /// </summary>
+    private static int ValidateExitPose(StringBuilder report, string where, HidingSpot spot, Transform exit,
+                                        Transform approach, float catchReach, int solid)
+    {
+        int problems = 0;
+        Vector3 pose = exit.position;
+
+        if (approach != null)
+        {
+            Vector3 toDoor = approach.position - pose;
+            toDoor.y = 0f;
+
+            float reach = Mathf.Max(0f, catchReach - NemesisStateManager.SpotCheckStoppingDistance);
+            if (toDoor.magnitude > reach)
+            {
+                report.AppendLine($"- '{where}': Exit Pose is {toDoor.magnitude:0.00} m from the Approach " +
+                                  $"Point, beyond the {reach:0.##} m the Nemesis standing at the door can grab " +
+                                  $"(catch reach {catchReach:0.##} minus its {NemesisStateManager.SpotCheckStoppingDistance} m " +
+                                  "stopping distance). Climbing out while it opens the spot would be a free " +
+                                  "escape (plan D16). Move the Exit Pose next to the Approach Point.");
+                problems++;
+            }
+        }
+
+        Vector3 bottom = pose + Vector3.up * (PlayerRadius + FloorSkin);
+        Vector3 top = pose + Vector3.up * (PlayerHeight - PlayerRadius);
+        Collider[] overlaps = Physics.OverlapCapsule(bottom, top, PlayerRadius, solid, QueryTriggerInteraction.Ignore);
+
+        if (overlaps.Length > 0)
+        {
+            Collider first = overlaps[0];
+            string own = first.transform.IsChildOf(spot.transform) ? " (the spot's own collider)" : "";
+            report.AppendLine($"- '{where}': the player put down at its Exit Pose would start inside " +
+                              $"'{first.name}'{own}. Physics would throw them out of it (plan §13, case 19). " +
+                              "Move the Exit Pose out into the open.");
+            problems++;
+        }
+
+        if (!Physics.Raycast(pose + Vector3.up * 0.5f, Vector3.down, 1.5f, solid, QueryTriggerInteraction.Ignore))
+        {
+            report.AppendLine($"- '{where}': there is no floor under its Exit Pose (nothing solid within 1 m " +
+                              "below). The player would drop when leaving the spot.");
+            problems++;
+        }
+
+        return problems;
     }
 
     private static bool HasColliderOnLayer(HidingSpot spot, int layer)

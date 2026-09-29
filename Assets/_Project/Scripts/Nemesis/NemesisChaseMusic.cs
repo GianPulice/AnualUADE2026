@@ -94,6 +94,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded += HandleChaseEnded;
         NemesisEvents.OnStateChanged += HandleStateChanged;
         GameResultManager.OnGameResult += HandleGameResult;
+        GameResultManager.OnResultCleared += HandleResultCleared;
     }
 
     private void OnDestroy()
@@ -102,6 +103,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
         NemesisEvents.OnStateChanged -= HandleStateChanged;
         GameResultManager.OnGameResult -= HandleGameResult;
+        GameResultManager.OnResultCleared -= HandleResultCleared;
     }
 
     /// <summary>
@@ -116,6 +118,9 @@ public class NemesisChaseMusic : MonoBehaviour
         isTrailingSearch = false;
         volumeTarget = 0f;
     }
+
+    // A defeat the level took back (the escape replays its cinematic): the music can play again.
+    private void HandleResultCleared() => runOver = false;
 
     private void Start()
     {

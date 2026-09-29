@@ -119,6 +119,11 @@ public class FieldOfListening : MonoBehaviour
     /// </summary>
     public bool HeardPlayer { get; private set; }
 
+    /// <summary>The player's noise heard this sweep was a SOFT one — crouching, under
+    /// SO_NemesisData.SoftNoiseLoudness — and not from inside a hiding spot. It feeds the suspicion
+    /// meter the glimpses fill (plan §17.3, shared suspicion).</summary>
+    public bool HeardSoftPlayerNoise { get; private set; }
+
     /// <summary>Something that is NOT the player was heard this sweep: a decoy, a Director pulse, any
     /// other trigger on the listen layer. A lead (D18, D19).</summary>
     public bool HeardLead { get; private set; }
@@ -204,6 +209,7 @@ public class FieldOfListening : MonoBehaviour
         LastHeardDecoy = null;
 
         HeardPlayer = false;
+        HeardSoftPlayerNoise = false;
         HeardLead = false;
         hasPlayerNoise = false;
         hasLeadNoise = false;
@@ -296,6 +302,12 @@ public class FieldOfListening : MonoBehaviour
                                        throughFloor, null, fromPlayer && IsPlayerHidden());
             if (fromPlayer) OfferPlayerNoise(heard, margin);
             else            OfferLead(heard, margin);
+
+            // A SOFT noise of the player's — crouching — also feeds the suspicion meter the glimpses
+            // fill (plan §17.3, shared suspicion; case 26). Not from inside a hiding spot: breathing
+            // there has its own rules (D21, D22).
+            if (fromPlayer && !heard.FromHidingSpot && loudness <= nemesisData.SoftNoiseLoudness)
+                sweepHeardSoftPlayer = true;
         }
 
         ListenDecoys(ref heardAny, ref loudestMargin, ref loudestPosition, ref loudestDecoy);
@@ -369,6 +381,7 @@ public class FieldOfListening : MonoBehaviour
     // query returned — kept once for the player and once for everything else.
 
     private bool sweepHeardPlayer;
+    private bool sweepHeardSoftPlayer;
     private float sweepPlayerMargin;
     private HeardNoise sweepPlayer;
     private bool sweepHeardLead;
@@ -378,6 +391,7 @@ public class FieldOfListening : MonoBehaviour
     private void BeginSweep()
     {
         sweepHeardPlayer = false;
+        sweepHeardSoftPlayer = false;
         sweepPlayerMargin = float.NegativeInfinity;
         sweepHeardLead = false;
         sweepLeadMargin = float.NegativeInfinity;
@@ -402,6 +416,7 @@ public class FieldOfListening : MonoBehaviour
     private void CommitSweep()
     {
         HeardPlayer = sweepHeardPlayer;
+        HeardSoftPlayerNoise = sweepHeardSoftPlayer;
         if (sweepHeardPlayer)
         {
             lastPlayerNoise = sweepPlayer;

@@ -110,7 +110,7 @@ real system and the two disagree. The mapping:
 | `CharacterController`, capsule height 0.6, step offset | Rigidbody + `CapsuleCollider`; stance heights are `SO_Movement.StandingHeight` / `CrouchHeight`, and standing up is gated by `HasHeadroomToStand()` |
 | `HidingData` / `ObstacleData` SOs | Do not exist. Create them under `ScriptableScripts/` — tunables belong in an asset, not on the component |
 | `NemesisController.Activate()` | `NemesisStateManager.Activate()`, gated on `NemesisController.activatedByPuzzleId` |
-| `NemesisController.SetDifficultyLevel(n)` | **Does not exist.** The per-module escalation table (Nemesis spec §7.2) is unimplemented. When it is built, `n` is a **completed puzzle count**, not a module count: `ModuleManager` is the device timers and never advances the story — see *Spec deltas — Nemesis* |
+| `NemesisController.SetDifficultyLevel(n)` | **Does not exist.** `NemesisEscalation` (Data scene) installs the tier for the **completed puzzle count**, not a module count: `ModuleManager` is the device timers and never advances the story. Nothing calls it; it re-reads the count by itself — see *Nemesis: escalation* |
 | `visionRange` / `hearingRange` / `proximityDetectionRange` | `SO_NemesisData.ViewRange` / `ListenRange` / `ProximityDetectionRange` — plus `FocusAngle` and a peripheral awareness band the spec predates |
 | "state X transitions to Y" | States never decide transitions. `NemesisDecision` + `SO_NemesisPriorities` do — see *Nemesis: the decision layer* |
 | "the Hub blocks the Nemesis" (in code) | A NavMesh `Not Walkable` modifier volume. There is no C# side — see *Safe zones* |
@@ -163,16 +163,10 @@ Nemesis's hearing model and has to replace the sphere, not sit beside it. Two so
 
 The Nemesis spec v1.0 is the oldest of the four and the code has moved past it. Things it describes
 that are **no longer true**: transitions living inside states, a single vision cone, `Vector3`
-distance checks, and detection being all-or-nothing. Things it asks for that are **still missing**:
+distance checks, and detection being all-or-nothing. Its difficulty escalation (§7.2) is built with
+three deltas — by puzzles, never speed, search time untouched — see *Nemesis: escalation*. Things it
+asks for that are **still missing**:
 
-- **Difficulty escalation per module (§7.2).** No `SetDifficultyLevel`, no runtime SO copy. The
-  comments in `SO_NemesisData` about "Tier 3.3 hands this a scaled copy" describe the intended
-  mechanism (`ScriptableObject.Instantiate`, never write the asset), and `FieldOfListening.SetData`
-  is already the seam for it. Two things are settled in advance when it does get built: it counts
-  **puzzles**, not modules (`ModuleManager` is the device timers and never advances the story), and
-  it reads `completedPuzzles.Count` rather than tallying `OnPuzzleCompleted` — `RestoreSnapshot`
-  refills that set without raising the event, so a tally would come back from a late save with an
-  opening-room monster.
 - **A capture cinematic (§5).** `NemesisCatchState` plays out phases and `CaptureFadeView` fades;
   there is no cinematic. Everything else in the capture chain is wired. Nor is there a capture
   **stinger** or an activation cue — §5.5 and §7.1 both ask for one and neither point makes a sound.
@@ -181,12 +175,13 @@ distance checks, and detection being all-or-nothing. Things it asks for that are
 **`NemesisStateManager.BaselineData` is a trap that has already been disarmed once.** The Director's
 sensory boost is a *loan*: widened senses installed for the length of a pressure request and handed
 back. It used to cache the first `SO_NemesisData` it ever saw and restore that, which is correct
-only for as long as nothing changes the Nemesis's tuning permanently. Escalation (§7.2 above) is
-exactly such a change, and against a cached restore target the first pressure request after a puzzle
-would silently revert the whole progression — with the monster still behaving, so nothing would look
-broken. Both ends of the loan now read `BaselineData` fresh. Today it always returns the authored
-asset, which makes it look like an indirection worth deleting. **It is not. Do not reintroduce a
-cached restore target.**
+only for as long as nothing changes the Nemesis's tuning permanently. Escalation is exactly such a
+change, and against a cached restore target the first pressure request after a puzzle would silently
+revert the whole progression — with the monster still behaving, so nothing would look broken. Both
+ends of the loan read `BaselineData` fresh, and since plan Fase 7 it really moves:
+`NemesisEscalation` swaps it through `InstallBaseline`, which raises `NemesisEvents.OnBaselineChanged`
+so the Director rebuilds a loan cloned from the old one. **Do not reintroduce a cached restore
+target**, and scale from `AuthoredData`, never from the current baseline.
 
 ### Spec deltas — Player
 
@@ -435,6 +430,7 @@ Communication between systems in different scenes uses **static C# events**. Key
 | `NemesisEvents.OnCaptureResolved` | NemesisCatchState | CaptureFadeView |
 | `NemesisEvents.OnSearchEnded` | NemesisTelemetry | PlayerHabitTracker |
 | `NemesisEvents.OnChaseStalled` | NemesisChaseProgress | PlayerHabitTracker |
+| `NemesisEvents.OnBaselineChanged` | NemesisStateManager.InstallBaseline | NemesisDirector |
 | `HidingEvents.OnEntered/Exited` | HidingSpot | NemesisHidingAwareness (entered only), HidingOverlayView, PlayerHabitTracker |
 | `InteractionEvents.OnTargetChanged` | InteractionManager | InteractionPromptView |
 | `InteractionEvents.OnGlobalMessage` | any system, via `RaiseGlobalMessage` | InteractionNotificationFeed |
@@ -1052,21 +1048,86 @@ player's position.
 - **`BeliefAge` counts the player only.** A lead never keeps it young — that is what let a 30 s fire
   alarm hold chases and searches open. The walk towards a lead is held by its own rung, *sigue yendo
   hacia la pista* (`HasFreshLead`).
-- **`HearsPlayer` means the player** (it used to read `HasAudioTarget`). Leads come in through
-  `HearsLead` → *oye un señuelo u otro ruido*, below the player's rung.
+- **`HearsPlayer` means the player** (it used to read `HasAudioTarget`). Leads reach the ladder only
+  through the focus (next section): *su atención está en una pista* (`FocusIsLead`).
 - `IsAnchoredBySight` — what `TryGetBelief`'s `fromSight` returns — holds for 0.25 s after a
   sighting, so it no longer flickers while the player is both seen and heard (the two sensors tick
   on independent 0.1 s timers).
 - `NemesisController` reads the facade too; it kept its own sight-first copy of the belief.
-- Still to come (plan Fase 2B parts 2–5, reordered on 27/09, see plan §18):
-  - Part 2: `Searching` sweeping NavMesh points around the belief instead of patrol waypoints.
-  - Part 3: the search cooling down instead of a fixed 15 s, with the Director's persistence.
-  - Part 4: choosing what to go after (`NemesisChoice` / `FocusArbiter`), with the states following
-    that instead of `HasAudioTarget`.
-  - Part 5: removing the per-state patches that worked around the old belief.
+- Still to come: plan Fase 2B part 5, removing the per-state patches that worked around the old
+  belief (parts 2–4 are built; see the plan's §9).
 - `Sequence` goes up on every folded piece of evidence, roughly 10 times a second while the player is
   seen or heard. It is not "something new arrived": a consumer that re-targets on it re-targets every
   frame. Compare places ("same spot = update"), not sequence numbers alone.
+
+### Nemesis: the focus (plan §17.4, Fase 2B part 4)
+
+**`NemesisBelief` knows; `NemesisChoice` chooses what to follow.** The choice — a sibling added by
+`ResolveSibling`, ticked right after the belief and before the ladder — keeps one FOCUS: the player,
+a lead (a decoy, a Director pulse) or a glimpse. Every time something new comes in (the belief's
+`Sequence`, its `LeadSequence`, a fresh glimpse once the meter is past the threshold — never because
+a sensor is merely on) it asks `FocusArbiter` (pure, `WIRED.Nemesis.Logic`, `FocusArbiterTests`) the
+§17.4 questions in order: sight switches at once; busy (breaking the radio, opening a spot at its
+door) keeps; the same thing (the same decoy, the player again, the same kind within 3 m — but two
+different decoys are never the same thing) updates without restarting anything; discarded (a decoy it
+already checked while it still sounds) is ignored; a lead where it is already searching sums; under
+the attention floor it is ignored; otherwise the new thing has to beat the current one by a margin,
+against the commitment bonus of a fresh choice and "almost there".
+
+- **The one repeat:** a lead still sounding that is not the focus is asked about again every 1 s. A
+  decoy that never goes quiet (the fire alarm) does not move `LeadSequence`, so without it a lead
+  that lost once — to a fresh belief, while busy, summed into a search — was ignored for as long as
+  it sounded, however cold the belief got. The lead that IS the focus takes its age from the last time
+  it was heard instead.
+- **Letting go falls back on the player.** `MarkFocusChecked`, a glimpse or lead going stale, or a
+  suspected spot dropping the lead leave the focus on the player while there is a belief — without
+  the commitment bonus — not on "nothing": any Director pulse beat "0 + margin" and pulled a warm
+  search out from under itself. "Nothing" only when there is no belief.
+
+- **Value** = base (the player 1, radio 0.6, alarm 0.7, chains 0.45, other 0.4, glimpse 0.5) ×
+  confidence (the evidence radius) × freshness (half-life 6 s) × the cost of getting there × the
+  decoy's habituation (×0.6 per fruitless visit, for the session). All on `SO_NemesisData` ›
+  *Elección*. "Almost there" never applies to the player's focus: a search circles the belief.
+- **Who reads it.** The ladder, through `FocusIsLead` (22, appended): *su atención está en una pista*
+  → Investigating, ABOVE the search budget — a lead that won the choice can pull it out of a cold
+  search (case 31), and one that lost (habituated, or far while the belief is fresh) never moves it.
+  It replaced *oye un señuelo u otro ruido* (`HearsLead`). The lift rung *para llegar hay que tomar
+  el montacargas* asks `Not FocusIsLead`: it would otherwise ride towards the belief the choice just
+  turned down. `NemesisInvestigatingState` walks to the
+  focus and, on a switch, stops ~0.4 s turning to the new thing first ("it changed its mind"); after
+  looking at a lead or a glimpse for the dwell it calls `MarkFocusChecked` (habituation, and the
+  focus is let go). `NemesisDecoyBreaker` breaks the decoy that is the focus (`FocusDecoy`), not
+  `FieldOfListening.LastHeardDecoy`, and is now installed by `ResolveSibling` (it was on no prefab).
+- A hiding spot it suspects or knows outranks any lead: the choice drops a lead focus while one
+  exists, which keeps the lead rung (above *sospecha de un escondite*) from sending it to the radio.
+- `DecoyNoiseSource.Kind` (radio / alarm / chains / other) is read off the decoy component next to
+  it, and `DecoyNoiseSource.Id` identifies it (`GetInstanceID` is obsolete in Unity 6.4).
+- F9 row "foco": the focus, its value, how long ago it was chosen, and the last decision with its
+  question number, e.g. `cambió: radio 0.36 > vos 0.28 [11]`.
+
+**Shared suspicion (§17.3).** A SOFT player noise (emitter radius ≤ `SoftNoiseLoudness`, crouching;
+not from a hiding spot) feeds `FieldOfView`'s suspicion meter the way a glimpse does
+(`FieldOfListening.HeardSoftPlayerNoise` → `FieldOfView.NoteSoftNoise`), so a soft step and a glimpse
+together cross the threshold sooner (case 26). A noise alone raises the meter only up to
+`NoiseOnlySuspicionCap` (under 1: never a sighting) and never lowers it — clamping the whole meter
+used to drop it the moment a glimpse ended and the steps went on.
+
+**Hiding spots in the choice (§17.6, and the Nemesis half of Fase 2D).**
+`NemesisHidingAwareness.ConsiderUsedSpots(centre, radius, rolled)`: while Searching sweeps an area
+(on entry, re-centre and widen) and when Investigating arrives at a noise, the spots the player USED
+inside that area (`PlayerHabitTracker.CollectUsedSpots`) are rolled once each, most used first,
+against `OpenChance`; the first that comes up becomes SUSPECTED ("lo usaste antes") and the state
+walks over and opens it (case 39). Never outside the area (case 40, R4). R3: until the first such
+opening has happened (`CheckHidingSpots`, `HasRun`), only a spot within 12 m of the player and on
+their floor qualifies, and `MarkRun` is called when that spot is OPENED (`Open`), not when it is
+picked — a suspicion dropped on the way does not spend the lesson. A spot skipped only for that is not
+rolled. The rolled set lives for a search, or for an investigation (cleared on `EnterState`). And D22's
+second half: a second noise from inside the same spot (a new burst after more than 1 s of quiet,
+within 1.5 m of the first, inside 60 s) makes the nearest spot suspected ("volvió a sonar ahí").
+Breathing counts: two breaths heard from ~2 m send it to open the door, which is D21's band where
+holding your breath decides. The first noise is forgotten on `MarkChecked`, capture, respawn, or
+seeing the player out in the open. Investigating tracks a suspected spot as its own source (`Spot`),
+not as a glimpse, and swallows focus switches while walking to it.
 
 ### Nemesis: habits (plan Fase 3, and the spot memory of 2D)
 
@@ -1134,6 +1195,52 @@ inside the area it is searching"), never with the tracker's knowledge of where t
   - F10 section HABITS: *Log ledger*, *Clear habits*.
   - One console line per count and per hide (`logRegistrations`).
   - *Validate Navigation Setup* checks the rows.
+
+### Nemesis: escalation (plan Fase 7)
+
+`NemesisEscalation` (`Scripts/Nemesis/`, in the **Data** scene: `Singleton` + `ISessionResettable`)
+makes the Nemesis sense further and patrol less predictably as the story advances. It is spec §7.2
+with the three deltas the project decided: it counts **puzzles**, it **never touches speed**, and it
+leaves the search time alone (plan D31).
+
+- **The tier comes from a count.** `PuzzleStateManager.CompletedPuzzleCount` is re-read when a
+  level's scene loads and on every completion, respawn, activation and Nemesis state change. It
+  never tallies `OnPuzzleCompleted`: a checkpoint restore refills the set without the event, and a
+  rollback lowers the tier with it.
+  - The scene load is the one the route needs. It lands after the Nemesis's Awake and before its
+    Start, and the Nemesis enters Patrolling, rolling its first cycle's route chances, **before** it
+    raises `OnActivated`. The Nemesis is looked up in the scene that loaded, since on a Retry the
+    old level's can still be alive.
+- **It is permanent, through the baseline.** It clones `NemesisStateManager.AuthoredData`, applies
+  the tier and hands the copy to `InstallBaseline`. Scale from the authored asset, never from the
+  current baseline, or one tier compounds on the last.
+  - With nothing lent, the copy is installed at once.
+  - With the Director's loan out, `NemesisEvents.OnBaselineChanged` makes the Director rebuild the
+    loan on top of the new baseline (`loanedFrom`), instead of waiting for it to end.
+  - The asset itself is never written: Play-mode edits to a ScriptableObject persist in the Editor.
+  - A new session (New Game, Retry) throws the copy away. A Retry resets with the old level still
+    loaded, so a Nemesis that is still alive gets its authored asset back first: its senses never
+    point at a destroyed asset.
+- **What a tier moves** (`SO_NemesisEscalation`; the tier with the highest threshold reached wins,
+  whatever the list order):
+  - sight: `ViewRange`, and with it every range measured as a fraction of it (locker slats, under
+    the table);
+  - hearing: `NoiseRangeScale` **and** `ListenRange` together. `ListenRange` alone is only the cap, so
+    walking noise (10 m) would never change. The Director's senses loan (`RefreshLoan`) scales both
+    too (fixed 28/09, plan D32);
+  - search persistence: `SearchQuietWindow` and `SearchHardCap`, at 1 in every default tier (D31);
+  - route variation: a floor under `RouteReverseChance` and `RouteSkipWaypointChance`, never lower
+    than authored.
+- **Defaults:** base from 0 puzzles; ×1.1 sight and a 0.25 route floor from 2; ×1.15 sight, ×1.1
+  hearing and a 0.40 floor from 3. The first puzzle is the one that wakes the Nemesis, so the spec's
+  "module 1" is 0–1 puzzles (D33).
+- **Pure part:** `EscalationTier` and `EscalationRules` in `Scripts/Nemesis/Logic/`, tested by
+  `EscalationRulesTests`.
+- **Debug:**
+  - F9 row `escalada`.
+  - F10 section *ESCALATION*: *Tier -* / *Tier +* / *Auto*. The testbeds have no puzzles.
+  - One console line per installed tier.
+  - *Validate Navigation Setup* reports duplicate thresholds and sense multipliers under 1.
 
 ### Nemesis: chase and search
 
@@ -1566,6 +1673,18 @@ The shaft link is **suspended** for the duration of a crossing
 the agent off that link is what makes the walk possible at all; leaving it suspended would delete
 the lift from every future route query and quietly cost the Nemesis the ability to change floors.
 
+**Stepping off a link without crossing it is a warp** (`LeaveCurrentLink`): onto the near end
+(`currentOffMeshLinkData.startPos`), and only then `ResetPath`. Never `ResetPath` or
+`CompleteOffMeshLink` while the agent is ON a link: `CompleteOffMeshLink` crosses it by definition,
+and `ResetPath` completes it too, per Unity's docs. Until 28/09 every step-off went through
+`ResetPath` and landed the Nemesis on the other floor. The walk aboard then ran on the wrong floor for
+the full 12 s, and the fallback lerp flew the body through the slab and the walls: 30+ s in
+`Traversing`. The same helper serves abandoning a lift, the cooldown nets and `AbortDrop` (D30), so
+all of them had the bug. `WalkAboardAsync` now also checks that it is still on the landing's floor
+(`WrongFloorAfterStepOff`). A plain link crossed by hand (the cabin's doorway, on an ordinary
+path) releases the `Traversing` commitment like a ride (`HasJustEndedRide`). Before that, the
+commitment held it 12 s.
+
 The hand-driven lerp is **kept as a fallback**, decided once per trip (`boardByWalking`) rather than
 per leg — boarding on foot and stepping off by hand would leave the body somewhere the other half of
 the traversal does not expect. A bake that produces nothing says so and boarding reverts to crossing
@@ -1669,7 +1788,9 @@ Four levers, in ascending order of how much the player notices:
    `Investigating` exactly as a real one would. Sampled onto the NavMesh — a noise inside a wall
    sends it to investigate somewhere it cannot stand. The layer must be in the Nemesis's listen
    mask; `Start` reports it when it is not, because that failure is otherwise completely silent.
-4. **Senses.** A runtime **copy** of `SO_NemesisData` with wider hearing and sight, installed via
+4. **Senses.** A runtime **copy** of `SO_NemesisData` with wider hearing and sight (hearing is
+   `NoiseRangeScale` and `ListenRange` together, like the escalation: the cap alone never reaches a
+   walking step — plan D32), installed via
    `NemesisStateManager.OverrideData` and thrown away after. A copy because ScriptableObject writes
    in Play mode persist into the asset in the Editor: mutating it directly would leave the boost in
    the project and a designer would find numbers nobody typed. Cloned fresh from the authored asset
@@ -2104,10 +2225,10 @@ The systems below are **implemented but not connected to anything**. Read this b
   keeps playing over the gameplay scene.
 - **`SO_InventoryItem.TargetID` has no reader.** Doors and sockets reference the item asset
   directly; the id-based wiring the spec describes was never built.
-- **The Nemesis does not escalate per module.** There is no `SetDifficultyLevel`, so the whole of
-  Nemesis spec §7.2 (speed, ranges, search timeout and route count rising with each module) is
-  unimplemented. The mechanism it should use — a runtime `ScriptableObject.Instantiate` copy pushed
-  through `FieldOfListening.SetData` and friends, never a write to the asset — is already in place.
+- **The escalation is visible only where the Nemesis hunts.** `NemesisEscalation` raises sight,
+  hearing and route variation with the completed puzzles (plan Fase 7), but in Zona1 the Nemesis
+  sleeps until the escape (plan D25), so there it only ever shows at the top tier. Zona 2 is where it
+  will be felt; its thresholds (0 / 2 / 3 puzzles) will need a look then.
 - **There is no capture cinematic.** `NemesisCatchState` runs its phases and `CaptureFadeView`
   fades to black; the rest of the chain (checkpoint, penalty, grace period, reposition) is wired.
 

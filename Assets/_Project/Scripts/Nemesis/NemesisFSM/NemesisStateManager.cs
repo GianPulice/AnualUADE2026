@@ -69,6 +69,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "que configurar en escena. Se tunea desde SO_NemesisData (Creencia).")]
     [SerializeField] private NemesisBelief belief;
 
+    // What it pays attention to (plan §17.4) and the radio-smashing beat that reads it. Resolved and
+    // added at runtime like the siblings above; nothing on them to wire in a scene, so not serialized.
+    private NemesisChoice choice;
+    private NemesisDecoyBreaker decoyBreaker;
+
     [Tooltip("The per-state breathing and voice loops. Added automatically like the six above, " +
              "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
              "a state with no entry crossfades the monster to silence. An empty array is a silent " +
@@ -227,6 +232,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     /// <summary>What it believes about the player, and the leads it carries (plan §17).</summary>
     public NemesisBelief Belief => belief;
+
+    /// <summary>What it is paying attention to: the player, a lead or a glimpse. See
+    /// <see cref="NemesisChoice"/>.</summary>
+    public NemesisChoice Choice => choice;
 
     /// <summary>The hiding spot it is sure the player is in, or null. Read by the ladder as
     /// KnowsHidingSpot and by Searching, which walks straight to it. Degrades to "knows nothing"
@@ -1015,13 +1024,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// Swaps the tuning asset every part of the Nemesis reads, and pushes it to the three
     /// components that keep their own reference.
     ///
-    /// ONE CALLER, ON PURPOSE: <see cref="NemesisDirector"/>, handing over a runtime copy and handing
-    /// the authored asset back afterwards. Since plan Fase 2B part 3 the copy carries two loans at
+    /// TWO CALLERS, ON PURPOSE, and both restore to <see cref="BaselineData"/>:
+    /// <see cref="NemesisDirector"/>, lending a runtime copy and handing the baseline back afterwards,
+    /// and <see cref="InstallBaseline"/>, when an escalation tier (plan Fase 7) replaces the baseline
+    /// while nothing is lent. Since plan Fase 2B part 3 the Director's copy carries two loans at
     /// once: widened senses for the length of a pressure request, and the search's persistence (its
     /// silence window and cap, scaled by the pacing state) for as long as the pacing is not at 1 —
     /// in PeakFade and Relax that is with no pressure at all. It is not a general-purpose setter and
-    /// should not become one — the reason it can exist at all is that the Director owns both ends of
-    /// the swap and guarantees the restore.
+    /// should not become one — the reason it can exist at all is that every swap has an owner that
+    /// guarantees the restore.
     ///
     /// The push matters as much as the assignment. FieldOfView, FieldOfListening and
     /// NemesisPathOracle each hold their own serialized reference, so assigning only this one
@@ -1042,19 +1053,45 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// The tuning <see cref="OverrideData"/>'s callers must restore to: what the Nemesis's numbers
     /// ARE when nothing is temporarily overriding them.
     ///
-    /// Today that is just the authored asset and never changes, so reading this is the same as
-    /// reading the asset — which is exactly why it is easy to "simplify" away. Don't.
+    /// The authored asset until <see cref="NemesisEscalation"/> installs an escalated copy (plan
+    /// Fase 7, <see cref="InstallBaseline"/>). Never cache it: read it fresh every time.
     ///
     /// <see cref="NemesisDirector"/>'s sensory boost is a LOAN: it installs widened senses for the
     /// length of a pressure request and hands them back. It used to cache the first asset it ever
     /// saw and restore THAT, which is correct only while nothing else ever changes the tuning
-    /// permanently. The moment something does — the unbuilt difficulty escalation of spec §7.2 is
-    /// the obvious candidate — a cached restore target silently reverts it on the next pressure
-    /// request, and nothing looks broken: the monster keeps behaving, just on numbers from before
-    /// the change. Reading the restore target from here instead is what keeps a permanent change
-    /// and a temporary one composing rather than fighting.
+    /// permanently. Escalation does: against a cached restore target it would be silently reverted
+    /// on the next pressure request, and nothing would look broken — the monster keeps behaving,
+    /// just on numbers from before the change. Reading the restore target from here instead is what
+    /// keeps a permanent change and a temporary one composing rather than fighting.
     /// </summary>
     public SO_NemesisData BaselineData { get; private set; }
+
+    /// <summary>
+    /// The asset as authored in the inspector, never a runtime copy. What an escalation scales FROM:
+    /// scaling the current baseline instead would compound one tier on top of the last.
+    /// </summary>
+    public SO_NemesisData AuthoredData { get; private set; }
+
+    /// <summary>
+    /// Makes <paramref name="data"/> the Nemesis's permanent tuning: the new <see cref="BaselineData"/>.
+    ///
+    /// ONE CALLER, like <see cref="OverrideData"/>: <see cref="NemesisEscalation"/>, which owns the
+    /// copy it hands over. With nothing lent, the new baseline is installed at once. With the
+    /// Director's loan out, the loan stays installed and <see cref="NemesisEvents.OnBaselineChanged"/>
+    /// tells the Director to rebuild it on top of the new baseline — overwriting it here would drop
+    /// the boost halfway through a pressure request.
+    /// </summary>
+    public void InstallBaseline(SO_NemesisData data)
+    {
+        if (data == null) return;
+
+        bool nothingLent = ReferenceEquals(nemesisData, BaselineData);
+        BaselineData = data;
+
+        if (nothingLent) OverrideData(data);
+
+        NemesisEvents.BaselineChanged();
+    }
 
     /// <summary>
     /// Freezes the body where it stands without touching the FSM, or hands it back.
@@ -1178,6 +1215,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Before the validation early-out, so even a Nemesis that fails to start reports a
         // coherent baseline rather than a null one to anything that asks.
         BaselineData = nemesisData;
+        AuthoredData = nemesisData;
 
         if (!ValidateReferences())
         {
@@ -1202,6 +1240,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         chaseProgress.Initialize(this);
         hidingAwareness.Initialize(this);
         belief.Initialize(this);
+        choice.Initialize(this);
 
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
@@ -1278,6 +1317,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // gained it when somebody re-saved its prefab would have no belief at all in every scene
         // nobody touched — TryGetBelief would answer "never sensed" for the rest of the run.
         belief = ResolveSibling(belief);
+
+        // Same terms (plan §17.4, Fase 2B part 4). The breaker first: the choice looks it up to know
+        // when it is mid-smash. The breaker was never installed before this — it was on no prefab and
+        // nothing added it, so the radio could not be broken at all.
+        decoyBreaker = ResolveSibling(decoyBreaker);
+        choice = ResolveSibling(choice);
 
         // GetComponent and NOT ResolveSibling: unlike the seven above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
@@ -1415,9 +1460,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         hearsPlayer = fieldOfListening.HeardPlayer;
         hearsLead = fieldOfListening.HeardLead;
 
+        // A soft noise of the player's feeds the same suspicion meter as a glimpse (plan §17.3).
+        if (fieldOfListening.HeardSoftPlayerNoise) fieldOfView.NoteSoftNoise();
+
         // Folded in right after sampling, before anything reads the belief this frame: the ladder,
         // the states and the pursuit all see the same answer (plan §17).
         belief.Tick();
+
+        // Right after the belief it chooses from, and before the ladder that reads it (FocusIsLead).
+        choice.Tick();
 
         // Lay down the trail of patrol waypoints the player was sensed near. Done here, off the
         // flags that were just sampled, so there is exactly one place that decides "a detection

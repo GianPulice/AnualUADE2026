@@ -175,6 +175,17 @@ public sealed class NemesisDecision
         }
     }
 
+    /// <summary>Its attention is on a lead: a decoy or another noise that is not the player won the
+    /// choice (plan §17.4). See <see cref="NemesisChoice"/>.</summary>
+    public bool FocusIsLead
+    {
+        get
+        {
+            NemesisChoice choice = stateManager.Choice;
+            return choice != null && choice.IsFocusOnLead;
+        }
+    }
+
     /// <summary>The chase has spent a whole window without closing the distance over the NavMesh.
     /// A measurement, not a sensor reading: NemesisChaseProgress takes it before this runs each
     /// frame, so every rung of one pass reads the same answer.</summary>
@@ -605,6 +616,7 @@ public sealed class NemesisDecision
             ENemesisPredicate.HasFreshLead => HasFreshLead,
             ENemesisPredicate.IsSearchWarm => IsSearchWarm,
             ENemesisPredicate.IsInvestigationWarm => IsInvestigationWarm,
+            ENemesisPredicate.FocusIsLead => FocusIsLead,
             _ => false,
         };
 

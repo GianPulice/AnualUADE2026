@@ -59,6 +59,16 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public Vector3 NextPosition { get => nextPosition; set => nextPosition = value; }
     public Vector3 NextDirection { get => nextDirection; set => nextDirection = value; }
 
+    /// <summary>
+    /// Where the camera actually looks: the rig's forward as Cinemachine last posed it, pitch
+    /// included. Not the same as orientation.forward, the camera-to-player line the move keys walk
+    /// along: the rig frames the player over the shoulder (the RotationComposer aims 0.8 m to the
+    /// player's right), so the view points further right than that line, by an amount that shifts
+    /// with the orbit. Anything that has to match what the screen shows, like which way is "up"
+    /// on it, reads this one.
+    /// </summary>
+    public Vector3 ViewForward => cameraTransform != null ? cameraTransform.forward : Vector3.zero;
+
     // State booleans
     [SerializeField] private bool isInteracting = false;
     private bool isCrouch = false;
@@ -1042,6 +1052,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         if (!captureTimerPaused) return;
         captureTimerPaused = false;
         if (ModuleManager.Exists) ModuleManager.Instance.ResumeTicking();
+    }
+
+    /// <summary>
+    /// Takes back a capture that ended the run (the defeat screen) without a respawn: the player
+    /// is free and out of the capture span, as if the grab had not happened. The caller places them.
+    /// A respawn does this through <see cref="CheckpointManager"/>; a capture with no respawn never
+    /// gets there, and the player is left disabled for good.
+    /// </summary>
+    public void RecoverFromDefeat()
+    {
+        EndStandUp();
+        recoveringFromCapture = false;
+        isDisabled = false;
+        ReleaseCaptureTimerPause();
     }
 
     // ── Stand-up ────────────────────────────────────────────────────────────────

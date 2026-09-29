@@ -1,4 +1,8 @@
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 /// <summary>
@@ -19,6 +23,11 @@ using UnityEngine;
 ///
 /// SETUP: add it to the Nemesis root. It costs nothing while switched off — Update returns on the
 /// first line and OnGUI is not entered.
+///
+/// THE FILE. While it is open, what it shows also goes to a .txt in the project's Logs/NemesisF9
+/// folder, one per opening (see <see cref="FileLog"/>), and <see cref="markKey"/> drops a numbered
+/// mark in it. So a playtest can be read back, and handed over, as what the Nemesis said it was
+/// doing against what the player saw.
 /// </summary>
 [RequireComponent(typeof(NemesisStateManager))]
 public class NemesisDebugHUD : MonoBehaviour
@@ -36,6 +45,21 @@ public class NemesisDebugHUD : MonoBehaviour
 
     [Tooltip("Seconds of state history shown in the strip along the bottom of the panel.")]
     [SerializeField, Min(5f)] private float historySeconds = 60f;
+
+    [Header("File log (editor only, like F9)")]
+    [Tooltip("While the overlay is open, writes what it shows to a .txt in the project's " +
+             "Logs/NemesisF9 folder: a new file each time it is opened.")]
+    [SerializeField] private bool logToFile = true;
+
+    [Tooltip("Seconds between entries. Each one lists only the rows that changed since the last.")]
+    [SerializeField, Min(0.05f)] private float logInterval = 0.5f;
+
+    [Tooltip("Seconds between full copies of the panel, so any stretch of the file reads on its own.")]
+    [SerializeField, Min(1f)] private float logFullEvery = 10f;
+
+    [Tooltip("With the overlay open: drops a numbered mark in the file, with a full copy of the " +
+             "panel. For the moment something looks wrong.")]
+    [SerializeField] private KeyCode markKey = KeyCode.F7;
 
     // Same palette as NemesisGizmos, and for the same reason: amber is alert, cool blue is
     // passive, red is danger and appears exactly once. A HUD that colours states differently from
@@ -78,6 +102,10 @@ public class NemesisDebugHUD : MonoBehaviour
     private Texture2D panelTexture;
     private Texture2D barTexture;
 
+    private readonly FileLog fileLog = new FileLog();
+    private readonly List<(string label, string value)> frameRows = new List<(string, string)>();
+    private bool collectingRows;
+
     private void Awake()
     {
         stateManager = GetComponent<NemesisStateManager>();
@@ -94,8 +122,12 @@ public class NemesisDebugHUD : MonoBehaviour
         chaseProgress = GetComponent<NemesisChaseProgress>();
     }
 
+    private void OnDisable() => fileLog.Close();
+
     private void OnDestroy()
     {
+        fileLog.Close();
+
         // Created with new, so they are not owned by any scene object and would leak on a domain
         // reload otherwise.
         if (panelTexture != null) Destroy(panelTexture);
@@ -106,8 +138,17 @@ public class NemesisDebugHUD : MonoBehaviour
     {
 #if UNITY_EDITOR
         if (Input.GetKeyDown(toggleKey)) visible = !visible;
+        if (visible && Input.GetKeyDown(markKey)) fileLog.RequestMark();
 #endif
-        if (!visible || stateManager == null) return;
+        // Closed, from F9 or the inspector: that opening's file ends here, and the next opening
+        // starts a new one.
+        if (!visible)
+        {
+            fileLog.Close();
+            return;
+        }
+
+        if (stateManager == null) return;
 
         TrackState();
     }
@@ -157,18 +198,24 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 22f + stripHeight + 32f;
+        float height = lineHeight * 24f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
 
         Rect line = new Rect(panel.x + 10f, panel.y + 8f, panel.width - 20f, lineHeight);
 
+        // Collected for the file once per frame: OnGUI also runs for layout and input events, with
+        // the same rows every time.
+        collectingRows = logToFile && Event.current.type == EventType.Repaint;
+        frameRows.Clear();
+
         Row(ref line, "estado", DescribeState());
         Row(ref line, "regla", DescribeRung());
         Row(ref line, "sospecha", DescribeAwareness());
         Row(ref line, "escondite", DescribeHidingSpot());
         Row(ref line, "creencia", DescribeBelief());
+        Row(ref line, "foco", DescribeFocus());
         Row(ref line, "distancia", DescribeDistance());
         Row(ref line, "persecución", DescribeChaseProgress());
         Row(ref line, "búsqueda", DescribeSearch());
@@ -185,10 +232,14 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "hábitos", DescribeHabits());
         Row(ref line, "  desbloquea", DescribeUnlocks());
         Row(ref line, "  escondites", DescribeSpotMemory());
+        Row(ref line, "escalada", DescribeEscalation());
 
         line.y += 6f;
         Row(ref line, "seguro en", lastSafeTime >= 0f ? $"{lastSafeTime:0.0} s" : "—");
         Row(ref line, "  mín / prom / máx", DescribeSafeStats());
+
+        if (collectingRows) fileLog.Capture(frameRows, this, logInterval, logFullEvery, markKey);
+        collectingRows = false;
 
         line.y += 6f;
         DrawHistoryStrip(new Rect(panel.x + 10f, line.y, panel.width - 20f, stripHeight));
@@ -198,6 +249,8 @@ public class NemesisDebugHUD : MonoBehaviour
     {
         GUI.Label(line, $"<b>{label}</b>  {value}", textStyle);
         line.y += line.height;
+
+        if (collectingRows) frameRows.Add((label, value));
     }
 
     /// <summary>
@@ -345,6 +398,29 @@ public class NemesisDebugHUD : MonoBehaviour
 
         return $"{source}  ·  {belief.Age:0.0} s  ·  radio {belief.Radius:0.0} m  ·  " +
                $"frescura {freshness:0.00}{lead}";
+    }
+
+    /// <summary>
+    /// What it is paying attention to (plan §17.4, Fase 2B part 4): the focus, what it is worth now,
+    /// how long ago it was chosen, and the last decision with the question that made it — "cambió:
+    /// radio 0.36 > vos 0.28 [11]", "siguió con cadenas: vos 0.40 vs 0.65 [9]", "ignoró cadenas (0.09)
+    /// [7]". The last decision fades after ten seconds so a stale one is not read as current.
+    /// </summary>
+    private string DescribeFocus()
+    {
+        NemesisChoice choice = stateManager.Choice;
+        if (choice == null) return "—";
+
+        string focus = choice.FocusKind == FocusArbiter.EKind.None
+            ? "nada"
+            : $"<b>{choice.DescribeFocus()}</b> {choice.FocusValue:0.00} · hace {choice.FocusAge:0} s";
+
+        DecoyNoiseSource decoy = choice.FocusDecoy;
+        int visits = choice.FruitlessVisitsTo(decoy);
+        string habituation = visits > 0 ? $" · {visits} visita(s) vacía(s)" : "";
+
+        string decision = Time.time - choice.LastDecisionAt < 10f ? $"  ·  {choice.LastDecision}" : "";
+        return focus + habituation + decision;
     }
 
     /// <summary>The lead it carries besides the player, if a recent one exists (plan §17: a decoy or
@@ -732,6 +808,23 @@ public class NemesisDebugHUD : MonoBehaviour
         return text.Length > 0 ? text : "—";
     }
 
+    /// <summary>The escalation by completed puzzles (plan Fase 7): which tier, from how many puzzles
+    /// (or F10), and what it multiplies. Speed is never on this row because it never escalates.
+    /// </summary>
+    private static string DescribeEscalation()
+    {
+        if (!NemesisEscalation.Exists) return "sin escalada (va en la escena Data)";
+
+        NemesisEscalation escalation = NemesisEscalation.Instance;
+        EscalationTier tier = escalation.CurrentTier;
+
+        string source = escalation.DebugTierOverride >= 0 ? "F10" : $"{escalation.CompletedPuzzles} puzzles";
+        if (tier == null) return $"base  ·  {source}";
+
+        return $"nivel {escalation.CurrentTierIndex} ({source})  ·  vista x{tier.SightMultiplier:0.##}  ·  " +
+               $"oído x{tier.HearingMultiplier:0.##}  ·  búsq. x{tier.SearchPersistenceMultiplier:0.##}";
+    }
+
     private string DescribeSafeStats()
     {
         if (safeSamples == 0) return "—";
@@ -809,5 +902,144 @@ public class NemesisDebugHUD : MonoBehaviour
         texture.SetPixel(0, 0, color);
         texture.Apply();
         return texture;
+    }
+
+    /// <summary>
+    /// What the overlay shows, written to a .txt for as long as it is open: one file per opening,
+    /// in the project's Logs/NemesisF9 folder (ignored by git, next to NemesisTraceRecorder's CSVs).
+    ///
+    /// Each entry carries the game time, the same clock as the first column of the trace CSV so
+    /// the two files line up, and the wall clock, which is what a playtest note remembers. Only the
+    /// rows that changed go in. A full copy of the panel goes in on opening, every few seconds, at
+    /// every mark and on closing, so any stretch of the file reads on its own.
+    ///
+    /// Only observes: it writes the strings the panel already built and asks the Nemesis nothing.
+    /// </summary>
+    private sealed class FileLog
+    {
+        private const int LabelWidth = 20;
+        private static readonly Regex RichText = new Regex("<[^>]*>");
+
+        private StreamWriter writer;
+        private string filePath;
+        private bool failed;
+
+        private readonly List<(string label, string value)> last = new List<(string, string)>();
+        private readonly Dictionary<string, string> written = new Dictionary<string, string>();
+
+        private float nextEntryAt;
+        private float nextFullAt;
+        private bool markRequested;
+        private int marks;
+
+        public void RequestMark() => markRequested = true;
+
+        public void Capture(List<(string label, string value)> rows, MonoBehaviour owner, float interval,
+                            float fullEvery, KeyCode markKey)
+        {
+            if (failed) return;
+
+            bool opening = writer == null;
+            if (opening && !TryOpen(owner, fullEvery, markKey)) return;
+
+            last.Clear();
+            foreach ((string label, string value) in rows) last.Add((label, RichText.Replace(value, "")));
+
+            float now = Time.time;
+
+            if (markRequested)
+            {
+                markRequested = false;
+                marks++;
+                WriteEntry(now, $"★ MARCA {marks}", onlyChanged: false);
+                Debug.Log($"[{nameof(NemesisDebugHUD)}] Marca {marks} en {filePath}", owner);
+
+                nextEntryAt = now + interval;
+                nextFullAt = now + fullEvery;
+                return;
+            }
+
+            if (!opening && now < nextEntryAt) return;
+            nextEntryAt = now + interval;
+
+            bool full = opening || now >= nextFullAt;
+            if (full) nextFullAt = now + fullEvery;
+
+            WriteEntry(now, full ? "foto completa" : null, onlyChanged: !full);
+        }
+
+        public void Close()
+        {
+            if (writer == null) return;
+
+            WriteEntry(Time.time, "foto completa · F9 cerrado", onlyChanged: false);
+            writer.Dispose();
+            writer = null;
+
+            last.Clear();
+            written.Clear();
+            markRequested = false;
+            marks = 0;
+        }
+
+        private void WriteEntry(float now, string title, bool onlyChanged)
+        {
+            bool headed = false;
+
+            foreach ((string label, string value) in last)
+            {
+                if (onlyChanged && written.TryGetValue(label, out string before) && before == value) continue;
+
+                if (!headed)
+                {
+                    string time = now.ToString("0.00", CultureInfo.InvariantCulture);
+                    string clock = System.DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+
+                    writer.WriteLine();
+                    writer.WriteLine(title != null ? $"== {time} s · {clock} · {title} ==" : $"== {time} s · {clock} ==");
+                    headed = true;
+                }
+
+                writer.WriteLine(label.PadRight(LabelWidth) + value);
+                written[label] = value;
+            }
+
+            // Flushed per entry, a couple a second at most: the file has to be readable while the
+            // game is still running, and survive the editor going down.
+            if (headed) writer.Flush();
+        }
+
+        private bool TryOpen(MonoBehaviour owner, float fullEvery, KeyCode markKey)
+        {
+            try
+            {
+                string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", "Logs", "NemesisF9");
+                Directory.CreateDirectory(folder);
+
+                string stamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+                filePath = Path.Combine(folder, $"f9_{stamp}.txt");
+                for (int i = 2; File.Exists(filePath); i++) filePath = Path.Combine(folder, $"f9_{stamp}_{i}.txt");
+
+                writer = new StreamWriter(filePath, false, new UTF8Encoding(false));
+
+                string opened = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                writer.WriteLine($"F9 del Nemesis '{owner.name}' · escena {owner.gameObject.scene.name} · " +
+                                 $"abierto el {opened}, a los {Time.time.ToString("0.0", CultureInfo.InvariantCulture)} s de juego.");
+                writer.WriteLine("Cada entrada: segundo de juego (el mismo reloj que la primera columna del CSV de " +
+                                 "Logs/NemesisTrace) y hora. Van sólo las filas que cambiaron; la foto completa va " +
+                                 $"al abrir, cada {fullEvery:0} s, en cada marca ({markKey}) y al cerrar.");
+
+                Debug.Log($"[{nameof(NemesisDebugHUD)}] F9 se guarda en {filePath}", owner);
+                return true;
+            }
+            catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException)
+            {
+                failed = true;
+                writer = null;
+                Debug.LogWarning($"[{nameof(NemesisDebugHUD)}] Could not open the F9 log ({e.Message}). " +
+                                 "Logging is off for this session.", owner);
+                return false;
+            }
+        }
     }
 }

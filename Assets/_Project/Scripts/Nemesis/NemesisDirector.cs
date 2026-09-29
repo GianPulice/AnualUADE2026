@@ -244,6 +244,10 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private float loanedPersistence = 1f;
     private string loanedPersistenceReason;
 
+    /// <summary>The baseline the live copy was cloned from. Compared, never restored: when an
+    /// escalation installs a new baseline mid-loan, the copy is rebuilt on top of it.</summary>
+    private SO_NemesisData loanedFrom;
+
     private void Awake()
     {
         CreateSingleton(false);
@@ -258,6 +262,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // Awake/OnDestroy and not OnEnable/OnDisable (docs/CLAUDE.md): static events outlive the
         // component's enabled state. The handlers check it themselves.
         NemesisEvents.OnSearchEnded += HandleSearchEnded;
+        NemesisEvents.OnBaselineChanged += HandleBaselineChanged;
         PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
     }
 
@@ -270,7 +275,15 @@ public class NemesisDirector : Singleton<NemesisDirector>
         }
 
         NemesisEvents.OnSearchEnded -= HandleSearchEnded;
+        NemesisEvents.OnBaselineChanged -= HandleBaselineChanged;
         PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+    }
+
+    /// <summary>An escalation tier landed mid-loan (plan Fase 7): the copy was cloned from the old
+    /// baseline, so it is rebuilt on the new one instead of waiting for the loan to end.</summary>
+    private void HandleBaselineChanged()
+    {
+        if (isActiveAndEnabled && loanedData != null) RefreshLoan();
     }
 
     private void OnEnable()
@@ -667,7 +680,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
         // Already out with these very numbers and still the one installed (the pacing handler and
         // the pressure it just applied both ask): nothing to rebuild.
-        if (loanedData != null && nemesis.NemesisData == loanedData &&
+        if (loanedData != null && nemesis.NemesisData == loanedData && loanedFrom == nemesis.BaselineData &&
             Mathf.Approximately(loanedSenses, senses) && Mathf.Approximately(loanedPersistence, persistence))
         {
             loanedPersistenceReason = reason;
@@ -686,7 +699,11 @@ public class NemesisDirector : Singleton<NemesisDirector>
         SO_NemesisData copy = Instantiate(baseline);
         copy.name = baseline.name + " (director)";
 
+        // Hearing is min(ListenRange, loudness × NoiseRangeScale): ListenRange is only the CAP (15 m),
+        // and walking is heard at 4 × 2.5 = 10 m, under it. Scaling the cap alone made the boost reach
+        // a running player and nobody else (plan D32). Both go up together, as the escalation does.
         copy.ListenRange *= senses;
+        copy.NoiseRangeScale *= senses;
         copy.ViewRange *= senses;
         copy.SearchQuietWindow *= persistence;
         copy.SearchHardCap *= persistence;
@@ -698,6 +715,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (loanedData != null) Destroy(loanedData);
 
         loanedData = copy;
+        loanedFrom = baseline;
         loanedSenses = senses;
         loanedPersistence = persistence;
         loanedPersistenceReason = reason;
@@ -709,6 +727,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         loanedSenses = 1f;
         loanedPersistence = 1f;
         loanedPersistenceReason = null;
+        loanedFrom = null;
 
         if (loanedData == null) return;
 

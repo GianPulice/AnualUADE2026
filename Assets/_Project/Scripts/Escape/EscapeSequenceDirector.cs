@@ -653,15 +653,26 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     /// distance, cut to the player's own view, turned its way on the frame of the cut (the turn is
     /// never seen): control comes back and the chase is on. At the time cap whatever happens.
     /// </summary>
-    private async UniTaskVoid RunRevealAsync(CancellationToken token)
+    /// <param name="retry">The player was caught in the chase and pressed Retry: the doors are still
+    /// slammed and locked, so there is no security-camera shot, no slam and no hold — it plays from
+    /// the turn to look (or from the eyes, <see cref="SO_EscapeSequenceConfig.RetryFromEyes"/>).</param>
+    private async UniTaskVoid RunRevealAsync(CancellationToken token, bool retry = false)
     {
         PlayerStateManager player = PlayerRegistry.Current;
+        bool fromEyes = retry && config.RetryFromEyes;
 
         BeginCinematic();
-        CutTo(slamShot);
+        if (retry)
+        {
+            ReleaseShots();
+        }
+        else
+        {
+            CutTo(slamShot);
 
-        // The security camera's view: the facility watching, no gameplay HUD over it.
-        CinematicState.SetHudHidden(slamShot != null);
+            // The security camera's view: the facility watching, no gameplay HUD over it.
+            CinematicState.SetHudHidden(slamShot != null);
+        }
 
         // Facing the way they came out of the door, camera included, whatever the mouse was doing
         // as they crossed it. The cut hides it, and it is what makes the turn that follows always
@@ -670,7 +681,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         // A short step at most (the trigger is just past the door), hidden by the cut: the wide
         // shot frames the player the same every time. The facing just set is kept.
-        if (player != null && config.SnapPlayerToMark && stage.playerCorridorMark != null)
+        if (player != null && (config.SnapPlayerToMark || retry) && stage.playerCorridorMark != null)
         {
             Vector3 mark = stage.playerCorridorMark.position;
             mark.y = player.transform.position.y;
@@ -681,13 +692,14 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                 : player.transform.rotation);
         }
 
-        SlamEveryDoor();
+        if (retry) SealEveryDoor();
+        else SlamEveryDoor();
 
         // The dense fog comes in, clock stopped: the shots are in it. A fog of the cinematic's own,
         // if the config gives it one, goes on top until the cut back — and the security camera's
         // own on top of that while it is on the air (LeaveSlamShot swaps it back).
         BeginFogCycle();
-        PushShotFog(config.SlamShotFog != null ? config.SlamShotFog : config.RevealShotFog);
+        PushShotFog(!retry && config.SlamShotFog != null ? config.SlamShotFog : config.RevealShotFog);
 
         bool hasNemesis = actor != null && stage.nemesisCorridorEnd != null && actor.TryTakeControl();
         if (hasNemesis)
@@ -701,13 +713,17 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                        : transform.position;
 
         // The hold: nothing but the fog closing in.
-        await WaitOrSkip(config.TensionSeconds, token);
+        if (!retry) await WaitOrSkip(config.TensionSeconds, token);
 
         // The turn round to the far end of the corridor. From the player's own view by default:
         // they turn where they stand, see the corridor the way they will see it with control back,
         // and nothing has to be re-aimed at the handover.
         Vector3 farEndEyes = farEnd + Vector3.up * NemesisEyeHeight;
-        if (!skipRequested)
+
+        // A retry from the eyes never sees the turn: they already look down the corridor.
+        if (fromEyes && player != null) AimPlayerViewAt(player, farEndEyes);
+
+        if (!skipRequested && !fromEyes)
         {
             if (config.PanOnPlayerView && player != null)
             {
@@ -796,6 +812,24 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         {
             stage.safeDoor.SetSequenceLocked(true);
             stage.safeDoor.Slam(config.DoorSlamSeconds, config.DoorSlamSoundId);
+        }
+
+        hubExitsSealed = true;
+    }
+
+    /// <summary>Every seal back on, quietly: a replay of the reveal starts with the doors already
+    /// shut and locked (nothing may have opened one, and a way back to the safe zone would end it).</summary>
+    private void SealEveryDoor()
+    {
+        if (corridorLock != null)
+        {
+            corridorLock.LockAllNow();
+            if (stage.safeDoor != null) corridorLock.LockDoor(stage.safeDoor, config, quiet: true);
+            foreach (DoorInteractable door in hubExits) corridorLock.LockDoor(door, config, quiet: true);
+        }
+        else if (stage.safeDoor != null)
+        {
+            stage.safeDoor.SetSequenceLocked(true);
         }
 
         hubExitsSealed = true;
@@ -1215,6 +1249,11 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     {
         if (phase == Phase.Idle || phase == Phase.Done) return;
 
+        // Caught in the chase: Retry replays the cinematic from the eyes instead of reloading the
+        // level. Read before the teardown below ends the chase's systems.
+        bool caughtInChase = phase == Phase.Escape && result.GameState == GameState.Lose &&
+                             chaseRestart != null && chaseRestart.DefeatWasCapture;
+
         if (phase == Phase.Ending)
         {
             // The last shot stays up, frozen with the game: only what would still be heard goes.
@@ -1233,6 +1272,40 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         UnregisterWinPresenter();
         phase = Phase.Done;
+
+        if (caughtInChase) GameResultManager.RetryInPlace = RetryFromEyes;
+    }
+
+    /// <summary>
+    /// Retry after the Nemesis caught the player in the chase: the level stays as it is (the cores
+    /// in, the doors locked) and only the last part of the cinematic plays again — the player at
+    /// the corridor mark, the Nemesis back at the far end, eyes shut, then the eyes and the charge.
+    /// </summary>
+    /// <returns>false when there is nothing to replay it with (the usual Retry runs instead).</returns>
+    private bool RetryFromEyes()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (config == null || player == null || actor == null || stage.nemesisCorridorEnd == null)
+            return false;
+
+        CancelSequence();
+        CancelEndGate();
+        if (stage.endGate != null) stage.endGate.CloseImmediate();
+        if (gateSlam != null) gateSlam.ResetDust();
+        ReleaseShots();
+        PopShotFog();
+        CinematicState.SetHudHidden(false);
+        ShowPlayer();
+
+        // A capture that ended the run left both frozen: the player disabled, the Nemesis parked in
+        // its Catch state waiting for a respawn.
+        player.RecoverFromDefeat();
+        actor.AbortCapture();
+
+        phase = Phase.Reveal;
+        skipRequested = false;
+        RunRevealAsync(NewSequenceToken(), retry: true).Forget();
+        return true;
     }
 
     private void EndEscapeSystems()

@@ -171,11 +171,17 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.TimeInStateUnder(ENemesisThreshold.ElevatorCommitTime),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
 
+            // Not while its attention is on a lead (D35): the choice already weighed that belief
+            // against the lead and the lead won. Taking the lift towards the belief anyway carried
+            // the Nemesis to the other floor, and "su atención está en una pista" then sent it back
+            // down to the lead (review 28/09). A trip already under way is still finished: the rung
+            // above holds it.
             Rung(NemesisStateManager.ENemesisState.Traversing,
                  "para llegar hay que tomar el montacargas",
                  interrupts: false,
                  NemesisCondition.Is(ENemesisPredicate.RouteToBeliefCrossesFloors),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
+                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime),
+                 NemesisCondition.Not(ENemesisPredicate.FocusIsLead)),
 
             // Plainly visible. An interrupt for the same reason as the capture: seeing the player
             // is the one piece of information that should never be held behind a dwell window.
@@ -237,6 +243,23 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
                  NemesisCondition.Is(ENemesisPredicate.IsCheckingSpot)),
+
+            // ITS ATTENTION IS ON A LEAD (plan §17.4–§17.5, Fase 2B part 4): a decoy or another noise
+            // that is not the player won the choice (NemesisChoice asks FocusArbiter every time
+            // something new comes in). It used to be "oye un señuelo u otro ruido", HearsLead, below the
+            // player's noise: HEARING a decoy was enough to go, however many times the chains had sent
+            // it off for nothing, and a decoy could never pull it out of a search however cold.
+            //
+            // ABOVE THE SEARCH BUDGET, and that is the point of moving it: the choice already weighed
+            // the lead against the belief (a precise, fresh belief beats a radio across the level; a
+            // ten-second-old one does not, case 31), so the ladder only carries the decision out.
+            // Everything above it still wins — seeing the player, the chase grace, a hiding spot it
+            // knows or is checking — and while a spot is suspected or known the choice lets go of any
+            // lead, so "sospecha de un escondite" below is not outranked by a decoy either.
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "su atención está en una pista",
+                 interrupts: false,
+                 NemesisCondition.Is(ENemesisPredicate.FocusIsLead)),
 
             // Once in, the search runs until it COOLS DOWN (plan §18.5 B, Fase 2B part 3): while the
             // silence since the last evidence about the player is under a window scaled by how good
@@ -328,15 +351,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  "escucha un ruido",
                  interrupts: false,
                  NemesisCondition.Is(ENemesisPredicate.HearsPlayer)),
-
-            // A LEAD, NOT THE PLAYER (plan §17, D18/D19): a decoy, a Director pulse. Since Fase 2B
-            // the rung above hears the player only, and this one keeps decoys doing their job —
-            // bringing the Nemesis over — without their noise ever standing in for the player.
-            // Below the player's noise: their own footsteps are worth more than a radio.
-            Rung(NemesisStateManager.ENemesisState.Investigating,
-                 "oye un señuelo u otro ruido",
-                 interrupts: false,
-                 NemesisCondition.Is(ENemesisPredicate.HearsLead)),
 
             // Still on its way to a noise it has not reached. Leaves on arrival or on running out
             // of patience; a fresh noise from the player renews it for free, because the belief age
@@ -655,6 +669,14 @@ public enum ENemesisPredicate
     /// the whole window up before the look-around ended).
     /// </summary>
     IsInvestigationWarm,
+
+    /// <summary>
+    /// Its attention is on a LEAD (plan §17.4, Fase 2B part 4): a decoy or another noise that is not
+    /// the player won the choice (<see cref="NemesisChoice"/>, <see cref="FocusArbiter"/>). Replaced
+    /// HearsLead on the lead rung: hearing a decoy is no longer enough to go — a habituated one, or one
+    /// across the level while the belief is fresh, is heard and ignored.
+    /// </summary>
+    FocusIsLead,
 }
 
 /// <summary>

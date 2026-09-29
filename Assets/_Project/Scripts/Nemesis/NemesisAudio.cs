@@ -16,6 +16,11 @@ using UnityEngine.Audio;
 /// Reactive chase music lives separately, in <see cref="NemesisChaseMusic"/>: it owns the Music
 /// bus rather than this class's Nemesis bus, and reacts to NemesisEvents.OnChaseStarted/OnChaseEnded
 /// instead of every per-state loop here.
+///
+/// Beside the loops, the Nemesis's one-shots, all through AudioManager's pool on the same bus: the
+/// cues of a drop between floors (plan §15.5), and its voice — the sting when it knows which hiding
+/// spot the player is in, "te perdí" when a search gives up, and the activation cue (plan §16.2 and
+/// principle 7). Voices share a cooldown so it never talks over itself.
 /// </summary>
 public class NemesisAudio : MonoBehaviour
 {
@@ -75,8 +80,49 @@ public class NemesisAudio : MonoBehaviour
              "provisorio.")]
     [SerializeField, Range(0.5f, 1.5f)] private float dropImpactPitch = 0.85f;
 
+    [Header("Voz y avisos (plan §16.2, principio 7)")]
+    [Tooltip("Aviso cuando SABE en qué escondite estás y todavía no llegó a la puerta (D1, D16, D34). " +
+             "Desde adentro es lo único que distingue \"sabe\" de \"adivina\": el margen para decidir " +
+             "salir antes de que llegue. Uno al azar. Vacío = sin aviso.")]
+    [SerializeField] private AudioClip[] knownSpotStings = Array.Empty<AudioClip>();
+
+    [Tooltip("Pitch del aviso. Debajo de 1 suena más grave, y permite usar una voz como aviso provisorio.")]
+    [SerializeField, Range(0.5f, 1.5f)] private float knownSpotStingPitch = 0.8f;
+
+    [Tooltip("Metros en planta desde el Nemesis a la puerta del escondite por debajo de los cuales el " +
+             "aviso no suena. Ahí lo abre enseguida, y el golpe tiene que ser la música al abrir (D13), " +
+             "no una voz un segundo antes.")]
+    [SerializeField, Min(0f)] private float knownSpotStingMinDistance = 2f;
+
+    [Tooltip("Voz de \"te perdí\": suena al volver a patrullar después de una búsqueda que terminó sin " +
+             "encontrarte. Confirma lo que ya dice el silencio de la música (D5): dejó de buscar. Una al " +
+             "azar. Vacío = sin voz.")]
+    [SerializeField] private AudioClip[] lostVoices = Array.Empty<AudioClip>();
+
+    [Tooltip("Sonido (SO_SoundData) cuando lo despierta un puzzle. No suena si lo despierta un script: " +
+             "el escape trae el suyo (SO_EscapeSequenceConfig.revealSoundId). Vacío = sin cue.")]
+    [SerializeField, SoundId] private string activationSoundId = "sfx_nemesis_activacion";
+
+    [SerializeField, Range(0f, 1f)] private float voiceVolume = 1f;
+
+    [Tooltip("Segundos mínimos entre dos voces (el aviso o \"te perdí\"), para que no hable encima de " +
+             "sí mismo.")]
+    [SerializeField, Min(0f)] private float voiceCooldown = 3f;
+
     // Set once the run has a result: from then on the loops only fade out.
     private bool silenced;
+
+    private NemesisStateManager stateManager;
+
+    /// <summary>The known spot as of the last frame, to hear it change. See
+    /// <see cref="TickKnownSpotSting"/>.</summary>
+    private HidingSpot lastKnownSpot;
+
+    /// <summary>A search ended empty and the hunt has not settled yet. See
+    /// <see cref="HandleSearchEnded"/>.</summary>
+    private bool lostVoicePending;
+
+    private float nextVoiceAt;
 
     private AudioSource sourceA;
     private AudioSource sourceB;
@@ -92,14 +138,15 @@ public class NemesisAudio : MonoBehaviour
 
     private void Awake()
     {
-        if (fieldOfListening == null)
-        {
-            NemesisStateManager manager = GetComponentInParent<NemesisStateManager>();
-            if (manager != null) fieldOfListening = manager.FieldOfListening;
-        }
+        stateManager = GetComponentInParent<NemesisStateManager>();
+
+        if (fieldOfListening == null && stateManager != null) fieldOfListening = stateManager.FieldOfListening;
 
         NemesisEvents.OnStateChanged += HandleStateChanged;
+        NemesisEvents.OnSearchEnded += HandleSearchEnded;
+        NemesisEvents.OnActivated += HandleActivated;
         GameResultManager.OnGameResult += HandleGameResult;
+        GameResultManager.OnResultCleared += HandleResultCleared;
 
         sourceA = CreateSource("NemesisLoopA");
         sourceB = CreateSource("NemesisLoopB");
@@ -146,7 +193,10 @@ public class NemesisAudio : MonoBehaviour
     private void OnDestroy()
     {
         NemesisEvents.OnStateChanged -= HandleStateChanged;
+        NemesisEvents.OnSearchEnded -= HandleSearchEnded;
+        NemesisEvents.OnActivated -= HandleActivated;
         GameResultManager.OnGameResult -= HandleGameResult;
+        GameResultManager.OnResultCleared -= HandleResultCleared;
     }
 
     /// <summary>
@@ -156,6 +206,9 @@ public class NemesisAudio : MonoBehaviour
     /// <see cref="FadeOutForResult"/>). Lives with the level, so a Retry reloads it clean.
     /// </summary>
     private void HandleGameResult(GameResultModel result) => silenced = true;
+
+    // A defeat the level took back (the escape replays its cinematic): the Nemesis has a voice again.
+    private void HandleResultCleared() => silenced = false;
 
     private AudioSource CreateSource(string sourceName)
     {
@@ -177,6 +230,8 @@ public class NemesisAudio : MonoBehaviour
     private void HandleStateChanged(NemesisStateManager.ENemesisState state)
     {
         if (silenced) return;
+
+        TrackLostVoice(state);
 
         if (!TryGetLoop(state, out AudioClip clip, out float volume))
         {
@@ -234,6 +289,119 @@ public class NemesisAudio : MonoBehaviour
         AudioManager.Instance.PlayNemesis(clip, transform.position, dropCueVolume, pitch, minDistance, maxDistance);
     }
 
+    // ── Voice and warnings (plan §16.2, principle 7) ────────────────────────
+
+    /// <summary>
+    /// A search is over. An empty one arms "te perdí", which only speaks once the hunt has really
+    /// settled back into patrol.
+    ///
+    /// NOT ON THE EVENT ITSELF. Searching → Investigating counts as the end of a search too (plan Fase
+    /// 3): off to check a sigh, a decoy that outbids a stale belief (2B part 4). Voicing it there
+    /// would say "lost you" and go on hunting. So an empty end only arms the line; Patrolling plays
+    /// it, and Chasing or Catch in between disarms it (<see cref="TrackLostVoice"/>). The same
+    /// rule the Director's revisit uses.
+    ///
+    /// The one ordering trap: NemesisTelemetry raises StateChanged BEFORE SearchEnded, so on the
+    /// commonest ending of all — Searching straight to Patrolling — the Patrolling event has already
+    /// gone by when this arrives. Already patrolling, it speaks now.
+    /// </summary>
+    private void HandleSearchEnded(Vector3 area, bool found)
+    {
+        if (found)
+        {
+            lostVoicePending = false;
+            return;
+        }
+
+        if (stateManager != null && stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Patrolling)
+        {
+            lostVoicePending = false;
+            PlayVoice(lostVoices, 1f);
+            return;
+        }
+
+        lostVoicePending = true;
+    }
+
+    /// <summary>The state half of <see cref="HandleSearchEnded"/>: a hunt that found the player
+    /// cancels the line, one that settles into patrol speaks it.</summary>
+    private void TrackLostVoice(NemesisStateManager.ENemesisState state)
+    {
+        switch (state)
+        {
+            case NemesisStateManager.ENemesisState.Chasing:
+            case NemesisStateManager.ENemesisState.Catch:
+                lostVoicePending = false;
+                break;
+
+            case NemesisStateManager.ENemesisState.Patrolling:
+                if (!lostVoicePending) break;
+
+                lostVoicePending = false;
+                PlayVoice(lostVoices, 1f);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The Nemesis enters the game (spec §7.1). Only when a puzzle woke it: woken by a script, the
+    /// script owns the moment — the escape plays its own reveal, and hearing both would be the same
+    /// cue twice. An id whose SO has no clip yet plays silence, with no warning (see
+    /// Nemesis-System.md › Audio): wired now, heard the day somebody drags a clip in.
+    /// </summary>
+    private void HandleActivated()
+    {
+        if (silenced || string.IsNullOrWhiteSpace(activationSoundId) || !AudioManager.Exists) return;
+
+        NemesisController controller = stateManager != null ? stateManager.NemesisController : null;
+        if (controller != null && controller.WakeOnlyFromScript) return;
+
+        AudioManager.Instance.PlayNemesis(activationSoundId, transform.position);
+    }
+
+    /// <summary>
+    /// "It knows" (plan §16.2, D1, D16): the sting when a hiding spot becomes KNOWN, heard from
+    /// inside it. Without it the player cannot tell a Nemesis that knows from one that guesses, and
+    /// the margin D1 promises — see it coming and bail out before it opens — only exists on paper.
+    ///
+    /// Read off the facade's KnownHidingSpot each frame rather than from an event: "known" has four
+    /// ways in (seen climbing in, made out through the slats, on top of it, opened it) and one
+    /// place that owns them, and listening to that place is all this needs.
+    ///
+    /// Not at the door. Known at arm's length — "lo tiene encima", "lo abrió" — it opens the spot
+    /// the same second, and the beat there is the music hitting as the door opens (D13: it arrives
+    /// in silence). A sting a heartbeat before would spend the surprise. A suspected spot never
+    /// stings: that is the guess the sting is there to tell apart.
+    /// </summary>
+    private void TickKnownSpotSting()
+    {
+        HidingSpot known = stateManager != null ? stateManager.KnownHidingSpot : null;
+        if (ReferenceEquals(known, lastKnownSpot)) return;
+
+        lastKnownSpot = known;
+        if (known == null || known.ApproachPoint == null) return;
+
+        Vector3 toDoor = known.ApproachPoint.position - transform.position;
+        toDoor.y = 0f;
+        if (toDoor.sqrMagnitude < knownSpotStingMinDistance * knownSpotStingMinDistance) return;
+
+        PlayVoice(knownSpotStings, knownSpotStingPitch);
+    }
+
+    /// <summary>One line from a bank, in 3D on the Nemesis bus, unless it spoke too recently.
+    /// </summary>
+    private void PlayVoice(AudioClip[] bank, float pitch)
+    {
+        if (silenced || bank == null || bank.Length == 0 || !AudioManager.Exists) return;
+        if (Time.time < nextVoiceAt) return;
+
+        AudioClip clip = bank[UnityEngine.Random.Range(0, bank.Length)];
+        if (clip == null) return;
+
+        nextVoiceAt = Time.time + voiceCooldown;
+        AudioManager.Instance.PlayNemesis(clip, transform.position, voiceVolume, pitch, minDistance, maxDistance);
+    }
+
     /// <summary>The loop authored for a state, if any.</summary>
     private bool TryGetLoop(NemesisStateManager.ENemesisState state, out AudioClip clip, out float volume)
     {
@@ -278,6 +446,7 @@ public class NemesisAudio : MonoBehaviour
 
         UpdateOcclusion();
         UpdateCrossfade();
+        TickKnownSpotSting();
     }
 
     // Unscaled: this runs under the result screen's timeScale 0, where deltaTime is always zero.

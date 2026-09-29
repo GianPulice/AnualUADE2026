@@ -192,6 +192,9 @@ public class NemesisElevatorUser : MonoBehaviour
     /// rung sits above "lo está viendo"), and a noise heard from below down the open shaft sent it
     /// straight back into the cabin. Released, the ladder decides afresh on arrival: a chase if it
     /// sees the player, another ride only if the route to the belief still crosses floors.
+    ///
+    /// A plain link crossed by hand ends the same way (28/09): walking into the cabin on an
+    /// ordinary path crosses its doorway link, and that pinned Traversing for the full 12 s.
     /// </summary>
     public bool HasJustEndedRide => Time.time < rideCommitmentReleasedUntil;
 
@@ -282,6 +285,10 @@ public class NemesisElevatorUser : MonoBehaviour
         /// <summary>A complete path that never finished being walked. Something is physically in
         /// the way, or the cabin left while it was walking.</summary>
         WalkTimedOut,
+
+        /// <summary>Off the shaft link, but on the other floor: the step-off crossed the shaft.
+        /// Put back on the landing before boarding the old way.</summary>
+        WrongFloorAfterStepOff,
     }
 
     private SO_NemesisMovement Movement => stateManager != null ? stateManager.NemesisMovement : null;
@@ -505,6 +512,12 @@ public class NemesisElevatorUser : MonoBehaviour
     /// <c>CompleteOffMeshLink()</c> is the wrong call here and was the tempting one: it reports the
     /// crossing as done and drops the agent at the far end — teleporting the Nemesis to the other
     /// floor for free, which is the bug the whole elevator system exists to avoid.
+    /// <c>ResetPath()</c> is the same call in disguise: on a link, Unity completes the link before
+    /// it clears the path (its docs say so). This used to call it, so every step-off put the
+    /// Nemesis on the far floor. The walk aboard then started from there: twelve seconds walking
+    /// on the wrong floor, then the straight-line fallback through the slab and the walls
+    /// (playtest 28/09). A warp onto the near end drops the link without crossing it, so the warp
+    /// goes first and the path is cleared only once the agent is off the link.
     /// <c>ActivateCurrentOffMeshLink(false)</c> deactivates this link for THIS agent, so the
     /// recalculated path routes around it (stairs, another shaft) instead of straight back onto it.
     /// </summary>
@@ -513,8 +526,15 @@ public class NemesisElevatorUser : MonoBehaviour
         if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
         if (!agent.isOnOffMeshLink) return;
 
+        // Where it stands: the end of the link on this floor.
+        Vector3 nearEnd = agent.currentOffMeshLinkData.startPos;
+
         agent.ActivateCurrentOffMeshLink(false);
-        agent.ResetPath();
+        if (!TryWarpNear(nearEnd)) TryWarpNear(transform.position);
+
+        // Still on the link if both warps failed, and there ResetPath would cross it. The caller
+        // that waits for the step-off asks again next frame.
+        if (!agent.isOnOffMeshLink) agent.ResetPath();
 
         // The cached verdict was measured believing the lift was on the way. Left standing, the
         // next route query hands back the same answer and the FSM commits to the trip again.
@@ -665,6 +685,12 @@ public class NemesisElevatorUser : MonoBehaviour
         {
             if (stateManager != null) stateManager.PopStuckSuppression();
             isTraversing = false;
+
+            // Crossing sets IsUsingElevator, which puts the FSM in Traversing, and the commitment
+            // rung then held it there for ElevatorCommitTime (12 s) after a step through the
+            // cabin's doorway on an ordinary path (playtest 28/09). A plain link is no trip to be
+            // committed to: released like a ride (HasJustEndedRide).
+            rideCommitmentReleasedUntil = Time.time + TripCommitmentRelease;
         }
     }
 
@@ -1394,6 +1420,11 @@ public class NemesisElevatorUser : MonoBehaviour
                 return $"the path was complete but not walked within {BoardingWalkTimeout}s — " +
                        "something is physically in the way, or the cabin left mid-walk.";
 
+            case EBoardingStep.WrongFloorAfterStepOff:
+                return "stepping off the shaft link left it on the OTHER floor, so it was put back " +
+                       "on this landing first. The step-off is crossing the link again: check " +
+                       "that LeaveCurrentLink still warps onto the near end before clearing the path.";
+
             default:
                 return "no reason was recorded, which is itself a bug.";
         }
@@ -1477,6 +1508,17 @@ public class NemesisElevatorUser : MonoBehaviour
 
         if (!await WaitUntilOffTheShaftLinkAsync(token)) return false;
 
+        // Off the link, but on this landing's floor? A step-off that crossed the shaft after all
+        // turns the walk aboard into a walk on the wrong floor, and its fallback into a glide
+        // through the slab. Back onto the landing first, and the caller boards the old way from
+        // there.
+        if (!IsOnFloorOf(boarding))
+        {
+            boardingFailure = EBoardingStep.WrongFloorAfterStepOff;
+            RestoreAgentOnto(boarding);
+            return false;
+        }
+
         return await WalkAgentToAsync(cabin.BoardingPointFor(boarding), token);
     }
 
@@ -1491,10 +1533,11 @@ public class NemesisElevatorUser : MonoBehaviour
     /// wall instead — with a warning that blamed the bake.
     ///
     /// The request is REPEATED each frame rather than made once. The first
-    /// <c>ActivateCurrentOffMeshLink(false)</c> lands while the link is still live and can be
-    /// overtaken by the path the agent is holding; asking again once the link has actually been
-    /// suspended is what makes it stick. It only ever runs in the frames where the agent has not
-    /// let go yet, so the repetition costs nothing in the normal case.
+    /// <see cref="LeaveCurrentLink"/> lands while the link is still live and can be overtaken by
+    /// the path the agent is holding; asking again once the link has actually been suspended is
+    /// what makes it stick. It only ever runs in the frames where the agent has not let go yet, so
+    /// the repetition costs nothing in the normal case. Through LeaveCurrentLink and never a bare
+    /// ResetPath, which on a link crosses it.
     /// </summary>
     private async UniTask<bool> WaitUntilOffTheShaftLinkAsync(CancellationToken token)
     {
@@ -1515,8 +1558,7 @@ public class NemesisElevatorUser : MonoBehaviour
 
             if (!agent.isOnOffMeshLink) return true;
 
-            agent.ActivateCurrentOffMeshLink(false);
-            agent.ResetPath();
+            LeaveCurrentLink();
         }
 
         boardingFailure = EBoardingStep.StuckOnTheShaftLink;
@@ -1720,6 +1762,14 @@ public class NemesisElevatorUser : MonoBehaviour
                        $"{transform.position}. The agent is off the mesh, which means the Nemesis " +
                        "will not move again — check that both landings of this shaft are baked.",
                        this);
+    }
+
+    /// <summary>Standing on the floor <paramref name="landing"/> is on, by height: the same
+    /// FloorHeightThreshold that separates another floor from a step.</summary>
+    private bool IsOnFloorOf(Transform landing)
+    {
+        float floorBand = Data != null ? Data.FloorHeightThreshold : DropTuning.DefaultHangThreshold;
+        return Mathf.Abs(transform.position.y - landing.position.y) < floorBand;
     }
 
     /// <summary>Warps onto a point, or onto the nearest baked spot to it.</summary>

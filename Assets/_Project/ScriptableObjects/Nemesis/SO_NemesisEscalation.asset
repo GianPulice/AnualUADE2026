@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b66d489ee62c479893d4b536ee035f25, type: 3}
+  m_Name: SO_NemesisEscalation
+  m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisEscalation
+  tiers:
+  - fromCompletedPuzzles: 0
+    sightMultiplier: 1
+    hearingMultiplier: 1
+    searchPersistenceMultiplier: 1
+    routeVariationFloor: 0
+  - fromCompletedPuzzles: 2
+    sightMultiplier: 1.1
+    hearingMultiplier: 1
+    searchPersistenceMultiplier: 1
+    routeVariationFloor: 0.25
+  - fromCompletedPuzzles: 3
+    sightMultiplier: 1.15
+    hearingMultiplier: 1.1
+    searchPersistenceMultiplier: 1
+    routeVariationFloor: 0.4
+  logTierChanges: 1

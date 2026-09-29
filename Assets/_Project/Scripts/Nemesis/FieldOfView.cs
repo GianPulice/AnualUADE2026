@@ -57,6 +57,21 @@ public class FieldOfView : MonoBehaviour
 
     private float awareness;
 
+    /// <summary>Until when a soft noise of the player's keeps feeding the suspicion meter. See
+    /// <see cref="NoteSoftNoise"/>.</summary>
+    private float softNoiseUntil = float.NegativeInfinity;
+
+    /// <summary>How long one soft-noise report counts: a little over a listening sweep (0.1 s), so
+    /// a steady stream of steps reads as continuous and a single one does not linger.</summary>
+    private const float SoftNoiseContactWindow = 0.15f;
+
+    /// <summary>
+    /// The player made a soft noise the ears caught (FieldOfListening.HeardSoftPlayerNoise): it feeds
+    /// the suspicion meter like a glimpse does (plan §17.3, shared suspicion). Called by
+    /// NemesisStateManager after sampling the sensors.
+    /// </summary>
+    public void NoteSoftNoise() => softNoiseUntil = Time.time + SoftNoiseContactWindow;
+
     /// <summary>The hiding spot the current peripheral contact is being made THROUGH, or null when
     /// the player is out in the open. Decides what a full meter means — see TickAwareness.</summary>
     private HidingSpot peripheralSpot;
@@ -318,7 +333,9 @@ public class FieldOfView : MonoBehaviour
             return;
         }
 
-        if (!peripheralContact)
+        bool noiseContact = Time.time < softNoiseUntil;
+
+        if (!peripheralContact && !noiseContact)
         {
             awareness = Mathf.Max(0f, awareness - nemesisData.AwarenessDecayRate * deltaTime);
             return;
@@ -328,9 +345,26 @@ public class FieldOfView : MonoBehaviour
 
         // Closeness scales the RATE, floored so a contact at the very edge of the range still
         // eventually registers instead of stalling at a value it can never climb past.
-        float rate = Mathf.Lerp(0.35f, 2f, peripheralCloseness) / buildTime;
+        float rate = peripheralContact ? Mathf.Lerp(0.35f, 2f, peripheralCloseness) / buildTime : 0f;
 
+        // A soft noise of the player's adds to the same meter (plan §17.3, shared suspicion): a soft
+        // step and a glimpse together cross the threshold sooner than either alone (case 26).
+        if (noiseContact) rate += nemesisData.SoftNoiseSuspicionRate / buildTime;
+
+        float before = awareness;
         awareness = Mathf.Min(1f, awareness + rate * deltaTime);
+
+        // A noise alone is never a sighting: without the corner of its eye on them, the noise raises
+        // the meter only up to the cap. It can still pass the suspicion threshold — "vio algo de
+        // reojo" walks over. The cap limits what the noise ADDS, never what the eye already put
+        // there: clamping the whole meter dropped it from 0.99 to the cap the moment the glimpse went
+        // and the steps went on, so being noisy lowered the suspicion (review 28/09). Above the cap it
+        // holds instead of draining, for as long as the steps go on.
+        if (!peripheralContact)
+        {
+            awareness = Mathf.Min(awareness, Mathf.Max(before, nemesisData.NoiseOnlySuspicionCap));
+            return;
+        }
 
         if (awareness < 1f) return;
 

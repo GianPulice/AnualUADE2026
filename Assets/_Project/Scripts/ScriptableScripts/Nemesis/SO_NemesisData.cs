@@ -722,6 +722,76 @@ public class SO_NemesisData : ScriptableObject
              "(D26): una búsqueda corta, no una entera.")]
     [SerializeField, Range(0.1f, 1f)] private float searchEscalatedCapScale = 0.5f;
 
+    [Header("Elección: a qué le presta atención (plan §17.4, Fase 2B parte 4)")]
+    //
+    // Cada vez que llega algo nuevo (tu evidencia, una pista, un vistazo) NemesisChoice le pregunta a
+    // FocusArbiter si vale más que lo que está persiguiendo. Valor = base × confianza × frescura ×
+    // costo de llegar × habituación. El nuevo tiene que ganarle al actual por el margen, y lo recién
+    // elegido tiene una ventaja que decae. Los casos 25 y 28–33 del plan están calibrados con esto.
+
+    [Tooltip("Valor base de la radio (plan §17.5). Si la elige, se compromete hasta romperla.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueRadio = 0.6f;
+
+    [Tooltip("Valor base de la alarma de incendio. Se oye desde cualquier lado: el costo de llegar pesa.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueFireAlarm = 0.7f;
+
+    [Tooltip("Valor base de las cadenas. Usos infinitos: la habituación las gasta.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueChains = 0.45f;
+
+    [Tooltip("Valor base de cualquier otro ruido que no sos vos (un pulso del Director).")]
+    [SerializeField, Range(0f, 1f)] private float leadValueOther = 0.4f;
+
+    [Tooltip("Valor base de un vistazo de reojo (el medidor subiendo, sin llegar a 1).")]
+    [SerializeField, Range(0f, 1f)] private float glimpseValue = 0.5f;
+
+    [Tooltip("Multiplicador por cada vez que un señuelo lo hizo ir sin encontrar nada (×0.6: a la " +
+             "tercera, unas cadenas del otro lado del nivel ya no lo mueven). Por sesión.")]
+    [SerializeField, Range(0.1f, 1f)] private float leadHabituation = 0.6f;
+
+    [Tooltip("Debajo de este valor, una pista o un vistazo no merecen atención (vos sí, siempre).")]
+    [SerializeField, Range(0f, 1f)] private float focusAttentionFloor = 0.12f;
+
+    [Tooltip("Cuánto más tiene que valer lo nuevo que lo actual para cambiar.")]
+    [SerializeField, Range(0f, 1f)] private float focusMargin = 0.05f;
+
+    [Tooltip("Ventaja de lo recién elegido contra algo de su tipo o menor. Decae a cero en " +
+             "Focus Commitment Decay segundos. Con poco titubea; con mucho, no reacciona.")]
+    [SerializeField, Range(0f, 1f)] private float focusCommitmentBonus = 0.3f;
+
+    [SerializeField, Min(0.1f)] private float focusCommitmentDecay = 3f;
+
+    [Tooltip("Segundos en que la frescura de algo sentido cae a la mitad.")]
+    [SerializeField, Min(0.1f)] private float focusFreshnessHalfLife = 6f;
+
+    [Tooltip("Metros de camino a los que el costo de llegar deja el valor a la mitad.")]
+    [SerializeField, Min(1f)] private float focusCostDistance = 60f;
+
+    [Tooltip("Segundos después de cambiar a un tipo durante los que no cambia a otro del mismo tipo: " +
+             "dos ruidos alternados no lo hacen ir y venir.")]
+    [SerializeField, Min(0f)] private float focusAntiDither = 2f;
+
+    [Tooltip("Metros alrededor de donde cree que estás (su radio, con tope en Room Sweep Radius) en " +
+             "los que un señuelo no compite: suma, y la búsqueda lo cubre (caso 33).")]
+    [SerializeField, Min(0f)] private float leadSumsMargin = 3f;
+
+    [Header("Sospecha compartida (plan §17.3, Fase 2B parte 4)")]
+    //
+    // Un ruido SUAVE tuyo (agachado) sube el mismo medidor que un vistazo de reojo: un paso suave y
+    // un vistazo juntos lo ponen en sospecha más rápido que cualquiera de los dos solo (caso 26). Un
+    // ruido solo nunca llega a ser un avistamiento: el medidor se queda por debajo de 1 sin vista.
+
+    [Tooltip("Radio de emisión (m) hasta el que un ruido tuyo cuenta como suave. El agachado emite 1, " +
+             "caminando 4. La respiración desde un escondite no cuenta: tiene sus reglas (D21, D22).")]
+    [SerializeField, Min(0f)] private float softNoiseLoudness = 1.5f;
+
+    [Tooltip("Cuánto sube el medidor de sospecha por segundo con un ruido suave, en fracciones de " +
+             "Awareness Build Time (un vistazo va de 0.35 a 2 según la distancia).")]
+    [SerializeField, Min(0f)] private float softNoiseSuspicionRate = 0.6f;
+
+    [Tooltip("Tope del medidor con ruido solo, sin vistazo: por debajo de 1, para que un ruido nunca se " +
+             "vuelva un avistamiento.")]
+    [SerializeField, Range(0f, 0.99f)] private float noiseOnlySuspicionCap = 0.9f;
+
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
@@ -841,4 +911,21 @@ public class SO_NemesisData : ScriptableObject
     public float SearchQualitySight { get => searchQualitySight; set => searchQualitySight = value; }
     public float SearchQualityMuffled { get => searchQualityMuffled; set => searchQualityMuffled = value; }
     public float SearchEscalatedCapScale { get => searchEscalatedCapScale; set => searchEscalatedCapScale = value; }
+    public float LeadValueRadio { get => leadValueRadio; set => leadValueRadio = value; }
+    public float LeadValueFireAlarm { get => leadValueFireAlarm; set => leadValueFireAlarm = value; }
+    public float LeadValueChains { get => leadValueChains; set => leadValueChains = value; }
+    public float LeadValueOther { get => leadValueOther; set => leadValueOther = value; }
+    public float GlimpseValue { get => glimpseValue; set => glimpseValue = value; }
+    public float LeadHabituation { get => leadHabituation; set => leadHabituation = value; }
+    public float FocusAttentionFloor { get => focusAttentionFloor; set => focusAttentionFloor = value; }
+    public float FocusMargin { get => focusMargin; set => focusMargin = value; }
+    public float FocusCommitmentBonus { get => focusCommitmentBonus; set => focusCommitmentBonus = value; }
+    public float FocusCommitmentDecay { get => focusCommitmentDecay; set => focusCommitmentDecay = value; }
+    public float FocusFreshnessHalfLife { get => focusFreshnessHalfLife; set => focusFreshnessHalfLife = value; }
+    public float FocusCostDistance { get => focusCostDistance; set => focusCostDistance = value; }
+    public float FocusAntiDither { get => focusAntiDither; set => focusAntiDither = value; }
+    public float LeadSumsMargin { get => leadSumsMargin; set => leadSumsMargin = value; }
+    public float SoftNoiseLoudness { get => softNoiseLoudness; set => softNoiseLoudness = value; }
+    public float SoftNoiseSuspicionRate { get => softNoiseSuspicionRate; set => softNoiseSuspicionRate = value; }
+    public float NoiseOnlySuspicionCap { get => noiseOnlySuspicionCap; set => noiseOnlySuspicionCap = value; }
 }

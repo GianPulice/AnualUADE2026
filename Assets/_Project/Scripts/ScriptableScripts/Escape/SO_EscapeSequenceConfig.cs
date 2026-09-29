@@ -269,6 +269,12 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "Nemesis vuelve a correr.")]
     [SerializeField, Min(0f)] private float restartNemesisDelay = 1f;
 
+    [Tooltip("Sólo con Game Over: el Try Again de la pantalla de derrota NO recarga el juego, repite " +
+             "la cinemática desde acá. Tildado = desde que se abren los ojos del Nemesis (ojos, " +
+             "carga, persecución). Destildado = desde el giro para mirarlo, con el Nemesis todavía " +
+             "con los ojos cerrados. Las puertas quedan cerradas y los núcleos puestos.")]
+    [SerializeField] private bool retryFromEyes = true;
+
     // ── Ending: the gate slams shut ─────────────────────────────────────────
     [Header("Final: el portón se cae — A DEFINIR EN TESTEO")]
     // Al cruzar el WinTrigger: plano del portón (sin el jugador), el Nemesis corre hacia él, el
@@ -435,6 +441,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
 
     public EscapeCaptureOutcome CaptureOutcome => captureOutcome;
     public float RestartNemesisDelay => restartNemesisDelay;
+    public bool RetryFromEyes => retryFromEyes;
 
     public SO_VisionFogConfig GateShotFog => gateShotFog;
     public bool CutToDustShot => cutToDustShot;

@@ -1474,6 +1474,16 @@ MonoBehaviour:
   dropImpact: {fileID: 8300000, guid: 61b3513be07923c86c9c16289a7b4905, type: 3}
   dropCueVolume: 1
   dropImpactPitch: 0.85
+  knownSpotStings:
+  - {fileID: 8300000, guid: 8811366c2e89f6e46b36c33e23a57e28, type: 3}
+  knownSpotStingPitch: 0.8
+  knownSpotStingMinDistance: 2
+  lostVoices:
+  - {fileID: 8300000, guid: fa1657820bb920744802611ed50e46bd, type: 3}
+  - {fileID: 8300000, guid: a7c22b19329bb4f40826f790b8c3c4c9, type: 3}
+  activationSoundId: sfx_nemesis_activacion
+  voiceVolume: 1
+  voiceCooldown: 3
 --- !u!114 &9034987497469841307
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -69,6 +69,7 @@ public static class NemesisSetupValidator
         problems += ValidateDoorUsers(report);
         problems += ValidateDirector(report);
         problems += ValidateHabitRules(report);
+        problems += ValidateEscalation(report);
         problems += ValidateDropLinks(report);
 
         if (problems == 0)
@@ -76,7 +77,7 @@ public static class NemesisSetupValidator
             // The notes (sweep points, zone coverage) are still worth reading when nothing is wrong.
             Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifiers and modifier " +
                       "volumes, the noise layer, sensors, camera, interaction, waypoints, doors, " +
-                      "the Director, the habit rules and the drops are set up correctly." +
+                      "the Director, the habit rules, the escalation and the drops are set up correctly." +
                       (report.Length > 0 ? $"\n\n{report}" : ""));
             return;
         }
@@ -699,6 +700,66 @@ public static class NemesisSetupValidator
     }
 
     private static bool IsChance(float value) => value >= 0f && value <= 1f;
+
+    /// <summary>
+    /// Plan Fase 7: the tiers of SO_NemesisEscalation. As assets, like the habit rules: the
+    /// escalation lives in the Data scene. The order of the list does not matter to the game (the
+    /// highest threshold reached wins), but a list out of order is one a designer misreads.
+    /// </summary>
+    private static int ValidateEscalation(StringBuilder report)
+    {
+        int problems = 0;
+        int assets = 0;
+
+        foreach (SO_NemesisEscalation escalation in FindAllAssets<SO_NemesisEscalation>())
+        {
+            assets++;
+            IReadOnlyList<EscalationTier> tiers = escalation.Tiers;
+            if (tiers == null || tiers.Count == 0)
+            {
+                report.AppendLine($"- Note: {escalation.name} has no tiers: the Nemesis keeps its authored tuning.");
+                continue;
+            }
+
+            HashSet<int> thresholds = new HashSet<int>();
+            int previous = int.MinValue;
+
+            for (int i = 0; i < tiers.Count; i++)
+            {
+                EscalationTier tier = tiers[i];
+                if (tier == null) continue;
+
+                if (!thresholds.Add(tier.FromCompletedPuzzles))
+                {
+                    report.AppendLine($"- {escalation.name}, tier {i}: another tier also starts at " +
+                                      $"{tier.FromCompletedPuzzles} puzzles; only the later one ever applies.");
+                    problems++;
+                }
+                else if (tier.FromCompletedPuzzles < previous)
+                {
+                    report.AppendLine($"- Note: {escalation.name}, tier {i} starts at {tier.FromCompletedPuzzles} " +
+                                      $"puzzles, before the tier above it ({previous}): the list reads out of order.");
+                }
+
+                previous = Mathf.Max(previous, tier.FromCompletedPuzzles);
+
+                if (tier.SightMultiplier < 1f || tier.HearingMultiplier < 1f)
+                {
+                    report.AppendLine($"- {escalation.name}, tier {i}: sight x{tier.SightMultiplier} / hearing " +
+                                      $"x{tier.HearingMultiplier}. An escalation never makes the Nemesis sense less.");
+                    problems++;
+                }
+            }
+        }
+
+        if (assets == 0)
+        {
+            report.AppendLine("- Note: there is no SO_NemesisEscalation asset, so NemesisEscalation runs on its " +
+                              "defaults.");
+        }
+
+        return problems;
+    }
 
     // ── Drops between floors (plan §15.6) ───────────────────────────────────
 

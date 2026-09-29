@@ -48,6 +48,10 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         Player,
         Lead,
         Glimpse,
+
+        /// <summary>A suspected hiding spot. Not a glimpse: looking at it and finding nothing is not
+        /// the choice's glimpse checked (review 28/09).</summary>
+        Spot,
     }
 
     private ESource source;
@@ -55,6 +59,30 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     /// <summary>When the evidence the destination came from was sensed (Time.time), so a newer one
     /// can be told from the same one heard again.</summary>
     private float sourceAt = float.NegativeInfinity;
+
+    // The focus (NemesisChoice) as last followed: a switch is re-aimed at once, an update of a lead
+    // when it moved.
+    private int consumedSwitchSequence = int.MinValue;
+    private int consumedFocusSequence = int.MinValue;
+
+    /// <summary>The lead or glimpse it walked to has been reported as checked (NemesisChoice
+    /// .MarkFocusChecked): once per destination.</summary>
+    private bool reportedChecked;
+
+    /// <summary>
+    /// Changing its mind shows (plan §17.3): on a switch of focus it stops, turns to the new thing and
+    /// only then walks. The player reads "it changed its mind", not "it glitched".
+    /// </summary>
+    private const float ReactPause = 0.4f;
+
+    /// <summary>The area around the noise whose used hiding spots are candidates (Fase 2D): the room
+    /// it is standing in, give or take.</summary>
+    private const float UsedSpotsRadius = 6f;
+
+    private readonly System.Collections.Generic.HashSet<HidingSpot> usedSpotsRolled =
+        new System.Collections.Generic.HashSet<HidingSpot>();
+    private float reactUntil = float.NegativeInfinity;
+    private bool reacting;
 
     /// <summary>The suspected hiding spot this investigation is walking to or looking at, or null.
     /// </summary>
@@ -137,6 +165,11 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         lastRetargetTime = float.NegativeInfinity;
         source = ESource.None;
         sourceAt = float.NegativeInfinity;
+        reportedChecked = false;
+        reacting = false;
+
+        // One roll per used hiding spot per investigation (Fase 2D), not per arrival.
+        usedSpotsRolled.Clear();
 
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
                                     nemesisStateManager.NemesisMovement.InvestigationSpeed);
@@ -165,10 +198,16 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         if (TrackSuspectedSpot())
         {
             arrivedAt = -1f;
+            reacting = false;
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
                                         nemesisStateManager.NemesisMovement.InvestigationSpeed);
             return;
         }
+
+        // Going to a spot, nothing retargets it (below). What the choice changed its mind about on the
+        // way is not news once the spot is done: without this, the first frame after the check
+        // re-aimed at a switch seconds old, with its turning beat (review 28/09).
+        if (spotTarget != null) ConsumeFocusChanges();
 
         // Something newer somewhere else is worth walking to — but only a meaningfully different
         // place, and not more often than the retarget interval. That is the whole difference between
@@ -176,10 +215,16 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         if (spotTarget == null && TryRetarget())
         {
             arrivedAt = -1f;
-            nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
-                                        nemesisStateManager.NemesisMovement.InvestigationSpeed);
+            if (!reacting)
+            {
+                nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
+                                            nemesisStateManager.NemesisMovement.InvestigationSpeed);
+            }
             return;
         }
+
+        // Just changed its mind: a beat facing the new thing before walking (plan §17.3).
+        if (TickReact()) return;
 
         if (!hasDestination) return;
 
@@ -195,10 +240,17 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             // their breath or not (plan §17.6). At a plain noise it is only the look around —
             // NemesisLookAround scans while IsInspecting — and a player holding their breath in a
             // spot it does not suspect is not found by it standing nearby (D21).
+            NemesisHidingAwareness hiding = nemesisStateManager.HidingAwareness;
             if (spotTarget != null)
             {
-                NemesisHidingAwareness hiding = nemesisStateManager.HidingAwareness;
                 if (hiding != null) hiding.Open(spotTarget);
+            }
+            else if (hiding != null)
+            {
+                // At the noise: the hiding spots the player has used around here are candidates
+                // (plan §17.6, D23, Fase 2D; case 39). One that comes up is suspected, and the next
+                // frame walks to it and opens it. Only this area: never one across the level (case 40).
+                hiding.ConsiderUsedSpots(destination, UsedSpotsRadius, usedSpotsRolled);
             }
         }
 
@@ -209,6 +261,17 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             NemesisHidingAwareness awareness = nemesisStateManager.HidingAwareness;
             if (awareness != null) awareness.MarkChecked(spotTarget);
             DropSpot();
+        }
+
+        // Looked where the lead or the glimpse was for the whole dwell, and nothing: the choice counts
+        // the visit (a decoy's habituation, §17.5) and lets go of it, which is what releases the
+        // "su atención está en una pista" rung that has been holding this state.
+        if (!reportedChecked && spotTarget == null && arrivedAt >= 0f && !IsInspecting &&
+            (source == ESource.Lead || source == ESource.Glimpse))
+        {
+            reportedChecked = true;
+            NemesisChoice choice = nemesisStateManager.Choice;
+            if (choice != null) choice.MarkFocusChecked();
         }
     }
 
@@ -237,8 +300,8 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         lastRetargetTime = Time.time;
 
         // A suspected spot is the player glimpsed getting in: a look that comes back empty may still
-        // escalate to a short search (IsWarm).
-        source = ESource.Glimpse;
+        // escalate to a short search (IsWarm, the plain gate).
+        source = ESource.Spot;
         sourceAt = Time.time;
 
         // Right up to the approach point: see NemesisStateManager.SpotCheckStoppingDistance.
@@ -257,17 +320,33 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     }
 
     /// <summary>
-    /// Aims at whatever brought it here, in the ladder's own order: a glimpse ("vio algo de reojo"),
-    /// the player's noise ("escucha un ruido"), a lead ("oye un señuelo u otro ruido").
+    /// Aims at whatever brought it here, in the ladder's own order: its focus on a lead ("su atención
+    /// está en una pista", the highest Investigating rung), a glimpse ("vio algo de reojo"), the
+    /// player's noise ("escucha un ruido").
     ///
     /// It used to aim at the loudest noise of the last sweep whatever the rung (playtest 27/09): a
     /// Director pulse over the player's footsteps, and — entered on a glimpse — whatever it had last
-    /// heard, however long ago, or nothing at all. That was half of "it contradicts itself".
+    /// heard, however long ago, or nothing at all. That was half of "it contradicts itself". A lead is
+    /// only ever reached through the focus now (plan §17.4, Fase 2B part 4): hearing one is not a
+    /// reason on its own.
     /// </summary>
     private void AimOnEntry()
     {
         // Entering during the lift ride: writing a destination to the disabled agent errors.
         if (!nemesisStateManager.IsAgentReady) return;
+
+        NemesisChoice choice = nemesisStateManager.Choice;
+        if (choice != null)
+        {
+            consumedSwitchSequence = choice.SwitchSequence;
+            consumedFocusSequence = choice.FocusSequence;
+
+            if (choice.IsFocusOnLead)
+            {
+                Aim(choice.FocusPosition, ESource.Lead, Time.time);
+                return;
+            }
+        }
 
         FieldOfListening ears = nemesisStateManager.FieldOfListening;
         NemesisBelief belief = nemesisStateManager.Belief;
@@ -279,22 +358,15 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             return;
         }
 
-        if (ears == null) return;
-
-        if (nemesisStateManager.HearsPlayer && ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise))
+        if (ears != null && nemesisStateManager.HearsPlayer && ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise))
         {
             Aim(noise.Position, ESource.Player, noise.HeardAt);
             return;
         }
 
-        if (nemesisStateManager.HearsLead && ears.TryGetLastLead(out FieldOfListening.HeardNoise lead))
-        {
-            Aim(lead.Position, ESource.Lead, lead.HeardAt);
-            return;
-        }
-
-        // Entered on a rung that asks none of those this frame: whatever it heard last, as before.
-        if (ears.HasLastKnownPosition) Aim(ears.LastKnownPosition, ESource.None, Time.time - ears.TimeSinceLastNoise);
+        // Entered on a rung that asks none of those this frame: where it believes the player is. It
+        // used to be the last thing the ear caught, whoever made it.
+        if (belief != null && belief.HasBelief) Aim(belief.Position, ESource.Player, Time.time - belief.Age);
     }
 
     /// <summary>How old a glimpse may be and still be where the corner of its eye caught something
@@ -302,24 +374,50 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     private const float GlimpseFreshness = 0.5f;
 
     /// <summary>
-    /// Moves the destination when there is something newer worth walking to, somewhere meaningfully
-    /// different, and not more often than the retarget interval. Returns true when it did.
+    /// Moves the destination when there is something newer worth walking to. Returns true when it did.
     ///
-    /// THE PLAYER FIRST, AND THEIR LATEST NOISE, HEARD NOW OR NOT. Only a sound heard this very sweep
+    /// THE FOCUS FIRST (plan §17.4, Fase 2B part 4). When the choice changes its mind — the player's
+    /// step beats the chains (case 28), the radio beats a cold belief (case 31) — the walk follows at
+    /// once, with a short beat of turning to the new thing (ReactPause): the choice has already weighed
+    /// it, so no interval on top. While the focus is a lead, nothing else moves the walk: a player
+    /// noise that deserved it would have changed the focus first.
+    ///
+    /// THEN THE PLAYER, AND THEIR LATEST NOISE, HEARD NOW OR NOT. Only a sound heard this very sweep
     /// used to move the destination, and the interval swallowed the ones in between: a player running
     /// out of earshot left the Nemesis walking to where they were a second and a half before their
-    /// last footstep — metres short of the last point, and over a long distance it never got near
-    /// them (playtest 27/09). Now a player noise newer than the one it is walking to always wins once
-    /// the interval allows, so the walk ends where they were last heard.
-    ///
-    /// A lead takes over from the player only once they have gone quiet for an interval: with the
-    /// two sounding together the player's own noise outranks a radio, the same order as the ladder's
-    /// two rungs, and letting "whichever is newer" decide flipped the Nemesis between them every
-    /// interval. Which one deserves the attention when both are current is plan Fase 2B part 4.
+    /// last footstep (playtest 27/09). A player noise newer than the one it is walking to wins once the
+    /// interval allows, so the walk ends where they were last heard. The interval and the minimum
+    /// shift stay for the player (WIR-006: go to the noise, do not follow it); plan part 5 revisits
+    /// them.
     /// </summary>
     private bool TryRetarget()
     {
         if (!nemesisStateManager.IsAgentReady) return false;
+
+        NemesisChoice choice = nemesisStateManager.Choice;
+        if (choice != null)
+        {
+            if (choice.SwitchSequence != consumedSwitchSequence)
+            {
+                consumedSwitchSequence = choice.SwitchSequence;
+                consumedFocusSequence = choice.FocusSequence;
+                if (AimAtFocus(choice))
+                {
+                    React();
+                    return true;
+                }
+            }
+
+            if (choice.IsFocusOnLead)
+            {
+                if (choice.FocusSequence == consumedFocusSequence) return false;
+                consumedFocusSequence = choice.FocusSequence;
+
+                if (!IsWorthMoving(choice.FocusPosition, 1f)) return false;
+                Aim(choice.FocusPosition, ESource.Lead, Time.time);
+                return true;
+            }
+        }
 
         SO_NemesisData data = nemesisStateManager.NemesisData;
         float interval = data != null ? data.InvestigationRetargetInterval : 1.5f;
@@ -333,8 +431,7 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         bool hasPlayerNoise = ears != null && ears.TryGetLastPlayerNoise(out noise);
 
         // Walking to their noise: any newer one of theirs. Walking to anything else: their noise heard
-        // right now — a footstep outranks a lead or a glimpse, and a memory from before this walk
-        // started is not a reason to change it.
+        // right now — a memory from before this walk started is not a reason to change it.
         bool newerPlayerNoise = hasPlayerNoise &&
             (source == ESource.Player ? noise.HeardAt > sourceAt : nemesisStateManager.HearsPlayer);
 
@@ -344,19 +441,10 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             return true;
         }
 
-        bool playerQuiet = !hasPlayerNoise || Time.time - noise.HeardAt >= interval;
-
-        if (ears != null && nemesisStateManager.HearsLead && playerQuiet &&
-            ears.TryGetLastLead(out FieldOfListening.HeardNoise lead) &&
-            lead.HeardAt > sourceAt && IsWorthMoving(lead.Position, minShift))
-        {
-            Aim(lead.Position, ESource.Lead, lead.HeardAt);
-            return true;
-        }
-
         // A glimpse that moved, while the glimpse is still all it has.
         NemesisBelief belief = nemesisStateManager.Belief;
-        if ((source == ESource.Glimpse || source == ESource.None) && nemesisStateManager.IsSuspicious &&
+        if ((source == ESource.Glimpse || source == ESource.Spot || source == ESource.None) &&
+            nemesisStateManager.IsSuspicious &&
             belief != null && belief.TryGetGlimpse(out Vector3 glimpse, out float glimpseAge) &&
             glimpseAge < GlimpseFreshness && IsWorthMoving(glimpse, minShift))
         {
@@ -365,6 +453,78 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         }
 
         return false;
+    }
+
+    /// <summary>Points the walk at what the choice is now following. False when there is nothing to
+    /// point at (the focus was dropped).</summary>
+    private bool AimAtFocus(NemesisChoice choice)
+    {
+        switch (choice.FocusKind)
+        {
+            case FocusArbiter.EKind.Lead:
+                Aim(choice.FocusPosition, ESource.Lead, Time.time);
+                return true;
+
+            case FocusArbiter.EKind.Glimpse:
+                Aim(choice.FocusPosition, ESource.Glimpse, Time.time);
+                return true;
+
+            case FocusArbiter.EKind.Player:
+                NemesisBelief belief = nemesisStateManager.Belief;
+                if (belief == null || !belief.HasBelief) return false;
+                Aim(belief.Position, ESource.Player, Time.time - belief.Age);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Marks every change of focus so far as seen, without acting on it.</summary>
+    private void ConsumeFocusChanges()
+    {
+        NemesisChoice choice = nemesisStateManager.Choice;
+        if (choice == null) return;
+
+        consumedSwitchSequence = choice.SwitchSequence;
+        consumedFocusSequence = choice.FocusSequence;
+    }
+
+    private void React()
+    {
+        reacting = true;
+        reactUntil = Time.time + ReactPause;
+    }
+
+    /// <summary>Stands still, turning towards the new destination, for the React beat. True while it
+    /// lasts.</summary>
+    private bool TickReact()
+    {
+        if (!reacting) return false;
+
+        if (Time.time >= reactUntil)
+        {
+            reacting = false;
+            nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
+                                        nemesisStateManager.NemesisMovement.InvestigationSpeed);
+            return false;
+        }
+
+        nemesisStateManager.NavAgent.velocity = Vector3.zero;
+        nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
+
+        Vector3 facing = destination - nemesisStateManager.transform.position;
+        facing.y = 0f;
+        if (facing.sqrMagnitude > 0.0001f)
+        {
+            float turnSpeed = nemesisStateManager.NemesisMovement != null
+                ? nemesisStateManager.NemesisMovement.AngularSpeed
+                : 180f;
+            nemesisStateManager.transform.rotation = Quaternion.RotateTowards(
+                nemesisStateManager.transform.rotation, Quaternion.LookRotation(facing), turnSpeed * Time.deltaTime);
+        }
+
+        return true;
     }
 
     private bool IsWorthMoving(Vector3 point, float minShift) =>
@@ -377,6 +537,7 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         source = from;
         sourceAt = sensedAt;
         lastRetargetTime = Time.time;
+        reportedChecked = false;
         nemesisStateManager.NavAgent.destination = destination;
     }
 }

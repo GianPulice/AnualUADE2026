@@ -127,12 +127,39 @@ public static class GameResultManager
     public static bool ExplosionEndsRun(ModuleRuntime exploded) =>
         ModuleManager.Exists && ModuleManager.Instance.ExplosionEndsRun(exploded);
 
+    /// <summary>
+    /// A defeat the level can take back without reloading: Retry asks it first, and when it says yes
+    /// (returns true) the level picks up where it decides and nothing is reloaded. The escape sets
+    /// it when the Nemesis catches the player, to replay the cinematic from the eyes on. Null, or a
+    /// false, = the usual Retry (a whole new session).
+    /// </summary>
+    public static Func<bool> RetryInPlace { get; set; }
+
+    /// <summary>The result was taken back (<see cref="TryRetryInPlace"/>): what went quiet or stopped
+    /// for the result screen can start again.</summary>
+    public static event Action OnResultCleared;
+
+    public static bool TryRetryInPlace()
+    {
+        Func<bool> handler = RetryInPlace;
+        if (handler == null) return false;
+
+        RetryInPlace = null;
+        if (!handler()) return false;
+
+        // Reported again is allowed: the run goes on.
+        ResetSession();
+        OnResultCleared?.Invoke();
+        return true;
+    }
+
     /// <summary>Call when loading the gameplay scene to allow a new result to be reported.</summary>
     public static void ResetSession()
     {
         // GameOverPresenter is NOT cleared here: the presenter lives in the scene and registers
         // and unregisters itself in OnEnable/OnDisable.
         _resultReported = false;
+        RetryInPlace = null;
         _model = new GameResultModel();
         _model.Initialize();
     }

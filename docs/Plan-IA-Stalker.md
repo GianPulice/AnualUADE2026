@@ -12,35 +12,31 @@
 
 ## Pendiente
 
-Al 27/09/2026, lo que falta, lo más urgente primero. Lo construido está en [✅ Hecho](#-hecho), y el
+Al 28/09/2026, lo que falta, lo más urgente primero. Lo construido está en [✅ Hecho](#-hecho), y el
 detalle de cada fase, en el [§9](#9-fases-de-implementación).
 
-1. **Fase 2B parte 4 — La elección completa** (lo que sigue): `NemesisChoice` + `FocusArbiter` con
-   todas las preguntas del §17.4, una lista de pistas con valor y habituación por señuelo,
-   `NemesisDecoyBreaker` leyendo el foco **e instalado**, señuelos puestos en la testbed, vistazo →
-   `Investigating` y sospecha compartida. Casos 22, 24, 26, 28–33 y 37. →
-   [Fase 2B](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas) ·
+1. **Fase 2B parte 5 — Limpieza y tests** (lo que sigue): sacar de a uno los parches de
+   `NemesisPursuit` e `Investigating`, el gizmo del radio de la creencia, y los tests de la escalera y
+   la creencia en `WIRED.Nemesis.Logic` (los del árbitro, `FocusArbiterTests`, ya están). →
+   [Fase 2B](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas) ·
    [§18.6](#186-orden-dentro-de-la-2b)
-2. **Fase 2B parte 5 — Limpieza y tests:** sacar de a uno los parches de `NemesisPursuit` e
-   `Investigating`, el gizmo del radio de la creencia, y los tests del árbitro completo en
-   `WIRED.Nemesis.Logic`.
-3. **[Fase 2D](#fase-2d--memoria-de-escondites-después-de-la-2b) — Memoria de escondites, la mitad
-   del Nemesis** (con la 2B parte 4). Dos cosas:
-   - que `Investigating` y `Searching` abran los escondites usados de la zona que revisan, con la
-     pregunta 7 del §17.4 y la API que ya expone `PlayerHabitTracker`;
-   - que la primera de esas revisiones pase a la vista o al oído del jugador (R3).
-
-   Los datos (el medidor, la API y la fila `escondites` en F9) ya están, con la Fase 3 (ver
-   [✅ Hecho](#-hecho)). Casos 39 y 40.
-4. **[Fase 6](#fase-6--contra-jugadas-desbloqueables) — Contra-jugadas desbloqueables:**
+2. **Correr una vez *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)*** desde el editor (o en
+   batchmode, con el editor cerrado): pone la radio, la alarma y las cadenas en la testbed. Sin eso
+   no hay señuelos que probar (casos 22, 24, 26, 28–33 y 37).
+3. **[Fase 6](#fase-6--contra-jugadas-desbloqueables) — Contra-jugadas desbloqueables:**
    `ExitAmbush`, `BurnHidingSpot` (necesita el locker roto), `ChaseFlank` y `ZoneDefense` con
    `NemesisAmbushPoint`, más el "soltar y emboscar" que quedó de la
    [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar).
    `CheckHidingSpots` y `PrioritizeSuspiciousSpots` los reemplaza la 2D. Casos 6 y 8.
-5. **[Fase 7](#fase-7--escalada-por-puzzles) — Escalada por puzzles:** spec §7.2, con el mecanismo
-   ya decidido en el [§7](#7-escalada-por-progreso).
-6. **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) — Bajadas entre pisos:** la parte 2
+4. **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) — Bajadas entre pisos:** la parte 2
    (código) está hecha (ver [✅ Hecho](#-hecho)). Falta:
+   - **rehacer el *Drop Lab* como un agujero en el piso** (pedido en el playtest del 28/09): lo que
+     se quería es un agujero en el suelo por el que el Nemesis sólo baja, nunca sube. El lab de hoy
+     baja por el borde de dos entrepisos. El código ya sirve: arranca en el borde del agujero y
+     aterriza abajo, sólo hacia abajo, y el §15.1 ya contaba el hueco en el piso como una opción. Lo
+     que cambia es la geometría: una losa con un agujero y una sala abajo, en vez de los bloques
+     macizos. Un agujero entre pisos mide 2.5–5 m, así que es una `Hang`; la `Hop` sólo sirve para
+     bordes bajos. Falta confirmar si el jugador también puede caer (hoy D9 dice que no);
    - la parte 1: apagar *Generate Links* y rebakear, con el editor (D10);
    - la parte 3: las animaciones del §15.5, y clips propios de golpe de manos e impacto (hoy son
      provisorios);
@@ -48,19 +44,19 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
      [✅ Hecho](#-hecho)), y después poner bajadas en la Zona 2.
 
    → [§15](#15-bajadas-entre-pisos)
-7. **Falta jugar** lo construido, con sus casos del [§13](#13-casos-de-prueba):
+5. **Falta jugar** lo construido, con sus casos del [§13](#13-casos-de-prueba):
    - [Fase 0](#fase-0--ajustes-sin-código): esperas distintas por waypoint en F9, y las seis zonas
      del Director en F10.
    - [Fase 2](#fase-2--el-nemesis-sabe-de-escondites---construida-2109-sin-commitear-falta-jugarla):
      casos 1–5, 11 y 17–21, en `TestIñaki`.
    - [Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla):
      casos 34–36 y 38.
-   - [Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas):
+   - [Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
      no tiene casos propios; entra en "todos los casos de la 2B" de la parte 5.
-   - [Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas):
+   - [Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
      casos 23, 27, 41 y 42 en la testbed, y el 36 en `TestIñaki`. F9 fila `búsqueda` y el gizmo del
      barrido.
-   - [Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas):
+   - [Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
      casos 2, 9, 25, 34 y 43–48. F9: fila `búsqueda` ("tibia s/ventana", "tope", "se enfrió") y fila
      `presión` (acecho, persistencia, "vuelta en N s"). El 45 (el Hub) en una escena con Hub.
    - [Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes): perderlo lejos (fuera del
@@ -75,18 +71,35 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
      `Cover_Pasillo`.
    - [Fase 5](#fase-5--tensión-y-ritmo---construida-2209-sin-commitear-falta-jugarla): caso 9, y
      *Pico de tensión* y *Saltar silencio* en F10.
+   - [Fase 7](#fase-7--escalada-por-puzzles) (28/09): casos 56 y 57 en la testbed, con la sección
+     *ESCALATION* de F10 (*Tier +* / *Tier -* / *Auto*) y la fila `escalada` de F9. En una escena con
+     puzzles, resolver uno tiene que subir el nivel sin tocar F10.
    - [Fase 8 parte 2](#fase-8--bajadas-entre-pisos-independiente): casos 12–16 y 55, con F9 (fila
      `bajada`), en el *Drop Lab* de la testbed: al sur de ENTRADA, por la puerta nueva de su pared
      sur.
-8. **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
-   - Aviso audible al saber el escondite, y la animación `Pull Out` con el SFX de la puerta (con
-     ella se decide si 0.8 s alcanza).
+   - [Voz y avisos](#162-lo-que-quedó-abierto) (28/09): caso 58 en `TestIñaki` (escondites) y 59
+     en la testbed. Correr *Validate Hiding Spots* en `TestIñaki` para la `ExitPose`.
+   - [Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
+     (28/09): casos 22, 24–26, 28–33 y 37 en la testbed, con los señuelos puestos (punto 2), y el 60
+     (F9 fila `foco`: qué, cuánto vale y la pregunta que decidió). El 61 (el Director te oye más
+     lejos caminando) con una presión de F10.
+   - [Fase 2D, la mitad del Nemesis](#fase-2d--memoria-de-escondites-después-de-la-2b) (28/09):
+     casos 35, 39 y 40 en `TestIñaki` (escondites). Para el 39, esconderse dos o tres veces en la
+     misma mesa con él cerca, y después hacer ruido en esa zona.
+6. **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
+   - La animación `Pull Out` con el SFX de la puerta (con ella se decide si 0.8 s alcanza). El aviso
+     audible al saber el escondite ya está (28/09, D34), con clip provisorio.
    - Container en escenas que no hornean `Default`: pasarlo a `Props` o sumar un
      `NavMeshModifierVolume` ([§14.4](#144-dónde-va-cada-pieza-nueva-del-plan)).
-   - Tests de Play mode: no hay ninguno. Ya hay EditMode (`HabitLedgerTests` de la Fase 3,
-     `SearchSweepRulesTests` y `SearchCoolingTests` de la 2B partes 2 y 3, y `DropPathTests` de la
-     Fase 8, en `WIRED.Nemesis.Logic`); los del árbitro completo van en la 2B parte 5.
-9. **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
+   - Tests de Play mode: no hay ninguno. Ya hay EditMode en `WIRED.Nemesis.Logic`:
+     - `HabitLedgerTests` y `HidingStayBookTests`, de la Fase 3;
+     - `SearchSweepRulesTests` y `SearchCoolingTests`, de la 2B partes 2 y 3;
+     - `FocusArbiterTests`, de la 2B parte 4;
+     - `EscalationRulesTests`, de la Fase 7;
+     - `DropPathTests`, de la Fase 8.
+
+     Los de la escalera y la creencia van en la 2B parte 5.
+7. **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
    - **D1** (captura o persecución al encontrarte escondido): a revisar con playtest y con la Fase 3.
    - **D14** (detección por la espalda del locker, decidida 2 a 1) y **D17** (clavar la mirada en vez
      de ir a mirar): a probar en playtest.
@@ -98,18 +111,17 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
    - **D9** y **D10** (bajadas): recomendaciones para las partes 1 y 3 de la Fase 8 (D11 y las
      nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
      la Fase 8.
-10. **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
+8. **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
     Zona1, sólo en la cinemática final. La Zona 2 tiene que nacer con su Director armado
     ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)) y sus rutas validadas; hasta
     entonces, los §17 y §18 se prueban en la testbed y en `TestIñaki`.
-11. **Sueltos**
+9. **Sueltos**
     - Zona1 no tiene escondites puestos ni el blend en su `CinemachineBrain`
       ([Fase 1](#fase-1--escondites-lado-jugador-prerrequisito---construida-commit-9eba9b46)).
-    - El validador de escondites todavía no mira la `ExitPose`
-      ([§14.4](#144-dónde-va-cada-pieza-nueva-del-plan)).
-    - Sin cue de activación, y los clips de voz del Nemesis (`sfx_nemesis_voice_*`) sin usar
-      ([§1](#1-los-12-principios-contra-el-código), principio 7). La excepción es
-      `voice_chase`, desde el 27/09 el gruñido provisorio de las bajadas.
+    - El cue de activación está enganchado (28/09), pero el SO `sfx_nemesis_activacion` sigue sin
+      clip. Lo usan el despertar por puzzle y el escape. Falta un clip propio para el aviso de
+      escondite, que hoy es `voice_chase` provisorio, igual que el gruñido de las bajadas
+      ([§1](#1-los-12-principios-contra-el-código), principio 7).
 
 ---
 
@@ -129,10 +141,10 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   jugarla.
 - ✅ **[Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla)
   — Aguantar la respiración tiene que servir** (27/09, sin commitear). Falta jugarla.
-- ✅ **[Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas)
+- ✅ **[Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
   — Creencia** (27/09, sin commitear): `NemesisBelief`, pistas separadas, `HearsLead` y
   `HasFreshLead`. Falta jugarla.
-- ✅ **[Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas)
+- ✅ **[Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
   — Dónde busca** (27/09, sin commitear): `Searching` barre puntos del NavMesh alrededor de la
   creencia (`SearchSweepRules` + `NemesisFreeRoam`). Incluye:
   - la intercepción y la ruleta de waypoints, afuera (D24);
@@ -142,7 +154,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   - la fila `búsqueda` en F9.
 
   Compila y pasan los tests EditMode (36/36). Falta jugarla.
-- ✅ **[Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-3-de-5-construidas)
+- ✅ **[Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
   — Cuánto busca, y el Director** (27/09, sin commitear). Incluye:
   - la búsqueda que se enfría (`IsSearchWarm` + `SearchCooling`) en vez de 15 s fijos, sin renovarse
     con lo que se oye desde el Hub;
@@ -155,6 +167,22 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   - los arreglos de la revisión de la parte 2.
 
   Compila en Unity y pasan los tests EditMode (71/71, `SearchCoolingTests` incluidos). Falta jugarla.
+- ✅ **[Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
+  — La elección completa** (28/09, sin commitear). Incluye:
+  - `FocusArbiter` (puro, en `WIRED.Nemesis.Logic`) con las preguntas del §17.4, y `NemesisChoice`,
+    que guarda el **foco**: vos, una pista o un vistazo;
+  - el peldaño "su atención está en una pista" (`FocusIsLead`), arriba del presupuesto de búsqueda
+    (D35);
+  - `Investigating` siguiendo el foco, con una pausa corta al cambiar de idea;
+  - `NemesisDecoyBreaker` leyendo el foco e instalándose solo, y los señuelos con tipo;
+  - la sospecha compartida: un ruido suave tuyo suma al medidor del vistazo (D36);
+  - el builder de señuelos de la testbed (sin correr: el editor estaba abierto);
+  - la fila `foco` en F9.
+
+  Una revisión de código del mismo día encontró siete fallas, ya arregladas. La más grave: una alarma
+  que perdía una vez quedaba ignorada mientras sonara. El detalle está en el bloque de la parte 4 del
+  §9. Compila (Roslyn contra los `.rsp` de Unity, Editor incluido) y pasan los tests EditMode fuera
+  de Unity (100/100, `FocusArbiterTests` incluidos). Falta jugarla.
 - ✅ **[Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes)** (sin commitear). Incluye:
   - el prefab ya no duerme al Nemesis fuera de Zona1;
   - la búsqueda va primero al último punto y cuenta el silencio desde que llega;
@@ -180,7 +208,27 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   Además, un estado fijado con F10 ya no le saca el cuerpo al montacargas: con `Searching` fijado,
   el cruce se deshacía y lo teletransportaba. Aplicado y horneado en batchmode: el hueco quedó sin
   NavMesh estático y las dos marcas, sobre el piso. Falta jugarlo (G22 y G23 del checklist).
-- ✅ **[Fase 3](#fase-3--contar-sin-reaccionar) — Contar sin reaccionar** (27/09, sin commitear).
+- ✅ **Montacargas: atravesaba paredes y quedaba 15–30 s en `Traversing`** (playtest del 28/09,
+  arreglado esa noche, sin commitear). No venía del trabajo del día: las trazas de Zona1 y de la
+  testbed lo muestran desde el código del 04–06/09.
+  - **Causa:** para bajarse del link del hueco antes de caminar a la cabina, `LeaveCurrentLink`
+    llamaba a `ResetPath`. Sobre un link, Unity lo completa: el Nemesis aparecía en el otro piso.
+    Desde ahí caminaba 12 s hacia una puerta que no alcanzaba, y el plan B lo llevaba en línea recta
+    a través de la losa y las paredes.
+  - **Arreglo** (`NemesisElevatorUser`):
+    - se baja del link con un `Warp` al extremo de su piso, y recién después limpia el camino;
+    - si igual quedó en el otro piso, vuelve al descanso antes de subir (`WrongFloorAfterStepOff`);
+    - un link común cruzado a mano (la puerta de la cabina) ya no lo deja 12 s comprometido;
+    - en F10, los warps se apagan mientras cruza: uno a mitad del viaje dejaba al cuerpo a 40 m
+      con la cabina todavía moviéndolo.
+  - La misma función sirve para abandonar el montacargas y para echarse atrás en una bajada (D30),
+    así que esos casos tenían el mismo error.
+  - **Pendiente, necesita el editor:** en la testbed, el link de abordaje de arriba (`End`) sigue
+    sin unir nada ("joins NOTHING"). La losa de `PLANTA_ALTA` no entra al hueco, así que no es el
+    bloqueo de abajo repetido: hay que mirar la cabina arriba con el gizmo de la puerta. Mientras
+    tanto, arriba sube y baja por el plan B, en línea recta a través de la barrera.
+  - Falta jugarlo: G22–G27.
+- ✅ **[Fase 3](#fase-3--contar-sin-reaccionar) — Contar sin reaccionar** (27/09, `9bdd3c90`).
   Incluye:
   - `PlayerHabitTracker`, en la escena `Data`;
   - `SO_CounterplayRules`, `EExploitKind` y `ECounterplay`;
@@ -195,15 +243,36 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
     como escape al Hub.
 
   Todavía no hay contra-jugadas. Compila y pasan los tests en el Test Runner de Unity. Falta jugarla.
-- ✅ **[Fase 2D](#fase-2d--memoria-de-escondites-después-de-la-2b), la mitad de datos** (27/09, sin
-  commitear): el medidor de uso por escondite (D23) y la API que va a leer la elección
-  (`GetSpotUsage`, `OpenChance`, `IsPrioritySpot`, `IsBurnable` y `CollectUsedSpots`). Falta la mitad
-  del Nemesis (ver [Pendiente](#pendiente)).
+- ✅ **[Fase 2D](#fase-2d--memoria-de-escondites-después-de-la-2b), la mitad de datos** (27/09,
+  `9bdd3c90`): el medidor de uso por escondite (D23) y la API que va a leer la elección
+  (`GetSpotUsage`, `OpenChance`, `IsPrioritySpot`, `IsBurnable` y `CollectUsedSpots`).
+- ✅ **[Fase 2D](#fase-2d--memoria-de-escondites-después-de-la-2b), la mitad del Nemesis** (28/09,
+  sin commitear): `Investigating` y `Searching` sortean los escondites usados de la zona que revisan
+  (pregunta 7 del §17.4) y van a abrir el que sale. La primera vez sólo cuenta un escondite que el
+  jugador pueda ver u oír abrir (R3). De paso, un segundo ruido desde el mismo escondite lo vuelve
+  sospechoso (D22, la otra mitad). Compila (Roslyn). Falta jugarla.
 - ✅ **[Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar)
   — Persecución estancada** (21/09, `9eba9b46`), salvo "soltar y emboscar", que va con la Fase 6.
 - ✅ **[Fase 5](#fase-5--tensión-y-ritmo---construida-2209-sin-commitear-falta-jugarla) — Tensión
   y ritmo** (22/09, `4a163d72`): `NemesisTension`, `SO_DirectorPacing`, la retirada y la
   sensibilidad creciente. Falta jugarla.
+- ✅ **[Fase 7](#fase-7--escalada-por-puzzles) — Escalada por puzzles** (28/09, sin commitear).
+  Incluye:
+  - `NemesisEscalation`, en la escena `Data`. Instala como *baseline* del Nemesis una copia de
+    `SO_NemesisData` con el nivel que corresponde a los puzzles completos.
+  - `SO_NemesisEscalation`, con tres niveles: base, 2 puzzles y 3 o más. Suben la vista, el oído y
+    la variación de ruta; nunca la velocidad.
+  - `InstallBaseline` y `AuthoredData` en `NemesisStateManager`.
+  - `OnBaselineChanged`, para que el Director rearme su préstamo sobre el nivel nuevo.
+  - La fila `escalada` en F9, la sección *ESCALATION* en F10 y el chequeo en el validador.
+  - `EscalationRulesTests`.
+
+  Compila (Roslyn) y pasan los tests EditMode fuera de Unity. Revisada el 28/09 sin problemas
+  graves. Se arreglaron tres cosas: la primera ronda de patrulla salía sin el nivel, cada Retry
+  dejaba una copia suelta y la consola F10 cortaba la sección de escalada en pantallas bajas.
+  La verificación en Unity quedó pendiente porque el editor estaba abierto. Al dar Play, F9 tiene
+  que mostrar `escalada: nivel 0 (0 puzzles)`, y la consola no tiene que avisar que falta
+  `SO_NemesisEscalation`. Falta jugarla.
 - ✅ **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) parte 2 — Bajadas entre pisos, el
   código** (27/09, sin commitear). Incluye:
   - `NemesisDropLink`, y la bajada como tercera rama de `NemesisElevatorUser`: se asoma y gruñe,
@@ -227,6 +296,16 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   Se armó en batchmode. Pasan todos sus chequeos: las dos puntas sobre el NavMesh, la vuelta por la
   rampa y la ruta completa. El validador no marca nada de las bajadas; sólo avisa, como nota, que
   faltan los estados de animación (parte 3).
+- ✅ **Voz y avisos del Nemesis, y la `ExitPose` en el validador** (28/09, sin commitear; §16.2 y
+  principio 7). En `NemesisAudio`:
+  - el aviso de que **sabe** en qué escondite estás, a más de 2 m de la puerta (D34, caso 58);
+  - "te perdí" al volver a patrullar después de una búsqueda vacía (caso 59);
+  - el cue de activación cuando lo despierta un puzzle.
+
+  Clips provisorios en el prefab: `voice_chase` a pitch 0.8 para el aviso y `voice_lost_01/02` para
+  "te perdí"; el SO de activación sigue sin clip. *Validate Hiding Spots* revisa la `ExitPose`: a su
+  alcance desde la puerta (D16), fuera de colliders sólidos y con piso abajo. Compila (Roslyn); falta
+  jugarlo.
 - ✅ **Director de Zona1 rehecho** (22/09, `4a163d72`): seis zonas, dos disparadores y ninguna
   palanca a menos de 6 m del Hub (C5). Queda inerte mientras el Nemesis duerma en Zona1 (D25). →
   [§14.1](#141-el-director-hoy-estado-en-zona1)
@@ -241,7 +320,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   la Fase 3 y la Fase 8 parte 2 compila entero, Editor incluido, y pasan los 71 tests EditMode. Se
   midió también el NavMesh de Zona1 y de la testbed ([§18.3](#183-el-director-qué-hace-de-verdad)).
 - ✅ **Decisiones tomadas** en el [§11](#11-decisiones-abiertas): D5, D13, D14, D20, D21, D22 (en el
-  §17.6), D23, D24, D25, D26, D27, D28, D29 y D30. Ya aplicadas, aunque la tabla no las marque: D7 y
+  §17.6), D23, D24, D25, D26, D27, D28, D29, D30, D31, D32, D33, D34, D35 y D36. Ya aplicadas, aunque la tabla no las marque: D7 y
   D17 (Fase 2), D18 y D19 (2B parte 1), D11 (Fase 8); D16 la respondió el consejo.
 
 ### Historial
@@ -301,6 +380,13 @@ Las notas de estado que antes abrían el plan, de la más vieja a la más nueva.
 > pero con distancias grandes no iba al último punto, la búsqueda duraba poco, se quedaba quieto entre
 > estados y atravesaba algunas puertas. Además el prefab dormía al Nemesis en la testbed y en
 > `TestIñaki`. Todo arreglado ese mismo día; falta volver a jugarlo.
+>
+> **28/09/2026:** construidas la 2B parte 4 (la elección completa: el Nemesis tiene un **foco** y
+> cambia de idea sólo por algo que vale claramente más) y la mitad del Nemesis de la 2D (abre los
+> escondites que usaste en la zona que revisa). Decididos D35 (una pista le gana al presupuesto de
+> búsqueda) y D36 (un ruido suave comparte el medidor del vistazo, sin llegar solo a avistamiento).
+> Arreglado el D32: el préstamo de sentidos del Director escala también el radio de tus ruidos. Lo que
+> sigue es la parte 5 (limpieza y tests).
 
 ---
 
@@ -368,7 +454,7 @@ El porqué, en [§2.3](#23-lo-que-no-conviene-copiar).
 | 4 | Administrar la tensión, no maximizarla | 🟡 | `NemesisTension` (medidor + BuildUp/SustainPeak/PeakFade/Relax) y `NemesisDirector` (retirada en Relax, sensibilidad creciente tras 90 s de silencio), con `SO_DirectorPacing`. | Construido el 22/09, sin jugar: los números del §12 son puntos de partida. |
 | 5 | Nada guionado para el "cuándo" y el "dónde" | 🟡 | Patrulla por ruleta, cúmulos, satélites; spawn y entrada muestreados. | Los disparadores del Director son siempre "al completar el puzzle". Aceptable: el *qué* puede ser fijo. |
 | 6 | Incertidumbre estructurada | 🟡 | 15 % de invertir la ronda, 15 % de saltear un waypoint; `patrolWaitVariance` 0.6 (Fase 0): la espera en cada waypoint varía 0.9–2.1 s. | La creencia no tiene incertidumbre propia: es un punto, no una zona, y la búsqueda no puede achicar un radio que no existe ([§17](#17-percepción-y-creencia)). |
-| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución que se sostiene durante la búsqueda (D5); `NemesisAudio.stateLoops` en el prefab con los cinco estados (Fase 0). | Los clips de voz (`sfx_nemesis_voice_*`) no se usan. Sin cue de activación (existe `NemesisEvents.OnActivated` para engancharlo). Sin aviso cuando **sabe** en qué escondite estás (Fase 2, pendiente). No muestra la duda: no gira hacia un ruido antes de ir ([§17](#17-percepción-y-creencia)). |
+| 7 | Anticipación dramática | 🟡 | Pasos reales, ocluidos por pared; puertas que suenan al abrirlas; música de persecución que se sostiene durante la búsqueda (D5); `NemesisAudio.stateLoops` en el prefab con los cinco estados (Fase 0). Desde el 28/09: aviso cuando **sabe** en qué escondite estás (D34), "te perdí" al volver a patrullar (`voice_lost_*`) y cue de activación enganchado a `OnActivated`. Las bajadas se anuncian con un gruñido (Fase 8). | El aviso de escondite y el gruñido usan `voice_chase` provisorio, y al cue de activación le falta el clip. No muestra la duda: no gira hacia un ruido antes de ir ([§17](#17-percepción-y-creencia)). |
 | 8 | Legibilidad por encima de inteligencia | ✅ | `SearchPauseTime` + `NemesisLookAround`; el HUD F9 muestra el peldaño ganador. | Las contra-jugadas nuevas tienen que **verse** (regla R3). |
 | 9 | Anti-cheese con comportamiento | ❌ | Nada cuenta hábitos. | Todo [§4](#4-catálogo-de-cheeses-de-wired) y [§5](#5-hábitos-del-jugador-y-contra-jugadas). |
 | 10 | Detectar el estancamiento | 🟡 | `NemesisStuckEscape` (cuerpo trabado: repath → warp). `NemesisPursuit` predice e intercepta. `NemesisChaseProgress` mide "persigo pero no acorto" y penaliza el rastro (Fase 4). | Ningún peldaño lee `IsChaseStagnant` todavía: "soltar y emboscar" va con la Fase 6. |
@@ -930,6 +1016,12 @@ plan cachea un `SO_NemesisData` para restaurarlo después.
 
 Siguiendo al análisis (§12.2), la escalada mueve sentidos y tiempos, **nunca la velocidad**.
 
+**Construido (28/09, [Fase 7](#fase-7--escalada-por-puzzles)).** `NemesisEscalation` vive en la
+escena `Data` e instala el nivel con `InstallBaseline`. Tiene tres niveles, que suben vista, oído y
+variación de ruta. Los tiempos de búsqueda quedaron ×1 (D31): con el enfriamiento de la 2B, acortarlos
+como pide el spec premiaría esconderse y esperar, y alargarlos ya es la palanca de persistencia del
+Director.
+
 ---
 
 ## 8. Arquitectura resultante
@@ -988,7 +1080,7 @@ se agregan solos y el estado los consulta a través de `NemesisStateManager`.
 Orden recomendado. La Fase 4 no depende de los escondites y arregla un cheese que ya existe, así que
 puede ir en paralelo con la 1.
 
-### Fase 2B — Creencia fusionada y búsqueda *(antes de la 3)* — 🟡 partes 1 a 3 de 5 construidas
+### Fase 2B — Creencia fusionada y búsqueda *(antes de la 3)* — 🟡 partes 1 a 4 de 5 construidas
 > **27/09, reordenada en cinco partes** ([§18.6](#186-orden-dentro-de-la-2b)). Después de jugar la 2C
 > se sumaron dónde busca y cuánto busca ([§18](#18-búsqueda-dónde-y-cuánto-y-el-director)), y el cruce
 > del resto del plan mostró dos dependencias. El barrido nuevo necesita la pregunta 4 del árbitro
@@ -1124,7 +1216,78 @@ puede ir en paralelo con la 1.
       armar el grafo, y la huella no incluye los pesos (§18.3).
     - F9 muestra el acecho de la patrulla y la persistencia.
   - **Verificación:** casos 2, 9, 25, 34 y 43–48.
-- **Parte 4 — La elección completa** (lo que antes era "parte 2"):
+- **Parte 4 ✅ La elección completa (28/09, sin commitear), falta jugarla.** Compila entero (Roslyn
+  contra los `.rsp` de Unity, Editor incluido) y pasan los tests EditMode fuera de Unity (100/100
+  después de la revisión, `FocusArbiterTests` incluidos). **Cómo quedó:**
+  - **`FocusArbiter`** (nuevo, puro, en `WIRED.Nemesis.Logic`): las preguntas del §17.4 en orden, con
+    la que decidió. Valor = base × confianza (radio de la evidencia) × frescura (media vida 6 s) ×
+    costo de llegar (camino) × habituación. Ventaja de compromiso 0.3 que decae en 3 s (sólo contra algo
+    de su rango o menor: un paso tuyo no espera a que se le pase lo de las cadenas), "casi llego"
+    +0.15 a menos de 4 m (nunca para la creencia: una búsqueda la rodea todo el tiempo), margen 0.05,
+    anti-titubeo 2 s, piso de atención 0.12.
+  - **`NemesisChoice`** (nuevo, hermano del facade, se agrega solo): el **foco** (vos, una pista o un
+    vistazo). Pregunta sólo con evidencia nueva (`Sequence`, `LeadSequence`, un vistazo fresco con la
+    sospecha pasada el umbral), más una pista que sigue sonando, cada 1 s. Al soltar una pista o un
+    vistazo vuelve a `vos` si hay creencia.
+    Habituación por señuelo ×0.6 por visita vacía, por sesión; un señuelo que ya revisó mientras sigue
+    sonando se descarta hasta que se calle. Un escondite sospechado o conocido le gana a cualquier
+    pista (suelta el foco en la pista). "Suma" (§17.5) sólo mientras está buscando esa zona.
+  - **Escalera** (asset y `BuildDefaultLadder()`, 22 peldaños): `FocusIsLead` (predicado 22).
+    "oye un señuelo u otro ruido" (`HearsLead`) pasó a ser **"su atención está en una pista"**
+    (`FocusIsLead`) y subió **arriba del presupuesto de búsqueda** (D35).
+  - **`Investigating` sigue el foco:** al cambiar de idea se frena ~0.4 s girando hacia lo nuevo y
+    recién ahí camina (§17.3, "se ve el cambio"); una pista la sigue sin intervalo; al terminar de mirar
+    una pista o un vistazo avisa (`MarkFocusChecked`). Nada lo reapunta por `HasAudioTarget`.
+  - **`NemesisDecoyBreaker`** lee el foco (`FocusDecoy`) y **se instala solo**: no estaba en ningún
+    lado y la radio no se rompía nunca. `DecoyNoiseSource` tiene tipo (radio, alarma, cadenas, otro,
+    leído del componente de al lado) e id.
+  - **Sospecha compartida:** un ruido suave tuyo (agachado, `softNoiseLoudness` 1.5) sube el mismo
+    medidor que un vistazo. Un ruido solo nunca llega a avistamiento: lo sube hasta 0.9 y no lo baja
+    (D36).
+  - **Señuelos en la testbed:** *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)* pone la radio
+    (SALA_LATERAL), la alarma (PASILLO_CARGA) y las cadenas (PASILLO_OESTE) con carteles. Hay que
+    correrlo una vez desde el editor (no se pudo en batchmode: el editor estaba abierto).
+  - **F9:** fila `foco` (qué, cuánto vale, hace cuánto, y la última decisión con su pregunta).
+  - Los números van al final de `SO_NemesisData` (*Elección* y *Sospecha compartida*).
+
+  **Diferencias con lo planeado:**
+  - La "lista corta de pistas" es implícita: la mejor pista de cada barrido compite contra el foco
+    cada vez que es nueva, y otra vez cada 1 s mientras siga sonando sin ser el foco. No hace falta
+    guardar más de una.
+  - "Mismo lugar" (pregunta 4): dos señuelos distintos nunca son lo mismo, por cerca que estén (cada
+    uno se rompe, se habitúa y se descarta por su cuenta). Un ruido anónimo a menos de 3 m de un
+    señuelo, sí: el foco pasa a ser ese señuelo.
+  - `Searching` no cambia: un foco en una pista lo saca por la escalera (el peldaño nuevo), y con el
+    foco en vos barre la creencia como antes.
+  - La habituación vive en `NemesisChoice`, no en `PlayerHabitTracker` (§17.5 lo permitía mientras
+    tanto); no sobrevive a recargar la escena.
+
+  **Arreglos de una revisión de código (28/09, el mismo día):**
+  - **Una pista que perdía una vez quedaba ignorada mientras sonara.** Sólo se preguntaba con
+    `LeadSequence` nuevo, y un señuelo que no para no lo mueve: la alarma perdía contra una creencia
+    fresca y ya no volvía, aunque la creencia se enfriara (§17.5 pide lo contrario). Ahora una pista
+    que sigue sonando y no es el foco se vuelve a preguntar cada 1 s.
+  - **Soltar una pista o un vistazo dejaba el foco en "nada"** con la creencia viva: cualquier pulso
+    del Director le ganaba a "0 + margen" y sacaba a una búsqueda tibia. Ahora vuelve a `vos`, sin
+    ventaja de compromiso.
+  - **Un vistazo por debajo del umbral cambiaba el foco**, y ningún peldaño actúa sobre un vistazo.
+    Ahora se ofrece sólo con la sospecha pasada el umbral.
+  - **Dos señuelos a menos de 3 m eran "lo mismo"**, y el foco se quedaba con el id del primero: la
+    radio al lado de un pulso del Director no se rompía nunca. Ver arriba.
+  - **Una pista que seguía sonando envejecía como si se hubiera callado** (su valor se partía a la
+    mitad cada 6 s en plena caminata). Ahora su edad es la de la última vez que se oyó.
+  - **El peldaño "para llegar hay que tomar el montacargas" iba hacia la creencia que el árbitro
+    acababa de descartar**, y después "su atención está en una pista" lo bajaba de vuelta. Ahora
+    pide `Not FocusIsLead` (D35).
+  - **`Investigating` yendo a un escondite sospechado:** los cambios de foco del camino se aplicaban
+    tarde, al terminar, con la pausa de giro; y el escondite contaba como "vistazo", así que al
+    terminar soltaba un vistazo que no tenía nada que ver. El escondite tiene ahora su propio origen.
+  - Menores: una captura suelta también una pista o un vistazo en foco; la distancia a una pista se
+    recuerda 1 s (dos señuelos alternándose pedían un camino cada 0.1 s); el señuelo se pasa a mano
+    al foco (buscarlo por id perdía uno que se calló en el mismo barrido); el foco en una pista mide
+    por camino, como las pistas con las que compite.
+
+  Lo que se pidió:
   - `NemesisChoice` (hermano del facade) + `FocusArbiter` (clase pura, en un asmdef que referencien los
     tests): todas las preguntas del §17.4, con señuelos (§17.5) y escondites (§17.6).
   - Re-elección con foco único (§17.3): `Searching` e `Investigating` siguen el foco. Ninguno reacciona
@@ -1139,14 +1302,15 @@ puede ir en paralelo con la 1.
   - F9 muestra el foco y la pregunta que decidió.
   - **Pistas y `BeliefAge` van en el mismo paso** (ya se cumplió en la parte 1: `HasFreshLead` sostiene
     la caminata hacia una pista).
-  - **Verificación:** casos 22, 24, 26, 28–33 y 37.
+  - **Verificación:** casos 22, 24–26, 28–33 y 37, y el 60 (la fila `foco`).
 - **Parte 5 — Limpieza y tests** (lo que antes era "parte 3"):
   - Se sacan los parches que esto vuelve innecesarios, de a uno y con su caso de prueba: el "punto
     visto y no la creencia" de `NemesisPursuit` (§16.4, **después** del de `Searching`, porque
     `IsStandingWhereLost` depende de él) y el filtro de intervalo y distancia de `Investigating`.
   - Gizmo del radio de la creencia.
-  - Primeros tests EditMode del proyecto: la fusión, el árbitro y el enfriamiento son lógica pura, sin
-    escena (§16.2). `WIRED.Tests.EditMode.asmdef` no puede ver Assembly-CSharp. La lógica va en el asmdef de
+  - Tests EditMode de la fusión y de la escalera: son lógica pura, sin escena (§16.2). Los del árbitro
+    (`FocusArbiterTests`, parte 4) y del enfriamiento (`SearchCoolingTests`, parte 3) ya están.
+    `WIRED.Tests.EditMode.asmdef` no puede ver Assembly-CSharp. La lógica va en el asmdef de
     lógica pura que arma la Fase 3 (`WIRED.Nemesis.Logic`, en `Scripts/Nemesis/Logic/`), con datos
     planos: sin `HidingSpot` ni `DecoyNoiseSource`.
   - **Verificación:** todos los casos de la 2B.
@@ -1176,20 +1340,33 @@ puede ir en paralelo con la 1.
 - Reemplaza `CheckHidingSpots` y `PrioritizeSuspiciousSpots` de la Fase 6: en vez de desbloquearse
   de golpe con N escapes, la revisión crece con el uso. `BurnHidingSpot` queda, al tope del medidor.
   No tienen fila en `SO_CounterplayRules`: se contestan por escondite.
-- **Falta, con la elección de la 2B (parte 4):**
-  - mientras investiga o busca, que los escondites usados de la zona entren como candidatos en la
-    elección (pregunta 7 del §17.4) y los abra;
-  - R3 implementada: la primera revisión por el medidor, a la vista o al oído del jugador.
-- **Verificación:** casos 39 y 40 cuando esté la elección; el medidor, casos 49–51.
+- ✅ **La mitad del Nemesis, con la 2B parte 4 (28/09, sin commitear), falta jugarla.** Compila
+  (Roslyn). En `NemesisHidingAwareness.ConsiderUsedSpots`:
+  - `Investigating`, al llegar a un punto que no es un escondite, mira los escondites usados a 6 m;
+    `Searching`, los del disco de barrido, al entrar, al re-centrar y al ensanchar.
+  - Van del más usado al menos usado y cada uno se sortea una vez por búsqueda o por investigación
+    contra su `OpenChance`. El primero que sale pasa a **sospechado** ("lo usaste antes (N)" en F9),
+    y el estado va a abrirlo como cualquier sospecha. Nunca fuera de la zona (caso 40).
+  - **R3:** mientras `CheckHidingSpots` no corrió nunca (`HasRun`), sólo cuenta un escondite a
+    menos de 12 m del jugador y en su mismo piso, que lo puede ver u oír abrir; uno que no cumple no
+    gasta su sorteo. `MarkRun` recién **al abrirlo**: si algo lo corta antes, la lección no se dio.
+  - La otra mitad del D22: un segundo ruido desde el mismo lugar (a menos de 1.5 m, dentro de 60 s,
+    y después de más de 1 s de silencio) vuelve sospechoso al escondite más cercano, a 2 m como
+    mucho ("volvió a sonar ahí"). Cuenta cualquier ruido de adentro, respirar incluido: con él a
+    menos de ~2.3 m, dos respiraciones (3 s) lo mandan a abrir. Es la franja donde aguantar decide
+    (D21). La memoria del primero se borra al revisarlo vacío, con una captura, un respawn, o al
+    verte afuera.
+
+  **Diferencias con lo planeado:** los escondites usados no compiten en el árbitro del foco. Son la
+  pregunta 7, que ya contesta el estado: un escondite sospechado le gana a cualquier pista (la
+  `NemesisChoice` suelta una pista en cuanto hay uno).
+- **Verificación:** casos 35, 39 y 40; el medidor, casos 49–51.
 
 ### Fase 6 — Contra-jugadas desbloqueables
 - `CheckHidingSpots`, `PrioritizeSuspiciousSpots`, `ExitAmbush`, `BurnHidingSpot` (necesita el
   modelo del locker roto), `ChaseFlank`, `ZoneDefense` + `NemesisAmbushPoint`.
 - La regla R3 (la primera vez se ve) implementada, no sólo pedida.
 - **Verificación:** casos 6 y 8.
-
-### Fase 7 — Escalada por puzzles
-- Spec §7.2 con el mecanismo ya decidido (§7).
 
 ### Fase 8 — Bajadas entre pisos *(independiente)*
 - Detalle completo en el [§15](#15-bajadas-entre-pisos). Tiene tres partes, y cada una se puede
@@ -1317,8 +1494,8 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
 - **Pendiente:**
   - Animación `Pull Out` (§15.5) y SFX de puerta: hoy el pull-out son 0.8 s de la animación de
     agarre. Con la animación, revisar si 0.8 s alcanza (el consejo propuso 1.2 s).
-  - **Aviso audible al saber el escondite** (un sting de voz): hoy nada le dice al jugador, desde
-    adentro, que el Nemesis *sabe* y no que *adivina*. Es el margen real para decidir salir (D1).
+  - ✅ **Aviso audible al saber el escondite** (28/09, D34): suena cuando el escondite pasa a
+    conocido y el Nemesis todavía está a más de 2 m de la puerta. Clip provisorio. Caso 58.
   - Alternativa a probar (D17): al pasar el umbral por las rendijas, clavar la mirada en el
     escondite (`NemesisLookAround`) en vez de ir directo a la puerta.
   - En escenas que no hornean `Default` (la testbed hornea `Ground|Wall|Props`), el collider sólido
@@ -1446,6 +1623,50 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
   y la fila `presión` muestra la zona más lejana como `retirada`; *Saltar silencio* → la zona del
   jugador aparece como `sensibilidad` y sube un escalón cada 20 s.
 
+### Fase 7 — Escalada por puzzles
+- ✅ **Construida el 28/09 (sin commitear); falta jugarla.** Es el spec §7.2 con el mecanismo del
+  [§7](#7-escalada-por-progreso).
+- ✅ **`NemesisEscalation`** (`Scripts/Nemesis/`), en la escena `Data`, al lado de
+  `PlayerHabitTracker` (`Singleton` + `ISessionResettable`).
+  - Toma el nivel de `PuzzleStateManager.CompletedPuzzleCount` (nuevo). Lee la cuenta, no suma
+    eventos: un checkpoint que deshace un puzzle lo baja.
+  - Lo vuelve a mirar al cargar el nivel y en cada puzzle completo, cada respawn, cada despertar y
+    cada cambio de estado del Nemesis. Si el Nemesis ya tiene el nivel, no hace nada. La carga del
+    nivel es la que importa para la ruta: llega antes del `Start` del Nemesis, que entra a patrullar
+    (y sortea su primera ronda) antes de avisar que despertó.
+  - New Game y Retry tiran la copia. En un Retry el nivel viejo sigue cargado: si su Nemesis sigue
+    vivo, primero le devuelve el asset autorado.
+  - Construye una copia del asset **como está autorado** (`AuthoredData`, nunca una copia sobre otra)
+    y la instala con `InstallBaseline`: la escalada es permanente y pasa por el `BaselineData` (§7).
+  - Sin préstamo del Director, instala la copia en el acto. Con préstamo, `OnBaselineChanged` le hace
+    rearmar el préstamo encima del nivel nuevo, en vez de esperar a que termine.
+  - Nunca escribe el asset: los cambios en Play mode persistirían en el editor.
+- ✅ **`SO_NemesisEscalation`** (`ScriptableObjects/Nemesis/`). Tres niveles (D33):
+
+  | Desde | Vista | Oído | Búsqueda | Variación de ruta |
+  |---|---|---|---|---|
+  | 0 puzzles | ×1 | ×1 | ×1 | como está (0.15) |
+  | 2 puzzles | ×1.1 | ×1 | ×1 | al menos 0.25 |
+  | 3 o más | ×1.15 | ×1.1 | ×1 | al menos 0.40 |
+
+  - La vista multiplica `ViewRange`, y con él lo que se mide en fracción de él: las rendijas del
+    locker y bajo la mesa.
+  - El oído multiplica `NoiseRangeScale` y `ListenRange` juntos: cada ruido se oye más lejos (D32).
+  - La variación de ruta es un piso para las chances de invertir la ronda y de saltear un waypoint:
+    nunca las baja.
+  - **Nunca la velocidad** (§7, análisis §12.2), aunque el spec la sube. La búsqueda queda ×1 (D31).
+- ✅ **Debug:**
+  - F9: fila `escalada` (nivel, de cuántos puzzles o de F10, y los multiplicadores).
+  - F10: sección *ESCALATION*, con *Tier -*, *Tier +* y *Auto*. Las testbeds no tienen puzzles, así
+    que el nivel se prueba desde ahí.
+  - Una línea de consola cada vez que instala un nivel.
+  - *Validate Navigation Setup* avisa de dos niveles con el mismo umbral y de un multiplicador de
+    sentidos menor a 1.
+- ✅ **Tests:** `EscalationRulesTests`, en `WIRED.Nemesis.Logic`.
+- **Falta jugarla.** En Zona1 el Nemesis sólo aparece en el escape (D25), así que ahí la escalada
+  sólo se ve con todos los puzzles hechos. Donde se va a notar es la Zona 2.
+- **Verificación:** casos 56 y 57.
+
 ---
 
 ## 10. Reglas del proyecto que este plan no puede romper
@@ -1509,7 +1730,7 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D19 | El ruido sintético del Director, ¿es pista o evidencia? | **Pista.** El Director "no toca el FSM" y tampoco tendría que tocar la creencia: hoy su ruido, al ser el más fresco, se vuelve la posición del jugador. Como pista sigue empujando a `Investigating`, igual que antes. |
 | D20 | Evidencia que contradice la creencia (un ruido lejos de donde te vio hace un segundo): ¿qué gana? | **Decidido (27/09): la evidencia del jugador gana.** La procedencia sale de quién hizo el ruido: un ruido del emisor del jugador *es* el jugador, y un señuelo o un pulso del Director es una pista (D18, D19). <br>• Si la evidencia cae dentro de lo alcanzable, se fusiona con la creencia y el radio se achica. <br>• Si cae afuera, **reemplaza** la creencia (`NemesisBelief.cs:240-244`). Sólo puede pasar después de un respawn o un warp, y ahí el jugador está donde sonó. <br>• La plausibilidad queda para evidencia sin procedencia, que hoy no existe. <br>*Antes decía:* "ninguna de las dos de golpe; si el jugador no pudo llegar ahí, es una pista aparte". Eso servía cuando no se sabía quién hacía el ruido. |
 | D21 | ¿Aguantar la respiración dentro de un escondite protege de la proximidad? | **Sí (decidido el 27/09, revisa D13 y D14).** Respirando, la proximidad a través de la carcasa sigue instantánea; aguantando, no te detecta por proximidad ni por las rendijas en un escondite que no sospecha: llega, mira a los lados y se va. Si aguantás de más, la exhalación lo trae de vuelta. Un escondite **sospechoso** se abre igual: ahí aguantar ya no salva. |
-| D22 | ¿Un ruido que sale de un escondite ubica el escondite? | **No de entrada: marca la zona.** El primero manda a investigar el área (radio grande, §17.6); si vuelve a sonar desde el mismo escondite, lo sospecha, y recién ahí va a la puerta. Hoy el primer suspiro lo lleva derecho a la puerta. |
+| D22 | ¿Un ruido que sale de un escondite ubica el escondite? | **No de entrada: marca la zona.** El primero manda a investigar el área (radio grande, §17.6); si vuelve a sonar desde el mismo escondite, lo sospecha, y recién ahí va a la puerta. **Implementado:** el primero, con la 2B parte 2 (radio ×2, sin ir a la puerta); el segundo, el 28/09 con la 2D (a menos de 1.5 m del primero, dentro de 60 s y después de más de 1 s de silencio). |
 | D23 | ¿Revisa escondites que el jugador ya usó? | **Sí, con un medidor de uso por escondite (decidido el 27/09).** Mientras investiga o busca, abre los escondites usados que caen en la zona que revisa, con más chance cuanto más usados. Nunca cruza el nivel para revisar uno lejano (R4). Genérico para mesa, locker y container. |
 | D24 | ¿Se conserva la intercepción de `Searching` (`TryGetInterceptPoint`)? | **Decidido (27/09): se saca** (§18.1: elige el waypoint "adelante" al que llega antes, que suele ser uno pegado a él, y se recalcula con cada ruido). La búsqueda barre alrededor de la creencia. Si el playtest pide cortar el paso, que sea un punto del NavMesh sobre el rumbo observado (`NavMesh.Raycast` desde la creencia) y sólo con velocidad observada alta, nunca un waypoint. El flanqueo de la persecución (`NemesisPursuit`) no se toca: ése es a propósito. |
 | D25 | ¿El Nemesis aparece en el gameplay de Zona1? | **Resuelto por diseño (27/09): no.** El Nemesis se activa en la **Zona 2** y, en Zona1, sólo en la cinemática final. Que duerma todo el gameplay de Zona1 (`wakeOnlyFromScript`, §14.1) es lo buscado, no un problema. Consecuencias: <br>• Todo lo de los §17 y §18 se prueba en la testbed y en `TestIñaki` hasta que exista la Zona 2. <br>• Las zonas, los disparadores y las rutas del Director en Zona1 son configuración sin efecto en el juego. <br>• Los seis tramos de ruta sin camino de la planta baja ([§18.3](#183-el-director-qué-hace-de-verdad)) no afectan a nadie mientras esas rutas no se reusen. <br>• La Zona 2 tiene que nacer con su Director armado (§14.2) y sus rutas validadas. |
@@ -1518,6 +1739,12 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D28 | ¿`EscapedWhileHidden` y `SameSpotReused` se cuentan al terminar la búsqueda y al entrar (§5.3), o al salir? | **Implementado (27/09, Fase 3): cuando la estadía se vuelve escape** (R1: escapes, no intentos). Eso pide tres cosas: que el Nemesis haya cazado cerca, que el jugador salga por su cuenta y que después pasen 5 s sin captura ni persecución. Salir mientras te saca, o que te vea salir y te agarre, no es escape. Una búsqueda puede terminar porque oyó la exhalación y después volver a abrir la puerta. Se cuenta una búsqueda aguantada por cacería (hasta que vuelve a patrullar). El +1 extra del medidor (D23) sigue la misma regla. Con el *Hide* de F10 no hay salida que esperar y cuenta en el acto. A revisar con playtest si 5 s es poco o mucho. |
 | D29 | Después de una bajada, ¿sigue comprometido con `Traversing`? | **Decidido (27/09, Fase 8): no.** El peldaño "ya se comprometió con el montacargas" sostiene `Traversing` mientras el estado dure menos de `ElevatorCommitTime` (12 s), y una bajada se camina y se cruza en 2–3 s. Así, aterrizaba y seguía el resto de la ventana en `Traversing`, corriendo hacia una creencia que deja de actualizarse apenas no te ve y sin nada de la persecución: lo mismo que WIR-028 vio con los links generados. El caso 12 pide lo contrario (aterriza y persigue). Al terminar una bajada (aterrizada, cortada en el aire o abandonada, D30), `NemesisElevatorUser.HasJustEndedDrop` queda en verdadero 0.5 s, y la fachada lo suma a `HasGivenUpOnElevator`, que es lo que ese peldaño ya pregunta. No cambia la escalera: ni peldaños ni predicados nuevos. El montacargas tenía el mismo problema. Se creía que no se notaba, porque el viaje se come casi toda la ventana, pero en el playtest del 27/09 sí se notó: arriba seguía en `Traversing` los segundos que quedaban, y un ruido de abajo lo mandaba de vuelta a la cabina. Desde entonces un viaje completo lo suelta igual (`HasJustEndedRide`, 0.5 s). |
 | D30 | Asomado al borde, ¿se tira aunque vea al jugador arriba, a su lado? | **Decidido (27/09, Fase 8): no, se echa atrás.** Mientras se asoma o flexiona, si lo ve y la creencia está más cerca en altura del piso donde está parado que del de abajo, sale del link y deja la bajada en enfriamiento. Es el "abandonar si el jugador está acá" del montacargas (`ShouldAbandonForPlayer`), pero sin el veredicto de ruta: medido desde un punto parado sobre un link, ese veredicto es justo el que oscila. Al jugador que ve abajo, por el hueco, nunca lo frena: es el caso para el que existe la bajada. Ya descolgándose, no se echa atrás. |
+| D31 | ¿La escalada acorta la búsqueda, como pide el spec (12 → 10 → 8 s)? | **Implementado (28/09, Fase 7): no; la búsqueda queda ×1 en los tres niveles.** El spec pensó un timeout fijo. Con el enfriamiento de la 2B parte 3, acortar la búsqueda premia esconderse y esperar (C1), y alargarla ya es la persistencia que presta el Director. El multiplicador está por nivel en `SO_NemesisEscalation`, para calibrarlo en la Zona 2. |
+| D32 | ¿Qué es "oído" en la escalada? | **Implementado (28/09, Fase 7): `NoiseRangeScale` y `ListenRange` juntos.** Así cada ruido se oye un 10 % más lejos y el tope se corre con él. `ListenRange` solo es el tope de 15 m: caminando se te oye a 10 m, así que sólo cambiaría para quien corre. El préstamo de sentidos del Director tenía esa misma limitación (multiplicaba sólo `ListenRange`, y su ×1.25 de oído no se notaba caminando): arreglado en el préstamo del Director (28/09), que ahora escala los dos (caso 61). |
+| D33 | ¿Cómo se pasan los "módulos" del spec a puzzles, y qué pasa si un checkpoint deshace uno? | **Implementado (28/09, Fase 7): niveles a 0, 2 y 3 o más puzzles.** El primer puzzle es el que despierta al Nemesis (spec §7.1), así que el "módulo 1" del spec son 0–1 puzzles. La cuenta es de la sesión (New Game la pone en 0) y se lee cada vez: si un respawn deshace un puzzle, el nivel baja con él. Con la Zona 2 hay que revisar los umbrales: va a llegar con los 4 puzzles de Zona1 hechos, en el nivel más alto. |
+| D34 | ¿Cuándo suena el aviso de que **sabe** en qué escondite estás (§16.2, D1, D16)? | **Decidido (28/09): cuando el escondite pasa a conocido y el Nemesis está a más de 2 m de su puerta.** Es lo único que, desde adentro, separa "sabe" de "adivina", y el margen de D1 para salir antes de que llegue. Casos: <br>• Te vio entrar, o te distinguió por las rendijas: suena. <br>• Sólo sospecha: no suena. Es justamente la duda que el aviso tiene que distinguir. <br>• Lo sabe ya en la puerta ("lo tiene encima", "lo abrió"): no suena. Abre en el acto, y el golpe es la música al abrir (D13: llega en silencio). <br>Se lee de `KnownHidingSpot` en `NemesisAudio`, sin tocar `NemesisHidingAwareness`. Comparte un enfriamiento de 3 s con "te perdí". Clip provisorio: `voice_chase` a pitch 0.8. |
+| D35 | Una pista (un señuelo) que llega mientras la búsqueda sigue tibia, ¿la saca de buscar? | **Decidido (28/09, 2B parte 4): sí, si el foco pasó a la pista.** El peldaño de la pista ("su atención está en una pista", `FocusIsLead`) va **arriba** de "le queda presupuesto de búsqueda". Antes, `HearsLead` estaba abajo, y con la búsqueda tibia ninguna radio lo sacaba: el caso 31 no podía pasar. No es cualquier pista: antes el árbitro la compara con la creencia, con compromiso, margen y anti-titubeo. Una que no le gana a una búsqueda fresca no cambia el foco, y una que suena donde ya busca "suma" (§17.5) y tampoco. Abajo de "está revisando un escondite": un escondite sospechado le gana a cualquier pista. Y el peldaño "para llegar hay que tomar el montacargas" pide que el foco **no** esté en una pista (revisión del 28/09): si no, tomaba el montacargas hacia la creencia que el árbitro acababa de descartar, y del otro lado la pista lo hacía volver. Un viaje ya empezado se termina igual. |
+| D36 | ¿Cómo suman el vistazo y un ruido suave tuyo (§17.3, caso 26)? | **Decidido (28/09, 2B parte 4): en el mismo medidor, con tope.** Un ruido tuyo suave (sonoridad ≤ `softNoiseLoudness`, 1.5: agachado) que no sale de un escondite sube la sospecha del vistazo a `softNoiseSuspicionRate` (0.6 por tiempo de detección). Sin contacto de reojo, el ruido lo sube sólo hasta `noiseOnlySuspicionCap` (0.9), y nunca lo baja: lo que ya puso el ojo se sostiene mientras sigan los pasos. **Un ruido solo nunca es un avistamiento**, porque el oído no ve. Sí puede pasar el umbral de sospecha y mandarlo a mirar. Con un vistazo en el mismo momento, se llena antes que con cualquiera de los dos solo. |
 
 ---
 
@@ -1557,18 +1784,21 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Creencia: crecimiento del radio sin evidencia | 4.5 m/s | Velocidad del jugador corriendo: donde pudo haber ido |
 | "El mismo lugar" (fusión) | Dentro del radio + 4.5 m/s × tiempo transcurrido + el radio de la evidencia | Adentro se fusiona; afuera, la evidencia del jugador reemplaza la creencia (D20, decidido el 27/09) |
 | Sospecha compartida: umbral | 0.4 | El `awarenessTriggerThreshold` de hoy: mismo comportamiento de la periferia |
-| Sospecha compartida: aporte de un ruido | 0.25 por ruido nuevo del jugador, escalado por qué tan bien se oye | Dos pasos suaves ≈ un vistazo; un paso fuerte cerca dispara solo |
-| Re-elección: margen para cambiar de foco | El nuevo tiene que valer ≥ 25 % más que el actual | Histéresis: sin margen, dos estímulos parecidos lo hacen ir y venir |
-| Re-elección: ventaja de compromiso | +50 % al elegir, decae a 0 en 3 s | Lo recién elegido no se abandona por algo apenas mejor; lo viejo sí |
-| Re-elección: tiempo mínimo entre cambios del mismo tipo | 1.5 s | El `InvestigationRetargetInterval` de hoy: anti-titubeo |
-| Re-elección: mismo lugar | < 3 m del foco = actualización, no cambio | Reusa `InvestigationRetargetDistance` |
+| Sospecha compartida: aporte de un ruido | Un ruido suave tuyo (sonoridad ≤ `softNoiseLoudness` 1.5: agachado; no desde un escondite) suma `softNoiseSuspicionRate` 0.6 / `awarenessBuildTime` por segundo mientras suena. Solo, lo sube hasta `noiseOnlySuspicionCap` 0.9 y no lo baja | D36 (28/09): un ruido solo nunca es un avistamiento. Un paso suave y un vistazo juntos pasan el umbral antes (caso 26). *Planeado:* 0.25 por ruido nuevo |
+| Re-elección: margen para cambiar de foco | El nuevo tiene que valer 0.05 más que el actual, con el compromiso y el "casi llego" ya sumados | La histéresis la hace el compromiso; el margen sólo corta los empates. *Planeado:* ≥ 25 % más |
+| Re-elección: ventaja de compromiso | +0.3 al elegir, decae a 0 en 3 s. Sólo contra algo del mismo rango o menor (vistazo < pista < vos) | Lo recién elegido no se abandona por algo apenas mejor; lo viejo sí. Un paso tuyo no espera a que se le pase lo de las cadenas. *Planeado:* +50 % |
+| Re-elección: tiempo mínimo entre cambios del mismo tipo | 2 s (`focusAntiDither`) | Anti-titubeo (caso 29). *Planeado:* 1.5 s, el `InvestigationRetargetInterval` |
+| Re-elección: mismo lugar | Mismo señuelo, o < 3 m del foco y del mismo tipo = actualización, no cambio. Dos señuelos distintos nunca son lo mismo; un ruido anónimo a < 3 m de un señuelo, sí. Vos siempre sos el mismo | Pregunta 4 del §17.4. Cada señuelo se rompe, se habitúa y se descarta por su cuenta (revisión del 28/09) |
 | Re-elección: pausa al cambiar | 0.4 s mirando hacia lo nuevo | Que se lea como una decisión |
-| Elección: valor de la creencia sobre el jugador | Ruido del jugador 0.8 × confianza (radio 0.5 m → 1; 10 m → 0.3) × frescura (a 0 en `BeliefMemoryTime`) | Una creencia vieja e imprecisa pierde contra un señuelo fresco |
-| Elección: valor base de los señuelos | Alarma 0.7 · radio 0.6 · cadenas 0.45 · ruido sin identificar 0.4 | §17.5 |
-| Elección: habituación por señuelo | ×0.6 cada vez que ese señuelo lo hizo ir sin encontrar nada; piso 0.2 | Las cadenas dejan de ser un botón |
-| Elección: compatibilidad | Señuelo dentro del radio de la creencia + 3 m → suma a la creencia, no compite | Ir ahí sirve para las dos cosas |
-| Elección: costo de llegar | × (1 − distancia por NavMesh / 60 m), piso 0.3 | La alarma se oye en todo el nivel; llegar no es gratis |
-| Elección: "casi llego" | +20 % al foco actual a menos de 4 m | No abandona algo que tiene al lado |
+| Elección: valor de la creencia sobre el jugador | 1 × confianza 1 / (1 + radio / 4) (0.5 m → 0.89; 8 m → 0.33) × frescura 0.5^(edad / 6 s) | Una creencia vieja e imprecisa pierde contra un señuelo fresco (caso 31). *Planeado:* 0.8 × confianza × frescura a 0 en `BeliefMemoryTime` |
+| Elección: frescura | Media vida 6 s (`focusFreshnessHalfLife`), para vos y para los vistazos | Del orden de la ventana de silencio de la búsqueda (8 s) |
+| Elección: valor base de los señuelos | Alarma 0.7 · radio 0.6 · cadenas 0.45 · ruido sin identificar 0.4 (`leadValue*`) | §17.5 |
+| Elección: valor de un vistazo | 0.5 (`glimpseValue`), radio 1.5 m; se ofrece sólo con la sospecha pasada el umbral; se olvida a los 8 s | Menos que vos, más que las cadenas: vio algo |
+| Elección: piso de atención | 0.12 (`focusAttentionFloor`): una pista o un vistazo que vale menos se ignora | Lo que deja a las cadenas lejanas sin efecto a la tercera (caso 32) |
+| Elección: habituación por señuelo | ×0.6 (`leadHabituation`) cada vez que ese señuelo lo hizo ir sin encontrar nada, sin piso: el piso de atención lo corta. Por sesión. Uno que ya revisó mientras sigue sonando se descarta hasta que se calle | Las cadenas dejan de ser un botón. *Planeado:* piso 0.2 |
+| Elección: compatibilidad | Señuelo dentro del radio de la creencia + 3 m (`leadSumsMargin`), sólo mientras busca → suma a la creencia, no compite | Ir ahí sirve para las dos cosas (caso 33) |
+| Elección: costo de llegar | × 1 / (1 + camino / 60 m) (`focusCostDistance`); sin camino ×0.4; en otro piso ×0.7. Las pistas se miden por NavMesh; vos y los vistazos, en línea recta | La alarma se oye en todo el nivel; llegar no es gratis. *Planeado:* × (1 − d / 60), piso 0.3 |
+| Elección: "casi llego" | +0.15 al foco actual a menos de 4 m; nunca a la creencia | No abandona algo que tiene al lado. Una búsqueda rodea la creencia todo el tiempo: con el bono no la dejaba nunca. *Planeado:* +20 % |
 | Proximidad a través de la carcasa | Respirando: instantánea (como hoy). Aguantando: no detecta | D21 |
 | Rendijas mientras aguanta | No acumulan en un escondite que no sospecha | D21: el clásico "mira y se va" |
 | `maxHoldSeconds` | 8 s (hoy 6) | Alcanza para una revisión de puerta (4 s) más la llegada |
@@ -1577,6 +1807,9 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Medidor de uso por escondite | +1 por uso, +1 extra si lo cazaba cerca; −0.1 por minuto; sobrevive a la captura | D23; R1, R5, R7 |
 | Chance de abrir un escondite usado al investigar la zona | medidor × 0.25, tope 0.85 | Que siga siendo apuesta (§5.2) |
 | Medidor para revisarlo primero / para romperlo | 2 / 4 | Los umbrales de C2 de antes |
+| Escondites usados: zona que revisa | `Investigating`: 6 m alrededor del punto al que llegó · `Searching`: el disco de barrido | R4: nunca cruza el nivel por uno (caso 40) |
+| R3: la primera revisión por hábito | Sólo un escondite a menos de 12 m del jugador y en su piso, mientras `CheckHidingSpots` no corrió nunca. Cuenta como dada al abrirlo | Del orden del oído: la primera vez se ve o se oye |
+| Segundo ruido desde el mismo escondite (D22) | A menos de 1.5 m del primero, dentro de 60 s y después de más de 1 s de silencio; sospecha el escondite más cercano, a 2 m como mucho | Un suspiro largo es un solo ruido, no dos |
 | Barrido de búsqueda: radio | El de la última evidencia + 1 m, entre 3 m y `RoomSweepRadius` (8), congelado hasta re-centrar | El de la creencia crece a 4.5 m/s y llega a 8 m en ~1.7 s, antes de que entre `Searching`: sirve para la plausibilidad, no para barrer (§18.4) |
 | Barrido: re-centrar | Evidencia nueva fuera del disco actual; adentro, corre el centro sin reiniciar | Pregunta 4 del §17.4: `Sequence` sube ~10 veces por segundo |
 | `searchMinTime` | 6 s | Siempre mira un poco. Por debajo de `maxHoldSeconds` (8), o la exhalación forzada caza siempre (D21) |
@@ -1593,6 +1826,13 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Bajadas: fases (`SO_NemesisMovement`) | Giro 360°/s · asomarse 0.6 s · despegar 0.35 s (`Hop`) · darse vuelta 0.75 s y colgarse 0.4 s (`Hang`) · recuperación 0.75 s | La mitad de los rangos del §15.5: se ajustan cuando estén las animaciones, y la recuperación tiene que durar lo mismo que `Land Heavy` |
 | Bajadas: arco | Gravedad 12 m/s² · la `Hop` sube 0.3 m antes de caer · la `Hang` se cuelga 1.9 m bajo el borde · mínimo 0.35 s en el aire | Algo más pesada que la real (9.8). Sin los 0.3 m, la `Hop` roza el canto del piso; colgada, una `Hang` de 4 m es una caída de 2 m |
 | Bajadas: compromiso liberado al terminar (D29) | 0.5 s | Alcanza para que la escalera lo suelte una vez, y no impide que se forme otro si la ruta vuelve a cruzar pisos |
+| Aviso de escondite conocido: distancia mínima a la puerta (D34) | 2 m en planta | Por encima de la proximidad extrema (1.5 m) y del frenado en la puerta (0.25 m): lo que queda adentro es "ya está abriendo" |
+| Voces del Nemesis: enfriamiento común | 3 s | Que el aviso y "te perdí" no se pisen, y que un escondite que se olvida y se vuelve a saber no repita el aviso de inmediato |
+| `ExitPose` ↔ `ApproachPoint` (validador) | ≤ 0.75 m en planta: `catchMaxReach` 1 − frenado 0.25 | D16: salir mientras te saca te deja a su alcance. Los tres prefabs quedan a 0.1–0.25 m |
+| Escalada: niveles | Desde 0, 2 y 3 puzzles completos | Spec §7.2 (módulos 1, 2 y 3+; el primer puzzle lo despierta). D33 |
+| Escalada: vista / oído | ×1 · ×1.1 · ×1.15 / ×1 · ×1 · ×1.1 | Spec §7.2. El oído multiplica el ruido y el tope juntos (D32) |
+| Escalada: búsqueda / velocidad | ×1 en los tres niveles / nunca | D31; §7 y análisis §12.2 |
+| Escalada: variación de ruta | Como está (0.15) · al menos 0.25 · al menos 0.40 | Spec §7.2 (10 / 25 / 40 %), como piso de las chances de invertir la ronda y de saltear un waypoint |
 
 Referencias del proyecto para calibrar: jugador 2.5 m/s (agachado 1.25, corriendo 4.5; con M1
 2.0 / 3.6); ruido del jugador agachado 2.5 m / caminando 10 m / corriendo 15 m (tope); Nemesis
@@ -1632,7 +1872,7 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 19 | Te saca de un escondite. | Después de 0.8 s quieto en la puerta, captura; aparecés en la `ExitPose`, afuera del mueble, no adentro ni despedido por la física. |
 | 20 | Pasa a ≤1 m de la puerta de un locker ocupado **por detrás de una pared**. | Nada: la pared ocluye; la carcasa es lo único que se atraviesa. |
 | 21 | Durante el escape (cinemática final en marcha, `ChaseFloor`), te escondés a su vista. | Sigue en `Chasing`, llega a la puerta y te agarra (el agarre de un escondido se mide en la puerta). |
-| 22 | Suena la alarma de incendio mientras te persigue y te ve. | Te sigue persiguiendo a vos. F9: creencia de *vista*, la alarma como *pista*. Al perderte, busca donde te vio, no en la alarma. |
+| 22 | Suena la alarma de incendio mientras te persigue y te ve. | Te sigue persiguiendo a vos. F9: creencia de *vista*, la alarma como *pista*. Al perderte, busca primero donde te vio, no en la alarma. Si la alarma sigue sonando, a los ~7 s de búsqueda sin evidencia tuya el foco pasa a ella (F9 `cambió: alarma … > vos …`) y va (§17.5: la alarma le gana a una creencia vieja). |
 | 23 | Buscándote, con las cadenas sonando cerca (o cualquier ruido continuo). | La búsqueda mantiene sus pausas de mirar (`SearchPauseTime`); el destino cambia sólo cuando llega evidencia nueva. |
 | 24 | Te ve de reojo en campo abierto (sin escondite), sin haber hecho ruido antes. | Va al punto donde te vio de reojo; no a un ruido viejo, y no se queda quieto. |
 | 25 | Activás la alarma lejos y te quedás quieto en otra zona, sin que te haya sentido. | Va a revisar la alarma (pista). No arranca ni sostiene una persecución; la búsqueda vence a su tiempo. |
@@ -1649,7 +1889,7 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 36 | Cortás la línea de vista, caminás hasta un locker y te metés. | Llega a la zona de tus últimos pasos y mira. Si aguantás, no te encuentra por pasar cerca de la puerta. |
 | 37 | Rompiendo la radio, te ve. | Corta y te persigue. |
 | 38 | Sospecha de tu escondite (segundo ruido, o te distinguió por las rendijas) y vos aguantás. | Lo abre y te saca: sospechar te vuelve presa. |
-| 39 | Te escondiste dos veces en la misma mesa; más tarde investiga un ruido en esa zona. | A veces (sorteado, más chance cuanto más la usaste) va a revisar la mesa. La primera vez pasa donde lo podés ver u oír. |
+| 39 | Te escondiste dos veces en la misma mesa; más tarde investiga un ruido en esa zona. | A veces (sorteado, más chance cuanto más la usaste) va a revisar la mesa. La primera vez pasa donde lo podés ver u oír. Si algo lo corta antes de abrirla, esa todavía no fue la primera. |
 | 40 | Usaste mucho una mesa del otro lado del nivel; él investiga acá. | No cruza el nivel para revisarla: sólo abre escondites de la zona que investiga. |
 | 41 | Te pierde de vista a ~5 m y seguís caminando detrás de una pared. | Va al punto donde te vio, mira, y barre **puntos del NavMesh** alrededor de tus pasos, no un waypoint. F9 (fila `búsqueda`) y el gizmo muestran el centro y el radio del barrido. |
 | 42 | Buscándote, seguís dando pasos a su alcance sin que te vea. | El centro del barrido se corre con tus pasos sin cancelar las pausas de mirar ni borrar lo barrido. Sólo re-centra si un paso cae fuera del disco. |
@@ -1666,6 +1906,12 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 53 | Una persecución termina con vos adentro del Hub. | `Hub` +1. Si en ese encuentro te capturaron (aunque fuera sin persecución previa) y el checkpoint cae en el Hub, no cuenta. |
 | 54 | Escondido, el Nemesis busca, oye tu exhalación, investiga y vuelve a buscar, todo sin volver a patrullar. | Cuenta una sola búsqueda aguantada por cacería: una cacería termina cuando vuelve a patrullar. Después, 5 min sin repetir nada: los contadores de `hábitos` empiezan a bajar; el medidor del escondite baja desde el primer minuto. *Clear habits* (F10) pone todo en cero sin New Game. |
 | 55 | Te persigue en `PISO_02` y llega al borde de una bajada; vos seguís arriba, a la vista (por ejemplo, rodeaste el hueco). | Mientras se asoma, se echa atrás y te persigue arriba (D30): nunca se tira con vos a su lado. F9 `bajada` pasa a `— · 1 en enfriamiento`, y en los 8 s siguientes baja por la escalera, no por esa bajada. Si en cambio estás abajo y te ve por el hueco, se tira igual. |
+| 56 | Testbed: F10 → *ESCALATION* → *Tier +* hasta el nivel 2. | F9 `escalada`: `nivel 2 (F10) · vista x1.15 · oído x1.1 · búsq. x1`. El cono de visión del gizmo se alarga un 15 %, y caminando te oye a ~11 m en vez de 10. La velocidad no cambia (F9 `agente`). En la consola sale una línea `[NemesisEscalation] Tier 2 …`. *Auto* lo devuelve al nivel de los puzzles: 0 en la testbed. |
+| 57 | Con una presión del Director andando (F10, botón de una zona), subí el nivel desde F10. | El préstamo se rearma en el acto sobre el nivel nuevo: vista ×1.15 × 1.25. Al soltar la presión (*Release*) queda el nivel, no la base. En una escena con puzzles, resolver el segundo sube al nivel 1 sin tocar F10, y un respawn que lo deshace lo vuelve a bajar. |
+| 58 | Escondido en un locker, te vio entrar desde lejos (o te distinguió por las rendijas a 2–3.5 m). | En el momento en que pasa a "sabe" (F9 `escondite: sabe …`) suena el aviso, una voz grave, antes de que llegue a la puerta: todavía podés salir corriendo (D1, D34). Si sólo sospecha (F9 `sospecha`, va a mirar), no suena. Si te detecta ya en la puerta (≤ 1.5 m, "lo tiene encima"), tampoco: abre en el acto con la música. |
+| 59 | Te pierde, busca y la búsqueda se vence sin encontrarte. | Al volver a patrullar dice "te perdí" (`voice_lost_01/02`) una sola vez, junto con el final de la música (D5). Si antes de patrullar se va a investigar un ruido o una radio, espera a que termine y vuelva a patrullar. Si te encuentra en el medio (`Chasing`/`Catch`), no la dice. |
+| 60 | Testbed con F9 abierto: te pierde, busca, y sacudís las cadenas lejos; después hacé un paso suave cerca. | Fila `foco`: qué atiende (`vos`, `radio`, `alarma`, `cadenas`, `vistazo` o `nada`), cuánto vale, hace cuánto y, en un señuelo, las visitas vacías. Durante 10 s, la última decisión con la pregunta del §17.4 que la tomó, por ejemplo `cambió: cadenas 0.35 > vos 0.12 [11]`, `siguió con cadenas: … [9]` o `ignoró cadenas (0.08) [7]`. Después de revisar un señuelo sin nada, el foco vuelve a `vos` (`soltó cadenas: revisó: nada → vos`), no a `nada`, mientras haya creencia. |
+| 61 | Testbed con una presión del Director sobre tu zona (F10, el botón de la zona) y la escalada en *Auto*: caminá (sin correr) alejándote de él. | Te oye caminando a ~12.5 m en vez de 10: el préstamo de sentidos (×1.25) escala también el radio de tus ruidos, no sólo el tope (D32). Al soltar la presión (*Release*) vuelve a 10 m. |
 
 ---
 
@@ -1785,10 +2031,12 @@ Construido el 22/09 así, salvo el trigger del Hub, que no hizo falta (lo reempl
 
 | Pieza | Fase | Dónde | Qué configurar | Qué tiene que avisar el validador |
 |---|---|---|---|---|
-| `HidingSpot` | 1 | Raíz de `Locker.prefab` / `Locker2.prefab` (y de los prefabs de mesa y container) | Tipo; `SpotId`; hijo `ApproachPoint`; hijo `InteriorPose` con la cámara Cinemachine interior y los límites del spec; colliders propios (se llenan solos en `OnValidate`). El `BoxCollider` sólido **se queda en `Default`**. Hoy se usan los prefabs de `Prefabs/HidingSpotFather/` (variantes Locker / UnderTable / Container de un padre con un `NavMeshModifier` *Not Walkable* en `Model`, capa `Props`). **Ojo:** en una escena que no hornea `Default` (la testbed: `Ground|Wall|Props`) el collider sólido del container no hace hueco y queda NavMesh adentro; ahí hay que pasarlo a `Props` o sumar un `NavMeshModifierVolume` en una capa horneada. `ExitPose` y `ApproachPoint` a ≤1 m del interior: la `ExitPose` es también donde aparece el jugador cuando lo sacan. | `SpotId` vacío o repetido; `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` (1 m) de la pose interior. *(Pendiente: que también mire la `ExitPose`.)* |
+| `HidingSpot` | 1 | Raíz de `Locker.prefab` / `Locker2.prefab` (y de los prefabs de mesa y container) | Tipo; `SpotId`; hijo `ApproachPoint`; hijo `InteriorPose` con la cámara Cinemachine interior y los límites del spec; colliders propios (se llenan solos en `OnValidate`). El `BoxCollider` sólido **se queda en `Default`**. Hoy se usan los prefabs de `Prefabs/HidingSpotFather/` (variantes Locker / UnderTable / Container de un padre con un `NavMeshModifier` *Not Walkable* en `Model`, capa `Props`). **Ojo:** en una escena que no hornea `Default` (la testbed: `Ground|Wall|Props`) el collider sólido del container no hace hueco y queda NavMesh adentro; ahí hay que pasarlo a `Props` o sumar un `NavMeshModifierVolume` en una capa horneada. `ApproachPoint` a ≤1 m del interior. La `ExitPose` es también donde aparece el jugador cuando lo sacan, así que va a ≤0.75 m del `ApproachPoint` (D16; corregido el 28/09: decía "a ≤1 m del interior", y la mesa y el container quedan a 1.1–1.15 sin problema). | `SpotId` vacío o repetido; `ApproachPoint` fuera del NavMesh o a más de `catchMaxReach` (1 m) de la pose interior. Desde el 28/09 también: `ExitPose` a más de 0.75 m del `ApproachPoint`, adentro de un collider sólido, o sin piso abajo. |
 | `SO_HidingData` | 1 | `ScriptableObjects/Hiding/` | Respiración, radios, multiplicadores por tipo, `lockerVisionExposure`. | — |
 | `NemesisHidingAwareness`, `NemesisChaseProgress` | 2 / 4 | Raíz de `Nemesis.prefab`, junto a `NemesisStateManager` | Nada: se enganchan solos, como `NemesisPathOracle`. Sus números van al final de `SO_NemesisData`. | — |
 | Peldaños nuevos | 2 / 4 | `SO_NemesisPriorities.asset` **y** `BuildDefaultLadder()` | En la posición que dice el §3.5. | Que el asset y el default no coincidan. |
+| `NemesisBelief`, `NemesisChoice`, `NemesisDecoyBreaker` | 2B | Raíz de `Nemesis.prefab`, junto a `NemesisStateManager` | Nada: se agregan solos si faltan (`ResolveSibling`). Sus números van al final de `SO_NemesisData`. | — |
+| Señuelos (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`) | 2B parte 4 | En el nivel, donde diseño los quiera. En la testbed los pone *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)* | El tipo sale del componente de al lado (`RadioDecoy`, `FireAlarmDecoy`, `ChainDecoy`); su valor, de `SO_NemesisData`. | — |
 | `PlayerHabitTracker` | 3 | Escena `Data`, junto a `PuzzleStateManager`, `ModuleManager` e `InventoryManager` (los otros `ISessionResettable`) | `Singleton` persistente que se registra en `GameSession`: así sobrevive a la captura y al checkpoint y se resetea con New Game (D3). Referencia a `SO_CounterplayRules`. | — |
 | `SO_CounterplayRules` | 3 | `ScriptableObjects/Nemesis/` | Las filas del §5.2. | Un umbral en 0, o un `chanceAtUnlock` fuera de 0..1. |
 | `NemesisAmbushPoint` | 6 | En el nivel: GameObjects vacíos cerca de las salidas probables (del Hub, de las habitaciones con escondites), mirando hacia la salida | Posición y orientación. | Fuera del NavMesh, dentro del Hub, o con línea de visión directa desde la salida que vigila (tiene que esperar fuera de la vista). |
@@ -2066,7 +2314,9 @@ bloqueante con la geometría real) y el 4 como el menos (tres premisas falsas).
 ### 16.2 Lo que quedó abierto
 
 - **Aviso audible al saber el escondite** y SFX/animación del pull-out (C3). Sin eso el jugador no
-  distingue desde adentro "sabe" de "adivina", y el margen de D1 es teórico. Fase 2, pendiente.
+  distingue desde adentro "sabe" de "adivina", y el margen de D1 es teórico. **✅ El aviso está
+  hecho (28/09, D34, caso 58), con clip provisorio.** Siguen pendientes el SFX y la animación del
+  pull-out, que necesitan arte.
 - **D14:** detección a través de la carcasa sólo desde la puerta (C3) — playtest.
 - **D15:** container a paridad de ruido (C2) — datos de la Fase 3.
 - **D17:** clavar la mirada en vez de ir a mirar (C3) — playtest.
@@ -2681,7 +2931,7 @@ sin el D22. El enfriamiento no depende del foco, porque `BeliefAge` ya no cuenta
 | 1 ✅ | `NemesisBelief`, pistas separadas, `HearsPlayer` / `HearsLead` / `HasFreshLead` | — |
 | 2 ✅ | **Dónde busca:** árbitro mínimo (preguntas 1 y 4), barrido alrededor de la creencia (A), radio de la evidencia congelado con tope, D22, la pausa al llegar; salen el reapuntado por `HasAudioTarget` y el ancla de vista forzada. Construida el 27/09, falta jugarla | 23, 27, 36, 41, 42 |
 | 3 ✅ | **Cuánto busca y el Director:** `IsSearchWarm`, enfriamiento y escalada de `Investigating` (B); persistencia, "vuelve a pasar", silencio por encuentros, limpiar la presión al suspender, los pesos de ruta con cúmulos, F9 (C); desacoplar `SearchTimeOut`, subir la cola de la música, guarda del Hub. Construida el 27/09, falta jugarla | 2, 9, 25, 34, 43–48 |
-| 4 | **La elección completa:** `NemesisChoice` con todas las preguntas, lista de pistas, valores y habituación de señuelos, breaker leyendo el foco **e instalado**, señuelos puestos en la testbed, vistazo → `Investigating`, sospecha compartida | 22, 24, 26, 28–33, 37 |
+| 4 ✅ | **La elección completa:** `NemesisChoice` con todas las preguntas, lista de pistas, valores y habituación de señuelos, breaker leyendo el foco **e instalado**, señuelos puestos en la testbed, vistazo → `Investigating`, sospecha compartida. Construida el 28/09, falta jugarla | 22, 24–26, 28–33, 37, 60 |
 | 5 | **Limpieza y tests:** el parche de `NemesisPursuit` (después del de `Searching`, porque `IsStandingWhereLost` depende de él), el filtro de `Investigating`, gizmo, tests EditMode en `WIRED.Nemesis.Logic` | 27 y todos los anteriores |
 
 ### 18.7 Qué no cambia

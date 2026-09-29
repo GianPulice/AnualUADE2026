@@ -95,6 +95,24 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// <summary>The belief sequence the sweep last acted on. See SearchSweepRules.Judge.</summary>
     private int consumedSequence;
 
+    /// <summary>The used hiding spots already rolled this search (Fase 2D): one roll each per search,
+    /// not one per re-centre.</summary>
+    private readonly System.Collections.Generic.HashSet<HidingSpot> usedSpotsRolled =
+        new System.Collections.Generic.HashSet<HidingSpot>();
+
+    /// <summary>
+    /// The spots the player has used inside the area being swept are candidates (plan §17.6, D23,
+    /// Fase 2D): NemesisHidingAwareness rolls them by how used they are and suspects the one that comes
+    /// up, and the spot check below walks over and opens it (case 39). Asked whenever the area is set,
+    /// moves somewhere else or widens — never outside it (case 40).
+    /// </summary>
+    private void ConsiderUsedSpots()
+    {
+        NemesisHidingAwareness awareness = nemesisStateManager.HidingAwareness;
+        if (awareness == null || !freeRoam.IsCommitted) return;
+        awareness.ConsiderUsedSpots(freeRoam.Anchor, freeRoam.Radius, usedSpotsRolled);
+    }
+
     /// <summary>Entered with the agent switched off (the lift ride): the first point is chosen on the
     /// first UpdateState with an agent to give it to.</summary>
     private bool needsFirstPoint;
@@ -228,6 +246,9 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         StartSweep();
         StartCooling();
         reachedEvidenceAt = Time.time;
+
+        usedSpotsRolled.Clear();
+        ConsiderUsedSpots();
 
         if (!nemesisStateManager.IsAgentReady)
         {
@@ -412,7 +433,11 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         bool jumped = verdict == SearchSweepRules.EVerdict.Recenter;
         bool mayVisit = MayVisit(belief);
 
-        if (jumped) freeRoam.Recenter(centre, SweepRadiusFor(belief), RoomFor(belief, centre), mayVisit);
+        if (jumped)
+        {
+            freeRoam.Recenter(centre, SweepRadiusFor(belief), RoomFor(belief, centre), mayVisit);
+            ConsiderUsedSpots();
+        }
         else freeRoam.Follow(centre, SweepRadiusFor(belief), RoomFor(belief, centre), mayVisit);
 
         // Still heading somewhere inside the area: keep going, that point is as good as any — unless
@@ -461,9 +486,12 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             return GetRandomPointInNavMesh();
         }
 
-        if (freeRoam.IsFullySwept && freeRoam.Widen(MaxSweepRadius) &&
-            freeRoam.TryGetNextPoint(out Vector3 wider))
-            return wider;
+        if (freeRoam.IsFullySwept && freeRoam.Widen(MaxSweepRadius))
+        {
+            // The area grew: used hiding spots that now fall inside it are candidates too.
+            ConsiderUsedSpots();
+            if (freeRoam.TryGetNextPoint(out Vector3 wider)) return wider;
+        }
 
         return point;
     }
