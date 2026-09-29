@@ -9,7 +9,8 @@ using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// The NavMesh bake the testbed builders share (NemesisTestbedBugLabBuilder, NemesisTestbedDropLabBuilder):
+/// The NavMesh bake the testbed builders share (today NemesisTestbedHidingLabBuilder; the Bug Lab and
+/// Drop Lab builders used it too and were deleted on 2026-09-29, once their labs were in the scene):
 /// NavMeshSurface's own build, collected from ONE scene's roots only, and installed the way the Bake
 /// button installs it.
 ///

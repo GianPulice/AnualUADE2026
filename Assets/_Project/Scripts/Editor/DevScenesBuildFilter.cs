@@ -15,6 +15,9 @@ using UnityEngine;
 /// So they are dropped here instead: the Build and Build and Run buttons get the scene list minus
 /// everything under <c>Assets/_Project/Scenes/Dev/</c>. Nothing else about the build changes.
 ///
+/// One exception: <c>NemesisTestbed</c> stays in when the build has Development Build ticked, so the
+/// F2 key (<c>DevLevelKeys</c>) has somewhere to go. A release build never gets it.
+///
 /// Not covered: a build started from a script (<c>BuildPipeline.BuildPlayer</c> with its own scene
 /// list). Run those through <see cref="WithoutDevScenes"/>.
 /// </summary>
@@ -22,6 +25,9 @@ using UnityEngine;
 public static class DevScenesBuildFilter
 {
     private const string DevScenesFolder = "Assets/_Project/Scenes/Dev/";
+
+    /// <summary>The one Dev scene that travels in a Development Build.</summary>
+    private const string DevBuildScene = "Assets/_Project/Scenes/Dev/NemesisTestbed.unity";
 
     static DevScenesBuildFilter()
     {
@@ -35,7 +41,7 @@ public static class DevScenesBuildFilter
         // has to travel: swallowing it would start a build the user called off.
         BuildPlayerOptions options = BuildPlayerWindow.DefaultBuildMethods.GetBuildPlayerOptions(defaults);
 
-        string[] kept = WithoutDevScenes(options.scenes);
+        string[] kept = WithoutDevScenes(options.scenes, (options.options & BuildOptions.Development) != 0);
         int dropped = (options.scenes?.Length ?? 0) - kept.Length;
         if (dropped > 0)
             Debug.Log($"[{nameof(DevScenesBuildFilter)}] Left {dropped} dev scene(s) out of the build.");
@@ -44,14 +50,24 @@ public static class DevScenesBuildFilter
         return options;
     }
 
-    /// <summary>The same scene paths with everything under the Dev folder removed.</summary>
-    public static string[] WithoutDevScenes(IEnumerable<string> scenePaths)
+    /// <summary>The same scene paths with everything under the Dev folder removed, except the
+    /// testbed when <paramref name="developmentBuild"/> is true.</summary>
+    public static string[] WithoutDevScenes(IEnumerable<string> scenePaths, bool developmentBuild = false)
     {
         if (scenePaths == null) return Array.Empty<string>();
 
         return scenePaths
-            .Where(path => !string.IsNullOrEmpty(path) &&
-                           !path.Replace('\\', '/').StartsWith(DevScenesFolder, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !string.IsNullOrEmpty(path) && IsKept(path, developmentBuild))
             .ToArray();
+    }
+
+    private static bool IsKept(string path, bool developmentBuild)
+    {
+        path = path.Replace('\\', '/');
+
+        if (developmentBuild && string.Equals(path, DevBuildScene, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return !path.StartsWith(DevScenesFolder, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -739,19 +739,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             wantsToStand = false;
         }
 
-        // Debug key, Editor only: in a build Y froze the player.
-        //
         // R is gone. It was the stand-in for a hiding spot while the system did not exist, and
         // HidingSpot has replaced it. The F10 console keeps a Hide toggle (DebugHidden) for
         // exercising the Nemesis's vision in a scene with no spot built into it.
-#if UNITY_EDITOR
-        // Disabled state testing
-        if (Input.GetKeyDown(KeyCode.Y))
-        {
-            if (isDisabled) isDisabled = false;
-            else isDisabled = true;
-        }
-#endif
     }
     /// <summary>How far above the pivot the ground probe starts. High enough to clear a step the
     /// player is already standing on, low enough to stay inside the capsule.</summary>

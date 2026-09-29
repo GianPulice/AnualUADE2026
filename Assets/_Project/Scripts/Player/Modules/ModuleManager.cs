@@ -90,8 +90,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0)
             sessionTime += Time.unscaledDeltaTime;
 
-        // Editor only: a Development Build handed to testers must not let F8 blow up a module.
-#if UNITY_EDITOR
+        // Editor and Development Build, like every other debug key.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (debugExplodeKey != KeyCode.None && Input.GetKeyDown(debugExplodeKey)) DebugExplodeNow();
 #endif
 

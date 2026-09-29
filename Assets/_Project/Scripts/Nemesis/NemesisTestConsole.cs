@@ -27,6 +27,8 @@ using UnityEngine;
 /// What it cannot do is give a state a reason to exist: pinned Traversing with the player on your
 /// own floor stands still, because no route crosses the lift. That is the state working.
 ///
+/// <b>In the blockout it is added at runtime</b> by <c>DevLevelKeys</c> to any Nemesis without one.
+///
 /// <b>The body only compiles in the Editor and in development builds.</b> The class itself always
 /// exists so a scene that references it does not come up with a missing script; in a release build
 /// it is an empty MonoBehaviour with no Update and no OnGUI, so it costs nothing.
@@ -94,13 +96,10 @@ public class NemesisTestConsole : MonoBehaviour
 
     private void Update()
     {
-        // Editor only, like F8: a Development Build handed to testers must not let F10 or the
-        // number keys pin the Nemesis into a state.
-#if UNITY_EDITOR
+        // Editor and Development Build, like every other debug key.
         if (Input.GetKeyDown(toggleKey)) isOpen = !isOpen;
 
         HandlePinKeys();
-#endif
     }
 
     /// <summary>

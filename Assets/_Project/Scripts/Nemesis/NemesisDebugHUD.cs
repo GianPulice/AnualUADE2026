@@ -110,9 +110,9 @@ public class NemesisDebugHUD : MonoBehaviour
     {
         stateManager = GetComponent<NemesisStateManager>();
 
-#if !UNITY_EDITOR
-        // Editor only, like the other debug keys: the prefab ships with visible ticked, and in a
-        // build there is no F9 to turn it back off.
+#if !(UNITY_EDITOR || DEVELOPMENT_BUILD)
+        // Editor and Development Build only, like the other debug keys: the prefab ships with visible
+        // ticked, and in a release build there is no F9 to turn it back off.
         visible = false;
 #endif
 
@@ -136,7 +136,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private void Update()
     {
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (Input.GetKeyDown(toggleKey)) visible = !visible;
         if (visible && Input.GetKeyDown(markKey)) fileLog.RequestMark();
 #endif

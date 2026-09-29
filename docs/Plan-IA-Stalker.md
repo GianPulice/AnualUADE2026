@@ -20,15 +20,12 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
    la creencia en `WIRED.Nemesis.Logic` (los del árbitro, `FocusArbiterTests`, ya están). →
    [Fase 2B](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas) ·
    [§18.6](#186-orden-dentro-de-la-2b)
-2. **Correr una vez *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)*** desde el editor (o en
-   batchmode, con el editor cerrado): pone la radio, la alarma y las cadenas en la testbed. Sin eso
-   no hay señuelos que probar (casos 22, 24, 26, 28–33 y 37).
-3. **[Fase 6](#fase-6--contra-jugadas-desbloqueables) — Contra-jugadas desbloqueables:**
+2. **[Fase 6](#fase-6--contra-jugadas-desbloqueables) — Contra-jugadas desbloqueables:**
    `ExitAmbush`, `BurnHidingSpot` (necesita el locker roto), `ChaseFlank` y `ZoneDefense` con
    `NemesisAmbushPoint`, más el "soltar y emboscar" que quedó de la
    [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar).
    `CheckHidingSpots` y `PrioritizeSuspiciousSpots` los reemplaza la 2D. Casos 6 y 8.
-4. **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) — Bajadas entre pisos:** la parte 2
+3. **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) — Bajadas entre pisos:** la parte 2
    (código) está hecha (ver [✅ Hecho](#-hecho)). Falta:
    - **rehacer el *Drop Lab* como un agujero en el piso** (pedido en el playtest del 28/09): lo que
      se quería es un agujero en el suelo por el que el Nemesis sólo baja, nunca sube. El lab de hoy
@@ -36,7 +33,9 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
      aterriza abajo, sólo hacia abajo, y el §15.1 ya contaba el hueco en el piso como una opción. Lo
      que cambia es la geometría: una losa con un agujero y una sala abajo, en vez de los bloques
      macizos. Un agujero entre pisos mide 2.5–5 m, así que es una `Hang`; la `Hop` sólo sirve para
-     bordes bajos. Falta confirmar si el jugador también puede caer (hoy D9 dice que no);
+     bordes bajos. Falta confirmar si el jugador también puede caer (hoy D9 dice que no). El builder
+     del lab actual (`NemesisTestbedDropLabBuilder`) se borró el 29/09: el agujero va con uno nuevo
+     (el viejo está en git, en `a9980073`, y sirve de base);
    - la parte 1: apagar *Generate Links* y rebakear, con el editor (D10);
    - la parte 3: las animaciones del §15.5, y clips propios de golpe de manos e impacto (hoy son
      provisorios);
@@ -44,11 +43,11 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
      [✅ Hecho](#-hecho)), y después poner bajadas en la Zona 2.
 
    → [§15](#15-bajadas-entre-pisos)
-5. **Falta jugar** lo construido, con sus casos del [§13](#13-casos-de-prueba):
+4. **Falta jugar** lo construido, con sus casos del [§13](#13-casos-de-prueba):
    - [Fase 0](#fase-0--ajustes-sin-código): esperas distintas por waypoint en F9, y las seis zonas
      del Director en F10.
    - [Fase 2](#fase-2--el-nemesis-sabe-de-escondites---construida-2109-sin-commitear-falta-jugarla):
-     casos 1–5, 11 y 17–21, en `TestIñaki`.
+     casos 1–5, 11 y 17–21, en el *Hiding Lab* de la testbed (checklist H-1..H-10) o en `TestIñaki`.
    - [Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla):
      casos 34–36 y 38.
    - [Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
@@ -77,16 +76,16 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
    - [Fase 8 parte 2](#fase-8--bajadas-entre-pisos-independiente): casos 12–16 y 55, con F9 (fila
      `bajada`), en el *Drop Lab* de la testbed: al sur de ENTRADA, por la puerta nueva de su pared
      sur.
-   - [Voz y avisos](#162-lo-que-quedó-abierto) (28/09): caso 58 en `TestIñaki` (escondites) y 59
-     en la testbed. Correr *Validate Hiding Spots* en `TestIñaki` para la `ExitPose`.
+   - [Voz y avisos](#162-lo-que-quedó-abierto) (28/09): caso 58 en el *Hiding Lab* (escondites) y 59
+     en la testbed. *Validate Hiding Spots* ya pasa en la testbed (9 escondites, 29/09); falta en `TestIñaki`.
    - [Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-     (28/09): casos 22, 24–26, 28–33 y 37 en la testbed, con los señuelos puestos (punto 2), y el 60
+     (28/09): casos 22, 24–26, 28–33 y 37 en la testbed, con los señuelos puestos (ya están en la escena), y el 60
      (F9 fila `foco`: qué, cuánto vale y la pregunta que decidió). El 61 (el Director te oye más
      lejos caminando) con una presión de F10.
    - [Fase 2D, la mitad del Nemesis](#fase-2d--memoria-de-escondites-después-de-la-2b) (28/09):
-     casos 35, 39 y 40 en `TestIñaki` (escondites). Para el 39, esconderse dos o tres veces en la
+     casos 35, 39 y 40 en el *Hiding Lab* de la testbed o en `TestIñaki` (escondites). Para el 39, esconderse dos o tres veces en la
      misma mesa con él cerca, y después hacer ruido en esa zona.
-6. **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
+5. **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
    - La animación `Pull Out` con el SFX de la puerta (con ella se decide si 0.8 s alcanza). El aviso
      audible al saber el escondite ya está (28/09, D34), con clip provisorio.
    - Container en escenas que no hornean `Default`: pasarlo a `Props` o sumar un
@@ -99,7 +98,7 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
      - `DropPathTests`, de la Fase 8.
 
      Los de la escalera y la creencia van en la 2B parte 5.
-7. **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
+6. **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
    - **D1** (captura o persecución al encontrarte escondido): a revisar con playtest y con la Fase 3.
    - **D14** (detección por la espalda del locker, decidida 2 a 1) y **D17** (clavar la mirada en vez
      de ir a mirar): a probar en playtest.
@@ -111,11 +110,11 @@ detalle de cada fase, en el [§9](#9-fases-de-implementación).
    - **D9** y **D10** (bajadas): recomendaciones para las partes 1 y 3 de la Fase 8 (D11 y las
      nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
      la Fase 8.
-8. **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
+7. **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
     Zona1, sólo en la cinemática final. La Zona 2 tiene que nacer con su Director armado
     ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)) y sus rutas validadas; hasta
     entonces, los §17 y §18 se prueban en la testbed y en `TestIñaki`.
-9. **Sueltos**
+8. **Sueltos**
     - Zona1 no tiene escondites puestos ni el blend en su `CinemachineBrain`
       ([Fase 1](#fase-1--escondites-lado-jugador-prerrequisito---construida-commit-9eba9b46)).
     - El cue de activación está enganchado (28/09), pero el SO `sfx_nemesis_activacion` sigue sin
@@ -285,8 +284,8 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 
   Compila y pasan los tests EditMode en Unity (59/59). Faltan las partes 1 y 3 y jugarla.
 - ✅ **Drop Lab en la testbed** (27/09, sin commitear; §15.6 paso 5). Lo arma
-  *Tools/Nemesis/Build Drop Lab (NemesisTestbed)* (`NemesisTestbedDropLabBuilder`), que se puede volver
-  a correr. Incluye:
+  *Tools/Nemesis/Build Drop Lab (NemesisTestbed)* (`NemesisTestbedDropLabBuilder`; ya corrido, el builder
+  se borró el 29/09 y está en git). Incluye:
   - una sala al sur de ENTRADA con un entrepiso de 3.6 m (`Drop_Hang`) y otro de 2 m (`Drop_Hop`),
     cada uno con su rampa de vuelta;
   - barandas invisibles para el jugador (D9) en la capa `Ignore Raycast`;
@@ -296,6 +295,20 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   Se armó en batchmode. Pasan todos sus chequeos: las dos puntas sobre el NavMesh, la vuelta por la
   rampa y la ruta completa. El validador no marca nada de las bajadas; sólo avisa, como nota, que
   faltan los estados de animación (parte 3).
+- ✅ **Hiding Lab en la testbed** (29/09, sin commitear). Los escondites de la *Hiding Test Area*
+  de `TestIñaki`, repartidos en pasillos y salas cerradas al este de PASILLO (x 2..28, z 6..34), para
+  jugar H-1..H-10 y los casos de la Fase 2, la 2D y el 58 en la testbed. Lo arma
+  *Tools/Nemesis/Build Hiding Lab (NemesisTestbed)* (`NemesisTestbedHidingLabBuilder`, se borra
+  una vez commiteada la escena). Incluye:
+  - 9 escondites con id `tb_*`: locker a la vista, a la vuelta de la esquina y en un callejón sin
+    salida, dos mesas, una fila de tres lockers con un pasillo detrás, y el container;
+  - un piso por sala (`HL_<SALA>_Floor`), así `NemesisRooms` las distingue;
+  - un `NavMeshModifierVolume` Not Walkable por escondite, en `Props` (la testbed no hornea
+    `Default`, ver §14.4);
+  - `Route_HidingLab` (WP_00..09) con las paradas que mide el checklist, carteles y marcas de
+    distancia en el piso.
+
+  Se armó en batchmode: pasan todos sus chequeos de NavMesh y *Validate Hiding Spots* (9/9).
 - ✅ **Voz y avisos del Nemesis, y la `ExitPose` en el validador** (28/09, sin commitear; §16.2 y
   principio 7). En `NemesisAudio`:
   - el aviso de que **sabe** en qué escondite estás, a más de 2 m de la puerta (D34, caso 58);
@@ -1245,8 +1258,8 @@ puede ir en paralelo con la 1.
     medidor que un vistazo. Un ruido solo nunca llega a avistamiento: lo sube hasta 0.9 y no lo baja
     (D36).
   - **Señuelos en la testbed:** *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)* pone la radio
-    (SALA_LATERAL), la alarma (PASILLO_CARGA) y las cadenas (PASILLO_OESTE) con carteles. Hay que
-    correrlo una vez desde el editor (no se pudo en batchmode: el editor estaba abierto).
+    (SALA_LATERAL), la alarma (PASILLO_CARGA) y las cadenas (PASILLO_OESTE) con carteles. Ya
+    corrido (están en la escena); el builder se borró el 29/09 y está en git.
   - **F9:** fila `foco` (qué, cuánto vale, hace cuánto, y la última decisión con su pregunta).
   - Los números van al final de `SO_NemesisData` (*Elección* y *Sospecha compartida*).
 
@@ -2036,7 +2049,7 @@ Construido el 22/09 así, salvo el trigger del Hub, que no hizo falta (lo reempl
 | `NemesisHidingAwareness`, `NemesisChaseProgress` | 2 / 4 | Raíz de `Nemesis.prefab`, junto a `NemesisStateManager` | Nada: se enganchan solos, como `NemesisPathOracle`. Sus números van al final de `SO_NemesisData`. | — |
 | Peldaños nuevos | 2 / 4 | `SO_NemesisPriorities.asset` **y** `BuildDefaultLadder()` | En la posición que dice el §3.5. | Que el asset y el default no coincidan. |
 | `NemesisBelief`, `NemesisChoice`, `NemesisDecoyBreaker` | 2B | Raíz de `Nemesis.prefab`, junto a `NemesisStateManager` | Nada: se agregan solos si faltan (`ResolveSibling`). Sus números van al final de `SO_NemesisData`. | — |
-| Señuelos (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`) | 2B parte 4 | En el nivel, donde diseño los quiera. En la testbed los pone *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)* | El tipo sale del componente de al lado (`RadioDecoy`, `FireAlarmDecoy`, `ChainDecoy`); su valor, de `SO_NemesisData`. | — |
+| Señuelos (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`) | 2B parte 4 | En el nivel, donde diseño los quiera. En la testbed ya están (los puso *Build Decoy Stations*, borrado el 29/09) | El tipo sale del componente de al lado (`RadioDecoy`, `FireAlarmDecoy`, `ChainDecoy`); su valor, de `SO_NemesisData`. | — |
 | `PlayerHabitTracker` | 3 | Escena `Data`, junto a `PuzzleStateManager`, `ModuleManager` e `InventoryManager` (los otros `ISessionResettable`) | `Singleton` persistente que se registra en `GameSession`: así sobrevive a la captura y al checkpoint y se resetea con New Game (D3). Referencia a `SO_CounterplayRules`. | — |
 | `SO_CounterplayRules` | 3 | `ScriptableObjects/Nemesis/` | Las filas del §5.2. | Un umbral en 0, o un `chanceAtUnlock` fuera de 0..1. |
 | `NemesisAmbushPoint` | 6 | En el nivel: GameObjects vacíos cerca de las salidas probables (del Hub, de las habitaciones con escondites), mirando hacia la salida | Posición y orientación. | Fuera del NavMesh, dentro del Hub, o con línea de visión directa desde la salida que vigila (tiene que esperar fuera de la vista). |
@@ -2245,7 +2258,7 @@ locker (en par con `Pull Out`).
    Nemesis hacia abajo. Tampoco en `Player`: la máscara de objetivo del Nemesis leería la baranda
    como el jugador. El validador no la cuenta como geometría sin hornear.
 5. ✅ **Testbed** (27/09). El *Drop Lab*, al sur de ENTRADA, lo arma
-   *Tools/Nemesis/Build Drop Lab (NemesisTestbed)*: un entrepiso de 3.6 m con `Drop_Hang` y otro de
+   *Tools/Nemesis/Build Drop Lab (NemesisTestbed)* (borrado el 29/09, en git): un entrepiso de 3.6 m con `Drop_Hang` y otro de
    2 m con `Drop_Hop`, cada uno con su rampa de vuelta y barandas invisibles. Rampas y no escaleras,
    por la pendiente que acepta el jugador (~17°).
 

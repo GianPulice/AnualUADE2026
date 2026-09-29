@@ -147,7 +147,7 @@ Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. M
 
 ## Señuelos
 
-Código en `Scripts/Decoys/`, datos en `ScriptableObjects/Decoys/`, prefabs en `Prefabs/Decoys/` (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`). En la testbed los pone *Tools/Nemesis/Build Decoy Stations (NemesisTestbed)*: la radio en SALA_LATERAL, la alarma en PASILLO_CARGA y las cadenas en PASILLO_OESTE, con carteles. En Zona1 todavía no hay ninguno.
+Código en `Scripts/Decoys/`, datos en `ScriptableObjects/Decoys/`, prefabs en `Prefabs/Decoys/` (`Decoy_Radio`, `Decoy_FireAlarm`, `Decoy_Chains`). En la testbed ya están puestos: la radio en SALA_LATERAL, la alarma en PASILLO_CARGA y las cadenas en PASILLO_OESTE, con carteles. En Zona1 todavía no hay ninguno.
 
 Un señuelo es un `DecoyNoiseSource` más el componente que decide cuándo suena. No es una esfera en la capa de escucha: `FieldOfListening` los lee de un registro propio (`DecoyNoiseSource.Active`), porque un señuelo dice en metros reales hasta dónde se oye —sin `noiseRangeScale` y sin el tope de `listenRange`— o que se oye desde cualquier lado. Paredes y pisos lo atenúan igual que al jugador. Uno que se oye en todos lados compite con margen 0: un ruido de verdad cerca le gana. El Nemesis va al `investigatePoint` proyectado al NavMesh; ponelo en el piso, del lado desde el que tiene que llegar.
 
@@ -478,7 +478,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 ## Cómo verificar
 
-**Escena de pruebas**: abrí `Scenes/Dev/NemesisTestbed.unity` (lista de chequeo en `docs/Checklist-NemesisTestbed.md`). `Tools > Nemesis > Build Bug Lab (NemesisTestbed)` le arma estaciones que reproducen los bugs de QA que necesitan geometría (escalera con puertas, pilares, balcón inalcanzable, trigger en una puerta). Para escondites, `Scenes/Dev/TestIñaki.unity` tiene la *Hiding Test Area*: los tres tipos, con su propio Nemesis.
+**Escena de pruebas**: abrí `Scenes/Dev/NemesisTestbed.unity` (lista de chequeo en `docs/Checklist-NemesisTestbed.md`). Tiene armados el *Bug Lab* (estaciones que reproducen los bugs de QA que necesitan geometría: escalera con puertas, pilares, balcón inalcanzable, trigger en una puerta), el *Drop Lab*, los señuelos y el *Hiding Lab*: 9 escondites de los tres tipos en pasillos y salas cerradas al este de PASILLO, con su ruta (`Tools > Nemesis > Build Hiding Lab (NemesisTestbed)` lo rearma y hornea sólo el testbed). `Scenes/Dev/TestIñaki.unity` conserva la *Hiding Test Area* original, con su propio Nemesis.
 
 **En Play** (las dos teclas funcionan sólo en el editor):
 

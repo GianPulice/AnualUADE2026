@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using UnityEngine;
 
 /// <summary>
@@ -11,7 +11,7 @@ using UnityEngine;
 /// SetPuzzleCompleted — so everything gated behind SP1 reacts the same way. It does not hand over
 /// the panel's reward item, and the panel itself still shows as unsolved.
 ///
-/// Editor only, and with no setup at all: the whole file is compiled out of a build, and the object
+/// Editor and Development Build only, and with no setup at all: the whole file is compiled out of a release build, and the object
 /// that polls the key builds itself on the first frame, so it needs no place in any scene.
 /// </summary>
 public class Sp1TestKey : MonoBehaviour
@@ -24,7 +24,7 @@ public class Sp1TestKey : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        var host = new GameObject("SP1 Test Key (F3, editor only)") { hideFlags = HideFlags.DontSave };
+        var host = new GameObject("SP1 Test Key (F3, editor + dev)") { hideFlags = HideFlags.DontSave };
         host.AddComponent<Sp1TestKey>();
         DontDestroyOnLoad(host);
     }
