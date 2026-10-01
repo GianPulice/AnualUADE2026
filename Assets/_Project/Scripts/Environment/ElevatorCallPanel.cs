@@ -209,7 +209,7 @@ public class ElevatorCallPanel : BaseRangeInteractable
     /// </summary>
     protected override bool CanInteractInCloseRange() => isConfigured && State == PanelState.Callable;
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (!isConfigured) return string.Empty;
 
@@ -223,7 +223,7 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
     /// <summary>
     /// The greyed-out line the prompt shows while the panel cannot be pressed. CabinPresent used to
-    /// return nothing here — its "Forklift is here" lives in GetInteractText, which the prompt only
+    /// return nothing here — its "Forklift is here" lives in GetPromptText, which the prompt only
     /// draws when the press is allowed — so a panel with the cabin already at its landing said
     /// nothing at all. Which landing it is comes from isBottomPanel, so each panel names its floor.
     /// </summary>

@@ -31,7 +31,7 @@ public class SkillCheckTestKey : MonoBehaviour
         if (PauseManager.IsGameplayInputBlocked) return;
 
         controller.Open(data, completed =>
-            Debug.Log($"[SkillCheckTestKey] Sequence {(completed ? "completed" : "cancelled")}."));
+            Debug.Log($"[SkillCheckTestKey] Sequence {(completed ? "completed" : "failed or cancelled")}."));
     }
 #endif
 }

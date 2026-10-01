@@ -73,6 +73,11 @@ public class NemesisDoorUser : MonoBehaviour
     private bool hasWarnedAboutFullBuffer;
 
     private readonly RaycastHit[] hitBuffer = new RaycastHit[HitBufferSize];
+    private readonly Collider[] overlapBuffer = new Collider[HitBufferSize];
+
+    /// <summary>How far off the heading a leaf it is already touching may be and still count as in
+    /// its way: cos 60°. A closed door it is walking PAST is beside it, at about 90°.</summary>
+    private const float TouchingAheadDot = 0.5f;
 
     private void Awake()
     {
@@ -145,6 +150,16 @@ public class NemesisDoorUser : MonoBehaviour
         //
         // QueryTriggerInteraction.Collide: on some doors the collider standing in for the leaf is
         // marked as a trigger so the interaction raycast picks it up.
+        // A LEAF IT IS ALREADY TOUCHING FIRST (playtest 27/09). A sphere cast does not report a collider
+        // it starts inside of, and the doors it walked through were exactly those: a doorway off the
+        // side of a corridor, where the path turns into it at the frame — the heading only points
+        // through the door once the body is at the leaf, and the cast then starts inside it.
+        if (TryFindTouchingDoor(origin, direction, out door))
+        {
+            distance = 0f;
+            return true;
+        }
+
         int hitCount = Physics.SphereCastNonAlloc(origin, detectionRadius, direction, hitBuffer,
                                                   detectionDistance, doorMask,
                                                   QueryTriggerInteraction.Collide);
@@ -172,7 +187,7 @@ public class NemesisDoorUser : MonoBehaviour
             // InParent and not GetComponent: the collider is on a descendant (the leaf mesh, or
             // the frame) while the DoorInteractable lives on the door's root.
             DoorInteractable found = hit.collider.GetComponentInParent<DoorInteractable>();
-            if (found == null || found.IsOpen || found.IsAnimating || !found.NemesisCanOpen) continue;
+            if (!IsInTheWay(found)) continue;
 
             door = found;
             nearest = hit.distance;
@@ -180,6 +195,56 @@ public class NemesisDoorUser : MonoBehaviour
 
         distance = nearest;
         return door != null;
+    }
+
+    /// <summary>
+    /// A closed (or closing) door whose leaf the body is already against, roughly ahead of it. See
+    /// TryFindDoorAhead for why the cast cannot see these.
+    /// </summary>
+    private bool TryFindTouchingDoor(Vector3 origin, Vector3 direction, out DoorInteractable door)
+    {
+        door = null;
+
+        int count = Physics.OverlapSphereNonAlloc(origin, detectionRadius, overlapBuffer, doorMask,
+                                                  QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider collider = overlapBuffer[i];
+            DoorInteractable found = collider.GetComponentInParent<DoorInteractable>();
+            if (!IsInTheWay(found)) continue;
+
+            // The LEAF, not the frame: walking through a doorway rubs the frame on every door.
+            if (!found.IsLeaf(collider)) continue;
+
+            // Ahead, not beside: brushing past a closed door in a corridor overlaps its leaf too, and
+            // opening every door it walks by is the thing the cast's radius is kept small to avoid.
+            // ClosestPoint is not defined on a concave mesh; its bounds stand in there.
+            Vector3 closest = collider is MeshCollider mesh && !mesh.convex
+                ? collider.bounds.ClosestPoint(origin)
+                : collider.ClosestPoint(origin);
+            Vector3 toLeaf = closest - origin;
+            toLeaf.y = 0f;
+            bool inside = toLeaf.sqrMagnitude < 0.0001f;
+            if (!inside && Vector3.Dot(toLeaf.normalized, direction) < TouchingAheadDot) continue;
+
+            door = found;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A door worth opening: shut, or swinging shut in its face (the player closing it on the
+    /// Nemesis — TryOpenForNemesis shoves it back), and one it may open. One swinging OPEN is
+    /// already on its way.
+    /// </summary>
+    private static bool IsInTheWay(DoorInteractable door)
+    {
+        if (door == null || !door.NemesisCanOpen) return false;
+        if (door.IsClosing) return true;
+        return !door.IsOpen && !door.IsAnimating;
     }
 
     /// <summary>

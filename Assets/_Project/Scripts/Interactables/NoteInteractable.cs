@@ -4,7 +4,7 @@ public class NoteInteractable : BaseRangeInteractable
 {
     [SerializeField] private SO_DocumentData documentData;
 
-    public override string GetInteractText() => "Read";
+    public override string GetPromptText() => "Read";
 
     protected override bool CanInteractInCloseRange() => documentData != null;
 

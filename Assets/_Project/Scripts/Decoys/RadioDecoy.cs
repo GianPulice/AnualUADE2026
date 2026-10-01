@@ -47,7 +47,7 @@ public class RadioDecoy : BaseRangeInteractable, INemesisBreakableDecoy
             Debug.LogError($"[{nameof(RadioDecoy)}] '{name}' has no SO_RadioDecoy assigned.", this);
     }
 
-    public override string GetInteractText() => data != null ? data.InteractText : "Encender radio";
+    public override string GetPromptText() => data != null ? data.InteractText : "Encender radio";
 
     protected override bool CanInteractInCloseRange() => data != null && state == ERadioState.Off;
 

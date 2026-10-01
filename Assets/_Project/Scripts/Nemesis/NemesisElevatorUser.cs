@@ -14,6 +14,12 @@ using UnityEngine.AI;
 /// itself with Generate Links) are resolved with a simple interpolation — which also looks better
 /// than the instant hop of the automatic mode.
 ///
+/// The drops between floors of plan §15 (<see cref="NemesisDropLink"/>) are the third branch, and
+/// on purpose a branch here rather than a component of their own watching isOnOffMeshLink: two
+/// things deciding who crosses a link is how a link gets crossed twice (plan §10). A drop is
+/// announced (it looks down and growls), falls in a real arc, lands hard and stays down for a
+/// moment in which it cannot grab anyone.
+///
 /// Written on UniTask rather than coroutines, per the project's async convention, and here that is
 /// also the only safe option. A coroutine dies the moment its MonoBehaviour is disabled and Unity
 /// does not dispose the iterator, so the cleanup in the finally blocks below would simply never
@@ -41,6 +47,14 @@ public class NemesisElevatorUser : MonoBehaviour
     private const float FallbackTurnSpeed = 180f;
     private const float FallbackWaitTimeout = 20f;
     private const float FallbackAbandonCooldown = 10f;
+    private const float FallbackDropCooldown = 8f;
+
+    /// <summary>
+    /// Seconds after a drop or a ride during which the Traversing commitment is released (see
+    /// <see cref="HasJustEndedDrop"/> and <see cref="HasJustEndedRide"/>). Only has to outlast one
+    /// pass of the decision ladder with the agent back on the NavMesh; half a second is dozens of them.
+    /// </summary>
+    private const float TripCommitmentRelease = 0.5f;
 
     /// <summary>How far from a failed warp target to go looking for baked ground. Generous on
     /// purpose: it only ever runs when the alternative is a Nemesis frozen for the rest of the
@@ -94,7 +108,8 @@ public class NemesisElevatorUser : MonoBehaviour
     private bool isRiding;
 
     /// <summary>
-    /// A lift crossing is in flight: waiting for the cabin, boarding, riding, or stepping off.
+    /// A lift crossing is in flight: waiting for the cabin, boarding, riding, or stepping off. Or a
+    /// drop, from the look over the edge to the end of the recovery (plan §15), or a plain link.
     ///
     /// Public because the decision ladder needs it. While this is true the Nemesis's body is being
     /// driven by hand and the FSM must say Traversing whatever the route verdict happens to think
@@ -112,6 +127,94 @@ public class NemesisElevatorUser : MonoBehaviour
     /// commitment has been held, and cannot tell that there is no longer a trip to hold it to.
     /// </summary>
     public bool HasGivenUpOnElevator => abandonedElevator != null && Time.time < abandonedUntil;
+
+    // ── Drop state (plan §15) ───────────────────────────────────────────────
+
+    /// <summary>The body has left the floor: from the moment a Hang goes over the edge (or a Hop
+    /// leaves it) until the recovery after landing is over. See <see cref="IsDroppingOrRecovering"/>.
+    /// </summary>
+    private bool isDropping;
+
+    private NemesisDropLink currentDrop;
+    private DropPath currentDropPath;
+    private EDropPhase dropPhase;
+    private float dropPhaseStartedAt;
+    private float dropCommitmentReleasedUntil;
+    private float rideCommitmentReleasedUntil;
+
+    /// <summary>
+    /// Drops taken out of pathfinding for their cooldown, and until when. A list and not one slot
+    /// like the lift's, because a level can have several drops and the Nemesis can use two of them
+    /// inside one cooldown.
+    ///
+    /// The same rule as <see cref="abandonedElevator"/>: a link suspended here comes back ONLY
+    /// through <see cref="RestoreSuspendedDrops"/> or OnDisable. Nothing else ever turns it on.
+    /// </summary>
+    private readonly List<(NemesisDropLink drop, float until)> suspendedDrops =
+        new List<(NemesisDropLink, float)>();
+
+    /// <summary>
+    /// In the air, landing, or getting up from the landing: the phases a capture must not cut
+    /// short, and in which the Nemesis must not grab anyone (plan §15.3).
+    ///
+    /// Read by <c>NemesisStateManager.CanReachPlayerNow</c>, which answers "no" for all of it.
+    /// Landing on the player and grabbing them in the same frame is the kind of death that feels
+    /// like a bug; the recovery is the player's window to get away.
+    /// </summary>
+    public bool IsDroppingOrRecovering => isDropping;
+
+    /// <summary>
+    /// A drop has just ended — landed, or given up on because the player was up here — so the
+    /// Traversing commitment it was taken under is over.
+    ///
+    /// THE COMMITMENT OUTLIVED THE DROP WITHOUT THIS. The ladder's "ya se comprometio con el
+    /// montacargas" rung holds Traversing for as long as the state is under ElevatorCommitTime (12
+    /// s), and a drop is walked to and crossed in two or three. The Nemesis landed and went on in
+    /// Traversing for the rest of the window, running at a belief that stops updating the moment
+    /// the player is out of sight, with none of the chase's feedback. It is the same thing
+    /// WIR-028 saw with the generated links, and plan §15 case 12 expects the opposite: it lands
+    /// and CHASES.
+    ///
+    /// Reported the way the lift reports a shaft it has given up on, through
+    /// <c>NemesisStateManager.HasGivenUpOnElevator</c>, which the rung already asks. Only for a
+    /// moment: long enough for the ladder to let go once, not so long that it keeps a new
+    /// commitment from forming if the route crosses floors again.
+    /// </summary>
+    public bool HasJustEndedDrop => Time.time < dropCommitmentReleasedUntil;
+
+    /// <summary>
+    /// A ride has just ended at the far landing, so the Traversing commitment it was taken under is
+    /// over — the same release as <see cref="HasJustEndedDrop"/>, for the lift (playtest 27/09).
+    ///
+    /// The ride takes most of ElevatorCommitTime, but not all of it, so the rung "ya se comprometió
+    /// con el montacargas" still held Traversing for the seconds left after stepping off: at the top
+    /// it steered at the belief with none of the chase's feedback, even with the player in view (the
+    /// rung sits above "lo está viendo"), and a noise heard from below down the open shaft sent it
+    /// straight back into the cabin. Released, the ladder decides afresh on arrival: a chase if it
+    /// sees the player, another ride only if the route to the belief still crosses floors.
+    ///
+    /// A plain link crossed by hand ends the same way (28/09): walking into the cabin on an
+    /// ordinary path crosses its doorway link, and that pinned Traversing for the full 12 s.
+    /// </summary>
+    public bool HasJustEndedRide => Time.time < rideCommitmentReleasedUntil;
+
+    /// <summary>The drop in progress, or null. For the F9 HUD.</summary>
+    public NemesisDropLink CurrentDrop => currentDrop;
+
+    /// <summary>Hop or Hang, for the drop in progress.</summary>
+    public EDropKind CurrentDropKind => currentDropPath.Kind;
+
+    /// <summary>Metres from where it stood down to where it lands, for the drop in progress.
+    /// </summary>
+    public float CurrentDropHeight => currentDropPath.Height;
+
+    /// <summary>The phase of the drop in progress, and how long it has been in it.</summary>
+    public EDropPhase CurrentDropPhase => dropPhase;
+
+    public float DropPhaseTime => Time.time - dropPhaseStartedAt;
+
+    /// <summary>How many drops are out of pathfinding right now, cooling down.</summary>
+    public int SuspendedDropCount => suspendedDrops.Count;
 
     /// <summary>
     /// The elevator most recently given up on, and until when it stays off the menu.
@@ -182,6 +285,10 @@ public class NemesisElevatorUser : MonoBehaviour
         /// <summary>A complete path that never finished being walked. Something is physically in
         /// the way, or the cabin left while it was walking.</summary>
         WalkTimedOut,
+
+        /// <summary>Off the shaft link, but on the other floor: the step-off crossed the shaft.
+        /// Put back on the landing before boarding the old way.</summary>
+        WrongFloorAfterStepOff,
     }
 
     private SO_NemesisMovement Movement => stateManager != null ? stateManager.NemesisMovement : null;
@@ -206,6 +313,32 @@ public class NemesisElevatorUser : MonoBehaviour
     /// <summary>Seconds an abandoned elevator stays off the menu.</summary>
     private float AbandonCooldown =>
         Data != null ? Data.ElevatorAbandonCooldown : FallbackAbandonCooldown;
+
+    /// <summary>Seconds a drop stays off the menu after it has been used or given up on.</summary>
+    private float DropCooldown => Data != null ? Data.DropLinkCooldown : FallbackDropCooldown;
+
+    // The drop's own timings. No real fallbacks for these: a Nemesis without its movement asset is
+    // disabled by NemesisStateManager.ValidateReferences before it can reach a link, so the zeros
+    // below are never flown. They only keep the getters from reading a null asset.
+    private float DropAlignTurnSpeed => Movement != null ? Movement.DropAlignTurnSpeed : FallbackTurnSpeed;
+    private float DropLookTime => Movement != null ? Movement.DropLookTime : 0f;
+    private float HopTakeoffTime => Movement != null ? Movement.HopTakeoffTime : 0f;
+    private float HangTurnTime => Movement != null ? Movement.HangTurnTime : 0f;
+    private float HangReleaseTime => Movement != null ? Movement.HangReleaseTime : 0f;
+    private float DropRecoveryTime => Movement != null ? Movement.DropRecoveryTime : 0f;
+
+    /// <summary>The shape of a drop for this Nemesis: its movement asset's numbers, its own
+    /// FloorHeightThreshold as the line between a Hop and a Hang, and its agent's radius.</summary>
+    private DropTuning CurrentDropTuning()
+    {
+        float hangThreshold = Data != null ? Data.FloorHeightThreshold : DropTuning.DefaultHangThreshold;
+        float radius = agent != null ? agent.radius : DropTuning.DefaultBodyRadius;
+
+        return Movement != null
+            ? Movement.DropTuningFor(hangThreshold, radius)
+            : new DropTuning(hangThreshold, DropTuning.DefaultHopApexHeight, DropTuning.DefaultGravity,
+                             DropTuning.DefaultMinAirTime, DropTuning.DefaultHangDepth, radius);
+    }
 
     private void Awake()
     {
@@ -239,8 +372,10 @@ public class NemesisElevatorUser : MonoBehaviour
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
 
         // Before the agent guards, not after: a shaft whose cooldown has expired has to come back
-        // into pathfinding whether or not the Nemesis happens to be on the mesh this frame.
+        // into pathfinding whether or not the Nemesis happens to be on the mesh this frame. Same
+        // for the drops.
         RestoreAbandonedElevator();
+        RestoreSuspendedDrops();
 
         if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
         if (!agent.isOnOffMeshLink) return;
@@ -249,11 +384,11 @@ public class NemesisElevatorUser : MonoBehaviour
         if (!data.valid) return;
 
         // owner is typed as UnityEngine.Object, but NavMeshLink registers itself through
-        // NavMesh.SetLinkOwner(instance, this), so in practice it is always a Component. The
-        // pattern match covers a link created some other way, which simply is not an elevator.
-        NemesisElevatorLink elevator = data.owner is Component owner
-            ? owner.GetComponent<NemesisElevatorLink>()
-            : null;
+        // NavMesh.SetLinkOwner(instance, this), so in practice it is always a Component. The cast
+        // covers a link created some other way, which is simply neither a lift nor a drop.
+        Component linkOwner = data.owner as Component;
+        NemesisElevatorLink elevator = linkOwner != null ? linkOwner.GetComponent<NemesisElevatorLink>() : null;
+        NemesisDropLink drop = linkOwner != null ? linkOwner.GetComponent<NemesisDropLink>() : null;
 
         // Safe to dispose: this line is only reached with no crossing in flight (isTraversing).
         crossingCts?.Dispose();
@@ -272,9 +407,19 @@ public class NemesisElevatorUser : MonoBehaviour
             return;
         }
 
-        // IsUsable and not just != null: a misconfigured elevator is crossed like a plain link
-        // instead of blowing up on a null reference.
+        // The same net for a drop just given up on (AbortDrop): letting go of a link is not
+        // instant, and for a frame or two the agent can still be standing on the one it has just
+        // shelved. Starting the drop over from there would undo the decision not to take it.
+        if (drop != null && drop.IsSuspended)
+        {
+            LeaveCurrentLink();
+            return;
+        }
+
+        // IsUsable and not just != null: a misconfigured elevator or drop is crossed like a plain
+        // link instead of blowing up on a null reference.
         if (elevator != null && elevator.IsUsable) TraverseElevatorAsync(elevator, token).Forget();
+        else if (drop != null && drop.IsUsable)    TraverseDropAsync(drop, data, token).Forget();
         else                                       TraverseSimpleLinkAsync(data, token).Forget();
     }
 
@@ -367,6 +512,12 @@ public class NemesisElevatorUser : MonoBehaviour
     /// <c>CompleteOffMeshLink()</c> is the wrong call here and was the tempting one: it reports the
     /// crossing as done and drops the agent at the far end — teleporting the Nemesis to the other
     /// floor for free, which is the bug the whole elevator system exists to avoid.
+    /// <c>ResetPath()</c> is the same call in disguise: on a link, Unity completes the link before
+    /// it clears the path (its docs say so). This used to call it, so every step-off put the
+    /// Nemesis on the far floor. The walk aboard then started from there: twelve seconds walking
+    /// on the wrong floor, then the straight-line fallback through the slab and the walls
+    /// (playtest 28/09). A warp onto the near end drops the link without crossing it, so the warp
+    /// goes first and the path is cleared only once the agent is off the link.
     /// <c>ActivateCurrentOffMeshLink(false)</c> deactivates this link for THIS agent, so the
     /// recalculated path routes around it (stairs, another shaft) instead of straight back onto it.
     /// </summary>
@@ -375,8 +526,15 @@ public class NemesisElevatorUser : MonoBehaviour
         if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
         if (!agent.isOnOffMeshLink) return;
 
+        // Where it stands: the end of the link on this floor.
+        Vector3 nearEnd = agent.currentOffMeshLinkData.startPos;
+
         agent.ActivateCurrentOffMeshLink(false);
-        agent.ResetPath();
+        if (!TryWarpNear(nearEnd)) TryWarpNear(transform.position);
+
+        // Still on the link if both warps failed, and there ResetPath would cross it. The caller
+        // that waits for the step-off asks again next frame.
+        if (!agent.isOnOffMeshLink) agent.ResetPath();
 
         // The cached verdict was measured believing the lift was on the way. Left standing, the
         // next route query hands back the same answer and the FSM commits to the trip again.
@@ -460,10 +618,14 @@ public class NemesisElevatorUser : MonoBehaviour
     /// Ends a crossing that is still only waiting for, walking onto or stepping off the cabin. The
     /// finally in <see cref="TraverseElevatorAsync"/> then releases the claim and the passenger
     /// registration on the next frame, instead of whenever the wait happened to time out.
+    ///
+    /// Not a drop that has left the floor, for the same reason as the ride: cancelled in the air,
+    /// the Nemesis would be left hanging there (plan §15.3). Before it goes over the edge it has
+    /// not jumped yet, and the capture cuts it short like any other crossing.
     /// </summary>
     private void HandlePlayerCaptured(PlayerStateManager player)
     {
-        if (!isRiding) CancelCrossing();
+        if (!isRiding && !isDropping) CancelCrossing();
     }
 
     /// <summary>
@@ -485,6 +647,13 @@ public class NemesisElevatorUser : MonoBehaviour
     {
         PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
         CheckpointManager.OnRespawned -= HandlePlayerRespawned;
+
+        // The drops belong to the level too, and nothing else would ever turn them back on.
+        for (int i = 0; i < suspendedDrops.Count; i++)
+        {
+            if (suspendedDrops[i].drop != null) suspendedDrops[i].drop.SetLinkActive(true);
+        }
+        suspendedDrops.Clear();
 
         if (abandonedElevator == null) return;
 
@@ -516,6 +685,344 @@ public class NemesisElevatorUser : MonoBehaviour
         {
             if (stateManager != null) stateManager.PopStuckSuppression();
             isTraversing = false;
+
+            // Crossing sets IsUsingElevator, which puts the FSM in Traversing, and the commitment
+            // rung then held it there for ElevatorCommitTime (12 s) after a step through the
+            // cabin's doorway on an ordinary path (playtest 28/09). A plain link is no trip to be
+            // committed to: released like a ride (HasJustEndedRide).
+            rideCommitmentReleasedUntil = Time.time + TripCommitmentRelease;
+        }
+    }
+
+    // ── Drops between floors (plan §15) ─────────────────────────────────────
+
+    /// <summary>
+    /// Drops down a <see cref="NemesisDropLink"/>, through the phases of plan §15.3. Phase 1,
+    /// walking to the edge, was the NavMesh's; this starts when the agent stands on the link.
+    ///
+    ///   2. Align        turn to face the gap
+    ///   3. Look         lean out and growl: THE TELL          ┐ a capture still cancels these:
+    ///      HopTakeoff   flex (Hop)                             │ the body has not left the floor.
+    ///      HangTurn     back to the gap, hands on the edge     ┘ Look and HopTakeoff also give up
+    ///                                                            the drop for a player up here.
+    ///      HangRelease  over the edge until it hangs (Hang)   ┐
+    ///   4. Fall         the arc                                │ nothing cancels these, and it
+    ///   5-6. Land       impact, then the recovery              ┘ cannot grab anyone
+    ///
+    /// THE AGENT STAYS ON THE LINK for the whole drop, as with a plain link, and that is what lets
+    /// the landing be CompleteOffMeshLink rather than a warp: the body is already at the far end
+    /// when the link is closed. It is held still meanwhile, so it does not try to walk anywhere.
+    ///
+    /// The only warp is the rescue: a drop cut short in the air (a respawn, behind the capture
+    /// fade) puts the body down at the landing through NemesisStateManager.WarpTo, because every
+    /// teleport goes through there (plan §10).
+    ///
+    /// UniTask for the reasons in the class doc: the finally below has to run.
+    /// </summary>
+    private async UniTaskVoid TraverseDropAsync(NemesisDropLink drop, OffMeshLinkData data, CancellationToken token)
+    {
+        isTraversing = true;
+        stateManager.PushStuckSuppression();
+
+        // From where the body really is, not from TopEdge: the link's ends are a metre wide, and
+        // the agent steps onto the one at the top wherever its path met it.
+        Vector3 start = transform.position;
+        Vector3 end = data.endPos + Vector3.up * agent.baseOffset;
+        DropPath path = drop.PlanFrom(start, end, CurrentDropTuning(), NemesisNav.AreaMask);
+
+        currentDrop = drop;
+        currentDropPath = path;
+
+        bool landed = false;
+        bool gaveUp = false;
+
+        try
+        {
+            HoldStill(true);
+
+            // 2. Align.
+            SetDropPhase(EDropPhase.Align);
+            await TurnToFaceAsync(start + path.Facing, token, DropAlignTurnSpeed);
+
+            // 3. Anticipate.
+            SetDropPhase(EDropPhase.Look);
+            PlayDropCue(EDropCue.Growl);
+            if (!await AnticipateAsync(DropLookTime, path, token))
+            {
+                gaveUp = true;
+                AbortDrop(drop);
+                return;
+            }
+
+            if (path.Kind == EDropKind.Hop)
+            {
+                SetDropPhase(EDropPhase.HopTakeoff);
+                if (!await AnticipateAsync(HopTakeoffTime, path, token))
+                {
+                    gaveUp = true;
+                    AbortDrop(drop);
+                    return;
+                }
+
+                isDropping = true;
+            }
+            else
+            {
+                // Still on the floor, so still a phase a capture can end. Not one it gives up on
+                // for a player, though: the body has already moved off where it stood.
+                SetDropPhase(EDropPhase.HangTurn);
+                PlayDropCue(EDropCue.HandSlam);
+                await MoveOverTimeAsync(start, path.EdgeStand, HangTurnTime, FlatLookRotation(-path.Facing),
+                                        1f, 1f, token);
+
+                isDropping = true;
+
+                // Out first and then down, so the body clears the rim instead of sinking through it.
+                SetDropPhase(EDropPhase.HangRelease);
+                await MoveOverTimeAsync(path.EdgeStand, path.HangPoint, HangReleaseTime, transform.rotation,
+                                        0.5f, 2f, token);
+            }
+
+            // 4. In the air.
+            SetDropPhase(EDropPhase.Fall);
+            await MoveAlongArcAsync(path.Arc, token);
+
+            // 5. Land. A landing clip leaves by exit time on its own; without one, whatever drop
+            //    clip is still playing (the fall loops) has to be handed back now.
+            if (!SetDropPhase(EDropPhase.Land) && stateManager != null) stateManager.EndTraversalAnimation();
+            PlayDropCue(EDropCue.Impact);
+
+            if (agent.isActiveAndEnabled && agent.isOnOffMeshLink) agent.CompleteOffMeshLink();
+            landed = true;
+
+            // 6. Recover: the player's window.
+            await WaitSecondsAsync(DropRecoveryTime, token);
+        }
+        finally
+        {
+            bool leftTheFloor = isDropping;
+            isDropping = false;
+
+            // Cut short in the air: never left hanging off the edge or floating in the gap. It is
+            // put on the ground it was falling to (plan §15.3). A respawn does this, behind the
+            // capture fade, so it is not seen.
+            if (leftTheFloor && !landed) PutDownBelow(drop, end);
+
+            // Whichever way it got down, it is down: the drop cools off, so a player looping the
+            // stairs does not get "climb, drop, climb, drop". (One given up on is already cooling:
+            // AbortDrop shelved it.)
+            if (leftTheFloor || landed) SuspendDrop(drop);
+
+            // And the commitment that brought it here is over, so the ladder can chase instead of
+            // holding Traversing — down there after a drop, up here after giving one up.
+            if (leftTheFloor || landed || gaveUp)
+                dropCommitmentReleasedUntil = Time.time + TripCommitmentRelease;
+
+            if (stateManager != null) stateManager.EndTraversalAnimation();
+
+            HoldStill(false);
+
+            // Handed back at chase speed, as the lift does: Traversing is where the ladder had it,
+            // and a Nemesis that resumed a hunt at boarding pace would look like it lost interest.
+            // Not over a capture, which owns the gait (see TraverseElevatorAsync).
+            SO_NemesisMovement movement = Movement;
+            if (stateManager != null && movement != null && !IsCapturing)
+                stateManager.SetGait(NemesisStateManager.EGait.Running, movement.ChaseSpeed);
+
+            if (stateManager != null)
+            {
+                // A different floor from where the cached route was measured.
+                stateManager.InvalidateRouteVerdict();
+                stateManager.PopStuckSuppression();
+            }
+
+            currentDrop = null;
+            dropPhase = EDropPhase.None;
+            isTraversing = false;
+        }
+    }
+
+    /// <summary>Records the phase for the HUD and plays its clip. Returns whether a clip started
+    /// (see <see cref="NemesisStateManager.PlayTraversal"/>).</summary>
+    private bool SetDropPhase(EDropPhase phase)
+    {
+        dropPhase = phase;
+        dropPhaseStartedAt = Time.time;
+
+        return stateManager != null && stateManager.PlayTraversal(phase);
+    }
+
+    private void PlayDropCue(EDropCue cue)
+    {
+        NemesisAudio nemesisAudio = stateManager != null ? stateManager.Audio : null;
+        if (nemesisAudio != null) nemesisAudio.PlayDropCue(cue);
+    }
+
+    /// <summary>
+    /// Waits out an anticipation phase, and gives up on the drop if the player turns up on THIS
+    /// floor. Returns false when it gave up.
+    ///
+    /// The lift's <see cref="ShouldAbandonForPlayer"/>, asked differently. That one asks the route
+    /// verdict whether the player is still across floors, and the verdict measured from a point
+    /// standing on a link is exactly the one that flips (see the Traversing rungs). A drop has a
+    /// cheaper and steadier question: is the player it can see closer, in height, to where it
+    /// stands or to where it would land? A player below, seen through the gap, is the case the drop
+    /// exists for and must never stop it; one up here makes dropping absurd.
+    /// </summary>
+    private async UniTask<bool> AnticipateAsync(float seconds, DropPath path, CancellationToken token)
+    {
+        float waited = 0f;
+
+        while (waited < seconds)
+        {
+            if (IsPlayerUpHere(path)) return false;
+
+            waited += Time.deltaTime;
+            await UniTask.Yield(token);
+        }
+
+        return !IsPlayerUpHere(path);
+    }
+
+    private bool IsPlayerUpHere(in DropPath path)
+    {
+        if (stateManager == null || !stateManager.HasVisualTarget) return false;
+        if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
+
+        return Mathf.Abs(belief.y - path.Start.y) < Mathf.Abs(belief.y - path.End.y);
+    }
+
+    /// <summary>
+    /// Steps off a drop without taking it, and shelves it for the cooldown. The same two moves as
+    /// <see cref="AbandonElevator"/>, in the same order and for the same reasons: off the link
+    /// while it is still live, then suspended, so the fresh path cannot step straight back onto it
+    /// — and so it comes back when the cooldown ends, which ActivateCurrentOffMeshLink alone never
+    /// does.
+    /// </summary>
+    private void AbortDrop(NemesisDropLink drop)
+    {
+        LeaveCurrentLink();
+        SuspendDrop(drop);
+    }
+
+    /// <summary>Takes a drop out of pathfinding for <see cref="DropCooldown"/> seconds. Restarts
+    /// the clock of one that is already cooling down.</summary>
+    private void SuspendDrop(NemesisDropLink drop)
+    {
+        if (drop == null) return;
+
+        float until = Time.time + DropCooldown;
+
+        for (int i = 0; i < suspendedDrops.Count; i++)
+        {
+            if (!ReferenceEquals(suspendedDrops[i].drop, drop)) continue;
+
+            suspendedDrops[i] = (drop, until);
+            drop.SetLinkActive(false);
+            return;
+        }
+
+        suspendedDrops.Add((drop, until));
+        drop.SetLinkActive(false);
+    }
+
+    /// <summary>Puts every drop whose cooldown has run out back into pathfinding. A destroyed one
+    /// (a level torn down mid-cooldown) just drops out of the list.</summary>
+    private void RestoreSuspendedDrops()
+    {
+        for (int i = suspendedDrops.Count - 1; i >= 0; i--)
+        {
+            (NemesisDropLink drop, float until) = suspendedDrops[i];
+
+            if (drop != null && Time.time < until) continue;
+
+            if (drop != null) drop.SetLinkActive(true);
+            suspendedDrops.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
+    /// The rescue for a drop cut short in the air: onto the landing, or the nearest baked ground to
+    /// it. Through WarpTo, which snaps, refuses a point off the mesh, and keeps the route cache and
+    /// the stuck watchdog in step; then the wider search this component uses for the lift.
+    /// </summary>
+    private void PutDownBelow(NemesisDropLink drop, Vector3 fallback)
+    {
+        if (this == null || stateManager == null) return;
+
+        Vector3 target = drop != null && drop.BottomLanding != null ? drop.BottomLanding.position : fallback;
+
+        if (stateManager.WarpTo(target)) return;
+
+        if (NavMesh.SamplePosition(target, out NavMeshHit hit, AgentRecoveryRadius, NemesisNav.AreaMask) &&
+            stateManager.WarpTo(hit.position))
+        {
+            return;
+        }
+
+        Debug.LogError($"[{nameof(NemesisElevatorUser)}] '{name}' was cut short mid-drop and found no " +
+                       $"NavMesh within {AgentRecoveryRadius}m of the landing ({target}). It is left " +
+                       "where it was — check that the drop's BottomLanding sits on baked ground.", this);
+    }
+
+    /// <summary>Follows an arc from end to end. The rotation is left alone: a Hop falls facing the
+    /// gap and a Hang with its back to it, as each one left.</summary>
+    private async UniTask MoveAlongArcAsync(DropArc arc, CancellationToken token)
+    {
+        float elapsed = 0f;
+
+        while (elapsed < arc.Duration)
+        {
+            elapsed += Time.deltaTime;
+            transform.position = arc.PointAt(elapsed);
+            await UniTask.Yield(token);
+        }
+
+        transform.position = arc.To;
+    }
+
+    /// <summary>
+    /// Moves the body from one point to another in a fixed time, turning to a rotation as it goes.
+    ///
+    /// The horizontal and vertical halves are eased apart (a power of the progress each), because
+    /// the one leg that needs it would otherwise go through geometry: over the edge of a floor, a
+    /// straight line from the rim down to the hang point runs through the slab. Out fast and down
+    /// slow keeps it outside.
+    /// </summary>
+    private async UniTask MoveOverTimeAsync(Vector3 from, Vector3 to, float duration, Quaternion faceTo,
+                                            float horizontalEase, float verticalEase,
+                                            CancellationToken token)
+    {
+        Quaternion fromRotation = transform.rotation;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            float across = Mathf.Pow(progress, horizontalEase);
+            float down = Mathf.Pow(progress, verticalEase);
+
+            transform.position = new Vector3(Mathf.Lerp(from.x, to.x, across),
+                                             Mathf.Lerp(from.y, to.y, down),
+                                             Mathf.Lerp(from.z, to.z, across));
+            transform.rotation = Quaternion.Slerp(fromRotation, faceTo, progress);
+            await UniTask.Yield(token);
+        }
+
+        transform.position = to;
+        transform.rotation = faceTo;
+    }
+
+    /// <summary>Waits a number of seconds of game time: a paused game pauses the drop.</summary>
+    private static async UniTask WaitSecondsAsync(float seconds, CancellationToken token)
+    {
+        float waited = 0f;
+
+        while (waited < seconds)
+        {
+            waited += Time.deltaTime;
+            await UniTask.Yield(token);
         }
     }
 
@@ -769,6 +1276,9 @@ public class NemesisElevatorUser : MonoBehaviour
             if (completed && hadPath && agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
                 agent.SetDestination(savedDestination);
 
+            // The trip is over: the commitment it was taken under is too (HasJustEndedRide).
+            if (completed) rideCommitmentReleasedUntil = Time.time + TripCommitmentRelease;
+
             // Whatever happened - rode it, gave up, got cancelled - the agent must not be left
             // frozen. An early return between HoldStill(true) and HoldStill(false) would otherwise
             // strand a stopped agent, which reads exactly like the stuck Nemesis this whole
@@ -910,6 +1420,11 @@ public class NemesisElevatorUser : MonoBehaviour
                 return $"the path was complete but not walked within {BoardingWalkTimeout}s — " +
                        "something is physically in the way, or the cabin left mid-walk.";
 
+            case EBoardingStep.WrongFloorAfterStepOff:
+                return "stepping off the shaft link left it on the OTHER floor, so it was put back " +
+                       "on this landing first. The step-off is crossing the link again: check " +
+                       "that LeaveCurrentLink still warps onto the near end before clearing the path.";
+
             default:
                 return "no reason was recorded, which is itself a bug.";
         }
@@ -993,6 +1508,17 @@ public class NemesisElevatorUser : MonoBehaviour
 
         if (!await WaitUntilOffTheShaftLinkAsync(token)) return false;
 
+        // Off the link, but on this landing's floor? A step-off that crossed the shaft after all
+        // turns the walk aboard into a walk on the wrong floor, and its fallback into a glide
+        // through the slab. Back onto the landing first, and the caller boards the old way from
+        // there.
+        if (!IsOnFloorOf(boarding))
+        {
+            boardingFailure = EBoardingStep.WrongFloorAfterStepOff;
+            RestoreAgentOnto(boarding);
+            return false;
+        }
+
         return await WalkAgentToAsync(cabin.BoardingPointFor(boarding), token);
     }
 
@@ -1007,10 +1533,11 @@ public class NemesisElevatorUser : MonoBehaviour
     /// wall instead — with a warning that blamed the bake.
     ///
     /// The request is REPEATED each frame rather than made once. The first
-    /// <c>ActivateCurrentOffMeshLink(false)</c> lands while the link is still live and can be
-    /// overtaken by the path the agent is holding; asking again once the link has actually been
-    /// suspended is what makes it stick. It only ever runs in the frames where the agent has not
-    /// let go yet, so the repetition costs nothing in the normal case.
+    /// <see cref="LeaveCurrentLink"/> lands while the link is still live and can be overtaken by
+    /// the path the agent is holding; asking again once the link has actually been suspended is
+    /// what makes it stick. It only ever runs in the frames where the agent has not let go yet, so
+    /// the repetition costs nothing in the normal case. Through LeaveCurrentLink and never a bare
+    /// ResetPath, which on a link crosses it.
     /// </summary>
     private async UniTask<bool> WaitUntilOffTheShaftLinkAsync(CancellationToken token)
     {
@@ -1031,8 +1558,7 @@ public class NemesisElevatorUser : MonoBehaviour
 
             if (!agent.isOnOffMeshLink) return true;
 
-            agent.ActivateCurrentOffMeshLink(false);
-            agent.ResetPath();
+            LeaveCurrentLink();
         }
 
         boardingFailure = EBoardingStep.StuckOnTheShaftLink;
@@ -1238,6 +1764,14 @@ public class NemesisElevatorUser : MonoBehaviour
                        this);
     }
 
+    /// <summary>Standing on the floor <paramref name="landing"/> is on, by height: the same
+    /// FloorHeightThreshold that separates another floor from a step.</summary>
+    private bool IsOnFloorOf(Transform landing)
+    {
+        float floorBand = Data != null ? Data.FloorHeightThreshold : DropTuning.DefaultHangThreshold;
+        return Mathf.Abs(transform.position.y - landing.position.y) < floorBand;
+    }
+
     /// <summary>Warps onto a point, or onto the nearest baked spot to it.</summary>
     private bool TryWarpNear(Vector3 target)
     {
@@ -1281,16 +1815,19 @@ public class NemesisElevatorUser : MonoBehaviour
     ///
     /// Used before the ride itself, which is the one leg with no direction of travel to borrow: it
     /// is purely vertical, so <see cref="MoveTransformToAsync"/> has nothing to turn towards and
-    /// the platform moves the Nemesis without touching its rotation at all.
+    /// the platform moves the Nemesis without touching its rotation at all. And at the top of a
+    /// drop, where it turns to face the gap before looking down.
     /// </summary>
-    private async UniTask TurnToFaceAsync(Vector3 point, CancellationToken token)
+    /// <param name="degreesPerSecond">The turn rate. Zero or less is the traversal's own.</param>
+    private async UniTask TurnToFaceAsync(Vector3 point, CancellationToken token, float degreesPerSecond = 0f)
     {
         Quaternion target = FlatLookRotation(point - transform.position);
+        float turnSpeed = degreesPerSecond > 0f ? degreesPerSecond : TraversalTurnSpeed;
 
         while (Quaternion.Angle(transform.rotation, target) > 1f)
         {
             transform.rotation = Quaternion.RotateTowards(transform.rotation, target,
-                                                          TraversalTurnSpeed * Time.deltaTime);
+                                                          turnSpeed * Time.deltaTime);
             await UniTask.Yield(token);
         }
 

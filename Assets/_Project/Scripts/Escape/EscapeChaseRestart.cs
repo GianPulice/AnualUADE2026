@@ -65,6 +65,10 @@ public class EscapeChaseRestart : MonoBehaviour
 
     public bool IsActive => active;
 
+    /// <summary>The last defeat reported came from the Nemesis's grab (not a module running out).
+    /// Kept after <see cref="End"/>, which the defeat itself triggers.</summary>
+    public bool DefeatWasCapture { get; private set; }
+
     /// <summary>
     /// Arms the capture outcome for the chase. Call it on the frame the chase starts. Safe to call
     /// again. With <see cref="EscapeCaptureOutcome.RestartChase"/> a capture sends the player to
@@ -74,6 +78,7 @@ public class EscapeChaseRestart : MonoBehaviour
     {
         if (active && outcome != captureOutcome) End();
         outcome = captureOutcome;
+        DefeatWasCapture = false;
 
         if (outcome == EscapeCaptureOutcome.GameOver) BeginGameOver();
         else BeginRestart(chaseStart);
@@ -137,6 +142,7 @@ public class EscapeChaseRestart : MonoBehaviour
 
         // Stats come from the module session so the result screen shows the same time and count
         // as every other ending. GameResultManager guards against a second report by itself.
+        DefeatWasCapture = true;
         if (ModuleManager.Exists) ModuleManager.Instance.ReportLoss();
         else GameResultManager.ReportLoss(0f, 0);
     }

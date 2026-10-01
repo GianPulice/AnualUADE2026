@@ -63,6 +63,17 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "Multiplier) y SO_HidingData (Locker Vision Exposure).")]
     [SerializeField] private NemesisHidingAwareness hidingAwareness;
 
+    [Tooltip("Lo que cree sobre dónde está el jugador, juntando vista y oído (plan §17): una " +
+             "posición, un radio y cuánto hace que lo sintió. Separa las pistas (señuelos, ruido " +
+             "del Director) del jugador. Se agrega solo, igual que los de arriba: no tiene nada " +
+             "que configurar en escena. Se tunea desde SO_NemesisData (Creencia).")]
+    [SerializeField] private NemesisBelief belief;
+
+    // What it pays attention to (plan §17.4) and the radio-smashing beat that reads it. Resolved and
+    // added at runtime like the siblings above; nothing on them to wire in a scene, so not serialized.
+    private NemesisChoice choice;
+    private NemesisDecoyBreaker decoyBreaker;
+
     [Tooltip("The per-state breathing and voice loops. Added automatically like the six above, " +
              "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
              "a state with no entry crossfades the monster to silence. An empty array is a silent " +
@@ -102,6 +113,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private bool hasVisualTarget = false;
     private bool hasAudioTarget = false;
+    private bool hearsPlayer = false;
+    private bool hearsLead = false;
     private bool isSuspicious = false;
 
     private bool isActive;
@@ -145,6 +158,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public bool HasVisualTarget { get => hasVisualTarget;}
     public bool HasAudioTarget { get => hasAudioTarget;}
 
+    /// <summary>The player's own noise was heard this sweep — footsteps, breathing. Unlike
+    /// <see cref="HasAudioTarget"/>, which is any noise at all, a decoy or a Director pulse is not
+    /// this (plan §17, Fase 2B).</summary>
+    public bool HearsPlayer => hearsPlayer;
+
+    /// <summary>Something that is NOT the player was heard this sweep: a decoy, a Director pulse.
+    /// A lead (plan §17, D18/D19).</summary>
+    public bool HearsLead => hearsLead;
+
     /// <summary>
     /// The Nemesis has caught something in the corner of its eye without having actually seen it.
     ///
@@ -157,7 +179,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     /// <summary>
     /// A lift crossing is physically in progress - waiting for the cabin, boarding, riding or
-    /// stepping off.
+    /// stepping off. Or a drop between floors (plan §15), from the look over the edge to the end
+    /// of the recovery: the name stays, because the predicate it feeds is stored as a number in
+    /// the ladder asset and renaming it would only change the code.
     ///
     /// Read live off the component rather than sampled once per frame like the three sensor flags,
     /// because it is not a sensor reading that can flicker: it is a fact about who is currently
@@ -166,13 +190,31 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public bool IsUsingElevator => elevatorUser != null && elevatorUser.IsTraversing;
 
     /// <summary>
-    /// It has just given up on a lift and shelved that shaft for its cooldown.
+    /// It has just given up on a lift and shelved that shaft for its cooldown — or has just ended a
+    /// drop, landed or given up on (plan §15), or a ride, stepped off at the far landing.
     ///
     /// The end of a commitment, reported by the component that ended it. The ladder's "ya se
     /// comprometió con el montacargas" rung reads it to let go — see that rung for what pinning
-    /// the Nemesis in Traversing on a trip nobody is taking any more looked like.
+    /// the Nemesis in Traversing on a trip nobody is taking any more looked like. A drop is the
+    /// same trip, only shorter: it is over well inside ElevatorCommitTime, and without this the
+    /// rung kept the Nemesis in Traversing after landing instead of chasing (see
+    /// NemesisElevatorUser.HasJustEndedDrop).
     /// </summary>
-    public bool HasGivenUpOnElevator => elevatorUser != null && elevatorUser.HasGivenUpOnElevator;
+    public bool HasGivenUpOnElevator =>
+        elevatorUser != null &&
+        (elevatorUser.HasGivenUpOnElevator || elevatorUser.HasJustEndedDrop || elevatorUser.HasJustEndedRide);
+
+    /// <summary>In the air, landing or recovering from a drop (plan §15.3): it cannot grab
+    /// anyone. See <see cref="NemesisElevatorUser.IsDroppingOrRecovering"/>.</summary>
+    public bool IsDropping => elevatorUser != null && elevatorUser.IsDroppingOrRecovering;
+
+    /// <summary>The component that crosses the links, or null on a Nemesis without one. For the
+    /// F9 HUD, which shows the drop in progress.</summary>
+    public NemesisElevatorUser ElevatorUser => elevatorUser;
+
+    /// <summary>The per-state loops and the drop's one-shots. See <see cref="NemesisAudio"/>.
+    /// </summary>
+    public NemesisAudio Audio => nemesisAudio;
 
     /// <summary>
     /// The chase has gone a whole measurement window without closing the distance to the player
@@ -187,6 +229,13 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <summary>What the Nemesis knows about hiding spots. See <see cref="NemesisHidingAwareness"/>.
     /// </summary>
     public NemesisHidingAwareness HidingAwareness => hidingAwareness;
+
+    /// <summary>What it believes about the player, and the leads it carries (plan §17).</summary>
+    public NemesisBelief Belief => belief;
+
+    /// <summary>What it is paying attention to: the player, a lead or a glimpse. See
+    /// <see cref="NemesisChoice"/>.</summary>
+    public NemesisChoice Choice => choice;
 
     /// <summary>The hiding spot it is sure the player is in, or null. Read by the ladder as
     /// KnowsHidingSpot and by Searching, which walks straight to it. Degrades to "knows nothing"
@@ -351,8 +400,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
     /// another one.
     ///
-    /// The one-shot channel — play a fall, wait for it to land — is a different thing and does not
-    /// exist yet. Keeping them apart from the start is what will let it be added beside this
+    /// The one-shot channel — play a fall, wait for it to land — is a different thing: it is
+    /// <see cref="PlayTraversal"/>, added beside this for the drops between floors (plan §15)
     /// rather than tangled into it.
     /// </summary>
     public enum EGait
@@ -382,6 +431,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public void SetGait(EGait gait, float speed)
     {
         if (navAgent != null) navAgent.speed = speed;
+
+        // Every state sets its gait on the way in, before it asks for its first destination — so
+        // this is the door through which the drops get priced for the new state before that path
+        // is planned. See ApplyDropAreaCost.
+        ApplyDropAreaCost();
 
         // Chasing and Patrolling re-issue their gait EVERY FRAME while moving. Treating each of
         // those as a new order is what made the running-in-place guard below dead code during a
@@ -545,6 +599,121 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         animController.SetBool(CatchingParam, gait == EGait.Grabbing);
     }
 
+    // ── Drops between floors (plan §15) ─────────────────────────────────────
+
+    private static readonly int IdleStateHash = Animator.StringToHash("Idle");
+
+    /// <summary>A drop clip was left playing that will not leave on its own. See
+    /// <see cref="EndTraversalAnimation"/>.</summary>
+    private bool traversalClipLeftPlaying;
+
+    private bool warnedMissingTraversalState;
+
+    /// <summary>
+    /// The one-shot channel the <see cref="EGait"/> doc left room for ("play a fall, wait for it to
+    /// land"): plays the clip for one phase of a drop.
+    ///
+    /// Beside the gait, not inside it. A drop is not a gait: it is a sequence NemesisElevatorUser
+    /// runs phase by phase with the body driven by hand, so it goes into the Animator here, by
+    /// CrossFade on the state's name, with no new parameters (plan §15.5: the order is set by code,
+    /// not by the graph). The gait bools do not pull it out, because the drop's states have no
+    /// transitions of their own. When the drop ends the gait takes over again: the landing leaves by
+    /// exit time to Idle, and isWalking / isRunning lead back into locomotion as they always have.
+    ///
+    /// WITH HasState AND A FALLBACK, the pattern of PlayerStateManager.TryGetStandUpState: without
+    /// the state (today's controller only has Idle, Patrol and Chase) nothing plays and the drop
+    /// happens anyway. One warning per session says so, and Validate Navigation Setup lists
+    /// exactly which states are missing.
+    /// </summary>
+    /// <returns>Whether a clip started.</returns>
+    public bool PlayTraversal(EDropPhase phase)
+    {
+        if (animController == null || animController.runtimeAnimatorController == null) return false;
+
+        string stateName = nemesisMovement != null ? nemesisMovement.AnimatorStateFor(phase) : null;
+        if (string.IsNullOrEmpty(stateName)) return false;
+
+        int hash = Animator.StringToHash(stateName);
+        if (!animController.HasState(0, hash))
+        {
+            WarnMissingTraversalState(stateName);
+            return false;
+        }
+
+        animController.CrossFadeInFixedTime(hash, nemesisMovement.DropCrossFade, 0);
+
+        // Every phase but the landing leaves the Animator in a state with no way out on its own —
+        // and the fall loops. The landing leaves by exit time.
+        traversalClipLeftPlaying = phase != EDropPhase.Land;
+        return true;
+    }
+
+    /// <summary>
+    /// Hands the Animator back to the locomotion graph if a drop clip was left playing that would
+    /// never leave on its own: the controller has the fall but not the landing, or the drop was cut
+    /// short. Crossfades to Idle, from where the gait's bools take over. A no-op otherwise.
+    /// </summary>
+    public void EndTraversalAnimation()
+    {
+        if (!traversalClipLeftPlaying) return;
+        traversalClipLeftPlaying = false;
+
+        if (animController == null || !animController.HasState(0, IdleStateHash)) return;
+
+        float fade = nemesisMovement != null ? nemesisMovement.DropCrossFade : 0.12f;
+        animController.CrossFadeInFixedTime(IdleStateHash, fade, 0);
+    }
+
+    private void WarnMissingTraversalState(string stateName)
+    {
+        if (warnedMissingTraversalState) return;
+        warnedMissingTraversalState = true;
+
+        Debug.LogWarning($"[{nameof(NemesisStateManager)}] '{name}': the Animator has no state " +
+                         $"'{stateName}', so the drop plays without that animation — and probably " +
+                         "without the rest of plan §15.5's. The drop itself works. Tools > Nemesis > " +
+                         "Validate Navigation Setup lists every missing one.", this);
+    }
+
+    /// <summary>The state the drop area's cost was last set for, or null when it has not been set
+    /// since the agent last came back on.</summary>
+    private ENemesisState? dropCostAppliedFor;
+
+    /// <summary>
+    /// Prices the drops for what the Nemesis is doing (plan §15.3, D11): cheap while it hunts, dear
+    /// on patrol, where one taken every round stops being scary by the third. The same kind of
+    /// thing as the agent's speed — a state configures the body, it decides nothing — and it goes in
+    /// through the same door (<see cref="SetGait"/>), with <see cref="Update"/> as a net.
+    ///
+    /// Set only when the state changes, and again whenever the agent comes back on after being off
+    /// (the lift ride), in case it forgot. The drop's own link carries no cost override
+    /// (NemesisDropLink leaves costModifier negative): a positive one would replace this outright.
+    ///
+    /// The route oracle does not see it: NemesisNav plans with the project's area costs. It asks
+    /// "can it get there, and through what", not "which way would it choose".
+    /// </summary>
+    private void ApplyDropAreaCost()
+    {
+        if (!IsAgentReady)
+        {
+            dropCostAppliedFor = null;
+            return;
+        }
+
+        ENemesisState? state = CurrentStateKey;
+        if (!state.HasValue || state == dropCostAppliedFor) return;
+
+        dropCostAppliedFor = state;
+
+        if (nemesisMovement == null) return;
+
+        float cost = state.Value == ENemesisState.Patrolling
+            ? nemesisMovement.DropCostWhilePatrolling
+            : nemesisMovement.DropCostWhileHunting;
+
+        navAgent.SetAreaCost(NemesisDropLink.Area, cost);
+    }
+
     public enum ENemesisState
     {
         Patrolling,
@@ -640,9 +809,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <see cref="SO_NemesisPriorities"/>.</summary>
     public SO_NemesisPriorities Priorities => nemesisPriorities;
 
-    /// <summary>The Searching state instance, or null before the machine is built. Reached for by
-    /// <see cref="NemesisTelemetry.SearchInterceptPoint"/>, which reports where its cut-off is
-    /// aimed — the machine itself never reads it.</summary>
+    /// <summary>The Searching state instance, or null before the machine is built. Reached for by the
+    /// ladder (IsCheckingSpot, IsSearchWarm), NemesisLookAround, the debug HUD and the gizmos, which
+    /// read the state's own phase: its pause, its sweep, how warm it still is.</summary>
     public NemesisSearchingState SearchingState =>
         States.TryGetValue(ENemesisState.Searching, out BaseState<ENemesisState> state)
             ? state as NemesisSearchingState
@@ -745,6 +914,12 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         get
         {
+            // Never in the air, never on landing, never while it gets up (plan §15.3). Landing on
+            // the player and grabbing them in the same frame is the kind of death that feels like a
+            // bug; the recovery is the player's window. First, because it holds whatever the rest
+            // would say — including with no data to filter with.
+            if (IsDropping) return false;
+
             if (nemesisData == null) return true;   // No data to filter with: do not break the flow.
             if (fieldOfView == null) return false;
 
@@ -797,76 +972,44 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     // ── Facade: belief ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Where the Nemesis currently believes the player is: whichever sensor caught them most
-    /// recently.
+    /// Where the Nemesis currently believes the player is: the fused belief of
+    /// <see cref="NemesisBelief"/> (plan §17).
     ///
-    /// Deliberately reads <c>HasLastKnownPosition</c> and not <c>HasVisualTarget</c> — a belief
-    /// that stopped being refreshed is still a belief, and it is the whole reason a pursuit or a
-    /// search is happening at all.
+    /// It used to be "whichever sensor caught them most recently", and before that "sight first".
+    /// Both were a choice between two sensors rather than a belief built from them: the senses
+    /// competed instead of adding up, and any noise at all — a decoy, a Director pulse — became the
+    /// player's position. Now sight and the player's own noise are fused, and everything else is a
+    /// lead the belief keeps apart.
     ///
-    /// FRESHEST AND NOT SIGHT-FIRST, WHICH IT USED TO BE. "Seen first, heard second" is only
-    /// right while the sighting is at least as recent as the noise, and the case where it is not
-    /// is the common one: the player runs behind a wall. Sight stops updating, hearing keeps
-    /// updating, and a sight-first belief pins the answer to the spot where they disappeared. The
-    /// Nemesis then runs to that spot, arrives, and stands on it — while the noise renewing its
-    /// pursuit every frame keeps it from ever giving up and searching. It reads in game as a
-    /// monster that heard you, sprinted to the wrong place and froze there.
+    /// Deliberately a belief and not a sensor reading: one that stopped being refreshed is still a
+    /// belief, and it is the whole reason a pursuit or a search is happening at all.
     ///
-    /// Lives here rather than in a state because three of them want the same answer (Traversing
-    /// to hold its destination, Searching to anchor its cut-off, and the controller's patrol bias
-    /// through its own equivalent). Three private copies of the same comparison is how the
-    /// definition of "belief" quietly drifts apart between them.
+    /// Forwarded from here rather than having callers reach for NemesisBelief: a dozen of them
+    /// already ask the facade, and one definition of "belief" is the whole point.
     /// </summary>
     public bool TryGetBelief(out Vector3 position) => TryGetBelief(out position, out _);
 
     /// <summary>
-    /// <see cref="TryGetBelief(out Vector3)"/>, and WHICH SENSE produced the answer.
+    /// <see cref="TryGetBelief(out Vector3)"/>, and whether a SIGHTING anchors it.
     ///
-    /// The source matters because the two are not equally good claims about where somebody is. A
-    /// sighting is a position; a noise is roughly where a sound came from, and the search's room
-    /// commitment is only worth making off the former — committing to sweep a room on the strength
-    /// of a footstep heard through a wall would have the Nemesis confidently searching the wrong
-    /// side of it.
-    ///
-    /// The overload exists rather than a separate BeliefFromSight property so the answer and its
-    /// provenance can never disagree: a property would resolve the freshest sensor a second time,
-    /// on sensor ages that may have moved on between the two calls.
+    /// The provenance matters because the two are not equally good claims about where somebody is:
+    /// a sighting is a position, a noise is roughly where a sound came from, and the search's room
+    /// commitment is only worth making off the former. See NemesisBelief.IsAnchoredBySight for why
+    /// it no longer flickers while the player is both seen and heard.
     /// </summary>
     public bool TryGetBelief(out Vector3 position, out bool fromSight)
     {
+        if (belief != null) return belief.TryGetBelief(out position, out fromSight);
+
         position = Vector3.zero;
         fromSight = false;
-
-        bool sawIt = fieldOfView != null && fieldOfView.HasLastKnownPosition;
-        bool heardIt = fieldOfListening != null && fieldOfListening.HasLastKnownPosition;
-
-        if (!sawIt && !heardIt) return false;
-
-        // Both ages are infinity when the sensor has never fired, so the comparison picks the one
-        // that has without needing a special case. Ties go to sight, which is the more precise of
-        // the two: a sighting is a position, a noise is roughly where a sound came from.
-        float sightAge = sawIt ? fieldOfView.TimeSinceLastSighting : float.PositiveInfinity;
-        float noiseAge = heardIt ? fieldOfListening.TimeSinceLastNoise : float.PositiveInfinity;
-
-        fromSight = sightAge <= noiseAge;
-
-        position = fromSight ? fieldOfView.LastKnownPosition
-                             : fieldOfListening.LastKnownPosition;
-        return true;
+        return false;
     }
 
-    /// <summary>Seconds since either sensor last caught the player, or infinity if neither ever
-    /// has. How much <see cref="TryGetBelief"/>'s answer is still worth.</summary>
-    public float BeliefAge
-    {
-        get
-        {
-            float age = float.PositiveInfinity;
-            if (fieldOfView != null) age = Mathf.Min(age, fieldOfView.TimeSinceLastSighting);
-            if (fieldOfListening != null) age = Mathf.Min(age, fieldOfListening.TimeSinceLastNoise);
-            return age;
-        }
-    }
+    /// <summary>Seconds since the PLAYER was last sensed — seen, or heard through their own noise.
+    /// Leads (decoys, Director pulses) do not count: a thirty-second fire alarm must not keep the
+    /// belief about the player young (plan §17, D18). Infinity if never.</summary>
+    public float BeliefAge => belief != null ? belief.Age : float.PositiveInfinity;
 
     /// <summary>Drops the cached verdict so the next query recomputes. Called when entering a
     /// state that is about to act on the answer, and after every teleport.</summary>
@@ -881,11 +1024,15 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// Swaps the tuning asset every part of the Nemesis reads, and pushes it to the three
     /// components that keep their own reference.
     ///
-    /// ONE CALLER, ON PURPOSE: <see cref="NemesisDirector"/>, handing over a runtime copy with
-    /// widened senses for the length of a pressure request and handing the authored asset back
-    /// afterwards. It is not a general-purpose setter and should not become one — the reason it
-    /// can exist at all is that the Director owns both ends of the swap and guarantees the
-    /// restore.
+    /// TWO CALLERS, ON PURPOSE, and both restore to <see cref="BaselineData"/>:
+    /// <see cref="NemesisDirector"/>, lending a runtime copy and handing the baseline back afterwards,
+    /// and <see cref="InstallBaseline"/>, when an escalation tier (plan Fase 7) replaces the baseline
+    /// while nothing is lent. Since plan Fase 2B part 3 the Director's copy carries two loans at
+    /// once: widened senses for the length of a pressure request, and the search's persistence (its
+    /// silence window and cap, scaled by the pacing state) for as long as the pacing is not at 1 —
+    /// in PeakFade and Relax that is with no pressure at all. It is not a general-purpose setter and
+    /// should not become one — the reason it can exist at all is that every swap has an owner that
+    /// guarantees the restore.
     ///
     /// The push matters as much as the assignment. FieldOfView, FieldOfListening and
     /// NemesisPathOracle each hold their own serialized reference, so assigning only this one
@@ -906,19 +1053,45 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// The tuning <see cref="OverrideData"/>'s callers must restore to: what the Nemesis's numbers
     /// ARE when nothing is temporarily overriding them.
     ///
-    /// Today that is just the authored asset and never changes, so reading this is the same as
-    /// reading the asset — which is exactly why it is easy to "simplify" away. Don't.
+    /// The authored asset until <see cref="NemesisEscalation"/> installs an escalated copy (plan
+    /// Fase 7, <see cref="InstallBaseline"/>). Never cache it: read it fresh every time.
     ///
     /// <see cref="NemesisDirector"/>'s sensory boost is a LOAN: it installs widened senses for the
     /// length of a pressure request and hands them back. It used to cache the first asset it ever
     /// saw and restore THAT, which is correct only while nothing else ever changes the tuning
-    /// permanently. The moment something does — the unbuilt difficulty escalation of spec §7.2 is
-    /// the obvious candidate — a cached restore target silently reverts it on the next pressure
-    /// request, and nothing looks broken: the monster keeps behaving, just on numbers from before
-    /// the change. Reading the restore target from here instead is what keeps a permanent change
-    /// and a temporary one composing rather than fighting.
+    /// permanently. Escalation does: against a cached restore target it would be silently reverted
+    /// on the next pressure request, and nothing would look broken — the monster keeps behaving,
+    /// just on numbers from before the change. Reading the restore target from here instead is what
+    /// keeps a permanent change and a temporary one composing rather than fighting.
     /// </summary>
     public SO_NemesisData BaselineData { get; private set; }
+
+    /// <summary>
+    /// The asset as authored in the inspector, never a runtime copy. What an escalation scales FROM:
+    /// scaling the current baseline instead would compound one tier on top of the last.
+    /// </summary>
+    public SO_NemesisData AuthoredData { get; private set; }
+
+    /// <summary>
+    /// Makes <paramref name="data"/> the Nemesis's permanent tuning: the new <see cref="BaselineData"/>.
+    ///
+    /// ONE CALLER, like <see cref="OverrideData"/>: <see cref="NemesisEscalation"/>, which owns the
+    /// copy it hands over. With nothing lent, the new baseline is installed at once. With the
+    /// Director's loan out, the loan stays installed and <see cref="NemesisEvents.OnBaselineChanged"/>
+    /// tells the Director to rebuild it on top of the new baseline — overwriting it here would drop
+    /// the boost halfway through a pressure request.
+    /// </summary>
+    public void InstallBaseline(SO_NemesisData data)
+    {
+        if (data == null) return;
+
+        bool nothingLent = ReferenceEquals(nemesisData, BaselineData);
+        BaselineData = data;
+
+        if (nothingLent) OverrideData(data);
+
+        NemesisEvents.BaselineChanged();
+    }
 
     /// <summary>
     /// Freezes the body where it stands without touching the FSM, or hands it back.
@@ -1042,6 +1215,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Before the validation early-out, so even a Nemesis that fails to start reports a
         // coherent baseline rather than a null one to anything that asks.
         BaselineData = nemesisData;
+        AuthoredData = nemesisData;
 
         if (!ValidateReferences())
         {
@@ -1065,6 +1239,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         lifecycle.Initialize(this);
         chaseProgress.Initialize(this);
         hidingAwareness.Initialize(this);
+        belief.Initialize(this);
+        choice.Initialize(this);
 
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
@@ -1136,6 +1312,17 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // about hiding spots once somebody re-saved its prefab would go on treating every locker
         // as a wall in every scene nobody touched.
         hidingAwareness = ResolveSibling(hidingAwareness);
+
+        // Same terms: it reads the two sensors and its tuning off this object. A Nemesis that only
+        // gained it when somebody re-saved its prefab would have no belief at all in every scene
+        // nobody touched — TryGetBelief would answer "never sensed" for the rest of the run.
+        belief = ResolveSibling(belief);
+
+        // Same terms (plan §17.4, Fase 2B part 4). The breaker first: the choice looks it up to know
+        // when it is mid-smash. The breaker was never installed before this — it was on no prefab and
+        // nothing added it, so the radio could not be broken at all.
+        decoyBreaker = ResolveSibling(decoyBreaker);
+        choice = ResolveSibling(choice);
 
         // GetComponent and NOT ResolveSibling: unlike the seven above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
@@ -1270,11 +1457,25 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         hasVisualTarget = fieldOfView.HasVisualTarget;
         hasAudioTarget = fieldOfListening.HasAudioTarget;
         isSuspicious = fieldOfView.IsSuspicious;
+        hearsPlayer = fieldOfListening.HeardPlayer;
+        hearsLead = fieldOfListening.HeardLead;
+
+        // A soft noise of the player's feeds the same suspicion meter as a glimpse (plan §17.3).
+        if (fieldOfListening.HeardSoftPlayerNoise) fieldOfView.NoteSoftNoise();
+
+        // Folded in right after sampling, before anything reads the belief this frame: the ladder,
+        // the states and the pursuit all see the same answer (plan §17).
+        belief.Tick();
+
+        // Right after the belief it chooses from, and before the ladder that reads it (FocusIsLead).
+        choice.Tick();
 
         // Lay down the trail of patrol waypoints the player was sensed near. Done here, off the
         // flags that were just sampled, so there is exactly one place that decides "a detection
         // happened this frame" — and so the trail records only what the sensors actually caught.
-        if (hasVisualTarget || hasAudioTarget) nemesisController?.MarkBeliefTrace();
+        // The PLAYER, not any noise: a decoy the monster walks over to is not a place the player
+        // was (plan §17).
+        if (hasVisualTarget || hearsPlayer) nemesisController?.MarkBeliefTrace();
 
         // Before the FSM tick, not after: proximity owes nothing to the current state, and below
         // base.Update() anything a state threw took it down too, every frame. See
@@ -1298,6 +1499,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         TickDecision();
 
         base.Update();
+
+        // The net under SetGait's call, for a state that entered without setting a gait. A no-op
+        // on every frame the state has not changed.
+        ApplyDropAreaCost();
 
         // After the FSM, so it reads the gait the state just asked for rather than last frame's,
         // and so a state that decided to stand still this frame is not shown walking for one.

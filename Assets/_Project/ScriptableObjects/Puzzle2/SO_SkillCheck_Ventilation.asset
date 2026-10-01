@@ -39,7 +39,7 @@ MonoBehaviour:
     failTimePenalty: 8
     perfectTimeBonus: 3
   - sweepDuration: 0.72
-    successZoneDegrees: 24
+    successZoneDegrees: 28
     perfectZoneDegrees: 4
     failTimePenalty: 8
     perfectTimeBonus: 3
@@ -58,7 +58,6 @@ MonoBehaviour:
   gapBetweenChecksMin: 0.3
   gapBetweenChecksMax: 1.4
   completeHoldTime: 0.8
-  failHoldTime: 1.2
   warningClip: {fileID: 8300000, guid: 030b19d368ba1db41a81b73d7ce34fc1, type: 3}
   goodClip: {fileID: 8300000, guid: b75033496b78eaf4185a1217b0ce2fde, type: 3}
   perfectClip: {fileID: 8300000, guid: 22a37f4677a135f4daa8939d0285f343, type: 3}

@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a105a105f0bb4b6b9f383d65128b784b, type: 3}
+  m_Name: SO_CounterplayRules
+  m_EditorClassIdentifier: Assembly-CSharp::SO_CounterplayRules
+  rules:
+  - kind: 0
+    threshold: 3
+    unlocks: 3
+    chanceAtUnlock: 0.35
+    chancePerExtraUse: 0.1
+  - kind: 2
+    threshold: 1
+    unlocks: 4
+    chanceAtUnlock: 0.35
+    chancePerExtraUse: 0.1
+  - kind: 2
+    threshold: 2
+    unlocks: 5
+    chanceAtUnlock: 0.35
+    chancePerExtraUse: 0.1
+  - kind: 3
+    threshold: 2
+    unlocks: 5
+    chanceAtUnlock: 0.35
+    chancePerExtraUse: 0.1
+  chanceCap: 0.85
+  habitDecayDelayMinutes: 5
+  habitDecayPerMinute: 0.1
+  spotUsePoints: 1
+  spotHuntedBonus: 1
+  spotDecayDelayMinutes: 0
+  spotDecayPerMinute: 0.1
+  spotPriorityThreshold: 2
+  spotBurnThreshold: 4
+  spotOpenChancePerPoint: 0.25
+  spotOpenChanceCap: 0.85
+  nearbyRadius: 8
+  logRegistrations: 1

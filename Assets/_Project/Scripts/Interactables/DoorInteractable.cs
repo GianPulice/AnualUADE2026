@@ -30,9 +30,11 @@ public class DoorInteractable : BaseRangeInteractable
     [SerializeField] private bool nemesisCanForceLocked = true;
 
     [Tooltip("Give the swinging leaf a NavMeshObstacle on Awake, when it has none.\n\n" +
-             "ON by default. A NavMeshAgent ignores physics colliders entirely, and this scene's " +
-             "NavMeshSurface excludes layer Default from its bake, so without the obstacle the " +
-             "monster walks through the panel.\n\n" +
+             "ON by default. A NavMeshAgent ignores physics colliders entirely, and the leaf is left " +
+             "out of the bake (the NavMeshModifier on the hinge, or a scene that does not bake " +
+             "Default), so without the obstacle the monster walks through the panel.\n\n" +
+             "A door the Nemesis may not open (sealed by a sequence, or Nemesis Can Open off) carves " +
+             "the doorway whatever this says: see RefreshNemesisBlock.\n\n" +
              "It only CARVES when Nemesis Can Open is off (a safe-haven door is a wall for it). " +
              "On a door it can open, carving would erase the doorway from its paths and it would " +
              "never walk up to the door to open it.\n\n" +
@@ -78,8 +80,14 @@ public class DoorInteractable : BaseRangeInteractable
     {
         if (sequenceLocked == locked) return;
         sequenceLocked = locked;
+        RefreshNemesisBlock();
         InteractionEvents.RequestPromptRefresh();
     }
+
+    /// <summary>Swinging shut right now — by the player's hand or a slam — as opposed to opening.
+    /// The Nemesis shoves a door that is closing in its face back open (<see cref="TryOpenForNemesis"/>).
+    /// </summary>
+    public bool IsClosing => isAnimating && isOpen;
 
     /// <summary>Seconds the leaf takes to swing open. The Nemesis reads it to know how long to
     /// hold back before crossing, instead of duplicating the number on its own component.</summary>
@@ -117,6 +125,12 @@ public class DoorInteractable : BaseRangeInteractable
 
     public bool NemesisCanOpen => nemesisCanOpen;
 
+    /// <summary>Whether a collider belongs to the swinging leaf (it hangs off the hinge) rather than to
+    /// the frame. For NemesisDoorUser: rubbing a frame is walking through a doorway, not bumping a
+    /// door.</summary>
+    public bool IsLeaf(Collider collider) =>
+        hinge != null && collider != null && collider.transform.IsChildOf(hinge);
+
 protected override void Awake()
     {
         base.Awake();
@@ -127,6 +141,7 @@ protected override void Awake()
         // depends on, and before ApplyOpenStateImmediate below: a door restored as already
         // open has to carve where the leaf actually ENDS UP, not where it started.
         EnsureNavMeshObstacle();
+        RefreshNemesisBlock();
 
         lockId = BuildLockId();
         wasEverOpened = lockId != null && PuzzleStateManager.Exists &&
@@ -136,7 +151,7 @@ protected override void Awake()
         if (isOpen) ApplyOpenStateImmediate();
     }
 
-public override string GetInteractText()
+public override string GetPromptText()
     {
         if (isOpen) return "Close door";
 
@@ -340,11 +355,28 @@ public void OpenDoor()
     /// <returns>true if it started opening on this call.</returns>
     public bool TryOpenForNemesis()
     {
-        if (isOpen || isAnimating) return false;
         if (!nemesisCanOpen) return false;
 
         // A sequence seal is absolute: see IsSequenceLocked.
         if (sequenceLocked) return false;
+
+        // CLOSING IN ITS FACE: shoved back open from wherever the leaf is (playtest 27/09). The player
+        // shutting a door on the Nemesis used to be a door it skipped while it swung — IsAnimating —
+        // and by the time the swing ended the Nemesis was already walking through the leaf. Same side
+        // as the swing that is closing it: the leaf is on that arc.
+        if (IsClosing)
+        {
+            if (!nemesisCanForceLocked && !wasEverOpened) return false;
+
+            if (swing != null) StopCoroutine(swing);
+            swing = StartCoroutine(AnimateReopen());
+
+            string reopenedId = doorData != null ? doorData.DoorId : gameObject.name;
+            Debug.Log($"[Nemesis] Door shoved back open: {reopenedId}", this);
+            return true;
+        }
+
+        if (isOpen || isAnimating) return false;
 
         // CanInteractInCloseRange is the player's condition (key + puzzle). It is only consulted
         // when this door canNOT be forced.
@@ -411,6 +443,20 @@ private IEnumerator AnimateOpen(bool suppressOpenSound)
         yield return AnimateHinge(hingeClosedLocalRot,
                                   hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f));
         isOpen = true;
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    /// <summary>From wherever a closing swing got to, back to fully open. See TryOpenForNemesis.
+    /// </summary>
+    private IEnumerator AnimateReopen()
+    {
+        PlayDoorSound(doorData != null ? doorData.OpenSoundId : SO_DoorData.DefaultOpenSoundId);
+
+        Quaternion from = hinge != null ? hinge.localRotation : hingeClosedLocalRot;
+        yield return AnimateHinge(from, hingeClosedLocalRot * Quaternion.Euler(0f, openAngle * openedSign, 0f));
+
+        isOpen = true;
+        swing = null;
         InteractionEvents.RequestPromptRefresh();
     }
 
@@ -657,6 +703,81 @@ private void CacheClosedRotation()
         // the expensive way to get the same answer, and it forces a NavMesh update while the agent
         // is mid-path through the doorway.
         obstacle.carveOnlyStationary = true;
+    }
+
+    // The obstacle that makes this door a wall for the Nemesis while it may not open it, and what
+    // that obstacle was doing before it was taken for that (see RefreshNemesisBlock).
+    private NavMeshObstacle blockObstacle;
+    private bool blockObstacleCreated;
+    private bool blockObstacleWasCarving;
+    private bool blockObstacleWasEnabled;
+
+    /// <summary>
+    /// Carves the doorway out of the NavMesh while the Nemesis may not open this door — sealed by a
+    /// sequence, or Nemesis Can Open off — and gives it back when that ends (playtest 27/09).
+    ///
+    /// WHY: a door the Nemesis cannot open has to be a wall for its paths, or it walks through the
+    /// leaf. The auto obstacle above only carves for Nemesis Can Open off, it is fixed at Awake, and a
+    /// door with Auto Carve Nav Mesh off (DoorMetalRed and its variants: most of Zona1) has no obstacle
+    /// at all — so every door the escape seals was a closed leaf with a walkable doorway behind it.
+    /// A door the Nemesis CAN open is left alone: carving it would erase the doorway from its paths
+    /// and it would never walk up to open it (see EnsureNavMeshObstacle).
+    ///
+    /// Takes the door's existing obstacle when it has one, and adds one sized on the leaf collider
+    /// when it does not — even with Auto Carve Nav Mesh off, since that switch is about the
+    /// avoidance-only obstacle on doors it opens. Carves the leaf wherever it is, open or shut, like
+    /// the Nemesis Can Open off case always did: shut, that is the doorway.
+    /// </summary>
+    private void RefreshNemesisBlock()
+    {
+        bool block = sequenceLocked || !nemesisCanOpen;
+
+        if (block)
+        {
+            if (blockObstacle == null && !TryTakeBlockObstacle()) return;
+
+            blockObstacle.enabled = true;
+            blockObstacle.carving = true;
+            blockObstacle.carveOnlyStationary = true;
+            return;
+        }
+
+        if (blockObstacle == null) return;
+
+        if (blockObstacleCreated)
+        {
+            blockObstacle.enabled = false;
+        }
+        else
+        {
+            blockObstacle.carving = blockObstacleWasCarving;
+            blockObstacle.enabled = blockObstacleWasEnabled;
+        }
+    }
+
+    private bool TryTakeBlockObstacle()
+    {
+        if (hinge == null) return false;
+
+        NavMeshObstacle existing = GetComponentInChildren<NavMeshObstacle>(includeInactive: true);
+        if (existing != null)
+        {
+            blockObstacle = existing;
+            blockObstacleCreated = false;
+            blockObstacleWasCarving = existing.carving;
+            blockObstacleWasEnabled = existing.enabled;
+            return true;
+        }
+
+        BoxCollider leaf = FindLeafCollider();
+        if (leaf == null) return false;
+
+        blockObstacle = leaf.gameObject.AddComponent<NavMeshObstacle>();
+        blockObstacle.shape = NavMeshObstacleShape.Box;
+        blockObstacle.center = leaf.center;
+        blockObstacle.size = leaf.size;
+        blockObstacleCreated = true;
+        return true;
     }
 
     /// <summary>

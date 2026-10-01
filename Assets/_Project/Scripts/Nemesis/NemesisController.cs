@@ -341,15 +341,18 @@ public class NemesisController : MonoBehaviour
 
     /// <summary>
     /// Stamps the waypoint nearest to whatever the Nemesis is sensing right now, building the
-    /// trail <see cref="NemesisSearchingState"/> reads to work out which way the player was
-    /// heading. Called once per frame by <see cref="NemesisStateManager"/> while either sensor
-    /// has a target.
+    /// sensed trail. Called once per frame by <see cref="NemesisStateManager"/> while it sees the
+    /// player or hears the player's own noise.
     ///
-    /// It goes through <see cref="TryGetPlayerBeliefPosition"/> — the same sight-then-hearing
-    /// resolution the patrol bias already uses — rather than reading the player, so the trail
-    /// records only what was actually sensed. That is what makes breaking line of sight and
-    /// doubling back work: the trail keeps pointing the way you were going, and the Nemesis
-    /// commits to it.
+    /// <see cref="NemesisPursuit"/> is what reads it: when a chase stalls, the detour waypoints
+    /// sitting on the trail lose most of their tickets, so what is left is the other way round
+    /// the obstacle (<see cref="NemesisRouteGraph.IsNearSensedTrail"/>). NemesisGizmos draws the
+    /// same trail. The search stopped reading it on 27/09, when its interception went (plan §18,
+    /// D24): it sweeps around the belief now instead of cutting the player off at a waypoint.
+    ///
+    /// It goes through <see cref="TryGetPlayerBeliefPosition"/> — the same belief the patrol bias
+    /// reads — rather than reading the player, so the trail records only what was actually
+    /// sensed: break line of sight and double back, and it still marks the way you were going.
     /// </summary>
     public void MarkBeliefTrace()
     {
@@ -365,11 +368,19 @@ public class NemesisController : MonoBehaviour
     private void RebuildGraph()
     {
         SO_NemesisData data = Data;
+        int before = routeGraph.BuildVersion;
+
         routeGraph.Rebuild(routes,
                            data != null ? data.ClusterRadius : 12f,
                            data != null ? data.MaxClusterSize : 5,
                            data != null ? data.WaypointSatellites : 0,
                            data != null ? data.WaypointSatelliteRadius : 4f);
+
+        // A route unlocking mid-run (a puzzle solved) really rebuilds the graph, and the cluster
+        // sweep's current tour and recency list hold indices into the lists that were just replaced.
+        // Only InvalidateRouteGraph used to reset it, and nothing calls that: the recency penalty
+        // landed on unrelated clusters, and a resweep could walk stale nodes (27/09).
+        if (routeGraph.BuildVersion != before) clusterPatrol.Reset();
     }
 
     /// <summary>
@@ -720,13 +731,10 @@ public class NemesisController : MonoBehaviour
 
         float memory = Mathf.Max(0.01f, data.BeliefMemoryTime);
 
-        float age = float.PositiveInfinity;
-
-        FieldOfView view = stateManager != null ? stateManager.FieldOfView : null;
-        if (view != null) age = Mathf.Min(age, view.TimeSinceLastSighting);
-
-        FieldOfListening listening = stateManager != null ? stateManager.FieldOfListening : null;
-        if (listening != null) age = Mathf.Min(age, listening.TimeSinceLastNoise);
+        // The belief's own age (plan §17): the player only. It used to take the freshest of the two
+        // raw sensors, so a decoy or a Director pulse kept the patrol bias pinned as if it were the
+        // player.
+        float age = stateManager != null ? stateManager.BeliefAge : float.PositiveInfinity;
 
         if (float.IsPositiveInfinity(age)) return 0f;
 
@@ -759,21 +767,10 @@ public class NemesisController : MonoBehaviour
             return true;
         }
 
-        FieldOfView view = stateManager != null ? stateManager.FieldOfView : null;
-        if (view != null && view.HasLastKnownPosition)
-        {
-            position = view.LastKnownPosition;
-            return true;
-        }
-
-        FieldOfListening listening = stateManager != null ? stateManager.FieldOfListening : null;
-        if (listening != null && listening.HasLastKnownPosition)
-        {
-            position = listening.LastKnownPosition;
-            return true;
-        }
-
-        return false;
+        // The one belief (plan §17: the states read the belief, not the sensors). This used to be
+        // a private sight-first copy — a third definition of "where the player is" beside the
+        // facade's, and one that a decoy could hijack through the hearing half.
+        return stateManager != null && stateManager.TryGetBelief(out position);
     }
 
     /// <summary>
@@ -865,6 +862,10 @@ public class NemesisController : MonoBehaviour
     /// Forces the merged set — and its cúmulos — to be rebuilt. Needed when the NavMesh changes
     /// without any route changing: a rebake, or a door that stopped blocking. Without this the
     /// graph keeps believing the islands it worked out last time.
+    ///
+    /// NOT for route weights. The Director rescaling a route changes nothing the build produced:
+    /// the zone roll reads the weights live (<see cref="NemesisRouteGraph.ClusterWeight"/>), and
+    /// calling this for them would buy nothing but a full rebuild and a lost sweep.
     ///
     /// The cluster being swept is dropped along with it: its index refers to a list that is about
     /// to be rebuilt from scratch, and reusing it would point the sweep at whatever zone happens
@@ -1219,11 +1220,14 @@ public class NemesisController : MonoBehaviour
         Gizmos.DrawWireCube(cluster.Centroid, Vector3.one * 0.4f);
 
 #if UNITY_EDITOR
+        // The live weight — the number the zone roll reads right now, Director's pressure
+        // included — so a boost or a retreat on this zone's routes shows up here as it happens.
         UnityEditor.Handles.color = color;
         UnityEditor.Handles.Label(cluster.Centroid + Vector3.up * 1.2f,
                                   $"cúmulo #{clusterIndex} — {clusterPatrol.TourIndex + 1}/" +
                                   $"{clusterPatrol.TourBudget} de {clusterPatrol.Stops.Count} " +
-                                  $"paradas ({cluster.MemberCount} wp, peso {cluster.Weight:0.##})");
+                                  $"paradas ({cluster.MemberCount} wp, " +
+                                  $"peso {routeGraph.ClusterWeight(clusterIndex):0.##})");
 #endif
     }
 

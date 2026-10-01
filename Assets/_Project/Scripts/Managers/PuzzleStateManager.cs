@@ -68,6 +68,13 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>, ISessionResetta
         return !string.IsNullOrWhiteSpace(puzzleId) && completedPuzzles.Contains(puzzleId);
     }
 
+    /// <summary>
+    /// How many puzzles are completed right now. The story's progress as a number, for the
+    /// Nemesis's escalation (plan Fase 7): read this rather than tallying OnPuzzleCompleted,
+    /// because RestoreSnapshot refills the set without raising the event.
+    /// </summary>
+    public int CompletedPuzzleCount => completedPuzzles.Count;
+
     public void SetSocketInserted(string socketId)
     {
         if (string.IsNullOrWhiteSpace(socketId)) return;

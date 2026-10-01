@@ -123,8 +123,8 @@ MonoBehaviour:
   recentPenalty: 0.08
   placementRetryRange: {x: 2, y: 5}
   placementFailureWarnThreshold: 5
-  debugLogEvents: 1
-  logDerivedStatistics: 1
+  debugLogEvents: 0
+  logDerivedStatistics: 0
   debugRapidFire: 0
 --- !u!114 &2158103419449396063
 MonoBehaviour:
@@ -190,4 +190,4 @@ MonoBehaviour:
     texture: {fileID: 684298421159166399, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
     sub: {fileID: -6916312628040914887, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
   defaultProfile: {fileID: 11400000, guid: 0b2a584544d56e148b6b13084c7b637e, type: 2}
-  logProfileChanges: 1
+  logProfileChanges: 0

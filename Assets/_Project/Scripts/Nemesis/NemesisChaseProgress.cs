@@ -81,11 +81,10 @@ public class NemesisChaseProgress : MonoBehaviour
     /// How many windows have expired without progress this session — one <c>ChaseStalled</c>
     /// each, in the vocabulary of the exploit table.
     ///
-    /// Public and counted now, acted on later: the habit tracker is what will turn a count into an
-    /// unlocked counterplay, and it does not exist yet. Until it does this is a number to read off
-    /// the HUD while playing, which is the whole reason thresholds get calibrated from data
-    /// instead of guessed. It survives the end of a chase on purpose — a counter that reset every
-    /// time the Nemesis lost you would only ever say 0 or 1.
+    /// Counted here for the HUD; the count that unlocks anything is PlayerHabitTracker's, which hears
+    /// each stall through <see cref="NemesisEvents.OnChaseStalled"/> and, unlike this one, lives in
+    /// the Data scene and survives the level. This one survives the end of a chase on purpose — a
+    /// counter that reset every time the Nemesis lost you would only ever say 0 or 1.
     /// </summary>
     public int ChaseStalledCount { get; private set; }
 
@@ -282,6 +281,8 @@ public class NemesisChaseProgress : MonoBehaviour
                   $"{windowStartDistance - LastDistance:F2} m of the {MinProgress:F2} m it needed " +
                   $"in {Window:F1} s (NavMesh distance {windowStartDistance:F1} m -> " +
                   $"{LastDistance:F1} m). ChaseStalled this session: {ChaseStalledCount}.", this);
+
+        NemesisEvents.ChaseStalled();
 
         // A new window from here rather than a latch that fires once: a player who keeps looping
         // keeps being counted, which is what makes the count worth calibrating against.

@@ -51,9 +51,11 @@ public class NemesisChaseMusic : MonoBehaviour
 
     [Tooltip("Safety net for the search tail: seconds the music may keep playing after a chase " +
              "ends if no state change ever arrives to close it, which is what a Nemesis switched " +
-             "off mid-search leaves behind. Longer than SearchTimeOut, so in a normal run the " +
-             "state change always gets there first.")]
-    [SerializeField, Min(1f)] private float searchTailTimeout = 25f;
+             "off mid-search leaves behind.\n\n" +
+             "It MUST stay above the longest search, or it cuts the music in the middle of one: " +
+             "SO_NemesisData's Search Hard Cap (30 s) times the Director's highest persistence " +
+             "(SO_DirectorPacing's Rising Max Persistence, 1.5) = 45 s. Raise it with either of them.")]
+    [SerializeField, Min(1f)] private float searchTailTimeout = 50f;
 
     [Header("Routing")]
     [Tooltip("Leave EMPTY. It then resolves to AudioManager's Music bus, which is where this " +
@@ -92,6 +94,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded += HandleChaseEnded;
         NemesisEvents.OnStateChanged += HandleStateChanged;
         GameResultManager.OnGameResult += HandleGameResult;
+        GameResultManager.OnResultCleared += HandleResultCleared;
     }
 
     private void OnDestroy()
@@ -100,6 +103,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
         NemesisEvents.OnStateChanged -= HandleStateChanged;
         GameResultManager.OnGameResult -= HandleGameResult;
+        GameResultManager.OnResultCleared -= HandleResultCleared;
     }
 
     /// <summary>
@@ -114,6 +118,9 @@ public class NemesisChaseMusic : MonoBehaviour
         isTrailingSearch = false;
         volumeTarget = 0f;
     }
+
+    // A defeat the level took back (the escape replays its cinematic): the music can play again.
+    private void HandleResultCleared() => runOver = false;
 
     private void Start()
     {

@@ -56,12 +56,12 @@ public sealed class NemesisPursuit
     /// How far back the sensed trail counts as "the way they came" when a stalled chase looks for
     /// the other side.
     ///
-    /// The same number and the same reasoning as NemesisSearchingState's own TrailMemoryTime,
-    /// which reads the trail for a heading: long enough to hold a lap's worth of stamped
-    /// waypoints, short enough to describe this encounter rather than the last one. Not on the SO
-    /// for the reason given there — it is not a design value; what the designer tunes is how hard
-    /// the trail pushes (ChaseTrailPenalty) and how wide it is (ChaseTrailPenaltyRadius). Public so
-    /// NemesisGizmos draws the trail this class actually reads, rather than a guess at it.
+    /// Long enough to hold a lap's worth of stamped waypoints, short enough to describe this
+    /// encounter rather than the last one. (The search used to read the trail for a heading with the
+    /// same number; it stopped on 27/09, plan D24, and this is now the trail's only reader.) Not on
+    /// the SO — it is not a design value; what the designer tunes is how hard the trail pushes
+    /// (ChaseTrailPenalty) and how wide it is (ChaseTrailPenaltyRadius). Public so NemesisGizmos
+    /// draws the trail this class actually reads, rather than a guess at it.
     /// </summary>
     public const float TrailMemoryTime = 8f;
 

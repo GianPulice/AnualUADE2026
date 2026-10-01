@@ -127,25 +127,7 @@ public class EscapeAlarmLights : MonoBehaviour
         int slot = 0;
         for (int i = 0; i < lamps.Length; i++)
         {
-            Light lamp = lamps[i];
-            if (lamp == null) continue;
-
-            FogLightBypass bypass = lamp.GetComponent<FogLightBypass>();
-            states[slot++] = new LampState
-            {
-                light = lamp,
-                bypass = bypass,
-                wasActive = lamp.gameObject.activeSelf,
-                wasEnabled = lamp.enabled,
-                color = lamp.color,
-                intensity = lamp.intensity,
-                bypassShape = bypass != null ? bypass.shape : FogLightBypass.BypassShape.Sphere,
-                bypassOverride = bypass != null && bypass.overrideAppearance,
-                bypassColor = bypass != null ? bypass.color : Color.white,
-                bypassIntensity = bypass != null ? bypass.intensity : 0f,
-                bypassClear = bypass != null ? bypass.clearAmount : 0f,
-                bypassScale = bypass != null ? bypass.LightIntensityScale : 1f,
-            };
+            if (lamps[i] != null) states[slot++] = Capture(lamps[i]);
         }
 
         // West to east, so parity alternates between neighbours down the corridor.
@@ -153,45 +135,8 @@ public class EscapeAlarmLights : MonoBehaviour
 
         for (int i = 0; i < states.Length; i++)
         {
-            ref LampState s = ref states[i];
-            s.group = i % 2;
-
-            // Awake first: they sleep as inactive objects outside the escape, and a beacon added to
-            // an inactive object would not register until it wakes.
-            s.light.gameObject.SetActive(true);
-            s.light.enabled = true;
-
-            // Clear-only pool, set up the same way as the Light Base Switch variant: a sphere that
-            // never reads the Light, so it only ever dissolves fog.
-            if (s.bypass != null)
-            {
-                s.bypass.shape = FogLightBypass.BypassShape.Sphere;
-                s.bypass.overrideAppearance = true;
-                s.bypass.intensity = 0f;
-                s.bypass.LightIntensityScale = 0f;
-                s.bypass.clearAmount = config.AlarmPoolClear;
-            }
-
-            // The beacon goes on the lamp, like the variant's. One the lamp already carries is
-            // reused and put back at the end.
-            s.addedBeacon = !s.light.TryGetComponent(out s.beacon);
-            if (s.addedBeacon) s.beacon = s.light.gameObject.AddComponent<FogBeacon>();
-            else s.beaconSave = Save(s.beacon);
-
-            s.beacon.enabled = true;
-            // Local, so it follows the lamp: the Spot points down, so its own forward is "down".
-            s.beacon.centreOffset = s.light.transform.InverseTransformVector(Vector3.down * BeaconDrop);
-            ConfigureBeacon(s.beacon);
-
-            // The beam in the air. Reads its shape, colour and on / off from the Spot on its own.
-            s.addedVolume = !s.light.TryGetComponent(out s.volume);
-            if (s.addedVolume) s.volume = s.light.gameObject.AddComponent<FogLightVolume>();
-            else
-            {
-                s.volumeWasEnabled = s.volume.enabled;
-                s.volumeIntensity = s.volume.intensity;
-            }
-            s.volume.enabled = true;
+            states[i].group = i % 2;
+            Prepare(ref states[i]);
         }
 
         elapsed = 0f;
@@ -210,6 +155,68 @@ public class EscapeAlarmLights : MonoBehaviour
                   $"lamp intensity {config.AlarmLampIntensity}. Beams show up to " +
                   $"{VisionRangeController.MaxLightVolumes} at a time across the whole level; the fog's " +
                   "arrays keep the size of their first upload, so a raised cap needs an editor restart.", this);
+    }
+
+    /// <summary>What a lamp looks like before the sirens touch it, to put it back at the end.</summary>
+    private static LampState Capture(Light lamp)
+    {
+        FogLightBypass bypass = lamp.GetComponent<FogLightBypass>();
+        return new LampState
+        {
+            light = lamp,
+            bypass = bypass,
+            wasActive = lamp.gameObject.activeSelf,
+            wasEnabled = lamp.enabled,
+            color = lamp.color,
+            intensity = lamp.intensity,
+            bypassShape = bypass != null ? bypass.shape : FogLightBypass.BypassShape.Sphere,
+            bypassOverride = bypass != null && bypass.overrideAppearance,
+            bypassColor = bypass != null ? bypass.color : Color.white,
+            bypassIntensity = bypass != null ? bypass.intensity : 0f,
+            bypassClear = bypass != null ? bypass.clearAmount : 0f,
+            bypassScale = bypass != null ? bypass.LightIntensityScale : 1f,
+        };
+    }
+
+    /// <summary>Wakes a lamp and gives it the three pieces of the recipe (see the class doc).</summary>
+    private void Prepare(ref LampState s)
+    {
+        // Awake first: they sleep as inactive objects outside the escape, and a beacon added to an
+        // inactive object would not register until it wakes.
+        s.light.gameObject.SetActive(true);
+        s.light.enabled = true;
+
+        // Clear-only pool, set up the same way as the Light Base Switch variant: a sphere that
+        // never reads the Light, so it only ever dissolves fog.
+        if (s.bypass != null)
+        {
+            s.bypass.shape = FogLightBypass.BypassShape.Sphere;
+            s.bypass.overrideAppearance = true;
+            s.bypass.intensity = 0f;
+            s.bypass.LightIntensityScale = 0f;
+            s.bypass.clearAmount = config.AlarmPoolClear;
+        }
+
+        // The beacon goes on the lamp, like the variant's. One the lamp already carries is reused
+        // and put back at the end.
+        s.addedBeacon = !s.light.TryGetComponent(out s.beacon);
+        if (s.addedBeacon) s.beacon = s.light.gameObject.AddComponent<FogBeacon>();
+        else s.beaconSave = Save(s.beacon);
+
+        s.beacon.enabled = true;
+        // Local, so it follows the lamp: the Spot points down, so its own forward is "down".
+        s.beacon.centreOffset = s.light.transform.InverseTransformVector(Vector3.down * BeaconDrop);
+        ConfigureBeacon(s.beacon);
+
+        // The beam in the air. Reads its shape, colour and on / off from the Spot on its own.
+        s.addedVolume = !s.light.TryGetComponent(out s.volume);
+        if (s.addedVolume) s.volume = s.light.gameObject.AddComponent<FogLightVolume>();
+        else
+        {
+            s.volumeWasEnabled = s.volume.enabled;
+            s.volumeIntensity = s.volume.intensity;
+        }
+        s.volume.enabled = true;
     }
 
     /// <summary>Stops the sirens: every lamp back to how <see cref="Begin"/> found it.</summary>

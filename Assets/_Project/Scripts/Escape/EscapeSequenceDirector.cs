@@ -211,7 +211,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     private Coroutine blendRestore;
 
     private VisionRangeController fogCentre;
-    private Transform fogCentreCamera;
+    private Transform fogCentreTarget;
 
     // A shot's own fog (the config's reveal or gate one), while it is on the stack.
     private VisionRangeController shotFogController;
@@ -269,6 +269,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         // No coroutines here: the object is going away. Whatever the cinematic held is given back now.
         CinematicState.End();
+        CinematicState.SetHudHidden(false);
         ReleaseFogCentre();
         PopShotFog();
         ShowPlayer();
@@ -412,6 +413,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
     private void ResetForReplay()
     {
+        CinematicState.SetHudHidden(false);
         CancelSequence();
         CancelEndGate();
         EndEscapeSystems();
@@ -651,21 +653,35 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     /// distance, cut to the player's own view, turned its way on the frame of the cut (the turn is
     /// never seen): control comes back and the chase is on. At the time cap whatever happens.
     /// </summary>
-    private async UniTaskVoid RunRevealAsync(CancellationToken token)
+    /// <param name="retry">The player was caught in the chase and pressed Retry: the doors are still
+    /// slammed and locked, so there is no security-camera shot, no slam and no hold — it plays from
+    /// the turn to look (or from the eyes, <see cref="SO_EscapeSequenceConfig.RetryFromEyes"/>).</param>
+    private async UniTaskVoid RunRevealAsync(CancellationToken token, bool retry = false)
     {
         PlayerStateManager player = PlayerRegistry.Current;
+        bool fromEyes = retry && config.RetryFromEyes;
 
         BeginCinematic();
-        CutTo(slamShot);
+        if (retry)
+        {
+            ReleaseShots();
+        }
+        else
+        {
+            CutTo(slamShot);
 
-        // A short step at most (the trigger is just past the door), hidden by the cut: the wide
-        // shot frames the player the same every time. Their facing is kept.
+            // The security camera's view: the facility watching, no gameplay HUD over it.
+            CinematicState.SetHudHidden(slamShot != null);
+        }
+
         // Facing the way they came out of the door, camera included, whatever the mouse was doing
         // as they crossed it. The cut hides it, and it is what makes the turn that follows always
         // the same quarter turn to the far end instead of however far round they happened to be.
         if (player != null) FacePlayerOutOfDoor(player);
 
-        if (player != null && config.SnapPlayerToMark && stage.playerCorridorMark != null)
+        // A short step at most (the trigger is just past the door), hidden by the cut: the wide
+        // shot frames the player the same every time. The facing just set is kept.
+        if (player != null && (config.SnapPlayerToMark || retry) && stage.playerCorridorMark != null)
         {
             Vector3 mark = stage.playerCorridorMark.position;
             mark.y = player.transform.position.y;
@@ -676,12 +692,14 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                 : player.transform.rotation);
         }
 
-        SlamEveryDoor();
+        if (retry) SealEveryDoor();
+        else SlamEveryDoor();
 
         // The dense fog comes in, clock stopped: the shots are in it. A fog of the cinematic's own,
-        // if the config gives it one, goes on top until the cut back.
+        // if the config gives it one, goes on top until the cut back — and the security camera's
+        // own on top of that while it is on the air (LeaveSlamShot swaps it back).
         BeginFogCycle();
-        PushShotFog(config.RevealShotFog);
+        PushShotFog(!retry && config.SlamShotFog != null ? config.SlamShotFog : config.RevealShotFog);
 
         bool hasNemesis = actor != null && stage.nemesisCorridorEnd != null && actor.TryTakeControl();
         if (hasNemesis)
@@ -695,18 +713,24 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                        : transform.position;
 
         // The hold: nothing but the fog closing in.
-        await WaitOrSkip(config.TensionSeconds, token);
+        if (!retry) await WaitOrSkip(config.TensionSeconds, token);
 
         // The turn round to the far end of the corridor. From the player's own view by default:
         // they turn where they stand, see the corridor the way they will see it with control back,
         // and nothing has to be re-aimed at the handover.
         Vector3 farEndEyes = farEnd + Vector3.up * NemesisEyeHeight;
-        if (!skipRequested)
+
+        // A retry from the eyes never sees the turn: they already look down the corridor.
+        if (fromEyes && player != null) AimPlayerViewAt(player, farEndEyes);
+
+        if (!skipRequested && !fromEyes)
         {
             if (config.PanOnPlayerView && player != null)
             {
-                // The cut back to the player's camera: the shot steps down and the turn starts there.
+                // The cut back to the player's camera: the shot steps down and the turn starts there,
+                // with the HUD back since it is their own view again.
                 ReleaseShots();
+                LeaveSlamShot();
                 await TurnPlayerViewTo(player, farEndEyes, config.PanSeconds, token);
             }
             else if (slamShot != null && slamShot.IsLive)
@@ -717,6 +741,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
                     await UniTask.Yield(PlayerLoopTiming.Update, token);
             }
         }
+
+        // Past the security camera, whichever way it went (a skip included).
+        LeaveSlamShot();
 
         // The eyes open. Whatever was skipped, they are open from here on.
         if (hasNemesis) actor.SetEyesVisible(true);
@@ -785,6 +812,24 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         {
             stage.safeDoor.SetSequenceLocked(true);
             stage.safeDoor.Slam(config.DoorSlamSeconds, config.DoorSlamSoundId);
+        }
+
+        hubExitsSealed = true;
+    }
+
+    /// <summary>Every seal back on, quietly: a replay of the reveal starts with the doors already
+    /// shut and locked (nothing may have opened one, and a way back to the safe zone would end it).</summary>
+    private void SealEveryDoor()
+    {
+        if (corridorLock != null)
+        {
+            corridorLock.LockAllNow();
+            if (stage.safeDoor != null) corridorLock.LockDoor(stage.safeDoor, config, quiet: true);
+            foreach (DoorInteractable door in hubExits) corridorLock.LockDoor(door, config, quiet: true);
+        }
+        else if (stage.safeDoor != null)
+        {
+            stage.safeDoor.SetSequenceLocked(true);
         }
 
         hubExitsSealed = true;
@@ -1129,9 +1174,17 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
             // Once there it turns to the gate and stays.
             if (stage.endGate != null) actor.FaceTowards(stage.endGate.transform);
+
+            // The fog around the Nemesis, not around the camera: it is Unlit, so no light shows it
+            // — the fog clearing round it is what does. It runs at the gate in its own clear bubble,
+            // with the rest of the corridor, and what is past the gate, left in the fog.
+            CentreFogOn(actor.Body);
         }
 
         CutTo(gateShot, hasNemesis ? actor.Body : null);
+
+        // The security camera again: no gameplay HUD over it, through to the win screen.
+        CinematicState.SetHudHidden(gateShot != null);
 
         await WaitOrSkip(config.GateDropDelay, token);
 
@@ -1152,8 +1205,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         if (gateShot != null) gateShot.Shake(config.GateShakeAmplitude, config.GateShakeSeconds);
 
-        // Through the dust: the Nemesis, left on the corridor side of the gate.
-        if (dustShot != null)
+        // Through the dust: the Nemesis, left on the corridor side of the gate. Off by default: the
+        // whole ending plays on the security camera.
+        if (config.CutToDustShot && dustShot != null)
         {
             await WaitOrSkip(config.DustShotDelay, token);
             CutTo(dustShot, hasNemesis ? actor.Body : null);
@@ -1195,6 +1249,11 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     {
         if (phase == Phase.Idle || phase == Phase.Done) return;
 
+        // Caught in the chase: Retry replays the cinematic from the eyes instead of reloading the
+        // level. Read before the teardown below ends the chase's systems.
+        bool caughtInChase = phase == Phase.Escape && result.GameState == GameState.Lose &&
+                             chaseRestart != null && chaseRestart.DefeatWasCapture;
+
         if (phase == Phase.Ending)
         {
             // The last shot stays up, frozen with the game: only what would still be heard goes.
@@ -1207,11 +1266,46 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             CancelSequence();
             ReleaseShots();
             if (phase == Phase.Reveal) TearDownCinematic(releasePlayer: false);
+            CinematicState.SetHudHidden(false);
             EndEscapeSystems();
         }
 
         UnregisterWinPresenter();
         phase = Phase.Done;
+
+        if (caughtInChase) GameResultManager.RetryInPlace = RetryFromEyes;
+    }
+
+    /// <summary>
+    /// Retry after the Nemesis caught the player in the chase: the level stays as it is (the cores
+    /// in, the doors locked) and only the last part of the cinematic plays again — the player at
+    /// the corridor mark, the Nemesis back at the far end, eyes shut, then the eyes and the charge.
+    /// </summary>
+    /// <returns>false when there is nothing to replay it with (the usual Retry runs instead).</returns>
+    private bool RetryFromEyes()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (config == null || player == null || actor == null || stage.nemesisCorridorEnd == null)
+            return false;
+
+        CancelSequence();
+        CancelEndGate();
+        if (stage.endGate != null) stage.endGate.CloseImmediate();
+        if (gateSlam != null) gateSlam.ResetDust();
+        ReleaseShots();
+        PopShotFog();
+        CinematicState.SetHudHidden(false);
+        ShowPlayer();
+
+        // A capture that ended the run left both frozen: the player disabled, the Nemesis parked in
+        // its Catch state waiting for a respawn.
+        player.RecoverFromDefeat();
+        actor.AbortCapture();
+
+        phase = Phase.Reveal;
+        skipRequested = false;
+        RunRevealAsync(NewSequenceToken(), retry: true).Forget();
+        return true;
     }
 
     private void EndEscapeSystems()
@@ -1271,6 +1365,16 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         yield return chargeShot;
         yield return gateShot;
         yield return dustShot;
+    }
+
+    /// <summary>
+    /// The slam's security camera is off the air: the gameplay HUD comes back, and the security
+    /// camera's own fog gives way to the reveal's (or to none). Safe to call twice.
+    /// </summary>
+    private void LeaveSlamShot()
+    {
+        CinematicState.SetHudHidden(false);
+        if (config.SlamShotFog != null && shotFogPushed == config.SlamShotFog) PushShotFog(config.RevealShotFog);
     }
 
     /// <summary>A shot's own fog, on top of the escape's while the shot is up. Popped with the rest
@@ -1396,8 +1500,8 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         // The fog is measured from the shot, not from the player standing somewhere off camera, so
         // the cinematic carries the same fog as the gameplay it cuts to (WIR-040).
         fogCentre = FindAnyObjectByType<VisionRangeController>();
-        fogCentreCamera = Camera.main != null ? Camera.main.transform : null;
-        if (fogCentre != null && fogCentreCamera != null) fogCentre.SetCentreOverride(fogCentreCamera);
+        fogCentreTarget = Camera.main != null ? Camera.main.transform : null;
+        if (fogCentre != null && fogCentreTarget != null) fogCentre.SetCentreOverride(fogCentreTarget);
 
         // A cinematic that starts right after another (the test key) finds the last one's blend
         // still on its way back: that one is cancelled, and the blend saved before it — the
@@ -1435,11 +1539,26 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         brainOverridden = false;
     }
 
+    /// <summary>
+    /// Moves the fog's centre off the shot's camera onto <paramref name="target"/> for the rest of
+    /// the cinematic: the fog is measured from each pixel to the centre, so the target stands in a
+    /// clear bubble and everything else, the camera's surroundings included, goes into the fog.
+    /// Released like the camera's (<see cref="ReleaseFogCentre"/>).
+    /// </summary>
+    private void CentreFogOn(Transform target)
+    {
+        if (fogCentre == null || target == null) return;
+
+        fogCentre.ClearCentreOverride(fogCentreTarget);
+        fogCentreTarget = target;
+        fogCentre.SetCentreOverride(target);
+    }
+
     private void ReleaseFogCentre()
     {
-        if (fogCentre != null) fogCentre.ClearCentreOverride(fogCentreCamera);
+        if (fogCentre != null) fogCentre.ClearCentreOverride(fogCentreTarget);
         fogCentre = null;
-        fogCentreCamera = null;
+        fogCentreTarget = null;
     }
 
     private IEnumerator RestoreBlendLater(CinemachineBrain target, CinemachineBlendDefinition blend)

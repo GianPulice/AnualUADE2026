@@ -16,7 +16,7 @@ using UnityEngine;
 /// <see cref="WakeUpCinematicEvents.IsCameraLocked"/> is set, and that same controller asks
 /// <see cref="TryGetPivotOffset"/> for the pivot height, since it owns the pivot (crouch dip).
 ///
-/// SETUP: on the FreeLook Camera of the Player prefab (Tools ▸ Architect ▸ Setup Wake-Up Cinematic).
+/// SETUP: on the FreeLook Camera of the Player prefab.
 /// </summary>
 [RequireComponent(typeof(CinemachineOrbitalFollow))]
 public class WakeUpCameraPan : MonoBehaviour

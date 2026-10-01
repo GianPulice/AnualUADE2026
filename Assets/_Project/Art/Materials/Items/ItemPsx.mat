@@ -59,7 +59,7 @@ Material:
     - _Cull: 2
     - _Cutoff: 0.5
     - _EmissionIntensity: 0.25
-    - _OutlineIntensity: 0.12
+    - _OutlineIntensity: 0
     - _OutlinePower: 3
     - _Smoothness: 0.281
     - _Surface: 0

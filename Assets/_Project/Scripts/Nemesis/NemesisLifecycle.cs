@@ -192,6 +192,7 @@ public class NemesisLifecycle : MonoBehaviour
         // back on patrol, which is the behaviour this fixes.
         if (stateManager.FieldOfView != null) stateManager.FieldOfView.ForgetLastKnownPosition();
         if (stateManager.FieldOfListening != null) stateManager.FieldOfListening.ForgetLastKnownPosition();
+        if (stateManager.Belief != null) stateManager.Belief.Forget();
 
         NemesisController controller = stateManager.NemesisController;
 

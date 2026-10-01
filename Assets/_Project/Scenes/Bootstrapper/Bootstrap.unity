@@ -130,6 +130,7 @@ GameObject:
   - component: {fileID: 1357902170}
   - component: {fileID: 1357902169}
   - component: {fileID: 1357902171}
+  - component: {fileID: 1357902172}
   m_Layer: 0
   m_Name: BootingSceneLoader
   m_TagString: Untagged
@@ -152,6 +153,7 @@ MonoBehaviour:
   sceneLoader: {fileID: 1357902171}
   screenChannel: {fileID: 11400000, guid: aa3788f463ce5c6428f7444d2b2c9e30, type: 2}
   sceneDatabase: {fileID: 11400000, guid: 5faacc4365d5d784a85988543f3ac151, type: 2}
+  introVideo: {fileID: 1357902172}
   defaultStartGroup: Menu
 --- !u!4 &1357902170
 Transform:
@@ -180,6 +182,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c9266d1d3adfaca4c9ca85d101a2af2c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneLoader
+--- !u!114 &1357902172
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357902168}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f1c9a7e52d84b6e9a0c41d7b8e2f605, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::IntroVideoSequence
+  clip: {fileID: 32900000, guid: e7c6ac35706e5744d8dcee88862257a1, type: 3}
+  audioGroup: {fileID: -2219433998997485648, guid: 0ab9632c2e618b841a838ef7230a4d1a, type: 2}
+  fadeInDuration: 0.5
+  fadeOutDuration: 0.6
+  holdBlackAfter: 0.2
+  prepareTimeout: 5
+  playInEditor: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

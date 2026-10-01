@@ -23,7 +23,7 @@ using UnityEngine.UI;
 ///
 /// The title bar is painted here from <see cref="SO_UIThemeConfig"/> rather than by a
 /// UIThemeApplier: the applier repaints on enable and would overwrite the per-kind colour. Every
-/// other node of the window is themed by UIStyle_InteractionCanvas.
+/// other node of the window is themed by its own UIThemeApplier.
 /// </summary>
 public class InteractionPromptView : BaseScreenView
 {
@@ -192,8 +192,8 @@ public class InteractionPromptView : BaseScreenView
 
     /// <summary>
     /// Any modal (inventory, pause, settings, sequence panel, document reader...) covers the
-    /// prompt instantly. InteractionCanvas has sortingOrder 100 (the highest in the project),
-    /// so without this the prompt would be drawn ON TOP of any modal.
+    /// prompt instantly. InteractionCanvas has sortingOrder 100, above every modal canvas (pause 70,
+    /// settings 80), so without this the prompt would be drawn ON TOP of any modal.
     /// Snapping without animation on purpose: the modal may set Time.timeScale to 0.
     /// </summary>
     private void HandleModalPushed(IModalUI _)
@@ -252,7 +252,7 @@ public class InteractionPromptView : BaseScreenView
         if (currentTarget.CanInteract())
         {
             ApplyVariant(variant, icon);
-            SetLine(currentTarget.GetInteractText(), normalColor, appearing);
+            SetLine(currentTarget.GetPromptText(), normalColor, appearing);
             lastRenderedTarget = currentTarget;
             if (animate) ShowWindow();
         }

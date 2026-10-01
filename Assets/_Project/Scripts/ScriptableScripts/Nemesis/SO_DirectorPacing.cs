@@ -32,7 +32,8 @@ public class SO_DirectorPacing : ScriptableObject
     [SerializeField, Min(1f)] private float playerSightRange = 12f;
 
     [Tooltip("Una búsqueda con un avistamiento más nuevo que esto todavía es el encuentro: " +
-             "PeakFade la espera. Mismo orden que Sight Commit Time del Nemesis.")]
+             "PeakFade la espera. Se lee del último avistamiento que guarda la creencia del Nemesis, " +
+             "no de sus ojos.")]
     [SerializeField, Min(0.1f)] private float freshSightSeconds = 6f;
 
     [Header("Ritmo")]
@@ -46,8 +47,9 @@ public class SO_DirectorPacing : ScriptableObject
     [SerializeField] private Vector2 relaxSeconds = new Vector2(30f, 45f);
 
     [Header("Sensibilidad creciente (BuildUp)")]
-    [Tooltip("Segundos sin contacto en BuildUp antes de que el Director empiece a presionar la " +
-             "zona del jugador. No cuenta mientras el jugador está en el Hub.")]
+    [Tooltip("Segundos sin encuentros en BuildUp antes de que el Director empiece a presionar la " +
+             "zona del jugador. No cuenta mientras el jugador está en el Hub. Qué es un encuentro: " +
+             "ver 'Qué cuenta como encuentro', al final.")]
     [SerializeField, Min(5f)] private float quietTimeout = 90f;
 
     [Tooltip("Intensidad del primer pedido de presión.")]
@@ -68,6 +70,69 @@ public class SO_DirectorPacing : ScriptableObject
              "los pesos de ruta: sin ruido y sin sentidos extra. Si te lo cruzás, te persigue igual.")]
     [SerializeField, Range(0f, 1f)] private float retreatIntensity = 0.8f;
 
+    // Campos nuevos siempre al final: un asset viejo los lee con el valor por defecto de acá.
+
+    [Header("Persistencia de la búsqueda (plan §18.5 C1)")]
+    //
+    // Multiplica Search Quiet Window y Search Hard Cap del Nemesis según el ritmo: cuánto silencio
+    // tolera antes de dejar de buscar, y el tope. Es un préstamo de números sobre una copia de
+    // SO_NemesisData, como el boost de sentidos, y se devuelve. Nunca hace que ignore lo que siente:
+    // una evidencia fresca renueva la búsqueda igual.
+
+    [Tooltip("Persistencia en BuildUp, sin sensibilidad creciente. 1 = la búsqueda dura lo que dice " +
+             "SO_NemesisData.")]
+    [SerializeField, Min(0.1f)] private float buildUpPersistence = 1f;
+
+    [Tooltip("Persistencia con la sensibilidad creciente al máximo. Sube con su intensidad: entre " +
+             "Build Up Persistence (intensidad 0) y esto (intensidad 1). Si hace rato que no pasa " +
+             "nada, cuando te encuentra te busca más (Mr. X, C1).\n\n" +
+             "Por encima de 1.5, subir también Search Tail Timeout de NemesisChaseMusic: tiene que " +
+             "quedar por encima de Search Hard Cap × esto, o la música se corta a mitad de búsqueda.")]
+    [SerializeField, Min(0.1f)] private float risingMaxPersistence = 1.5f;
+
+    [Tooltip("Persistencia en SustainPeak.")]
+    [SerializeField, Min(0.1f)] private float sustainPeakPersistence = 1f;
+
+    [Tooltip("Persistencia en PeakFade. Por debajo de 1 ayuda a que el encuentro termine solo, que " +
+             "es lo que PeakFade espera para pasar a Relax.")]
+    [SerializeField, Min(0.1f)] private float peakFadePersistence = 0.75f;
+
+    [Tooltip("Persistencia en Relax: corta antes y se va, así la retirada deja de ser invisible. Con " +
+             "0.5 la ventana de silencio queda en ~4 s; si el Nemesis se siente regalado, subir a 0.75.")]
+    [SerializeField, Min(0.1f)] private float relaxPersistence = 0.5f;
+
+    [Header("Vuelve a pasar (plan §18.5 C2)")]
+    [Tooltip("Segundos (se sortea entre x e y) entre una búsqueda que terminó vacía en BuildUp y la " +
+             "presión sobre la zona de esa búsqueda. Si en el medio termina otra vacía, cuenta desde " +
+             "la última. Sorteada para que no se lea como una cita.\n\n" +
+             "Se aplica sólo con el Nemesis patrullando, todavía en BuildUp y sin otra presión (un " +
+             "puzzle o la sensibilidad creciente ganan). Si al vencer está cazando, reintenta 10 s " +
+             "después. Una captura o salir de BuildUp la cancelan; en Relax nunca se programa.")]
+    [SerializeField] private Vector2 revisitDelay = new Vector2(20f, 40f);
+
+    [Tooltip("Intensidad de esa presión. Sólo ancla y pesos de ruta: sin ruido y sin sentidos. Es un " +
+             "sesgo de la patrulla, no una orden de ir.")]
+    [SerializeField, Range(0f, 1f)] private float revisitIntensity = 0.5f;
+
+    [Tooltip("Cuántos segundos dura esa presión.")]
+    [SerializeField, Min(1f)] private float revisitDuration = 30f;
+
+    [Header("Qué cuenta como encuentro (silencio, plan §18.5 C3)")]
+    //
+    // El silencio (Quiet Time) se mide por encuentros, no por metros. Lo reinician: la persecución,
+    // "el jugador lo ve", escondido con búsqueda cerca, una captura, y lo de abajo. La proximidad sigue
+    // subiendo el medidor igual (Proximity Gain): lo que cambia es sólo qué corta el silencio.
+
+    [Tooltip("Proximidad (0..1, por NavMesh dentro de Proximity Radius del Nemesis) por encima de la " +
+             "cual tenerlo cerca ya es un encuentro. 0.75 ≈ 3 m con el radio de 12 m.\n\n" +
+             "Alto a propósito: en la testbed el 94 % del NavMesh queda a menos de 12 m de alguna ruta, " +
+             "y cuando cualquier pasada contaba, la patrulla reiniciaba el silencio sola.")]
+    [SerializeField, Range(0f, 1f)] private float quietProximityThreshold = 0.75f;
+
+    [Tooltip("Segundos: el Nemesis buscando o investigando con evidencia del jugador más nueva que " +
+             "esto es un encuentro. Una pista (señuelo, ruido del Director) no cuenta: no es el jugador.")]
+    [SerializeField, Min(0f)] private float encounterBeliefFreshness = 10f;
+
     public float ProximityGain => proximityGain;
     public float ChaseGain => chaseGain;
     public float PlayerSeesNemesisGain => playerSeesNemesisGain;
@@ -85,9 +150,20 @@ public class SO_DirectorPacing : ScriptableObject
     public float RisingMaxIntensity => risingMaxIntensity;
     public float RisingRepeatSeconds => risingRepeatSeconds;
     public float RetreatIntensity => retreatIntensity;
+    public float BuildUpPersistence => buildUpPersistence;
+    public float RisingMaxPersistence => risingMaxPersistence;
+    public float SustainPeakPersistence => sustainPeakPersistence;
+    public float PeakFadePersistence => peakFadePersistence;
+    public float RelaxPersistence => relaxPersistence;
+    public Vector2 RevisitDelay => revisitDelay;
+    public float RevisitIntensity => revisitIntensity;
+    public float RevisitDuration => revisitDuration;
+    public float QuietProximityThreshold => quietProximityThreshold;
+    public float EncounterBeliefFreshness => encounterBeliefFreshness;
 
     public float RollSustainPeak() => Roll(sustainPeakSeconds);
     public float RollRelax() => Roll(relaxSeconds);
+    public float RollRevisitDelay() => Roll(revisitDelay);
 
     private static float Roll(Vector2 range)
     {

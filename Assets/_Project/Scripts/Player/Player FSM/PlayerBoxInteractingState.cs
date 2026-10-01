@@ -10,14 +10,18 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     // ── Four-way push ───────────────────────────────────────────────────────────
     //
-    // W pushes the box away, S pulls it back, D / A slide it right / left — relative to the face
-    // the player grabbed, not to the camera, so the box always travels along its own axes. Only one
-    // direction at a time: the most recently pressed key that is still held wins, so holding W and
-    // then pressing D switches to D, and releasing D falls back to W.
+    // The box only ever travels along its own axes: away from the grabbed face, back towards the
+    // player, or sliding to either side. Which key does which is read off the camera every frame,
+    // like walking: each key points somewhere on screen (W up, D right...), and the box takes
+    // whichever of its four axes lies closest to that. With the camera behind the player that is
+    // W push, S pull, A / D slide; orbit it round to the player's right and W becomes the slide
+    // that carries the box away from the camera. Only one direction at a time: the most recently
+    // pressed key that is still held wins, so holding W and then pressing D switches to D, and
+    // releasing D falls back to W.
     //
     // Frame the key went down for each direction, or -1 while it is not held. Frames rather than
     // time so two presses are ordered even when they land within the same millisecond.
-    private const int Forward = 0, Back = 1, Right = 2, Left = 3;
+    private const int Forward = 0, Right = 1, Back = 2, Left = 3;
     private readonly int[] pressedFrame = { -1, -1, -1, -1 };
 
     // A raw axis past this counts as held. Keyboard gives exactly ±1; the margin keeps a resting
@@ -223,19 +227,19 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     /// <summary>
     /// The world-space push direction for this frame, or zero. Tracks when each direction was
-    /// pressed and returns the latest one still held, so the box only ever moves along one axis.
+    /// pressed and takes the latest one still held, then moves the box along whichever of its own
+    /// axes lies closest to where that key points on screen right now.
     /// </summary>
     private Vector3 ReadPushDirection()
     {
-        // Raw, same as the rest of the player's input: the smoothed axis keeps reporting a value
-        // for a third of a second after release.
-        float vertical = Input.GetAxisRaw("Vertical");
-        float horizontal = Input.GetAxisRaw("Horizontal");
+        // Same action and same unsmoothed reading as walking (see PlayerStateManager.InputUpdate),
+        // so keyboard, gamepad and any rebinding push the box exactly as they walk.
+        Vector2 move = GameInput.MoveValue;
 
-        Track(Forward, vertical > AxisThreshold);
-        Track(Back, vertical < -AxisThreshold);
-        Track(Right, horizontal > AxisThreshold);
-        Track(Left, horizontal < -AxisThreshold);
+        Track(Forward, move.y > AxisThreshold);
+        Track(Back, move.y < -AxisThreshold);
+        Track(Right, move.x > AxisThreshold);
+        Track(Left, move.x < -AxisThreshold);
 
         int latest = -1;
         for (int i = 0; i < pressedFrame.Length; i++)
@@ -252,13 +256,29 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         forward.Normalize();
         Vector3 right = Vector3.Cross(Vector3.up, forward);
 
+        // Where the key points on screen, laid flat on the floor: "up" on screen is the way the
+        // camera looks. The real view and not the camera-to-player line, which the over-the-
+        // shoulder framing skews away from what the screen shows (see ViewForward).
+        Vector3 view = playerStateManager.ViewForward;
+        view.y = 0f;
+        if (view.sqrMagnitude < 0.0001f) view = forward;
+        view.Normalize();
+        Vector3 viewRight = Vector3.Cross(Vector3.up, view);
+
+        Vector3 wanted;
         switch (latest)
         {
-            case Forward: return forward;
-            case Back:    return -forward;
-            case Right:   return right;
-            default:      return -right;
+            case Forward: wanted = view;       break;
+            case Right:   wanted = viewRight;  break;
+            case Back:    wanted = -view;      break;
+            default:      wanted = -viewRight; break;
         }
+
+        // The box axis closest to it: along the grabbed face's normal, or across it.
+        float along = Vector3.Dot(wanted, forward);
+        float across = Vector3.Dot(wanted, right);
+        if (Mathf.Abs(along) >= Mathf.Abs(across)) return along >= 0f ? forward : -forward;
+        return across >= 0f ? right : -right;
     }
 
     private void CacheBoxSolidColliders()

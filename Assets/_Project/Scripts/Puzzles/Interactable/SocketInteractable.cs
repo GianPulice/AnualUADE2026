@@ -40,7 +40,7 @@ public class SocketInteractable : BaseRangeInteractable, IPromptPresentation, IP
     public Sprite PromptIcon =>
         socketData != null && socketData.RequiredItem != null ? socketData.RequiredItem.ItemIcon : null;
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (socketData == null || socketData.RequiredItem == null) return string.Empty;
         if (IsInserted) return $"{socketData.RequiredItem.ItemName} inserted";

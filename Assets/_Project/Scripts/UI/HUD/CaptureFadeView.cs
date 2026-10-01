@@ -62,8 +62,19 @@ public class CaptureFadeView : MonoBehaviour
     /// </summary>
     public static event Action OnCaptureRevealed;
 
+    /// <summary>
+    /// The black cover starts lifting at the respawn point, <see cref="fadeOutDuration"/> before
+    /// <see cref="OnCaptureRevealed"/>. The player's camera reboots from here
+    /// (<see cref="PlayerCameraFeed"/>), so its boot is already on screen as the black clears.
+    /// </summary>
+    public static event Action OnCaptureRevealStarted;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => OnCaptureRevealed = null;
+    private static void ResetStatics()
+    {
+        OnCaptureRevealed = null;
+        OnCaptureRevealStarted = null;
+    }
 
     private CancellationTokenSource fadeCts;
 
@@ -159,7 +170,11 @@ public class CaptureFadeView : MonoBehaviour
     /// </summary>
     private void HandleCaptureResolved() =>
         FadeTo(0f, fadeOutDuration, blackHoldDuration,
-               beforeFade: () => SetOverlaysActive(true),
+               beforeFade: () =>
+               {
+                   SetOverlaysActive(true);
+                   OnCaptureRevealStarted?.Invoke();
+               },
                afterFade: () => OnCaptureRevealed?.Invoke()).Forget();
 
     /// <summary>

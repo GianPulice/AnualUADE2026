@@ -2,7 +2,8 @@
 
 > Relevado el 21/09/2026 contra el working tree (Fase 2 construida, sin commitear). Para usar en Play
 > con F9 (HUD) y F10 (consola). Cada prueba: **qué hacer → qué mirar → qué esperar**, y qué sería un
-> bug. Los casos de escondites van en `TestIñaki.unity` porque la testbed no tiene escondites.
+> bug. Los casos de escondites van en el *Hiding Lab* de la testbed (desde el 29/09; también siguen en
+> `TestIñaki.unity`).
 > Contexto de diseño: `docs/Plan-IA-Stalker.md` (§3 escondites, §13 casos, §16 revisión).
 
 **El Nemesis del testbed ya no arranca dormido.** Heredaba `activatedByPuzzleId = sp2_contenedores`
@@ -30,7 +31,34 @@ Id* vacío, en negrita). A1 lo verifica.
     arriba a 4.98 m.
   - **S4** al sur, entrando por el vano de z 12: Room A (z 5.5..12) → vano con línea amarilla en
     z 5.5 → Room B (z −1.5..5.5, adentro del trigger).
-- **Rutas** (peso 1, abiertas): Spine, Oeste, Alcove, Alta y BugLab (WP_00..06).
+- **Drop Lab** (desde el 27/09; x −9..9, z −29..−9): se entra desde ENTRADA por una puerta de 3 m en
+  su pared sur, detrás del spawn. Al fondo hay dos entrepisos, cada uno con una rampa contra la pared
+  lateral para volver a subir:
+  - al oeste, el de **3.6 m**, con `Drop_Hang` en su borde norte (x −4.5);
+  - al este, el de **2 m**, con `Drop_Hop` (x 4.5).
+
+  Las barandas del borde son invisibles y sólo te frenan a vos: el Nemesis se tira a través de ellas.
+  Lo arma *Tools/Nemesis/Build Drop Lab (NemesisTestbed)* (builder borrado el 29/09, en git).
+- **Hiding Lab** (desde el 29/09; x 2..28, z 6..34): se entra desde PASILLO por dos aberturas de 4 m en
+  su pared este, en z 6..10 (**Pasillo Sur**) y z 30..34 (**Pasillo Norte**). Los dos pasillos y el
+  **Pasillo Este** (x 20..24) rodean tres salas encadenadas: **Sala de mesas** (x 2..11, z 10..19),
+  **Vestuario** (z 19..30) y **Depósito** (x 11..20). Al este, el **Cuartito** sin salida (x 24..28).
+  Escondites (id `tb_*`), cada uno con su cartel:
+  - **A** `tb_locker_vista`, pared sur del Pasillo Sur (x 13): el pasillo recto para H-1.
+  - **B** `tb_locker_vuelta`, pared este del Pasillo Este, 2.5 m pasada la esquina (z 12.5): H-2 y H-3.
+  - **C** `tb_locker_callejon`, al fondo del Cuartito (z 20): acorralado, aviso D34.
+  - **D** `tb_mesa_1` (pared oeste, z 14.5, marcas 1–6 m) y `tb_mesa_2` (pared norte): H-4.
+  - **E** `tb_fila_1..3`, pared norte del Vestuario (x 4.2 / 5.6 / 7.0), con el Pasillo Norte detrás: H-8
+    (¿abre el correcto?) y H-10.
+  - **F** `tb_container`, contra la pared norte del Depósito, puerta en z 23.4 (marcas 1–6 m), y dos
+    cajas de 1.2 m para cortar la vista: H-5 y H-9.
+
+  `PASILLO/Wall_E` quedó desactivada (la reemplazan tres tramos del lab). Lo arma *Tools/Nemesis/Build
+  Hiding Lab (NemesisTestbed)*, que se puede volver a correr.
+- **Señuelos** (desde el 28/09, ya en la escena): radio en
+  SALA_LATERAL, sobre una mesa contra la pared norte (x −19); alarma en la pared oeste de PASILLO_CARGA
+  (z 38), audible en todo el nivel; cadenas en la pared oeste de PASILLO_OESTE (z 30). Se prenden con E.
+- **Rutas** (peso 1, abiertas): Spine, Oeste, Alcove, Alta, BugLab (WP_00..06), DropLab (WP_00..03) y HidingLab (WP_00..09: 01 a ~2 m de A, 02 a ~1.4 m de B, 03 en el Cuartito, 05 a ~5 m del container, 07 a ~2.8 m de la fila, 08 a ~5 m de la mesa 1, 09 detrás de la fila con la pared en medio).
 - **Spawns**: Carga (0, 41), Lateral (−16, 20), Alcove (0, 50), Alta (5, y 5.3, 46.4).
 - **Director**: `Testbed/Director` con 4 zonas: `entrada` (0, 0) r 8, `sala lateral` (−16, 20) r 10,
   `carga` (0, 40) r 9 y `planta alta` (9, y 5.3, 45.4) r 10. Sin disparadores por puzzle.
@@ -57,7 +85,7 @@ Id* vacío, en negrita). A1 lo verifica.
 - [ ] **A3. Escena y horneado.** El testbed tiene que ser la escena **activa**; Play pasa por
   `Bootstrap` y carga `Data` + el grupo *TestNemesis* (consola: `[Bootstrapper] 1…3`). **No** uses el
   *Bake* del NavMeshSurface con Zona1 abierta (hornea Zona1 adentro del testbed). Si hace falta, usá
-  `Tools/Nemesis/Build Bug Lab (NemesisTestbed)` o cerrá Zona1 antes.
+  `Tools/Nemesis/Build Hiding Lab (NemesisTestbed)` (hornea sólo el testbed) o cerrá Zona1 antes.
 - [ ] **A4. Validador** (en Edit): `Tools/Nemesis/Validate Navigation Setup`. → Esperado:
   `SafeVolume (BROKEN - on Default…)` (a propósito) y un `NavMeshModifier on 'Hinge' does nothing`
   por puerta (el testbed no hornea Default). Anotá cualquier otra cosa antes de probar.
@@ -151,13 +179,21 @@ Id* vacío, en negrita). A1 lo verifica.
   **Bug si:** entra.
 - [ ] **G21. SALA_ROTA.** → **Sí entra** (roto a propósito). Si no entra, alguien cambió el bake.
 
-**Montacargas**
+**Montacargas** (arreglado el 27/09: el hueco ya no es caminable en el NavMesh estático, la cabina
+llega al ras del piso alto, y al llegar suelta `Traversing`). En la consola **no** tiene que aparecer
+`could not WALK aboard` ni `the boarding link at 'End' … joins NOTHING`.
 - [ ] **G22. Que te siga.** Subí (E en la cabina) mientras te siente. → «para llegar hay que tomar el
   montacargas» → `Traversing` (verde); espera la cabina **quieto**; en el viaje `agente: apagado…`;
   al bajar sigue. Sin loop en `Traversing`. No hay panel de llamada y la cabina baja sola a los 12 s.
   **Bug si:** corre en el lugar esperando o abandona a mitad de camino.
 - [ ] **G23. Viajar con él / bajar mientras espera.** En la cabina con él te puede agarrar; si le
   aparecés en su piso mientras espera, suelta el viaje y te persigue.
+- [ ] **G26. Estado fijado durante el cruce.** Fijá un estado en F10 (p. ej. 4, Search) mientras
+  cruza. → Termina el cruce y recién después obedece el pin. **Bug si:** va y viene entre la parada y
+  la puerta de la cabina, o aparece del otro lado del hueco.
+- [ ] **G27. Arriba, te oye abajo.** Que llegue arriba y te oiga abajo por el hueco. → Al llegar
+  suelta `Traversing` y decide de nuevo: vuelve a bajar sólo si la ruta hacia vos sigue pasando por el
+  montacargas. **Bug si:** queda 12 s en `Traversing` ("ya se comprometió con el montacargas").
 
 **Audio y pausa**
 - [ ] **G24. Audio.** → Cada estado con su loop y crossfade (Investigating comparte con Searching,
@@ -204,6 +240,45 @@ Id* vacío, en negrita). A1 lo verifica.
 - [ ] **S4-c.** Caminá en Room B fuera de su vista, él a ≤8 m por camino. → Te oye como sin trigger.
 - [ ] **S4-d. Pared fina.** Pegate detrás de un tramo de `Wall A|B` con él a ~1 m del otro lado. → No
   te detecta ni te agarra; da la vuelta por el vano.
+
+**Señuelos y la elección (plan Fase 2B parte 4, casos 22–33 y 37)**
+F9 fila `foco`: qué persigue (vos, una pista o un vistazo), cuánto vale, y la última decisión con su
+pregunta, p. ej. `cambió: radio 0.36 > vos 0.28 [11]`. Antes, poner los señuelos (ver el mapa).
+- [ ] **E1. Alarma sin que te sienta** (caso 25). → Va a revisarla y vuelve a patrullar; no te
+  persigue. **Bug si:** arranca una persecución.
+- [ ] **E2. Te ve y prendés la radio o la alarma** (casos 22 y 30). → Te sigue a vos. Al perderte
+  busca primero donde te vio; si la alarma sigue sonando, a los ~7 s el foco pasa a ella
+  (`cambió: alarma … > vos …`). **Bug si:** con la alarma sonando, termina la búsqueda y vuelve a
+  patrullar sin ir nunca.
+- [ ] **E3. Radio lejos con la creencia vieja** (caso 31). Hacete perder, quedate quieto ~10 s y que
+  suene la radio. → Va y la rompe. Con sólo ~3 s de perderte, no va.
+- [ ] **E4. Cadenas tres veces desde lejos** (caso 32). → La primera y la segunda viene; la tercera ya
+  no (`ignoró cadenas … [7]`, "2 visitas vacías"). Después de cada visita vacía el foco vuelve a
+  `vos` (`soltó cadenas: revisó: nada → vos`), no a `nada`.
+- [ ] **E5. Cambia de idea** (caso 28). Mientras va a las cadenas, un paso suave del otro lado. → Se
+  frena ~0.4 s girando hacia vos y va hacia el paso.
+- [ ] **E6. Dos ruidos alternados** (caso 29). → No va y viene; termina lo que eligió.
+- [ ] **E7. Señuelo donde te está buscando** (caso 33). → Sigue barriendo ahí (`siguió con vos … [5]`).
+- [ ] **E8. Rompiendo la radio, te ve** (caso 37). → Corta y te persigue.
+- [ ] **E9. Paso suave + vistazo** (caso 26). → La `sospecha` sube más rápido que con uno solo; un
+  ruido solo nunca llega a 1, y tampoco la baja si ya estaba más arriba. Un vistazo por debajo del
+  umbral no cambia el `foco`.
+
+**Bajadas — Drop Lab (plan Fase 8, casos 12–16 y 55)**
+F9 fila `bajada`. Con gizmos, el arco de cada bajada: verde la `Hop` y ámbar la `Hang`.
+- [ ] **D1. Te persigue arriba y bajás por la rampa** (caso 12). Hacete ver en el entrepiso de 3.6 m y
+  bajá por la rampa. → Va al borde, se asoma y gruñe, se da vuelta y se descuelga, aterriza y queda un
+  momento abajo, y sigue persiguiendo. Igual con la `Hop` (salta, sin descolgarse). **Bug si:** baja
+  por la rampa detrás tuyo mientras la bajada es más corta, o se queda en `Traversing` al aterrizar.
+- [ ] **D2. Los dos abajo** (caso 13). → Nunca intenta subir por una bajada; sube por las rampas.
+- [ ] **D3. Captura o respawn con él en el aire** (caso 14; forzalo con F10). → La bajada termina igual.
+- [ ] **D4. Parado justo debajo del aterrizaje** (caso 15). → No te agarra en el aire.
+- [ ] **D5. Patrullando, sin creencia** (caso 16). Seguilo por `Route_DropLab`. → Baja de los
+  entrepisos por las rampas, no por las bajadas. **Bug si:** se tira patrullando.
+- [ ] **D6. Llega al borde con vos arriba y a la vista** (caso 55). → Se echa atrás y te persigue
+  arriba. F9 "— · 1 en enfriamiento"; por 8 s usa la rampa.
+- [ ] **D7. Barandas.** Caminá por el borde de los entrepisos y de las rampas. → Una baranda invisible
+  te frena; a él no. **Bug si:** te caés o él choca contra algo en el borde.
 
 **WIR-020, collider sólido en la capa de ruido**
 - [ ] **W20.** En Play, creá un Cube en la capa `DetectableAudio` sobre su camino en el PASILLO. →
@@ -263,20 +338,21 @@ Id* vacío, en negrita). A1 lo verifica.
   frente; a ≤1.5 m, en tu piso y sin pared, te detecta al toque (sin escondite, cuenta como que te ve).
   **Bug si:** te ve a 3 m o no te detecta pegado.
 
-Lo que sigue va en **`TestIñaki.unity` → "Hiding Test Area"** (Nemesis activo, checkpoint propio).
+Lo que sigue va en el **Hiding Lab** de la testbed (los ids entre paréntesis son los de ahí; en
+`TestIñaki.unity` → "Hiding Test Area" siguen los `test_*` de antes).
 E entra y sale; mantener F aguanta la respiración.
-- [ ] **H-1 (caso 1, `test_locker_a`).** Con él persiguiéndote, metete mientras te ve. → F9
-  `escondite: sabe test_locker_a (lo vio entrar) · yendo → revisando`, regla «sabe en qué escondite
+- [ ] **H-1 (caso 1, `tb_locker_vista`; en TestIñaki `test_locker_a`).** Con él persiguiéndote, metete mientras te ve. → F9
+  `escondite: sabe tb_locker_vista (lo vio entrar) · yendo → revisando`, regla «sabe en qué escondite
   está»; va al ApproachPoint, `Catch`, ~0.8 s quieto en la puerta y te saca: **aparecés afuera, en la
   ExitPose**. **Bug si:** se queda plantado frente al locker en `Chasing`, o va a donde te vio por
   última vez.
-- [ ] **H-2 (caso 2, `test_locker_b`).** Cortale la vista y metete cuando pasaron >0.75 s sin que te
+- [ ] **H-2 (caso 2, `tb_locker_vuelta`; en TestIñaki `test_locker_b`).** Cortale la vista y metete cuando pasaron >0.75 s sin que te
   vea. → `escondite: —` (tampoco «sospecha», aunque el medidor siga bajando); barre y se va a los
-  ~15 s. Ojo: WP 05/06 pasan a ~1.4 m del locker; si después te detecta por proximidad es el caso 3.
-- [ ] **H-3 (caso 3).** Adentro de `test_locker_b`, que pase por WP 05/06. → `sabe … (lo tiene
+  ~15 s. Ojo: WP_02 (en TestIñaki, WP 05/06) pasa a ~1.4 m del locker; si después te detecta por proximidad es el caso 3.
+- [ ] **H-3 (caso 3).** Adentro de `tb_locker_vuelta`, que pase por WP_02 (TestIñaki: `test_locker_b`, WP 05/06). → `sabe … (lo tiene
   encima)` **sin** `Chasing`, va a la puerta y te saca.
 - [ ] **H-4 (caso 4, mesa).** Con él mirando de frente: a ~5 m **no pasa nada** (bajo la mesa ve
-  7 × 0.5 = 3.5 m); a ≤3.5 m sube `lo distingue por test_table` **sin** `lo ve` ni `Chasing`; al pasar
+  7 × 0.5 = 3.5 m); a ≤3.5 m sube `lo distingue por tb_mesa_1` **sin** `lo ve` ni `Chasing`; al pasar
   0.4, «sospecha de un escondite» y va a mirar; a 1, `sabe…` y te saca. **Bug si:** persecución
   instantánea desde la mesa.
 - [ ] **H-5 (caso 5).** Escondido, mantené F y soltala con él a ~4 m. → «escucha un ruido» →
@@ -290,27 +366,25 @@ E entra y sale; mantener F aguanta la respiración.
   mientras subís al locker. → `sospecha … (lo vio de reojo al entrar)` → `Investigating` camina a la
   puerta y mira ~4 s; si seguís adentro te detecta al llegar y te saca; si saliste antes, lo da por
   revisado.
-- [ ] **H-9 (caso 18, rendijas).** En `test_locker_a`, que pase de frente a 2–3.5 m. → `lo distingue
+- [ ] **H-9 (caso 18, rendijas).** En `tb_locker_vista` (WP_01, ~2 m) o la fila del Vestuario (WP_07, ~2.8 m), que pase de frente a 2–3.5 m. → `lo distingue
   por …` → sospecha → va a mirar → te saca. Que pase **por detrás** del locker a 2–3 m: nada. En el
   container: nada salvo que pase a ≤1.5 m.
 - [ ] **H-10 (caso 19–20).** Al sacarte, aparecés en la ExitPose, no adentro del mueble ni despedido
-  por la física. Si pasa a ≤1 m de un locker ocupado **con una pared en medio**, nada.
+  por la física. Si pasa a ≤1 m de un locker ocupado **con una pared en medio**, nada: metete en
+  `tb_fila_2` y esperá a que WP_09 lo pase por el Pasillo Norte, del otro lado de la pared.
 
 ## Huecos del testbed
 
-- **No hay ningún `HidingSpot`.** Por eso H-1…H-10 van en TestIñaki. Para traerlos: instanciar
-  `Prefabs/HidingSpotFather/HidingSpot_Locker`, `_UnderTable` y `_Container` (p. ej. un locker en lugar
-  de la decoración de ENTRADA, otro a la vista en SALA_LATERAL, otro "a la vuelta" en SALA_ROTA o
-  ALCOVE, la mesa en PASILLO_CARGA y el container en SALA_MONTACARGAS), con el ApproachPoint sobre
-  NavMesh a ≤1 m del InteriorPose y un waypoint que pase a ≤1.5 m. Rehornear sólo el testbed. **El
-  testbed no hornea `Default`:** el collider sólido del container está en `Default` y ahí no haría
-  hueco — pasarlo a `Props` o sumar un `NavMeshModifierVolume` en `Props`.
+- ~~**No hay ningún `HidingSpot`.**~~ **Resuelto el 29/09** con el *Hiding Lab* (ver el mapa). El
+  collider del container y de los lockers queda en `Default`, que el testbed no hornea: cada escondite
+  lleva un `NavMeshModifierVolume` Not Walkable en `Props` del tamaño del mueble.
 - **Director por puzzles:** los disparadores no se pueden probar en ningún lado. En el testbed están
   vacíos y no hay puzzles; **en Zona1 el Director de la Fase 0 se perdió en el merge `16b1962c`**
   (hoy apagado, 0 zonas, 0 disparadores; Plan §14.1). La Fase 5 (tensión, ritmo, retirada) no existe.
-- **La palanca 2 del Director (pesos de ruta) no se ve** con la patrulla por cúmulos: el sorteo usa
-  `Cluster.Weight`, que se congela al armar el grafo. Para verla habría que apagar
-  `clusterPatrolEnabled`, que es un SO compartido y persiste.
+- ~~**La palanca 2 del Director (pesos de ruta) no se ve** con la patrulla por cúmulos: el sorteo usa
+  `Cluster.Weight`, que se congela al armar el grafo.~~ **Arreglado el 27/09 (plan Fase 2B parte
+  3):** el sorteo lee el peso vivo de las rutas de cada cúmulo (`NemesisRouteGraph.ClusterWeight`).
+  El peso se ve cambiar en la etiqueta del cúmulo activo.
 - No hay música de persecución; el montacargas no tiene `ElevatorCallPanel` y baja solo a los 12 s
   (si quedás varado arriba, F10).
 - `NemesisRooms` toma Room A y Room B de S4 como una sola habitación (y el vestíbulo y el cuarto de

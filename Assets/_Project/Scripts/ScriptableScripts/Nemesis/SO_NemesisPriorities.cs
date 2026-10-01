@@ -171,11 +171,17 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.TimeInStateUnder(ENemesisThreshold.ElevatorCommitTime),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
 
+            // Not while its attention is on a lead (D35): the choice already weighed that belief
+            // against the lead and the lead won. Taking the lift towards the belief anyway carried
+            // the Nemesis to the other floor, and "su atención está en una pista" then sent it back
+            // down to the lead (review 28/09). A trip already under way is still finished: the rung
+            // above holds it.
             Rung(NemesisStateManager.ENemesisState.Traversing,
                  "para llegar hay que tomar el montacargas",
                  interrupts: false,
                  NemesisCondition.Is(ENemesisPredicate.RouteToBeliefCrossesFloors),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
+                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime),
+                 NemesisCondition.Not(ENemesisPredicate.FocusIsLead)),
 
             // Plainly visible. An interrupt for the same reason as the capture: seeing the player
             // is the one piece of information that should never be held behind a dwell window.
@@ -238,25 +244,40 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
                  NemesisCondition.Is(ENemesisPredicate.IsCheckingSpot)),
 
-            // Once in, the search runs on its own clock: it is a fixed budget of time to spend on
-            // a belief, not something to re-justify every frame — and ABOVE "hears a noise" is
-            // load-bearing, not cosmetic.
+            // ITS ATTENTION IS ON A LEAD (plan §17.4–§17.5, Fase 2B part 4): a decoy or another noise
+            // that is not the player won the choice (NemesisChoice asks FocusArbiter every time
+            // something new comes in). It used to be "oye un señuelo u otro ruido", HearsLead, below the
+            // player's noise: HEARING a decoy was enough to go, however many times the chains had sent
+            // it off for nothing, and a decoy could never pull it out of a search however cold.
             //
-            // NemesisSearchingState's own UpdateState already has a "a fresh noise outranks
-            // everything, re-aim the cut-off" mechanism (see RetargetSearch), and it never got to
-            // run: with the noise rung sitting above this one, hearing anything while searching —
-            // even the same noise still going — voted the ladder into Investigating before
-            // Searching.UpdateState ever executed a single frame. StateManager.Update runs a
-            // transition OR UpdateState, never both, so the retarget logic was dead code and every
-            // noise cut the search short — which read as "sometimes short, sometimes the full
-            // budget" depending on whether the player happened to be making noise. This rung
-            // outranking the noise rung is what lets Searching absorb a fresh noise itself instead
-            // of the ladder yanking the Nemesis out from under it.
+            // ABOVE THE SEARCH BUDGET, and that is the point of moving it: the choice already weighed
+            // the lead against the belief (a precise, fresh belief beats a radio across the level; a
+            // ten-second-old one does not, case 31), so the ladder only carries the decision out.
+            // Everything above it still wins — seeing the player, the chase grace, a hiding spot it
+            // knows or is checking — and while a spot is suspected or known the choice lets go of any
+            // lead, so "sospecha de un escondite" below is not outranked by a decoy either.
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "su atención está en una pista",
+                 interrupts: false,
+                 NemesisCondition.Is(ENemesisPredicate.FocusIsLead)),
+
+            // Once in, the search runs until it COOLS DOWN (plan §18.5 B, Fase 2B part 3): while the
+            // silence since the last evidence about the player is under a window scaled by how good
+            // that evidence was, with a minimum and a cap — see NemesisSearchingState.IsWarm and
+            // SearchCooling. It used to be a fixed TimeInStateUnder(SearchTimeOut) budget: a footstep
+            // at second fourteen was ignored at second fifteen, and a search with no evidence at all
+            // still stood around for the full fifteen.
+            //
+            // ABOVE "hears a noise" is load-bearing, not cosmetic. Searching absorbs fresh evidence
+            // itself (NemesisSearchingState.TrackEvidence moves or re-centres the sweep). With the
+            // noise rung sitting above this one, hearing anything while searching voted the ladder
+            // into Investigating before Searching.UpdateState ever executed a frame — StateManager
+            // runs a transition OR UpdateState, never both — and every noise cut the search short.
             Rung(NemesisStateManager.ENemesisState.Searching,
                  "le queda presupuesto de búsqueda",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
-                 NemesisCondition.TimeInStateUnder(ENemesisThreshold.SearchTimeOut)),
+                 NemesisCondition.Is(ENemesisPredicate.IsSearchWarm)),
 
             // Coming off a pursuit still believing something: sweep rather than file it away.
             // Two rungs and not one because a rung is an AND — splitting the old
@@ -272,7 +293,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // sweep anchored there (Plan-IA-Stalker §16.4), ended the red vignette and cut the
             // music tail (D5 keeps it only through Searching/Traversing), and then followed the
             // player by ear at walking pace: a pursuit with none of its feedback. Searching already
-            // absorbs a fresh noise itself (RetargetSearch) and checks known and suspected hiding
+            // absorbs fresh evidence itself (TrackEvidence) and checks known and suspected hiding
             // spots first, so nothing below needs to outrank it on the way out of a chase.
             Rung(NemesisStateManager.ENemesisState.Searching,
                  "venía persiguiendo y todavía cree algo",
@@ -332,14 +353,24 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.Is(ENemesisPredicate.HearsPlayer)),
 
             // Still on its way to a noise it has not reached. Leaves on arrival or on running out
-            // of patience; a fresh noise renews it for free, because the belief age resets on
-            // every detection.
+            // of patience; a fresh noise from the player renews it for free, because the belief age
+            // resets on every detection of the player. A lead is held by the rung below instead.
             Rung(NemesisStateManager.ENemesisState.Investigating,
                  "sigue yendo hacia el último ruido",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Not(ENemesisPredicate.HasArrived),
                  NemesisCondition.BeliefAgeUnder(ENemesisThreshold.InvestigationTimeOut)),
+
+            // The same walk towards a LEAD. Leads no longer keep BeliefAge young — a decoy is not the
+            // player — so the rung above would drop the Nemesis halfway to a radio; this holds it on
+            // the lead's own clock (plan Fase 2B: leads and BeliefAge change together).
+            Rung(NemesisStateManager.ENemesisState.Investigating,
+                 "sigue yendo hacia la pista",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
+                 NemesisCondition.Not(ENemesisPredicate.HasArrived),
+                 NemesisCondition.Is(ENemesisPredicate.HasFreshLead)),
 
             // Arrived at the noise: look around there for InvestigationDwellTime before letting go
             // (DIS-002). Without this, arriving was finishing — a noise inside the stopping distance
@@ -349,6 +380,26 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Is(ENemesisPredicate.IsInspectingNoise)),
+
+            // INVESTIGATED AND FOUND NOTHING, BUT THE PLAYER WAS SENSED A MOMENT AGO: SEARCH A LITTLE
+            // (plan D26, §18.5 B). The ear used to be binary — walk to the noise, look for four
+            // seconds, back to patrol — even when that noise was the player's own footstep two
+            // seconds earlier. Now the inspection over and the player still inside the search's
+            // silence window hands over to a SHORT search around the belief: NemesisSearchingState
+            // sees it came from Investigating and uses a fraction of the cap (SearchEscalatedCapScale).
+            // A lead alone does not escalate: with nothing fresh about the player this falls through.
+            //
+            // IsInvestigationWarm and not BeliefAgeUnder(SearchQuietWindow), as first shipped: walking
+            // to the player's noise, the silence counts from when it GOT there, so the walk to a far
+            // noise no longer uses the window up before the look-around ends (playtest 27/09).
+            //
+            // Below every Investigating rung, so the walk and the look-around finish first; above the
+            // unconditional patrol, which is what it replaces.
+            Rung(NemesisStateManager.ENemesisState.Searching,
+                 "investigó un ruido tuyo y sigue tibio",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
+                 NemesisCondition.Is(ENemesisPredicate.IsInvestigationWarm)),
 
             // No conditions: always true. The ladder must end in something unconditional or it
             // can fall through to "stay where you are", which reads as a frozen Nemesis.
@@ -475,7 +526,8 @@ public enum ENemesisPredicate
     /// </summary>
     SeesPlayer,
 
-    /// <summary>A noise is audible right now.</summary>
+    /// <summary>The player's own noise is audible right now — footsteps, breathing. Since plan Fase
+    /// 2B, not any noise: a decoy or a Director pulse is <see cref="HearsLead"/>.</summary>
     HearsPlayer,
 
     /// <summary>It remembers a position at all. A belief is a memory: this stays true long after
@@ -486,8 +538,9 @@ public enum ENemesisPredicate
     /// post-capture cooldown expired.</summary>
     CanCatchPlayer,
 
-    /// <summary>Getting to the belief means taking the freight elevator. Goes through the
-    /// throttled route oracle — see NemesisDecision for why that matters.</summary>
+    /// <summary>Getting to the belief means changing floor by a link: the freight elevator, or a drop
+    /// (plan §15). Goes through the throttled route oracle — see NemesisDecision for why that
+    /// matters.</summary>
     RouteToBeliefCrossesFloors,
 
     /// <summary>The agent has reached the end of its current path.</summary>
@@ -521,12 +574,16 @@ public enum ENemesisPredicate
     IsSuspicious,
 
     /// <summary>NemesisElevatorUser has a crossing in flight: waiting for the cabin, boarding,
-    /// riding or stepping off. Nothing should re-decide the state while this holds.</summary>
+    /// riding or stepping off — or a drop, from the look over the edge to the end of the recovery
+    /// (plan §15). Nothing should re-decide the state while this holds.</summary>
     IsUsingElevator,
 
     /// <summary>NemesisElevatorUser has just GIVEN UP on a lift and shelved it for its cooldown —
     /// the cabin never came, or the player turned up on this floor. The opposite fact from
-    /// <see cref="IsUsingElevator"/>, and the one that ends a commitment.</summary>
+    /// <see cref="IsUsingElevator"/>, and the one that ends a commitment. Also true for a moment
+    /// after a drop ends, landed or given up on (plan §15, D29): a drop is over well inside
+    /// ElevatorCommitTime, and without this the Nemesis stayed in Traversing after landing instead
+    /// of chasing.</summary>
     HasGivenUpOnElevator,
 
     /// <summary>The chase has gone a whole window without closing the distance to the player over
@@ -581,6 +638,45 @@ public enum ENemesisPredicate
     /// <see cref="KnowsHidingSpot"/> would be true, so the two never hold together.
     /// </summary>
     SuspectsHidingSpot,
+
+    /// <summary>
+    /// Hears something that is NOT the player this sweep: a decoy, a Director pulse (plan §17, D18,
+    /// D19). A lead worth walking to, never the player's position.
+    /// </summary>
+    HearsLead,
+
+    /// <summary>
+    /// Carries a lead younger than InvestigationTimeOut. Holds the walk towards a decoy now that
+    /// leads no longer keep the belief about the player young (plan Fase 2B).
+    /// </summary>
+    HasFreshLead,
+
+    /// <summary>
+    /// Searching has not cooled down yet (plan §18.5 B, Fase 2B part 3): the silence since the last
+    /// evidence about the player is under the window scaled by how good that evidence was, it is
+    /// under the cap, and it has not searched everything it can reach — or it is still inside the
+    /// minimum time. Read off <see cref="NemesisSearchingState.IsWarm"/>; false outside Searching.
+    /// Replaced the fixed TimeInStateUnder(SearchTimeOut) budget.
+    /// </summary>
+    IsSearchWarm,
+
+    /// <summary>
+    /// Investigating is still warm enough to turn into a short search (D26): walking to the player's
+    /// own noise, the silence counted from when it got there is under the search's window; after
+    /// anything else, the belief itself is younger than it. Read off
+    /// <see cref="NemesisInvestigatingState.IsWarm"/>; false outside Investigating. Replaced
+    /// BeliefAgeUnder(SearchQuietWindow) on the D26 rung (playtest 27/09: the walk to a far noise used
+    /// the whole window up before the look-around ended).
+    /// </summary>
+    IsInvestigationWarm,
+
+    /// <summary>
+    /// Its attention is on a LEAD (plan §17.4, Fase 2B part 4): a decoy or another noise that is not
+    /// the player won the choice (<see cref="NemesisChoice"/>, <see cref="FocusArbiter"/>). Replaced
+    /// HearsLead on the lead rung: hearing a decoy is no longer enough to go — a habituated one, or one
+    /// across the level while the belief is fresh, is heard and ignored.
+    /// </summary>
+    FocusIsLead,
 }
 
 /// <summary>
@@ -599,4 +695,11 @@ public enum ENemesisThreshold
     ElevatorCommitTime,
     BeliefMemoryTime,
     Custom,
+
+    // APPEND NEW THRESHOLDS HERE: serialised as integers, like ENemesisPredicate.
+
+    /// <summary>SO_NemesisData.SearchQuietWindow, as lent by the Director: how much silence a search
+    /// tolerates. The D26 rung used to ask "is the belief still inside it"; it asks
+    /// IsInvestigationWarm since 27/09, and this stays for any rung a designer builds on it.</summary>
+    SearchQuietWindow,
 }

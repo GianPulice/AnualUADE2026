@@ -1080,6 +1080,8 @@ GameObject:
   - component: {fileID: 8823410557001220303}
   - component: {fileID: 7739481052210330915}
   - component: {fileID: 9034987497469841307}
+  - component: {fileID: 3430693994572452678}
+  - component: {fileID: 3468922629937603496}
   m_Layer: 0
   m_Name: Nemesis
   m_TagString: Untagged
@@ -1128,7 +1130,9 @@ MonoBehaviour:
   lifecycle: {fileID: 1161570539962797983}
   lookAround: {fileID: 2070260496085017616}
   chaseProgress: {fileID: 9034987497469841307}
-  nemesisAudio: {fileID: 0}
+  hidingAwareness: {fileID: 3468922629937603496}
+  belief: {fileID: 3430693994572452678}
+  nemesisAudio: {fileID: 7739481052210330915}
   elevatorUser: {fileID: 4677969932427935509}
   nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
   captureGracePeriod: 4
@@ -1323,6 +1327,7 @@ MonoBehaviour:
   drawGizmos: 1
   drawVisionCone: 0
   drawCrouchedVisionCone: 0
+  drawUnderTableVisionCone: 1
   drawFocusCone: 0
   drawProximityDetection: 0
   drawHearing: 1
@@ -1330,6 +1335,7 @@ MonoBehaviour:
   drawSearchSweep: 1
   drawRoomSweep: 1
   drawProximityVignette: 0
+  drawHidingKnowledge: 1
   drawChaseTrail: 1
   arcSegments: 12
   drawLabels: 0
@@ -1462,6 +1468,22 @@ MonoBehaviour:
   fieldOfListening: {fileID: 6366883338896328337}
   occludedVolumeMultiplier: 0.5
   occlusionEaseSpeed: 3
+  dropGrowls:
+  - {fileID: 8300000, guid: 8811366c2e89f6e46b36c33e23a57e28, type: 3}
+  dropHandSlam: {fileID: 0}
+  dropImpact: {fileID: 8300000, guid: 61b3513be07923c86c9c16289a7b4905, type: 3}
+  dropCueVolume: 1
+  dropImpactPitch: 0.85
+  knownSpotStings:
+  - {fileID: 8300000, guid: 8811366c2e89f6e46b36c33e23a57e28, type: 3}
+  knownSpotStingPitch: 0.8
+  knownSpotStingMinDistance: 2
+  lostVoices:
+  - {fileID: 8300000, guid: fa1657820bb920744802611ed50e46bd, type: 3}
+  - {fileID: 8300000, guid: a7c22b19329bb4f40826f790b8c3c4c9, type: 3}
+  activationSoundId: sfx_nemesis_activacion
+  voiceVolume: 1
+  voiceCooldown: 3
 --- !u!114 &9034987497469841307
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1474,6 +1496,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fab7ff8d1c35fde49a789305cc2a3222, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NemesisChaseProgress
+--- !u!114 &3430693994572452678
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 54b5adeb313cff54da90983dd31a08ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisBelief
+--- !u!114 &3468922629937603496
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6133474145954848426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa6c4c978f8ee0247ac65ad322efdee8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisHidingAwareness
 --- !u!1 &6671652095207704162
 GameObject:
   m_ObjectHideFlags: 0

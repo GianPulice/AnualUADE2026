@@ -143,54 +143,26 @@ public class SO_NemesisData : ScriptableObject
              "the moment it starts climbing, means it never gets there at all.")]
     [SerializeField, Min(0f)] private float elevatorCommitTime = 12f;
 
-    [Tooltip("Seconds of movement the Nemesis extrapolates ahead of a remembered position when " +
-             "deciding where to look.\n\n" +
-             "Keep it small. The velocity it extrapolates was OBSERVED, not read off the player, " +
-             "so a long lead turns a stale glimpse into a confident claim about somewhere nobody " +
-             "was ever seen — and a monster that arrives where you were going reads as the game " +
-             "cheating, not as the monster being sharp. 0 disables prediction entirely.")]
-    [SerializeField, Range(0f, 1.5f)] private float searchLeadTime = 0.4f;
-
-    [Tooltip("Radius, in metres, of the random scatter the Searching state falls back to when the " +
-             "patrol graph cannot offer an unswept waypoint.\n\n" +
-             "It used to be a hardcoded 5 inside the state, which made it invisible: nobody tuning " +
-             "the search could see how tight a circle the Nemesis was actually walking. Small " +
-             "values have it pacing the room it lost you in; large ones scatter it so wide the " +
-             "sweep stops reading as a search at all.")]
+    [Tooltip("Radius, in metres, of the sweep the Searching state runs around where it STANDS when " +
+             "it has no belief to centre one on — entered straight from a capture, or with only a " +
+             "known hiding spot to go on (plan §18.5 A).\n\n" +
+             "Small values have it pacing on the spot; large ones scatter it so wide the sweep " +
+             "stops reading as a search at all. With a belief the sweep is sized off the evidence " +
+             "instead (Search Sweep Min Radius, Search Sweep Evidence Margin, Room Sweep Radius).")]
     [SerializeField, Min(1f)] private float searchSweepRadius = 5f;
 
     [Header("Search - donde busca")]
     //
-    // El barrido elegia el waypoint sin visitar MAS CERCANO DE DONDE ESTABA PARADO, y nada mas.
-    // La ultima posicion conocida no entraba en la cuenta despues del primer destino, asi que el
-    // Nemesis daba vueltas por la habitacion donde te perdio mientras vos salias del edificio.
-    // Estos pesos convierten esa eleccion en una mezcla: donde te vio, donde cree que fuiste, y
-    // donde todavia no miro.
+    // Desde el 27/09 (plan §18, Fase 2B parte 2) la búsqueda barre puntos del NavMesh alrededor de la
+    // creencia, no waypoints: la ruleta de waypoints (donde te vio, donde cree que fuiste, donde no
+    // miró) y la intercepción se sacaron. Quedan la penalización de lo ya barrido y la pausa.
 
-    [Tooltip("Cuantas veces mas probable es un waypoint por estar cerca de la ULTIMA POSICION " +
-             "CONOCIDA.\n\n" +
-             "Es el ancla de toda la busqueda: lo unico que el Nemesis realmente observo. En 1 no " +
-             "pesa nada y la busqueda vuelve a ser 'mira lo que tenga mas cerca'.")]
-    [SerializeField, Min(1f)] private float searchLastKnownBias = 3f;
-
-    [Tooltip("Cuantas veces mas probable es un waypoint por estar cerca de la posicion PREDICHA - " +
-             "la ultima conocida proyectada por Search Lead Time en la direccion en la que lo vio " +
-             "moverse.\n\n" +
-             "Este es el que hace que la busqueda vaya hacia adelante en vez de quedarse en el " +
-             "lugar del hecho. Subilo por encima del anterior y el Nemesis apuesta fuerte a que " +
-             "seguiste de largo; bajalo y se queda peinando el lugar donde te perdio.")]
-    [SerializeField, Min(1f)] private float searchPredictionBias = 2.5f;
-
-    [Tooltip("Metros de camino mas alla de los cuales los dos pesos de arriba dejan de aplicar.\n\n" +
-             "Chico = solo prioriza waypoints practicamente encima de donde te sintio. Grande = la " +
-             "busqueda entera se inclina hacia esa zona del nivel.")]
-    [SerializeField, Min(1f)] private float searchBiasFalloff = 20f;
-
-    [Tooltip("Cuanto se le recorta el peso a un waypoint que ya reviso EN ESTA busqueda. " +
+    [Tooltip("Cuanto se le recorta el peso a un punto que ya barrio EN ESTA busqueda. " +
              "0 lo descarta del todo, 1 le da lo mismo.\n\n" +
              "No es 0 a proposito: descartarlos del todo hace que una busqueda larga se quede sin " +
-             "candidatos y termine tirando puntos al azar. Con un resto de peso puede volver a " +
-             "pasar por un lugar, que es lo que hace de verdad alguien que busca.")]
+             "candidatos. Con un resto de peso puede volver a pasar por un lugar, que es lo que " +
+             "hace de verdad alguien que busca. Cuando todo el disco ya esta barrido, el barrido " +
+             "se abre un paso en vez de repetir.")]
     [SerializeField, Range(0f, 1f)] private float searchSweptPenalty = 0.15f;
 
     [Tooltip("Segundos que el Nemesis se queda quieto en cada punto de busqueda antes de elegir " +
@@ -203,42 +175,19 @@ public class SO_NemesisData : ScriptableObject
              "0 la desactiva y vuelve al encadenado de antes.")]
     [SerializeField, Min(0f)] private float searchPauseTime = 1.2f;
 
-    [Header("Search — room sweep (free roam)")]
+    [Header("Search — sweep area (free roam)")]
     //
-    // The search used to be able to look ONLY at patrol waypoints: PickSearchTarget rolled over
-    // graph nodes and the free NavMesh scatter was reachable only when the graph failed. A room
-    // with no waypoint inside it was therefore a room the Nemesis could not search, however
-    // plainly it had just watched you walk into it.
-    //
-    // These three turn the "it saw you go in there" case into a sweep of THAT ROOM, moving on the
-    // NavMesh itself with the waypoints demoted from a cage to a set of hints. See NemesisFreeRoam.
+    // The search sweeps an AREA on the NavMesh around the belief, with the waypoints inside it as
+    // just more candidates (NemesisFreeRoam). The area is clipped by the walls around its centre,
+    // and prefers the room the player was seen going into.
 
-    [Tooltip("Radius, in metres, of the area the Nemesis sweeps when it saw you enter somewhere " +
-             "and commits to searching it.\n\n" +
-             "This is the derived stand-in for 'the room'. There are no authored room volumes in " +
-             "the project, so the area is this radius around the last sighting, clipped by the " +
-             "walls between — a candidate point the sighting cannot see across is treated as a " +
-             "different room. Roughly the size of your average interior; too large and the sweep " +
-             "leaks back out into the corridor it came from.")]
+    [Tooltip("The LARGEST the sweep around the belief may get, in metres.\n\n" +
+             "The sweep starts at the precision of the last evidence (a sighting: a tight disc; a " +
+             "footstep through a wall: a wider one) and opens a step at a time once it has covered " +
+             "what it has, up to this. Clipped by the walls around the centre — a point the centre " +
+             "cannot see across counts as another room. Roughly the size of your average interior; " +
+             "too large and the sweep leaks back out into the corridor it came from.")]
     [SerializeField, Min(1f)] private float roomSweepRadius = 7f;
-
-    [Tooltip("How close, in metres of PATH, the last sighting has to be for losing you to trigger " +
-             "a room sweep instead of an interception.\n\n" +
-             "The two answer different questions. Losing someone across the level means cutting " +
-             "them off ahead of where they were going; losing someone who just stepped through a " +
-             "door five metres away means going in after them. Below this distance the search " +
-             "skips the interception entirely and sweeps. Set it to 0 to disable room sweeps and " +
-             "always intercept, which is the behaviour that shipped before this existed.")]
-    [SerializeField, Min(0f)] private float roomCommitRange = 12f;
-
-    [Tooltip("Seconds a sweep anchored on a SIGHTING ignores noises outside the room it is " +
-             "sweeping.\n\n" +
-             "Without it, any noise anywhere re-aims the search, which makes throwing something " +
-             "across the level a free escape button from a room the Nemesis watched you enter. " +
-             "Sight is better information than hearing and this is how long it is allowed to say " +
-             "so. A noise INSIDE the swept area is always honoured — that one confirms the guess " +
-             "rather than contradicting it. 0 restores 'any noise always wins'.")]
-    [SerializeField, Min(0f)] private float sightCommitTime = 6f;
 
     [Header("Chase - pursuit")]
     //
@@ -255,9 +204,9 @@ public class SO_NemesisData : ScriptableObject
              "La velocidad que extrapola es OBSERVADA (FieldOfView.LastKnownVelocity), no leida " +
              "del jugador, asi que cambiar de direccion apenas rompes la linea de vision siempre " +
              "funciona. 0 desactiva la prediccion y vuelve al Seek de antes.\n\n" +
-             "Es un valor aparte de Search Lead Time a proposito: buscar y perseguir tienen " +
-             "tolerancias distintas al error. Perseguir puede permitirse mas porque te esta " +
-             "viendo o te acaba de ver.")]
+             "Solo la persecucion predice: la busqueda barre alrededor de la creencia (plan §18) " +
+             "y no adelanta nada. Perseguir puede permitirse adivinar porque te esta viendo o te " +
+             "acaba de ver.")]
     [SerializeField, Range(0f, 1.5f)] private float chaseTimePrediction = 0.45f;
 
     [Tooltip("Cada cuantos segundos el Nemesis re-evalua por que waypoint conviene ir mientras " +
@@ -283,43 +232,16 @@ public class SO_NemesisData : ScriptableObject
              "lo que hacia antes.")]
     [SerializeField, Min(1f)] private float chaseDetourTolerance = 1.25f;
 
-    [Header("Search — interception")]
+    [Header("Belief trace, memory and the lift")]
     //
-    // Searching used to walk to the nearest unswept waypoint FROM WHERE IT WAS STANDING: the last
-    // known position never entered the maths, so it circled the spot it lost you at while you
-    // walked away. These four turn that sweep into a cut-off — anchor on where it last sensed
-    // you, project along the direction it saw you moving, and head for the waypoint it can reach
-    // before you can.
-    //
-    // It still runs on BELIEF: the heading comes from FieldOfView.LastKnownVelocity, which is
-    // measured from consecutive sightings. Change direction the moment you break line of sight
-    // and the cut-off goes to the wrong place — that is the reward for juking, and it is meant
-    // to be there.
+    // The interception that lived under this header ("cut the player off at a waypoint ahead of
+    // them") was taken out on 27/09 (plan D24): it almost never won the race, and when it did it
+    // sent the Nemesis to a waypoint instead of after the player.
 
     [Tooltip("How far from a detection a waypoint may sit and still be marked as 'this is where " +
-             "I sensed them'. Roughly the spacing between neighbouring waypoints.")]
+             "I sensed them'. Roughly the spacing between neighbouring waypoints. Read by the " +
+             "pursuit's trail penalty and the patrol's bias, not by the search.")]
     [SerializeField, Min(0.5f)] private float beliefTraceRadius = 3f;
-
-    [Tooltip("How strictly a waypoint has to be AHEAD of the player to count as a cut-off, as a " +
-             "dot product against the observed heading.\n\n" +
-             "1 = only dead ahead. 0 = anything not behind them. Negative values let it cut off " +
-             "backwards, which is not cutting off — it is guessing. Around 0.25 gives a workable " +
-             "forward arc without demanding the player run in a straight line.")]
-    [SerializeField, Range(-1f, 1f)] private float interceptForwardDot = 0.25f;
-
-    [Tooltip("How late the Nemesis is still allowed to arrive and count it as a cut-off.\n\n" +
-             "1 = it must get there no later than the player would. 1.15 lets it commit to points " +
-             "it reaches 15% late, which is usually still in front of a player who slows down at " +
-             "a corner. Push it far past that and it starts committing to interceptions it " +
-             "cannot make, which reads as following you badly rather than as cutting you off.")]
-    [SerializeField, Min(1f)] private float interceptTimeMargin = 1.15f;
-
-    [Tooltip("How fast the Nemesis ASSUMES the player is moving when working out whether it can " +
-             "cut them off. Not read off the player — that would be omniscience.\n\n" +
-             "Set it to the player's sprint speed: assuming the worst case makes it cut wide and " +
-             "commit only to interceptions that hold up even if you run flat out. Assume too " +
-             "little and it cuts behind you every time.")]
-    [SerializeField, Min(0.5f)] private float assumedPlayerSpeed = 4.5f;
 
     [Tooltip("Seconds over which a sighting or a noise stops steering the patrol.\n\n" +
              "At 0 seconds old the player bias applies at full RoutePlayerBiasStrength; by this " +
@@ -713,6 +635,163 @@ public class SO_NemesisData : ScriptableObject
              "El margen real del jugador es antes, mientras lo ve acercarse.")]
     [SerializeField, Min(0f)] private float hiddenPullOutTime = 0.8f;
 
+    [Header("Creencia (plan §17)")]
+    [Tooltip("Radio de la creencia cuando la ancla una vista, en metros. Un avistamiento es una " +
+             "posición: casi cero.")]
+    [SerializeField, Min(0.05f)] private float beliefSightRadius = 0.5f;
+
+    [Tooltip("Radio base de la creencia cuando la ancla un ruido del jugador, en metros, antes de " +
+             "sumar la distancia y lo que el ruido tuvo que atravesar. Un ruido es 'por ahí'.")]
+    [SerializeField, Min(0.05f)] private float beliefNoiseBaseRadius = 1f;
+
+    [Tooltip("Cuánto crece el radio de un ruido por cada metro de distancia (medida por NavMesh): " +
+             "un paso a tu lado es un punto; el mismo paso desde la otra punta de la sala, una zona.")]
+    [SerializeField, Min(0f)] private float beliefNoiseRadiusPerMetre = 0.15f;
+
+    [Tooltip("Multiplicador del radio de un ruido que atravesó una pared (o la carcasa de un " +
+             "escondite): amortiguado, se sabe peor de dónde vino.")]
+    [SerializeField, Min(1f)] private float beliefNoiseWallFactor = 1.5f;
+
+    [Tooltip("Multiplicador del radio de un ruido que atravesó un piso.")]
+    [SerializeField, Min(1f)] private float beliefNoiseFloorFactor = 1.3f;
+
+    [Tooltip("A qué velocidad crece el radio de la creencia sin evidencia nueva, en m/s: hasta dónde " +
+             "pudo haber llegado el jugador. La velocidad del jugador corriendo (4.5). Con evidencia " +
+             "que coincide el radio se achica: así suman los sentidos.")]
+    [SerializeField, Min(0f)] private float beliefGrowthSpeed = 4.5f;
+
+    [Tooltip("Multiplicador del radio de un ruido del jugador que sale de un escondite (plan D22): " +
+             "la respiración, un suspiro, la exhalación después de aguantar. Amortiguado por el " +
+             "mueble, marca la zona y no la puerta. 1 lo apaga y vuelve a ir derecho al escondite.")]
+    [SerializeField, Min(1f)] private float beliefNoiseHidingSpotFactor = 2f;
+
+    [Header("Búsqueda por NavMesh (plan §18, Fase 2B parte 2)")]
+    //
+    // La búsqueda barre puntos del NavMesh alrededor de la creencia (NemesisFreeRoam), no waypoints.
+    // El disco se dimensiona con la precisión de la última evidencia, se abre de a un paso cuando ya
+    // lo barrió, y tiene como techo Room Sweep Radius (arriba).
+
+    [Tooltip("Radio mínimo del barrido, en metros. Un avistamiento es un punto (0.5 m): sin este " +
+             "piso, el barrido sobre el lugar donde te vio sería un círculo que no alcanza ni para " +
+             "dar una vuelta.")]
+    [SerializeField, Min(1f)] private float searchSweepMinRadius = 3f;
+
+    [Tooltip("Metros que se le suman al radio de la última evidencia para dimensionar el barrido. " +
+             "Radio del barrido = radio de la evidencia + esto, entre Search Sweep Min Radius y Room " +
+             "Sweep Radius.")]
+    [SerializeField, Min(0f)] private float searchSweepEvidenceMargin = 1f;
+
+    [Header("Bajadas entre pisos (plan §15)")]
+    [Tooltip("Segundos que una bajada queda fuera de las rutas después de usarla (o de abandonarla " +
+             "porque el jugador estaba arriba). Evita el loop \"sube por la escalera, se tira, sube, " +
+             "se tira\" si el jugador da vueltas entre pisos. El tiempo, la velocidad y el costo de " +
+             "cada fase están en SO_NemesisMovement.")]
+    [SerializeField, Min(0f)] private float dropLinkCooldown = 8f;
+
+    [Header("Búsqueda que se enfría (plan §18.5 B, Fase 2B parte 3)")]
+    //
+    // La búsqueda ya no dura Search Time Out fijo: sigue mientras el SILENCIO (segundos desde la
+    // última evidencia del jugador, sin contar pistas ni lo que se oye desde el Hub) sea menor que
+    // la ventana × la calidad de esa evidencia, con un mínimo y un tope. El Director estira o acorta
+    // la ventana y el tope según el ritmo (persistencia, préstamo de números): por eso se leen de este
+    // SO y no de constantes.
+
+    [Tooltip("Segundos que la búsqueda dura siempre, pase lo que pase: siempre mira un poco. Tiene " +
+             "que quedar por debajo de Max Hold Seconds (SO_HidingData, 8 s): si no, quedarse sin aire " +
+             "en el escondite te delata siempre (D21).")]
+    [SerializeField, Min(0f)] private float searchMinTime = 6f;
+
+    [Tooltip("Segundos de silencio que tolera antes de dejar de buscar. Cada paso o exhalación tuya " +
+             "que oye lo vuelve a cero. El Director lo multiplica según el ritmo (Relax lo acorta, la " +
+             "sensibilidad creciente lo estira).")]
+    [SerializeField, Min(0.5f)] private float searchQuietWindow = 8f;
+
+    [Tooltip("Tope de la búsqueda en segundos, aunque te siga oyendo: un jugador que hace ruido sin " +
+             "dejarse ver no lo tiene buscando para siempre. Al tope, si te oye, la escalera lo manda " +
+             "a investigar. El Director también lo escala.")]
+    [SerializeField, Min(1f)] private float searchHardCap = 30f;
+
+    [Tooltip("Cuánto estira la ventana de silencio una evidencia de VISTA: te vio, insiste más.")]
+    [SerializeField, Min(0.1f)] private float searchQualitySight = 1.25f;
+
+    [Tooltip("Cuánto la acorta un ruido que atravesó una pared, un piso o un escondite: te oyó " +
+             "amortiguado, sabe menos.")]
+    [SerializeField, Min(0.1f)] private float searchQualityMuffled = 0.75f;
+
+    [Tooltip("Escala del tope cuando la búsqueda viene de investigar un ruido tuyo sin encontrarte " +
+             "(D26): una búsqueda corta, no una entera.")]
+    [SerializeField, Range(0.1f, 1f)] private float searchEscalatedCapScale = 0.5f;
+
+    [Header("Elección: a qué le presta atención (plan §17.4, Fase 2B parte 4)")]
+    //
+    // Cada vez que llega algo nuevo (tu evidencia, una pista, un vistazo) NemesisChoice le pregunta a
+    // FocusArbiter si vale más que lo que está persiguiendo. Valor = base × confianza × frescura ×
+    // costo de llegar × habituación. El nuevo tiene que ganarle al actual por el margen, y lo recién
+    // elegido tiene una ventaja que decae. Los casos 25 y 28–33 del plan están calibrados con esto.
+
+    [Tooltip("Valor base de la radio (plan §17.5). Si la elige, se compromete hasta romperla.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueRadio = 0.6f;
+
+    [Tooltip("Valor base de la alarma de incendio. Se oye desde cualquier lado: el costo de llegar pesa.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueFireAlarm = 0.7f;
+
+    [Tooltip("Valor base de las cadenas. Usos infinitos: la habituación las gasta.")]
+    [SerializeField, Range(0f, 1f)] private float leadValueChains = 0.45f;
+
+    [Tooltip("Valor base de cualquier otro ruido que no sos vos (un pulso del Director).")]
+    [SerializeField, Range(0f, 1f)] private float leadValueOther = 0.4f;
+
+    [Tooltip("Valor base de un vistazo de reojo (el medidor subiendo, sin llegar a 1).")]
+    [SerializeField, Range(0f, 1f)] private float glimpseValue = 0.5f;
+
+    [Tooltip("Multiplicador por cada vez que un señuelo lo hizo ir sin encontrar nada (×0.6: a la " +
+             "tercera, unas cadenas del otro lado del nivel ya no lo mueven). Por sesión.")]
+    [SerializeField, Range(0.1f, 1f)] private float leadHabituation = 0.6f;
+
+    [Tooltip("Debajo de este valor, una pista o un vistazo no merecen atención (vos sí, siempre).")]
+    [SerializeField, Range(0f, 1f)] private float focusAttentionFloor = 0.12f;
+
+    [Tooltip("Cuánto más tiene que valer lo nuevo que lo actual para cambiar.")]
+    [SerializeField, Range(0f, 1f)] private float focusMargin = 0.05f;
+
+    [Tooltip("Ventaja de lo recién elegido contra algo de su tipo o menor. Decae a cero en " +
+             "Focus Commitment Decay segundos. Con poco titubea; con mucho, no reacciona.")]
+    [SerializeField, Range(0f, 1f)] private float focusCommitmentBonus = 0.3f;
+
+    [SerializeField, Min(0.1f)] private float focusCommitmentDecay = 3f;
+
+    [Tooltip("Segundos en que la frescura de algo sentido cae a la mitad.")]
+    [SerializeField, Min(0.1f)] private float focusFreshnessHalfLife = 6f;
+
+    [Tooltip("Metros de camino a los que el costo de llegar deja el valor a la mitad.")]
+    [SerializeField, Min(1f)] private float focusCostDistance = 60f;
+
+    [Tooltip("Segundos después de cambiar a un tipo durante los que no cambia a otro del mismo tipo: " +
+             "dos ruidos alternados no lo hacen ir y venir.")]
+    [SerializeField, Min(0f)] private float focusAntiDither = 2f;
+
+    [Tooltip("Metros alrededor de donde cree que estás (su radio, con tope en Room Sweep Radius) en " +
+             "los que un señuelo no compite: suma, y la búsqueda lo cubre (caso 33).")]
+    [SerializeField, Min(0f)] private float leadSumsMargin = 3f;
+
+    [Header("Sospecha compartida (plan §17.3, Fase 2B parte 4)")]
+    //
+    // Un ruido SUAVE tuyo (agachado) sube el mismo medidor que un vistazo de reojo: un paso suave y
+    // un vistazo juntos lo ponen en sospecha más rápido que cualquiera de los dos solo (caso 26). Un
+    // ruido solo nunca llega a ser un avistamiento: el medidor se queda por debajo de 1 sin vista.
+
+    [Tooltip("Radio de emisión (m) hasta el que un ruido tuyo cuenta como suave. El agachado emite 1, " +
+             "caminando 4. La respiración desde un escondite no cuenta: tiene sus reglas (D21, D22).")]
+    [SerializeField, Min(0f)] private float softNoiseLoudness = 1.5f;
+
+    [Tooltip("Cuánto sube el medidor de sospecha por segundo con un ruido suave, en fracciones de " +
+             "Awareness Build Time (un vistazo va de 0.35 a 2 según la distancia).")]
+    [SerializeField, Min(0f)] private float softNoiseSuspicionRate = 0.6f;
+
+    [Tooltip("Tope del medidor con ruido solo, sin vistazo: por debajo de 1, para que un ruido nunca se " +
+             "vuelva un avistamiento.")]
+    [SerializeField, Range(0f, 0.99f)] private float noiseOnlySuspicionCap = 0.9f;
+
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
     public float VisionLossGracePeriod { get => visionLossGracePeriod; set => visionLossGracePeriod = value; }
@@ -749,24 +828,15 @@ public class SO_NemesisData : ScriptableObject
     public float RouteVerdictInterval { get => routeVerdictInterval; set => routeVerdictInterval = value; }
     public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
-    public float SearchLeadTime { get => searchLeadTime; set => searchLeadTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
-    public float SearchLastKnownBias { get => searchLastKnownBias; set => searchLastKnownBias = value; }
-    public float SearchPredictionBias { get => searchPredictionBias; set => searchPredictionBias = value; }
-    public float SearchBiasFalloff { get => searchBiasFalloff; set => searchBiasFalloff = value; }
     public float SearchSweptPenalty { get => searchSweptPenalty; set => searchSweptPenalty = value; }
     public float SearchPauseTime { get => searchPauseTime; set => searchPauseTime = value; }
     public float RoomSweepRadius { get => roomSweepRadius; set => roomSweepRadius = value; }
-    public float RoomCommitRange { get => roomCommitRange; set => roomCommitRange = value; }
-    public float SightCommitTime { get => sightCommitTime; set => sightCommitTime = value; }
     public float ChaseTimePrediction { get => chaseTimePrediction; set => chaseTimePrediction = value; }
     public float ChaseRouteReplanInterval { get => chaseRouteReplanInterval; set => chaseRouteReplanInterval = value; }
     public float ChaseBeliefMoveThreshold { get => chaseBeliefMoveThreshold; set => chaseBeliefMoveThreshold = value; }
     public float ChaseDetourTolerance { get => chaseDetourTolerance; set => chaseDetourTolerance = value; }
     public float BeliefTraceRadius { get => beliefTraceRadius; set => beliefTraceRadius = value; }
-    public float InterceptForwardDot { get => interceptForwardDot; set => interceptForwardDot = value; }
-    public float InterceptTimeMargin { get => interceptTimeMargin; set => interceptTimeMargin = value; }
-    public float AssumedPlayerSpeed { get => assumedPlayerSpeed; set => assumedPlayerSpeed = value; }
     public float BeliefMemoryTime { get => beliefMemoryTime; set => beliefMemoryTime = value; }
     public float ElevatorWaitTimeout { get => elevatorWaitTimeout; set => elevatorWaitTimeout = value; }
     public float ElevatorAbandonCooldown { get => elevatorAbandonCooldown; set => elevatorAbandonCooldown = value; }
@@ -825,4 +895,37 @@ public class SO_NemesisData : ScriptableObject
     public float UnderTableVisionMultiplier { get => underTableVisionMultiplier; set => underTableVisionMultiplier = value; }
     public float SeenEnteringWindow { get => seenEnteringWindow; set => seenEnteringWindow = value; }
     public float HiddenPullOutTime { get => hiddenPullOutTime; set => hiddenPullOutTime = value; }
+    public float BeliefSightRadius { get => beliefSightRadius; set => beliefSightRadius = value; }
+    public float BeliefNoiseBaseRadius { get => beliefNoiseBaseRadius; set => beliefNoiseBaseRadius = value; }
+    public float BeliefNoiseRadiusPerMetre { get => beliefNoiseRadiusPerMetre; set => beliefNoiseRadiusPerMetre = value; }
+    public float BeliefNoiseWallFactor { get => beliefNoiseWallFactor; set => beliefNoiseWallFactor = value; }
+    public float BeliefNoiseFloorFactor { get => beliefNoiseFloorFactor; set => beliefNoiseFloorFactor = value; }
+    public float BeliefGrowthSpeed { get => beliefGrowthSpeed; set => beliefGrowthSpeed = value; }
+    public float BeliefNoiseHidingSpotFactor { get => beliefNoiseHidingSpotFactor; set => beliefNoiseHidingSpotFactor = value; }
+    public float SearchSweepMinRadius { get => searchSweepMinRadius; set => searchSweepMinRadius = value; }
+    public float SearchSweepEvidenceMargin { get => searchSweepEvidenceMargin; set => searchSweepEvidenceMargin = value; }
+    public float DropLinkCooldown { get => dropLinkCooldown; set => dropLinkCooldown = value; }
+    public float SearchMinTime { get => searchMinTime; set => searchMinTime = value; }
+    public float SearchQuietWindow { get => searchQuietWindow; set => searchQuietWindow = value; }
+    public float SearchHardCap { get => searchHardCap; set => searchHardCap = value; }
+    public float SearchQualitySight { get => searchQualitySight; set => searchQualitySight = value; }
+    public float SearchQualityMuffled { get => searchQualityMuffled; set => searchQualityMuffled = value; }
+    public float SearchEscalatedCapScale { get => searchEscalatedCapScale; set => searchEscalatedCapScale = value; }
+    public float LeadValueRadio { get => leadValueRadio; set => leadValueRadio = value; }
+    public float LeadValueFireAlarm { get => leadValueFireAlarm; set => leadValueFireAlarm = value; }
+    public float LeadValueChains { get => leadValueChains; set => leadValueChains = value; }
+    public float LeadValueOther { get => leadValueOther; set => leadValueOther = value; }
+    public float GlimpseValue { get => glimpseValue; set => glimpseValue = value; }
+    public float LeadHabituation { get => leadHabituation; set => leadHabituation = value; }
+    public float FocusAttentionFloor { get => focusAttentionFloor; set => focusAttentionFloor = value; }
+    public float FocusMargin { get => focusMargin; set => focusMargin = value; }
+    public float FocusCommitmentBonus { get => focusCommitmentBonus; set => focusCommitmentBonus = value; }
+    public float FocusCommitmentDecay { get => focusCommitmentDecay; set => focusCommitmentDecay = value; }
+    public float FocusFreshnessHalfLife { get => focusFreshnessHalfLife; set => focusFreshnessHalfLife = value; }
+    public float FocusCostDistance { get => focusCostDistance; set => focusCostDistance = value; }
+    public float FocusAntiDither { get => focusAntiDither; set => focusAntiDither = value; }
+    public float LeadSumsMargin { get => leadSumsMargin; set => leadSumsMargin = value; }
+    public float SoftNoiseLoudness { get => softNoiseLoudness; set => softNoiseLoudness = value; }
+    public float SoftNoiseSuspicionRate { get => softNoiseSuspicionRate; set => softNoiseSuspicionRate = value; }
+    public float NoiseOnlySuspicionCap { get => noiseOnlySuspicionCap; set => noiseOnlySuspicionCap = value; }
 }

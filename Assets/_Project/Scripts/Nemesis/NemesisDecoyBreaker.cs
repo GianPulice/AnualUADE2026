@@ -12,8 +12,13 @@ using UnityEngine;
 /// if the noise that brought it here is a breakable decoy and it is within reach, it holds the
 /// body, turns it to face the decoy, waits the windup, breaks it, and waits the recovery.
 ///
-/// "The noise that brought it here" is <see cref="FieldOfListening.LastHeardDecoy"/> and not
-/// whatever breakable is nearest, so a radio it walks past while chasing a footstep is left alone.
+/// "The noise that brought it here" is the decoy that is its focus (<see cref="NemesisChoice.FocusDecoy"/>,
+/// plan §17.5) and not whatever breakable is nearest, so a radio it walks past while chasing a
+/// footstep is left alone. While it breaks, the choice counts it as busy: only seeing the player cuts
+/// the beat (case 37).
+///
+/// Added by NemesisStateManager like its other siblings (Fase 2B part 4): before that it was on no
+/// prefab and nothing added it, so the radio could never be broken.
 ///
 /// If the FSM leaves Investigating during the beat (it saw the player), the beat is abandoned:
 /// before the hit the decoy is told it was aborted and keeps sounding; after it, the recovery is
@@ -75,10 +80,13 @@ public class NemesisDecoyBreaker : MonoBehaviour
         decoy = null;
         if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Investigating) return false;
 
-        FieldOfListening ears = stateManager.FieldOfListening;
-        if (ears == null || ears.LastHeardDecoy == null) return false;
+        // The decoy that is its FOCUS (plan §17.5): the one it chose to come to, not the last one it
+        // happened to hear — with the chains rattling on the way, LastHeardDecoy was them.
+        NemesisChoice choice = stateManager.Choice;
+        DecoyNoiseSource focus = choice != null ? choice.FocusDecoy : null;
+        if (focus == null) return false;
 
-        INemesisBreakableDecoy candidate = ears.LastHeardDecoy.GetComponent<INemesisBreakableDecoy>();
+        INemesisBreakableDecoy candidate = focus.GetComponent<INemesisBreakableDecoy>();
         if (candidate == null || !candidate.CanBeBroken) return false;
 
         Vector3 target = candidate.BreakTargetPosition;

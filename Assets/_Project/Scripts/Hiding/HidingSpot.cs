@@ -199,7 +199,7 @@ public class HidingSpot : BaseRangeInteractable
 
     // ── Interactable ────────────────────────────────────────────────────────
 
-    public override string GetInteractText() => IsOccupied ? leavePrompt : hidePrompt;
+    public override string GetPromptText() => IsOccupied ? leavePrompt : hidePrompt;
 
     public override bool IsRepeatable() => true;
 

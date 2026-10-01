@@ -17,7 +17,9 @@ public class SO_InteractionManager : ScriptableObject
 
     [Tooltip("Layers that block line of sight (walls, solid props). If one of these sits between " +
              "the PLAYER and the interactable, the interactable is not detected. Triggers on " +
-             "these layers are ignored — only solid geometry occludes.")]
+             "these layers are ignored — only solid geometry occludes — and so is the interactable's " +
+             "support: what it rests on, or a collider it lies wholly inside (a key sitting in " +
+             "the convex collider of a toilet).")]
     [SerializeField] private LayerMask blockingLayers = ~0;
 
     [Header("Aiming")]
@@ -28,7 +30,9 @@ public class SO_InteractionManager : ScriptableObject
     [SerializeField] private Vector2 crosshairViewportPoint = new Vector2(0.5f, 0.5f);
 
     [Tooltip("Radius of the SphereCast. A 'thick' ray makes aiming at small items (pickups on the " +
-             "floor, valves) forgiving without losing directionality. 0 makes it a plain ray.")]
+             "floor, valves) forgiving without losing directionality. 0 makes it a plain ray. " +
+             "Only FINDING the target uses it: whether something hides the target is judged with " +
+             "a thin ray, so a wider radius never makes the surface under an item hide it.")]
     [SerializeField, Min(0f)] private float castRadius = 0.1f;
 
     [Tooltip("Metres BEFORE the player (along the crosshair line) searched when nothing is found " +

@@ -58,7 +58,10 @@ MonoBehaviour:
   elevatorAbandonCooldown: 10
   stuckCheckInterval: 3
   stuckMinDistance: 0.5
+  stuckRepathGrace: 1.5
   repositionMinPlayerDistance: 15
+  spawnMinPlayerDistance: 15
+  spawnSafeHalfAngle: 90
   proximityRadius: 12
   scanHalfAngle: 50
   scanSpeed: 60
@@ -95,3 +98,9 @@ MonoBehaviour:
   chaseStagnantDetourTolerance: 2.5
   chaseTrailPenalty: 0.2
   chaseTrailPenaltyRadius: 3
+  investigationDwellTime: 4
+  investigationRetargetInterval: 1.5
+  investigationRetargetDistance: 3
+  underTableVisionMultiplier: 0.5
+  seenEnteringWindow: 0.75
+  hiddenPullOutTime: 0.8

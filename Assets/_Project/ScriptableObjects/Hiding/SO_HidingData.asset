@@ -15,9 +15,9 @@ MonoBehaviour:
   breathingInterval: 3
   breathingPulseDuration: 0.4
   breathingNoiseRadius: 0.8
-  exhaleNoiseRadius: 2.5
+  exhaleNoiseRadius: 2
   exhalePulseDuration: 0.6
-  maxHoldSeconds: 6
+  maxHoldSeconds: 8
   breathRecoverySeconds: 5
   containerNoiseMultiplier: 0.5
   closetBreathingMultiplier: 1.2

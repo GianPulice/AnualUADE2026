@@ -41,19 +41,22 @@ public class SO_HidingData : ScriptableObject
     [Tooltip("Emitter radius of the involuntary exhale when the player lets go of the hold-breath " +
              "input, before NoiseRangeScale and occlusion. This is the cost of holding: bigger " +
              "than a breath, so a badly timed release is worse than never having held at all.")]
-    [SerializeField, Min(0f)] private float exhaleNoiseRadius = 2.5f;
+    [SerializeField, Min(0f)] private float exhaleNoiseRadius = 2f;
 
     [Tooltip("How long the exhale leaves the emitter on, in seconds. Longer than a breath so it " +
              "cannot be missed by the sweep that matters.")]
     [SerializeField, Range(0.15f, 2f)] private float exhalePulseDuration = 0.6f;
 
     [Tooltip("Seconds the player can hold their breath before the lungs give out and the exhale " +
-             "happens whether they let go or not. 0 = no limit, which is what the spec asks for " +
-             "(holding keeps the emitter off for as long as the key is down).\n\n" +
-             "NOT IN THE SPEC — a knob for playtesting. Holding forever silences only the " +
-             "breathing: vision leaks and extreme proximity still find the player, so it is not " +
-             "immunity. Set it if playtests show players camping with the key held.")]
-    [SerializeField, Min(0f)] private float maxHoldSeconds = 0f;
+             "happens whether they let go or not.\n\n" +
+             "LOAD-BEARING SINCE PLAN §17.6 (D21). Holding your breath inside a spot takes the " +
+             "player out of the Nemesis's arm's reach and out of what it makes out through the " +
+             "slats: it walks up, looks around and leaves. This cap, and the exhale that follows " +
+             "it, are what keep that from being immunity — hold too long with it nearby and the " +
+             "exhale brings it back. Long enough for one look around (InvestigationDwellTime, 4 s, " +
+             "plus the walk up). 0 = no limit, which now means a player who never lets go is only " +
+             "ever found in a spot the Nemesis already suspects.")]
+    [SerializeField, Min(0f)] private float maxHoldSeconds = 8f;
 
     [Tooltip("Seconds for empty lungs to fill back up once the player stops holding. The air a hold " +
              "used comes back gradually, so letting go and holding again straight away only buys " +

@@ -3,8 +3,8 @@ using UnityEngine;
 /// <summary>
 /// The Ventilation Hub panel (Central Puzzle 2): [E] opens the skill check, and passing the whole
 /// sequence completes the puzzle — the module that declares it (M2) resolves on that, in
-/// <see cref="ModuleManager"/>. A cancelled sequence completes nothing and the panel can be used
-/// again from the first check.
+/// <see cref="ModuleManager"/>. A missed check ends the sequence, and a failed or cancelled sequence
+/// completes nothing: the panel can be used again, from the first check.
 ///
 /// Its one job is that hand-off. The sequence itself — needle, penalties, bonuses — is
 /// <see cref="SkillCheckController"/>'s, and whether the player has reached the Hub is the level's.
@@ -29,7 +29,7 @@ public class SkillCheckPanelInteractable : BaseRangeInteractable, IPuzzleInterac
             Debug.LogError($"[{nameof(SkillCheckPanelInteractable)}] No SO_SkillCheckPuzzleData on {name}.", this);
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (puzzleData == null) return "Unconfigured panel";
         return IsCompleted ? string.Empty : puzzleData.PromptText;
@@ -59,7 +59,7 @@ public class SkillCheckPanelInteractable : BaseRangeInteractable, IPuzzleInterac
     private void HandleFinished(bool completed)
     {
         // The panel may be gone (scene unloaded while the overlay was closing), or the run may have
-        // ended — a cancelled sequence completes nothing either way.
+        // ended — a failed or cancelled sequence completes nothing either way.
         if (!completed || this == null || IsCompleted) return;
 
         if (!PuzzleStateManager.Exists)

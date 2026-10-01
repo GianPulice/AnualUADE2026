@@ -112,13 +112,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Checked here and not there because the two arrive in either order depending on which
         // path reported the GameOver.
         //
-        // Its penalty lands straight away: the run is over, nobody will see the limp, and
-        // holding it back would only leave it unapplied if the result screen tore this down.
-        if (GameResultManager.ExplosionEndsRun(runtime))
-        {
-            ModuleEvents.RaisePenaltyApplied(runtime);
-            return;
-        }
+        // Its penalty is NOT raised here: that would start the limp (or the blindness) while the
+        // camera is still travelling, before the blast. The injured animation starts with the VFX
+        // (PlayExplosion) and RunDefeatSequence raises the penalty right before the commit.
+        if (GameResultManager.ExplosionEndsRun(runtime)) return;
 
         // Same camera shot as the defeat, then back to gameplay. Skipped (plain effect in place)
         // when turned off in the config, or when another cinematic is already on screen.
@@ -243,6 +240,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         finally
         {
             isPlaying = false;
+
+            // After the blast, before the result screen. In the finally so a cancelled shot still
+            // leaves the penalty applied.
+            if (cause != null) ModuleEvents.RaisePenaltyApplied(cause);
 
             if (!committed)
             {

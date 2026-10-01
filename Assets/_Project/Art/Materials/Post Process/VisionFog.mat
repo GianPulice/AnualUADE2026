@@ -40,7 +40,7 @@ Material:
     m_Floats:
     - _EnableFogBlur: 1
     - _EnableFogNoise: 0
-    - _EnableVisionFog: 1
+    - _EnableVisionFog: 0
     - _FogDebugView: 0
     - _FogNoiseIntensity: 0
     - _FogNoiseOctaves: 3

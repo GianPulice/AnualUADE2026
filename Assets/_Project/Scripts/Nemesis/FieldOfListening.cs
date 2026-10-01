@@ -71,6 +71,82 @@ public class FieldOfListening : MonoBehaviour
     /// radio it walked past while chasing a footstep.</summary>
     public DecoyNoiseSource LastHeardDecoy { get; private set; }
 
+    /// <summary>
+    /// One noise as this sensor heard it (plan §17): where, when, how far along the NavMesh, and what
+    /// it had to get through on the way. The sensor reports; NemesisBelief turns it into a radius.
+    /// </summary>
+    public readonly struct HeardNoise
+    {
+        public readonly Vector3 Position;
+        public readonly float HeardAt;
+        public readonly float Distance;
+        public readonly bool ThroughWall;
+        public readonly bool ThroughFloor;
+
+        /// <summary>The decoy that made it, or null for anything else.</summary>
+        public readonly DecoyNoiseSource Decoy;
+
+        /// <summary>
+        /// The player's own noise, made from inside a hiding spot (plan D22): breathing, a sigh, the
+        /// exhale after holding it. Muffled by the furniture it comes out of, so it says "over
+        /// there" rather than "here" — NemesisBelief widens its radius, and a search around it
+        /// sweeps the area instead of walking to the door.
+        ///
+        /// This is how the sound travels, not knowledge the Nemesis did not earn: it says nothing
+        /// about WHICH spot, and the answer it produces is less precise, never more.
+        /// </summary>
+        public readonly bool FromHidingSpot;
+
+        public HeardNoise(Vector3 position, float heardAt, float distance, bool throughWall,
+                          bool throughFloor, DecoyNoiseSource decoy, bool fromHidingSpot = false)
+        {
+            Position = position;
+            HeardAt = heardAt;
+            Distance = distance;
+            ThroughWall = throughWall;
+            ThroughFloor = throughFloor;
+            Decoy = decoy;
+            FromHidingSpot = fromHidingSpot;
+        }
+    }
+
+    /// <summary>
+    /// The player's own noise — footsteps, breathing — was heard this sweep.
+    ///
+    /// <see cref="HasAudioTarget"/> is ANY noise, and it stays that; this is the player only. The
+    /// difference is plan §17: a decoy or a Director pulse used to be the player's position simply
+    /// by being the loudest thing in range.
+    /// </summary>
+    public bool HeardPlayer { get; private set; }
+
+    /// <summary>The player's noise heard this sweep was a SOFT one — crouching, under
+    /// SO_NemesisData.SoftNoiseLoudness — and not from inside a hiding spot. It feeds the suspicion
+    /// meter the glimpses fill (plan §17.3, shared suspicion).</summary>
+    public bool HeardSoftPlayerNoise { get; private set; }
+
+    /// <summary>Something that is NOT the player was heard this sweep: a decoy, a Director pulse, any
+    /// other trigger on the listen layer. A lead (D18, D19).</summary>
+    public bool HeardLead { get; private set; }
+
+    /// <summary>The best-heard player noise of the latest sweep that heard one.</summary>
+    public bool TryGetLastPlayerNoise(out HeardNoise noise)
+    {
+        noise = lastPlayerNoise;
+        return hasPlayerNoise;
+    }
+
+    /// <summary>The best-heard lead of the latest sweep that heard one.</summary>
+    public bool TryGetLastLead(out HeardNoise noise)
+    {
+        noise = lastLead;
+        return hasLeadNoise;
+    }
+
+    private bool hasPlayerNoise;
+    private HeardNoise lastPlayerNoise;
+    private bool hasLeadNoise;
+    private HeardNoise lastLead;
+
     /// <summary>Seconds since the last noise was heard, or infinity if none ever was. Same
     /// purpose as <see cref="FieldOfView.TimeSinceLastSighting"/>: how much the memory is still
     /// worth, as opposed to whether it exists.</summary>
@@ -131,6 +207,12 @@ public class FieldOfListening : MonoBehaviour
         hasAudioTarget = false;
         hasLastKnownPosition = false;
         LastHeardDecoy = null;
+
+        HeardPlayer = false;
+        HeardSoftPlayerNoise = false;
+        HeardLead = false;
+        hasPlayerNoise = false;
+        hasLeadNoise = false;
     }
 
     /// <summary>
@@ -170,6 +252,8 @@ public class FieldOfListening : MonoBehaviour
         DecoyNoiseSource loudestDecoy = null;
         float loudestMargin = float.NegativeInfinity;
 
+        BeginSweep();
+
         Collider[] targetsInListenRadius = Physics.OverlapSphere(transform.position, listenRange, listenMask);
         for (int i = 0; i < targetsInListenRadius.Length; i++)
         {
@@ -194,7 +278,8 @@ public class FieldOfListening : MonoBehaviour
             // The OverlapSphere is only a broadphase now — how loud the emitter actually is
             // decides the real range, and that is read off the collider it just returned.
             float loudness = GetEmitterRadius(emitter);
-            if (!TryHear(emitter, listenRange, loudness, out float margin)) continue;
+            if (!TryHear(emitter, listenRange, loudness, out float margin, out float distance,
+                         out bool throughWall, out bool throughFloor)) continue;
 
             listenedTargets.Add(target);
 
@@ -208,6 +293,21 @@ public class FieldOfListening : MonoBehaviour
                 loudestPosition = target.transform.position;
                 loudestDecoy = null;
             }
+
+            // WHO made it, as well as how loud (plan §17). The player's own emitter is evidence
+            // about the player; anything else on the listen layer is a lead. Told apart by what the
+            // collider IS, not by where it sits: footsteps and breathing are not a radio.
+            bool fromPlayer = IsPlayerEmitter(emitter);
+            var heard = new HeardNoise(target.transform.position, Time.time, distance, throughWall,
+                                       throughFloor, null, fromPlayer && IsPlayerHidden());
+            if (fromPlayer) OfferPlayerNoise(heard, margin);
+            else            OfferLead(heard, margin);
+
+            // A SOFT noise of the player's — crouching — also feeds the suspicion meter the glimpses
+            // fill (plan §17.3, shared suspicion; case 26). Not from inside a hiding spot: breathing
+            // there has its own rules (D21, D22).
+            if (fromPlayer && !heard.FromHidingSpot && loudness <= nemesisData.SoftNoiseLoudness)
+                sweepHeardSoftPlayer = true;
         }
 
         ListenDecoys(ref heardAny, ref loudestMargin, ref loudestPosition, ref loudestDecoy);
@@ -223,6 +323,8 @@ public class FieldOfListening : MonoBehaviour
             LastHeardDecoy = loudestDecoy;
         }
         else hasAudioTarget = false;
+
+        CommitSweep();
     }
 
     /// <summary>
@@ -249,11 +351,19 @@ public class FieldOfListening : MonoBehaviour
             if (decoy == null || !decoy.IsEmitting) continue;
 
             float margin = 0f;
+            float distance = Vector3.Distance(transform.position, decoy.NoisePosition);
+            bool throughWall = false;
+            bool throughFloor = false;
             if (!decoy.AudibleEverywhere)
             {
                 sweptEmitters.Add(decoy);
-                if (!TryHearAt(decoy, decoy.NoisePosition, decoy.HearingDistance, out margin)) continue;
+                if (!TryHearAt(decoy, decoy.NoisePosition, decoy.HearingDistance, out margin,
+                               out distance, out throughWall, out throughFloor)) continue;
             }
+
+            // Always a lead: a decoy is never the player (D18).
+            OfferLead(new HeardNoise(decoy.NoisePosition, Time.time, distance, throughWall,
+                                     throughFloor, decoy), margin);
 
             if (margin > loudestMargin)
             {
@@ -263,6 +373,83 @@ public class FieldOfListening : MonoBehaviour
                 loudestDecoy = decoy;
             }
         }
+    }
+
+    // ── Who made it (plan §17) ───────────────────────────────────────────────
+    //
+    // Same rule as the loudest-overall pick above — the one heard BEST, not the first the physics
+    // query returned — kept once for the player and once for everything else.
+
+    private bool sweepHeardPlayer;
+    private bool sweepHeardSoftPlayer;
+    private float sweepPlayerMargin;
+    private HeardNoise sweepPlayer;
+    private bool sweepHeardLead;
+    private float sweepLeadMargin;
+    private HeardNoise sweepLead;
+
+    private void BeginSweep()
+    {
+        sweepHeardPlayer = false;
+        sweepHeardSoftPlayer = false;
+        sweepPlayerMargin = float.NegativeInfinity;
+        sweepHeardLead = false;
+        sweepLeadMargin = float.NegativeInfinity;
+    }
+
+    private void OfferPlayerNoise(in HeardNoise heard, float margin)
+    {
+        if (margin <= sweepPlayerMargin) return;
+        sweepHeardPlayer = true;
+        sweepPlayerMargin = margin;
+        sweepPlayer = heard;
+    }
+
+    private void OfferLead(in HeardNoise heard, float margin)
+    {
+        if (margin <= sweepLeadMargin) return;
+        sweepHeardLead = true;
+        sweepLeadMargin = margin;
+        sweepLead = heard;
+    }
+
+    private void CommitSweep()
+    {
+        HeardPlayer = sweepHeardPlayer;
+        HeardSoftPlayerNoise = sweepHeardSoftPlayer;
+        if (sweepHeardPlayer)
+        {
+            lastPlayerNoise = sweepPlayer;
+            hasPlayerNoise = true;
+        }
+
+        HeardLead = sweepHeardLead;
+        if (sweepHeardLead)
+        {
+            lastLead = sweepLead;
+            hasLeadNoise = true;
+        }
+    }
+
+    /// <summary>
+    /// Whether a noise emitter is the player's own: the <c>AudioEmitingZone</c> every movement state
+    /// and the hiding breath drive, or anything else hanging off the player.
+    /// </summary>
+    private static bool IsPlayerEmitter(Collider emitter)
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player == null) return false;
+
+        return ReferenceEquals(player.AudioEmitingZone, emitter) ||
+               emitter.transform.IsChildOf(player.transform);
+    }
+
+    /// <summary>Whether the player's noise is coming out of a hiding spot right now. See
+    /// <see cref="HeardNoise.FromHidingSpot"/> for why this is acoustics, not omniscience.</summary>
+    private static bool IsPlayerHidden()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+        return player != null && player.IsHidden;
     }
 
     private readonly HashSet<Collider> warnedSolidEmitters = new HashSet<Collider>();
@@ -301,25 +488,39 @@ public class FieldOfListening : MonoBehaviour
     /// <param name="loudness">The noise emitter's own radius, in metres.</param>
     /// <param name="margin">How far inside its effective range the noise is, in metres — how
     /// clearly it is heard. Only meaningful when this returns true.</param>
-    private bool TryHear(Collider emitter, float listenRange, float loudness, out float margin)
+    private bool TryHear(Collider emitter, float listenRange, float loudness, out float margin,
+                         out float distance, out bool throughWall, out bool throughFloor)
     {
         float effectiveRange = Mathf.Min(listenRange, loudness * nemesisData.NoiseRangeScale);
-        return TryHearAt(emitter, emitter.transform.position, effectiveRange, out margin);
+        return TryHearAt(emitter, emitter.transform.position, effectiveRange, out margin,
+                         out distance, out throughWall, out throughFloor);
     }
 
     /// <summary>The occlusion and distance half of <see cref="TryHear"/>, shared with the decoy
     /// channel, which arrives with its range already in metres.</summary>
     /// <param name="key">What the path-distance cache is keyed on: the emitter collider, or the
     /// decoy.</param>
-    private bool TryHearAt(Object key, Vector3 source, float effectiveRange, out float margin)
+    /// <param name="distance">How far the noise is, as measured (see MeasuredDistanceTo).</param>
+    /// <param name="throughWall">A wall stands in the way. Reported so the belief can widen its
+    /// radius (plan §17): a muffled noise is a rougher claim about where it came from.</param>
+    /// <param name="throughFloor">A floor or ceiling slab stands in the way.</param>
+    private bool TryHearAt(Object key, Vector3 source, float effectiveRange, out float margin,
+                           out float distance, out bool throughWall, out bool throughFloor)
     {
+        throughWall = false;
+        throughFloor = false;
+
         if (nemesisData.WallOcclusionEnabled)
         {
-            if (IsBlockedBy(source, soundBlockerMask)) effectiveRange *= nemesisData.WallOcclusionMultiplier;
-            if (IsBlockedBy(source, floorMask))        effectiveRange *= nemesisData.FloorOcclusionMultiplier;
+            throughWall = IsBlockedBy(source, soundBlockerMask);
+            throughFloor = IsBlockedBy(source, floorMask);
+
+            if (throughWall)  effectiveRange *= nemesisData.WallOcclusionMultiplier;
+            if (throughFloor) effectiveRange *= nemesisData.FloorOcclusionMultiplier;
         }
 
-        margin = effectiveRange - MeasuredDistanceTo(key, source);
+        distance = MeasuredDistanceTo(key, source);
+        margin = effectiveRange - distance;
         return margin >= 0f;
     }
 

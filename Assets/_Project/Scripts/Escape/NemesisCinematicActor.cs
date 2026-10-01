@@ -54,6 +54,17 @@ public class NemesisCinematicActor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// A capture that ended the run leaves the Nemesis parked in its Catch state, waiting for a
+    /// respawn that never comes. Sends it back to Patrolling so it can be taken and released like
+    /// any other time. Does nothing when it is not catching.
+    /// </summary>
+    public void AbortCapture()
+    {
+        if (!IsNemesisCatching) return;
+        nemesis.TransitionToState(NemesisStateManager.ENemesisState.Patrolling);
+    }
+
     /// <summary>The Nemesis is awake: not dormant, waiting for a script (or its puzzle) to wake it.
     /// </summary>
     public bool IsNemesisAwake

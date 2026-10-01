@@ -9,11 +9,11 @@ using UnityEngine.UI;
 /// them the key and what the lungs are doing.
 ///
 /// Read-only over the player: the hidden state owns the breath and the noise it makes, this only
-/// draws it. Same polling approach as <see cref="ModuleTimerHUDView"/> through
-/// <see cref="PlayerRegistry"/> — there is no per-frame event for the air draining.
+/// draws it, polling the player through <see cref="PlayerRegistry"/> — there is no per-frame event
+/// for the air draining.
 ///
 /// The root carries a <see cref="ModalVisibilityGate"/> on its own CanvasGroup; this fades the
-/// window's, so the two never fight over one alpha. Built by HidingHUDBuilder.
+/// window's, so the two never fight over one alpha. Lives in HUDCanvas.prefab.
 /// </summary>
 [DisallowMultipleComponent]
 public class BreathHoldMeterView : MonoBehaviour
