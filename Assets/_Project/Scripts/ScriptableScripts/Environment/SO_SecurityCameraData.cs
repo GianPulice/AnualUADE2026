@@ -53,6 +53,38 @@ public class SO_SecurityCameraData : ScriptableObject
              "and going back to its sweep.")]
     [SerializeField, Min(0f)] private float loseSightDelay = 1.5f;
 
+    [Header("Scan (while it sees the player)")]
+    [Tooltip("Drawn over the player's body while the camera scans them (shader WIRED/Security Scan " +
+             "Overlay). Its colour, band and scanlines are tuned on the material itself.")]
+    [SerializeField] private Material scanOverlayMaterial;
+
+    [Tooltip("The single ray from the lens to the scan band, as wide as the body is at that height " +
+             "(shader WIRED/Security Scan Beam). One per scanning camera. Its colour, softness and " +
+             "dust are tuned on the material itself.")]
+    [SerializeField] private Material scanBeamMaterial;
+
+    [Tooltip("Seconds the ray holds on the top of the head before the scan starts down the body: the " +
+             "ray lands first, then the body starts turning red from where it hits. Only on a fresh " +
+             "scan - one that resumes a half-drained scan carries on at once.")]
+    [SerializeField, Min(0f)] private float scanLockOnTime = 0.35f;
+
+    [Tooltip("Seconds the scan takes to cover the whole body, filling it from the head down. The " +
+             "band rides the edge of the fill while it advances.")]
+    [SerializeField, Min(0.1f)] private float scanFillDuration = 2.5f;
+
+    [Tooltip("Seconds a scan takes to drain away once no camera sees the player any more - from a " +
+             "full body to nothing; a partial scan drains proportionally faster. If a camera sees " +
+             "them again first, the scan carries on from whatever is left.")]
+    [SerializeField, Min(0.1f)] private float scanDrainDuration = 1.5f;
+
+    [Tooltip("Once the body is fully scanned, seconds the band takes to run once from feet to head " +
+             "(and the same back) while the camera keeps watching.")]
+    [SerializeField, Min(0.1f)] private float scanPassDuration = 1.2f;
+
+    [Tooltip("Seconds the camera's beam and lens light take to fade in when it sees the player and " +
+             "out when it stops; also how fast the scan on the body appears and goes once drained.")]
+    [SerializeField, Min(0f)] private float scanFadeTime = 0.25f;
+
     public float SweepAngle => sweepAngle;
     public float SweepSpeed => sweepSpeed;
     public float SweepEndPause => sweepEndPause;
@@ -63,4 +95,11 @@ public class SO_SecurityCameraData : ScriptableObject
     public float MaxTiltDown => maxTiltDown;
     public float MaxTiltUp => maxTiltUp;
     public float LoseSightDelay => loseSightDelay;
+    public Material ScanOverlayMaterial => scanOverlayMaterial;
+    public Material ScanBeamMaterial => scanBeamMaterial;
+    public float ScanLockOnTime => scanLockOnTime;
+    public float ScanFillDuration => scanFillDuration;
+    public float ScanDrainDuration => scanDrainDuration;
+    public float ScanPassDuration => scanPassDuration;
+    public float ScanFadeTime => scanFadeTime;
 }

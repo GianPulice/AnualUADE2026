@@ -20,6 +20,13 @@ using UnityEditor;
 /// in the FBX is not used - a clip cannot take its speed from an asset, and it cannot turn towards
 /// a target.
 ///
+/// THE SCAN. While it is following the player and can see them, the camera scans them: the scan
+/// fills their body from the head down behind a bright band, a single ray from the lens follows the
+/// band, as wide as the body is at that height (both in <see cref="SecurityScanOverlay"/>), and the
+/// lens lights up through the fog (<see cref="scanBeacon"/>). Purely visual - nothing reads whether a
+/// scan has completed. <see cref="scanPlayer"/> turns all of it off for a camera that only follows the
+/// player with its gaze (SecurityCamera_TrackOnly, a Variant of this prefab).
+///
 /// Angles are measured in the MOUNT's space, i.e. this transform's: yaw 0 is straight out of the
 /// wall (+Z), positive yaw is to the right, elevation 0 is the horizon and positive is up. That is
 /// what makes the sweep and the limits independent of how the rig's bones happen to be oriented.
@@ -71,6 +78,17 @@ public class SecurityCamera : MonoBehaviour
              "FieldOfView.viewDelay.")]
     [SerializeField, Min(0.02f)] private float scanInterval = 0.1f;
 
+    [Header("Scan FX")]
+    [Tooltip("On: while it follows the player the camera also scans them - the ray, the scan on the " +
+             "body and the light on the lens. Off: it only follows them with its gaze. Everything " +
+             "else (sweep, vision, tracking, events) works the same either way.")]
+    [SerializeField] private bool scanPlayer = true;
+
+    [Tooltip("Light on the lens while the camera scans, readable through the vision fog. Keep its " +
+             "GameObject INACTIVE in the prefab: an active FogBeacon takes one of the fog's 16 " +
+             "beacon slots even when it is dark, and the Nemesis's eyes are the first to lose theirs.")]
+    [SerializeField] private FogBeacon scanBeacon;
+
     private EState state = EState.Sweeping;
 
     // Where the lens points right now, in mount space (see the class comment).
@@ -87,6 +105,12 @@ public class SecurityCamera : MonoBehaviour
 
     private EScanResult lastScanResult = EScanResult.NotScanned;
     private Collider lastBlocker;
+
+    // The scan: on while the camera is following the player AND seeing them. scanStrength is this
+    // camera's beam and lens light fading in and out; the scan on the body keeps its own clock.
+    private bool scanning;
+    private float scanStrength;
+    private SecurityScanOverlay scanOverlay;
 
     // The rig at rest, captured once in Awake. Every frame the joints are rebuilt from these rather
     // than rotated incrementally, so no drift can accumulate over a long session.
@@ -157,16 +181,54 @@ public class SecurityCamera : MonoBehaviour
         }
 
         CaptureRest();
+        InitScanFx();
 
         yaw = Mathf.Lerp(SweepMin, SweepMax, sweepStartPhase);
         elevation = -sweepTilt;
         ApplyRig();
     }
 
+    /// <summary>
+    /// Hides the lens light until there is something to scan, and checks the scan is wired. The
+    /// effects are optional to the camera's logic but not to the feature, so a missing piece warns
+    /// rather than failing silently - a camera that tracks the player and draws nothing looks broken
+    /// in a way nothing would ever report.
+    /// </summary>
+    private void InitScanFx()
+    {
+        if (!scanPlayer)
+        {
+            // A camera that only watches: no lens light, and no complaints about scan assets it
+            // will never use.
+            if (scanBeacon != null) scanBeacon.gameObject.SetActive(false);
+            return;
+        }
+
+        if (data.ScanOverlayMaterial == null)
+            Debug.LogWarning($"[{nameof(SecurityCamera)}] '{name}': {nameof(SO_SecurityCameraData)} " +
+                             $"'{data.name}' has no scan overlay material, so nothing is drawn on the " +
+                             $"player's body.", this);
+
+        if (data.ScanBeamMaterial == null)
+            Debug.LogWarning($"[{nameof(SecurityCamera)}] '{name}': {nameof(SO_SecurityCameraData)} " +
+                             $"'{data.name}' has no scan beam material, so the camera scans without a " +
+                             $"beam.", this);
+
+        if (scanBeacon != null) scanBeacon.gameObject.SetActive(false);
+        else Debug.LogWarning($"[{nameof(SecurityCamera)}] '{name}' has no scan beacon: its lens " +
+                              $"will not light up while it scans.", this);
+    }
+
     private void OnDisable()
     {
         // A listener told "spotted" must always hear the matching "lost".
         if (state == EState.Tracking) StopTracking();
+
+        // And the body must not keep a scan or a beam for a camera that is gone.
+        if (scanning) SetScanning(false);
+        if (scanOverlay != null) scanOverlay.ClearBeam(this);
+        scanStrength = 0f;
+        ShowLensLight(false);
     }
 
     /// <summary>
@@ -227,6 +289,7 @@ public class SecurityCamera : MonoBehaviour
         else TickSweep(deltaTime);
 
         ApplyRig();
+        TickScan(deltaTime);
     }
 
     private void Scan()
@@ -380,6 +443,75 @@ public class SecurityCamera : MonoBehaviour
         sweepDirection = yaw >= SweepCenter ? 1 : -1;
 
         SecurityCameraEvents.PlayerLost(this);
+    }
+
+    /// <summary>
+    /// The scan runs while the camera is following the player AND can see them. During the
+    /// lose-sight delay the camera is staring at where they were, and a beam still scanning that
+    /// spot would hand the player a tell the camera itself no longer has.
+    /// </summary>
+    private void TickScan(float deltaTime)
+    {
+        bool wanted = scanPlayer && state == EState.Tracking && seesPlayer;
+        if (wanted != scanning) SetScanning(wanted);
+
+        float target = scanning ? 1f : 0f;
+        float fade = data.ScanFadeTime;
+        scanStrength = fade > 0f ? Mathf.MoveTowards(scanStrength, target, deltaTime / fade) : target;
+
+        bool visible = scanStrength > 0f && scanOverlay != null;
+        ShowLensLight(visible);
+
+        if (!visible)
+        {
+            if (scanOverlay != null) scanOverlay.ClearBeam(this);
+            return;
+        }
+
+        if (scanBeacon != null) scanBeacon.IntensityScale = scanStrength;
+
+        // The beam itself is drawn on the player's body (see SecurityScanOverlay): all it needs from
+        // the camera is where the light comes from and how much of it there is.
+        scanOverlay.SetBeam(this, eye.position, scanStrength);
+    }
+
+    private void SetScanning(bool on)
+    {
+        scanning = on;
+
+        if (!on)
+        {
+            // The overlay is kept: the beam still has to fade out on it.
+            if (scanOverlay != null) scanOverlay.RemoveScanner(this);
+            return;
+        }
+
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player == null) return;
+
+        Transform bodyRoot = player.PlayerBody != null ? player.PlayerBody : player.transform;
+        Renderer body = bodyRoot.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (body == null)
+        {
+            Debug.LogWarning($"[{nameof(SecurityCamera)}] '{name}': the player has no " +
+                             $"SkinnedMeshRenderer under '{bodyRoot.name}', so there is no body to " +
+                             $"scan.", this);
+            return;
+        }
+
+        scanOverlay = SecurityScanOverlay.For(body, player.CapsuleColl, data.ScanOverlayMaterial);
+        if (scanOverlay != null) scanOverlay.AddScanner(this, data);
+    }
+
+    /// <summary>
+    /// Shows or hides the lens light. The beacon goes on and off with its GameObject rather than
+    /// sitting at zero brightness, because a registered beacon holds a fog slot either way - see the
+    /// tooltip on <see cref="scanBeacon"/>.
+    /// </summary>
+    private void ShowLensLight(bool visible)
+    {
+        if (scanBeacon != null && scanBeacon.gameObject.activeSelf != visible)
+            scanBeacon.gameObject.SetActive(visible);
     }
 
     /// <summary>

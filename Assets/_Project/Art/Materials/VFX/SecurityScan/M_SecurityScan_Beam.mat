@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_SecurityScan_Beam
+  m_Shader: {fileID: 4800000, guid: 7a003dbd69407be43afe66172aea3f4a, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _BandBoost: 2
+    - _BandWidth: 0.07
+    - _BeamIntensity: 0.8
+    - _DustAmount: 0.35
+    - _DustScale: 7
+    - _DustSpeed: 0.25
+    - _EdgeIntensity: 1.5
+    - _EdgeOnBoost: 1.5
+    - _EdgeOnPower: 4
+    - _EdgeSoftness: 1.5
+    - _EdgeWidth: 0.05
+    - _FillSoftness: 0.04
+    - _FillY: 100
+    - _FrontBoost: 1
+    - _FrontWidth: 0.06
+    - _LengthFalloff: 0.2
+    - _LensFade: 0.12
+    - _PulseAmount: 0.45
+    - _PulseDensity: 5
+    - _PulseSpeed: 2.5
+    - _RayEdgeSoftness: 0.6
+    - _RayHalfHeight: 0.06
+    - _ScanY: 0
+    - _ShimmerAmount: 0.3
+    - _ShimmerDensity: 30
+    - _ShimmerSpeed: 6
+    - _SideSoftness: 0.25
+    - _SoftDistance: 0.04
+    - _Strength: 0
+    - _StripeDensity: 16
+    - _StripeIntensity: 0.5
+    - _StripeSpeed: 3
+    m_Colors:
+    - _BeamColor: {r: 1.6, g: 0.12, b: 0.08, a: 1}
+    - _BodyCenter: {r: 0, g: 0, b: 0, a: 0}
+    - _LensPos: {r: 0, g: 0, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

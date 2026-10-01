@@ -22,3 +22,9 @@ MonoBehaviour:
   maxTiltDown: 70
   maxTiltUp: 20
   loseSightDelay: 1.5
+  scanOverlayMaterial: {fileID: 2100000, guid: 9809d7624fbd17d46b078686cde2dc95, type: 2}
+  scanBeamMaterial: {fileID: 2100000, guid: e1c4caa0353d86d4db63a38b849eac24, type: 2}
+  scanFillDuration: 2.5
+  scanDrainDuration: 1.5
+  scanPassDuration: 1.2
+  scanFadeTime: 0.25

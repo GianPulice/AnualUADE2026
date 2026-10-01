@@ -28,7 +28,8 @@ Transform:
   m_LocalPosition: {x: -0.09729, y: -0.26, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 3524647700833469832}
   m_Father: {fileID: 5439171022550769114}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &983781033185642600
@@ -128,6 +129,61 @@ SkinnedMeshRenderer:
     m_Center: {x: -0.233, y: 0.12, z: 0}
     m_Extent: {x: 0.4, y: 0.3, z: 0.4}
   m_DirtyAABB: 0
+--- !u!1 &2064582132533578283
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3524647700833469832}
+  - component: {fileID: 8965262880362137506}
+  m_Layer: 0
+  m_Name: ScanBeacon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &3524647700833469832
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2064582132533578283}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0.02}
+  m_LocalScale: {x: 0.9999999, y: 1.0000001, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5609388274822056131}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8965262880362137506
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2064582132533578283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 969dfb77d37d8824f87eecda762b0b3c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FogBeacon
+  color: {r: 1, g: 0.12, b: 0.08, a: 1}
+  intensity: 3.5
+  worldRadius: 0.045
+  minPixelRadius: 3.5
+  centreOffset: {x: 0, y: 0, z: 0}
+  limitByFacing: 1
+  facingAngle: 150
+  facingSoftness: 0.35
+  nearFadeStart: 0
+  nearFadeEnd: 0
+  maxDistance: 0
 --- !u!1 &4830900757513640563
 GameObject:
   m_ObjectHideFlags: 0
@@ -185,6 +241,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 6153
   scanInterval: 0.1
+  scanBeacon: {fileID: 8965262880362137506}
 --- !u!1 &5254372959909803601
 GameObject:
   m_ObjectHideFlags: 0

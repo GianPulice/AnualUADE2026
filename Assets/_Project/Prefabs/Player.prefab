@@ -384,6 +384,8 @@ MonoBehaviour:
   minStepInterval: 0.12
   minDistance: 2
   maxDistance: 20
+  rolloff: 1
+  pitchMultiplier: 1
   volumeScale: 1
   occlusionEnabled: 1
   occluderMask:
