@@ -178,4 +178,67 @@ public static class LineOfSight
 
         return false;
     }
+
+    /// <summary>
+    /// <see cref="CheckConeSampled"/> for a sensor with no vertical limit: a vertical WEDGE instead
+    /// of a cone. Only the horizontal angle off <paramref name="front"/> is tested, measured in the
+    /// plane perpendicular to <paramref name="up"/>; range and occlusion stay full 3D, per sample.
+    ///
+    /// This is the one place in the class that flattens, and it does it on purpose: it exists for
+    /// the security cameras, whose design is that height never hides the player - crouched,
+    /// on a catwalk or straight underneath, they are caught the moment an edge of the sweep
+    /// crosses them. It does not loosen the Nemesis: FieldOfView keeps the cone, and "nothing
+    /// flattens Y" above still holds for it.
+    ///
+    /// Same three samples up the bounds as the cone, for the same reason, and the wedge, range
+    /// and occlusion are tested together per sample, for the same reason too.
+    /// </summary>
+    /// <param name="up">The axis the wedge stands along - the mount's up, not necessarily world
+    /// up.</param>
+    /// <param name="angle">Total horizontal width of the wedge, in degrees.</param>
+    /// <param name="range">How far the wedge reaches, measured in 3D from the origin.</param>
+    public static bool CheckWedgeSampled(Vector3 origin, Vector3 front, Vector3 up, Collider target,
+                                         float angle, float range, LayerMask obstacleMask,
+                                         out Vector3 seenPoint)
+    {
+        seenPoint = Vector3.zero;
+        if (target == null) return false;
+
+        // Looking straight along the up axis there is no horizontal heading to measure from.
+        Vector3 flatFront = Vector3.ProjectOnPlane(front, up);
+        if (flatFront.sqrMagnitude < 0.000001f) return false;
+
+        Bounds bounds = target.bounds;
+        float rangeSqr = range * range;
+
+        for (int j = -1; j < 2; j++)
+        {
+            Vector3 point = bounds.center + new Vector3(0f, j * bounds.extents.y * 0.9f, 0f);
+
+            Vector3 toPoint = point - origin;
+            float sqrDistance = toPoint.sqrMagnitude;
+            if (sqrDistance > rangeSqr) continue;
+
+            if (sqrDistance <= 0.00000001f)
+            {
+                seenPoint = point;
+                return true;
+            }
+
+            // A point straight above or below the origin has no horizontal angle: inside the wedge.
+            Vector3 flatToPoint = Vector3.ProjectOnPlane(toPoint, up);
+            bool withinWedge = flatToPoint.sqrMagnitude < 0.000001f ||
+                               Vector3.Angle(flatFront, flatToPoint) <= angle * 0.5f;
+            if (!withinWedge) continue;
+
+            // Triggers ignored, same as CheckView and for the same reason.
+            float distance = Mathf.Sqrt(sqrDistance);
+            if (Physics.Raycast(origin, toPoint / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore)) continue;
+
+            seenPoint = point;
+            return true;
+        }
+
+        return false;
+    }
 }
