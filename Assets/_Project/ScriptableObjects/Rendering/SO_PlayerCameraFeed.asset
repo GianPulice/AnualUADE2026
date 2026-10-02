@@ -16,8 +16,7 @@ MonoBehaviour:
   overlayDuringGameplay: 1
   typeCharsPerSecond: 30
   eraseCharsPerSecond: 60
-  idleReadout: '00:00'
-  moduleReadoutFormat: '{0}:{1,-11}  {2}'
+  moduleReadoutFormat: '{0}: {1} {2}'
   activationCountUpSeconds: 1.2
   inProgressText: IN PROGRESS
   disarmedText: DISARMED
@@ -25,7 +24,6 @@ MonoBehaviour:
   moduleWarningFraction: 0.25
   moduleCriticalFraction: 0.1
   moduleWarningSeconds: 30
-  moduleWarningBlink: 2
   pictureLeadSeconds: 1.5
   bootTitle: BOOTING
   bootBar:

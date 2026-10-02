@@ -185,6 +185,7 @@ public class GizmoManager : MonoBehaviour
         // Destroyed or switched off between the scheduling and now: OnDisable already restored.
         if (this == null || !isActiveAndEnabled) return;
 
+        LoadGizmoList();
         HashSet<string> hidden = LoadHidden();
 
         foreach ((bool show, Type[] types) in Families())
@@ -198,12 +199,22 @@ public class GizmoManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Asks for the whole gizmo list, which is what loads it. Until something does — the Gizmos
+    /// dropdown being opened, or this call — TryGetGizmoInfo answers false for EVERY type, even
+    /// BoxCollider, after a domain reload (seen in 6000.4). Apply and the restore both run right
+    /// after one, took that false for "this type has no gizmo", skipped it and so hid nothing at
+    /// all, with no error anywhere.
+    /// </summary>
+    private static void LoadGizmoList() => UnityEditor.GizmoUtility.GetGizmoInfo();
+
+    /// <summary>
     /// Hides only what is currently showing, and records it; shows only what this manager recorded.
     /// That pair is what keeps a gizmo someone switched off by hand in the dropdown switched off.
     /// </summary>
     private static void SetShown(Type type, bool show, HashSet<string> hidden)
     {
-        // Not registered: the type has never had a gizmo or an icon to draw.
+        // Not registered: the type has never had a gizmo or an icon to draw. (Only once the list is
+        // loaded: see LoadGizmoList.)
         if (!UnityEditor.GizmoUtility.TryGetGizmoInfo(type, out UnityEditor.GizmoInfo info)) return;
 
         string gizmoKey = GizmoChannel + KeySeparator + type.AssemblyQualifiedName;
@@ -236,6 +247,7 @@ public class GizmoManager : MonoBehaviour
     /// </summary>
     public static void RestoreHiddenGizmos()
     {
+        LoadGizmoList();
         HashSet<string> hidden = LoadHidden();
         if (hidden.Count == 0) return;
 

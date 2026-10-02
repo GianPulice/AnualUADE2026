@@ -202,7 +202,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         InventoryEvents.InventoryToggled(false);
     }
-    public void OpenDocument() => itemDetailView?.ShowDoc();
+    public void OpenDocument()
+    {
+        itemDetailView?.ShowDoc();
+
+        // Opening the doc is reading the note.
+        if (currentSelectedItem != null) MarkRead(currentSelectedItem);
+    }
     public void CloseDocument() => itemDetailView?.HideDoc();
     // ── Item selection ────────────────────────────────────────────────────────
 
@@ -215,6 +221,17 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         if (item == null) return;
         selectedItem = item;
         currentSelectedItem = item;
+
+        // Selecting it is looking at it: no longer NEW. A note with nothing to open (no doc) is
+        // read by being looked at; one with a doc is read when the doc is opened.
+        if (InventoryManager.Exists)
+        {
+            InventoryManager.Instance.MarkSeen(item);
+            if (item.Category == ItemCategory.Note && item.ContentType != ItemContentType.Text)
+                InventoryManager.Instance.MarkRead(item);
+        }
+        inventoryView?.RefreshMarks(item);
+
         InventoryEvents.ItemSelected(item);
     }
 
@@ -275,6 +292,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     }
 
     // -- Helpers --------------------
+
+    private void MarkRead(SO_InventoryItem item)
+    {
+        if (!InventoryManager.Exists) return;
+        InventoryManager.Instance.MarkRead(item);
+        inventoryView?.RefreshMarks(item);
+    }
 
     private void RefreshItemList()
     {
