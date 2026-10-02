@@ -21,6 +21,9 @@ using UnityEngine;
 ///   2. This component, with the shaft's NemesisElevatorLink dragged in.
 ///   3. Panel Renderer set to the mesh that carries the emissive panel material. No Light needed —
 ///      the panel's own material provides the glow, this only changes its emission colour.
+///
+/// POWER: an <see cref="ElevatorPower"/> on the elevator root makes the panel refuse, go dark and say
+/// why until the shaft has power (WIR-063). No ElevatorPower there: always powered.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class ElevatorCallPanel : BaseRangeInteractable
@@ -38,6 +41,11 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
         /// <summary>Travelling, or reserved by the Nemesis. The press is refused.</summary>
         Busy,
+
+        /// <summary>The shaft has no power (<see cref="ElevatorPower"/>). The press is refused and
+        /// the panel says why; it outranks every other state, since none of them can change it.
+        /// </summary>
+        NoPower,
     }
 
     [Header("Shaft")]
@@ -69,6 +77,9 @@ public class ElevatorCallPanel : BaseRangeInteractable
 
     [Tooltip("Pulses per second of the busy state. 0 holds it steady.")]
     [SerializeField, Min(0f)] private float busyPulseSpeed = 2f;
+
+    [Tooltip("The shaft has no power. Black is a dead lamp: the panel reads as switched off.")]
+    [SerializeField] private Color noPowerColor = Color.black;
 
     [Header("Switch animation")]
     [Tooltip("Animator driving the lever mesh. Left empty it is taken from this object's own " +
@@ -111,6 +122,10 @@ public class ElevatorCallPanel : BaseRangeInteractable
     /// </summary>
     private PanelState? promptState;
 
+    /// <summary>The shaft's power, on the elevator root next to the link. Null on a shaft that has
+    /// none, which is a shaft that is always powered.</summary>
+    private ElevatorPower power;
+
     private MovingPlatform Platform => elevator != null ? elevator.Platform : null;
 
     /// <summary>
@@ -136,6 +151,8 @@ public class ElevatorCallPanel : BaseRangeInteractable
             MovingPlatform platform = Platform;
             if (platform == null) return PanelState.Busy;
 
+            if (power != null && !power.HasPower) return PanelState.NoPower;
+
             // Claimed counts as busy even while the cabin is sitting still: the Nemesis holds the
             // platform from the moment it commits to the shaft, and letting a press through in
             // that window would take the ride out from under it.
@@ -160,6 +177,7 @@ public class ElevatorCallPanel : BaseRangeInteractable
         if (!isConfigured) return;
 
         isBottomPanel = elevator.IsAtBottomSide(transform.position);
+        power = elevator.GetComponent<ElevatorPower>();
 
         propertyBlock = new MaterialPropertyBlock();
         ApplyFeedback(1f);
@@ -237,6 +255,8 @@ public class ElevatorCallPanel : BaseRangeInteractable
                 return isBottomPanel ? "Forklift is already down here." : "Forklift is already up here.";
             case PanelState.Busy:
                 return "Forklift in use. Wait for it to come free.";
+            case PanelState.NoPower:
+                return power.NoPowerInfo;
             default:
                 return string.Empty;
         }
@@ -380,6 +400,7 @@ public class ElevatorCallPanel : BaseRangeInteractable
         {
             case PanelState.CabinPresent: return cabinPresentColor;
             case PanelState.Busy:         return busyColor;
+            case PanelState.NoPower:      return noPowerColor;
             default:                      return callableColor;
         }
     }

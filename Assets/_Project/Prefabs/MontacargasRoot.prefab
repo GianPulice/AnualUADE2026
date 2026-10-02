@@ -576,6 +576,7 @@ GameObject:
   - component: {fileID: 8312962350523370375}
   - component: {fileID: 7383323924871355308}
   - component: {fileID: 998012208471940762}
+  - component: {fileID: 8557519678500037109}
   m_Layer: 6
   m_Name: MontacargasRoot
   m_TagString: Untagged
@@ -668,6 +669,21 @@ MonoBehaviour:
   minRegionArea: 1.5
   boardingInset: 0.9
   boardingLinkWidth: 1.5
+--- !u!114 &8557519678500037109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7736780603074074927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ddf9037c425e0f4eb93f766310cb569, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ElevatorPower
+  hasPower: 0
+  powerPuzzleId: 
+  noPowerInfo: You need electricity to use the forklift.
 --- !u!1 &7791698240898696526
 GameObject:
   m_ObjectHideFlags: 0

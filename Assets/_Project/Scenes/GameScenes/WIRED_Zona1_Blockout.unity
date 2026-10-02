@@ -118132,6 +118132,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MontacargasRoot
       objectReference: {fileID: 0}
+    - target: {fileID: 8557519678500037109, guid: 25787aac069b21844bdcec64fe1c48eb, type: 3}
+      propertyPath: powerPuzzleId
+      value: sp1_panel_electrico
+      objectReference: {fileID: 0}
     - target: {fileID: 8824901474335336951, guid: 25787aac069b21844bdcec64fe1c48eb, type: 3}
       propertyPath: m_Material
       value: 

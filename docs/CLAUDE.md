@@ -1570,6 +1570,14 @@ and measures the shaft, `NemesisElevatorUser` performs the crossing for the Neme
 `ElevatorCallPanel` is the player's call button — one per landing, which is what stops a player who
 rides up and steps off from being locked out of that floor.
 
+**Power (WIR-063).** `ElevatorPower`, on the `MontacargasRoot` prefab next to the link, is one bool per
+shaft — the `PoweredLightSwitch` pattern: set when `powerPuzzleId` completes (with the Start catch-up),
+dropped again by a respawn whose rollback un-solves it, tickable by hand to test. Until then the call
+panels go dark (`noPowerColor`) and the ride button refuses too, both showing `noPowerInfo`. The prefab
+ships with the id **empty, which means always powered**, so the testbeds keep a working lift; Zona1's
+instance sets `sp1_panel_electrico`, the puzzle the light switches wait for (F3 completes it in Play).
+Only the player's controls read it: the Nemesis calls `MovingPlatform.RequestRide` directly.
+
 The platform can be **claimed** (`TryClaim`/`ReleaseClaim`/`IsClaimed`). `NemesisElevatorUser`
 holds the claim for the whole attempt, from before it starts waiting until its `finally`. That is
 what stops a panel press from stealing a ride the monster has already committed to, and what stops

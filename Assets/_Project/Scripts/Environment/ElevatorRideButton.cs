@@ -38,18 +38,25 @@ public class ElevatorRideButton : BaseRangeInteractable
 
     private bool isConfigured;
 
+    /// <summary>The shaft's power (WIR-063), on the elevator root above the cabin. Null on a shaft
+    /// that has none, which is a shaft that is always powered.</summary>
+    private ElevatorPower power;
+
+    private bool HasPower => power == null || power.HasPower;
+
     /// <summary>
-    /// What the prompt was last drawn from — player aboard, cabin free — or null while the crosshair
-    /// is on something else. Those two flags are everything CanInteract and both texts read, so a
-    /// change in either is a change in what the prompt has to say. See <see cref="LateUpdate"/>.
+    /// What the prompt was last drawn from — power on, player aboard, cabin free — or null while the
+    /// crosshair is on something else. Those flags are everything CanInteract and both texts read, so
+    /// a change in any of them is a change in what the prompt has to say. See <see cref="LateUpdate"/>.
     /// </summary>
-    private (bool aboard, bool available)? promptState;
+    private (bool powered, bool aboard, bool available)? promptState;
 
     protected override void Awake()
     {
         base.Awake();
 
         if (platform == null) platform = GetComponentInParent<MovingPlatform>();
+        if (platform != null) power = platform.GetComponentInParent<ElevatorPower>();
 
         isConfigured = platform != null;
         if (!isConfigured)
@@ -67,19 +74,21 @@ public class ElevatorRideButton : BaseRangeInteractable
     /// send the empty cabin away from the floor the player is standing on.
     /// </summary>
     protected override bool CanInteractInCloseRange() =>
-        isConfigured && platform.IsPlayerAboard && platform.IsAvailable;
+        isConfigured && HasPower && platform.IsPlayerAboard && platform.IsAvailable;
 
     public override string GetPromptText() =>
         isConfigured ? "Operate forklift" : string.Empty;
 
     /// <summary>
-    /// Carries the "why not" for the two refusals, which is the whole reason this button reads as
-    /// a button rather than as scenery: pressed from the landing it has to say to step aboard, and
-    /// pressed on a claimed cabin it has to say the lift is busy.
+    /// Carries the "why not" for the refusals, which is the whole reason this button reads as a
+    /// button rather than as scenery: with the power off it says so first (nothing else can make it
+    /// work), pressed from the landing it has to say to step aboard, and pressed on a claimed cabin it
+    /// has to say the lift is busy.
     /// </summary>
     public override string GetInfoText()
     {
         if (!isConfigured)               return string.Empty;
+        if (!HasPower)                   return power.NoPowerInfo;
         if (!platform.IsPlayerAboard)    return "Step onto the platform first.";
         return platform.IsAvailable ? string.Empty : "Forklift in use.";
     }
@@ -140,7 +149,8 @@ public class ElevatorRideButton : BaseRangeInteractable
             return;
         }
 
-        (bool aboard, bool available) state = (platform.IsPlayerAboard, platform.IsAvailable);
+        (bool powered, bool aboard, bool available) state =
+            (HasPower, platform.IsPlayerAboard, platform.IsAvailable);
         if (promptState == state) return;
 
         promptState = state;
