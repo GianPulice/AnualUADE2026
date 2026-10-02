@@ -277,12 +277,29 @@ public class SO_EscapeSequenceConfig : ScriptableObject
 
     // ── Ending: the gate slams shut ─────────────────────────────────────────
     [Header("Final: el portón se cae — A DEFINIR EN TESTEO")]
-    // Al cruzar el WinTrigger: plano del portón (sin el jugador), el Nemesis corre hacia él, el
-    // portón cae en su cara con polvo y queda trabado del otro lado. Después, la victoria.
-    [Tooltip("Segundos desde el corte al plano del portón hasta que empieza a caer. Va de la mano " +
-             "con dónde arranca el Nemesis (Nemesis_GateStart): el portón tiene que tocar el piso " +
-             "un instante antes de que él llegue.")]
-    [SerializeField, Min(0f)] private float gateDropDelay = 1f;
+    // Al cruzar el WinTrigger la cámara de seguridad del portón muestra lo que pasó unos segundos
+    // ANTES: el jugador corriendo hacia el portón con el Nemesis pisándole los talones, cruzándolo,
+    // y el portón cayendo justo detrás suyo en la cara del Nemesis, que queda trabado del otro
+    // lado. Después, la victoria. Es un "rebobinado": el director lleva al jugador unos metros
+    // atrás del portón y lo hace correr de nuevo (PlayerCinematicRunner).
+    [Tooltip("Metros antes del portón desde donde el jugador arranca a correr en el plano final: " +
+             "cuánto está 'atrasada' la cámara. A su velocidad de sprint son ~0.2 s por metro. La " +
+             "cámara del portón está a unos 5-6 m, así que más que eso arranca detrás de ella.")]
+    [SerializeField, Min(1f)] private float endingRunUpDistance = 8f;
+
+    [Tooltip("Metros pasado el portón que sigue corriendo el jugador antes de frenar.")]
+    [SerializeField, Min(0.5f)] private float endingRunPastGate = 4f;
+
+    [Tooltip("Cuánto (m) tiene que haber pasado el jugador la línea del portón para que empiece a " +
+             "caer. Menos = cae casi sobre sus talones; más = le deja aire. La caída dura 'Gate " +
+             "Slam Seconds' y el jugador sigue corriendo mientras cae.")]
+    [SerializeField, Min(0f)] private float endingSlamClearance = 0.8f;
+
+    [Tooltip("Segundos después de que el portón toca el piso hasta que el Nemesis llega a " +
+             "Nemesis_GateStop. 0 = llega justo con el golpe; positivo = el portón le gana por " +
+             "un pelo (lo normal); negativo = el Nemesis llega antes y el portón le cae encima. " +
+             "El arranque del Nemesis se calcula con esto: no hay marcador de salida.")]
+    [SerializeField] private float endingNemesisArrivalDelay = 0.1f;
 
     [Tooltip("Segundos que tarda en caer. Acelera como algo pesado: arranca lento y llega a fondo.")]
     [SerializeField, Min(0.05f)] private float gateSlamSeconds = 0.35f;
@@ -446,7 +463,10 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public SO_VisionFogConfig GateShotFog => gateShotFog;
     public bool CutToDustShot => cutToDustShot;
     public float DustShotDelay => dustShotDelay;
-    public float GateDropDelay => gateDropDelay;
+    public float EndingRunUpDistance => endingRunUpDistance;
+    public float EndingRunPastGate => endingRunPastGate;
+    public float EndingSlamClearance => endingSlamClearance;
+    public float EndingNemesisArrivalDelay => endingNemesisArrivalDelay;
     public float GateSlamSeconds => gateSlamSeconds;
     public string GateSlamSoundId => gateSlamSoundId;
     public float GateShakeAmplitude => gateShakeAmplitude;
