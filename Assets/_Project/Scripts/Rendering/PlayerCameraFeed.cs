@@ -7,11 +7,15 @@ using UnityEngine;
 /// colours: while the player's rig is live, the frame goes through <c>PlayerCamera.mat</c> (drawn by
 /// <see cref="PlayerFeedRendererFeature"/> on PC_Renderer) with a light lens barrel and grain, and
 /// burnt in: the area the player is in (<see cref="CameraAreaZone"/>) top left, a blinking red
-/// recording dot top right, viewfinder brackets, and bottom left a readout: 00:00 until a module
-/// starts, then the device's module — typed in at 00:00 when it starts, its time counting up to the
-/// module's and then down: "M1:IN PROGRESS  14:35", DISARMED, FAILED. Both texts retype themselves
-/// when they change. The time turns amber with a quarter of the module's time left, red with a tenth,
-/// and blinks red in the last 30 seconds (<see cref="SO_PlayerCameraFeedConfig.ModuleTimerStage"/>).
+/// recording dot top right, viewfinder brackets, and bottom left a readout that is empty until a
+/// module starts. A start sweeps "BOMB ACTIVATED" across the middle of the screen in red, blinking;
+/// then the device's module types in there at 00:00, its time counts up to the module's, and the
+/// readout travels to the corner, shrinking, and counts down: "M1: IN PROGRESS 14:35", DISARMED,
+/// FAILED. The whole readout turns amber with a quarter of the module's time left, red with a
+/// tenth or in the last 30 seconds (<see cref="SO_PlayerCameraFeedConfig.ModuleTimerStage"/>); until
+/// then it is steady. From amber on its digits go out and come back, faster as the time runs out
+/// (the text stays).
+/// Both texts retype themselves when they change.
 ///
 /// At the start of the level the camera boots (<see cref="PlayerCameraBoot"/>, run by
 /// <see cref="WakeUpCinematicView"/>): black, then the picture comes in through static —
@@ -43,6 +47,7 @@ public class PlayerCameraFeed : MonoBehaviour
         Gameplay,       // The settled feed.
         Boot,           // The boot, Preview Amount through it: the picture coming in under the boot screen.
         Calibrating,    // Recording, the lens calibrating: Preview Amount = how far up the player is.
+        Banner,         // The bomb banner, Preview Amount through its sweep in, hold and sweep out.
     }
 
     private const int LineCapacity = 32;
@@ -51,7 +56,8 @@ public class PlayerCameraFeed : MonoBehaviour
     private const int StatusLine = 2;
     private const int BootTitleLine = 3;
     private const int BootPercentLine = 4;
-    private const int LineCount = 5;
+    private const int BannerLine = 5;
+    private const int LineCount = 6;
 
     // For the preview only: seconds from the picture coming in to the player on their feet — the
     // wake-up's stand-up clip.
@@ -81,7 +87,10 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int BootId = Shader.PropertyToID("_PlayerFeedBoot");
     private static readonly int LensId = Shader.PropertyToID("_PlayerFeedLens");
     private static readonly int SignalId = Shader.PropertyToID("_PlayerFeedSignal");
-    private static readonly int TimerId = Shader.PropertyToID("_PlayerFeedTimer");
+    private static readonly int ReadoutId = Shader.PropertyToID("_PlayerFeedReadout");
+    private static readonly int ReadoutTimeId = Shader.PropertyToID("_PlayerFeedReadoutTime");
+    private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
+    private static readonly int RecBlinkId = Shader.PropertyToID("_PlayerFeedRecBlink");
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => LensFovOffset = 0f;
@@ -126,6 +135,7 @@ public class PlayerCameraFeed : MonoBehaviour
     // What the text buffer holds, so it is only rewritten when something on screen changes.
     private bool textDirty = true;
     private string writtenBootTitle;
+    private string writtenBanner;
     private Status writtenStatus = (Status)(-1);
     private int writtenStatusPercent = -1;
     private int writtenBootPercent = -1;
@@ -139,14 +149,27 @@ public class PlayerCameraFeed : MonoBehaviour
     private readonly TypedLine readoutLine = new TypedLine(ClockLine * LineCapacity);
     private bool overlayOnline;
 
-    // The readout's time: where it is in the line, its color stage (ModuleTimerStage) and its blink.
-    private int timerStart;
-    private int timerLength;
-    private int timerStage;
-    private bool timerHidden;
+    // The readout's look: how far it has travelled from the middle of the screen to its corner, its
+    // color stage (ModuleTimerStage), its blink, and the length it will have typed (to centre on).
+    private float readoutTravel = 1f;
+    private int readoutStage;
+    private float readoutBlinkPhase = -1f;   // 0..1 through a blink (lit for the first half); -1 = steady
+    private int readoutTargetLength;
 
-    // The readout: 00:00 until a module starts, then that module. A start types it in at 00:00 and
-    // counts the time up to the module's before the countdown takes over (once per module).
+    // Where the time sits in the readout's text (first glyph, glyph count): the part that blinks.
+    private int readoutTimeStart;
+    private int readoutTimeLength;
+
+    // The bomb banner: how far it has swept in and out, and its length (0 = not up).
+    private Vector2 bannerSweep;
+    private int bannerLength;
+
+    // The readout: nothing until a module starts, then that module. A start sweeps the banner, then
+    // types the readout in the middle at 00:00, counts the time up to the module's and sends it to
+    // its corner (once per module), where the countdown goes on.
+    private enum Intro { Banner, Middle, Travel, Docked }
+    private Intro intro = Intro.Docked;
+    private float introStart;
     private ModuleRuntime focusModule;
     private ModuleRuntime lastActive;
     private bool countUpPending;
@@ -154,8 +177,11 @@ public class PlayerCameraFeed : MonoBehaviour
     private int readoutIdentity = int.MinValue;
     private int readoutKey = int.MinValue;
 
-    // Readout identity of the idle 00:00; a module's is its index and status.
+    // Readout identity of the empty readout; a module's is its index and status.
     private const int IdleIdentity = -1;
+
+    // What the edit-mode preview shows in the corner.
+    private const string PreviewReadout = "M1: IN PROGRESS 14:57";
 
     private int lastShownFrame = int.MinValue;
     private float cutInAt = float.NegativeInfinity;
@@ -257,8 +283,12 @@ public class PlayerCameraFeed : MonoBehaviour
 
         Shader.SetGlobalVector(InfoId, new Vector4(labelLine.Length, readoutLine.Length,
                                                     statusShown ? statusLength : 0, overlay));
-        Shader.SetGlobalVector(TimerId, new Vector4(timerStart, timerStart + timerLength, timerStage,
-                                                     timerHidden ? 0f : 1f));
+        Shader.SetGlobalVector(ReadoutId, new Vector4(readoutTravel, readoutTargetLength, readoutStage,
+                                                       readoutBlinkPhase));
+        Shader.SetGlobalVector(ReadoutTimeId, new Vector4(readoutTimeStart, readoutTimeLength, 0f, 0f));
+        Shader.SetGlobalVector(BannerId, new Vector4(bannerSweep.x, bannerSweep.y, bannerLength,
+                                                      config.BannerBlinkHz));
+        Shader.SetGlobalFloat(RecBlinkId, config.RecBlinkHz);
         Shader.SetGlobalVector(BootId, new Vector4(boot, bar, bootTitleLength, bootPercentLength));
         Shader.SetGlobalVector(LensId, LensGlobals(camera, playing));
         Shader.SetGlobalVector(SignalId, new Vector4(power, noise, blur, exposure));
@@ -334,6 +364,12 @@ public class PlayerCameraFeed : MonoBehaviour
         boot = 0f;
         bar = 0f;
 
+        // The readout docked and steady, the banner down: only the Banner stage shows it.
+        readoutTravel = 1f;
+        readoutStage = 0;
+        readoutBlinkPhase = -1f;
+        bannerLength = 0;
+
         switch (previewStage)
         {
             case PreviewStage.Boot:
@@ -350,6 +386,14 @@ public class PlayerCameraFeed : MonoBehaviour
                 lensShown = config.CalibrationTarget(previewAmount);
                 overlay = 1f;
                 status = Status.Calibrating;
+                break;
+
+            case PreviewStage.Banner:
+                SetPicture(1000f);
+                lensShown = 1f;
+                overlay = 1f;
+                bannerLength = Mathf.Min(config.BannerText.Length, LineCapacity);
+                bannerSweep = config.BannerSweep(previewAmount * config.BannerSeconds);
                 break;
 
             default:
@@ -602,7 +646,8 @@ public class PlayerCameraFeed : MonoBehaviour
         {
             // The preview shows the settled lines, no typing.
             labelLine.Set(config.Label, false, now);
-            readoutLine.Set(config.IdleReadout, false, now);
+            readoutLine.Set(PreviewReadout, false, now);
+            readoutTargetLength = PreviewReadout.Length;
         }
 
         if (textDirty)
@@ -612,6 +657,13 @@ public class PlayerCameraFeed : MonoBehaviour
         }
         if (labelLine.Draw(Text, now, config.EraseCharsPerSecond, config.TypeCharsPerSecond)) textDirty = true;
         if (readoutLine.Draw(Text, now, config.EraseCharsPerSecond, config.TypeCharsPerSecond)) textDirty = true;
+
+        if (textDirty || writtenBanner != config.BannerText)
+        {
+            writtenBanner = config.BannerText;
+            CameraFeedFont.WriteLine(Text, BannerLine * LineCapacity, LineCapacity, writtenBanner);
+            textDirty = true;
+        }
 
         string bootTitle = PlayerCameraBoot.IsReboot ? config.RebootTitle : config.BootTitle;
         if (textDirty || writtenBootTitle != bootTitle)
@@ -666,7 +718,8 @@ public class PlayerCameraFeed : MonoBehaviour
     /// <summary>
     /// The label (the area the player is in, <see cref="CameraAreaZone"/>) and the readout. Both
     /// type in when the recording overlay comes on screen, and retype when what they say changes;
-    /// the readout's time ticking just rewrites it.
+    /// the readout's time ticking just rewrites it. Also what a module starting plays: the bomb
+    /// banner, the readout typed in the middle and counting up, its travel to the corner.
     /// </summary>
     private void TickReadouts(float now)
     {
@@ -689,12 +742,16 @@ public class PlayerCameraFeed : MonoBehaviour
         int identity;
         string text;
         bool showsModule = TryModuleReadout(now, out identity, out text);
+
+        // The banner owns the screen until it has swept out; the readout types in after it.
+        if (intro == Intro.Banner && now - introStart >= config.BannerSeconds) intro = Intro.Middle;
+        if (showsModule && intro == Intro.Banner) showsModule = false;
+
         if (!showsModule)
         {
             identity = IdleIdentity;
-            text = config.IdleReadout;
+            text = string.Empty;
             readoutKey = int.MinValue;
-            timerStart = timerLength = 0;
         }
 
         // What the line says changed (a module started, disarmed, failed): retype. The time ticking:
@@ -703,18 +760,46 @@ public class PlayerCameraFeed : MonoBehaviour
         if (animate || text != readoutLine.Target) readoutLine.Set(text, animate, now);
         readoutIdentity = identity;
 
-        // The start's count-up waits for the line to finish typing in at 00:00.
-        if (countUpPending && readoutLine.IsSettled(now))
+        // The start's count-up waits for the line to finish typing in at 00:00 in the middle.
+        if (countUpPending && intro == Intro.Middle && readoutLine.IsSettled(now))
         {
             countUpPending = false;
             countUpStart = now;
         }
 
-        // The time's color as the module runs out (amber, then red); in its last seconds it blinks.
-        timerStage = showsModule ? config.ModuleTimerStage(focusModule) : 0;
-        timerHidden = showsModule && focusModule.Status == ModuleStatus.Active &&
-                      config.ModuleWarningSeconds > 0f && focusModule.TimeRemaining <= config.ModuleWarningSeconds &&
-                      Mathf.Repeat(now * config.ModuleWarningBlink, 1f) >= 0.65f;
+        // Once it has counted up, the readout leaves the middle for its corner.
+        if (intro == Intro.Middle && !countUpPending && countUpStart < 0f)
+        {
+            intro = Intro.Travel;
+            introStart = now;
+        }
+
+        float travelled = Mathf.Clamp01((now - introStart) / config.TravelSeconds);
+        if (intro == Intro.Travel && travelled >= 1f) intro = Intro.Docked;
+
+        readoutTravel = intro == Intro.Docked ? 1f
+                      : intro == Intro.Travel ? travelled * travelled * (3f - 2f * travelled)
+                      : 0f;
+        readoutTargetLength = readoutLine.Target.Length;
+
+        // The readout's color as the module runs out (amber, then red), and the blink of its time:
+        // only in the corner, with the module running and from amber on, faster the less time is
+        // left. Steady (white) before that.
+        readoutStage = showsModule ? config.ModuleTimerStage(focusModule) : 0;
+        FindTime(readoutLine.Target, out readoutTimeStart, out readoutTimeLength);
+        bool counting = showsModule && focusModule.Status == ModuleStatus.Active && readoutStage >= 1 &&
+                        (intro == Intro.Travel || intro == Intro.Docked);
+
+        // The blink's speed changes with the time left, so its phase is accumulated here: a phase
+        // worked out from the clock would jump every time the speed moved. It starts lit.
+        if (!counting)
+            readoutBlinkPhase = -1f;
+        else
+            readoutBlinkPhase = Mathf.Repeat(Mathf.Max(readoutBlinkPhase, 0f) +
+                                             config.ReadoutBlinkHz(focusModule, readoutStage) * Time.unscaledDeltaTime, 1f);
+
+        bannerLength = intro == Intro.Banner ? Mathf.Min(config.BannerText.Length, LineCapacity) : 0;
+        if (bannerLength > 0) bannerSweep = config.BannerSweep(now - introStart);
     }
 
     /// <summary>
@@ -722,7 +807,7 @@ public class PlayerCameraFeed : MonoBehaviour
     /// A module starting is the moment it appears — typed in at 00:00, its time counting up to the
     /// module's, then counting down. Rebuilt only when what it shows changes.
     /// </summary>
-    /// <returns>False before any module has started: the readout stays idle.</returns>
+    /// <returns>False before any module has started: the readout stays empty.</returns>
     private bool TryModuleReadout(float now, out int identity, out string text)
     {
         identity = IdleIdentity;
@@ -742,6 +827,8 @@ public class PlayerCameraFeed : MonoBehaviour
             focusModule = active;
             countUpPending = true;
             countUpStart = -1f;
+            intro = Intro.Banner;
+            introStart = now;
         }
         lastActive = active;
 
@@ -770,13 +857,31 @@ public class PlayerCameraFeed : MonoBehaviour
         if (key != readoutKey || readoutLine.Target.Length == 0)
         {
             readoutKey = key;
-            text = config.ModuleReadout(focusModule, index, seconds, out timerStart, out timerLength);
+            text = config.ModuleReadout(focusModule, index, seconds);
         }
         else
         {
             text = readoutLine.Target;
         }
         return true;
+    }
+
+    /// <summary>Where the last "MM:SS" in <paramref name="text"/> is: the readout's time. Nothing
+    /// (length 0) when there is none.</summary>
+    private static void FindTime(string text, out int start, out int length)
+    {
+        start = 0;
+        length = 0;
+        for (int i = text.Length - 5; i >= 0; i--)
+        {
+            if (char.IsDigit(text[i]) && char.IsDigit(text[i + 1]) && text[i + 2] == ':' &&
+                char.IsDigit(text[i + 3]) && char.IsDigit(text[i + 4]))
+            {
+                start = i;
+                length = 5;
+                return;
+            }
+        }
     }
 
     private static int IndexOf(IReadOnlyList<ModuleRuntime> modules, ModuleRuntime module)

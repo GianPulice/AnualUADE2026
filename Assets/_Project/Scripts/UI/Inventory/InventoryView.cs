@@ -104,7 +104,7 @@ public class InventoryView : MonoBehaviour
             foreach (SO_InventoryItem item in group)
             {
                 ItemSlotView slot = GetOrCreateSlot();
-                slot.Setup(item, rowIndex++, OnSlotClicked);
+                slot.Setup(item, rowIndex++, OnSlotClicked, model.IsNew(item), model.IsRead(item));
                 slot.gameObject.SetActive(true);
                 activeSlots.Add(slot);
             }
@@ -127,6 +127,19 @@ public class InventoryView : MonoBehaviour
 
         CheckScrollNeeded().Forget();
     }
+
+    /// <summary>The item's NEW mark or read state changed: redraw its row.</summary>
+    public void RefreshMarks(SO_InventoryItem item)
+    {
+        if (!InventoryManager.Exists) return;
+
+        InventoryManager model = InventoryManager.Instance;
+        foreach (ItemSlotView slot in activeSlots)
+        {
+            if (slot.Item == item) slot.SetMarks(model.IsNew(item), model.IsRead(item));
+        }
+    }
+
     public void HighlightItem(SO_InventoryItem item)
     {
         foreach (ItemSlotView slot in activeSlots)

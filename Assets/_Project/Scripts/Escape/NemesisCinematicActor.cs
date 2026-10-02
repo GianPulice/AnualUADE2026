@@ -42,6 +42,10 @@ public class NemesisCinematicActor : MonoBehaviour
 
     public bool HasControl => hasControl;
 
+    /// <summary>Metres per second of a <see cref="RunTo"/>: a cinematic that times the Nemesis's
+    /// arrival works it out from this.</summary>
+    public float RunSpeed => runSpeed;
+
     /// <summary>The Nemesis is in its own Catch state, its machine running: a capture is being
     /// resolved and it must not be taken (its Catch would freeze, and the capture never end).</summary>
     public bool IsNemesisCatching

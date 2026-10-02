@@ -30,19 +30,46 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     [Tooltip("Characters per second the old text erases at, before the new one types in.")]
     [SerializeField, Min(1f)] private float eraseCharsPerSecond = 60f;
 
-    [Header("Readout (bottom left)")]
-    [Tooltip("What the readout shows before any module has started.")]
-    [SerializeField] private string idleReadout = "00:00";
-
-    [Tooltip("When a module starts, the readout types this in with the time at 00:00, the time " +
-             "counts up to the module's (its ModuleData) and the countdown takes over; once per " +
-             "module. With none running, it stays on the last one that did.\n" +
-             "{0} = module (M1), {1} = status, {2} = time (MM:SS). ,-11 pads the status to 11 " +
-             "characters so the time stays in one column.")]
-    [SerializeField] private string moduleReadoutFormat = "{0}:{1,-11}  {2}";
+    [Header("Readout (bottom left; nothing until a module starts)")]
+    [Tooltip("When a module starts, the BOMB banner sweeps across the middle of the screen; then the " +
+             "readout types in there with the time at 00:00, the time counts up to the module's " +
+             "(its ModuleData), and the readout travels to the bottom left, where the countdown " +
+             "goes on. Once per module. With none running, it stays on the last one that did.\n" +
+             "{0} = module (M1), {1} = status, {2} = time (MM:SS).")]
+    [SerializeField] private string moduleReadoutFormat = "{0}: {1} {2}";
 
     [Tooltip("Seconds the time takes to count up from 00:00 to the module's when it starts.")]
     [SerializeField, Min(0f)] private float activationCountUpSeconds = 1.2f;
+
+    [Tooltip("Seconds the readout takes to travel from the middle of the screen to its corner (it " +
+             "shrinks on the way).")]
+    [SerializeField, Min(0.01f)] private float travelSeconds = 0.9f;
+
+    [Header("Bomb banner (middle of the screen, when a module starts)")]
+    [Tooltip("Same character set as the label.")]
+    [SerializeField] private string bannerText = "BOMB ACTIVATED";
+
+    [Tooltip("Seconds the banner takes to sweep in, left to right.")]
+    [SerializeField, Min(0.01f)] private float bannerSweepSeconds = 0.5f;
+
+    [Tooltip("Seconds it stays whole, blinking.")]
+    [SerializeField, Min(0f)] private float bannerHoldSeconds = 1.4f;
+
+    [Tooltip("Seconds it takes to sweep out, left to right.")]
+    [SerializeField, Min(0.01f)] private float bannerWipeSeconds = 0.4f;
+
+    [Tooltip("Blinks per second, the whole time it is up.")]
+    [SerializeField, Min(0.1f)] private float bannerBlinkHz = 3f;
+
+    [Header("Readout blink (its time, from amber on, once the readout is in its corner)")]
+    [Tooltip("Blinks per second of the recording dot. The readout's blink is measured against it.")]
+    [SerializeField, Min(0.1f)] private float recBlinkHz = 1f;
+
+    [Tooltip("When the readout turns amber its time blinks this many beats per minute faster than the dot.")]
+    [SerializeField, Min(0f)] private float amberExtraBpm = 20f;
+
+    [Tooltip("When the readout turns red its time blinks this many times as fast as the dot.")]
+    [SerializeField, Min(1f)] private float redBlinkMultiplier = 2f;
 
     [Tooltip("Status of a module that is counting down.")]
     [SerializeField] private string inProgressText = "IN PROGRESS";
@@ -53,20 +80,17 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     [Tooltip("Status of a module that went off.")]
     [SerializeField] private string failedText = "FAILED";
 
-    [Tooltip("Part of the module's time (its ModuleData) left under which its time turns to " +
+    [Tooltip("Part of the module's time (its ModuleData) left under which the readout turns to " +
              "PlayerCamera.mat's Timer Warning Color (amber). 0 = never.")]
     [SerializeField, Range(0f, 1f)] private float moduleWarningFraction = 0.25f;
 
-    [Tooltip("Part of the module's time left under which its time turns to the Timer Critical Color " +
-             "(red). A module that went off shows it too. 0 = never.")]
+    [Tooltip("Part of the module's time left under which the readout turns to the Timer Critical " +
+             "Color (red). A module that went off shows it too. 0 = never.")]
     [SerializeField, Range(0f, 1f)] private float moduleCriticalFraction = 0.1f;
 
-    [Tooltip("Seconds left under which the time turns to the Timer Critical Color and blinks, " +
-             "whatever part of the module's time that is. 0 = never.")]
+    [Tooltip("Seconds left under which the readout turns to the Timer Critical Color, whatever " +
+             "part of the module's time that is. 0 = never.")]
     [SerializeField, Min(0f)] private float moduleWarningSeconds = 30f;
-
-    [Tooltip("Blinks per second in those last seconds.")]
-    [SerializeField, Min(0.1f)] private float moduleWarningBlink = 2f;
 
     [Header("Boot")]
     [Tooltip("Seconds before ARC_01a that the picture comes in and the boot starts, under the boot " +
@@ -203,10 +227,40 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     public float TypeCharsPerSecond => typeCharsPerSecond;
     public float EraseCharsPerSecond => eraseCharsPerSecond;
 
-    public float ModuleWarningSeconds => moduleWarningSeconds;
-    public float ModuleWarningBlink => moduleWarningBlink;
-    public string IdleReadout => idleReadout;
     public float ActivationCountUpSeconds => activationCountUpSeconds;
+    public float TravelSeconds => travelSeconds;
+
+    public string BannerText => bannerText;
+    public float BannerBlinkHz => bannerBlinkHz;
+
+    /// <summary>Seconds the banner is up, sweeping in, holding and sweeping out.</summary>
+    public float BannerSeconds => bannerSweepSeconds + bannerHoldSeconds + bannerWipeSeconds;
+
+    /// <summary>How far through its sweep in (x) and its sweep out (y) the banner is, 0..1 each,
+    /// <paramref name="seconds"/> after it started.</summary>
+    public Vector2 BannerSweep(float seconds) => new Vector2(
+        Mathf.Clamp01(seconds / bannerSweepSeconds),
+        Mathf.Clamp01((seconds - bannerSweepSeconds - bannerHoldSeconds) / bannerWipeSeconds));
+
+    public float RecBlinkHz => recBlinkHz;
+
+    /// <summary>
+    /// Blinks per second of the time in <paramref name="module"/>'s readout, which only blinks from
+    /// amber on (<paramref name="stage"/> from <see cref="ModuleTimerStage"/>, 1 or 2): the dot's
+    /// rate plus <see cref="amberExtraBpm"/> when it turns amber, rising in a straight line to
+    /// <see cref="redBlinkMultiplier"/> times the dot's at the critical fraction, and that from then on.
+    /// </summary>
+    public float ReadoutBlinkHz(ModuleRuntime module, int stage)
+    {
+        float amber = recBlinkHz + amberExtraBpm / 60f;
+        float red = recBlinkHz * redBlinkMultiplier;
+
+        float duration = module.Data != null ? module.Data.TimerDuration : 0f;
+        if (stage >= 2 || duration <= 0f) return stage >= 2 ? red : amber;
+
+        float left = Mathf.Clamp01(module.TimeRemaining / duration);
+        return Mathf.Lerp(amber, red, Mathf.InverseLerp(moduleWarningFraction, moduleCriticalFraction, left));
+    }
 
     /// <summary>The seconds the readout shows for <paramref name="module"/> by its state: what it
     /// has left, 0 once it went off, its full time (ModuleData) before it starts.</summary>
@@ -220,10 +274,9 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
         }
     }
 
-    /// <summary>The readout line for <paramref name="module"/>, showing <paramref name="seconds"/>,
-    /// and where its time is in it (to color it; length 0 when the format has none). Shows as
-    /// written if the format is typed wrong.</summary>
-    public string ModuleReadout(ModuleRuntime module, int index, float seconds, out int timeStart, out int timeLength)
+    /// <summary>The readout line for <paramref name="module"/>, showing <paramref name="seconds"/>.
+    /// Shows as written if the format is typed wrong.</summary>
+    public string ModuleReadout(ModuleRuntime module, int index, float seconds)
     {
         string name = module.Data != null && !string.IsNullOrEmpty(module.Data.ModuleLogLabel)
             ? module.Data.ModuleLogLabel
@@ -236,19 +289,9 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
         int whole = Mathf.Max(0, Mathf.FloorToInt(seconds));
         string time = $"{whole / 60:00}:{whole % 60:00}";
 
-        timeStart = 0;
-        timeLength = 0;
         try
         {
-            // Formatted with a marker as long as the time in its place, to find where it lands.
-            string marker = new string('\u0001', time.Length);
-            string line = string.Format(moduleReadoutFormat, name, status, marker);
-            int at = line.IndexOf(marker, System.StringComparison.Ordinal);
-            if (at < 0) return line;
-
-            timeStart = at;
-            timeLength = time.Length;
-            return line.Replace(marker, time);
+            return string.Format(moduleReadoutFormat, name, status, time);
         }
         catch (System.FormatException)
         {
@@ -257,7 +300,7 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     }
 
     /// <summary>
-    /// How alarming <paramref name="module"/>'s time looks: 0 = the overlay's color, 1 = warning
+    /// How alarming <paramref name="module"/>'s readout looks: 0 = the overlay's color, 1 = warning
     /// (amber) under <see cref="moduleWarningFraction"/> of its time, 2 = critical (red) under
     /// <see cref="moduleCriticalFraction"/> or the last <see cref="moduleWarningSeconds"/>, and once
     /// it went off. A module waiting or disarmed: 0.

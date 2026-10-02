@@ -610,6 +610,10 @@ panel, discard footer.
 
 - `InventoryView` rebuilds the list on every refresh and instantiates a `GroupLabelView` per
   **non-empty** category; `ItemSlotView` is the row and reports clicks back to the controller.
+  Rows carry two marks, state in `InventoryManager` (`IsNew`/`IsRead`, session only, not saved):
+  an amber `NEW` before the category tag from pickup until the item is selected, and a grey text and
+  icon for a `Note` already read (its doc opened; a note with no doc is read by being selected).
+  `InventoryManagerUI` sets both and calls `InventoryView.RefreshMarks`.
 - `ItemDetailView` fills header, description and metadata, and owns the **doc panel** for
   `ContentType.Text` items (its own layer, reset to the top of the scroll on each open).
 - `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`

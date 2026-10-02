@@ -33,10 +33,11 @@ using UnityEngine.Serialization;
 ///              way. A capture is a game over, or, per the config, starts the chase over from
 ///              Player_Spot.
 ///   Ending     crossing the level's WinTrigger, past the gate, plays the last shots before the
-///              win: the Nemesis runs at the gate and it slams down in its face in a burst of dust,
-///              in a fog that shows nothing past the gate; then the Nemesis, stuck on the corridor
-///              side, through the dust. The player is not in the shots. The director is the
-///              <see cref="IWinPresenter"/> for as long as the chase lasts.
+///              win, on the gate's security camera, a few seconds BEHIND the player: the scene is
+///              rewound, the player is put back a few metres before the gate and runs through it
+///              with the Nemesis on their heels, and the gate slams down right behind them, in the
+///              Nemesis's face, in a burst of dust; the Nemesis is left stuck on the corridor side.
+///              The director is the <see cref="IWinPresenter"/> for as long as the chase lasts.
 ///
 /// Every cinematic can be cut with the config's skip key, and a skip lands in the state the
 /// cinematic ends in: the slam and the reveal hand over with the doors locked, the Nemesis where
@@ -103,10 +104,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         public Transform nemesisApproachStart;
 
         [Header("Nemesis (final)")]
-        [Tooltip("Desde dónde corre hacia el portón en el plano final, del lado del pasillo.")]
-        public Transform nemesisGateStart;
-
-        [Tooltip("Donde queda trabado: pegado al portón, del lado del pasillo.")]
+        [Tooltip("Donde queda trabado: pegado al portón, del lado del pasillo. De acá para atrás se " +
+                 "calcula desde dónde tiene que arrancar para llegar justo cuando el portón toca " +
+                 "el piso.")]
         public Transform nemesisGateStop;
     }
 
@@ -145,6 +145,10 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     [SerializeField] private EscapeCorridorLock corridorLock;
     [SerializeField] private NemesisCinematicActor actor;
     [SerializeField] private NemesisEscapePursuit pursuit;
+
+    [Tooltip("Hace correr al jugador en el final (el rebobinado del portón). Vacío = se busca en este " +
+             "objeto, y si no está se agrega solo.")]
+    [SerializeField] private PlayerCinematicRunner playerRunner;
 
     [Tooltip("Qué pasa si el Nemesis te agarra en la persecución: game over o reinicio desde " +
              "Player_Spot (lo elige el config).")]
@@ -226,7 +230,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     private Vector3 safeDoorHinge;
     private float safeDoorReach;
 
-    private readonly List<Renderer> hiddenRenderers = new List<Renderer>();
     private bool moduleTicksPaused;
 
     /// <summary>A cinematic of the escape is on screen (from the slam to the handover, or the
@@ -272,7 +275,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         CinematicState.SetHudHidden(false);
         ReleaseFogCentre();
         PopShotFog();
-        ShowPlayer();
         ResumeModuleTicks();
         if (lockedPlayer != null) lockedPlayer.IsDisabled = false;
         if ((brainOverridden || blendRestore != null) && brain != null) brain.DefaultBlend = previousBlend;
@@ -287,6 +289,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             enabled = false;
             return;
         }
+
+        if (playerRunner == null) playerRunner = GetComponent<PlayerCinematicRunner>();
+        if (playerRunner == null) playerRunner = gameObject.AddComponent<PlayerCinematicRunner>();
 
         if (stage.safeDoor != null)
         {
@@ -429,7 +434,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         ReleaseShots();
         PopShotFog();
 
-        ShowPlayer();
+        if (playerRunner != null) playerRunner.Stop();
         ResumeModuleTicks();
     }
 
@@ -1142,17 +1147,22 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
-    /// The gate, from the corridor side, without the player, in a fog that shuts just past the gate
-    /// so nothing of the other side shows: the Nemesis runs at it and it slams down in its face with
-    /// a burst of dust. Cut to the Nemesis left standing at it through the dust, stuck on the wrong
-    /// side. Then the win. The shot stays up behind the win screen (which freezes the game).
+    /// The gate's security camera, a few seconds behind the player: the scene is rewound. The player
+    /// is put back <see cref="SO_EscapeSequenceConfig.EndingRunUpDistance"/> before the gate and
+    /// runs through it at their sprint, the Nemesis on their heels; the gate starts to fall as soon
+    /// as they are clear of it and lands in the Nemesis's face, in a burst of dust, a beat before it
+    /// arrives, and it is left stuck on the corridor side. Then the win. The shot stays up behind
+    /// the win screen (which freezes the game).
+    ///
+    /// Timed, not scripted to a clock: the player's run decides when the gate falls, and the
+    /// Nemesis's start is worked back from where it must be when the gate lands, so a slower player
+    /// (a legs or chest penalty) leaves it further back instead of breaking the beat.
     /// </summary>
     private async UniTaskVoid RunEndingAsync(Action commit, CancellationToken token)
     {
         PlayerStateManager player = PlayerRegistry.Current;
 
         BeginCinematic();
-        HidePlayer(player);
 
         // Won from here: no module may run out behind the shot.
         PauseModuleTicks();
@@ -1166,30 +1176,64 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         if (fogCycle != null) fogCycle.Hold(open: false);
         PushShotFog(config.GateShotFog);
 
-        bool hasNemesis = actor != null && actor.TryTakeControl();
-        if (hasNemesis)
+        bool hasNemesis = actor != null && stage.nemesisGateStop != null && actor.TryTakeControl();
+        bool hasRun = player != null && stage.endGate != null && playerRunner != null;
+
+        Vector3 gate = stage.endGate != null ? stage.endGate.transform.position : Vector3.zero;
+        Vector3 axis = GateAxis(player);
+        Vector3 runEnd = hasRun ? OnPlayerFloor(gate + axis * config.EndingRunPastGate, player) : Vector3.zero;
+        float clearance = config.EndingSlamClearance;
+
+        // The gate is open when the player crosses it; make sure, the run goes through it.
+        if (stage.endGate != null) stage.endGate.Open();
+
+        if (hasRun)
         {
-            actor.WarpTo(stage.nemesisGateStart);
+            Vector3 runStart = OnPlayerFloor(gate - axis * config.EndingRunUpDistance, player);
+            float sprint = SprintSpeedOf(player);
+
+            player.TeleportTo(runStart, Quaternion.LookRotation(axis));
+            PlacePursuerForEnding(hasNemesis, axis, runStart, sprint);
+
+            // The fog around the runner: the player and the Nemesis are Unlit, so no light shows them
+            // — the fog clearing round them is what does. It follows the player down the corridor
+            // and, once the gate has landed, hands over to the Nemesis stuck against it.
+            CentreFogOn(player.transform);
+        }
+        else if (hasNemesis)
+        {
+            // No one to run: the Nemesis alone, from where the run would have started it.
+            actor.WarpTo(stage.nemesisGateStop.position - axis * config.EndingRunUpDistance,
+                         Quaternion.LookRotation(axis).eulerAngles.y);
             actor.RunTo(stage.nemesisGateStop);
-
-            // Once there it turns to the gate and stays.
-            if (stage.endGate != null) actor.FaceTowards(stage.endGate.transform);
-
-            // The fog around the Nemesis, not around the camera: it is Unlit, so no light shows it
-            // — the fog clearing round it is what does. It runs at the gate in its own clear bubble,
-            // with the rest of the corridor, and what is past the gate, left in the fog.
             CentreFogOn(actor.Body);
         }
 
-        CutTo(gateShot, hasNemesis ? actor.Body : null);
+        if (hasNemesis && stage.endGate != null) actor.FaceTowards(stage.endGate.transform);
+
+        // A fixed security camera: no look target, the runners cross its frame.
+        CutTo(gateShot);
 
         // The security camera again: no gameplay HUD over it, through to the win screen.
         CinematicState.SetHudHidden(gateShot != null);
 
-        await WaitOrSkip(config.GateDropDelay, token);
+        if (hasRun) playerRunner.RunTo(player, runEnd, SprintSpeedOf(player));
+
+        // The player's run decides when it falls: as soon as they are clear of the gate. A wall that
+        // stops the run (it never reaches its mark) ends the wait too, so the beat is never lost.
+        while (hasRun && !skipRequested && playerRunner.IsRunning &&
+               Vector3.Dot(Flat(player.transform.position - gate), axis) < clearance)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
+        }
 
         if (skipRequested)
         {
+            if (hasRun)
+            {
+                playerRunner.Stop();
+                player.TeleportTo(runEnd, Quaternion.LookRotation(axis));
+            }
             if (hasNemesis) actor.WarpTo(stage.nemesisGateStop);
             if (gateSlam != null) gateSlam.SlamNow(config.GateSlamSoundId);
             else if (stage.endGate != null) stage.endGate.CloseImmediate();
@@ -1203,6 +1247,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             await stage.endGate.SlamShutAsync(config.GateSlamSeconds, token);
         }
 
+        // The gate is down: the Nemesis stuck against it is what the shot is about now.
+        if (hasNemesis) CentreFogOn(actor.Body);
+
         if (gateShot != null) gateShot.Shake(config.GateShakeAmplitude, config.GateShakeSeconds);
 
         // Through the dust: the Nemesis, left on the corridor side of the gate. Off by default: the
@@ -1214,6 +1261,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         }
 
         await WaitOrSkip(config.EndingHoldSeconds, token);
+
+        // Standing wherever the run left them: the shot stays behind the win screen.
+        if (playerRunner != null) playerRunner.Stop();
 
         // Only the skip prompt goes: the shot stays behind the win screen.
         CinematicState.End();
@@ -1295,7 +1345,6 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         ReleaseShots();
         PopShotFog();
         CinematicState.SetHudHidden(false);
-        ShowPlayer();
 
         // A capture that ended the run left both frozen: the player disabled, the Nemesis parked in
         // its Catch state waiting for a respawn.
@@ -1408,27 +1457,53 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         return stage.playerSpot != null ? stage.playerSpot.position : transform.position;
     }
 
-    /// <summary>Takes the player out of the picture (the last shots must not show them past the
-    /// gate). Only what is visible is hidden, so <see cref="ShowPlayer"/> gives back exactly that.</summary>
-    private void HidePlayer(PlayerStateManager player)
-    {
-        if (player == null || hiddenRenderers.Count > 0) return;
+    // The Nemesis never starts nearer to the player than this when the ending is rewound (m).
+    private const float MinPursuerGap = 1.5f;
 
-        foreach (Renderer r in player.GetComponentsInChildren<Renderer>())
+    /// <summary>The flat direction of the corridor towards the gate, from where the chase starts:
+    /// the way the player runs through it.</summary>
+    private Vector3 GateAxis(PlayerStateManager player)
+    {
+        Vector3 axis = Vector3.zero;
+
+        if (stage.endGate != null)
         {
-            if (!r.enabled) continue;
-            r.enabled = false;
-            hiddenRenderers.Add(r);
+            Vector3 from = stage.playerSpot != null ? stage.playerSpot.position
+                         : player != null ? player.transform.position
+                         : Vector3.zero;
+            axis = Flat(stage.endGate.transform.position - from);
         }
+
+        if (axis.sqrMagnitude < 0.0001f && player != null) axis = Flat(player.transform.forward);
+        return axis.sqrMagnitude > 0.0001f ? axis.normalized : Vector3.forward;
     }
 
-    private void ShowPlayer()
+    private static Vector3 OnPlayerFloor(Vector3 point, PlayerStateManager player)
     {
-        foreach (Renderer r in hiddenRenderers)
-        {
-            if (r != null) r.enabled = true;
-        }
-        hiddenRenderers.Clear();
+        point.y = player.transform.position.y;
+        return point;
+    }
+
+    /// <summary>
+    /// Puts the Nemesis behind the player where it has to start to reach its stop mark a beat after
+    /// the gate lands, and sends it running. Worked back from the landing: the player is clear of
+    /// the gate after the run-up plus the slam clearance at their sprint, and the gate lands
+    /// <see cref="SO_EscapeSequenceConfig.GateSlamSeconds"/> later.
+    /// </summary>
+    private void PlacePursuerForEnding(bool hasNemesis, Vector3 axis, Vector3 playerStart, float playerSpeed)
+    {
+        if (!hasNemesis) return;
+
+        float landsIn = (config.EndingRunUpDistance + config.EndingSlamClearance) / playerSpeed +
+                        config.GateSlamSeconds;
+        float arrivesIn = Mathf.Max(0.1f, landsIn + config.EndingNemesisArrivalDelay);
+
+        Vector3 stop = stage.nemesisGateStop.position;
+        float playerToStop = Vector3.Dot(stop - playerStart, axis);
+        float distance = Mathf.Max(actor.RunSpeed * arrivesIn, playerToStop + MinPursuerGap);
+
+        actor.WarpTo(stop - axis * distance, Quaternion.LookRotation(axis).eulerAngles.y);
+        actor.RunTo(stage.nemesisGateStop);
     }
 
     private void PauseModuleTicks()

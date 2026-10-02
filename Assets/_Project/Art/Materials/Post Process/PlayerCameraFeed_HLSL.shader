@@ -22,16 +22,18 @@
 //   6) Grain, rolling band and vignette, in perceptual space like the security feed.
 //   7) Static: analogue snow over the picture, when the signal comes in and on cuts.
 //   8) Overlay burnt in by the camera (not through the lens): label, a blinking recording dot, the
-//      readout (recording counter or device module, its time amber then red as the module runs
-//      out), a status line and corner brackets — or, while it boots, the boot screen with its bar,
+//      readout (the device's module, all of it amber then red as the module runs out, blinking
+//      with the dot, faster as it gets worse), the bomb banner that sweeps across the middle when a
+//      module starts, a status line and corner brackets — or, while it boots, the boot screen with its bar,
 //      over the picture on a darkened plate.
 //
 // _OverlayGridRows has to equal PS1Effect.mat's _PixelSize (256): each overlay cell then lands on
 // exactly one PSX block and the text comes out whole.
 //
 // Red: the recording dot is the danger red (#CC1A1A), asked for on 26/09 against the red rule —
-// a camera recording the subject. _RecColor. The module's time in its last stretch (and once it
-// went off) uses it too, as the old module HUD did: _TimerCriticalColor.
+// a camera recording the subject. _RecColor. The bomb banner uses it too. The module's readout in
+// its last stretch (and once it went off) uses the same red, as the old module HUD did:
+// _TimerCriticalColor.
 
 Shader "Hidden/Custom/PlayerCameraFeed"
 {
@@ -71,6 +73,8 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         _OverlayShadow      ("Overlay Shadow", Range(0, 1)) = 0.7
         [ToggleUI] _EnableBrackets  ("Enable Corner Brackets", Float) = 1
         _BracketLength      ("Bracket Length (cells)", Range(2, 60)) = 16
+        _BannerScale        ("Bomb Banner Scale (cells per font cell)", Range(1, 8)) = 3
+        _ReadoutCentreScale ("Readout Scale in the Middle (cells per font cell)", Range(1, 8)) = 2
 
         [Header(Boot screen)]
         _BootBarWidth       ("Boot Bar Width (cells)", Range(20, 200)) = 96
@@ -113,6 +117,8 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float  _OverlayShadow;
         float  _EnableBrackets;
         float  _BracketLength;
+        float  _BannerScale;
+        float  _ReadoutCentreScale;
 
         float  _BootBarWidth;
         float  _BootBlockY;
@@ -121,14 +127,21 @@ Shader "Hidden/Custom/PlayerCameraFeed"
 
     // Globals from PlayerCameraFeed. Outside Properties on purpose: a material property would hide
     // them.
-    //   _PlayerFeedText    glyph indices, 5 lines of 32: [0] label (top left), [1] readout (bottom
-    //                      left), [2] status (under the label), [3] boot title, [4] boot
-    //                      percentage.
+    //   _PlayerFeedText    glyph indices, 6 lines of 32: [0] label (top left), [1] readout (bottom
+    //                      left, or travelling there from the middle), [2] status (under the
+    //                      label), [3] boot title, [4] boot percentage, [5] bomb banner.
     //   _PlayerFeedInfo    x = label length, y = readout length, z = status length,
     //                      w = live overlay (0..1: label, recording dot, readout, status, brackets).
-    //   _PlayerFeedTimer   the module's time in the readout: x = its first character, y = one past
-    //                      its last, z = color stage (0 = overlay, 1 = warning, 2 = critical),
-    //                      w = 1 shown, 0 while its blink hides it.
+    //   _PlayerFeedReadout the readout of the device's module: x = travel (0 = middle of the
+    //                      screen, 1 = bottom left), y = its length once typed (it centres on
+    //                      that), z = color stage (0 = overlay, 1 = warning, 2 = critical),
+    //                      w = blink phase (0..1, lit while under half; -1 = steady).
+    //   _PlayerFeedReadoutTime  the time inside the readout's text: x = index of its first
+    //                      glyph, y = how many glyphs (the digits that blink, see ReadoutLit).
+    //   _PlayerFeedBanner  the bomb banner, in the middle in the danger red: x = how far it has
+    //                      swept in, y = how far it has swept out (0..1, left to right),
+    //                      z = length (0 = not up), w = blinks per second.
+    //   _PlayerFeedRecBlink  blinks per second of the recording dot.
     //   _PlayerFeedBoot    x = boot screen (0..1), y = bar fill (0..1), z = title length,
     //                      w = percentage length.
     //   _PlayerFeedLens    x = focal length the frame was rendered with, y = focal length of the
@@ -137,12 +150,15 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     //   _PlayerFeedSignal  x = power (0 = black), y = static (0..1), z = focus blur (0..1),
     //                      w = exposure (1 = as rendered).
     #define FEED_LINE 32
-    float  _PlayerFeedText[160];
+    float  _PlayerFeedText[192];
     float4 _PlayerFeedInfo;
     float4 _PlayerFeedBoot;
     float4 _PlayerFeedLens;
     float4 _PlayerFeedSignal;
-    float4 _PlayerFeedTimer;
+    float4 _PlayerFeedReadout;
+    float4 _PlayerFeedReadoutTime;
+    float4 _PlayerFeedBanner;
+    float  _PlayerFeedRecBlink;
 
     #include "CameraFeedFont.hlsl"
 
@@ -155,11 +171,17 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     };
 
     // A line of text with its bottom-left corner on cell `origin`: 1 where a letter paints the cell.
-    // Cells are 6 wide (5 of letter + 1 of air).
-    float LineMask(int2 cell, int2 origin, int textLine, int length)
+    // Cells are 6 wide (5 of letter + 1 of air), each font cell `scale` cells of the grid. `glyph`
+    // is the index of the letter the cell belongs to (meaningless where the mask is 0).
+    float LineMaskGlyph(int2 cell, int2 origin, int textLine, int length, int scale, out uint glyphIndex)
     {
+        glyphIndex = 0u;
+
         int2 p = cell - origin;
-        if (p.x < 0 || p.y < 0 || p.y > 6) return 0.0;
+        if (p.x < 0 || p.y < 0) return 0.0;
+
+        p = int2((uint2)p / (uint)max(scale, 1));
+        if (p.y > 6) return 0.0;
 
         uint index = (uint)p.x / 6u;
         if (index >= (uint)length) return 0.0;
@@ -167,8 +189,15 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         uint column = (uint)p.x - index * 6u;
         if (column > 4u) return 0.0;
 
+        glyphIndex = index;
         uint glyph = (uint)_PlayerFeedText[textLine * FEED_LINE + (int)index];
         return GlyphBit(glyph, int2(column, 6 - p.y));
+    }
+
+    float LineMask(int2 cell, int2 origin, int textLine, int length, int scale)
+    {
+        uint glyphIndex;
+        return LineMaskGlyph(cell, origin, textLine, length, scale, glyphIndex);
     }
 
     // The same line, centred on column `centreX`. Unsigned halving: signed divisions make the
@@ -176,30 +205,70 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     float CentredLineMask(int2 cell, int centreX, int bottom, int textLine, int length)
     {
         uint width = (uint)max(length * 6 - 1, 0);
-        return LineMask(cell, int2(centreX - (int)(width / 2u), bottom), textLine, length);
+        return LineMask(cell, int2(centreX - (int)(width / 2u), bottom), textLine, length, 1);
+    }
+
+    // The middle of the screen as the origin of a line `length` characters long at `scale`: centred
+    // across and up.
+    int2 MiddleOrigin(int2 lastCell, int length, int scale)
+    {
+        int span = max(length * 6 - 1, 0) * scale;
+        return int2((int)((uint)lastCell.x / 2u) - (int)((uint)span / 2u),
+                    (int)((uint)lastCell.y / 2u) - (int)((uint)(7 * scale) / 2u));
+    }
+
+    // The blink of the readout's time: 1 while its digits are drawn, 0 in the dark half of a blink,
+    // when they are not drawn at all and the picture shows through (_PlayerFeedReadout.w is the
+    // phase, -1 = steady).
+    float ReadoutLit()
+    {
+        return _PlayerFeedReadout.w < 0.0 ? 1.0 : step(_PlayerFeedReadout.w, 0.4999);
     }
 
     // The recording overlay: label and status top left, the recording dot top right, the readout
-    // bottom left, viewfinder brackets. `lastCell` is the grid's top-right cell. The module's time in
-    // the readout comes out in `timer`, not `ink`: it has its own color and its own blink.
-    void LiveOverlay(int2 cell, int2 lastCell, out float ink, out float rec, out float timer)
+    // bottom left (or on its way there from the middle), viewfinder brackets, and the bomb banner
+    // in the middle. `lastCell` is the grid's top-right cell. The readout comes out in `readout`,
+    // not `ink`: it has its own color (amber, red) and its time blinks (ReadoutLit); the banner goes
+    // with the recording dot, in the same red.
+    void LiveOverlay(int2 cell, int2 lastCell, out float ink, out float rec, out float readout)
     {
         int margin = (int)_OverlayMargin;
         int topRow = lastCell.y - margin - 6;
 
-        ink = LineMask(cell, int2(margin, topRow), 0, (int)_PlayerFeedInfo.x);
-        ink = max(ink, LineMask(cell, int2(margin, topRow - 10), 2, (int)_PlayerFeedInfo.z));
+        ink = LineMask(cell, int2(margin, topRow), 0, (int)_PlayerFeedInfo.x, 1);
+        ink = max(ink, LineMask(cell, int2(margin, topRow - 10), 2, (int)_PlayerFeedInfo.z, 1));
 
-        float readout = LineMask(cell, int2(margin, margin), 1, (int)_PlayerFeedInfo.y);
-        uint readoutChar = (uint)max(cell.x - margin, 0) / 6u;
-        bool isTime = readoutChar >= (uint)_PlayerFeedTimer.x && readoutChar < (uint)_PlayerFeedTimer.y;
-        timer = isTime ? readout * step(0.5, _PlayerFeedTimer.w) : 0.0;
-        ink = max(ink, isTime ? 0.0 : readout);
+        // The readout shrinks from the middle's scale to 1 as it travels; the scale steps, so the
+        // letters stay on the grid.
+        float travel = saturate(_PlayerFeedReadout.x);
+        int readoutScale = max((int)floor(lerp(_ReadoutCentreScale, 1.0, travel) + 0.5), 1);
+        int readoutLength = (int)_PlayerFeedInfo.y;
+        int2 middle = MiddleOrigin(lastCell, max(readoutLength, (int)_PlayerFeedReadout.y), readoutScale);
+        int2 readoutOrigin = int2(round(lerp(float2(middle), float2(margin, margin), travel)));
 
-        // The recording dot, top right on the label's line, blinking at 1 Hz like a camera's.
+        // The text stays; only the time's digits go out and come back (ReadoutLit).
+        uint glyphIndex;
+        readout = LineMaskGlyph(cell, readoutOrigin, 1, readoutLength, readoutScale, glyphIndex);
+        float timeFrom = _PlayerFeedReadoutTime.x;
+        if (glyphIndex >= timeFrom && glyphIndex < timeFrom + _PlayerFeedReadoutTime.y) readout *= ReadoutLit();
+
+        // The recording dot, top right on the label's line, blinking like a camera's.
         float radius = max(_RecDotRadius, 1.0);
         float2 toDot = float2(cell) - float2(lastCell.x - margin - radius, topRow + 3);
-        rec = step(dot(toDot, toDot), radius * radius) * step(frac(_Time.y), 0.5);
+        rec = step(dot(toDot, toDot), radius * radius) * step(frac(_Time.y * _PlayerFeedRecBlink), 0.5);
+
+        // The bomb banner: the letters show between the sweep's two edges, left to right.
+        int bannerLength = (int)_PlayerFeedBanner.z;
+        if (bannerLength > 0)
+        {
+            int scale = max((int)_BannerScale, 1);
+            int2 origin = MiddleOrigin(lastCell, bannerLength, scale);
+            float width = (float)(max(bannerLength * 6 - 1, 1) * scale);
+            float x = (float)(cell.x - origin.x);
+            float shown = step(_PlayerFeedBanner.y * width, x) * step(x, _PlayerFeedBanner.x * width - 1.0);
+            float blink = step(frac(_Time.y * _PlayerFeedBanner.w), 0.5);
+            rec = max(rec, LineMask(cell, origin, 5, bannerLength, scale) * shown * blink);
+        }
 
         // Viewfinder brackets, half a margin in from the edge.
         if (_EnableBrackets > 0.5)
@@ -214,6 +283,7 @@ Shader "Hidden/Custom/PlayerCameraFeed"
             }
         }
     }
+
 
     // Centre of the boot block, in cells: centred across, at _BootBlockY of the height.
     int2 BootCentre(int2 lastCell)
@@ -252,10 +322,10 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         return ink;
     }
 
-    // The module's time: the overlay's color, warning, then critical (_PlayerFeedTimer.z 0, 1, 2).
+    // The module's readout: the overlay's color, warning, then critical (_PlayerFeedReadout.z 0, 1, 2).
     float4 TimerColor()
     {
-        float stage = _PlayerFeedTimer.z;
+        float stage = _PlayerFeedReadout.z;
         return stage <= 1.0 ? lerp(_OverlayColor, _TimerWarningColor, saturate(stage))
                             : lerp(_TimerWarningColor, _TimerCriticalColor, saturate(stage - 1.0));
     }
@@ -406,11 +476,13 @@ Shader "Hidden/Custom/PlayerCameraFeed"
             OverlayAt(cell, lastCell, ink, rec, timer);
             OverlayAt(cell + int2(-1, 1), lastCell, inkShadow, recShadow, timerShadow);
 
-            float shadow = max(max(inkShadow, recShadow), timerShadow) * _OverlayShadow *
+            // The readout has no shadow: 1-cell letters with an outline came out as a smear.
+            float shadow = max(inkShadow, recShadow) * _OverlayShadow *
                            (1.0 - max(max(ink, rec), timer));
             float4 timerColor = TimerColor();
             color = lerp(color, 0.0, shadow);
             color = lerp(color, _OverlayColor.rgb, ink * _OverlayColor.a);
+
             color = lerp(color, timerColor.rgb, timer * timerColor.a);
             color = lerp(color, _RecColor.rgb, rec * _RecColor.a);
         }

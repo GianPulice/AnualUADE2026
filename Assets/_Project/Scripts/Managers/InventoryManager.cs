@@ -14,6 +14,11 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     // The internal list. Private — the outside world only reads through GetAllItems().
     private List<SO_InventoryItem> items = new List<SO_InventoryItem>();
 
+    // What the player has not looked at yet: picked up, never selected in the inventory (NEW), and
+    // notes never read. Session state only — like the list itself, it is not saved.
+    private readonly HashSet<SO_InventoryItem> unseen = new HashSet<SO_InventoryItem>();
+    private readonly HashSet<SO_InventoryItem> read = new HashSet<SO_InventoryItem>();
+
     // -- Unity --------------------
     void Awake()
     {
@@ -49,6 +54,12 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     public List<string> GetItemIDs() =>
         items.Select(i => i.ItemID).ToList();
 
+    /// <summary>Picked up and not yet selected in the inventory.</summary>
+    public bool IsNew(SO_InventoryItem item) => item != null && unseen.Contains(item);
+
+    /// <summary>A note the player has already read.</summary>
+    public bool IsRead(SO_InventoryItem item) => item != null && read.Contains(item);
+
     public SO_SpecialItemRules SpecialItemRules => specialItemRules;
 
     /// <summary>The Special item currently carried, or null.</summary>
@@ -78,8 +89,21 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
         }
 
         items.Add(item);
+        unseen.Add(item);
         Debug.Log($"[Inventory] + {item.ItemName}");
         InventoryEvents.ItemAdded(item);
+    }
+
+    /// <summary>The player has seen the item in the inventory: it loses its NEW mark.</summary>
+    public void MarkSeen(SO_InventoryItem item)
+    {
+        if (item != null) unseen.Remove(item);
+    }
+
+    /// <summary>The player has read the note: its row goes grey.</summary>
+    public void MarkRead(SO_InventoryItem item)
+    {
+        if (item != null && item.Category == ItemCategory.Note) read.Add(item);
     }
 
     /// <summary>
@@ -105,6 +129,7 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
         if (!ValidateItemExists(item, "DiscardItem")) return;
 
         items.Remove(item);
+        unseen.Remove(item);
         Debug.Log($"[Inventory] Discarded: {item.ItemName}");
         InventoryEvents.ItemRemoved(item);
     }
@@ -120,6 +145,7 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
         }
 
         items.Remove(item);
+        unseen.Remove(item);
         Debug.Log($"[Inventory] Consumed: {item.ItemName}");
         InventoryEvents.ItemConsumed(item);
         InventoryEvents.ItemRemoved(item);
@@ -133,6 +159,8 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     public void ResetForNewSession()
     {
         items.Clear();
+        unseen.Clear();
+        read.Clear();
         SeedInitialItems();
     }
 
@@ -143,6 +171,7 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     public void RestoreFromIDs(List<string> savedIDs, List<SO_InventoryItem> allPossibleItems)
     {
         items.Clear();
+        unseen.Clear();
 
         foreach (string id in savedIDs)
         {

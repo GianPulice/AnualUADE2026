@@ -15,7 +15,8 @@ using UnityEngine;
 /// beeps once and carries on from the next point below; a bonus that lifts the time back up re-arms
 /// the grid from there.
 ///
-/// Raises <see cref="Beeped"/> so the HUD can pulse in time with what the player hears.
+/// Raises <see cref="Beeped"/> so what blinks (the module's LED, <see cref="ModuleLED"/>) does it in
+/// time with what the player hears.
 /// </summary>
 public class ModuleTimerBeeper : MonoBehaviour
 {
@@ -35,8 +36,11 @@ public class ModuleTimerBeeper : MonoBehaviour
     [SerializeField] private AudioClip urgentClip;
     [SerializeField, Range(0f, 1f)] private float volume = 0.8f;
 
-    /// <summary>Raised on every beep; true when it was an urgent one.</summary>
-    public event Action<bool> Beeped;
+    /// <summary>Raised on every beep, with the module counting down; true when it was an urgent one.</summary>
+    public static event Action<ModuleRuntime, bool> Beeped;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Beeped = null;
 
     public float WarningStartSeconds => warningStartSeconds;
     public float UrgentBelowSeconds => urgentBelowSeconds;
@@ -89,7 +93,7 @@ public class ModuleTimerBeeper : MonoBehaviour
         if (left > nextBeepAt) return;
 
         bool urgent = left <= urgentBelowSeconds;
-        Play(urgent);
+        Play(module, urgent);
 
         // Strictly below the current time, so a penalty that skipped several points beeps once.
         nextBeepAt = GridPointBelow(left, IntervalAt(left));
@@ -101,11 +105,11 @@ public class ModuleTimerBeeper : MonoBehaviour
     private static float GridPointBelow(float t, float interval) =>
         Mathf.Ceil(t / interval) * interval - interval;
 
-    private void Play(bool urgent)
+    private void Play(ModuleRuntime module, bool urgent)
     {
         AudioClip clip = urgent && urgentClip != null ? urgentClip : normalClip;
         if (clip != null && AudioManager.Exists) AudioManager.Instance.PlayUIClip(clip, volume);
 
-        Beeped?.Invoke(urgent);
+        Beeped?.Invoke(module, urgent);
     }
 }

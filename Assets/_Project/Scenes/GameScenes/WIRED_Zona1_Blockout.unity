@@ -48329,7 +48329,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2472308161738471869, guid: 82d424b8b49a89242ae669b1deab08bc, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 4.964
+      value: 6.02
       objectReference: {fileID: 0}
     - target: {fileID: 2472308161738471869, guid: 82d424b8b49a89242ae669b1deab08bc, type: 3}
       propertyPath: m_LocalRotation.w
@@ -63738,19 +63738,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GizmoManager
   nemesisRanges: 0
-  nemesisRoutes: 0
+  nemesisRoutes: 1
   nemesisPressureZones: 0
-  nemesisDebug: 0
+  nemesisDebug: 1
   inputHints: 1
   checkpoints: 1
   winTrigger: 1
   interactionRange: 1
-  escapeSequence: 1
+  escapeSequence: 0
   elevator: 1
   hidingItemsDecoys: 1
-  ambience: 0
-  footsteps: 0
-  lightAndFog: 0
+  ambience: 1
+  footsteps: 1
+  lightAndFog: 1
   colliders: 1
   cameras: 1
   lights: 1
@@ -82468,8 +82468,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
   m_SerializedVersion: 0
-  m_Size: {x: 13.22012, y: 4.2714496, z: 21.374416}
-  m_Center: {x: -1.7141237, y: 1.635725, z: 5.593343}
+  m_Size: {x: 13.220121, y: 4.2714496, z: 13.43004}
+  m_Center: {x: -1.7141237, y: 1.635725, z: 9.565532}
   m_Area: 1
   m_AffectedAgents: ffffffff
 --- !u!1 &1347742592
@@ -91402,8 +91402,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 7.476984, y: 5.230784, z: 9.57509}
-  m_Center: {x: 1.1982145, y: 2.1153915, z: -1.4960594}
+  m_Size: {x: 11.846678, y: 5.230784, z: 9.57509}
+  m_Center: {x: 3.3830614, y: 2.1153915, z: -1.4960594}
 --- !u!1001 &1531376214
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -101415,7 +101415,6 @@ MonoBehaviour:
     endGate: {fileID: 277590739}
     nemesisCorridorEnd: {fileID: 853948990}
     nemesisApproachStart: {fileID: 1659173577}
-    nemesisGateStart: {fileID: 386212459}
     nemesisGateStop: {fileID: 1726885299}
   fogCycle: {fileID: 1783774596}
   alarmLights: {fileID: 1783774634}
@@ -101423,6 +101422,7 @@ MonoBehaviour:
   corridorLock: {fileID: 1783774594}
   actor: {fileID: 1783774593}
   pursuit: {fileID: 1783774592}
+  playerRunner: {fileID: 0}
   chaseRestart: {fileID: 1783774603}
   gateSlam: {fileID: 1421023162}
   sockets: []
@@ -102502,8 +102502,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 17.2839, y: 5.230784, z: 12.783978}
-  m_Center: {x: -3.7052422, y: 2.1153915, z: 1.4368348}
+  m_Size: {x: 12.721386, y: 5.230784, z: 12.554467}
+  m_Center: {x: -1.4239824, y: 2.1153915, z: 1.5515904}
 --- !u!4 &1799283046 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2422452815066199431, guid: f54901a04f7d0634194b28bb3564bee4, type: 3}
@@ -117990,7 +117990,7 @@ Transform:
   m_GameObject: {fileID: 5764738577963887130}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.6997298, z: -0, w: 0.7144076}
-  m_LocalPosition: {x: 33.25, y: 1.59, z: 15.34}
+  m_LocalPosition: {x: 30.944, y: 1.59, z: 15.292}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

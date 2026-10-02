@@ -79,9 +79,9 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     // ── Public API ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Opens the note the player has just picked up. Called by <see cref="PickupInteractable"/>
-    /// right after the item reaches the inventory, so the first read is free and the inventory
-    /// copy is the re-read.
+    /// Opens the note the player is picking up. Called by <see cref="PickupInteractable"/> just
+    /// before the item reaches the inventory (so the modal is already up when OnItemAdded fires),
+    /// which makes the first read free and the inventory copy the re-read.
     /// </summary>
     public void Open(SO_InventoryItem item)
     {
