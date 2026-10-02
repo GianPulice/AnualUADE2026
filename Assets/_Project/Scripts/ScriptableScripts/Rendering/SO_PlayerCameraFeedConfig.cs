@@ -61,18 +61,14 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     [Tooltip("Blinks per second, the whole time it is up.")]
     [SerializeField, Min(0.1f)] private float bannerBlinkHz = 3f;
 
-    [Header("Readout blink (a module running, once the readout is in its corner)")]
+    [Header("Readout blink (its time, from amber on, once the readout is in its corner)")]
     [Tooltip("Blinks per second of the recording dot. The readout's blink is measured against it.")]
     [SerializeField, Min(0.1f)] private float recBlinkHz = 1f;
 
-    [Tooltip("With all of the module's time left, the readout blinks this many times as fast as the " +
-             "dot (0.5 = half as fast). It speeds up as the time runs out.")]
-    [SerializeField, Range(0.1f, 1f)] private float startBlinkMultiplier = 0.5f;
-
-    [Tooltip("When the readout turns amber it blinks this many beats per minute faster than the dot.")]
+    [Tooltip("When the readout turns amber its time blinks this many beats per minute faster than the dot.")]
     [SerializeField, Min(0f)] private float amberExtraBpm = 20f;
 
-    [Tooltip("When the readout turns red it blinks this many times as fast as the dot.")]
+    [Tooltip("When the readout turns red its time blinks this many times as fast as the dot.")]
     [SerializeField, Min(1f)] private float redBlinkMultiplier = 2f;
 
     [Tooltip("Status of a module that is counting down.")]
@@ -249,14 +245,13 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     public float RecBlinkHz => recBlinkHz;
 
     /// <summary>
-    /// Blinks per second of <paramref name="module"/>'s readout, which follows the part of its time
-    /// that is left: half the dot's rate with all of it, the dot's plus <see cref="amberExtraBpm"/>
-    /// when the readout turns amber, twice the dot's when it turns red — straight lines between
-    /// those, and red from then on. <paramref name="stage"/> is <see cref="ModuleTimerStage"/>.
+    /// Blinks per second of the time in <paramref name="module"/>'s readout, which only blinks from
+    /// amber on (<paramref name="stage"/> from <see cref="ModuleTimerStage"/>, 1 or 2): the dot's
+    /// rate plus <see cref="amberExtraBpm"/> when it turns amber, rising in a straight line to
+    /// <see cref="redBlinkMultiplier"/> times the dot's at the critical fraction, and that from then on.
     /// </summary>
     public float ReadoutBlinkHz(ModuleRuntime module, int stage)
     {
-        float start = recBlinkHz * startBlinkMultiplier;
         float amber = recBlinkHz + amberExtraBpm / 60f;
         float red = recBlinkHz * redBlinkMultiplier;
 
@@ -264,9 +259,7 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
         if (stage >= 2 || duration <= 0f) return stage >= 2 ? red : amber;
 
         float left = Mathf.Clamp01(module.TimeRemaining / duration);
-        return left > moduleWarningFraction
-            ? Mathf.Lerp(start, amber, Mathf.InverseLerp(1f, moduleWarningFraction, left))
-            : Mathf.Lerp(amber, red, Mathf.InverseLerp(moduleWarningFraction, moduleCriticalFraction, left));
+        return Mathf.Lerp(amber, red, Mathf.InverseLerp(moduleWarningFraction, moduleCriticalFraction, left));
     }
 
     /// <summary>The seconds the readout shows for <paramref name="module"/> by its state: what it

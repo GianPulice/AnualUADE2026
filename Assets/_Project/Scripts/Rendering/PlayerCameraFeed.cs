@@ -11,9 +11,10 @@ using UnityEngine;
 /// module starts. A start sweeps "BOMB ACTIVATED" across the middle of the screen in red, blinking;
 /// then the device's module types in there at 00:00, its time counts up to the module's, and the
 /// readout travels to the corner, shrinking, and counts down: "M1: IN PROGRESS 14:35", DISARMED,
-/// FAILED. In the corner it blinks with the recording dot. The whole readout turns amber with a
-/// quarter of the module's time left, red with a tenth or in the last 30 seconds
-/// (<see cref="SO_PlayerCameraFeedConfig.ModuleTimerStage"/>), blinking faster as it gets worse.
+/// FAILED. The whole readout turns amber with a quarter of the module's time left, red with a
+/// tenth or in the last 30 seconds (<see cref="SO_PlayerCameraFeedConfig.ModuleTimerStage"/>); until
+/// then it is steady. From amber on its digits go out and come back, faster as the time runs out
+/// (the text stays).
 /// Both texts retype themselves when they change.
 ///
 /// At the start of the level the camera boots (<see cref="PlayerCameraBoot"/>, run by
@@ -87,6 +88,7 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int LensId = Shader.PropertyToID("_PlayerFeedLens");
     private static readonly int SignalId = Shader.PropertyToID("_PlayerFeedSignal");
     private static readonly int ReadoutId = Shader.PropertyToID("_PlayerFeedReadout");
+    private static readonly int ReadoutTimeId = Shader.PropertyToID("_PlayerFeedReadoutTime");
     private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
     private static readonly int RecBlinkId = Shader.PropertyToID("_PlayerFeedRecBlink");
 
@@ -153,6 +155,10 @@ public class PlayerCameraFeed : MonoBehaviour
     private int readoutStage;
     private float readoutBlinkPhase = -1f;   // 0..1 through a blink (lit for the first half); -1 = steady
     private int readoutTargetLength;
+
+    // Where the time sits in the readout's text (first glyph, glyph count): the part that blinks.
+    private int readoutTimeStart;
+    private int readoutTimeLength;
 
     // The bomb banner: how far it has swept in and out, and its length (0 = not up).
     private Vector2 bannerSweep;
@@ -279,6 +285,7 @@ public class PlayerCameraFeed : MonoBehaviour
                                                     statusShown ? statusLength : 0, overlay));
         Shader.SetGlobalVector(ReadoutId, new Vector4(readoutTravel, readoutTargetLength, readoutStage,
                                                        readoutBlinkPhase));
+        Shader.SetGlobalVector(ReadoutTimeId, new Vector4(readoutTimeStart, readoutTimeLength, 0f, 0f));
         Shader.SetGlobalVector(BannerId, new Vector4(bannerSweep.x, bannerSweep.y, bannerLength,
                                                       config.BannerBlinkHz));
         Shader.SetGlobalFloat(RecBlinkId, config.RecBlinkHz);
@@ -775,10 +782,12 @@ public class PlayerCameraFeed : MonoBehaviour
                       : 0f;
         readoutTargetLength = readoutLine.Target.Length;
 
-        // The readout's color as the module runs out (amber, then red), and its blink: with the dot
-        // in the corner of a module that is running, faster the worse it gets. Steady otherwise.
+        // The readout's color as the module runs out (amber, then red), and the blink of its time:
+        // only in the corner, with the module running and from amber on, faster the less time is
+        // left. Steady (white) before that.
         readoutStage = showsModule ? config.ModuleTimerStage(focusModule) : 0;
-        bool counting = showsModule && focusModule.Status == ModuleStatus.Active &&
+        FindTime(readoutLine.Target, out readoutTimeStart, out readoutTimeLength);
+        bool counting = showsModule && focusModule.Status == ModuleStatus.Active && readoutStage >= 1 &&
                         (intro == Intro.Travel || intro == Intro.Docked);
 
         // The blink's speed changes with the time left, so its phase is accumulated here: a phase
@@ -855,6 +864,24 @@ public class PlayerCameraFeed : MonoBehaviour
             text = readoutLine.Target;
         }
         return true;
+    }
+
+    /// <summary>Where the last "MM:SS" in <paramref name="text"/> is: the readout's time. Nothing
+    /// (length 0) when there is none.</summary>
+    private static void FindTime(string text, out int start, out int length)
+    {
+        start = 0;
+        length = 0;
+        for (int i = text.Length - 5; i >= 0; i--)
+        {
+            if (char.IsDigit(text[i]) && char.IsDigit(text[i + 1]) && text[i + 2] == ':' &&
+                char.IsDigit(text[i + 3]) && char.IsDigit(text[i + 4]))
+            {
+                start = i;
+                length = 5;
+                return;
+            }
+        }
     }
 
     private static int IndexOf(IReadOnlyList<ModuleRuntime> modules, ModuleRuntime module)

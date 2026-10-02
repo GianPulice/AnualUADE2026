@@ -63737,21 +63737,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 15c9a4c140dc527479a06abd39eb6a3c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GizmoManager
-  nemesisRanges: 1
+  nemesisRanges: 0
   nemesisRoutes: 1
-  nemesisPressureZones: 1
+  nemesisPressureZones: 0
   nemesisDebug: 1
   inputHints: 1
-  checkpoints: 0
+  checkpoints: 1
   winTrigger: 1
   interactionRange: 1
-  escapeSequence: 1
+  escapeSequence: 0
   elevator: 1
   hidingItemsDecoys: 1
   ambience: 1
   footsteps: 1
   lightAndFog: 1
-  colliders: 0
+  colliders: 1
   cameras: 1
   lights: 1
   audioSources: 1
@@ -101415,7 +101415,6 @@ MonoBehaviour:
     endGate: {fileID: 277590739}
     nemesisCorridorEnd: {fileID: 853948990}
     nemesisApproachStart: {fileID: 1659173577}
-    nemesisGateStart: {fileID: 386212459}
     nemesisGateStop: {fileID: 1726885299}
   fogCycle: {fileID: 1783774596}
   alarmLights: {fileID: 1783774634}
@@ -101423,6 +101422,7 @@ MonoBehaviour:
   corridorLock: {fileID: 1783774594}
   actor: {fileID: 1783774593}
   pursuit: {fileID: 1783774592}
+  playerRunner: {fileID: 0}
   chaseRestart: {fileID: 1783774603}
   gateSlam: {fileID: 1421023162}
   sockets: []
@@ -117990,7 +117990,7 @@ Transform:
   m_GameObject: {fileID: 5764738577963887130}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.6997298, z: -0, w: 0.7144076}
-  m_LocalPosition: {x: 33.25, y: 1.59, z: 15.34}
+  m_LocalPosition: {x: 30.944, y: 1.59, z: 15.292}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

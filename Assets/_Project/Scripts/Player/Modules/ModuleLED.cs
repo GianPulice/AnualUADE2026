@@ -4,7 +4,9 @@ using UnityEngine;
 /// Drives one LED on the player's rig from the status of its own module, independently of the
 /// other LEDs:
 ///   • Inactive → off (the default until that module's countdown starts)
-///   • Active   → the orange-yellow blink (LED_Parpadeo Animator + LED_Naranja)
+///   • Active   → the orange-yellow blink (LED_Parpadeo Animator + LED_Naranja), free-running until
+///                the countdown starts to beep, and from then on flashing on every beep
+///                (<see cref="ModuleTimerBeeper.Beeped"/>), so light and sound keep the same pace
 ///   • Resolved → steady green
 ///   • Exploded → steady red, from the frame the explosion VFX goes off (not the state change)
 ///
@@ -52,6 +54,12 @@ public class ModuleLED : MonoBehaviour
     [Tooltip("Off = the green and yellow states only light up the LED itself (its emissive " +
              "material), with no glow cast around the player. On = the Light is also tinted and on.")]
     [SerializeField] private bool castLightWhenSteady = false;
+
+    // The blink state and the moment of its flash (0..1 of the one-second clip): a beep restarts the
+    // blink there, so the LED is at its brightest on the beep and has died down before the next.
+    // These match LED_Parpadeo.controller / LED_Parpadeo.anim (peak key at 0.35 s).
+    private static readonly int BlinkStateHash = Animator.StringToHash("Parpadeo");
+    private const float BlinkPeakTime = 0.35f;
 
     private Color activeLightColor;
     private float activeLightIntensity;
@@ -133,6 +141,7 @@ public class ModuleLED : MonoBehaviour
     private void OnEnable()
     {
         ModuleEvents.OnExplosionShown += HandleExplosionShown;
+        ModuleTimerBeeper.Beeped += HandleBeep;
         shownStatus = null;
         Refresh();
     }
@@ -140,6 +149,15 @@ public class ModuleLED : MonoBehaviour
     private void OnDisable()
     {
         ModuleEvents.OnExplosionShown -= HandleExplosionShown;
+        ModuleTimerBeeper.Beeped -= HandleBeep;
+    }
+
+    private void HandleBeep(ModuleRuntime runtime, bool urgent)
+    {
+        if (module == null || runtime == null || runtime.ModuleID != module.ModuleID) return;
+        if (shownStatus != ModuleStatus.Active || blinkAnimator == null || !blinkAnimator.enabled) return;
+
+        blinkAnimator.Play(BlinkStateHash, 0, BlinkPeakTime);
     }
 
     private void Update() => Refresh();
