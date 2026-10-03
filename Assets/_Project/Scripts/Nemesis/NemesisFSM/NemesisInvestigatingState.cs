@@ -121,38 +121,73 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     }
 
     /// <summary>
-    /// For the ladder's "investigó un ruido tuyo y sigue tibio" (D26): the silence about the player is
-    /// still inside the search's window (as lent by the Director, scaled by how good the evidence
-    /// was), so the investigation turns into a short search instead of back into patrol.
+    /// Whether the investigation of the PLAYER is still warm: what holds the walk to what it sensed
+    /// ("sigue yendo hacia lo que sintió") and what turns the look at the spot into a search instead of
+    /// back into patrol ("investigó y sigue tibio", D26).
     ///
-    /// WALKING TO THEIR OWN NOISE, THE SILENCE COUNTS FROM WHEN IT GOT THERE, like the search's
-    /// (NemesisSearchingState.Silence), and it is warm all the way there: the walk is not silence it
-    /// has listened to. It used to be the plain belief age, so a noise far enough away to take five or
-    /// six seconds to reach, plus the four of the look-around, was past the window by the end of it —
-    /// the far noise never turned into a search and the Nemesis went back to patrol (playtest 27/09).
+    /// IT LASTS UNTIL THE EVIDENCE STOPS, NOT FOR A FIXED TIME (03/10, the designer's rule: "hasta que
+    /// sienta que no hay más evidencias nuevas del player"):
+    ///   - ON ITS WAY THERE it is warm, all the way: walking to the evidence is not silence it has
+    ///     listened to. The walk used to be dropped InvestigationTimeOut (8 s) after the last
+    ///     evidence wherever the Nemesis was, so a noise far enough away was abandoned half way.
+    ///     Only a destination with no path at all ends it.
+    ///   - ONCE THERE, the silence counts from the later of the arrival and the last evidence —
+    ///     every footstep, sighting or glimpse renews it — against the search's window, scaled by how
+    ///     good that evidence was (as lent by the Director). Like NemesisSearchingState.Silence.
     ///
-    /// Anything else (a lead, a glimpse, a suspected spot) keeps the plain gate: the belief itself is
-    /// younger than the window. A lead alone never escalates that way (D26) — a decoy found empty says
-    /// nothing about the player — and a glimpse is not evidence the belief keeps.
+    /// The evidence is the player's: the belief (sight and noise, fused) and, walking to a glimpse,
+    /// the glimpse too — a glimpse is weaker than a sighting, so its window is the muffled one. A LEAD
+    /// keeps the plain gate (the belief younger than the window): a decoy found empty says nothing about
+    /// the player (D26), and the walk to it is held by its own rung (HasFreshLead).
     /// </summary>
     public bool IsWarm
     {
         get
         {
-            NemesisBelief belief = nemesisStateManager.Belief;
             SO_NemesisData data = nemesisStateManager.NemesisData;
-            if (data == null || belief == null || !belief.HasBelief) return false;
+            if (data == null) return false;
 
-            float window = data.SearchQuietWindow *
-                           SearchCooling.Quality(belief.IsAnchoredBySight, belief.LastEvidenceMuffled,
-                                                 data.SearchQualitySight, data.SearchQualityMuffled);
+            NemesisBelief belief = nemesisStateManager.Belief;
+            bool hasBelief = belief != null && belief.HasBelief;
 
-            if (source != ESource.Player) return belief.Age < window;
+            if (source == ESource.Lead || source == ESource.Spot)
+            {
+                return hasBelief && belief.Age < data.SearchQuietWindow * EvidenceQuality(data, belief);
+            }
 
-            if (arrivedAt < 0f) return true;
+            // On its way to the evidence: warm while there is a way there.
+            if (arrivedAt < 0f) return hasDestination && HasPathThere;
 
-            float evidenceAt = Time.time - belief.Age;
-            return Time.time - Mathf.Max(evidenceAt, arrivedAt) < window;
+            float evidenceAt = hasBelief ? Time.time - belief.Age : float.NegativeInfinity;
+            float quality = hasBelief ? EvidenceQuality(data, belief) : data.SearchQualityMuffled;
+
+            if (source == ESource.Glimpse && belief != null &&
+                belief.TryGetGlimpse(out _, out float glimpseAge) && Time.time - glimpseAge > evidenceAt)
+            {
+                evidenceAt = Time.time - glimpseAge;
+                quality = data.SearchQualityMuffled;
+            }
+
+            return Time.time - Mathf.Max(evidenceAt, arrivedAt) < data.SearchQuietWindow * quality;
+        }
+    }
+
+    /// <summary>How much the silence window stretches for the belief's last evidence: a sighting
+    /// more, a muffled noise less (SearchCooling.Quality).</summary>
+    private static float EvidenceQuality(SO_NemesisData data, NemesisBelief belief) =>
+        SearchCooling.Quality(belief.IsAnchoredBySight, belief.LastEvidenceMuffled,
+                              data.SearchQualitySight, data.SearchQualityMuffled);
+
+    /// <summary>The agent has, or is still working out, a way to the destination. A path that cannot
+    /// be built at all is the one thing that ends a walk to the evidence: without a time bound on the
+    /// walk, nothing else would.</summary>
+    private bool HasPathThere
+    {
+        get
+        {
+            UnityEngine.AI.NavMeshAgent agent = nemesisStateManager.NavAgent;
+            if (agent == null || !nemesisStateManager.IsAgentReady) return true;
+            return agent.pathPending || agent.pathStatus != UnityEngine.AI.NavMeshPathStatus.PathInvalid;
         }
     }
 
@@ -344,29 +379,30 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             if (choice.IsFocusOnLead)
             {
                 Aim(choice.FocusPosition, ESource.Lead, Time.time);
+                React(untilFacing: true);
                 return;
             }
         }
 
-        FieldOfListening ears = nemesisStateManager.FieldOfListening;
         NemesisBelief belief = nemesisStateManager.Belief;
 
         if (nemesisStateManager.IsSuspicious && belief != null &&
             belief.TryGetGlimpse(out Vector3 glimpse, out float glimpseAge) && glimpseAge < GlimpseFreshness)
         {
             Aim(glimpse, ESource.Glimpse, Time.time - glimpseAge);
+            React(untilFacing: true);
             return;
         }
 
-        if (ears != null && nemesisStateManager.HearsPlayer && ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise))
+        // The player — heard now, or believed — goes to the BELIEF, not to the raw noise (plan §17.3:
+        // "Investigating va a la posición de la creencia o del vistazo, no al último ruido"). The
+        // belief already folds that noise in with what it saw a moment ago, and the ear's point is
+        // only where the ear placed it (Fase 1): walking to it threw the fusion away.
+        if (belief != null && belief.HasBelief)
         {
-            Aim(noise.Position, ESource.Player, noise.HeardAt);
-            return;
+            Aim(belief.Position, ESource.Player, Time.time - belief.Age);
+            React(untilFacing: true);
         }
-
-        // Entered on a rung that asks none of those this frame: where it believes the player is. It
-        // used to be the last thing the ear caught, whoever made it.
-        if (belief != null && belief.HasBelief) Aim(belief.Position, ESource.Player, Time.time - belief.Age);
     }
 
     /// <summary>How old a glimpse may be and still be where the corner of its eye caught something
@@ -435,14 +471,15 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         bool newerPlayerNoise = hasPlayerNoise &&
             (source == ESource.Player ? noise.HeardAt > sourceAt : nemesisStateManager.HearsPlayer);
 
-        if (newerPlayerNoise && IsWorthMoving(noise.Position, minShift))
+        // Towards the belief the noise was folded into, not the noise (plan §17.3; see AimOnEntry).
+        NemesisBelief belief = nemesisStateManager.Belief;
+        if (newerPlayerNoise && belief != null && belief.HasBelief && IsWorthMoving(belief.Position, minShift))
         {
-            Aim(noise.Position, ESource.Player, noise.HeardAt);
+            Aim(belief.Position, ESource.Player, Time.time - belief.Age);
             return true;
         }
 
         // A glimpse that moved, while the glimpse is still all it has.
-        NemesisBelief belief = nemesisStateManager.Belief;
         if ((source == ESource.Glimpse || source == ESource.Spot || source == ESource.None) &&
             nemesisStateManager.IsSuspicious &&
             belief != null && belief.TryGetGlimpse(out Vector3 glimpse, out float glimpseAge) &&
@@ -490,19 +527,42 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         consumedFocusSequence = choice.FocusSequence;
     }
 
-    private void React()
+    /// <summary>
+    /// A beat standing still, turning to the new thing, before walking (plan §17.3: the player reads
+    /// "it changed its mind", not "it jammed").
+    /// </summary>
+    /// <param name="untilFacing">Keep turning past the beat until it actually faces the destination,
+    /// for at most MaxFacingTurn. On ENTERING to look at what brought it here — above all a presence
+    /// felt behind it — so it is looking at it, with its eyes, before anything else: a destination two
+    /// metres behind it used to be "reached" by backing into it, and the look-around then swept the
+    /// way it was already facing (03/10).</param>
+    private void React(bool untilFacing = false)
     {
         reacting = true;
         reactUntil = Time.time + ReactPause;
+        reactFacingUntil = untilFacing ? Time.time + MaxFacingTurn : reactUntil;
     }
 
-    /// <summary>Stands still, turning towards the new destination, for the React beat. True while it
-    /// lasts.</summary>
+    /// <summary>Longest it keeps turning on the spot to face what it came to look at.</summary>
+    private const float MaxFacingTurn = 1.5f;
+
+    /// <summary>Within this many degrees it counts as facing it.</summary>
+    private const float FacingTolerance = 25f;
+
+    private float reactFacingUntil = float.NegativeInfinity;
+
+    /// <summary>Stands still, turning towards the new destination, for the React beat — and, on entry,
+    /// until it faces it. True while it lasts.</summary>
     private bool TickReact()
     {
         if (!reacting) return false;
 
-        if (Time.time >= reactUntil)
+        Vector3 facing = destination - nemesisStateManager.transform.position;
+        facing.y = 0f;
+        bool faced = facing.sqrMagnitude <= 0.0001f ||
+                     Vector3.Angle(nemesisStateManager.transform.forward, facing) <= FacingTolerance;
+
+        if (Time.time >= reactUntil && (faced || Time.time >= reactFacingUntil))
         {
             reacting = false;
             nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
@@ -513,8 +573,6 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         nemesisStateManager.NavAgent.velocity = Vector3.zero;
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
 
-        Vector3 facing = destination - nemesisStateManager.transform.position;
-        facing.y = 0f;
         if (facing.sqrMagnitude > 0.0001f)
         {
             float turnSpeed = nemesisStateManager.NemesisMovement != null

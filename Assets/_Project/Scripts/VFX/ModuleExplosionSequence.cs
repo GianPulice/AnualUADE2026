@@ -306,7 +306,11 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Only taken when it was free, and only then given back (UnlockPlayer): a player already
         // disabled by something else (a capture, the wake-up) must not be freed by this shot.
         if (player == null || player.IsDisabled) return;
-        player.IsDisabled = true;
+
+        // Keeping the crouch when there is no room to stand: under a container or a duct the
+        // standing capsule that Disabled restores would end up inside the ceiling, and the shot
+        // would play with the player pushed through the level. With room, this is IsDisabled = true.
+        player.DisableKeepingCrouch();
         lockedPlayer = true;
     }
 

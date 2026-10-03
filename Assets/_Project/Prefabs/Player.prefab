@@ -16,22 +16,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &384041524205376192
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1088243688451712710}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7015e33c77954dd49d472bbd5d070310, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraFeed
-  config: {fileID: 11400000, guid: fdb6ef80225d4ed7b43579dcf0921635, type: 2}
-  previewInEditMode: 0
-  previewStage: 0
-  previewAmount: 1
 --- !u!4 &4871168440167061593
 Transform:
   m_ObjectHideFlags: 0
@@ -163,6 +147,8 @@ GameObject:
   - component: {fileID: 8823410557001220301}
   - component: {fileID: 8823410557001220302}
   - component: {fileID: 4138418862034583676}
+  - component: {fileID: 8908597602825739573}
+  - component: {fileID: 3796978114858013185}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -221,12 +207,15 @@ MonoBehaviour:
     m_Bits: 1
   groundAngleLimit: 45
   isInteracting: 0
+  groundClearanceBlocks: 1
+  psxRows: 256
   initStandUpState: Init Stand Up
   captureStandUpState: Standing Up
   captureStandUpFallback: 2.5
   initStandUpScenes:
   - WIRED_Zona1_Blockout
   standUpTimeout: 3
+  standUpGroundClearance: 0.012
   injuredIdleClip: {fileID: 7400000, guid: 5a7f39a2f7d6add4786336ba777f382b, type: 2}
   injuredWalkClip: {fileID: 7400000, guid: e3f52691fa2e8334492f5de35a57d269, type: 2}
   injuredRunClip: {fileID: 7400000, guid: 7d30dd7cc98839749ae17e7b99fe16b0, type: 2}
@@ -458,6 +447,32 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ModuleExplosionSequence
   config: {fileID: 11400000, guid: 69e9d57e45672a440a39f07eb659a259, type: 2}
   cameraAnchorOverride: {fileID: 0}
+--- !u!114 &8908597602825739573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79d2e0dec3d1a8743933977af180b3a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CaptureGrabStaging
+  config: {fileID: 11400000, guid: b8c0dcf42e77f6f40abec776ee848b5d, type: 2}
+--- !u!114 &3796978114858013185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd3d1431d3245de44bc5edf211707881, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CaptureGrabCamera
+  config: {fileID: 11400000, guid: b8c0dcf42e77f6f40abec776ee848b5d, type: 2}
 --- !u!1 &267920378832048576
 GameObject:
   m_ObjectHideFlags: 0
@@ -1204,6 +1219,22 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   shoulderBlendDuration: 0.8
+--- !u!114 &384041524205376192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088243688451712710}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7015e33c77954dd49d472bbd5d070310, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraFeed
+  config: {fileID: 11400000, guid: fdb6ef80225d4ed7b43579dcf0921635, type: 2}
+  previewInEditMode: 0
+  previewStage: 0
+  previewAmount: 1
 --- !u!1 &1234706075858165138
 GameObject:
   m_ObjectHideFlags: 0

@@ -82,6 +82,8 @@ La detección **no es todo o nada**. Adentro de `focusAngle` te vio y listo. Ent
 
 Estar `Hidden` (escondido) **ya no** salta la vista por completo: según el escondite, el Nemesis todavía te distingue a una fracción de `viewRange`, y eso nunca arranca una persecución directa. Ver *Escondites*.
 
+**De dónde sale el cono.** De `ViewPoint`, un hijo de la **raíz** del prefab a 2 m de altura y 0,3 m adelante — no de un hueso. Colgado de la cabeza se movía con la animación (60 cm de lado a lado y entre 9° y 30° de giro al caminar, 40° hacia abajo en el agarre), así que lo que veía dependía del cuadro del clip. Hacia dónde mira lo decide `LookDirection`, no la cabeza del modelo. El costo: el ojo queda entre 0,4 y 0,8 m detrás de donde se dibuja la cabeza.
+
 ### Oído — `FieldOfListening`
 
 **El ruido en este proyecto es una esfera, no un evento.** No existe ningún `OnNoiseGenerated`. El jugador lleva un `SphereCollider` trigger (`PlayerStateManager.AudioEmitingZone`) cuyo radio setean los estados de movimiento según el paso, con los valores de `SO_PlayerMovement.asset`:
@@ -285,7 +287,7 @@ Mientras sigue en el piso (asomarse, flexionar, darse vuelta), una captura corta
 
 **Animaciones y sonido provisorios:**
 
-- **El controller no tiene los estados de la bajada:** `Drop Look`, `Hop Takeoff`, `Hang Turn`, `Hang Release`, `Fall Loop` y `Land Heavy`, con los nombres en `SO_NemesisMovement`. Cada fase sin estado se hace igual, sin animación, y la consola avisa una vez.
+- **Los estados de la bajada existen pero están vacíos (sin clip):** `Drop Look`, `Hop Takeoff`, `Hang Turn`, `Hang Release`, `Fall Loop` y `Land Heavy`, con los nombres en `SO_NemesisMovement`. El FBX nuevo no trae clips para ellos, así que durante la bajada el modelo queda en su pose base. `Land Heavy` sale solo a `Idle` (un estado sin clip dura ~1 s); los demás no tienen salida y `EndTraversalAnimation` los resuelve. Cuando haya clips, se asignan a esos estados sin tocar código.
 - **Sonidos** (`NemesisAudio`, sección *Bajadas*): `voice_chase` como gruñido y `pasos_chase_05` con pitch 0.85 como impacto. El golpe de manos está vacío.
 
 ---
@@ -315,7 +317,18 @@ Dos cosas que importan para el diseño:
 
 `catchMaxReach` es 1 m, `catchMaxVerticalOffset` 1 m, y `catchRequiresLineOfSight` está prendido: no te agarra a través de una pared aunque el agente esté al lado, ni entre pisos.
 
+**El agarre se ve antes de taparse.** `E_KillPlayer` (el estado `Catch` del Nemesis) y `Grabbed` (el del jugador) son una sola animación en dos mitades. `CaptureGrabStaging` y `CaptureGrabCamera`, en el Player, ponen a los dos a la distancia a la que se animó el par y llevan la cámara a un lugar desde donde el agarre se ve; el fade, el respawn y el game over del escape esperan `PlayerEvents.CaptureShotSeconds` antes de sus propios tiempos. El punto central se apaga durante toda la captura (`CaptureCanvasGate`, en `CrosshairCanvas`). El detalle está en `docs/CLAUDE.md` § *The grab*.
+
 **Cuando la captura no sale.** Si entró a `Catch` sin nadie a quien agarrar, vuelve a `Searching`. Si `OnCaptured()` no la toma —una cinemática tiene al jugador congelado— vuelve a `Chasing`, en vez de quedarse esperando un respawn que no va a llegar. Lo mismo si durante el `hiddenPullOutTime` saliste del escondite y ya no estás al alcance. En todos los casos `catchCooldown` (2 s, en el `NemesisStateManager` del prefab) impide que te vuelva a agarrar en el frame siguiente.
+
+---
+
+## Brazos y ojos del modelo
+
+El modelo (`TLLStalker`, el hijo del prefab que tiene el Animator) está escalado de forma despareja (0,75 de ancho, 0,61 de alto y de fondo) y sus brazos miden 2,25 m. De ahí salen dos cosas del prefab:
+
+- **Brazos contra paredes — `NemesisArmWallGuard`**, en el modelo. La caminata lleva un brazo estirado 3 m delante del pivote y el otro arrastrando con el codo 0,8 m hacia afuera, y el NavMesh sólo separa de la pared el **eje** del cuerpo, por el radio del agente: 0,3 m (los hombros van hasta 0,55 m al costado de ese eje). Después del Animator, cada brazo se prueba **desde el eje del agente**: el codo, la muñeca, el medio de cada hueso y cada punta de dedo tienen que poder alcanzarse en línea recta sin nada vertical en el medio. Si no, **baja el brazo** —lo pliega contra el cuerpo con un IK de dos huesos, el codo hacia atrás— lo justo para que entre; si hace falta mete la mano hacia el centro del cuerpo (pared al costado) o la lleva atrás junto a la cadera (pared de frente). **Mantiene la pose un ciclo entero de la caminata** antes de soltarla (`holdCycles`): si no, el brazo subía y bajaba en cada paso al lado de una pared. Vuelve a subir despacio (`raiseSpeed` 1.5; baja a `lowerSpeed` 8). No achica el brazo, no toca los clips ni el agente, ignora pisos, techos y objetos de menos de 0,6 m (`minObstacleSize`) y se apaga durante `Catch`, que necesita los brazos enteros. Lo que no puede arreglar: caminando pegado a la pared el hombro mismo queda unos 16 cm adentro, porque el cuerpo es más ancho que el agente. Medido en Play contra paredes de Zona1 (parte de la piel del brazo del otro lado de la pared, promedio del ciclo): pegado a la pared, 26–36 % sin la guardia y 2–3 % con ella, con el brazo quieto abajo; a 0,8 m de la pared el codo entraba 17 cm y con la guardia 0.
+- **Ojos — `NemesisEyes`**. Las dos luces que anclan los `FogBeacon` cuelgan del hueso `Face.Upper`, que es el que mueve los ojos de la malla, y no de `spine.006`: ahí quedaban entre 2 y 9 cm corridas del ojo según la animación; ahora, a menos de 1 cm.
 
 ---
 
@@ -397,6 +410,7 @@ Tres caminos independientes al mixer. **Ninguno de los tres es intercambiable co
 | Sonido | Componente | Bus | Estado |
 |---|---|---|---|
 | Pasos | `FootstepEmitter` en la raíz del prefab | Nemesis | Funciona |
+| Golpe del brazo que se arrastra | `NemesisArmThud`, en el hijo con el Animator | Nemesis | Clip provisorio: `pasos_chase_05` a pitch 0.5–0.58 |
 | Respiración por estado | `NemesisAudio` (en el prefab; se agrega solo si falta) | Nemesis | Funciona |
 | Voz: aviso de "sabe tu escondite" | `NemesisAudio` (sección *Voz y avisos*) | Nemesis | Clip provisorio: `voice_chase` a pitch 0.8 |
 | Voz: "te perdí" al volver a patrullar | `NemesisAudio` | Nemesis | Funciona (`voice_lost_01/02`) |
@@ -414,15 +428,23 @@ Cuando la partida tiene resultado (`GameResultManager.OnGameResult`), los loops 
 
 El Nemesis usa el mismo `FootstepEmitter` que el jugador, con `bus = Nemesis` y `cadenceSource = AnimationEvent`. Los pasos los dispara un `Step` puesto en el frame de apoyo de la animación, que llega por `FootstepAnimationRelay` (está en el hijo con el Animator, no en la raíz).
 
-> **El Animator del Nemesis usa las animaciones del jugador** (`Walking`, `Running`, `Idle` de `Player Animations/`, en `NemesisController.controller`). Son las únicas del proyecto que tienen el evento `Step`. Consecuencia: el `strideLength` del prefab está inerte, y la cadencia son los dos ritmos del jugador conmutados por los bools `isWalking`/`isRunning` — no sigue la velocidad real de `SO_NemesisMovement`.
+> **El Animator del Nemesis usa los clips del modelo `TLLStalker`**, en `NemesisController.controller` (junto al FBX): `E_Staring` → `Idle`, `E_Walk` → `Patrol` y `Chase`, `E_KillPlayer` → `Catch`. `E_Walk` es el único con evento `Step` (dos por ciclo, en el frame en que cada pie apoya, importados en `TLLStalker.fbx`) y los dos estados lo reproducen a ×4 y ×4,5 (el campo *Speed* del estado). Consecuencia: el `strideLength` del prefab sigue inerte, y la cadencia es la velocidad de reproducción de esos estados conmutada por los bools `isWalking`/`isRunning` — no sigue la velocidad real de `SO_NemesisMovement`.
 
-**Los clips también son los del jugador**: el emisor del prefab usa `SO_FootstepBank_Player` (resuelve por superficie, no por estado) con `pitchMultiplier` 0.72, más grave para distinguirlo de oído, rolloff logarítmico entre 1.5 y 24 m, y oclusión por `Wall` que atenúa a 0.5. `SO_FootstepBank_Nemesis`, con los `pasos_chase_*` propios, sigue en el proyecto pero no lo usa nadie. Los pasos no dicen en qué estado está; eso lo dicen la respiración y la música.
+**Los clips también son los del jugador**: el emisor del prefab usa `SO_FootstepBank_Player` (resuelve por superficie, no por estado) con `pitchMultiplier` 0.6, más grave para distinguirlo de oído, rolloff **lineal** entre 2 y 10 m (el lineal es el único que llega a silencio en `maxDistance`: se oyen cuando el Nemesis está cerca, no desde el otro lado del nivel), y oclusión por `Wall` que atenúa a 0.5. `SO_FootstepBank_Nemesis`, con los `pasos_chase_*` propios, sigue en el proyecto pero no lo usa nadie. Los pasos no dicen en qué estado está; eso lo dicen la respiración y la música.
+
+**El volumen no se puede subir más desde acá.** `AudioSource.volume` tope en 1 y los pasos del Nemesis ya salen a 1 (`volumeScale` por encima de 1 no hace nada con superficies a 1). Para que suenen más fuertes que los del jugador hay que subir el bus Nemesis del mixer (afecta también la respiración y la voz) o bajar `volumeScale` del emisor del jugador.
+
+### Golpe del brazo
+
+Con `E_Walk` el Nemesis lleva un brazo estirado adelante y arrastra el otro (`hand.L`). Cada vez que esa mano baja y toca el piso suena un golpe grave, en 3D, por el bus Nemesis. Lo dispara un evento `ArmThud` en `E_Walk` (frame 21 de 60 a 24 fps, importado en `TLLStalker.fbx`; es el primer frame con el dedo más bajo a menos de 2.5 cm del piso, medido sobre el rig), que llega a `NemesisArmThud` en el hijo con el Animator. Como `Patrol` y `Chase` reproducen el mismo clip, el golpe sigue la cadencia de los dos sin leer la FSM. Mismo falloff que los pasos: lineal entre 2 y 10 m; sin oclusión. El clip es provisorio (`pasos_chase_05` bajado a pitch 0.5–0.58): cuando haya uno propio, se reemplaza en el array `clips` y se sube el `pitchRange`. Si se retima `E_Walk`, hay que volver a medir el frame del evento.
 
 ### `NemesisAudio`
 
 Se agrega solo a cualquier Nemesis que no lo tenga, pero el contenido —el array `stateLoops`, una entrada por estado con clip y volumen— se autora en el prefab. Un estado sin entrada hace crossfade a silencio; si el array está vacío avisa una vez por consola al arrancar.
 
 Hoy el prefab tiene respiración: `breathing_patrol` en `Patrolling`, `breathing_search` en `Investigating` y `Searching`, `breathing_chase` en `Chasing` y `Catch`; `Traversing` no tiene entrada.
+
+**En el agarre los loops se cortan.** Cuando `PlayerEvents.OnPlayerCaptured` llega con el Nemesis en `Catch`, `NemesisAudio` los desvanece (el `crossfadeDuration`, 0.4 s) y los mantiene afuera hasta que el estado sale de `Catch`: la respiración de `Catch` ya venía sonando desde `Chasing` y se oía debajo de todo el plano del agarre. Con un jugador escondido, el estado `Catch` empieza en la puerta, antes de agarrar: ahí sigue sonando hasta que llegan las manos, porque lo que corta es el agarre y no el estado. Una captura que no viene de `Catch` (el botón de la consola de pruebas) no toca los loops.
 
 También tiene one-shots, que no son loops: van por el pool del `AudioManager` al bus Nemesis, en 3D y sin oclusión.
 

@@ -70,6 +70,38 @@ public class NemesisEyes : MonoBehaviour
     [SerializeField] private bool disableRealLights = true;
 
     private readonly List<FogBeacon> _beacons = new List<FogBeacon>();
+    private Transform _center;
+
+    /// <summary>
+    /// The point half way between the eyes, riding on the head: for a camera to be trained on "the
+    /// eyes" as one point, whatever the model's height or pose. Made the first time it is asked for
+    /// and kept in the same parent as the anchors, so it moves with them. Null when there are none.
+    /// </summary>
+    public Transform Center
+    {
+        get
+        {
+            if (_center != null) return _center;
+
+            Transform parent = null;
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            for (int i = 0; i < eyeLights.Count; i++)
+            {
+                if (eyeLights[i] == null) continue;
+
+                if (parent == null) parent = eyeLights[i].transform.parent;
+                sum += eyeLights[i].transform.position;
+                count++;
+            }
+            if (count == 0) return null;
+
+            _center = new GameObject("EyesCenter").transform;
+            _center.SetParent(parent != null ? parent : transform, false);
+            _center.position = sum / count;
+            return _center;
+        }
+    }
 
     private void Awake()
     {

@@ -1,8 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Hearing sensor of the Nemesis.
+///
+/// THE EAR IS NOT A GPS (Plan-Busqueda-Nemesis, Fase 1). A noise of the PLAYER's is reported at a
+/// perceived point: the real one plus an offset of up to SO_NemesisData.HearingLocalizationError ×
+/// that evidence's radius, drifting smoothly in time and pinned to the NavMesh of the player's own
+/// floor (<see cref="HearingLocalization"/>). The belief, the states and the hiding awareness all get
+/// only that point; the real transform never leaves this sensor (the editor keeps a copy for the
+/// gizmo and F9, and nothing else can read it). Decoys and Director pulses stay exact: they are
+/// leads at a known place, and nothing about them is the player.
 ///
 /// The tuneable values (range, wall occlusion) live in <see cref="SO_NemesisData"/> so a
 /// designer edits them in one asset and Tier 3.3 can scale them by handing this component a
@@ -57,6 +66,13 @@ public class FieldOfListening : MonoBehaviour
 
     private float lastNoiseTime;
 
+    /// <summary>Seeds this listener's drift of <see cref="HearingLocalization.Offset"/>.</summary>
+    private float errorSeed;
+
+    /// <summary>How far from the player's real position the NavMesh is looked for, to pin the
+    /// perceived point on their floor. Generous: a player inside a locker is off the mesh.</summary>
+    private const float PerceivedSnapRadius = 2f;
+
     public bool HasAudioTarget { get => hasAudioTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
 
@@ -97,8 +113,17 @@ public class FieldOfListening : MonoBehaviour
         /// </summary>
         public readonly bool FromHidingSpot;
 
+        /// <summary>
+        /// How far off <see cref="Position"/> may be, in metres: the longest offset the ear could have
+        /// put on it (Plan-Busqueda-Nemesis Fase 1). Zero for a lead. The sensor's own uncertainty,
+        /// not where the player is: anything comparing two noises ("did it sound from the same
+        /// place twice") has to allow for it.
+        /// </summary>
+        public readonly float LocalizationError;
+
         public HeardNoise(Vector3 position, float heardAt, float distance, bool throughWall,
-                          bool throughFloor, DecoyNoiseSource decoy, bool fromHidingSpot = false)
+                          bool throughFloor, DecoyNoiseSource decoy, bool fromHidingSpot = false,
+                          float localizationError = 0f)
         {
             Position = position;
             HeardAt = heardAt;
@@ -107,6 +132,7 @@ public class FieldOfListening : MonoBehaviour
             ThroughFloor = throughFloor;
             Decoy = decoy;
             FromHidingSpot = fromHidingSpot;
+            LocalizationError = localizationError;
         }
     }
 
@@ -156,6 +182,9 @@ public class FieldOfListening : MonoBehaviour
     private void Awake()
     {
         listenedTargets = new List<GameObject>();
+
+        // Per listener, so the way this ear mishears is its own (HearingLocalization).
+        errorSeed = Random.Range(0f, 1000f);
 
         ResolveAcousticMasks();
 
@@ -283,6 +312,19 @@ public class FieldOfListening : MonoBehaviour
 
             listenedTargets.Add(target);
 
+            // WHO made it, as well as how loud (plan §17). The player's own emitter is evidence
+            // about the player; anything else on the listen layer is a lead. Told apart by what the
+            // collider IS, not by where it sits: footsteps and breathing are not a radio.
+            bool fromPlayer = IsPlayerEmitter(emitter);
+            bool fromHidingSpot = fromPlayer && IsPlayerHidden();
+
+            // The player is heard where the ear places them, not where they are (Fase 1).
+            Vector3 truth = target.transform.position;
+            Vector3 heardAt = truth;
+            float error = 0f;
+            if (fromPlayer)
+                heardAt = Mislocate(truth, distance, throughWall, throughFloor, fromHidingSpot, out error);
+
             // The one that is heard BEST, not the first the physics query happened to return:
             // with the Director's synthetic pulse and the player both audible, which one the
             // monster turns to must not depend on collider order.
@@ -290,17 +332,13 @@ public class FieldOfListening : MonoBehaviour
             {
                 heardAny = true;
                 loudestMargin = margin;
-                loudestPosition = target.transform.position;
+                loudestPosition = heardAt;
                 loudestDecoy = null;
             }
 
-            // WHO made it, as well as how loud (plan §17). The player's own emitter is evidence
-            // about the player; anything else on the listen layer is a lead. Told apart by what the
-            // collider IS, not by where it sits: footsteps and breathing are not a radio.
-            bool fromPlayer = IsPlayerEmitter(emitter);
-            var heard = new HeardNoise(target.transform.position, Time.time, distance, throughWall,
-                                       throughFloor, null, fromPlayer && IsPlayerHidden());
-            if (fromPlayer) OfferPlayerNoise(heard, margin);
+            var heard = new HeardNoise(heardAt, Time.time, distance, throughWall, throughFloor, null,
+                                       fromHidingSpot, error);
+            if (fromPlayer) OfferPlayerNoise(heard, margin, truth);
             else            OfferLead(heard, margin);
 
             // A SOFT noise of the player's — crouching — also feeds the suspicion meter the glimpses
@@ -384,6 +422,22 @@ public class FieldOfListening : MonoBehaviour
     private bool sweepHeardSoftPlayer;
     private float sweepPlayerMargin;
     private HeardNoise sweepPlayer;
+#if UNITY_EDITOR
+    private Vector3 sweepPlayerTruth;
+    private Vector3 lastPlayerNoiseTruth;
+
+    /// <summary>
+    /// EDITOR ONLY: where the player REALLY was when <see cref="TryGetLastPlayerNoise"/>'s noise was
+    /// heard. For NemesisGizmos and F9, to tune HearingLocalizationError against the truth. Behind
+    /// UNITY_EDITOR so nothing that ships can read it: the whole point of Fase 1 is that the real
+    /// position never leaves this sensor.
+    /// </summary>
+    public bool TryGetLastPlayerNoiseTruth(out Vector3 truth)
+    {
+        truth = lastPlayerNoiseTruth;
+        return hasPlayerNoise;
+    }
+#endif
     private bool sweepHeardLead;
     private float sweepLeadMargin;
     private HeardNoise sweepLead;
@@ -397,12 +451,17 @@ public class FieldOfListening : MonoBehaviour
         sweepLeadMargin = float.NegativeInfinity;
     }
 
-    private void OfferPlayerNoise(in HeardNoise heard, float margin)
+    /// <param name="truth">Where the player really was. Kept for the editor's gizmo and F9 only.
+    /// </param>
+    private void OfferPlayerNoise(in HeardNoise heard, float margin, Vector3 truth)
     {
         if (margin <= sweepPlayerMargin) return;
         sweepHeardPlayer = true;
         sweepPlayerMargin = margin;
         sweepPlayer = heard;
+#if UNITY_EDITOR
+        sweepPlayerTruth = truth;
+#endif
     }
 
     private void OfferLead(in HeardNoise heard, float margin)
@@ -421,6 +480,9 @@ public class FieldOfListening : MonoBehaviour
         {
             lastPlayerNoise = sweepPlayer;
             hasPlayerNoise = true;
+#if UNITY_EDITOR
+            lastPlayerNoiseTruth = sweepPlayerTruth;
+#endif
         }
 
         HeardLead = sweepHeardLead;
@@ -450,6 +512,45 @@ public class FieldOfListening : MonoBehaviour
     {
         PlayerStateManager player = PlayerRegistry.Current;
         return player != null && player.IsHidden;
+    }
+
+    /// <summary>
+    /// Where the ear places a noise of the player's that really came from <paramref name="truth"/>
+    /// (Plan-Busqueda-Nemesis Fase 1, D39): off by up to HearingLocalizationError × the radius the
+    /// belief will give this noise, so the error grows with distance, walls, floors and the furniture
+    /// a breath comes out of, exactly as the belief's doubt does.
+    ///
+    /// PINNED TO THE NAVMESH OF THE PLAYER'S FLOOR, AND NOT THROUGH A WALL. The offset is walked out
+    /// from the player's spot on the mesh with a NavMesh raycast, so it stops at the first edge: a
+    /// noise in a corridor is misheard along the corridor, never inside the wall or on the far side of
+    /// it, and never on the storey above. Without this, a few metres of error would routinely put the
+    /// noise somewhere nobody can stand, and the search would sweep the wrong room for no reason the
+    /// player could ever read.
+    /// </summary>
+    /// <param name="maxError">The longest offset this noise could get, for
+    /// <see cref="HeardNoise.LocalizationError"/>.</param>
+    private Vector3 Mislocate(Vector3 truth, float distance, bool throughWall, bool throughFloor,
+                              bool fromHidingSpot, out float maxError)
+    {
+        float radius = NemesisBelief.NoiseRadiusFor(nemesisData, distance, throughWall, throughFloor,
+                                                    fromHidingSpot);
+        maxError = HearingLocalization.MaxError(radius, nemesisData.HearingLocalizationError);
+        if (maxError <= 0f) return truth;
+
+        Vector3 offset = HearingLocalization.Offset(errorSeed, Time.time, nemesisData.HearingErrorDriftTime,
+                                                    maxError);
+
+        // No mesh near the player (mid-jump over a gap, a level with no bake): the offset alone.
+        if (!NavMesh.SamplePosition(truth, out NavMeshHit origin, PerceivedSnapRadius, NemesisNav.AreaMask))
+            return truth + offset;
+
+        Vector3 aim = origin.position + offset;
+        if (NavMesh.Raycast(origin.position, aim, out NavMeshHit edge, NemesisNav.AreaMask))
+            return edge.position;
+
+        return NavMesh.SamplePosition(aim, out NavMeshHit landed, 0.5f, NemesisNav.AreaMask)
+            ? landed.position
+            : aim;
     }
 
     private readonly HashSet<Collider> warnedSolidEmitters = new HashSet<Collider>();

@@ -198,7 +198,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 24f + stripHeight + 32f;
+        float height = lineHeight * 26f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -215,10 +215,12 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "sospecha", DescribeAwareness());
         Row(ref line, "escondite", DescribeHidingSpot());
         Row(ref line, "creencia", DescribeBelief());
+        Row(ref line, "  oído", DescribeHearing());
         Row(ref line, "foco", DescribeFocus());
         Row(ref line, "distancia", DescribeDistance());
         Row(ref line, "persecución", DescribeChaseProgress());
         Row(ref line, "búsqueda", DescribeSearch());
+        Row(ref line, "  mapa", DescribePossibilityMap());
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
         Row(ref line, "trabas", DescribeStuck());
@@ -316,11 +318,24 @@ public class NemesisDebugHUD : MonoBehaviour
 
         string bar = new string('#', filled) + new string('.', Cells - filled);
 
-        if (stateManager.HasVisualTarget) return $"[{bar}] <b>lo ve</b>";
+        FieldOfView eyes = stateManager.FieldOfView;
+        if (stateManager.HasVisualTarget)
+        {
+            // Out of the corner of its eye, where it already believed the player was: the senses added
+            // up into a sighting, skipping the suspicion (VisionZones.Corroborates).
+            bool corroborated = eyes != null && eyes.LastSightCorroborated;
+            return corroborated ? $"[{bar}] <b>lo ve</b> (de reojo, donde ya lo creía)" : $"[{bar}] <b>lo ve</b>";
+        }
 
         string state = stateManager.IsSuspicious ? "  ·  <b>sospecha</b>" : "";
 
-        return $"[{bar}] {awareness:0.00} / {threshold:0.00}{state}";
+        // Which zone is filling it (VisionZones): the corner of its eye, or a presence behind it.
+        string zone = eyes == null ? ""
+                    : eyes.ContactZone == VisionZones.EZone.Peripheral ? "  ·  de reojo"
+                    : eyes.ContactZone == VisionZones.EZone.Rear ? "  ·  siente algo atrás"
+                    : "";
+
+        return $"[{bar}] {awareness:0.00} / {threshold:0.00}{zone}{state}";
     }
 
     /// <summary>
@@ -397,7 +412,45 @@ public class NemesisDebugHUD : MonoBehaviour
         float freshness = controller != null ? controller.BeliefFreshness() : 0f;
 
         return $"{source}  ·  {belief.Age:0.0} s  ·  radio {belief.Radius:0.0} m  ·  " +
-               $"frescura {freshness:0.00}{lead}";
+               $"frescura {freshness:0.00}  ·  ancla: {DescribeAnchor(belief)}{lead}";
+    }
+
+    /// <summary>
+    /// What a search would do with this belief (Plan-Busqueda-Nemesis Fase 1): walk to the point —
+    /// "vista", or "ruido preciso" for a noise heard right beside it — or sweep around it without
+    /// going to the point, "zona". Read off the same rule the search uses.
+    /// </summary>
+    private string DescribeAnchor(NemesisBelief belief)
+    {
+        if (!NemesisSearchingState.MayVisitEvidence(belief, stateManager.NemesisData))
+            return belief.LastEvidenceFromHidingSpot ? "zona (escondite)" : "zona";
+
+        return belief.IsAnchoredBySight ? "vista" : "ruido preciso";
+    }
+
+    /// <summary>
+    /// The last noise of the player's it heard, as the ear placed it (Plan-Busqueda-Nemesis Fase 1):
+    /// how long ago, how far, and how far off the ear may have put it. In the editor, also how far off
+    /// it really was — the number HearingLocalizationError is tuned against. The real position is
+    /// editor-only on the sensor, so a build shows the rest and never the truth.
+    /// </summary>
+    private string DescribeHearing()
+    {
+        FieldOfListening ears = stateManager.FieldOfListening;
+        if (ears == null || !ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise))
+            return "nunca te oyó";
+
+        string text = $"hace {Time.time - noise.HeardAt:0.0} s  ·  a {noise.Distance:0.0} m  ·  " +
+                      $"error hasta ±{noise.LocalizationError:0.0} m";
+#if UNITY_EDITOR
+        if (ears.TryGetLastPlayerNoiseTruth(out Vector3 truth))
+        {
+            Vector3 off = noise.Position - truth;
+            off.y = 0f;
+            text += $"  ·  <b>se equivocó {off.magnitude:0.0} m</b> (editor)";
+        }
+#endif
+        return text;
     }
 
     /// <summary>
@@ -534,8 +587,9 @@ public class NemesisDebugHUD : MonoBehaviour
         string cooling = !searching.IsWarm ? "<b>se enfrió</b>"
                        : searching.IsHeadingToEvidence ? $"tibia (sin contar)/{searching.QuietWindow:0.#} s"
                        : $"tibia {searching.Silence:0.0}/{searching.QuietWindow:0.#} s";
-        string cap = $"tope {stateManager.TimeInCurrentState:0}/{searching.Cap:0} s" +
-                     (searching.IsEscalated ? " (corta, D26)" : "");
+        string cap = searching.Cap > 0f
+            ? $"tope {stateManager.TimeInCurrentState:0}/{searching.Cap:0} s" + (searching.IsEscalated ? " (corta, D26)" : "")
+            : $"{stateManager.TimeInCurrentState:0} s, sin tope";
 
         string doing;
         if (searching.IsPausing) doing = "<b>mirando alrededor</b>";
@@ -556,6 +610,38 @@ public class NemesisDebugHUD : MonoBehaviour
 
         return $"{cooling}  ·  {cap}  ·  {doing}  ·  barrido r {roam.Radius:0.#} m, centro a " +
                $"{toAnchor:0.0} m, {roam.SweptPoints.Count} puntos{covered}{room}";
+    }
+
+    /// <summary>
+    /// The possibility map (Plan-Busqueda-Nemesis Fase 2a): how much of it is on the Nemesis's floor,
+    /// where the likeliest place is and how much sits around it, how spread out it is (as the area it
+    /// still has to search), what went into the Hub and into hiding spots, and how many nodes it
+    /// cleared by looking on the last tick. Nothing decides off it yet: this row and the gizmo are how
+    /// "does it reason where you went" gets judged before the search starts using it (2b).
+    /// </summary>
+    private string DescribePossibilityMap()
+    {
+        NemesisPossibilityMap possibility = stateManager.PossibilityMap;
+        if (possibility == null || !possibility.IsBuilt) return "sin armar";
+
+        PossibilityMap map = possibility.Map;
+        NemesisPossibilityGraphBuilder.Result build = possibility.Build;
+        if (!map.HasValue)
+            return $"sin valor  ·  {map.Graph.NodeCount} nodos, armado en {build.Milliseconds:0} ms";
+
+        string best = "—";
+        if (possibility.TryGetBest(out _, out Vector3 bestAt))
+        {
+            float share = possibility.ShareNear(bestAt, 4f);
+            best = $"a {Vector3.Distance(transform.position, bestAt):0.0} m ({share:P0} en 4 m)";
+        }
+
+        string hub = map.SinkValue > 0.005f ? $"  ·  Hub {map.SinkValue:P0}" : "";
+        float hidden = map.SumOfKind(PossibilityGraph.ENodeKind.HidingSpot);
+        string spots = hidden > 0.005f ? $"  ·  escondites {hidden:P0}" : "";
+
+        return $"en su piso {possibility.ShareOnOwnFloor:P0}  ·  mejor {best}  ·  repartido " +
+               $"{possibility.SpreadArea:0} m²{hub}{spots}  ·  limpió {possibility.ClearedLastTick}";
     }
 
     private string DescribeCluster()
@@ -698,9 +784,10 @@ public class NemesisDebugHUD : MonoBehaviour
     /// <summary>
     /// Whether the cluster roll is leaning on the player's real position right now. Mirrors the
     /// fallback of NemesisController.TryGetZoneAnchor (private, and it asks the Director first, which
-    /// the caller already has): SO_NemesisData.ZoneBiasUsesRealPlayer on, a player registered, and
-    /// that player not in the Hub (C5). Plus the one condition around it: the anchor only feeds the
-    /// cluster patrol, so with ClusterPatrolEnabled off nothing reads it.
+    /// the caller already has): SO_NemesisData.ZoneBiasUsesRealPlayer on, a player registered, that
+    /// player not in the Hub (C5), not hidden, and no hunt in progress or in its grace (D40). Plus the
+    /// one condition around it: the anchor only feeds the cluster patrol, so with
+    /// ClusterPatrolEnabled off nothing reads it.
     /// </summary>
     private string DescribeStalking()
     {
@@ -711,6 +798,12 @@ public class NemesisDebugHUD : MonoBehaviour
         Transform player = PlayerRegistry.CurrentTransform;
         if (player == null) return "no (sin jugador)";
         if (NemesisSafeZones.Contains(player.position)) return "no (jugador en el Hub)";
+
+        PlayerStateManager playerState = PlayerRegistry.Current;
+        if (playerState != null && playerState.IsHidden) return "no (escondido, D40)";
+
+        NemesisController controller = stateManager.NemesisController;
+        if (controller != null && controller.IsInHuntOrGrace) return "no (caza o gracia, D40)";
 
         return "<b>jugador</b>";
     }

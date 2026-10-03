@@ -32,12 +32,24 @@ public class NemesisCinematicActor : MonoBehaviour
     [Tooltip("Distancia (m) a la que da por llegado un destino.")]
     [SerializeField, Min(0.05f)] private float arrivalDistance = 0.3f;
 
+    [Header("Attack")]
+    [Tooltip("Estado del Animator del Nemesis con el golpe. No tiene transiciones: se llega por " +
+             "CrossFade y se queda en su último frame hasta que algo lo mueva.")]
+    [SerializeField] private string attackState = "E_Attack";
+
+    [Tooltip("Segundos de crossfade hacia el golpe, y de vuelta a Idle cuando termina.")]
+    [SerializeField, Min(0f)] private float attackBlendSeconds = 0.1f;
+
+    private static readonly int IdleStateHash = Animator.StringToHash("Idle");
+
     /// <summary>Raised once when a walk or run ends on its marker.</summary>
     public event Action Arrived;
 
     private NemesisStateManager nemesis;
     private bool hasControl;
     private bool moving;
+    private bool attacking;
+    private bool warnedNoAttackState;
     private Transform facing;
 
     public bool HasControl => hasControl;
@@ -147,11 +159,25 @@ public class NemesisCinematicActor : MonoBehaviour
     /// </summary>
     public void SetEyesVisible(bool visible)
     {
-        if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
-        if (nemesis == null) return;
-
-        NemesisEyes eyes = nemesis.GetComponentInChildren<NemesisEyes>();
+        NemesisEyes eyes = FindEyes();
         if (eyes != null) eyes.SetLightsEnabled(visible);
+    }
+
+    /// <summary>The point between the Nemesis's eyes, riding on its head, for a shot to be trained
+    /// on. Null when there is no Nemesis or it has no eyes.</summary>
+    public Transform EyesPoint
+    {
+        get
+        {
+            NemesisEyes eyes = FindEyes();
+            return eyes != null ? eyes.Center : null;
+        }
+    }
+
+    private NemesisEyes FindEyes()
+    {
+        if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+        return nemesis != null ? nemesis.GetComponentInChildren<NemesisEyes>() : null;
     }
 
     /// <summary>Turns in place to look at the marker (standing still; ignored while moving).</summary>
@@ -162,12 +188,65 @@ public class NemesisCinematicActor : MonoBehaviour
     }
 
     /// <summary>
+    /// Stops where it is and strikes at whatever it is facing (<see cref="FaceTowards"/> keeps
+    /// turning it towards the marker meanwhile): plays the attack clip once, and stays on its last
+    /// frame. The clip has no way out of its own, so anything that moves the Nemesis again
+    /// (<see cref="WarpTo(Vector3, float)"/>, a walk or run, <see cref="Release"/>) takes it back to
+    /// Idle first — left in the pose, the gait bools would never pull it out.
+    ///
+    /// By CrossFade on the state's name, with HasState and a warning: the same pattern as
+    /// <see cref="NemesisStateManager.PlayTraversal"/>, for a controller that has no such state.
+    /// </summary>
+    /// <returns>false when the Animator has no attack state: the cinematic plays on without the
+    /// strike.</returns>
+    public bool Attack()
+    {
+        if (!hasControl) return false;
+
+        Animator animator = nemesis.AnimController;
+        int hash = Animator.StringToHash(attackState);
+
+        if (animator == null || animator.runtimeAnimatorController == null || !animator.HasState(0, hash))
+        {
+            if (!warnedNoAttackState)
+            {
+                warnedNoAttackState = true;
+                Debug.LogWarning($"[{nameof(NemesisCinematicActor)}] The Nemesis's Animator has no " +
+                                 $"state '{attackState}': the cinematic plays without the strike.", this);
+            }
+            return false;
+        }
+
+        // Standing first: it halts the agent and drops the gait bools, and that call is also what
+        // would end a strike already playing, so it has to come before this one starts.
+        Stand();
+
+        attacking = true;
+        animator.CrossFadeInFixedTime(hash, attackBlendSeconds, 0, 0f);
+        return true;
+    }
+
+    /// <summary>Takes the Nemesis out of the attack clip if it is in it. See <see cref="Attack"/>.</summary>
+    private void EndAttack()
+    {
+        if (!attacking) return;
+        attacking = false;
+
+        Animator animator = nemesis != null ? nemesis.AnimController : null;
+        if (animator == null || animator.runtimeAnimatorController == null || !animator.HasState(0, IdleStateHash))
+            return;
+
+        animator.CrossFadeInFixedTime(IdleStateHash, attackBlendSeconds, 0);
+    }
+
+    /// <summary>
     /// Gives the Nemesis back to its FSM, mid-stride if it is still moving: the state it re-enters
     /// (Chasing, with <see cref="NemesisEscapePursuit"/> on) sets its own gait on the same frame.
     /// </summary>
     public void Release()
     {
         if (!hasControl) return;
+        EndAttack();
         hasControl = false;
         moving = false;
         facing = null;
@@ -183,6 +262,7 @@ public class NemesisCinematicActor : MonoBehaviour
     {
         if (!hasControl || marker == null || !nemesis.IsAgentReady) return;
 
+        EndAttack();
         facing = null;
         moving = true;
 
@@ -194,6 +274,7 @@ public class NemesisCinematicActor : MonoBehaviour
 
     private void Stand()
     {
+        EndAttack();
         moving = false;
         if (!nemesis.IsAgentReady) return;
 

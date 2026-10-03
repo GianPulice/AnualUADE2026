@@ -18,11 +18,17 @@ using UnityEngine;
 ///   - THE PLAYER: a position, a radius (how sure it is of the spot), the time of the last evidence,
 ///     and whether a sighting anchors it. Built only from evidence that IS the player: sightings and
 ///     the player's own noise emitter. Evidence that agrees narrows the radius — that is the senses
-///     adding up. Evidence that cannot be the same spot replaces it. With no evidence the radius
+///     adding up — but a noise never below its own radius: hearing the same footsteps ten times is
+///     not ten times as precise (Plan-Busqueda-Nemesis Fase 1). Evidence that cannot be the same
+///     spot replaces it. The noise's position is the PERCEIVED one (FieldOfListening), never the
+///     player's real transform. With no evidence the radius
 ///     grows at the player's top speed: it is "where they could have got to by now".
 ///   - LEADS: the latest noise that is NOT the player — a decoy, a Director pulse. Worth walking to;
 ///     never the player's position, and never what keeps the player belief young (D18, D19).
-///   - GLIMPSES: where something was in the corner of its eye before the meter resolved it.
+///   - GLIMPSES: where something was in the corner of its eye before the meter resolved it — or felt
+///     behind it (FieldOfView's rear zone). Not the player's position: a glimpse that agrees with a
+///     fresh belief is made a SIGHTING by the eyes themselves (FieldOfView, corroboration), and one
+///     that does not is only somewhere to go and look.
 ///
 /// SETUP: none. NemesisStateManager adds it next to itself, initializes it, and ticks it right after
 /// sampling the sensors, before anything reads the belief that frame. Its numbers live on
@@ -172,11 +178,6 @@ public class NemesisBelief : MonoBehaviour
     private SO_NemesisData Data => stateManager != null ? stateManager.NemesisData : null;
 
     private float SightRadius => Data != null ? Data.BeliefSightRadius : FallbackSightRadius;
-    private float NoiseBaseRadius => Data != null ? Data.BeliefNoiseBaseRadius : FallbackNoiseBaseRadius;
-    private float NoisePerMetre => Data != null ? Data.BeliefNoiseRadiusPerMetre : FallbackNoisePerMetre;
-    private float WallFactor => Data != null ? Data.BeliefNoiseWallFactor : FallbackWallFactor;
-    private float FloorFactor => Data != null ? Data.BeliefNoiseFloorFactor : FallbackFloorFactor;
-    private float HidingSpotFactor => Data != null ? Data.BeliefNoiseHidingSpotFactor : FallbackHidingSpotFactor;
     private float GrowthSpeed => Data != null ? Data.BeliefGrowthSpeed : FallbackGrowthSpeed;
     private float FloorHeight => Data != null ? Data.FloorHeightThreshold : FallbackFloorHeight;
 
@@ -302,11 +303,13 @@ public class NemesisBelief : MonoBehaviour
         Vector3 merged = (position * beliefWeight + noise.Position * noiseWeight) / total;
         float mergedRadius = Mathf.Sqrt(1f / total);
 
-        // A noise from inside a hiding spot never makes the belief more precise than the noise itself
-        // (D22). The sensor re-hears the same breath or exhale on every 0.1 s sweep it lasts, and each
-        // one used to be folded as independent evidence, shrinking the radius every time: six sweeps
-        // of one exhale ate most of the ×2 that is there to keep the search off the door.
-        if (noise.FromHidingSpot) mergedRadius = Mathf.Max(mergedRadius, radius);
+        // No noise ever makes the belief more precise than the noise itself (D22, extended to every
+        // noise by Plan-Busqueda-Nemesis Fase 1). The sensor re-hears the same footsteps or breath on
+        // every 0.1 s sweep, and each one used to be folded as independent evidence, shrinking the
+        // radius every time: a few seconds of running in earshot left "radio ~2 m, frescura 1.00"
+        // and a search that walked straight to the locker the run ended at (WIR-057). Those sweeps
+        // are one noise, not ten witnesses. Only a sighting pins the belief down finer than that.
+        mergedRadius = Mathf.Max(mergedRadius, radius);
 
         Set(merged, Mathf.Max(stamp, noise.HeardAt), mergedRadius, ESource.PlayerNoise);
     }
@@ -323,12 +326,25 @@ public class NemesisBelief : MonoBehaviour
     /// (maxHoldSeconds): a search that spends longer than that at the door turns "it heard
     /// something" into a guaranteed find.
     /// </summary>
-    private float NoiseRadius(in FieldOfListening.HeardNoise noise)
+    private float NoiseRadius(in FieldOfListening.HeardNoise noise) =>
+        NoiseRadiusFor(Data, noise.Distance, noise.ThroughWall, noise.ThroughFloor, noise.FromHidingSpot);
+
+    /// <summary>
+    /// The same radius, from the parts of a noise rather than the noise. Static and shared because the
+    /// hearing sensor needs it BEFORE there is a noise to hand over: how far off the ear may place a
+    /// noise is a fraction of exactly this radius (Plan-Busqueda-Nemesis Fase 1, D39), and two copies
+    /// of the formula would drift apart.
+    /// </summary>
+    public static float NoiseRadiusFor(SO_NemesisData data, float distance, bool throughWall,
+                                       bool throughFloor, bool fromHidingSpot)
     {
-        float radius = NoiseBaseRadius + NoisePerMetre * Mathf.Max(0f, noise.Distance);
-        if (noise.ThroughWall) radius *= WallFactor;
-        if (noise.ThroughFloor) radius *= FloorFactor;
-        if (noise.FromHidingSpot) radius *= HidingSpotFactor;
+        float baseRadius = data != null ? data.BeliefNoiseBaseRadius : FallbackNoiseBaseRadius;
+        float perMetre = data != null ? data.BeliefNoiseRadiusPerMetre : FallbackNoisePerMetre;
+
+        float radius = baseRadius + perMetre * Mathf.Max(0f, distance);
+        if (throughWall) radius *= data != null ? data.BeliefNoiseWallFactor : FallbackWallFactor;
+        if (throughFloor) radius *= data != null ? data.BeliefNoiseFloorFactor : FallbackFloorFactor;
+        if (fromHidingSpot) radius *= data != null ? data.BeliefNoiseHidingSpotFactor : FallbackHidingSpotFactor;
         return radius;
     }
 
@@ -380,11 +396,16 @@ public class NemesisBelief : MonoBehaviour
         if (isNew) LeadSequence++;
     }
 
+    /// <summary>The corner of its eye, or — far weaker, the same meter — a presence felt behind it
+    /// ("siento que hay alguien atrás"): either is somewhere to turn and look.</summary>
     private void TickGlimpse()
     {
-        if (eyes == null || eyes.HasVisualTarget || !eyes.HasPeripheralContact) return;
+        if (eyes == null || eyes.HasVisualTarget) return;
 
-        glimpse = eyes.PeripheralPoint;
+        if (eyes.HasPeripheralContact) glimpse = eyes.PeripheralPoint;
+        else if (eyes.HasRearContact) glimpse = eyes.RearPoint;
+        else return;
+
         glimpseTime = Time.time;
         hasGlimpse = true;
     }

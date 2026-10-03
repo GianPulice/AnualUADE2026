@@ -20,20 +20,24 @@ using UnityEngine.AI;
 ///     the disc and keeps what was swept (SearchSweepRules: plan §17.4, questions 1 and 4). A decoy
 ///     or a Director pulse never moves it — those are leads, and competing for attention is the
 ///     ladder's business (and the plan's Fase 2B part 4).
-///   - It walks to the evidence point ITSELF first — where it last saw or heard the player — and
-///     sweeps the disc around it after (playtest 27/09: rolling over the disc from the start left it
-///     at the near edge, metres short of the point). Not for a noise from inside a hiding spot (D22).
+///   - It walks to the evidence point ITSELF first — where it last saw the player, or heard them
+///     right beside it — and sweeps the disc around it after (playtest 27/09: rolling over the disc
+///     from the start left it at the near edge, metres short of the point). Not for a vaguer noise
+///     (Plan-Busqueda-Nemesis Fase 1: that point is usually a locker door) nor for one from inside a
+///     hiding spot (D22).
 ///   - Once the disc is covered it opens a step wider, up to RoomSweepRadius.
 ///   - It stops and looks around at every point it reaches, the first one included.
 ///
 /// HOW LONG IT LASTS (plan §18.5 B, Fase 2B part 3): it cools down instead of expiring. The ladder's
-/// "le queda presupuesto de búsqueda" reads <see cref="IsWarm"/>: the search goes on while the
+/// "la búsqueda sigue tibia" reads <see cref="IsWarm"/>: the search goes on while the
 /// silence since the last evidence about the player — counted from when it got to that evidence, see
 /// <see cref="Silence"/> — is under a window scaled by how good that
-/// evidence was, with a minimum and a cap (SearchCooling), and ends early once it has searched
-/// everything it can reach at its widest. Every footstep or exhale it hears renews it — except one
-/// heard from inside the Hub (C5). Entered from Investigating it is the short search of D26 (half the
-/// cap). The Director stretches or shrinks the window and the cap through its loan on the SO.
+/// evidence was, with a minimum (SearchCooling), and ends early once it has searched everything it can
+/// reach at its widest. Every footstep or exhale it hears renews it — except one heard from inside the
+/// Hub (C5). There is NO cap as shipped (SearchHardCap 0, 03/10): it searches for as long as evidence
+/// of the player keeps coming, and silence is what ends it. With a cap set, entered from Investigating
+/// it is the short search of D26 (a fraction of the cap). The Director stretches or shrinks the window
+/// (and the cap, when there is one) through its loan on the SO.
 ///
 /// The half-second floor before anything may pull it out, going back to Chasing on sight and
 /// checking a hiding spot are all rungs of NemesisDecision's ladder. What is left here is sweeping,
@@ -138,7 +142,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     private bool escalated;
 
     /// <summary>
-    /// Whether the search should go on — what the ladder's "le queda presupuesto de búsqueda" reads
+    /// Whether the search should go on — what the ladder's "la búsqueda sigue tibia" reads
     /// (predicate IsSearchWarm). See <see cref="SearchCooling"/> for the rules.
     /// </summary>
     public bool IsWarm
@@ -179,7 +183,8 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     public float QuietWindow => Data != null ? Data.SearchQuietWindow * Quality : 0f;
 
     /// <summary>The most it will search, in seconds in the state: the cap (as lent by the Director),
-    /// shortened for the escalated search of D26.</summary>
+    /// shortened for the escalated search of D26. 0 or less: no cap — it lasts while evidence comes.
+    /// </summary>
     public float Cap
     {
         get
@@ -275,7 +280,9 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         //
         // Unless it heard them somewhere past it since: then the lost spot is old news, and standing
         // there looking around while the player's footsteps lead away read as the Nemesis freezing
-        // between states (playtest 27/09). It goes to where it heard them instead.
+        // between states (playtest 27/09). It goes to where it heard them instead — straight there
+        // only if that noise was precise (MayVisit); a vaguer one has it look around here first and
+        // then sweep the area of the noise, rather than walk to its last footstep (Fase 1, WIR-057).
         if (standingWhereLost && !HasNewerEvidenceElsewhere())
             SetDestination(nemesisStateManager.transform.position);
         else SetDestination(PickNextPoint());
@@ -378,11 +385,29 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
     /// <summary>
     /// Whether the sweep should walk to the evidence point itself before sweeping around it
-    /// (<see cref="NemesisFreeRoam.IsAnchorPending"/>): always, except for the player's noise from
-    /// inside a hiding spot — that point is the locker door, and the whole of D22 is keeping the
-    /// search off it.
+    /// (<see cref="NemesisFreeRoam.IsAnchorPending"/>): for a sighting, and for a noise pinned down
+    /// beside the Nemesis (an evidence radius up to SearchPreciseNoiseRadius). Never for the player's
+    /// noise from inside a hiding spot (D22).
+    ///
+    /// NOT FOR A VAGUE NOISE (Plan-Busqueda-Nemesis Fase 1, WIR-057). It used to be every noise, and
+    /// the last footstep of a run that ends in a locker is the locker door: "it heard you go past"
+    /// became "it walked straight to your hiding spot", with the proximity rule waiting at the end.
+    /// A noise from across a room says "over there", and the sweep around it is what covers "over
+    /// there" — the point itself is no more likely than the rest of the disc.
     /// </summary>
-    private static bool MayVisit(NemesisBelief belief) => !belief.LastEvidenceFromHidingSpot;
+    private bool MayVisit(NemesisBelief belief) => MayVisitEvidence(belief, Data);
+
+    /// <summary>The rule behind <see cref="MayVisit"/>, static so F9's "ancla" says exactly what the
+    /// search does with the same belief.</summary>
+    public static bool MayVisitEvidence(NemesisBelief belief, SO_NemesisData data)
+    {
+        if (belief == null || !belief.HasBelief) return false;
+        if (belief.IsAnchoredBySight) return true;
+        if (belief.LastEvidenceFromHidingSpot) return false;
+
+        float precise = data != null ? data.SearchPreciseNoiseRadius : 1.5f;
+        return belief.EvidenceRadius <= precise;
+    }
 
     /// <summary>
     /// On entering at the spot where it lost them: whether the player has been heard since, far

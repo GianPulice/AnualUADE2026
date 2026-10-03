@@ -230,7 +230,7 @@ llega al ras del piso alto, y al llegar suelta `Traversing`). En la consola **no
   veredicto de camino se refresca cada 0.4 s), después `Searching` y `Patrolling`. **Bug si:** loop
   `Chasing` ↔ `Searching`.
 - [ ] **S3-c. WIR-024 solo.** Con `Chasing` fijado (3), caminá de punta a punta del balcón; mirá el
-  Animator de `Nemesis/mrZ` (`isRunning`). → Empujando contra el borde sin avanzar, `isRunning` pasa a
+  Animator de `Nemesis/TLLStalker` (`isRunning`). → Empujando contra el borde sin avanzar, `isRunning` pasa a
   false en 0.2–0.5 s y paran los pasos. **Bug si:** corre en el lugar.
 
 **S4 — WIR-020, trigger en un vano**

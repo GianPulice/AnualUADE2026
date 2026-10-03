@@ -257,6 +257,14 @@ public class VisionRangeController : MonoBehaviour
     }
 
     /// <summary>
+    /// The preset the fog is heading for right now: the top of the stack, or the default with no
+    /// zone active. For a caller that only wants to push its own when that would open the view
+    /// (<see cref="CaptureGrabCamera"/>), never to write to.
+    /// </summary>
+    public SO_VisionFogConfig ActiveConfig =>
+        _configStack.Count > 0 ? _configStack[_configStack.Count - 1] : defaultConfig;
+
+    /// <summary>
     /// Measures the fog from <paramref name="centre"/> instead of the player until cleared. For a
     /// cinematic whose camera is far from the player: centred on the player, a shot 13 m away
     /// renders fully fogged, and the only other way out was turning the fog off for the shot —

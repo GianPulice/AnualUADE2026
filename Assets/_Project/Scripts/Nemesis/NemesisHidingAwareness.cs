@@ -70,6 +70,11 @@ public class NemesisHidingAwareness : MonoBehaviour
     /// <summary>Why the current knowledge exists, for the debug HUD. Null when there is none.</summary>
     public string Reason { get; private set; }
 
+    /// <summary>It opened a spot to look inside (<see cref="Open"/>), whoever was in it. The one way a
+    /// hiding spot's node on the possibility map is cleared: looking at a closed locker says nothing.
+    /// An instance event, not a static one: it is this Nemesis's eyes.</summary>
+    public event System.Action<HidingSpot> SpotOpened;
+
     private void Awake()
     {
         // Static events: subscribed in Awake and released in OnDestroy, per docs/CLAUDE.md. The
@@ -190,6 +195,8 @@ public class NemesisHidingAwareness : MonoBehaviour
     {
         if (spot == null) return false;
 
+        SpotOpened?.Invoke(spot);
+
         // The first opening by habit happens HERE, in front of the player, not when the spot was
         // picked: a suspicion dropped on the way (seen elsewhere, a capture) would otherwise spend the
         // lesson where nobody saw it (R3, review 28/09).
@@ -234,14 +241,21 @@ public class NemesisHidingAwareness : MonoBehaviour
     /// state to open it (case 39). Never outside the area: a spot across the level does not exist for
     /// this (case 40, R4). Returns true when it picked one.
     ///
-    /// R3: until the first opening by habit has happened, only a spot the player is near enough to
-    /// see or hear it being opened qualifies — the first time is the lesson, and a lesson nobody
-    /// witnessed teaches nothing. Near enough means within WitnessDistance on the same floor. The
-    /// lesson counts as given when the spot is OPENED (<see cref="Open"/>), not when it is picked.
+    /// R3: until the first opening by habit has happened, the player has to be near enough to see or
+    /// hear a spot in this AREA being opened — the first time is the lesson, and a lesson nobody
+    /// witnessed teaches nothing. Near enough means within WitnessDistance of the area, on the same
+    /// floor. The lesson counts as given when the spot is OPENED (<see cref="Open"/>), not when it is
+    /// picked.
+    ///
+    /// A GATE, NOT A FILTER (Plan-Busqueda-Nemesis Fase 1, WIR-057). It used to be asked per spot,
+    /// against the player's real position: spots far from the player were skipped, and the one they
+    /// were hiding in, with them inside, always passed. With several used spots in the area that
+    /// tilted the roll towards theirs — the real position leaking into which locker it opened. Now it
+    /// is one question about the area, and every used spot in it gets the same treatment.
     ///
     /// <paramref name="rolled"/> is the caller's memory of what it already rolled this search: a
-    /// spot gets one roll per search, not one per re-centre. A spot passed over only because the
-    /// player was too far to witness it is not rolled: it may qualify later in the same search.
+    /// spot gets one roll per search, not one per re-centre. Spots passed over only because the
+    /// player was too far to witness are not rolled: they may qualify later in the same search.
     /// </summary>
     public bool ConsiderUsedSpots(Vector3 centre, float radius, System.Collections.Generic.HashSet<HidingSpot> rolled)
     {
@@ -252,13 +266,12 @@ public class NemesisHidingAwareness : MonoBehaviour
         if (habits.CollectUsedSpots(centre, radius, usedSpots) == 0) return false;
 
         bool firstTime = !habits.HasRun(ECounterplay.CheckHidingSpots);
-        Transform player = stateManager.PlayerTransform;
+        if (firstTime && !CouldWitnessArea(stateManager.PlayerTransform, centre, radius)) return false;
 
         for (int i = 0; i < usedSpots.Count; i++)
         {
             HidingSpot spot = usedSpots[i];
             if (rolled != null && rolled.Contains(spot)) continue;
-            if (firstTime && !CouldWitness(player, spot)) continue;
 
             rolled?.Add(spot);
             if (Random.value >= habits.OpenChance(spot)) continue;
@@ -271,19 +284,21 @@ public class NemesisHidingAwareness : MonoBehaviour
         return false;
     }
 
-    /// <summary>Whether the player is where they could see or hear <paramref name="spot"/> being
-    /// opened: close enough, and on the same floor.</summary>
-    private bool CouldWitness(Transform player, HidingSpot spot)
+    /// <summary>Whether the player is where they could see or hear a spot inside the area being
+    /// opened: within WitnessDistance of its edge, and on the same floor as its centre. Staging
+    /// knowledge only (R3): it decides whether the lesson may happen now, never which spot.</summary>
+    private bool CouldWitnessArea(Transform player, Vector3 centre, float radius)
     {
         if (player == null) return false;
 
-        Vector3 offset = spot.ApproachPoint.position - player.position;
+        Vector3 offset = centre - player.position;
         SO_NemesisData data = stateManager.NemesisData;
         float floor = data != null ? data.FloorHeightThreshold : 2.5f;
         if (Mathf.Abs(offset.y) > floor) return false;
 
         offset.y = 0f;
-        return offset.sqrMagnitude <= WitnessDistance * WitnessDistance;
+        float reach = WitnessDistance + Mathf.Max(0f, radius);
+        return offset.sqrMagnitude <= reach * reach;
     }
 
     /// <summary>The spot suspected by habit whose opening is still to come: opening it is the first
@@ -331,9 +346,16 @@ public class NemesisHidingAwareness : MonoBehaviour
         lastHidingNoiseHeardAt = noise.HeardAt;
         if (!newEpisode) return;
 
+        // Both distances allow for how far off the ear may place each noise (Fase 1): two breaths
+        // from one locker are heard a little apart, and neither need land on the locker itself. The
+        // spot it settles on is the nearest to where it HEARD them, which may be the next locker
+        // along — "it sounded from around there" is all hearing can say.
+        float slack = Mathf.Max(0f, noise.LocalizationError);
+        float sameSpot = SameSpotNoiseDistance + slack;
+
         bool sameAsFirst = hasFirstHidingNoise &&
                            noise.HeardAt - firstHidingNoiseTime < HidingNoiseMemory &&
-                           (noise.Position - firstHidingNoiseAt).sqrMagnitude < SameSpotNoiseDistance * SameSpotNoiseDistance;
+                           (noise.Position - firstHidingNoiseAt).sqrMagnitude < sameSpot * sameSpot;
 
         if (!sameAsFirst)
         {
@@ -343,7 +365,7 @@ public class NemesisHidingAwareness : MonoBehaviour
             return;
         }
 
-        HidingSpot spot = NearestSpot(noise.Position, NoiseToSpotDistance);
+        HidingSpot spot = NearestSpot(noise.Position, NoiseToSpotDistance + slack);
         if (spot == null) return;
 
         hasFirstHidingNoise = false;

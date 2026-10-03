@@ -311,15 +311,30 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
         if (module.Status != ModuleStatus.Active) return 0;
 
         float left = module.TimeRemaining;
-        if (moduleWarningSeconds > 0f && left <= moduleWarningSeconds) return 2;
+        float critical = CriticalSecondsLeft(module);
+        if (critical > 0f && left <= critical) return 2;
 
-        float duration = module.Data != null ? module.Data.TimerDuration : 0f;
-        if (duration <= 0f) return 0;
-
-        float fraction = left / duration;
-        if (moduleCriticalFraction > 0f && fraction <= moduleCriticalFraction) return 2;
-        return moduleWarningFraction > 0f && fraction <= moduleWarningFraction ? 1 : 0;
+        float warning = WarningSecondsLeft(module);
+        return warning > 0f && left <= warning ? 1 : 0;
     }
+
+    /// <summary>
+    /// Seconds <paramref name="module"/> has left when its readout turns warning (amber): that part
+    /// of its time (<see cref="moduleWarningFraction"/>). 0 = never. The module's beep
+    /// (<see cref="ModuleTimerBeeper"/>) changes pace at the same point.
+    /// </summary>
+    public float WarningSecondsLeft(ModuleRuntime module) => moduleWarningFraction * DurationOf(module);
+
+    /// <summary>
+    /// Seconds <paramref name="module"/> has left when its readout turns critical (red): its last
+    /// <see cref="moduleCriticalFraction"/> or its last <see cref="moduleWarningSeconds"/>, whichever
+    /// starts first. 0 = never.
+    /// </summary>
+    public float CriticalSecondsLeft(ModuleRuntime module) =>
+        Mathf.Max(moduleWarningSeconds, moduleCriticalFraction * DurationOf(module));
+
+    private static float DurationOf(ModuleRuntime module) =>
+        module.Data != null ? module.Data.TimerDuration : 0f;
 
     public float PictureLeadSeconds => pictureLeadSeconds;
     public string BootTitle => bootTitle;

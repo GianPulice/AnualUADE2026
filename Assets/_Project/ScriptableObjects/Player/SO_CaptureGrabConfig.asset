@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8058da9e4527d04dbb3379c66e57da3, type: 3}
+  m_Name: SO_CaptureGrabConfig
+  m_EditorClassIdentifier: Assembly-CSharp::SO_CaptureGrabConfig
+  pairDistance: 1.6886421
+  playerYawOffset: 9.999985
+  gripStandoff: 0.27
+  alignSeconds: 0.35
+  grabbedState: Grabbed
+  clipBlendSeconds: 0.15
+  shotSeconds: 1.275
+  cameraMoveSeconds: 0.7
+  cameraDistance: 3.4
+  focusHeight: 1.45
+  cameraHeight: 0.2
+  cameraYaw: 90
+  fieldOfView: 50
+  fogPreset: {fileID: 11400000, guid: 314eb580a0dcdb4459b52e503d379b81, type: 2}
+  gripHeight: 1.6490327
+  gripHalfWidth: 0.31325826
+  playerHeadHeight: 1.8523073
+  nemesisHeadHeight: 2.0187247
+  nemesisHeadForward: 1.3131866

@@ -390,7 +390,7 @@ La escalera vive en los prefabs; ninguna escena la pisa:
 | **70** | **CanvasPause** |
 | **80** | **CanvasSettings** |
 | 100 | InteractionCanvas (se esconde solo ante cualquier modal, ver `InteractionPromptView.HandleModalPushed`) |
-| 1000 | CrosshairCanvas (objeto de escena en `LevelUI`, no es prefab) |
+| 1000 | CrosshairCanvas (objeto de escena en `LevelUI`, no es prefab). Queda por encima del fade de captura del HUD: por eso lleva un `CaptureCanvasGate`, que apaga el Canvas mientras dura la captura |
 | 32000 | UI_LoadingScreen |
 
 > **Sin overrides de `m_SortingOrder` en las escenas.** Hasta el 22/09 `LevelUI.unity` y
@@ -519,6 +519,7 @@ Assets/_Project/Scripts/
 │       ├─ HidingOverlayView.cs           ← lo que se ve desde el escondite
 │       ├─ BreathHoldMeterView.cs         ← medidor de aliento
 │       ├─ ModalVisibilityGate.cs         ← oculta un nodo del HUD bajo modales
+│       ├─ CaptureCanvasGate.cs           ← apaga un Canvas durante la captura (el punto central)
 │       └─ Vignette/                      ← Vignettes de proximidad/chase
 ├─ Player/
 │   ├─ PlayerCameraController.cs          ← Cinemachine config + lock del cursor
@@ -585,9 +586,14 @@ de 00:00 al del módulo y sigue la cuenta regresiva (`DISARMED` / `FAILED` al te
 ventana, el tiempo avisa: ámbar con un cuarto del tiempo del módulo, rojo con un décimo, y rojo titilando
 en los últimos 30 s (`FAILED` queda rojo). Ver `docs/Materials-System.md` §7.3.
 
-Queda en `HUDCanvas.prefab` el objeto `ModuleTimerBeeper`: bipea 1/s desde 30 s y 2/s por debajo de
-10 s, alineado a la grilla del intervalo (un salto de tiempo = un bip, no una ráfaga). Corre con
-`OnTimerTick`, así que se calla solo cuando el timer está frenado.
+Queda en `HUDCanvas.prefab` el objeto `ModuleTimerBeeper`: bipea desde que arranca el módulo, lento al
+principio y cada vez más rápido (curva en `BeepCadence`, `Scripts/Utils`): un bip cada 30 s que baja en
+línea recta a 10 s hasta el ámbar de la lectura, de 10 s a 5 s hasta el rojo, y de 5 s a 0.5 s en forma
+exponencial hasta los últimos 10 s, donde queda en 0.5 s con el clip urgente. El ámbar y el rojo salen
+de `SO_PlayerCameraFeed` (`WarningSecondsLeft` / `CriticalSecondsLeft`, los mismos umbrales que
+`ModuleTimerStage`), así el color y el bip cambian de ritmo juntos. Cada bip se agenda a partir del
+anterior; un salto de tiempo = un bip, no una ráfaga. Corre con `OnTimerTick`, así que se calla solo
+cuando el timer está frenado.
 
 ### Skill check (Puzzle Central 2)
 

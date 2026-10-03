@@ -38,6 +38,11 @@ MonoBehaviour:
       state: 0
       threshold: 5
       customSeconds: 0.5
+    - predicate: 0
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
   - enabled: 1
     target: 4
     interrupts: 1
@@ -181,7 +186,7 @@ MonoBehaviour:
   - enabled: 1
     target: 3
     interrupts: 0
-    note: "le queda presupuesto de b\xFAsqueda"
+    note: "la b\xFAsqueda sigue tibia (evidencia reciente)"
     conditions:
     - predicate: 6
       negate: 0
@@ -256,7 +261,7 @@ MonoBehaviour:
   - enabled: 1
     target: 1
     interrupts: 0
-    note: "sigue yendo hacia el \xFAltimo ruido"
+    note: "sigue yendo hacia lo que sinti\xF3"
     conditions:
     - predicate: 6
       negate: 0
@@ -268,10 +273,10 @@ MonoBehaviour:
       state: 0
       threshold: 0
       customSeconds: 0
-    - predicate: 7
+    - predicate: 21
       negate: 0
       state: 0
-      threshold: 1
+      threshold: 0
       customSeconds: 0
   - enabled: 1
     target: 1
@@ -311,7 +316,7 @@ MonoBehaviour:
   - enabled: 1
     target: 3
     interrupts: 0
-    note: "investig\xF3 un ruido tuyo y sigue tibio"
+    note: "investig\xF3 lo que sinti\xF3 y sigue tibio"
     conditions:
     - predicate: 6
       negate: 0

@@ -16,8 +16,15 @@ using UnityEngine;
 ///
 /// A PLAYER IN A HIDING SPOT IS PULLED OUT FIRST (plan §3.5): for SO_NemesisData.HiddenPullOutTime
 /// the Nemesis stands at the spot opening the locker or reaching under the table, and only then
-/// calls OnCaptured(). There is no pull-out animation yet — the grab plays — but the beat is the
-/// design: from inside, the player sees the monster at the door before the hands arrive.
+/// calls OnCaptured(). There is no pull-out animation yet — it stands and stares for that beat —
+/// but the beat is the design: from inside, the player sees the monster at the door before the
+/// hands arrive.
+///
+/// THE GRAB IS ONE HALF OF A PAIR. E_KillPlayer (the Catch animator state, entered with the
+/// Grabbing gait) was animated against the player's Grabbed clip, and the two only line up when
+/// both start on the frame of the capture, with the bodies at arm's length and facing each other.
+/// This state gives its half: it stops, turns both to face, and starts the clip from Capture() and
+/// nowhere earlier. The distance and the player's clip are CaptureGrabStaging's, on the player.
 /// </summary>
 public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 {
@@ -78,7 +85,10 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
             phase = ECatchPhase.PullingOut;
             HoldBody();
             FaceTowards(player.transform.position);
-            nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
+
+            // Standing, not grabbing yet. Started here, E_KillPlayer ran HiddenPullOutTime ahead of
+            // the player's Grabbed clip: by the capture the hands had already closed, on nothing.
+            nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
             return;
         }
 
@@ -102,13 +112,16 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
             return;
         }
 
+        // Still from here on: an agent left coasting along its chase path keeps closing on the
+        // player for a few frames, under the staging that is spacing the two for the grab.
+        HoldBody();
         FaceEachOther();
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Grabbing, 0f);
     }
 
-    /// <summary>Stops the agent where it stands. The capture itself never needed this — it is
-    /// entered already on top of the player — but the pull-out is entered at a door and must not
-    /// keep sliding along whatever path brought it there.</summary>
+    /// <summary>Stops the agent where it stands: the pull-out is entered at a door and must not
+    /// keep sliding along whatever path brought it there, and the grab plays at arm's length, not
+    /// on top of the player.</summary>
     private void HoldBody()
     {
         if (!nemesisStateManager.IsAgentReady) return;
@@ -133,6 +146,12 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
     /// Makes the Nemesis and the player face each other, yaw only.
     /// Transform.LookAt rotates on all 3 axes, so with a height difference between the two
     /// it tilted them forwards or backwards.
+    ///
+    /// THE PLAYER'S MODEL TURNS, NOT ITS ROOT. The root never rotates in play — its Rigidbody
+    /// freezes rotation and the states steer PlayerBody.forward in world space — so the model
+    /// carries its heading as a yaw of its own under an unrotated root. Turning the root added the
+    /// two: the player ended up facing "towards the Nemesis, plus whichever way it was running",
+    /// which is the Nemesis only for a body that happened to face world +Z.
     /// </summary>
     private void FaceEachOther()
     {
@@ -144,8 +163,10 @@ public class NemesisCatchState : BaseState<NemesisStateManager.ENemesisState>
 
         if (toPlayer.sqrMagnitude <= 0.0001f) return;   // One on top of the other: no usable direction.
 
-        nemesis.rotation         = Quaternion.LookRotation(toPlayer);
-        playerTransform.rotation = Quaternion.LookRotation(-toPlayer);
+        nemesis.rotation = Quaternion.LookRotation(toPlayer);
+
+        Transform playerFacing = player.PlayerBody != null ? player.PlayerBody : playerTransform;
+        playerFacing.rotation = Quaternion.LookRotation(-toPlayer);
     }
 
     public override void ExitState()

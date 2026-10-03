@@ -105,11 +105,19 @@ public class SO_NemesisPriorities : ScriptableObject
             // and Searching handing it straight back (because it can see it) is a closed loop
             // that turns over every other frame. Buried in one state it read as a magic number;
             // as the second rung it reads as what it is.
+            //
+            // NOT WHILE IT SEES THE PLAYER (03/10). Above "lo está viendo", this rung held a Searching
+            // that had just started for half a second with the player in plain view: lose them for a
+            // moment, see them again, and the monster stood there. The loop it exists for is a
+            // target it can see but not REACH, and "lo está viendo" stopped firing for those with
+            // WIR-018 (NOT IsBeliefUnreachable) — so an unreachable sighting falls through to the
+            // search's own rungs below, and a reachable one goes straight to Chasing.
             Rung(NemesisStateManager.ENemesisState.Searching,
                  "compromiso: la búsqueda dura al menos medio segundo",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
-                 NemesisCondition.TimeInStateUnder(0.5f)),
+                 NemesisCondition.TimeInStateUnder(0.5f),
+                 NemesisCondition.Not(ENemesisPredicate.SeesPlayer)),
 
             // Close enough to grab, and the post-capture cooldown has expired. Marked as an
             // interrupt: a Nemesis with its hands within reach must not wait out a dwell window.
@@ -147,7 +155,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // flicker at the landing. Raising SearchTimeOut made it obvious rather than causing
             // it: a longer search sweeps further and wanders into the flip zone more often.
             //
-            // Same shape and same reasoning as "le queda presupuesto de busqueda" further down:
+            // Same shape and same reasoning as "la búsqueda sigue tibia" further down:
             // once a commitment is made it runs on its own clock instead of being re-justified
             // every frame. The two bounds are what keeps it from becoming a trap - it gives up if
             // the walk drags past ElevatorCommitTime, or if the belief it set out for goes cold.
@@ -236,7 +244,7 @@ public class SO_NemesisPriorities : ScriptableObject
             //
             // Same shape as "revisa donde escucho el ruido" further down for Investigating: the
             // state itself does the checking (NemesisSearchingState.IsCheckingSpot), this rung only
-            // stops "le queda presupuesto de busqueda" below from timing the search out from under a
+            // stops "la búsqueda sigue tibia" below from timing the search out from under a
             // check that is already standing at the spot.
             Rung(NemesisStateManager.ENemesisState.Searching,
                  "está revisando un escondite",
@@ -274,7 +282,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // into Investigating before Searching.UpdateState ever executed a frame — StateManager
             // runs a transition OR UpdateState, never both — and every noise cut the search short.
             Rung(NemesisStateManager.ENemesisState.Searching,
-                 "le queda presupuesto de búsqueda",
+                 "la búsqueda sigue tibia (evidencia reciente)",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Searching),
                  NemesisCondition.Is(ENemesisPredicate.IsSearchWarm)),
@@ -352,15 +360,18 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.Is(ENemesisPredicate.HearsPlayer)),
 
-            // Still on its way to a noise it has not reached. Leaves on arrival or on running out
-            // of patience; a fresh noise from the player renews it for free, because the belief age
-            // resets on every detection of the player. A lead is held by the rung below instead.
+            // Still on its way to what it sensed of the player — a noise, a sighting, a glimpse — and
+            // not there yet. Leaves on ARRIVAL, not on a clock (03/10: "hasta que sienta que no hay más
+            // evidencias nuevas"): it used to give up InvestigationTimeOut after the last evidence
+            // wherever it was, so a far noise was abandoned half way, and a glimpse walk was dropped
+            // the moment the suspicion meter dipped. IsInvestigationWarm is warm the whole walk and
+            // only a destination with no path ends it. A lead is held by the rung below instead.
             Rung(NemesisStateManager.ENemesisState.Investigating,
-                 "sigue yendo hacia el último ruido",
+                 "sigue yendo hacia lo que sintió",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Not(ENemesisPredicate.HasArrived),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.InvestigationTimeOut)),
+                 NemesisCondition.Is(ENemesisPredicate.IsInvestigationWarm)),
 
             // The same walk towards a LEAD. Leads no longer keep BeliefAge young — a decoy is not the
             // player — so the rung above would drop the Nemesis halfway to a radio; this holds it on
@@ -385,9 +396,11 @@ public class SO_NemesisPriorities : ScriptableObject
             // (plan D26, §18.5 B). The ear used to be binary — walk to the noise, look for four
             // seconds, back to patrol — even when that noise was the player's own footstep two
             // seconds earlier. Now the inspection over and the player still inside the search's
-            // silence window hands over to a SHORT search around the belief: NemesisSearchingState
-            // sees it came from Investigating and uses a fraction of the cap (SearchEscalatedCapScale).
-            // A lead alone does not escalate: with nothing fresh about the player this falls through.
+            // silence window hands over to a search around the belief, which lasts for as long as
+            // the evidence does (no cap as shipped; with one, the escalated search uses a fraction of
+            // it, SearchEscalatedCapScale). A glimpse walked to and found empty escalates the same
+            // way, on a shorter (muffled) window. A lead alone does not escalate: with nothing fresh
+            // about the player this falls through.
             //
             // IsInvestigationWarm and not BeliefAgeUnder(SearchQuietWindow), as first shipped: walking
             // to the player's noise, the silence counts from when it GOT there, so the walk to a far
@@ -396,7 +409,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // Below every Investigating rung, so the walk and the look-around finish first; above the
             // unconditional patrol, which is what it replaces.
             Rung(NemesisStateManager.ENemesisState.Searching,
-                 "investigó un ruido tuyo y sigue tibio",
+                 "investigó lo que sintió y sigue tibio",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Investigating),
                  NemesisCondition.Is(ENemesisPredicate.IsInvestigationWarm)),

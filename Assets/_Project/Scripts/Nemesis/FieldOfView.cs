@@ -4,6 +4,13 @@ using UnityEngine;
 /// <summary>
 /// Vision sensor of the Nemesis.
 ///
+/// THREE ZONES, from most to least trusted (<see cref="VisionZones"/>): the FOCUS cone sees the
+/// player at once; the PERIPHERY ("creo que vi algo por acá") fills the suspicion meter and becomes a
+/// sighting when it is full; BEHIND it, close and with nothing in between ("siento que hay alguien
+/// atrás"), fills the same meter far more slowly and never becomes a sighting on its own. And they add
+/// up with what it already believes: a glimpse where it sensed the player moments ago IS a sighting
+/// (SO_NemesisData.GlimpseCorroborationWindow). Hard proximity sits under all three.
+///
 /// The tuneable values (range, cone angle) live in <see cref="SO_NemesisData"/> so a designer
 /// edits them in one asset and Tier 3.3 can scale them by handing this component a runtime copy
 /// of the SO through <see cref="SetData"/>. The LayerMasks stay here: those are scene wiring,
@@ -23,6 +30,10 @@ public class FieldOfView : MonoBehaviour
     [SerializeField] private Transform viewTransform;
     [SerializeField] private LayerMask targetMask;
     [SerializeField] private LayerMask obstacleMask;
+
+    /// <summary>What blocks its sight. Read by NemesisPossibilityGraphBuilder to tell the Hub's doorway
+    /// from its walls with the same geometry the eyes use.</summary>
+    public LayerMask ObstacleMask => obstacleMask;
 
     [Header("Data")]
     [Tooltip("Optional. If empty it is taken from the NemesisStateManager in the parents.")]
@@ -54,6 +65,30 @@ public class FieldOfView : MonoBehaviour
     /// range. Scales the build-up: something at arm's length in the corner of the eye registers
     /// far faster than the same thing at the far end of a corridor.</summary>
     private float peripheralCloseness;
+
+    // -- Behind it (VisionZones.EZone.Rear) ------------------------------------
+    //
+    // "Siento que hay alguien atrás mío": the player outside the cone, within RearSenseRange, with
+    // nothing in between. Not sight — there are no eyes back there — so it never becomes a sighting:
+    // it adds to the suspicion meter at RearSenseStrength of the peripheral rate (TickAwareness).
+
+    private bool rearContact;
+    private Vector3 rearPoint;
+
+    /// <summary>1 at the body, 0 at the edge of RearSenseRange (shortened when crouching).</summary>
+    private float rearCloseness;
+
+    /// <summary>The presence behind it is where it already believes the player is: it weighs as much
+    /// as a glimpse (still never a sighting).</summary>
+    private bool rearCorroborated;
+
+    /// <summary>The Nemesis this sensor belongs to: where the belief comes from for corroboration.
+    /// </summary>
+    private NemesisStateManager owner;
+
+    /// <summary>The last sweep's sighting came from the periphery, made a sighting by a fresh belief
+    /// (VisionZones.Corroborates) rather than by the focus cone. For the debug HUD.</summary>
+    public bool LastSightCorroborated { get; private set; }
 
     private float awareness;
 
@@ -110,6 +145,21 @@ public class FieldOfView : MonoBehaviour
     /// <summary>Where the corner of its eye last caught something. A glimpse is evidence too (plan
     /// §17): the belief keeps where it was, so a suspicion has somewhere to be walked to.</summary>
     public Vector3 PeripheralPoint => peripheralPoint;
+
+    /// <summary>Whether the last sweep felt the player BEHIND it (outside the cone, within
+    /// RearSenseRange, nothing in between). Live, like <see cref="HasPeripheralContact"/>.</summary>
+    public bool HasRearContact => rearContact;
+
+    /// <summary>Where it felt someone behind it. The belief keeps it as a glimpse, so "siento que hay
+    /// alguien atrás" has somewhere to turn round and look at.</summary>
+    public Vector3 RearPoint => rearPoint;
+
+    /// <summary>Which zone is feeding the suspicion meter right now: Peripheral, Rear, or None
+    /// (nothing, a soft noise only, or a sighting). For the debug HUD.</summary>
+    public VisionZones.EZone ContactZone =>
+        peripheralContact ? VisionZones.EZone.Peripheral
+        : rearContact ? VisionZones.EZone.Rear
+        : VisionZones.EZone.None;
 
     public bool HasVisualTarget { get => hasVisualTarget; }
     public Vector3 LastKnownPosition { get => lastKnownPosition; }
@@ -235,6 +285,7 @@ public class FieldOfView : MonoBehaviour
 
         NemesisStateManager manager = GetComponentInParent<NemesisStateManager>();
         body = manager != null ? manager.transform : transform;
+        owner = manager;
 
         if (nemesisData != null) return;
 
@@ -272,6 +323,7 @@ public class FieldOfView : MonoBehaviour
         peripheralContact = false;
         peripheralTarget = null;
         peripheralSpot = null;
+        rearContact = false;
     }
 
     /// <summary>
@@ -334,39 +386,30 @@ public class FieldOfView : MonoBehaviour
         }
 
         bool noiseContact = Time.time < softNoiseUntil;
-
-        if (!peripheralContact && !noiseContact)
-        {
-            awareness = Mathf.Max(0f, awareness - nemesisData.AwarenessDecayRate * deltaTime);
-            return;
-        }
-
-        float buildTime = Mathf.Max(0.05f, nemesisData.AwarenessBuildTime);
+        float buildTime = nemesisData.AwarenessBuildTime;
 
         // Closeness scales the RATE, floored so a contact at the very edge of the range still
         // eventually registers instead of stalling at a value it can never climb past.
-        float rate = peripheralContact ? Mathf.Lerp(0.35f, 2f, peripheralCloseness) / buildTime : 0f;
+        float eyeRate = peripheralContact ? VisionZones.BuildRate(peripheralCloseness, buildTime) : 0f;
 
-        // A soft noise of the player's adds to the same meter (plan §17.3, shared suspicion): a soft
-        // step and a glimpse together cross the threshold sooner than either alone (case 26).
-        if (noiseContact) rate += nemesisData.SoftNoiseSuspicionRate / buildTime;
-
-        float before = awareness;
-        awareness = Mathf.Min(1f, awareness + rate * deltaTime);
-
-        // A noise alone is never a sighting: without the corner of its eye on them, the noise raises
-        // the meter only up to the cap. It can still pass the suspicion threshold — "vio algo de
-        // reojo" walks over. The cap limits what the noise ADDS, never what the eye already put
-        // there: clamping the whole meter dropped it from 0.99 to the cap the moment the glimpse went
-        // and the steps went on, so being noisy lowered the suspicion (review 28/09). Above the cap it
-        // holds instead of draining, for as long as the steps go on.
-        if (!peripheralContact)
+        // What is not the eyes adds to the same meter, and never makes it a sighting
+        // (VisionZones.StepMeter): a soft noise of the player's (plan §17.3, shared suspicion — a soft
+        // step and a glimpse together cross the threshold sooner than either alone, case 26), and a
+        // presence felt BEHIND it, at a fraction of the peripheral rate. Either can still pass the
+        // suspicion threshold: "vio algo de reojo" turns round and walks over.
+        float senseRate = 0f;
+        if (noiseContact) senseRate += nemesisData.SoftNoiseSuspicionRate / Mathf.Max(0.05f, buildTime);
+        if (rearContact)
         {
-            awareness = Mathf.Min(awareness, Mathf.Max(before, nemesisData.NoiseOnlySuspicionCap));
-            return;
+            float strength = rearCorroborated ? 1f : nemesisData.RearSenseStrength;
+            senseRate += VisionZones.BuildRate(rearCloseness, buildTime) * strength;
         }
 
-        if (awareness < 1f) return;
+        awareness = VisionZones.StepMeter(awareness, deltaTime, peripheralContact, eyeRate,
+                                          noiseContact || rearContact, senseRate,
+                                          nemesisData.AwarenessDecayRate, nemesisData.NoiseOnlySuspicionCap);
+
+        if (!peripheralContact || awareness < 1f) return;
 
         // Filled while the player is HIDING: it has worked out where they are, it has not seen them
         // (plan §3.4, level B). A shape behind slats does not start a chase — the spot becomes
@@ -443,6 +486,7 @@ public class FieldOfView : MonoBehaviour
         // leaving the meter low here would let it decay while the player is still in contact.
         awareness = 1f;
         peripheralContact = false;
+        rearContact = false;
 
         // Inside a spot: standing next to it is KNOWING it, not seeing them. As a sighting it won
         // "lo está viendo", and Chasing ran at a point inside the prop — which the agent can only
@@ -553,6 +597,11 @@ public class FieldOfView : MonoBehaviour
 
         PlayerStateManager player = PlayerRegistry.Current;
 
+        // Re-sensed every sweep, like the periphery: a presence it no longer feels lets the meter drain.
+        rearContact = false;
+        rearCorroborated = false;
+        LastSightCorroborated = false;
+
         // Hidden means inside a locker, under a table or in a container: NORMAL vision cannot reach
         // the player at all. Extreme proximity was already checked in Update before this ran — so
         // getting here with IsHidden means it did not trigger — and what is left is what leaks
@@ -635,6 +684,17 @@ public class FieldOfView : MonoBehaviour
             peripheralPoint = target.transform.position;
         }
 
+        // THE SENSES ADD UP. Out of the corner of its eye, right where it heard or saw the player a
+        // moment ago: that is not "something", it is the player (VisionZones.Corroborates). It used to
+        // start the meter from nothing, so a search that heard you, then glimpsed you, went Searching
+        // -> "vio algo de reojo" (Investigating) -> Chasing instead of straight at you.
+        if (visibleTargets.Count == 0 && peripheralHit != null && IsCorroborated(peripheralPoint))
+        {
+            visibleTargets.Add(peripheralHit);
+            focusHit = peripheralHit;
+            LastSightCorroborated = true;
+        }
+
         if (visibleTargets.Count > 0)
         {
             hasVisualTarget = true;
@@ -645,11 +705,64 @@ public class FieldOfView : MonoBehaviour
 
         hasVisualTarget = false;
 
-        if (peripheralHit == null) return;
+        if (peripheralHit == null)
+        {
+            // Nothing for the eyes: is there someone behind it?
+            SenseBehind(player, eye, front);
+            return;
+        }
 
         peripheralContact = true;
         peripheralTarget = peripheralHit;
-        peripheralCloseness = 1f - Mathf.Clamp01(peripheralDistance / Mathf.Max(0.01f, viewRange));
+        peripheralCloseness = VisionZones.Closeness(peripheralDistance, viewRange);
+    }
+
+    /// <summary>
+    /// "Siento que hay alguien atrás mío" (VisionZones.EZone.Rear): the player outside the vision
+    /// cone, within RearSenseRange measured flat from the body (shortened when crouching, the same
+    /// way the view is), on its own floor, with nothing in between. It feeds the suspicion meter at a
+    /// fraction of the peripheral rate and never becomes a sighting — what it can do is make the
+    /// Nemesis turn round ("vio algo de reojo" → Investigating, which turns to face it first), and
+    /// then its eyes decide. Corroborated by a fresh belief, it weighs as much as a glimpse.
+    ///
+    /// Inside ProximityDetectionRange it never gets here: the hard detection has already fired.
+    /// </summary>
+    private void SenseBehind(PlayerStateManager player, Vector3 eye, Vector3 front)
+    {
+        float range = nemesisData.RearSenseRange;
+        if (player == null || range <= 0f || nemesisData.RearSenseStrength <= 0f) return;
+        if (player.IsCrouch) range *= nemesisData.CrouchVisionMultiplier;
+
+        Vector3 feet = player.transform.position;
+        Vector3 flat = feet - body.position;
+        if (Mathf.Abs(flat.y) > nemesisData.CatchMaxVerticalOffset) return;
+
+        flat.y = 0f;
+        float distance = flat.magnitude;
+
+        Vector3 chest = feet + Vector3.up * BodyProbeHeight;
+        float angle = Vector3.Angle(front, chest - eye);
+        VisionZones.EZone zone = VisionZones.Classify(angle, distance, nemesisData.ViewAngle,
+                                                      nemesisData.FocusAngle, nemesisData.ViewRange, range);
+        if (zone != VisionZones.EZone.Rear) return;
+        if (IsOccluded(chest, null)) return;
+
+        rearContact = true;
+        rearPoint = feet;
+        rearCloseness = VisionZones.Closeness(distance, range);
+        rearCorroborated = IsCorroborated(feet);
+    }
+
+    /// <summary>Whether a point is where it already believes the player is, recently enough to
+    /// count (SO_NemesisData.GlimpseCorroborationWindow). See VisionZones.Corroborates.</summary>
+    private bool IsCorroborated(Vector3 point)
+    {
+        NemesisBelief belief = owner != null ? owner.Belief : null;
+        if (belief == null || !belief.HasBelief) return false;
+
+        return VisionZones.Corroborates(point, belief.Position, belief.Radius, belief.Age,
+                                        nemesisData.GlimpseCorroborationWindow,
+                                        nemesisData.FloorHeightThreshold);
     }
 
     /// <summary>

@@ -52,6 +52,7 @@ public class SO_NemesisDataEditor : Editor
 
     private static readonly Color TestPointColor = new Color(0.92f, 0.72f, 0.28f);
     private static readonly Color FocusColor = new Color(0.95f, 0.55f, 0.25f);
+    private static readonly Color RearColor = new Color(0.62f, 0.58f, 0.78f);   // Same as NemesisGizmos.
 
     /// <summary>
     /// What the search box holds. Per inspector instance and not persisted: a filter that survived
@@ -266,6 +267,7 @@ public class SO_NemesisDataEditor : Editor
         DrawHearing(data, origin, pxPerMetre);
         DrawProximityDetection(data, origin, pxPerMetre);
         DrawVision(data, origin, pxPerMetre);
+        DrawRear(data, origin, pxPerMetre);
         DrawCatch(data, origin, pxPerMetre);
     }
 
@@ -347,6 +349,17 @@ public class SO_NemesisDataEditor : Editor
         float underTablePx = underTableRange * pxPerMetre;
         PlayerDiagramGUI.Arc(origin, underTablePx, 0f, data.ViewAngle, underTable);
         LabelAt(origin, underTablePx, 28f, $"bajo mesa {underTableRange:0.##} m", underTable);
+    }
+
+    /// <summary>The third zone (VisionZones.EZone.Rear): everything outside the cone, out to
+    /// RearSenseRange — the wedge behind it. Faint, because it is the weakest of the three.</summary>
+    private static void DrawRear(SO_NemesisData data, Vector2 origin, float pxPerMetre)
+    {
+        if (data.RearSenseRange <= 0.01f || data.RearSenseStrength <= 0f) return;
+
+        float radiusPx = data.RearSenseRange * pxPerMetre;
+        PlayerDiagramGUI.Arc(origin, radiusPx, 180f, 360f - data.ViewAngle, RearColor);
+        LabelAt(origin, radiusPx, 180f, $"atrás {data.RearSenseRange:0.#} m", RearColor);
     }
 
     private static void DrawCatch(SO_NemesisData data, Vector2 origin, float pxPerMetre)
@@ -431,6 +444,23 @@ public class SO_NemesisDataEditor : Editor
                     $"<b>{NoticeSeconds(data, distance):0.00} s</b> de exposici\u00f3n continua");
             }
         }
+        // The third zone: behind it. Never a sighting — the verdict that matters is how long it takes
+        // to turn round and look, from an empty meter, with nothing else going on.
+        VisionZones.EZone zone = VisionZones.Classify(bearing, distance, data.ViewAngle, data.FocusAngle,
+                                                      data.ViewRange, data.RearSenseRange);
+        if (zone == VisionZones.EZone.Rear && !hardDetected && data.RearSenseStrength > 0f)
+        {
+            float crouchedRear = data.RearSenseRange * data.CrouchVisionMultiplier;
+            string crouched = distance <= crouchedRear ? "" : " (agachado no te siente)";
+            PlayerDiagramGUI.Verdict(false,
+                $"Atrás: <b>siente que hay alguien</b> y se da vuelta a mirar a los " +
+                $"<b>{TurnRoundSeconds(data, distance):0.0} s</b>{crouched}. Nunca es un avistamiento solo");
+        }
+        else if (bearing > data.ViewAngle * 0.5f && !hardDetected)
+        {
+            PlayerDiagramGUI.Verdict(true, "Atrás y fuera de la zona de atrás: no te siente");
+        }
+
         PlayerDiagramGUI.Verdict(heard, heard ? "Te oye" : "No te oye");
         PlayerDiagramGUI.Verdict(hardDetected,
             hardDetected ? "Detección dura: te nota igual, sin importar cono ni escondite " +
@@ -510,16 +540,26 @@ public class SO_NemesisDataEditor : Editor
     /// <summary>
     /// Seconds of continuous peripheral exposure before the Nemesis notices, at this distance.
     ///
-    /// MUST MIRROR FieldOfView.TickAwareness. A tester that computes the number its own way is
-    /// worse than no tester, because it is believed - the same argument NemesisGizmos makes about
-    /// recomputing the hearing bands. If the ramp in TickAwareness changes, this changes with it.
+    /// Through VisionZones, the same rate FieldOfView.TickAwareness integrates: a tester that computes
+    /// the number its own way is worse than no tester, because it is believed. Ignores corroboration —
+    /// with a fresh belief there, a glimpse is a sighting at once (GlimpseCorroborationWindow).
     /// </summary>
     private static float NoticeSeconds(SO_NemesisData data, float distance)
     {
-        float closeness = 1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, data.ViewRange));
-        float rate = Mathf.Lerp(0.35f, 2f, closeness) / Mathf.Max(0.05f, data.AwarenessBuildTime);
+        float rate = VisionZones.BuildRate(VisionZones.Closeness(distance, data.ViewRange),
+                                           data.AwarenessBuildTime);
 
         return rate <= 0.0001f ? float.PositiveInfinity : 1f / rate;
+    }
+
+    /// <summary>Seconds of a presence felt behind it, from an empty meter and with nothing else, before
+    /// the meter crosses the suspicion threshold and it turns round. Same rate as FieldOfView.</summary>
+    private static float TurnRoundSeconds(SO_NemesisData data, float distance)
+    {
+        float rate = VisionZones.BuildRate(VisionZones.Closeness(distance, data.RearSenseRange),
+                                           data.AwarenessBuildTime) * data.RearSenseStrength;
+
+        return rate <= 0.0001f ? float.PositiveInfinity : data.AwarenessTriggerThreshold / rate;
     }
 
     // Chequeos ================================================================================
@@ -573,6 +613,76 @@ public class SO_NemesisDataEditor : Editor
         }
 
         DrawChaseProgressChecks(data);
+        DrawSearchChecks(data);
+    }
+
+    /// <summary>
+    /// Plan-Busqueda-Nemesis Fases 1 and 2: the ear's error and the possibility map. The checks are the
+    /// relationships the tooltips assert and nothing in game would ever flag: a map that clears farther
+    /// than the Nemesis sees, a "precise" noise vaguer than a footstep heard next to it.
+    /// </summary>
+    private static void DrawSearchChecks(SO_NemesisData data)
+    {
+        // The rear zone is measured from the body like the hard detection, so a range at or under it
+        // is a zone that can never fire: the proximity rule has already caught anyone that close.
+        if (data.RearSenseRange > 0f && data.RearSenseStrength > 0f)
+        {
+            bool rearReaches = data.RearSenseRange > data.ProximityDetectionRange;
+            PlayerDiagramGUI.Verdict(rearReaches,
+                rearReaches
+                    ? $"Atrás siente de {data.ProximityDetectionRange:0.##} a {data.RearSenseRange:0.##} m " +
+                      $"(agachado, hasta {data.RearSenseRange * data.CrouchVisionMultiplier:0.##} m), " +
+                      $"a ×{data.RearSenseStrength:0.##} de lo que pesa un vistazo"
+                    : $"Rear Sense Range ({data.RearSenseRange:0.##} m) no pasa la detección dura " +
+                      $"({data.ProximityDetectionRange:0.##} m): la zona de atrás no agrega nada");
+        }
+
+        bool rearCapped = data.NoiseOnlySuspicionCap < 1f;
+        PlayerDiagramGUI.Verdict(rearCapped,
+            rearCapped
+                ? "Lo que siente atrás y los ruidos suaves nunca llegan solos a avistamiento"
+                : "Noise Only Suspicion Cap en 1: un ruido suave o algo atrás pueden volverse avistamiento sin verte");
+
+        EditorGUILayout.LabelField(
+            data.GlimpseCorroborationWindow > 0f
+                ? $"Si te sintió hace menos de {data.GlimpseCorroborationWindow:0.#} s, un vistazo de reojo dentro " +
+                  "de la creencia es verte: pasa directo a perseguir."
+                : "Glimpse Corroboration Window en 0: la periferia siempre arranca de cero, aunque te esté buscando.",
+            EditorStyles.wordWrappedMiniLabel);
+
+        // The ear right beside the Nemesis: the radius of a footstep at 1 m, open air.
+        float besideRadius = data.BeliefNoiseBaseRadius + data.BeliefNoiseRadiusPerMetre;
+        float besideError = besideRadius * data.HearingLocalizationError;
+        float tenMetres = (data.BeliefNoiseBaseRadius + data.BeliefNoiseRadiusPerMetre * 10f) *
+                          data.BeliefNoiseWallFactor;
+
+        bool precisePossible = data.SearchPreciseNoiseRadius >= besideRadius;
+        PlayerDiagramGUI.Verdict(precisePossible,
+            precisePossible
+                ? $"Un paso a 1 m (radio {besideRadius:0.##} m) cuenta como ruido preciso: la búsqueda va al punto"
+                : $"Search Precise Noise Radius ({data.SearchPreciseNoiseRadius:0.##} m) por debajo del radio de un " +
+                  $"paso a 1 m ({besideRadius:0.##} m) — ningún ruido es preciso: nunca camina al punto de un ruido, " +
+                  "ni siquiera al lado suyo");
+
+        EditorGUILayout.LabelField(
+            $"El oído se equivoca hasta ±{besideError:0.##} m a 1 m, y hasta " +
+            $"±{tenMetres * data.HearingLocalizationError:0.##} m a 10 m a través de una pared " +
+            $"(×{data.HearingLocalizationError:0.##} del radio de la evidencia).",
+            EditorStyles.wordWrappedMiniLabel);
+
+        bool clearInsideView = data.SearchMapClearRangeScale <= 1f;
+        PlayerDiagramGUI.Verdict(clearInsideView,
+            clearInsideView
+                ? $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, dentro de lo que ve ({data.ViewRange:0.##} m)"
+                : $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, más lejos de lo que ve " +
+                  $"({data.ViewRange:0.##} m) — descarta lugares donde no te podría ver: hace trampa por eliminación");
+
+        bool spreadsAtPlayerSpeed = data.SearchMapSpreadSpeed >= data.BeliefGrowthSpeed * 0.75f;
+        PlayerDiagramGUI.Verdict(spreadsAtPlayerSpeed,
+            spreadsAtPlayerSpeed
+                ? $"El valor corre a {data.SearchMapSpreadSpeed:0.#} m/s (vos corriendo: {data.BeliefGrowthSpeed:0.#} m/s)"
+                : $"El valor corre a {data.SearchMapSpreadSpeed:0.#} m/s, bastante menos que vos corriendo " +
+                  $"({data.BeliefGrowthSpeed:0.#} m/s) — el mapa se queda atrás y busca donde ya no podés estar");
     }
 
     /// <summary>

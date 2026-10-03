@@ -11,8 +11,10 @@
 /// shorter than a window scaled by how good that evidence was, within a floor and a cap:
 ///
 ///   - under the minimum time in the state, always warm: it always looks a little;
-///   - at the cap, cold, however much it still hears (at the cap, if it hears the player, the ladder
-///     sends it to investigate — the same as the old expiry);
+///   - at the cap, cold, however much it still hears — ONLY IF THERE IS ONE: a cap of 0 or less is no
+///     cap, and that is how it ships since 03/10. The search lasts for as long as evidence of the
+///     player keeps coming; a duration that cuts it off while it still hears you is a budget, not a
+///     reason (the designer's rule: "hasta que sienta que no hay más evidencias nuevas");
 ///   - having searched everything it can reach at its widest, cold: "I have looked everywhere here";
 ///   - otherwise, warm while the silence is under window × quality.
 ///
@@ -39,7 +41,7 @@ public static class SearchCooling
                               float quality, float cap, bool searchedEverything)
     {
         if (timeInState < minTime) return true;
-        if (timeInState >= cap) return false;
+        if (cap > 0f && timeInState >= cap) return false;
         if (searchedEverything) return false;
 
         return silence < window * quality;

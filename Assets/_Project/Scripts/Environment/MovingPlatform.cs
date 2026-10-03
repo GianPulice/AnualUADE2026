@@ -201,6 +201,12 @@ public class MovingPlatform : MonoBehaviour
     /// </summary>
     public void SetRideDistance(float distance) => distanceOverride = Mathf.Max(0f, distance);
 
+    /// <summary>How long one trip takes, start delay included, in seconds; 0 without a config.
+    /// NemesisPossibilityMap reads it: a lift is a way off a floor only as fast as it rides.</summary>
+    public float RideSeconds => config != null && config.Speed > 0f
+        ? config.StartDelay + RideDistance / config.Speed
+        : 0f;
+
     /// <summary>Raised the moment the cabin starts to move, with the direction of the trip: true is
     /// up. Raised after the start delay, not on the request.</summary>
     public event Action<bool> OnRideStarted;

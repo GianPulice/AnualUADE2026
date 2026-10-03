@@ -130,7 +130,10 @@ public class EscapeChaseRestart : MonoBehaviour
         if (defeatCts != null) return;
 
         defeatCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
-        ReportDefeatAfterAsync(gameOverDelay, defeatCts.Token).Forget();
+
+        // After the grab's shot, like CheckpointManager's respawn: the defeat screen comes once the
+        // grab has played, however long the shot is (0 with no CaptureGrabCamera in the scene).
+        ReportDefeatAfterAsync(gameOverDelay + PlayerEvents.CaptureShotSeconds, defeatCts.Token).Forget();
     }
 
     // Unscaled, like CheckpointManager's own wait: the grab plays out whatever the time scale.

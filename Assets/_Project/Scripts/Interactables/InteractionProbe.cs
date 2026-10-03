@@ -24,12 +24,15 @@ using UnityEngine;
 ///    surface an item rests on before reaching the item, and a key on a shelf seen at a shallow
 ///    angle counted as behind the shelf. Two kinds of solid hit never hide the candidate: its own
 ///    parts (a door leaf a hair in front of the door's volume) and its SUPPORT — what it rests on,
-///    met within <see cref="SupportGrace"/> of the aimed point, or what it lies wholly inside (the
-///    convex hull a MeshCollider wraps around a toilet, and the key sitting in it). Interaction
-///    volumes may be triggers — which is what lets a door's interaction box stop being a wall that
-///    seals its own doorway — while walls stay solid and still block. Which layers count as solid
-///    is <see cref="SO_InteractionManager.BlockingLayers"/>; Props is left out of it, so set
-///    dressing (barrels, cabinets, pallets) never hides a pickup behind or on top of it.
+///    met within <see cref="SupportGrace"/> of the aimed point, what it lies wholly inside (the
+///    convex hull a MeshCollider wraps around a toilet, and the key sitting in it), or, on the
+///    <see cref="SO_InteractionManager.SupportLayers"/> (Props), anything that TOUCHES it: the
+///    barrel a fuse stands in, the crate a key lies on. The same prop with a gap between it and the
+///    item does hide it, so a crate blocks a key on its far side. Interaction volumes may be
+///    triggers — which is what lets a door's interaction box stop being a wall that seals its own
+///    doorway — while walls stay solid and still block, and are not support layers: a panel mounted
+///    in a wall is still hidden by it from the next room. Which layers count as solid is
+///    <see cref="SO_InteractionManager.BlockingLayers"/>, Props included.
 ///
 /// 4. CLOSE RANGE works. Starting exactly at the player breaks down when the player is pressed
 ///    against something at an angle: the start lands INSIDE the crate or door, or already past the
@@ -53,6 +56,13 @@ public static class InteractionProbe
 
     /// <summary>Squared distance under which ClosestPoint counts as "the point is inside".</summary>
     private const float EnclosedEpsilonSqr = 1e-8f;
+
+    /// <summary>How close, in metres, a corner of the candidate has to be to a prop on the support
+    /// layers for the prop to count as touching it: an item resting on a prop, or sunk into it a
+    /// little, is touching (a few centimetres of slack for the rounded top of a capsule collider);
+    /// a key half a metre behind a crate is not.</summary>
+    private const float TouchTolerance = 0.05f;
+    private const float TouchToleranceSqr = TouchTolerance * TouchTolerance;
 
     private static readonly RaycastHit[] Buffer = new RaycastHit[MaxHits];
 
@@ -196,8 +206,8 @@ public static class InteractionProbe
         }
 
         // The line of sight to the candidate, with a thin ray (rule 3).
-        if (!FindOccluder(cast.origin, target, targetHit, config.BlockingLayers, self,
-                          out RaycastHit occluderHit, ref report))
+        if (!FindOccluder(cast.origin, target, targetHit, config.BlockingLayers,
+                          config.SupportLayers, self, out RaycastHit occluderHit, ref report))
         {
             hit = targetHit;
             return target;
@@ -225,8 +235,8 @@ public static class InteractionProbe
     /// own solid parts and its support (see <see cref="IsSupport"/>).
     /// </summary>
     private static bool FindOccluder(Vector3 from, IInteractable target, RaycastHit targetHit,
-                                     LayerMask layers, Transform self, out RaycastHit occluder,
-                                     ref ProbeReport report)
+                                     LayerMask layers, LayerMask supportLayers, Transform self,
+                                     out RaycastHit occluder, ref ProbeReport report)
     {
         occluder = default;
 
@@ -261,7 +271,7 @@ public static class InteractionProbe
             // wrapped around it, and an object hiding itself would make every such door unusable.
             if (ReferenceEquals(Resolve(candidate.collider), target)) continue;
 
-            if (IsSupport(candidate, length))
+            if (IsSupport(candidate, length, targetHit.collider, supportLayers))
             {
                 if (candidate.distance < nearestSupport)
                 {
@@ -288,16 +298,23 @@ public static class InteractionProbe
     /// - met within <see cref="SupportGrace"/> of the aimed point: the surface the item lies on,
     ///   grazed right at the item;
     /// - or a collider that holds the candidate WHOLE (<see cref="Corners"/> all inside it): the
-    ///   convex hull a MeshCollider wraps around a toilet, and the key sitting in it.
-    /// A wall between the player and a panel on its far side is neither: it is met a whole wall's
-    /// thickness before the panel, and a panel mounted into a wall still has its front out of it.
-    /// Touching is deliberately not enough — that would let every note and switch on a wall be
-    /// used through the wall from the next room.
+    ///   convex hull a MeshCollider wraps around a toilet, and the key sitting in it;
+    /// - or a prop on the <paramref name="supportLayers"/> (Props) that TOUCHES the candidate
+    ///   (<see cref="TouchesCandidate"/>): the barrel a fuse stands in, a crate a key lies on.
+    /// A wall between the player and a panel on its far side is none of these: it is met a whole
+    /// wall's thickness before the panel, a panel mounted into a wall still has its front out of
+    /// it, and walls are not on the support layers. Touching is deliberately not enough for them —
+    /// that would let every note and switch on a wall be used through the wall from the next room.
+    /// A crate with a gap before the item is not touching it either, so it hides it.
     /// </summary>
-    private static bool IsSupport(RaycastHit hit, float sightLength)
+    private static bool IsSupport(RaycastHit hit, float sightLength, Collider candidate,
+                                  LayerMask supportLayers)
     {
         if (sightLength - hit.distance <= SupportGrace) return true;
-        return EnclosesCorners(hit.collider);
+        if (EnclosesCorners(hit.collider)) return true;
+
+        bool onSupportLayer = (supportLayers.value & (1 << hit.collider.gameObject.layer)) != 0;
+        return onSupportLayer && TouchesCandidate(hit.collider, candidate);
     }
 
     /// <summary>
@@ -308,10 +325,7 @@ public static class InteractionProbe
     /// </summary>
     private static bool EnclosesCorners(Collider collider)
     {
-        bool supported = collider is BoxCollider || collider is SphereCollider ||
-                         collider is CapsuleCollider ||
-                         (collider is MeshCollider mesh && mesh.convex);
-        if (!supported) return false;
+        if (!SupportsClosestPoint(collider)) return false;
 
         for (int i = 0; i < Corners.Length; i++)
         {
@@ -321,6 +335,36 @@ public static class InteractionProbe
 
         return true;
     }
+
+    /// <summary>
+    /// Whether <paramref name="solid"/> overlaps the candidate, or is within
+    /// <see cref="TouchTolerance"/> of it: its centre or any of <see cref="Corners"/> is in or on
+    /// the solid. Not "all of them" like <see cref="EnclosesCorners"/>: a fuse standing in a barrel
+    /// has half its box out of it. A shape ClosestPoint cannot answer for (a concave mesh) falls
+    /// back to the overlap of the two bounds, which is generous on purpose: only props are asked.
+    /// </summary>
+    private static bool TouchesCandidate(Collider solid, Collider candidate)
+    {
+        if (candidate == null) return false;
+        if (!SupportsClosestPoint(solid)) return solid.bounds.Intersects(candidate.bounds);
+
+        if (IsNear(solid, candidate.bounds.center)) return true;
+        for (int i = 0; i < Corners.Length; i++)
+        {
+            if (IsNear(solid, Corners[i])) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsNear(Collider solid, Vector3 point) =>
+        (solid.ClosestPoint(point) - point).sqrMagnitude <= TouchToleranceSqr;
+
+    /// <summary>The shapes <see cref="Collider.ClosestPoint"/> works on: boxes, spheres, capsules
+    /// and convex meshes. Asking any other (a concave mesh) is an error.</summary>
+    private static bool SupportsClosestPoint(Collider collider) =>
+        collider is BoxCollider || collider is SphereCollider || collider is CapsuleCollider ||
+        (collider is MeshCollider mesh && mesh.convex);
 
     /// <summary>
     /// The candidate collider's eight corners, into <see cref="Corners"/>: its own box when it is

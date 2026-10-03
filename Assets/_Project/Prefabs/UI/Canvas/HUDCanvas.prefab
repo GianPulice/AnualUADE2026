@@ -3857,9 +3857,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1256525ca8e8c714a953807f11b42608, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModuleTimerBeeper
-  warningStartSeconds: 30
+  stageSource: {fileID: 11400000, guid: fdb6ef80225d4ed7b43579dcf0921635, type: 2}
   urgentBelowSeconds: 10
-  normalInterval: 1
+  startInterval: 30
+  amberInterval: 10
+  redInterval: 5
   urgentInterval: 0.5
   normalClip: {fileID: 8300000, guid: db66adc9eecddd34083b2f68e192835c, type: 3}
   urgentClip: {fileID: 8300000, guid: d38f4538cc09f604694bb18b9e701bb9, type: 3}

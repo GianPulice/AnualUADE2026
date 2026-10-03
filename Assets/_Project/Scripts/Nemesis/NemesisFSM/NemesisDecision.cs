@@ -162,7 +162,9 @@ public sealed class NemesisDecision
     }
 
     /// <summary>
-    /// Investigating is still warm enough to turn into a short search (D26). Same shape as
+    /// Investigating of the player is still warm: on its way to what it sensed, or not silent for
+    /// longer than the window since it got there (NemesisInvestigatingState.IsWarm). Holds the walk
+    /// ("sigue yendo hacia lo que sintió") and turns the look into a search (D26). Same shape as
     /// <see cref="IsSearchWarm"/>: the state keeps the clock, the ladder decides what it means.
     /// </summary>
     public bool IsInvestigationWarm

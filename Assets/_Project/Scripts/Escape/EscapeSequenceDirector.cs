@@ -754,7 +754,10 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         if (hasNemesis) actor.SetEyesVisible(true);
         if (!skipRequested && eyesShot != null)
         {
+            // Trained on the eyes themselves: the shot is a 10° telephoto, and a framing authored
+            // for one model's height lands on the mouth of a taller one.
             CutTo(eyesShot);
+            if (hasNemesis) eyesShot.LockOn(actor.EyesPoint);
             await WaitOrSkip(config.EyesHoldSeconds, token);
         }
 
@@ -1252,6 +1255,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         if (gateShot != null) gateShot.Shake(config.GateShakeAmplitude, config.GateShakeSeconds);
 
+        // Stuck behind it, the Nemesis strikes at the gate it has just met.
+        if (hasNemesis) await AttackGateAsync(token);
+
         // Through the dust: the Nemesis, left on the corridor side of the gate. Off by default: the
         // whole ending plays on the security camera.
         if (config.CutToDustShot && dustShot != null)
@@ -1268,6 +1274,30 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         // Only the skip prompt goes: the shot stays behind the win screen.
         CinematicState.End();
         commit();
+    }
+
+    // The longest the ending waits for the Nemesis to reach its mark before it strikes where it
+    // stands: a path that never gets there must not hold the ending.
+    private const float NemesisArrivalMaxSeconds = 2f;
+
+    /// <summary>
+    /// The Nemesis strikes at the gate that has just fallen in its face. It lands a beat behind the
+    /// gate (<see cref="SO_EscapeSequenceConfig.EndingNemesisArrivalDelay"/>), so this waits for it to
+    /// stand on its mark first, and only then throws the strike: from a stop, facing the gate. It
+    /// does not wait for the clip to end: the hold that follows covers it, and the win screen
+    /// freezes the game on its last frame.
+    /// </summary>
+    private async UniTask AttackGateAsync(CancellationToken token)
+    {
+        float waited = 0f;
+        while (!skipRequested && actor.IsMoving && waited < NemesisArrivalMaxSeconds)
+        {
+            await UniTask.Yield(PlayerLoopTiming.Update, token);
+            waited += Time.deltaTime;
+        }
+
+        // A skip goes straight to the win, with the Nemesis already put on its mark.
+        if (!skipRequested) actor.Attack();
     }
 
     private async UniTask WaitOrSkip(float seconds, CancellationToken token)

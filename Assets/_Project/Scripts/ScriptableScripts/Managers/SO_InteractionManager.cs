@@ -19,8 +19,17 @@ public class SO_InteractionManager : ScriptableObject
              "the PLAYER and the interactable, the interactable is not detected. Triggers on " +
              "these layers are ignored — only solid geometry occludes — and so is the interactable's " +
              "support: what it rests on, or a collider it lies wholly inside (a key sitting in " +
-             "the convex collider of a toilet).")]
+             "the convex collider of a toilet). Keep it equal to the shared occlusion mask " +
+             "(Default, Ground, Wall, Props): NemesisSetupValidator checks it.")]
     [SerializeField] private LayerMask blockingLayers = ~0;
+
+    [Tooltip("Layers whose solids are the SUPPORT of any interactable they touch, so they never " +
+             "hide it: the barrel a fuse stands on, the crate a key lies on. The same solid with " +
+             "a gap between it and the item does hide it, which is what makes a crate block a key " +
+             "on the far side of it. Props. NOT walls: a panel mounted in a wall must still be " +
+             "hidden by that wall from the next room. A prop that holds a pickup has to be on one " +
+             "of these layers (set it on the prefab instance in the scene).")]
+    [SerializeField] private LayerMask supportLayers = 0;
 
     [Header("Aiming")]
     [Tooltip("Where the crosshair sits, in viewport coordinates (0,0 = bottom-left, 1,1 = " +
@@ -50,6 +59,7 @@ public class SO_InteractionManager : ScriptableObject
     public float InteractionDistance => interactionDistance;
     public LayerMask InteractableLayers => interactableLayers;
     public LayerMask BlockingLayers => blockingLayers;
+    public LayerMask SupportLayers => supportLayers;
     public Vector2 CrosshairViewportPoint => crosshairViewportPoint;
     public float CastRadius => castRadius;
     public float CloseRangeLead => closeRangeLead;

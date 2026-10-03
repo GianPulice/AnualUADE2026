@@ -112,6 +112,10 @@ public class NemesisAudio : MonoBehaviour
     // Set once the run has a result: from then on the loops only fade out.
     private bool silenced;
 
+    // Set when the grab lands (Catch): the loops have faded out and stay out until the state
+    // leaves Catch. See HandlePlayerCaptured.
+    private bool grabbing;
+
     private NemesisStateManager stateManager;
 
     /// <summary>The known spot as of the last frame, to hear it change. See
@@ -145,6 +149,7 @@ public class NemesisAudio : MonoBehaviour
         NemesisEvents.OnStateChanged += HandleStateChanged;
         NemesisEvents.OnSearchEnded += HandleSearchEnded;
         NemesisEvents.OnActivated += HandleActivated;
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
         GameResultManager.OnGameResult += HandleGameResult;
         GameResultManager.OnResultCleared += HandleResultCleared;
 
@@ -195,8 +200,29 @@ public class NemesisAudio : MonoBehaviour
         NemesisEvents.OnStateChanged -= HandleStateChanged;
         NemesisEvents.OnSearchEnded -= HandleSearchEnded;
         NemesisEvents.OnActivated -= HandleActivated;
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
         GameResultManager.OnGameResult -= HandleGameResult;
         GameResultManager.OnResultCleared -= HandleResultCleared;
+    }
+
+    /// <summary>
+    /// The Nemesis has the player in its hands: its breathing and growling loops fade out, so the
+    /// grab plays without them. Catch has an authored loop (the chase's, which was already running
+    /// when it got there), and left alone it would keep going under the whole shot.
+    ///
+    /// Only for this Nemesis's own grab (it is in Catch, which is also where the event comes from:
+    /// OnCaptured raises it from inside Catch's EnterState). A capture raised from anywhere else
+    /// leaves the loops alone, since nothing would bring them back. The hidden player's pull-out is
+    /// Catch too, but silent here until the hands arrive: the event is the grab, not the state.
+    ///
+    /// What brings the loops back is the state leaving Catch (<see cref="HandleStateChanged"/>).
+    /// </summary>
+    private void HandlePlayerCaptured(PlayerStateManager captured)
+    {
+        if (stateManager == null || stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Catch) return;
+
+        grabbing = true;
+        if (!silenced) StartCrossfade(null, 0f);
     }
 
     /// <summary>
@@ -229,9 +255,15 @@ public class NemesisAudio : MonoBehaviour
 
     private void HandleStateChanged(NemesisStateManager.ENemesisState state)
     {
+        if (state != NemesisStateManager.ENemesisState.Catch) grabbing = false;
+
         if (silenced) return;
 
         TrackLostVoice(state);
+
+        // The grab has already faded the loops out. This event can reach here after it (the
+        // telemetry reports the state a frame later) and would start Catch's loop again.
+        if (grabbing) return;
 
         if (!TryGetLoop(state, out AudioClip clip, out float volume))
         {

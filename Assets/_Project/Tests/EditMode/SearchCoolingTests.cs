@@ -73,6 +73,19 @@ public class SearchCoolingTests
     }
 
     [Test]
+    public void IsWarm_NoCap_GoesOnWhileEvidenceKeepsComing()
+    {
+        // Ten minutes in, still hearing the player: no cap means no reason to stop.
+        Assert.IsTrue(SearchCooling.IsWarm(600f, 0.5f, MinTime, Window, 1f, 0f, false));
+    }
+
+    [Test]
+    public void IsWarm_NoCap_StillCoolsInSilence()
+    {
+        Assert.IsFalse(SearchCooling.IsWarm(600f, Window + 0.1f, MinTime, Window, 1f, 0f, false));
+    }
+
+    [Test]
     public void IsWarm_SearchedEverything_CoolsDownEarly()
     {
         Assert.IsFalse(SearchCooling.IsWarm(10f, 1f, MinTime, Window, 1f, Cap, true));

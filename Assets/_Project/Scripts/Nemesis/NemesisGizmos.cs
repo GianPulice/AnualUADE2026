@@ -96,10 +96,22 @@ public class NemesisGizmos : MonoBehaviour
              "eye.")]
     [SerializeField] private bool drawProximityDetection = true;
 
+    [Tooltip("The third zone: behind it, outside the vision cone, out to RearSenseRange (and, faint, " +
+             "the crouched reach). 'Siento que hay alguien atrás': it only fills the suspicion meter, " +
+             "slowly, and never makes a sighting on its own. Drawn at the feet, facing away from where " +
+             "it is looking.")]
+    [SerializeField] private bool drawRearSense = true;
+
     [Header("Hearing")]
     [Tooltip("Hearing radius at full strength. The wall and floor multipliers are drawn as inner " +
              "rings, since those are the ranges that actually apply most of the time.")]
     [SerializeField] private bool drawHearing = true;
+
+    [Tooltip("For a couple of seconds after each noise of the player's: a line from where they really " +
+             "were to where the ear placed them, and round that the longest error it could have put " +
+             "on it (Plan-Busqueda-Nemesis Fase 1, HearingLocalizationError). Editor and Play mode " +
+             "only: the real position never leaves the sensor in a build. Needs Hearing on.")]
+    [SerializeField] private bool drawHearingError = true;
 
     [Header("Capture")]
     [Tooltip("Where the grab can happen: CatchMaxReach horizontally by CatchMaxVerticalOffset " +
@@ -115,6 +127,16 @@ public class NemesisGizmos : MonoBehaviour
              "and the points it has already looked at. Play mode only — nothing to draw until a " +
              "search starts.")]
     [SerializeField] private bool drawRoomSweep = true;
+
+    [Tooltip("The possibility map (Plan-Busqueda-Nemesis Fase 2): how possible it thinks it is that " +
+             "you are on each patch of NavMesh, as heat — faint purple is 'could be', warm orange is " +
+             "'most likely' — with a line to the likeliest place and its share. Hiding spots holding " +
+             "value get a box. Also the cone it clears ('acá no está': SearchMapClearRange × its view " +
+             "angle). Play mode only. Off by default: it is a few thousand cubes per repaint on a " +
+             "big level.\n\n" +
+             "What to look for in a corridor with one exit: the heat must never appear BEHIND the " +
+             "Nemesis.")]
+    [SerializeField] private bool drawPossibilityMap = false;
 
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
     [SerializeField] private bool drawProximityVignette = false;
@@ -154,6 +176,11 @@ public class NemesisGizmos : MonoBehaviour
     private static readonly Color CatchColor     = new Color(0.8f, 0.10f, 0.10f);
     private static readonly Color SearchColor    = new Color(0.65f, 0.55f, 0.85f);
     private static readonly Color VignetteColor  = new Color(0.45f, 0.45f, 0.50f);
+    // Passive and faint: behind it is the weakest of the three zones, and must not read as a cone.
+    private static readonly Color RearColor      = new Color(0.62f, 0.58f, 0.78f);
+    // The search's purple, paler: the cone the possibility map clears sits on top of the vision cone
+    // and has to read as a different thing.
+    private static readonly Color MapClearColor  = new Color(0.80f, 0.75f, 0.95f, 0.6f);
 
     private NemesisStateManager StateManager => GetComponent<NemesisStateManager>();
 
@@ -195,6 +222,7 @@ public class NemesisGizmos : MonoBehaviour
         DrawCatch(data);
         DrawSearchAndVignette(data);
         if (drawRoomSweep) DrawSweep();
+        if (drawPossibilityMap) DrawPossibilityMap(data, manager, eye);
         if (drawHidingKnowledge) DrawHidingKnowledge(manager);
         DrawPursuit();
         if (drawChaseTrail) DrawChaseTrail(data);
@@ -340,6 +368,77 @@ public class NemesisGizmos : MonoBehaviour
         DrawLabel(roam.Anchor + Vector3.up * 1.2f, $"barrido {roam.Radius:0.#} m{covered}", SearchColor);
     }
 
+    /// <summary>Below this share of the likeliest node, a node is not drawn: the tail of the spread
+    /// is everywhere, and drawing it hides the shape.</summary>
+    private const float MapDrawFloor = 0.02f;
+
+    /// <summary>
+    /// The possibility map as heat over the NavMesh (Plan-Busqueda-Nemesis Fase 2a), the cone it is
+    /// clearing, and a line to the likeliest place with how much of the value sits within 4 m of it.
+    ///
+    /// THIS IS THE TEST OF THE WHOLE IDEA before anything acts on it: lose the Nemesis in a corridor
+    /// with one exit and the heat has to run ahead of it towards the exit, never behind it; at a T it
+    /// has to lean the way you were going without leaving the other arm empty. A map that does not
+    /// look right here will not search right in 2b, and the spread speed, the heading bias and the
+    /// clear range are three numbers nobody can tune without seeing them.
+    ///
+    /// Drawn from the component's own map, never a copy. Play mode only.
+    /// </summary>
+    private void DrawPossibilityMap(SO_NemesisData data, NemesisStateManager manager, Transform eye)
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisPossibilityMap possibility = manager.PossibilityMap;
+        if (possibility == null || !possibility.IsBuilt) return;
+
+        // "Acá no está": the reach of the clearing, at the real view angle.
+        DrawCone(eye, data.SearchMapClearRange, data.ViewAngle, MapClearColor, "acá no está");
+
+        PossibilityMap map = possibility.Map;
+        PossibilityGraph graph = map.Graph;
+
+        // The Hub's doorway nodes, always: if these are not at its doors, value drains through walls.
+        Gizmos.color = MapClearColor;
+        for (int i = 0; i < graph.NodeCount; i++)
+        {
+            if (!graph.IsDrain(i)) continue;
+            Vector3 p = graph.Position(i);
+            Gizmos.DrawWireCube(p + Vector3.up * 0.5f, new Vector3(0.6f, 1f, 0.6f));
+            DrawLabel(p + Vector3.up * 1.3f, "puerta del Hub", MapClearColor);
+        }
+
+        if (!possibility.TryGetBest(out int best, out Vector3 bestAt)) return;
+
+        float max = map.Value(best);
+        float size = graph.Spacing * 0.8f;
+        Vector3 tile = new Vector3(size, 0.04f, size);
+
+        for (int i = 0; i < graph.NodeCount; i++)
+        {
+            float v = map.Value(i);
+            if (v <= max * MapDrawFloor) continue;
+
+            float t = v / max;
+            Color color = Color.Lerp(SearchColor, HardDetectColor, t);
+            color.a = 0.2f + 0.6f * t;
+            Gizmos.color = color;
+
+            Vector3 p = graph.Position(i);
+            if (graph.Kind(i) == PossibilityGraph.ENodeKind.HidingSpot)
+            {
+                Gizmos.DrawWireCube(p, Vector3.one * 0.7f);
+                Gizmos.DrawCube(p, Vector3.one * 0.35f);
+            }
+            else Gizmos.DrawCube(p + Vector3.up * 0.05f, tile);
+        }
+
+        Gizmos.color = HardDetectColor;
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, bestAt + Vector3.up * 0.3f);
+        Gizmos.DrawWireSphere(bestAt, 0.4f);
+        DrawLabel(bestAt + Vector3.up * 1f, $"más probable ({possibility.ShareNear(bestAt, 4f):P0} en 4 m)",
+                  HardDetectColor);
+    }
+
     /// <summary>
     /// The hiding spot the Nemesis knows or suspects the player is in (plan §3.4), against the
     /// geometry it has to cross to get there.
@@ -449,6 +548,22 @@ public class NemesisGizmos : MonoBehaviour
                      $"bajo mesa {underTable:0.#} m");
         }
 
+        if (drawRearSense && data.RearSenseRange > 0f && data.RearSenseStrength > 0f)
+        {
+            // The third zone (VisionZones.EZone.Rear): everything OUTSIDE the vision cone, out to
+            // RearSenseRange, measured flat from the body — so drawn at the feet, facing away from
+            // where it is looking. The crouched reach inside it, faint: crouching shortens it the way
+            // it shortens the view, and below the proximity ring it adds nothing.
+            Vector3 back = -LookDirectionOf(eye);
+            float span = 360f - data.ViewAngle;
+            DrawCone(transform.position, back, data.RearSenseRange, span, RearColor,
+                     $"siente atrás {data.RearSenseRange:0.#} m");
+
+            float crouchedRear = data.RearSenseRange * data.CrouchVisionMultiplier;
+            Color faint = new Color(RearColor.r, RearColor.g, RearColor.b, 0.35f);
+            DrawCone(transform.position, back, crouchedRear, span, faint, string.Empty);
+        }
+
         if (!drawProximityDetection || data.ProximityDetectionRange <= 0f) return;
 
         // At the feet, not the eye: the test is flat from the body and gated on the Nemesis's own
@@ -543,6 +658,42 @@ public class NemesisGizmos : MonoBehaviour
                   $"hearing cap {data.ListenRange:0.#} m", HearingColor);
 
         DrawGaitBands(data, origin);
+        if (drawHearingError) DrawHearingError(listening);
+    }
+
+    /// <summary>How long after a noise of the player's its real-versus-perceived pair stays drawn.
+    /// </summary>
+    private const float HearingErrorShowSeconds = 2f;
+
+    /// <summary>
+    /// Where the ear placed the player's last noise, against where they really were
+    /// (Plan-Busqueda-Nemesis Fase 1): a line from the real position to the perceived one, and round
+    /// the perceived one the longest offset the ear could have put on it. The pair is the whole point
+    /// — HearingLocalizationError is a fraction nobody can picture, and a circle that always swallows
+    /// the line says the error is doing nothing.
+    ///
+    /// The real position comes from the sensor's editor-only copy (the game never sees it), so this
+    /// is editor and Play mode only, for a couple of seconds after each noise.
+    /// </summary>
+    private void DrawHearingError(FieldOfListening listening)
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying || listening == null) return;
+        if (!listening.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise)) return;
+        if (Time.time - noise.HeardAt > HearingErrorShowSeconds) return;
+        if (!listening.TryGetLastPlayerNoiseTruth(out Vector3 truth)) return;
+
+        Gizmos.color = HearingColor;
+        Gizmos.DrawLine(truth + Vector3.up * 0.1f, noise.Position + Vector3.up * 0.1f);
+        Gizmos.DrawWireSphere(truth, 0.2f);
+        Gizmos.DrawWireCube(noise.Position, Vector3.one * 0.35f);
+        if (noise.LocalizationError > 0.01f) DrawDisc(noise.Position, noise.LocalizationError, HearingColor);
+
+        Vector3 off = noise.Position - truth;
+        off.y = 0f;
+        DrawLabel(noise.Position + Vector3.up * 0.8f,
+                  $"oyó acá ({off.magnitude:0.0} / ±{noise.LocalizationError:0.0} m)", HearingColor);
+#endif
     }
 
     /// <summary>

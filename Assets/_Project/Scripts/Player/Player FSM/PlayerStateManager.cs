@@ -75,10 +75,28 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
     private bool wantsToStand = false;
     private bool isDisabled = false;
+    // Latched by DisableKeepingCrouch for the length of that one lock; see HoldsCrouchPose.
+    private bool holdsCrouchPose = false;
 
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
-    public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
+    public bool IsDisabled
+    {
+        get => isDisabled;
+        set
+        {
+            isDisabled = value;
+            // The hold belongs to the lock that asked for it: the next lock (a capture) starts without.
+            if (!value) holdsCrouchPose = false;
+        }
+    }
+
+    /// <summary>
+    /// The player is locked and staying crouched on purpose, because <see cref="DisableKeepingCrouch"/>
+    /// found no room to stand. <see cref="PlayerCrouchState"/> reads it to freeze in place instead of
+    /// handing over to Disabled. False for every other lock.
+    /// </summary>
+    public bool HoldsCrouchPose => isDisabled && holdsCrouchPose;
 
     // ── Hiding ──────────────────────────────────────────────────────────────────
     //
@@ -856,6 +874,29 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
 
     /// <summary>
+    /// Locks the player like <c>IsDisabled = true</c>, except that a player crouched under a ceiling
+    /// too low to stand under stays crouched for the length of the lock.
+    ///
+    /// A plain lock sends the FSM through Disabled, and the way out of Crouch stands the capsule back
+    /// up (PlayerCrouchState.ExitState). With a slab right above the head that puts the capsule inside
+    /// it, and the solver pushes the player through the level — which is what a module exploding in a
+    /// crawl space did. Here the FSM stays in Crouch, frozen (it reads <see cref="HoldsCrouchPose"/>),
+    /// and control comes back still crouched when the lock is released.
+    ///
+    /// Decided once, as the lock starts. With room to stand there is nothing to hold and this is
+    /// exactly <c>IsDisabled = true</c>. A player somebody else already locked is left alone, so the
+    /// hold can never ride on a capture's lock. Released the usual way, <c>IsDisabled = false</c>,
+    /// which drops the hold with it.
+    /// </summary>
+    public void DisableKeepingCrouch()
+    {
+        if (isDisabled) return;
+
+        holdsCrouchPose = isCrouch && !HasHeadroomToStand();
+        isDisabled = true;
+    }
+
+    /// <summary>
     /// Writes the movement velocity onto the Rigidbody, deflected along anything solid it is about
     /// to run into.
     ///
@@ -1054,7 +1095,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     {
         EndStandUp();
         recoveringFromCapture = false;
-        isDisabled = false;
+        IsDisabled = false;
         ReleaseCaptureTimerPause();
     }
 

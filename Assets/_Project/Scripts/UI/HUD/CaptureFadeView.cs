@@ -156,9 +156,23 @@ public class CaptureFadeView : MonoBehaviour
     /// reaches the player. Cover the screen before the respawn runs, and drop the other overlays
     /// once it is fully black — cutting them at the start instead would make the red chase
     /// vignette vanish in plain sight, on a screen that is still mostly see-through.
+    ///
+    /// The grab's shot plays first when there is one (<see cref="PlayerEvents.CaptureShotSeconds"/>,
+    /// 0 without it). CheckpointManager waits the same seconds before its own delay, so the cover
+    /// is still closed by the time the player is moved.
+    ///
+    /// With a shot the overlays go at the grab instead. The view cuts to another camera on that
+    /// frame, so they leave with the cut rather than in plain sight — and left up, the chase
+    /// vignette at the strength it has with the Nemesis on top of the player is a red wash over
+    /// the whole shot.
     /// </summary>
-    private void HandlePlayerCaptured(PlayerStateManager player) =>
-        FadeTo(1f, fadeInDuration, 0f, afterFade: () => SetOverlaysActive(false)).Forget();
+    private void HandlePlayerCaptured(PlayerStateManager player)
+    {
+        float shotSeconds = PlayerEvents.CaptureShotSeconds;
+        if (shotSeconds > 0f) SetOverlaysActive(false);
+
+        FadeTo(1f, fadeInDuration, shotSeconds, afterFade: () => SetOverlaysActive(false)).Forget();
+    }
 
     /// <summary>
     /// The Nemesis has finished repositioning after the capture — the player already landed at

@@ -74,6 +74,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     private NemesisChoice choice;
     private NemesisDecoyBreaker decoyBreaker;
 
+    // Where the player can be now, reasoned from what it sensed (Plan-Busqueda-Nemesis §3). Same terms:
+    // runtime-only, nothing to wire.
+    private NemesisPossibilityMap possibilityMap;
+
     [Tooltip("The per-state breathing and voice loops. Added automatically like the six above, " +
              "but unlike them it needs CONTENT: its stateLoops array is authored per state, and " +
              "a state with no entry crossfades the monster to silence. An empty array is a silent " +
@@ -236,6 +240,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <summary>What it is paying attention to: the player, a lead or a glimpse. See
     /// <see cref="NemesisChoice"/>.</summary>
     public NemesisChoice Choice => choice;
+
+    /// <summary>Where the player can be now: the possibility map (Plan-Busqueda-Nemesis §3). In Fase
+    /// 2a nothing decides off it yet; the HUD and the gizmos read it.</summary>
+    public NemesisPossibilityMap PossibilityMap => possibilityMap;
 
     /// <summary>The hiding spot it is sure the player is in, or null. Read by the ladder as
     /// KnowsHidingSpot and by Searching, which walks straight to it. Degrades to "knows nothing"
@@ -1241,6 +1249,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         hidingAwareness.Initialize(this);
         belief.Initialize(this);
         choice.Initialize(this);
+        possibilityMap.Initialize(this);
 
         // After ValidateReferences, because it reads NemesisData through this facade, and before
         // InitializeStates so nothing can tick a half-built machine.
@@ -1323,6 +1332,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // nothing added it, so the radio could not be broken at all.
         decoyBreaker = ResolveSibling(decoyBreaker);
         choice = ResolveSibling(choice);
+
+        // Same terms (Plan-Busqueda-Nemesis Fase 2): it builds itself off the baked NavMesh and reads
+        // the belief, the eyes and the hiding awareness off this object.
+        possibilityMap = ResolveSibling(possibilityMap);
 
         // GetComponent and NOT ResolveSibling: unlike the seven above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
@@ -1491,6 +1504,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Same reason: KnowsHidingSpot is a predicate, and a spot that stopped being worth knowing
         // this frame (seen out in the open, burned) must be gone before the ladder reads it.
         hidingAwareness.Tick();
+
+        // After the belief and the hiding awareness it reads, before the decision and the states that
+        // will read it from Fase 2b on. Throttles itself.
+        possibilityMap.Tick();
 
         // Decide before executing. The tree looks at the world exactly as the sensors read it a
         // few lines above, and base.Update() acts on that answer in the SAME frame — where a

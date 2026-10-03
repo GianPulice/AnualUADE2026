@@ -1765,6 +1765,7 @@ GameObject:
   - component: {fileID: 1635792909}
   - component: {fileID: 1635792908}
   - component: {fileID: 1635792912}
+  - component: {fileID: 1635792914}
   m_Layer: 0
   m_Name: CrosshairCanvas
   m_TagString: Untagged
@@ -1882,6 +1883,18 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
+--- !u!114 &1635792914
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1635792907}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e071f5dcb756cb94b90f0a257e92fcbb, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::CaptureCanvasGate
 --- !u!114 &1707810475 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 4655666202471061668, guid: 028b786d62c07a346b19ea90f4ce347e, type: 3}

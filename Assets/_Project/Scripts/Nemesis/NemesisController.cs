@@ -234,6 +234,44 @@ public class NemesisController : MonoBehaviour
     private void Awake()
     {
         if (stateManager == null) stateManager = GetComponent<NemesisStateManager>();
+
+        // Static event: subscribed in Awake and released in OnDestroy, per docs/CLAUDE.md.
+        NemesisEvents.OnStateChanged += HandleStateChanged;
+    }
+
+    private void OnDestroy() => NemesisEvents.OnStateChanged -= HandleStateChanged;
+
+    // ── The hunt, for D40 ───────────────────────────────────────────────────
+
+    private bool inHunt;
+    private float huntEndedAt = float.NegativeInfinity;
+
+    /// <summary>
+    /// Chasing, Searching or an unresolved Catch, or less than HuntGraceSeconds since the last of
+    /// them (Plan-Busqueda-Nemesis D40). While this holds, the zone gravitation does not read the
+    /// player's real position: the patrol that follows a hunt prowls on what it sensed, not on where
+    /// the player really went.
+    /// </summary>
+    public bool IsInHuntOrGrace
+    {
+        get
+        {
+            if (inHunt) return true;
+
+            SO_NemesisData data = Data;
+            float grace = data != null ? data.HuntGraceSeconds : 0f;
+            return Time.time - huntEndedAt < grace;
+        }
+    }
+
+    private void HandleStateChanged(NemesisStateManager.ENemesisState state)
+    {
+        bool hunting = state == NemesisStateManager.ENemesisState.Chasing ||
+                       state == NemesisStateManager.ENemesisState.Searching ||
+                       state == NemesisStateManager.ENemesisState.Catch;
+
+        if (inHunt && !hunting) huntEndedAt = Time.time;
+        inHunt = hunting;
     }
 
     // ── Patrol routing (called by NemesisPatrolState) ──────────────────────
@@ -618,6 +656,14 @@ public class NemesisController : MonoBehaviour
 
         // C5: knowledge it did not earn must not keep it circling the Hub's door while the player shelters inside.
         if (NemesisSafeZones.Contains(player.position)) return false;
+
+        // D40, the same reasoning one step out: hidden, or a hunt that only just ended, is exactly
+        // when the real position is worth the most and the patrol has earned it the least. It used
+        // to keep the post-search patrol circling the locker the player was in ("la sospecha del
+        // anti-campeo", WIR-057). Outside those, the drift stays: it is the patrol's stalking.
+        PlayerStateManager playerState = PlayerRegistry.Current;
+        if (playerState != null && playerState.IsHidden) return false;
+        if (IsInHuntOrGrace) return false;
 
         position = player.position;
         return true;

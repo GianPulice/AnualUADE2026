@@ -2,33 +2,50 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// The device's countdown beep: silent until the active module has <see cref="warningStartSeconds"/>
-/// left, then one beep per <see cref="normalInterval"/>, and faster with the urgent clip under
-/// <see cref="urgentBelowSeconds"/>.
+/// The device's countdown beep. It beeps from the moment the active module starts, slowly at
+/// first and quicker as the module runs out (<see cref="BeepCadence"/>):
+///
+///   start → amber   one beep every 30 s, shrinking in a straight line to one every 10 s
+///   amber → red     10 s → 5 s
+///   red → urgent    5 s → 0.5 s, exponentially
+///   last <see cref="urgentBelowSeconds"/>   the urgent clip, every 0.5 s
+///
+/// Amber and red are where the module's readout turns amber and red (<see cref="stageSource"/>), so
+/// colour and beep change pace together. The first beep comes one interval after the module starts.
 ///
 /// Driven by <see cref="ModuleEvents.OnTimerTick"/>, which only fires while the timer really runs —
 /// so the beep stops on its own in the pause menu and while the player is down after a capture,
 /// with no pause handling of its own.
 ///
-/// Beeps sit on a fixed grid (multiples of the interval), so they land on the second the timer
-/// display changes. A time jump never turns into a burst: a penalty that skips several grid points
-/// beeps once and carries on from the next point below; a bonus that lifts the time back up re-arms
-/// the grid from there.
+/// Each beep is scheduled from the one before, not from the frame it was heard on, so the pace does
+/// not drift. A time jump never turns into a burst: a penalty that skips several beeps beeps once
+/// and carries on from the clock; a bonus that lifts the time more than a step re-arms from there.
 ///
 /// Raises <see cref="Beeped"/> so what blinks (the module's LED, <see cref="ModuleLED"/>) does it in
 /// time with what the player hears.
 /// </summary>
 public class ModuleTimerBeeper : MonoBehaviour
 {
-    [Header("Thresholds (seconds left)")]
-    [Tooltip("Beeping starts when the active module has this many seconds left.")]
-    [SerializeField, Min(0f)] private float warningStartSeconds = 30f;
+    [Header("Stages")]
+    [Tooltip("Where each module's readout turns amber and red (the same SO_PlayerCameraFeed the " +
+             "camera feed uses), so the beep changes pace with the colour. Empty = that asset's " +
+             "defaults, and a warning.")]
+    [SerializeField] private SO_PlayerCameraFeedConfig stageSource;
 
-    [Tooltip("Below this, the urgent clip and the urgent interval take over.")]
+    [Tooltip("Seconds left under which the urgent clip and the urgent interval take over.")]
     [SerializeField, Min(0f)] private float urgentBelowSeconds = 10f;
 
     [Header("Cadence (seconds between beeps)")]
-    [SerializeField, Min(0.05f)] private float normalInterval = 1f;
+    [Tooltip("When the module starts. Shrinks in a straight line to the amber interval as amber nears.")]
+    [SerializeField, Min(0.05f)] private float startInterval = 30f;
+
+    [Tooltip("When the readout turns amber. Shrinks in a straight line to the red interval.")]
+    [SerializeField, Min(0.05f)] private float amberInterval = 10f;
+
+    [Tooltip("When the readout turns red. Falls exponentially to the urgent interval.")]
+    [SerializeField, Min(0.05f)] private float redInterval = 5f;
+
+    [Tooltip("From the urgent threshold to the end.")]
     [SerializeField, Min(0.05f)] private float urgentInterval = 0.5f;
 
     [Header("Audio")]
@@ -42,14 +59,24 @@ public class ModuleTimerBeeper : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => Beeped = null;
 
-    public float WarningStartSeconds => warningStartSeconds;
     public float UrgentBelowSeconds => urgentBelowSeconds;
 
     private ModuleRuntime tracked;
+    private BeepCadence cadence;
     private float nextBeepAt;
+    private float lastLeft;
+    private SO_PlayerCameraFeedConfig fallbackStages;
 
     private void Awake()
     {
+        if (stageSource == null)
+        {
+            Debug.LogWarning($"[{nameof(ModuleTimerBeeper)}] '{name}' has no Stage Source: using the " +
+                             "camera feed config's defaults for amber and red.", this);
+            fallbackStages = ScriptableObject.CreateInstance<SO_PlayerCameraFeedConfig>();
+            fallbackStages.hideFlags = HideFlags.HideAndDontSave;
+        }
+
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnStateChanged += HandleStateChanged;
     }
@@ -58,11 +85,12 @@ public class ModuleTimerBeeper : MonoBehaviour
     {
         ModuleEvents.OnTimerTick -= HandleTimerTick;
         ModuleEvents.OnStateChanged -= HandleStateChanged;
+        if (fallbackStages != null) Destroy(fallbackStages);
     }
 
     private void HandleStateChanged(ModuleRuntime module)
     {
-        // A resolved or exploded module stops beeping; the next one starts from a clean grid.
+        // A resolved or exploded module stops beeping; the next one starts from a clean schedule.
         if (module == tracked && module.Status != ModuleStatus.Active) tracked = null;
     }
 
@@ -70,40 +98,43 @@ public class ModuleTimerBeeper : MonoBehaviour
     {
         if (module == null || module.Status != ModuleStatus.Active) return;
 
+        float left = module.TimeRemaining;
+
         if (module != tracked)
         {
             tracked = module;
-            nextBeepAt = warningStartSeconds;
+            cadence = BuildCadence(module);
+            nextBeepAt = left - cadence.IntervalAt(left);
+            lastLeft = left;
         }
 
-        float left = module.TimeRemaining;
-        if (left > warningStartSeconds)
-        {
-            // Above the threshold (or lifted back above it by a bonus): wait for it again.
-            nextBeepAt = warningStartSeconds;
-            return;
-        }
-
-        float interval = IntervalAt(left);
-
-        // A bonus lifted the time more than one step above the next beep: re-arm from here instead
-        // of going quiet until the clock catches up with the old grid point.
-        if (left - nextBeepAt > interval) nextBeepAt = GridPointBelow(left, interval);
+        // The clock went UP (a bonus) and the next beep is now more than one step away: re-arm from
+        // here instead of going quiet until the clock catches up with the old point. Only on a real
+        // lift: in a stage where the interval changes faster than the clock this test would
+        // otherwise hold every frame and the beep would never come.
+        float interval = cadence.IntervalAt(left);
+        if (left > lastLeft && left - nextBeepAt > interval) nextBeepAt = left - interval;
+        lastLeft = left;
 
         if (left > nextBeepAt) return;
 
-        bool urgent = left <= urgentBelowSeconds;
-        Play(module, urgent);
+        Play(module, left <= urgentBelowSeconds);
 
-        // Strictly below the current time, so a penalty that skipped several points beeps once.
-        nextBeepAt = GridPointBelow(left, IntervalAt(left));
+        // From the schedule, so the pace holds. If a penalty left the clock past the next point
+        // too, from the clock: it beeps once, not once per point it skipped.
+        float next = nextBeepAt - cadence.IntervalAt(nextBeepAt);
+        nextBeepAt = next < left ? next : left - cadence.IntervalAt(left);
     }
 
-    private float IntervalAt(float left) => left <= urgentBelowSeconds ? urgentInterval : normalInterval;
+    private BeepCadence BuildCadence(ModuleRuntime module)
+    {
+        SO_PlayerCameraFeedConfig stages = stageSource != null ? stageSource : fallbackStages;
+        float duration = module.Data != null ? module.Data.TimerDuration : module.TimeRemaining;
 
-    /// <summary>Largest multiple of <paramref name="interval"/> strictly below <paramref name="t"/>.</summary>
-    private static float GridPointBelow(float t, float interval) =>
-        Mathf.Ceil(t / interval) * interval - interval;
+        return new BeepCadence(duration,
+            stages.WarningSecondsLeft(module), stages.CriticalSecondsLeft(module), urgentBelowSeconds,
+            startInterval, amberInterval, redInterval, urgentInterval);
+    }
 
     private void Play(ModuleRuntime module, bool urgent)
     {

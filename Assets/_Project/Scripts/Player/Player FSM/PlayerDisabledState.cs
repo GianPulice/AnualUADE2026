@@ -37,9 +37,10 @@ public class PlayerDisabledState : BaseState<PlayerStateManager.EPlayerState>
         anim.SetBool("isCrouch", false);
         anim.SetBool("isPushing", false);
 
-        // NOTE: isTrapped is not referenced by any transition in PlayerController.controller and
-        // there is no capture state to reach, so this currently has no visual effect. It is kept
-        // because the parameter is the seam a real grab animation would hang off.
+        // NOTE: isTrapped is not referenced by any transition in PlayerController.controller, so
+        // this has no visual effect. The grab animation does NOT hang off it: this state is
+        // entered by every lock (a module exploding, the wake-up), not only by a capture, so
+        // CaptureGrabStaging plays the Grabbed state itself, from PlayerEvents.OnPlayerCaptured.
         anim.SetBool("isTrapped", true);
 
         // Stop the body too, not just the blend. PlayerStateManager.TeleportTo already
