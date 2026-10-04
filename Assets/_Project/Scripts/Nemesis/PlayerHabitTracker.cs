@@ -366,7 +366,14 @@ public class PlayerHabitTracker : Singleton<PlayerHabitTracker>, ISessionResetta
         }
     }
 
-    private void HandleChaseStalled() => Register(EExploitKind.ChaseStalled, null);
+    /// <summary>
+    /// ChaseStalled (C4): one per CHASE, which is the detector's cut and not this class's —
+    /// NemesisChaseProgress raises the event on a chase's first stalled window only
+    /// (<see cref="ChaseStallCounter"/>). The ledger takes each raise for a separate occurrence of
+    /// the habit, so it must not be fed one per window: that is what once took the flank and
+    /// zone-defence counterplays from 35% to 85% in five minutes.
+    /// </summary>
+    private void HandleChaseStalled() => Register(EExploitKind.ChaseStalled, "one per chase");
 
     private void HandleChaseStarted() => chaseRunning = true;
 

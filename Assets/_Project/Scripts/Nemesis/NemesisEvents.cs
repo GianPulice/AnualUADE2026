@@ -83,8 +83,11 @@ public static class NemesisEvents
     public static event Action<Vector3, bool> OnSearchEnded;
 
     /// <summary>
-    /// A chase window went by without the Nemesis closing the distance (plan C4). Raised by
-    /// NemesisChaseProgress the moment it judges a window, so a long loop raises it once per window.
+    /// A chase went a whole window without the Nemesis closing the distance (plan C4). Raised by
+    /// NemesisChaseProgress ONCE PER CHASE, on its first stalled window: a loop that goes on for a
+    /// minute is one stall, not a dozen, because the habit ledger takes each raise for a separate
+    /// time the player pulled the trick (see ChaseStallCounter). The stagnation itself, which lasts
+    /// every window, is NemesisStateManager.IsChaseStagnant, not this event.
     /// Never during the escape: the chase floor clears the measurement.
     /// </summary>
     public static event Action OnChaseStalled;

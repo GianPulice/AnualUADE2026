@@ -523,7 +523,9 @@ timer hits zero                         -> ModuleEvents.OnExploded              
 POCO `ModuleRuntime`, so a run cannot leave dirty state in a `.asset`. Timers tick on
 `Time.unscaledDeltaTime` on purpose: the inventory sets `timeScale = 0`, and a timer you can stop
 by opening a menu is not a timer. `PauseManager` pauses them explicitly instead, through
-`PauseTicking`/`ResumeTicking` (ref-counted).
+`PauseTicking`/`ResumeTicking` (ref-counted). A capture, the escape sequence and the note reader in
+reading mode (the sheet a pickup opens by itself) each hold a request of their own: `timeScale = 0`
+alone leaves the countdown running, and beeping, behind them.
 
 Penalties are routed by `PenaltyType` into `PlayerStateManager.ApplyPenalty` and are **permanent
 for the rest of the run by design** — there is no method to clear them:
@@ -684,7 +686,10 @@ panel, discard footer.
   Rows carry two marks, state in `InventoryManager` (`IsNew`/`IsRead`, session only, not saved):
   an amber `NEW` before the category tag from pickup until the item is selected, and a grey text and
   icon for a `Note` already read (its doc opened; a note with no doc is read by being selected).
-  `InventoryManagerUI` sets both and calls `InventoryView.RefreshMarks`.
+  `InventoryManagerUI` sets both and calls `InventoryView.RefreshMarks`. The grey text is a theme
+  role (`ItemSlotView.readTextRole`, `TextMuted`) set through the row text's `UIThemeApplier`, not a
+  color written to the text: the applier repaints on every `OnEnable` and the rows are pooled, so a
+  direct color was lost the next time the inventory opened.
 - `ItemDetailView` fills header, description and metadata, and owns the **doc panel** for
   `ContentType.Text` items (its own layer, reset to the top of the scroll on each open).
 - `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`
@@ -714,7 +719,8 @@ Two gaps against the spec, both intentional for now:
   reselect is the specified behaviour, not a bug.
 - **Two document paths exist and they are not interchangeable.** An item with `ContentType.Text`
   goes to the inventory, is put in front of the player on the spot by `DocumentReaderController`
-  (reading mode: the game freezes until they dismiss the sheet), and can be re-read forever from
+  (reading mode: the game freezes, module timer included, until they dismiss the sheet), and can be
+  re-read forever from
   the inventory's doc panel; a `NoteInteractable` opens the same reader with an `SO_DocumentData`,
   with the world still running, and never enters the inventory. Spec §11 wants the notes to be held
   items, which is the first path — and it is the only one any note in the project actually uses.

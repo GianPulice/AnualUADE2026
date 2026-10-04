@@ -251,7 +251,8 @@ public class SO_NemesisDataEditor : Editor
     /// room to spare.
     /// </summary>
     private static float MaxDetectionRadius(SO_NemesisData data) =>
-        Mathf.Max(1f, data.ViewRange, data.ListenRange, data.ProximityDetectionRange, data.CatchMaxReach);
+        Mathf.Max(1f, data.ViewRange, data.ViewHoldRange, data.ViewHuntRange, data.ListenRange,
+                  data.ProximityDetectionRange, data.CatchMaxReach);
 
     private static float PxPerMetre(Rect canvas, float maxRadius) =>
         Mathf.Min(canvas.width, canvas.height) * 0.5f * 0.86f / maxRadius;
@@ -326,6 +327,8 @@ public class SO_NemesisDataEditor : Editor
                 LabelAt(origin, radiusPx * 0.55f, 0f, $"foco {data.FocusAngle:0.#}\u00b0", FocusColor);
             }
             LabelAt(origin, radiusPx, 0f, $"visión {data.ViewRange:0.#} m", vision);
+
+            DrawAdaptiveRanges(data, origin, pxPerMetre, vision);
         }
 
         float crouched = data.ViewRange * data.CrouchVisionMultiplier;
@@ -349,6 +352,45 @@ public class SO_NemesisDataEditor : Editor
         float underTablePx = underTableRange * pxPerMetre;
         PlayerDiagramGUI.Arc(origin, underTablePx, 0f, data.ViewAngle, underTable);
         LabelAt(origin, underTablePx, 28f, $"bajo mesa {underTableRange:0.##} m", underTable);
+    }
+
+    /// <summary>
+    /// The two rings past the base wedge (AdaptiveViewRange): how far it HOLDS a player it is already
+    /// seeing, and how far a HUNT lets it see again one it lost. Thin and faint, because neither is
+    /// where it notices anybody — that is still the solid wedge inside them, and the picture has to
+    /// keep saying so. One ring when the two coincide (as shipped, both ×2), labelled off to the
+    /// sides so they stay clear of the base range's own label.
+    /// </summary>
+    private static void DrawAdaptiveRanges(SO_NemesisData data, Vector2 origin, float pxPerMetre,
+                                           Color vision)
+    {
+        const float Visible = 0.05f;
+        const float LabelBearing = 38f;
+
+        float hold = data.ViewHoldRange;
+        float hunt = data.ViewHuntRange;
+        Color faint = new Color(vision.r, vision.g, vision.b, 0.5f);
+
+        if (Mathf.Abs(hold - hunt) <= Visible)
+        {
+            if (hold <= data.ViewRange + Visible) return;
+
+            PlayerDiagramGUI.Arc(origin, hold * pxPerMetre, 0f, data.ViewAngle, faint, 1f);
+            LabelAt(origin, hold * pxPerMetre, LabelBearing, $"sostiene / caza {hold:0.#} m", faint);
+            return;
+        }
+
+        if (hold > data.ViewRange + Visible)
+        {
+            PlayerDiagramGUI.Arc(origin, hold * pxPerMetre, 0f, data.ViewAngle, faint, 1f);
+            LabelAt(origin, hold * pxPerMetre, LabelBearing, $"sostiene {hold:0.#} m", faint);
+        }
+
+        if (hunt > data.ViewRange + Visible)
+        {
+            PlayerDiagramGUI.Arc(origin, hunt * pxPerMetre, 0f, data.ViewAngle, faint, 1f);
+            LabelAt(origin, hunt * pxPerMetre, -LabelBearing, $"caza {hunt:0.#} m", faint);
+        }
     }
 
     /// <summary>The third zone (VisionZones.EZone.Rear): everything outside the cone, out to
@@ -391,8 +433,9 @@ public class SO_NemesisDataEditor : Editor
         float distance = EditorPrefs.GetFloat(TestDistanceKey, DefaultTestDistance);
         float bearing = EditorPrefs.GetFloat(TestBearingKey, DefaultTestBearing);
 
-        float maxRadius = Mathf.Max(1f, data.ViewRange, data.ListenRange,
-                                    data.ProximityDetectionRange, data.CatchMaxReach);
+        // The same radius the "Rangos" diagram scales to, so the slider reaches every ring drawn
+        // there — the hold and hunt rings included, which sit past the base view range.
+        float maxRadius = MaxDetectionRadius(data);
 
         EditorGUI.BeginChangeCheck();
         float newDistance = EditorGUILayout.Slider(
@@ -422,10 +465,15 @@ public class SO_NemesisDataEditor : Editor
         bool hardDetected = distance <= data.ProximityDetectionRange;
         bool catchable = distance <= data.CatchMaxReach;
 
+        // "Nota" and not "ve" since 04/10: these two are the BASE range, what a Nemesis that has not
+        // seen you needs to notice you. Whether one that already has keeps seeing you here is the
+        // pair of verdicts right below.
         PlayerDiagramGUI.Verdict(seenStanding,
-            seenStanding ? "Te ve parado" : "No te ve parado (fuera de rango o del cono)");
+            seenStanding ? "Te nota parado" : "No te nota parado (fuera del rango base o del cono)");
         PlayerDiagramGUI.Verdict(seenCrouched,
-            seenCrouched ? "Te ve agachado" : "No te ve agachado");
+            seenCrouched ? "Te nota agachado" : "No te nota agachado");
+
+        DrawAdaptiveVerdicts(data, distance, withinCone);
 
         // The verdict that makes the two-band cone tunable at all: "te ve" stopped being one
         // question the moment detection got a ramp, and the answer that matters is HOW LONG.
@@ -478,6 +526,60 @@ public class SO_NemesisDataEditor : Editor
             "piso. Para eso, con el Nemesis en escena, mirá los gizmos (NemesisGizmos) contra la " +
             "geometría real.",
             MessageType.Info);
+    }
+
+    /// <summary>
+    /// The two verdicts the adaptive range adds (AdaptiveViewRange). The two above answer "does it
+    /// NOTICE me here", which is still the base range and the only thing stealth is balanced on.
+    /// These answer the other two questions a chase asks: at this distance does it KEEP seeing a
+    /// player it already sees, and how long into a hunt before it can see them AGAIN.
+    ///
+    /// Through the rule's own function for the hunt (AdaptiveViewRange.SecondsToReach) and the SO's
+    /// own derived ranges, for the reason NoticeSeconds gives: a tester that works the number out its
+    /// own way is worse than no tester, because it is believed. Silent with both scales at 1 — then
+    /// the range is the one number it always was, and the two verdicts above are the whole story.
+    /// </summary>
+    private static void DrawAdaptiveVerdicts(SO_NemesisData data, float distance, bool withinCone)
+    {
+        float hold = data.ViewHoldRange;
+        float hunt = data.ViewHuntRange;
+
+        const float Visible = 0.001f;
+        if (hold <= data.ViewRange + Visible && hunt <= data.ViewRange + Visible) return;
+
+        if (!withinCone)
+        {
+            PlayerDiagramGUI.Verdict(false,
+                "Fuera del cono: ni sosteniéndote ni cazándote te ve desde este ángulo " +
+                "(en la persecución la mirada gira hacia vos: ver Lost Sight Look Ahead)");
+            return;
+        }
+
+        bool held = distance <= hold;
+        PlayerDiagramGUI.Verdict(held,
+            held ? $"Si ya te venía viendo, te SIGUE viendo acá (sostiene hasta {hold:0.#} m; " +
+                   $"agachado, hasta {hold * data.CrouchVisionMultiplier:0.#} m)"
+                 : $"Ni viéndote te sostiene tan lejos: te pierde al pasar los {hold:0.#} m");
+
+        float seconds = AdaptiveViewRange.SecondsToReach(distance, data.ViewRange, data.ViewHuntScale,
+                                                         data.ViewHuntGrowTime);
+
+        if (float.IsPositiveInfinity(seconds))
+        {
+            PlayerDiagramGUI.Verdict(false,
+                $"Cazándote tampoco vuelve a verte acá: el rango de caza llega hasta {hunt:0.#} m");
+        }
+        else if (seconds <= 0f)
+        {
+            PlayerDiagramGUI.Verdict(true,
+                "Si te perdió y te caza, te vuelve a ver acá apenas te tenga en el cono y sin nada en el medio");
+        }
+        else
+        {
+            PlayerDiagramGUI.Verdict(true,
+                $"Si te perdió y te caza, recién puede volver a verte acá a los {seconds:0.0} s de " +
+                $"haberte perdido (crece hasta {hunt:0.#} m en {data.ViewHuntGrowTime:0.#} s)");
+        }
     }
 
     /// <summary>
@@ -604,6 +706,8 @@ public class SO_NemesisDataEditor : Editor
             $"Agachado te ve recién a {crouched:0.##} m (visión sana ×{data.CrouchVisionMultiplier:0.##}).",
             EditorStyles.wordWrappedMiniLabel);
 
+        DrawAdaptiveVisionChecks(data);
+
         if (data.WallOcclusionEnabled)
         {
             EditorGUILayout.LabelField(
@@ -614,6 +718,57 @@ public class SO_NemesisDataEditor : Editor
 
         DrawChaseProgressChecks(data);
         DrawSearchChecks(data);
+    }
+
+    /// <summary>
+    /// The range that adapts and the gaze of the chase (AdaptiveViewRange, ChaseGaze; 04/10). The
+    /// derived distances first — the scales are multipliers and nobody pictures "×2" — and then the
+    /// two settings that switch a half of it off without anything in game saying so: a hunt that
+    /// regrows instantly (breaking line of sight buys the player nothing), and a look-ahead of 0
+    /// (the cone is welded to the body again and it arrives at every corner facing the wall).
+    /// </summary>
+    private static void DrawAdaptiveVisionChecks(SO_NemesisData data)
+    {
+        bool holds = data.ViewHoldScale > 1f;
+        bool hunts = data.ViewHuntScale > 1f;
+
+        if (!holds && !hunts)
+        {
+            EditorGUILayout.LabelField(
+                "View Hold Scale y View Hunt Scale en 1: el rango de visión es uno solo, como antes " +
+                "del 04/10. Te nota y te pierde a la misma distancia.",
+                EditorStyles.wordWrappedMiniLabel);
+        }
+        else
+        {
+            float crouch = data.CrouchVisionMultiplier;
+            EditorGUILayout.LabelField(
+                $"Te NOTA a {data.ViewRange:0.#} m (patrullando, o yendo a un ruido). Viéndote te " +
+                $"sostiene hasta {data.ViewHoldRange:0.#} m (agachado {data.ViewHoldRange * crouch:0.#} m). " +
+                $"Si te pierde y te caza, vuelve a verte hasta {data.ViewHuntRange:0.#} m (agachado " +
+                $"{data.ViewHuntRange * crouch:0.#} m), y llega a ese rango a los " +
+                $"{data.ViewHuntGrowTime:0.#} s de perderte. Se multiplica encima de la escalada y del Director.",
+                EditorStyles.wordWrappedMiniLabel);
+        }
+
+        if (hunts)
+        {
+            bool breakingSightPays = data.ViewHuntGrowTime > 0f;
+            PlayerDiagramGUI.Verdict(breakingSightPays,
+                breakingSightPays
+                    ? $"Romper la línea de vista le devuelve el rango a {data.ViewRange:0.#} m y tarda " +
+                      $"{data.ViewHuntGrowTime:0.#} s en recuperar el de caza: esa es tu ventana"
+                    : "View Hunt Grow Time en 0 — apenas te pierde ya te busca con el rango máximo: " +
+                      "romper la línea de vista no te da ninguna ventana");
+        }
+
+        bool looksWhereYouWent = data.LostSightLookAhead > 0f;
+        PlayerDiagramGUI.Verdict(looksWhereYouWent,
+            looksWhereYouWent
+                ? $"En la persecución la mirada te sigue; si te pierde, mira {data.LostSightLookAhead:0.#} m " +
+                  $"más allá de donde te perdió, en tu rumbo, girando a {data.GazeTurnSpeed:0} °/s"
+                : "Lost Sight Look Ahead en 0 — la mirada queda pegada al cuerpo en la persecución: " +
+                  "llega a la esquina mirando la pared, con el pasillo por el que te fuiste fuera del cono");
     }
 
     /// <summary>
@@ -659,10 +814,11 @@ public class SO_NemesisDataEditor : Editor
         bool precisePossible = data.SearchPreciseNoiseRadius >= besideRadius;
         PlayerDiagramGUI.Verdict(precisePossible,
             precisePossible
-                ? $"Un paso a 1 m (radio {besideRadius:0.##} m) cuenta como ruido preciso: la búsqueda va al punto"
+                ? $"Un paso a 1 m (radio {besideRadius:0.##} m) cuenta como ruido preciso: la búsqueda puede " +
+                  "pararse en el punto mismo"
                 : $"Search Precise Noise Radius ({data.SearchPreciseNoiseRadius:0.##} m) por debajo del radio de un " +
-                  $"paso a 1 m ({besideRadius:0.##} m) — ningún ruido es preciso: nunca camina al punto de un ruido, " +
-                  "ni siquiera al lado suyo");
+                  $"paso a 1 m ({besideRadius:0.##} m) — ningún ruido es preciso: nunca se para en el punto de un " +
+                  "ruido, ni siquiera al lado suyo (busca la zona, como con cualquier ruido vago)");
 
         EditorGUILayout.LabelField(
             $"El oído se equivoca hasta ±{besideError:0.##} m a 1 m, y hasta " +
@@ -683,6 +839,61 @@ public class SO_NemesisDataEditor : Editor
                 ? $"El valor corre a {data.SearchMapSpreadSpeed:0.#} m/s (vos corriendo: {data.BeliefGrowthSpeed:0.#} m/s)"
                 : $"El valor corre a {data.SearchMapSpreadSpeed:0.#} m/s, bastante menos que vos corriendo " +
                   $"({data.BeliefGrowthSpeed:0.#} m/s) — el mapa se queda atrás y busca donde ya no podés estar");
+
+        DrawSearchPickChecks(data);
+    }
+
+    /// <summary>
+    /// Plan-Busqueda-Nemesis Fase 2b: the search goes where the possibility map holds value. Two
+    /// relationships that fail silently — a zone smaller than one node gathers nothing, and one wider
+    /// than what a look clears can never be looked at whole, so the search keeps choosing it — and the
+    /// two thresholds turned into what they mean in seconds and percentages, which is the only way
+    /// "0.015" can be tuned.
+    /// </summary>
+    private static void DrawSearchPickChecks(SO_NemesisData data)
+    {
+        float zone = data.SearchMapZoneRadius;
+
+        bool zoneGathers = zone >= data.SearchMapNodeSpacing;
+        PlayerDiagramGUI.Verdict(zoneGathers,
+            zoneGathers
+                ? $"Un lugar de la búsqueda (radio {zone:0.##} m) junta un nodo y sus vecinos " +
+                  $"(nodos cada {data.SearchMapNodeSpacing:0.##} m)"
+                : $"Search Map Zone Radius ({zone:0.##} m) por debajo de la separación de nodos " +
+                  $"({data.SearchMapNodeSpacing:0.##} m) — cada lugar es un nodo suelto: la búsqueda " +
+                  "camina al borde de una mancha de valor igual que al medio");
+
+        // It stops a stride short of the middle of the zone and looks: the far side of the zone has to
+        // be inside what that look clears, or part of it keeps its value however long it stares.
+        const float ArrivalSlack = 1f;
+        bool zoneSeenWhole = zone + ArrivalSlack <= data.SearchMapClearRange;
+        PlayerDiagramGUI.Verdict(zoneSeenWhole,
+            zoneSeenWhole
+                ? $"Al llegar a un lugar lo ve entero: limpia hasta {data.SearchMapClearRange:0.##} m"
+                : $"Search Map Zone Radius ({zone:0.##} m) no entra en lo que limpia mirando " +
+                  $"({data.SearchMapClearRange:0.##} m) — llega, mira, y parte del lugar sigue con valor: " +
+                  "lo vuelve a elegir");
+
+        float threshold = data.SearchMapWorthThreshold;
+        EditorGUILayout.LabelField(
+            threshold > 0f
+                ? $"\"Revisé todo\" con el umbral en {threshold:0.###}: un lugar con 10 % del valor vale la " +
+                  $"caminata hasta {Mathf.Max(0f, 0.1f / threshold - 1f):0.#} s de distancia; uno con 30 %, hasta " +
+                  $"{Mathf.Max(0f, 0.3f / threshold - 1f):0.#} s; pegado a él, hace falta al menos {threshold:P1}. " +
+                  "Si ninguno llega, mira alrededor donde está y la búsqueda termina pasado Search Min Time " +
+                  $"({data.SearchMinTime:0.#} s)."
+                : "Search Map Worth Threshold en 0: nunca da por revisado todo. La búsqueda termina solo por " +
+                  "silencio (o porque más de la mitad del valor se fue al Hub).",
+            EditorStyles.wordWrappedMiniLabel);
+
+        EditorGUILayout.LabelField(
+            data.SearchMapRepickShare > 0f
+                ? $"Deja de caminar a un lugar cuando le queda menos del {data.SearchMapRepickShare:P0} del valor " +
+                  "con el que lo eligió (lo vio vacío de lejos, o evidencia nueva movió el valor), y elige otro " +
+                  $"entre los {data.SearchMapCandidates} de más valor."
+                : "Search Map Repick Share en 0: camina siempre hasta el lugar que eligió, aunque de lejos ya " +
+                  "lo haya visto vacío.",
+            EditorStyles.wordWrappedMiniLabel);
     }
 
     /// <summary>
@@ -735,7 +946,33 @@ public class SO_NemesisDataEditor : Editor
             $"Para no estancarse tiene que acortar {data.ChaseMinProgress:0.##} m (por NavMesh) cada " +
             $"{data.ChaseProgressWindow:0.#} s: {closingRate:0.##} m/s de promedio. Se mide solo en " +
             $"Chasing y mientras lo vio hace menos de {data.VisionLossGracePeriod:0.#} s " +
-            "(Vision Loss Grace Period).",
+            "(Vision Loss Grace Period). Sin vista la ventana se pausa (no avanza ni se juzga).",
+            EditorStyles.wordWrappedMiniLabel);
+
+        // Backed by ChasePathJumpDistance's own tooltip: a step the size of the progress the
+        // window asks for would turn an ordinary chase into "the path changed", and the detector
+        // would re-baseline instead of ever judging. The sample interval is the one the path
+        // query is throttled by (RouteVerdictInterval): the step is metres PER SAMPLE.
+        bool jumpClearsProgress = data.ChasePathJumpDistance > data.ChaseMinProgress;
+        PlayerDiagramGUI.Verdict(jumpClearsProgress,
+            jumpClearsProgress
+                ? $"Un salto de más de {data.ChasePathJumpDistance:0.##} m de NavMesh entre dos " +
+                  $"mediciones (cada {data.RouteVerdictInterval:0.##} s) se toma por cambio de camino " +
+                  "y no se juzga"
+                : $"Chase Path Jump Distance ({data.ChasePathJumpDistance:0.##} m) no supera a " +
+                  $"Chase Min Progress ({data.ChaseMinProgress:0.##} m) — cualquier medición normal " +
+                  "se tomaría por salto y la ventana nunca llegaría a juzgar");
+
+        // The counting rule, said once where the knobs are: it is the part of this block that no
+        // number on screen shows. 0 on the regroup time is a legal value with a real effect
+        // (every exit from Chasing starts a new count), so it is said, not hidden.
+        string regroup = data.ChaseStallRegroupTime > 0f
+            ? $"una persecución cuenta como otra recién tras {data.ChaseStallRegroupTime:0.#} s fuera de Chasing (o al agarrarte)"
+            : "Chase Stall Regroup Time en 0: cada vez que sale de Chasing empieza una persecución nueva";
+        EditorGUILayout.LabelField(
+            "A los hábitos llega UN ChaseStalled por persecución, el de la primera ventana sin " +
+            $"progreso, por larga que sea; {regroup}. El estancamiento en sí (lo que lee el " +
+            "pursuit) dura todas las ventanas.",
             EditorStyles.wordWrappedMiniLabel);
     }
 }

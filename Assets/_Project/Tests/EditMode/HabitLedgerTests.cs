@@ -133,6 +133,27 @@ public class HabitLedgerTests
     }
 
     [Test]
+    public void ChaseStalled_OnePerChase_UnlocksTheFlankOnly_TwoChasesUnlockZoneDefense()
+    {
+        // The default rows of SO_CounterplayRules. The ledger counts occurrences, so what a
+        // "chase that stalled" is worth is decided before it gets here (ChaseStallCounter): one
+        // register per chase. A 50 s loop used to register 8 and walk straight past both rows.
+        rules.Rows.Add(new CounterplayRule(EExploitKind.ChaseStalled, 1, ECounterplay.ChaseFlank, 0.35f, 0.1f));
+        rules.Rows.Add(new CounterplayRule(EExploitKind.ChaseStalled, 2, ECounterplay.ZoneDefense, 0.35f, 0.1f));
+
+        ledger.RegisterExploit(EExploitKind.ChaseStalled, 0f);
+
+        Assert.IsTrue(ledger.IsUnlocked(ECounterplay.ChaseFlank, 0f));
+        Assert.AreEqual(0.35f, ledger.GetChance(ECounterplay.ChaseFlank, 0f), Tolerance);
+        Assert.IsFalse(ledger.IsUnlocked(ECounterplay.ZoneDefense, 0f));
+
+        ledger.RegisterExploit(EExploitKind.ChaseStalled, 5f * Minute);
+
+        Assert.IsTrue(ledger.IsUnlocked(ECounterplay.ZoneDefense, 5f * Minute));
+        Assert.AreEqual(0.45f, ledger.GetChance(ECounterplay.ChaseFlank, 5f * Minute), Tolerance);
+    }
+
+    [Test]
     public void Counterplay_LocksAgainOnceTheCountDrainsUnderTheThreshold()
     {
         rules.Rows.Add(new CounterplayRule(EExploitKind.EscapedWhileHidden, 3, ECounterplay.ExitAmbush, 0.35f, 0.1f));

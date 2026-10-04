@@ -11,6 +11,12 @@ using UnityEngine;
 /// up with what it already believes: a glimpse where it sensed the player moments ago IS a sighting
 /// (SO_NemesisData.GlimpseCorroborationWindow). Hard proximity sits under all three.
 ///
+/// HOW FAR is not one number either (<see cref="AdaptiveViewRange"/>, 04/10): ViewRange is the
+/// distance it NOTICES a player at. One it is already seeing stays seen further out (hold), and one
+/// it lost and is still after can be seen again from further the longer it goes without seeing them
+/// (hunt). <see cref="EffectiveViewRange"/> is the range a sweep really used. What it makes out
+/// through a hiding spot, the rear sense and the hard proximity stay on ViewRange.
+///
 /// The tuneable values (range, cone angle) live in <see cref="SO_NemesisData"/> so a designer
 /// edits them in one asset and Tier 3.3 can scale them by handing this component a runtime copy
 /// of the SO through <see cref="SetData"/>. The LayerMasks stay here: those are scene wiring,
@@ -89,6 +95,39 @@ public class FieldOfView : MonoBehaviour
     /// <summary>The last sweep's sighting came from the periphery, made a sighting by a fresh belief
     /// (VisionZones.Corroborates) rather than by the focus cone. For the debug HUD.</summary>
     public bool LastSightCorroborated { get; private set; }
+
+    // -- A view range that adapts (AdaptiveViewRange) ------------------------------
+    //
+    // ViewRange used to be the one distance for everything: noticing a player it had never seen and
+    // keeping hold of one it was staring at mid-chase. Stepped every frame in TickViewRange, before
+    // the sweep that uses it. The rule and its state live in WIRED.Nemesis.Logic; what stays here is
+    // the scene half: which state the Nemesis is in, and whether the last sweep had the player.
+
+    private readonly AdaptiveViewRange rangeAdaptation = new AdaptiveViewRange();
+
+    /// <summary>
+    /// How far the eyes reach right now against a STANDING player out in the open, in metres:
+    /// ViewRange (as lent by the Director and the escalation at this moment) times
+    /// <see cref="ViewRangeScale"/>. What the vision sweep uses, before the crouch multiplier.
+    ///
+    /// Public for the three things that have to agree with the sweep: NemesisGizmos draws it next to
+    /// the base cone, the debug HUD says why it is what it is, and NemesisHidingAwareness's "it saw
+    /// you get in" rule asks whether a spot was inside the range it was really seeing with — a
+    /// player it holds in sight at twelve metres was SEEN climbing into that locker.
+    ///
+    /// Not for the possibility map: its "not here" stays on SO_NemesisData.SearchMapClearRange, off
+    /// the base range, on purpose (a map that clears too far wins by elimination).
+    /// </summary>
+    public float EffectiveViewRange =>
+        nemesisData != null ? AdaptiveViewRange.Range(nemesisData.ViewRange, rangeAdaptation.Scale) : 0f;
+
+    /// <summary>The multiplier on ViewRange for the current sweep: 1 at the base, up to the hold or
+    /// the hunt scale. See <see cref="AdaptiveViewRange"/>.</summary>
+    public float ViewRangeScale => rangeAdaptation.Scale;
+
+    /// <summary>Why the range is what it is: base, holding a player it sees, hunting one it lost, or
+    /// settling back. For the debug HUD and the gizmos.</summary>
+    public AdaptiveViewRange.EReason ViewRangeReason => rangeAdaptation.Reason;
 
     private float awareness;
 
@@ -324,6 +363,11 @@ public class FieldOfView : MonoBehaviour
         peripheralTarget = null;
         peripheralSpot = null;
         rearContact = false;
+
+        // And one level further: the longer reach of a hold or a hunt was earned by having seen the
+        // player, and that sighting is exactly what is being thrown away. It would settle back on its
+        // own within a couple of seconds; after a respawn it starts from the base, like the rest.
+        rangeAdaptation.Reset();
     }
 
     /// <summary>
@@ -341,6 +385,12 @@ public class FieldOfView : MonoBehaviour
         // Same guard as NemesisStateManager: this Update is its own, so without it the
         // Nemesis kept seeing (and reacting) with the game paused.
         if (PauseManager.Exists && PauseManager.Instance.IsPaused) return;
+
+        // The range the sweep below will use, off what the LAST one left: "is it seeing them" has to
+        // be the answer the range was earned with, not the one this frame is about to produce. Every
+        // frame and not once per sweep, for the reason TickAwareness gives: growing over seconds is a
+        // rate, and a rate integrated on the sweep's cadence depends on how the timer lines up.
+        TickViewRange(Time.deltaTime);
 
         // Extreme proximity is checked every frame and before everything else, deliberately:
         // it does not wait for the viewDelay cadence and it is the only thing that defeats
@@ -360,6 +410,52 @@ public class FieldOfView : MonoBehaviour
         // on a 0.1 s cadence would make the whole feature depend on how the timer happened to line
         // up with the frames.
         TickAwareness(Time.deltaTime);
+    }
+
+    /// <summary>
+    /// Steps how far the eyes reach (<see cref="AdaptiveViewRange"/>): held further out while it sees
+    /// the player, growing while it hunts one it lost, the base range the rest of the time.
+    ///
+    /// WHAT COUNTS AS HUNTING is read off the state, and a state is not enough on its own: the
+    /// rule also wants a sighting behind the hunt, which it keeps track of itself. So Searching that
+    /// grew out of a footstep (plan D26) and a lift ride towards a noise are hunting STATES with
+    /// nothing earned, and they run on the base range. Investigating is deliberately not on the list
+    /// at all: walking to a noise or a glimpse is "something is there", not "I am after him", and
+    /// sneaking past a Nemesis that only heard you has to stay as hard as it was. Traversing is: the
+    /// lift is how a chase follows someone it saw go up a floor.
+    ///
+    /// AT REST — back on patrol, or dormant — is when what a sighting earned is dropped. Not on any
+    /// state in between: a decoy that takes its attention for a moment in the middle of a search does
+    /// not make it forget it was hunting someone it had seen.
+    /// </summary>
+    private void TickViewRange(float deltaTime)
+    {
+        if (nemesisData == null) return;
+
+        // NOT DURING THE ESCAPE, and reset rather than left to settle. NemesisEscapePursuit raises the
+        // chase floor and feeds this sensor the player's position by hand (InjectSighting) while it
+        // paces the Nemesis against their sprint. Seeing them from twice as far would switch the
+        // pursuit from running at that position to leading it, in a sequence that was tuned without
+        // any of this. Same call NemesisChaseProgress makes, and for the same reason: the escape
+        // chase stays byte for byte what it was.
+        NemesisDecision decision = owner != null ? owner.Decision : null;
+        if (decision != null && decision.ChaseFloor)
+        {
+            rangeAdaptation.Reset();
+            return;
+        }
+
+        NemesisStateManager.ENemesisState? state = owner != null ? owner.CurrentStateKey : null;
+
+        bool hunting = state == NemesisStateManager.ENemesisState.Chasing ||
+                       state == NemesisStateManager.ENemesisState.Searching ||
+                       state == NemesisStateManager.ENemesisState.Traversing;
+
+        bool atRest = !state.HasValue || state == NemesisStateManager.ENemesisState.Patrolling;
+
+        rangeAdaptation.Step(deltaTime, hasVisualTarget, hunting, atRest,
+                             nemesisData.ViewHoldScale, nemesisData.ViewHuntScale,
+                             nemesisData.ViewHuntGrowTime, nemesisData.ViewHuntSettleTime);
     }
 
     /// <summary>
@@ -623,11 +719,17 @@ public class FieldOfView : MonoBehaviour
 
         peripheralSpot = null;
 
-        float viewRange = nemesisData.ViewRange;
+        // The range as it stands right now (TickViewRange stepped it this frame, before this sweep):
+        // ViewRange for a Nemesis that has not seen anyone, further for one that is holding the
+        // player in sight or hunting one it lost. Everything below — the overlap sphere, both zones,
+        // how close a glimpse counts as — measures against this one number, as it did against
+        // ViewRange.
+        float viewRange = EffectiveViewRange;
         float viewAngle = nemesisData.ViewAngle;
 
         // Crouching shortens the range it can be spotted at rather than breaking line of sight:
-        // a lower silhouette is harder to pick out, not invisible.
+        // a lower silhouette is harder to pick out, not invisible. It halves whatever the range is,
+        // held and hunting included: a crouch is worth the same fraction against an alert Nemesis.
         if (player != null && player.IsCrouch) viewRange *= nemesisData.CrouchVisionMultiplier;
 
         Vector3 eye = viewTransform.position;
@@ -646,11 +748,17 @@ public class FieldOfView : MonoBehaviour
         {
             Collider candidate = targetsInViewRadius[i];
 
-            // The OUTER cone, sampled at feet/centre/head. One call where this used to be a
-            // hand-rolled double loop; see LineOfSight.CheckConeSampled for why the three samples
-            // and the together-per-sample angle+occlusion test both matter.
-            if (!LineOfSight.CheckConeSampled(eye, front, candidate, viewAngle, minDistance,
-                                              obstacleMask, out Vector3 seenPoint))
+            // Both cones, sampled at feet/centre/head. One call where this used to be a hand-rolled
+            // double loop; see LineOfSight.CheckConeSampled for why the three samples and the
+            // together-per-sample angle+occlusion test both matter.
+            //
+            // The focus cone is asked of EVERY sample, inside that call. It used to be asked here,
+            // of the one sample that got through first — the feet, which from an eye two metres up
+            // are outside the focus cone for anyone closer than 2.3 m, however squarely their head
+            // is in the middle of it. minDistance still overrides the angle: something touching the
+            // Nemesis is not "in the corner of its eye" no matter which way it happens to be facing.
+            if (!LineOfSight.CheckConeSampled(eye, front, candidate, viewAngle, focusAngle, minDistance,
+                                              obstacleMask, out Vector3 seenPoint, out bool inFocus))
             {
                 continue;
             }
@@ -658,12 +766,7 @@ public class FieldOfView : MonoBehaviour
             GameObject target = candidate.gameObject;
             float distance = Vector3.Distance(eye, seenPoint);
 
-            // Inside the focus cone this is a sighting, exactly as it always was. minDistance
-            // still overrides the angle: something touching the Nemesis is not "in the corner of
-            // its eye" no matter which way it happens to be facing.
-            bool inFocus = distance <= minDistance ||
-                           LineOfSight.CheckAngle(eye, seenPoint, front, focusAngle);
-
+            // Inside the focus cone this is a sighting, exactly as it always was.
             if (inFocus)
             {
                 if (!visibleTargets.Contains(target))

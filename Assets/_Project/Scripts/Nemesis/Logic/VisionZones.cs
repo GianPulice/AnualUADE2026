@@ -14,6 +14,11 @@ using UnityEngine;
 /// Hard proximity (ProximityDetectionRange, "it is standing on me") sits under all three and is not a
 /// zone: it ignores the angle entirely.
 ///
+/// "Out to ViewRange" means the range the eyes are working at (<see cref="AdaptiveViewRange"/>): the
+/// base one for a Nemesis that has not seen the player, further while it holds them in sight or
+/// hunts them. The zones do not care which — they measure against the range they are handed. The
+/// rear zone has its own range and never grows with it.
+///
 /// PURE: angles and distances in, a zone or a rate out. FieldOfView, the SO inspector's tester and the
 /// gizmos all go through here, so the three cannot disagree about where a zone ends or how fast it
 /// notices — the tester used to carry its own copy of the rate, with a comment begging it to stay in

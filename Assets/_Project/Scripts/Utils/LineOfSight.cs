@@ -137,20 +137,40 @@ public static class LineOfSight
     /// The angle and the occlusion are tested TOGETHER, per sample, and that is also load-bearing:
     /// testing them separately would let a head that is inside the cone pass the angle while a
     /// foot that is outside it passes the raycast, and report a target nothing actually saw.
+    ///
+    /// TWO NESTED CONES, AND THE INNER ONE IS ASKED OF EVERY SAMPLE (04/10). The sensor has a focus
+    /// cone inside its vision cone, and which of the two the target is in used to be decided
+    /// afterwards, off whichever sample got through FIRST — the feet. The angle is measured in 3D
+    /// from an eye two metres up, so the feet of someone standing two metres dead ahead are 44
+    /// degrees below the gaze: outside an 80 degree focus cone, with their head squarely in the
+    /// middle of it. They read as "something in the corner of its eye" and the focus cone, drawn as
+    /// a flat wedge by every gizmo, was in practice a wedge that got narrower the closer you stood
+    /// and vanished under 2.3 m. The rule for the inner cone is now the rule for the outer one: any
+    /// sample that is inside it and unoccluded counts.
     /// </summary>
     /// <param name="front">Where the eye is looking. Not necessarily the body's forward.</param>
-    /// <param name="minDistance">Inside this distance the cone is ignored - "it is right next to
+    /// <param name="angle">Total width of the outer cone, in degrees: what the target has to be
+    /// inside to be seen at all.</param>
+    /// <param name="innerAngle">Total width of the inner cone, in degrees. At or above
+    /// <paramref name="angle"/> there is no band between the two and every sample that is seen is
+    /// inside it.</param>
+    /// <param name="minDistance">Inside this distance both cones are ignored - "it is right next to
     /// me" - but the occlusion raycast still applies.</param>
     /// <param name="seenPoint">The sample that got through, for a caller that needs to know WHERE
-    /// on the target it saw. Only meaningful when this returns true.</param>
+    /// on the target it saw: the one inside the inner cone when there is one, otherwise the first
+    /// seen through the outer one. Only meaningful when this returns true.</param>
+    /// <param name="insideInner">Whether any sample was seen through the inner cone (or inside
+    /// <paramref name="minDistance"/>).</param>
     public static bool CheckConeSampled(Vector3 origin, Vector3 front, Collider target, float angle,
-                                        float minDistance, LayerMask obstacleMask,
-                                        out Vector3 seenPoint)
+                                        float innerAngle, float minDistance, LayerMask obstacleMask,
+                                        out Vector3 seenPoint, out bool insideInner)
     {
         seenPoint = Vector3.zero;
+        insideInner = false;
         if (target == null) return false;
 
         Bounds bounds = target.bounds;
+        bool seen = false;
 
         // -1, 0, +1 times 90% of the half-height: feet, centre, head, pulled slightly inside the
         // bounds so the outer two do not graze the surface they sit on.
@@ -163,20 +183,34 @@ public static class LineOfSight
             if (distance <= 0.0001f)
             {
                 seenPoint = point;
+                insideInner = true;
                 return true;
             }
 
-            bool withinCone = Vector3.Angle(front, toPoint) <= angle * 0.5f || distance <= minDistance;
-            if (!withinCone) continue;
+            float offAxis = Vector3.Angle(front, toPoint);
+            bool rightNextToIt = distance <= minDistance;
+            if (!rightNextToIt && offAxis > angle * 0.5f) continue;
 
             // Triggers ignored, same as CheckView and for the same reason.
             if (Physics.Raycast(origin, toPoint / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore)) continue;
 
+            // Seen through the inner cone: nothing a later sample could add.
+            if (rightNextToIt || offAxis <= innerAngle * 0.5f)
+            {
+                seenPoint = point;
+                insideInner = true;
+                return true;
+            }
+
+            // Seen through the outer band only. The first such sample stands for the target (as it
+            // always did), and the rest still get their chance at the inner cone.
+            if (seen) continue;
+
+            seen = true;
             seenPoint = point;
-            return true;
         }
 
-        return false;
+        return seen;
     }
 
     /// <summary>

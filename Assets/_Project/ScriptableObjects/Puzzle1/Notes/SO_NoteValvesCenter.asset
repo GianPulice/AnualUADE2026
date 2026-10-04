@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SO_NoteValvesCenter
   m_EditorClassIdentifier: Assembly-CSharp::SO_InventoryItem
   itemID: nota_valvulas
-  itemName: Engineer Note
+  itemName: Plumber's Note
   category: 2
   itemDescription: It's a small Post-it Note for a friend.
   itemIcon: {fileID: 21300000, guid: fd3d39e275654504a9db99d936816b3d, type: 3}

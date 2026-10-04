@@ -70,6 +70,22 @@ public sealed class NemesisPursuit
     /// lead longer than the gap is always wrong), not a difficulty knob.</summary>
     private const float CloseRangeNoLead = 3f;
 
+    /// <summary>How much longer than the straight line the direct route may be and still count as a
+    /// straight run at the player (NemesisNav.NavRoute.DetourFactor). A little over 1: the path
+    /// hugs corners and the two ends are snapped to the mesh, so a clear corridor never measures
+    /// exactly 1. See Replan.</summary>
+    private const float StraightRunFactor = 1.1f;
+
+    /// <summary>Metres of path a detour has to GAIN on the player it can see: from the waypoint, the
+    /// run to them has to be at least this much shorter than it is from here. See TryPickWaypoint.
+    /// Not on the SO, like the two above: "a detour that does not get it any closer is not a
+    /// detour" is what the word means, not a difficulty knob.</summary>
+    private const float DetourMinGain = 1f;
+
+    /// <summary>Slack on top of the pursuit's stopping distance for "it is standing at that
+    /// waypoint". Covers the agent settling a little short or a little past.</summary>
+    private const float DetourArrivalSlack = 0.4f;
+
     /// <summary>How old a sighting may be and still be "where it lost them". The same 10 s the
     /// ladder gives the walk back there (SO_NemesisPriorities, "va a donde lo vio por última vez").
     /// </summary>
@@ -158,8 +174,36 @@ public sealed class NemesisPursuit
 
         TickRoute(belief);
 
+        // A DETOUR IS OVER THE MOMENT IT GETS THERE WITH THE PLAYER IN VIEW. The waypoint was a
+        // place to come round by, not a place to be: standing on it until the next replan, looking
+        // straight at the player while they walk off, is the failure in the traces of 03/10 (halted
+        // at its destination, path complete, the player visible seven metres away). From here it
+        // runs at them, and the next replan — which may not hand this waypoint back, see
+        // TryPickWaypoint — decides whether there is another way round worth taking.
+        if (hasRoutePoint && stateManager.HasVisualTarget && IsStandingAt(routePoint)) hasRoutePoint = false;
+
         destination = hasRoutePoint ? routePoint : predictedPoint;
         return true;
+    }
+
+    /// <summary>How close to a detour waypoint counts as standing at it: where the agent stops while
+    /// chasing, plus a little.</summary>
+    private float DetourArrivalRadius => stateManager.PursuitStoppingDistance + DetourArrivalSlack;
+
+    /// <summary>Whether the Nemesis is standing at a point: within the arrival radius along the
+    /// floor, on the same storey. A flat test and not a path query: this is asked every frame.
+    /// </summary>
+    private bool IsStandingAt(Vector3 point)
+    {
+        Vector3 offset = point - stateManager.transform.position;
+
+        SO_NemesisData data = Data;
+        float floorBand = data != null ? data.FloorHeightThreshold : 2.5f;
+        if (Mathf.Abs(offset.y) > floorBand) return false;
+
+        offset.y = 0f;
+        float radius = DetourArrivalRadius;
+        return offset.sqrMagnitude <= radius * radius;
     }
 
     /// <summary>
@@ -323,6 +367,21 @@ public sealed class NemesisPursuit
     /// would leave the counterplay below as dead code in the one situation it exists for — a low
     /// table never breaks line of sight at all. Every candidate still has to SEE the predicted
     /// point, so this cannot send the Nemesis off to stand somewhere it has lost the player.
+    ///
+    /// ...BUT A STALL IS NOT ALWAYS A LOOP, AND A STRAIGHT RUN HAS NOTHING TO GO ROUND (traces of
+    /// 03/10). "Not closing the distance" is also what an open corridor looks like against a player
+    /// who simply runs as fast as the Nemesis does: the gap sat at six or seven metres for ten
+    /// seconds, the window called it a stall, and the counterplay sent the monster to a waypoint —
+    /// where it stood, path complete, with the player in plain view walking away. That is the "en
+    /// las líneas rectas también me pierde" of the playtest as much as the view range was. So, with
+    /// the player in view:
+    ///   - when the direct route IS a straight run (its length is the straight line's, give or take
+    ///     the corners it hugs) there is no other side to come round, and it goes at them;
+    ///   - a detour has to end closer to them than it starts, and standing on a waypoint is never
+    ///     one (TryPickWaypoint);
+    ///   - and one it has reached is over (TryGetDestination).
+    /// None of it touches the loop: with a table in between, the direct route bends round it, and
+    /// the far side is nearer the player than the tail of the chase is.
     /// </summary>
     private void Replan(Vector3 belief)
     {
@@ -330,8 +389,9 @@ public sealed class NemesisPursuit
         PenalizedLastReplan = 0;
 
         bool stagnant = stateManager.IsChaseStagnant;
+        bool seesPlayer = stateManager.HasVisualTarget;
 
-        if (stateManager.HasVisualTarget && !stagnant) return;
+        if (seesPlayer && !stagnant) return;
 
         Vector3 origin = stateManager.transform.position;
 
@@ -353,9 +413,19 @@ public sealed class NemesisPursuit
                                                   out NemesisNav.NavRoute route) &&
                            route.IsComplete;
 
+        // Stalled, in view, and nothing in between to come round: run at them. Read off the same
+        // query, so it costs nothing.
+        if (seesPlayer && directWorks && route.DetourFactor <= StraightRunFactor) return;
+
         float directTime = DirectTime(directWorks, route);
 
-        if (TryPickWaypoint(origin, belief, directWorks, directTime, stagnant, out Vector3 point))
+        // What a detour has to beat while it sees the player: the run from here. Infinity switches
+        // the test off — out of sight (the flank is chosen for its view, not its distance), or with
+        // no complete route to measure against (anything reachable beats the wall).
+        float runFromHere = seesPlayer && directWorks ? route.PathDistance : float.PositiveInfinity;
+
+        if (TryPickWaypoint(origin, belief, directWorks, directTime, stagnant, seesPlayer, runFromHere,
+                            out Vector3 point))
         {
             hasRoutePoint = true;
             routePoint = point;
@@ -418,9 +488,23 @@ public sealed class NemesisPursuit
     ///
     /// Never faster: the speed gap is the design, and a monster that accelerates when you outwit it
     /// reads as the game cheating, not as the monster being clever.
+    ///
+    /// AND WITH THE PLAYER IN VIEW, A DETOUR HAS TO BE ONE (traces of 03/10; see Replan). Two tests
+    /// that only apply while it sees them — which means the stalled chase, the only case this runs
+    /// in with a sighting. The waypoint it is already standing on is out: its arrival time is
+    /// zero, so it won the "sooner" factor every roll, and the Nemesis parked on it watching the
+    /// player leave. And the run from the waypoint to the player has to be shorter than the run from
+    /// here by a real margin: the time budget above only bounds the walk TO the waypoint, so one
+    /// behind the Nemesis in an open corridor fitted it comfortably, and going there is walking
+    /// away from someone it is looking at. Out of sight neither applies — there the flank is picked
+    /// for its view of where the player is believed to be, as it always was.
     /// </summary>
+    /// <param name="seesPlayer">The Nemesis has the player in view (so this is the stalled chase).
+    /// </param>
+    /// <param name="runFromHere">Path metres from the Nemesis to the predicted point, which a detour
+    /// has to beat while it sees the player. Infinity: not asked.</param>
     private bool TryPickWaypoint(Vector3 origin, Vector3 belief, bool directWorks, float directTime,
-                                 bool stagnant, out Vector3 point)
+                                 bool stagnant, bool seesPlayer, float runFromHere, out Vector3 point)
     {
         point = Vector3.zero;
 
@@ -473,6 +557,11 @@ public sealed class NemesisPursuit
         // so the tolerance stops filtering and any reachable candidate qualifies.
         float budget = directWorks ? directTime * tolerance : float.PositiveInfinity;
 
+        // Read once per replan, like the trail numbers above. Only consulted while it sees the
+        // player.
+        float arrivalRadius = DetourArrivalRadius;
+        bool mustGain = seesPlayer && !float.IsPositiveInfinity(runFromHere);
+
         weightBuffer.Clear();
         int kept = 0;
 
@@ -480,7 +569,8 @@ public sealed class NemesisPursuit
         {
             Vector3 candidate = graph.GetNode(sampledBuffer[i]).Position;
 
-            float ownTime = NemesisNav.PathDistanceOrInfinity(origin, candidate) / speed;
+            float ownDistance = NemesisNav.PathDistanceOrInfinity(origin, candidate);
+            float ownTime = ownDistance / speed;
 
             // Unreachable, or a longer walk than the detour is worth.
             if (float.IsPositiveInfinity(ownTime) || ownTime > budget)
@@ -489,12 +579,29 @@ public sealed class NemesisPursuit
                 continue;
             }
 
-            bool sees = CanSeeFrom(candidate, predictedPoint);
+            // Already standing on it, with the player in view: that is not a detour, it is stopping.
+            if (seesPlayer && ownDistance <= arrivalRadius)
+            {
+                weightBuffer.Add(0f);
+                continue;
+            }
+
+            bool hasView = CanSeeFrom(candidate, predictedPoint);
 
             // The whole point of the detour. Without a clear view of where it thinks you are, a
             // waypoint is just a place - and going to a place instead of after the player is
             // strictly worse than going direct.
-            if (!sees)
+            if (!hasView)
+            {
+                weightBuffer.Add(0f);
+                continue;
+            }
+
+            // With the player in view the detour has to end nearer to them than it starts. Asked
+            // last, after the free and the cheap tests, because it is one more path query — and only
+            // of the candidates that got this far, on a replan that is already throttled.
+            if (mustGain &&
+                NemesisNav.PathDistanceOrInfinity(candidate, predictedPoint) > runFromHere - DetourMinGain)
             {
                 weightBuffer.Add(0f);
                 continue;

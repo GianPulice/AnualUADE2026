@@ -94,7 +94,7 @@ Cada uno de estos controllers:
    no deben tener un `Update()` con `GetKeyDown(KeyCode.Escape)`.
 
 Ejemplos en el código:
-- `DocumentReaderController.Instance.Open(inventoryItem)` — invocado desde `PickupInteractable` al levantar una nota (modo lectura: congela el juego).
+- `DocumentReaderController.Instance.Open(inventoryItem)` — invocado desde `PickupInteractable` al levantar una nota (modo lectura: congela el juego y detiene el timer del módulo con su propio `ModuleManager.PauseTicking`, porque ese timer corre sin escalar y `timeScale = 0` no lo frena).
 - `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable` (lectura in situ: el mundo sigue corriendo).
 - `SequencePanelUIController.Instance.Open(panel)` — invocado desde `SequencePanelInteractable`.
 - `SettingsController.Instance.OpenScreen()` — invocado desde `PauseManagerUI.HandleSettings()` y `MainMenuController.HandleSettings()`.

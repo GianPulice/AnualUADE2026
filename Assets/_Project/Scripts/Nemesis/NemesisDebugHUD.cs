@@ -85,6 +85,10 @@ public class NemesisDebugHUD : MonoBehaviour
 
     private NemesisStateManager stateManager;
     private NemesisChaseProgress chaseProgress;
+
+    /// <summary>Who steers the gaze. Added by NemesisStateManager like the chase progress, so it is
+    /// resolved lazily where it is read (DescribeGaze) for the same reason.</summary>
+    private NemesisLookAround lookAround;
     private readonly List<Sample> history = new List<Sample>();
 
     private NemesisStateManager.ENemesisState? lastState;
@@ -198,7 +202,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         const float lineHeight = 17f;
         const float stripHeight = 22f;
-        float height = lineHeight * 26f + stripHeight + 32f;
+        float height = lineHeight * 27f + stripHeight + 32f;
 
         Rect panel = new Rect(origin.x, origin.y, width, height);
         GUI.Box(panel, GUIContent.none, panelStyle);
@@ -213,6 +217,7 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "estado", DescribeState());
         Row(ref line, "regla", DescribeRung());
         Row(ref line, "sospecha", DescribeAwareness());
+        Row(ref line, "  vista", DescribeViewRange());
         Row(ref line, "escondite", DescribeHidingSpot());
         Row(ref line, "creencia", DescribeBelief());
         Row(ref line, "  oído", DescribeHearing());
@@ -336,6 +341,81 @@ public class NemesisDebugHUD : MonoBehaviour
                     : "";
 
         return $"[{bar}] {awareness:0.00} / {threshold:0.00}{zone}{state}";
+    }
+
+    /// <summary>
+    /// How far its eyes reach right now against the range it NOTICES at, why, and where they are
+    /// pointed when that is not where the body faces (AdaptiveViewRange, NemesisLookAround).
+    ///
+    /// "base → efectivo" because the range stopped being one number on 04/10: a player it already
+    /// sees stays seen further out ("sostiene"), and one it lost can be seen again from further the
+    /// longer the hunt goes on ("caza ×1,6" on its way up). Without this row a sighting from twelve
+    /// metres reads as the sensor cheating, and View Hold Scale / View Hunt Scale are numbers
+    /// nobody can tune — "it saw me from too far" and "it lost me too soon" have opposite fixes, and
+    /// only the reason on this row tells which regime did it. Crouching halves whatever it says.
+    ///
+    /// The gaze is on the same row because the two answer one question together: could it see me
+    /// from there. In a chase the cone follows the player ("en vos") and, once lost, the way they
+    /// went; the degrees are how far off the body's forward it is turned.
+    /// </summary>
+    private string DescribeViewRange()
+    {
+        FieldOfView eyes = stateManager.FieldOfView;
+        SO_NemesisData data = stateManager.NemesisData;
+        if (eyes == null || data == null) return "—";
+
+        float baseRange = data.ViewRange;
+        float effective = eyes.EffectiveViewRange;
+        float scale = eyes.ViewRangeScale;
+
+        string range;
+        switch (eyes.ViewRangeReason)
+        {
+            case AdaptiveViewRange.EReason.Hold:
+                range = $"{baseRange:0.#} → <b>{effective:0.#} m</b>  ·  sostiene ×{scale:0.0#} (lo ve)";
+                break;
+
+            case AdaptiveViewRange.EReason.Hunt:
+                range = $"{baseRange:0.#} → <b>{effective:0.#} m</b>  ·  caza ×{scale:0.0#} " +
+                        $"(hasta ×{Mathf.Max(1f, data.ViewHuntScale):0.0#})";
+                break;
+
+            case AdaptiveViewRange.EReason.Settling:
+                range = $"{baseRange:0.#} → {effective:0.#} m  ·  vuelve a la base ×{scale:0.0#}";
+                break;
+
+            default:
+                range = $"{baseRange:0.#} m  ·  base";
+                break;
+        }
+
+        return range + DescribeGaze();
+    }
+
+    /// <summary>Where the eyes are pointed, when something is steering them. Empty while they simply
+    /// look where the body faces.</summary>
+    private string DescribeGaze()
+    {
+        if (lookAround == null) lookAround = GetComponent<NemesisLookAround>();
+        if (lookAround == null) return "";
+
+        switch (lookAround.Gaze)
+        {
+            case NemesisLookAround.EGaze.Scan:
+                return "  ·  mira: barre";
+
+            case NemesisLookAround.EGaze.OnPlayer:
+                return $"  ·  mira: en vos ({lookAround.DegreesOffBody:0}°)";
+
+            case NemesisLookAround.EGaze.LostTrail:
+                return $"  ·  mira: <b>por donde te fuiste</b> ({lookAround.DegreesOffBody:0}°)";
+
+            case NemesisLookAround.EGaze.Returning:
+                return $"  ·  mira: vuelve al frente ({lookAround.DegreesOffBody:0}°)";
+
+            default:
+                return "";
+        }
     }
 
     /// <summary>
@@ -521,8 +601,14 @@ public class NemesisDebugHUD : MonoBehaviour
     /// against. "Estancado" with 0 penalised means the counterplay had nothing to choose between —
     /// no waypoints near the obstacle — and no tuning will fix that; waypoints will.
     ///
-    /// The ChaseStalled count stays on the row after the chase ends. The one the habit thresholds
-    /// read is PlayerHabitTracker's (the "hábitos" row), which also survives the level.
+    /// The ChaseStalled count stays on the row after the chase ends. It is one per CHASE, not per
+    /// window (a chase that stalls for a minute reports "N ventanas" and still adds 1): the ledger
+    /// is told once, on the first stalled window. The one the habit thresholds read is
+    /// PlayerHabitTracker's (the "hábitos" row), which also survives the level.
+    ///
+    /// A window that is not ageing says so ("pausada") and why, instead of showing a timer that sits
+    /// at the same number: the pause is by design (see NemesisChaseProgress), the unexplained
+    /// freeze was the bug.
     /// </summary>
     private string DescribeChaseProgress()
     {
@@ -532,7 +618,14 @@ public class NemesisDebugHUD : MonoBehaviour
         if (chaseProgress == null) return "—";
 
         int stalls = chaseProgress.ChaseStalledCount;
-        string count = stalls > 0 ? $"  ·  {stalls} ChaseStalled" : "";
+        string count = stalls > 0 ? $"  ·  {stalls} ChaseStalled (1 por persecución)" : "";
+
+        // A NavMesh jump is a sample the detector refused to judge: worth seeing, because it is
+        // the difference between "se alejó 20 m" and "cambió el camino".
+        int jumps = chaseProgress.PathJumpsIgnored;
+        if (jumps > 0) count += $"  ·  {jumps} salto{(jumps == 1 ? "" : "s")} de NavMesh ignorado{(jumps == 1 ? "" : "s")}";
+
+        string pause = DescribeChasePause(chaseProgress.PauseReason);
 
         if (!chaseProgress.IsMeasuring)
         {
@@ -544,10 +637,11 @@ public class NemesisDebugHUD : MonoBehaviour
             NemesisDecision decision = stateManager.Decision;
             if (decision != null && decision.ChaseFloor) return "no mide durante el escape" + count;
 
-            return "sin medir (sin vista reciente, sin camino o frenado)" + count;
+            return (pause.Length > 0 ? $"sin medir ({pause})" : "sin medir (esperando la primera medición)") + count;
         }
 
         float progress = chaseProgress.WindowProgress;
+        string paused = pause.Length > 0 ? $"  ·  <b>{pause}</b>" : "";
 
         if (chaseProgress.IsChaseStagnant)
         {
@@ -555,15 +649,36 @@ public class NemesisDebugHUD : MonoBehaviour
             NemesisPursuit pursuit = chasingState != null ? chasingState.Pursuit : null;
             int penalized = pursuit != null ? pursuit.PenalizedLastReplan : 0;
 
-            return $"<b>ESTANCADO</b>  {progress:+0.0;-0.0;0.0} m  ·  rastro: " +
-                   $"{penalized} waypoints penalizados{count}";
+            int windows = chaseProgress.StalledWindows;
+            string counted = chaseProgress.IsStallCounted ? ", cuenta 1" : "";
+
+            return $"<b>ESTANCADO</b>  {progress:+0.0;-0.0;0.0} m  ·  {windows} " +
+                   $"ventana{(windows == 1 ? "" : "s")} sin progreso{counted}  ·  rastro: " +
+                   $"{penalized} waypoints penalizados{paused}{count}";
         }
 
         SO_NemesisData data = stateManager.NemesisData;
         float needed = data != null ? data.ChaseMinProgress : 0f;
 
         return $"acortó {progress:+0.0;-0.0;0.0} / {needed:0.0} m  ·  " +
-               $"quedan {chaseProgress.WindowRemaining:0.0} s{count}";
+               $"quedan {chaseProgress.WindowRemaining:0.0} s{paused}{count}";
+    }
+
+    /// <summary>Why the stall window is not ageing, in the designer's words; empty when it is.
+    /// </summary>
+    private static string DescribeChasePause(NemesisChaseProgress.EPauseReason reason)
+    {
+        switch (reason)
+        {
+            case NemesisChaseProgress.EPauseReason.SightLost:
+                return "pausada: sin vista reciente";
+            case NemesisChaseProgress.EPauseReason.NoPath:
+                return "pausada: sin camino completo";
+            case NemesisChaseProgress.EPauseReason.BodyHeld:
+                return "pausada: cuerpo ocupado (puerta, vínculo, montacargas)";
+            default:
+                return "";
+        }
     }
 
     private string DescribeSearch()
@@ -577,13 +692,14 @@ public class NemesisDebugHUD : MonoBehaviour
         // How warm it still is first (plan §18.5 B): the silence since the player's last evidence
         // against the window it tolerates, and the time in the state against the cap. This is the
         // number that says when it will give up; "se enfrió" means the ladder is about to let go.
-        // Then what it is doing — looking around at a point it reached, or walking to the next —
-        // and the sweep behind it (§18.5 A). The sweep numbers are the ones to check against the
-        // "creencia" row above: the centre follows the belief, and the radius comes from the
-        // precision of its last evidence.
+        // Then what it is doing with the possibility map (Plan-Busqueda Fase 2b): where it is
+        // heading, how much of the value that place was picked for and how much it still holds
+        // ("ahora" falling under Search Map Repick Share of the first number is what makes it turn
+        // away before arriving), why it chose again, and "revisó todo" with which of its reasons.
+        // The "mapa" row below says what the roll looked like.
         //
-        // "al último punto": still walking to where the evidence came from, so the silence does not
-        // count yet (it counts from the arrival — playtest 27/09).
+        // "(primer lugar)": still walking to the first place its evidence sent it, so the silence
+        // does not count yet (it counts from the arrival — playtest 27/09).
         string cooling = !searching.IsWarm ? "<b>se enfrió</b>"
                        : searching.IsHeadingToEvidence ? $"tibia (sin contar)/{searching.QuietWindow:0.#} s"
                        : $"tibia {searching.Silence:0.0}/{searching.QuietWindow:0.#} s";
@@ -591,33 +707,109 @@ public class NemesisDebugHUD : MonoBehaviour
             ? $"tope {stateManager.TimeInCurrentState:0}/{searching.Cap:0} s" + (searching.IsEscalated ? " (corta, D26)" : "")
             : $"{stateManager.TimeInCurrentState:0} s, sin tope";
 
-        string doing;
-        if (searching.IsPausing) doing = "<b>mirando alrededor</b>";
-        else
-        {
-            float toTarget = Vector3.Distance(transform.position, searching.SearchTarget);
-            string where = searching.IsHeadingToEvidence ? " al último punto" : "";
-            doing = $"<b>yendo</b>{where} a {toTarget:0.0} m";
-        }
-
-        if (!searching.IsSweeping) return $"{cooling}  ·  {cap}  ·  {doing}";
-
-        NemesisFreeRoam roam = searching.FreeRoam;
-        float toAnchor = Vector3.Distance(transform.position, roam.Anchor);
-        string covered = searching.SearchedEverything ? "  ·  <b>revisó todo</b>"
-                       : roam.IsFullySwept ? "  ·  cubierto" : "";
-        string room = roam.Room != null ? $"  ·  {roam.Room}" : "";
-
-        return $"{cooling}  ·  {cap}  ·  {doing}  ·  barrido r {roam.Radius:0.#} m, centro a " +
-               $"{toAnchor:0.0} m, {roam.SweptPoints.Count} puntos{covered}{room}";
+        return $"{cooling}  ·  {cap}  ·  {DescribeSearchTarget(searching)}{DescribeSearchVerdict(searching)}";
     }
 
     /// <summary>
-    /// The possibility map (Plan-Busqueda-Nemesis Fase 2a): how much of it is on the Nemesis's floor,
+    /// Where the search is going and why (Plan-Busqueda-Nemesis Fase 2b). Four different things look
+    /// the same from watching it walk: a place the map chose, a hiding spot it is on its way to open,
+    /// the last-resort scatter of a search with no value on the map, and standing with nowhere worth
+    /// going. Only the first is the possibility map deciding, and that is the one with numbers.
+    /// </summary>
+    private string DescribeSearchTarget(NemesisSearchingState searching)
+    {
+        float toTarget = Vector3.Distance(transform.position, searching.SearchTarget);
+
+        if (searching.SpotTarget != null)
+        {
+            return searching.IsCheckingSpot
+                ? "<b>revisando un escondite</b>"
+                : $"<b>yendo</b> a un escondite, a {toTarget:0.0} m";
+        }
+
+        string doing = searching.IsPausing ? "<b>mirando alrededor</b>" : $"<b>yendo</b> a {toTarget:0.0} m";
+
+        switch (searching.Target)
+        {
+            case NemesisSearchingState.ETarget.Scatter:
+                return $"{doing}, al azar (el mapa no tiene valor)";
+
+            case NemesisSearchingState.ETarget.Standing:
+                return "<b>quieto, mirando</b>: ningún lugar vale la caminata";
+
+            default:
+                string first = !searching.IsPausing && searching.IsHeadingToEvidence ? " (primer lugar)" : "";
+
+                // The share under which it stops walking there and picks again: what it was picked
+                // with × Search Map Repick Share. Next to "ahora", it is the whole of that decision.
+                SO_NemesisData data = stateManager.NemesisData;
+                float dropsUnder = data != null ? searching.TargetShare * data.SearchMapRepickShare : 0f;
+
+                return $"{doing}{first}, lugar con {searching.TargetShare:P0} del valor " +
+                       $"(ahora {searching.TargetShareNow:P0}, lo deja bajo {dropsUnder:P0})" +
+                       DescribePick(searching.LastPick);
+        }
+    }
+
+    /// <summary>Why the search chose where it is going, in the designer's words. "Cambió" is the two
+    /// re-picks that are not an arrival: the ones to watch when it looks like it cannot make up its
+    /// mind (Search Map Repick Share).</summary>
+    private static string DescribePick(NemesisSearchingState.EPickReason reason)
+    {
+        switch (reason)
+        {
+            case NemesisSearchingState.EPickReason.Entered: return "  ·  eligió al entrar";
+            case NemesisSearchingState.EPickReason.Arrived: return "  ·  eligió al terminar de mirar";
+            case NemesisSearchingState.EPickReason.LostItsValue: return "  ·  <b>cambió</b>: el lugar al que iba quedó sin valor";
+            case NemesisSearchingState.EPickReason.NewEvidence: return "  ·  <b>cambió</b>: evidencia nueva en otro lado";
+            case NemesisSearchingState.EPickReason.SpotDone: return "  ·  eligió al dejar un escondite";
+            case NemesisSearchingState.EPickReason.AskedAgain: return "  ·  volvió a mirar el mapa";
+            default: return "";
+        }
+    }
+
+    /// <summary>
+    /// "Revisó todo", with which of its reasons (SearchCooling.NothingWorthTheWalk): the Hub took most
+    /// of the value, no place it can walk to holds any, the best place is under the worth threshold
+    /// (both numbers shown: that is the one to tune), or the map is empty because it has looked at
+    /// everything it believed. Past Search Min Time any of them ends the search.
+    /// </summary>
+    private static string DescribeSearchVerdict(NemesisSearchingState searching)
+    {
+        if (!searching.SearchedEverything) return "";
+
+        const string Verdict = "  ·  <b>revisó todo</b>: ";
+        NemesisSearchPicker picker = searching.Picker;
+
+        // The map is empty and it had a belief: every place it believed in, it has looked at.
+        if (!picker.HasValue) return Verdict + "miró todo lo que creía posible";
+
+        if (picker.SinkShare >= SearchCooling.SinkMajority)
+            return Verdict + $"se metió al Hub ({picker.SinkShare:P0})";
+
+        if (picker.BestWorth > 0f)
+            return Verdict + $"el mejor lugar vale {picker.BestWorth:0.000}, umbral {picker.WorthThreshold:0.000}";
+
+        // Nothing it could walk to was worth anything: either there is no value left on the floor
+        // (it is all inside hiding spots — see "escondites" on the row below), or what there is
+        // cannot be walked to, or it has thinned out into places too small to be worth asking about.
+        if (picker.Candidates.Count == 0) return Verdict + "no queda valor en el piso";
+
+        for (int i = 0; i < picker.Candidates.Count; i++)
+        {
+            if (float.IsPositiveInfinity(picker.Candidates[i].Seconds))
+                return Verdict + "no llega a pie a lo que queda";
+        }
+
+        return Verdict + $"el valor quedó repartido en lugares de menos de {picker.WorthThreshold:P1}";
+    }
+
+    /// <summary>
+    /// The possibility map (Plan-Busqueda-Nemesis Fase 2): how much of it is on the Nemesis's floor,
     /// where the likeliest place is and how much sits around it, how spread out it is (as the area it
     /// still has to search), what went into the Hub and into hiding spots, and how many nodes it
-    /// cleared by looking on the last tick. Nothing decides off it yet: this row and the gizmo are how
-    /// "does it reason where you went" gets judged before the search starts using it (2b).
+    /// cleared by looking on the last tick. While it searches (Fase 2b), also why the place it is
+    /// going to was chosen: see <see cref="DescribeLastRoll"/>.
     /// </summary>
     private string DescribePossibilityMap()
     {
@@ -641,7 +833,40 @@ public class NemesisDebugHUD : MonoBehaviour
         string spots = hidden > 0.005f ? $"  ·  escondites {hidden:P0}" : "";
 
         return $"en su piso {possibility.ShareOnOwnFloor:P0}  ·  mejor {best}  ·  repartido " +
-               $"{possibility.SpreadArea:0} m²{hub}{spots}  ·  limpió {possibility.ClearedLastTick}";
+               $"{possibility.SpreadArea:0} m²{hub}{spots}  ·  limpió {possibility.ClearedLastTick}" +
+               DescribeLastRoll();
+    }
+
+    /// <summary>
+    /// Why the search is going where it is going: what the last roll was made of. How many places it
+    /// weighed and how many were worth the walk, and for the one that came up, its share, the seconds
+    /// to walk there, its worth (share ÷ (1 + seconds)) and the chance the roll gave it. A chosen
+    /// place with a low chance is the roll doing its job — it does not always take the best — and not
+    /// a bug; "0 valían la caminata" is the search with nowhere to go.
+    /// </summary>
+    private string DescribeLastRoll()
+    {
+        if (stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return "";
+
+        NemesisSearchingState searching = stateManager.SearchingState;
+        if (searching == null) return "";
+
+        NemesisSearchPicker picker = searching.Picker;
+        int weighed = picker.Candidates.Count;
+        if (weighed == 0) return "";
+
+        int inRoll = 0;
+        for (int i = 0; i < weighed; i++)
+            if (picker.Candidates[i].InRoll) inRoll++;
+
+        if (picker.ChosenIndex < 0)
+            return $"  ·  tirada: {weighed} lugares, {inRoll} valían la caminata";
+
+        NemesisSearchPicker.Candidate chosen = picker.Candidates[picker.ChosenIndex];
+        float chance = picker.RollTotal > 0f ? chosen.Worth / picker.RollTotal : 0f;
+
+        return $"  ·  tirada: salió {chosen.Share:P0} a {chosen.Seconds:0.0} s (vale {chosen.Worth:0.000}, " +
+               $"{chance:P0} de salir) entre {inRoll} de {weighed} lugares";
     }
 
     private string DescribeCluster()
@@ -823,7 +1048,7 @@ public class NemesisDebugHUD : MonoBehaviour
 
         return $"esc {habits.GetExploitCount(EExploitKind.EscapedWhileHidden):0.#}  ·  " +
                $"repite {habits.GetExploitCount(EExploitKind.SameSpotReused):0.#}  ·  " +
-               $"estanca {habits.GetExploitCount(EExploitKind.ChaseStalled):0.#}  ·  " +
+               $"estanca {habits.GetExploitCount(EExploitKind.ChaseStalled):0.#} (1 por persecución)  ·  " +
                $"Hub {habits.GetExploitCount(EExploitKind.SafeZoneEscape):0.#}";
     }
 

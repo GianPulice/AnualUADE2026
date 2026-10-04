@@ -13,7 +13,12 @@ using UnityEngine.AI;
 ///   rung 2  the route there crosses a lift  → Traversing
 ///   rung 4  lost sight, grace still running → stay here
 ///
-/// What is left is the running.
+/// What is left is the running. Where its EYES point while it runs is not here either:
+/// <see cref="NemesisLookAround"/> keeps them on the player it sees and, once it has lost them, turns
+/// them the way it saw them go as it nears the lost spot (<see cref="ChaseGaze"/>) — so the chase
+/// hands the search a Nemesis that is already looking down the corridor the player left by, instead
+/// of at the wall its own path ended on. It reads this state's pursuit for where "the lost spot" is
+/// (<see cref="NemesisPursuit.TryGetRecentSighting"/>), so the eyes and the legs cannot disagree.
 /// </summary>
 public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 {

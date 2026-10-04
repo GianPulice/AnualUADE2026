@@ -31,7 +31,13 @@ public class SO_NemesisData : ScriptableObject
     // viewAngle 90, listenRange 10) so moving them here did not retune the enemy.
 
     [Header("Vision")]
-    [Tooltip("Radius of the vision OverlapSphere.")]
+    [Tooltip("Hasta qué distancia te NOTA, en metros: el rango de visión de un Nemesis que todavía " +
+             "no te vio (patrullando, o yendo a un ruido). Es el número sobre el que se balancea el " +
+             "sigilo.\n\n" +
+             "Desde el 04/10 no es el único rango: una vez que te vio te SOSTIENE más lejos (View " +
+             "Hold Scale) y, si te pierde y te caza, puede volver a verte desde más lejos (View Hunt " +
+             "Scale). Los dos se multiplican sobre este. Lo que distingue a través de un escondite, " +
+             "lo que siente atrás y el 'acá no está' del mapa de búsqueda siguen saliendo de este.")]
     [SerializeField] private float viewRange = 10f;
 
     [Tooltip("Full width of the vision cone in degrees. Halved when tested against the " +
@@ -80,7 +86,9 @@ public class SO_NemesisData : ScriptableObject
              "below, which only drives the HUD vignette and detects nothing. 0 disables it.")]
     [SerializeField] private float proximityDetectionRange = 3f;
 
-    [Tooltip("viewRange is multiplied by this while the player is crouching. " +
+    [Tooltip("The view range in force is multiplied by this while the player is crouching — the " +
+             "base one, and the longer ones too (View Hold Scale, View Hunt Scale): a crouch is worth " +
+             "the same fraction against a Nemesis that is holding you in sight or hunting you. " +
              "1 = crouching does not help at all, 0.5 = spotted at half the distance.")]
     [SerializeField, Range(0f, 1f)] private float crouchVisionMultiplier = 0.6f;
 
@@ -110,6 +118,64 @@ public class SO_NemesisData : ScriptableObject
              "Nunca pasa de Noise Only Suspicion Cap: sola no es un avistamiento. Al cruzar Awareness " +
              "Trigger Threshold se da vuelta a mirar ('vio algo de reojo').")]
     [SerializeField, Range(0f, 1f)] private float rearSenseStrength = 0.25f;
+
+    [Header("Vision — rango que se adapta y mirada en la persecución")]
+    //
+    // View Range es hasta dónde te NOTA. Verte no es alcanzarte: al que ya está viendo lo sigue viendo
+    // más lejos (sostener), y al que perdió mientras lo perseguía o lo buscaba lo puede volver a ver
+    // desde más lejos cuanto más tiempo lleva sin verlo (cazar). Patrullando sin haberte visto, o
+    // yendo a un ruido, vale View Range a secas: el sigilo no cambia. Agachado parte a la mitad el
+    // rango que esté valiendo. Lo que distingue a través de un escondite, lo que siente atrás, la
+    // detección dura y el "acá no está" del mapa de búsqueda se quedan en View Range.
+    // La regla está en AdaptiveViewRange y la de la mirada en ChaseGaze (WIRED.Nemesis.Logic).
+
+    [Tooltip("SOSTENER. Por cuánto se multiplica View Range mientras te ESTÁ VIENDO: una vez que te " +
+             "vio, para que deje de verte tenés que alejarte hasta View Range × esto (o salir del " +
+             "cono, o tapar la línea de vista). Con View Range 7 y esto en 2, te nota a 7 m y te " +
+             "sostiene hasta 14 m.\n\n" +
+             "Es lo que arregla 'en línea recta me pierde': corriendo a su misma velocidad quedabas " +
+             "justo en el borde de los 7 m, y cualquier barrido que fallaba cortaba la persecución. " +
+             "Verte no es alcanzarte: no lo hace más rápido, solo le cuesta más perderte.\n\n" +
+             "Romper la línea de vista sigue valiendo: apenas deja de verte el rango vuelve a View " +
+             "Range y lo tiene que recuperar cazando (View Hunt Scale). Se multiplica encima de lo " +
+             "que ya le suman la escalada y el Director. 1 lo apaga: como antes.")]
+    [SerializeField, Min(1f)] private float viewHoldScale = 2f;
+
+    [Tooltip("CAZAR. Hasta cuánto crece View Range cuando PERDIÓ a un jugador que venía viendo y " +
+             "todavía lo persigue o lo busca (Chasing sin vista, Searching, yendo al montacargas): " +
+             "'un rango mayor si no lo llega a ver'. Arranca en ×1 al perderte y llega a esto en View " +
+             "Hunt Grow Time. Es el rango con el que te puede VOLVER a ver; el cono y la línea de " +
+             "vista hacen falta igual.\n\n" +
+             "Se lo gana viéndote: una búsqueda que nació de un ruido, sin haberte visto, se queda en " +
+             "View Range, y yendo a investigar un ruido (Investigating) tampoco crece. Pasarle por al " +
+             "lado a un Nemesis que solo te oyó cuesta lo mismo que antes. 1 lo apaga.")]
+    [SerializeField, Min(1f)] private float viewHuntScale = 2f;
+
+    [Tooltip("Segundos cazándote sin verte que tarda el rango en crecer de View Range a View Range × " +
+             "View Hunt Scale. Es la ventana que te da romper la línea de vista: recién perdido te " +
+             "busca con el rango de siempre. 0: salta al máximo apenas te pierde.")]
+    [SerializeField, Min(0f)] private float viewHuntGrowTime = 2f;
+
+    [Tooltip("Segundos que tarda el rango en volver a View Range cuando la cacería termina (vuelve a " +
+             "patrullar, o se va a mirar otra cosa). Baja de a poco en vez de cortarse. 0: de golpe.")]
+    [SerializeField, Min(0f)] private float viewHuntSettleTime = 2f;
+
+    [Tooltip("ESQUINAS. Mientras te persigue, la MIRADA deja de estar pegada al cuerpo: si te ve, te " +
+             "sigue con los ojos; si te pierde, mira hacia donde te vio irte. Apunta a un punto a " +
+             "estos metros de donde te perdió, en el rumbo que te vio llevar (velocidad OBSERVADA, " +
+             "nunca tu posición real). De lejos eso es casi derecho; a medida que se acerca la mirada " +
+             "se mete en la esquina, y al llegar ya está mirando el pasillo por el que te fuiste en " +
+             "vez de la pared.\n\n" +
+             "Más alto: empieza a girar antes y deja de cubrir el frente antes. Si no te vio moverte " +
+             "(o ibas muy lento) no hay rumbo y mira al frente. 0 apaga las dos cosas: la mirada " +
+             "queda pegada al cuerpo durante toda la persecución, como antes.")]
+    [SerializeField, Min(0f)] private float lostSightLookAhead = 6f;
+
+    [Tooltip("Grados por segundo a los que gira la mirada en la persecución (hacia vos, hacia donde " +
+             "te fuiste, y de vuelta al frente del cuerpo al terminar). El barrido de las pausas " +
+             "tiene el suyo (Scan Speed). Muy bajo y llega a la esquina sin haber terminado de " +
+             "girar; muy alto y la mirada salta.")]
+    [SerializeField, Min(1f)] private float gazeTurnSpeed = 200f;
 
     [Header("Hearing")]
     [Tooltip("Hard ceiling on hearing, and the radius of the broadphase OverlapSphere. How loud " +
@@ -170,50 +236,48 @@ public class SO_NemesisData : ScriptableObject
              "the moment it starts climbing, means it never gets there at all.")]
     [SerializeField, Min(0f)] private float elevatorCommitTime = 12f;
 
-    [Tooltip("Radius, in metres, of the sweep the Searching state runs around where it STANDS when " +
-             "it has no belief to centre one on — entered straight from a capture, or with only a " +
-             "known hiding spot to go on (plan §18.5 A).\n\n" +
-             "Small values have it pacing on the spot; large ones scatter it so wide the sweep " +
-             "stops reading as a search at all. With a belief the sweep is sized off the evidence " +
-             "instead (Search Sweep Min Radius, Search Sweep Evidence Margin, Room Sweep Radius).")]
+    [Tooltip("Radio, en metros, del sorteo de último recurso de la búsqueda: cuando el mapa de " +
+             "búsqueda no tiene ningún valor (entró directo de una captura, o solo sabe de un " +
+             "escondite y no cree nada más), camina a puntos al azar a esta distancia de donde estaba " +
+             "al empezar a buscar.\n\n" +
+             "Chico, se queda dando pasitos en el lugar; grande, se dispersa tanto que deja de leerse " +
+             "como una búsqueda. Con valor en el mapa esto no se usa: decide el mapa (Mapa de " +
+             "búsqueda, más abajo).")]
     [SerializeField, Min(1f)] private float searchSweepRadius = 5f;
 
     [Header("Search - donde busca")]
     //
-    // Desde el 27/09 (plan §18, Fase 2B parte 2) la búsqueda barre puntos del NavMesh alrededor de la
-    // creencia, no waypoints: la ruleta de waypoints (donde te vio, donde cree que fuiste, donde no
-    // miró) y la intercepción se sacaron. Quedan la penalización de lo ya barrido y la pausa.
+    // ADÓNDE va lo decide el mapa de búsqueda (más abajo; Plan Búsqueda, Fase 2b): la búsqueda ya no
+    // barre un disco alrededor de la creencia, va adonde todavía hay valor. No guarda memoria de "ya
+    // barrí": lo que mira queda en cero en el mapa, y esa es toda la memoria. Acá queda la pausa de
+    // mirar en cada lugar al que llega.
 
-    [Tooltip("Cuanto se le recorta el peso a un punto que ya barrio EN ESTA busqueda. " +
-             "0 lo descarta del todo, 1 le da lo mismo.\n\n" +
-             "No es 0 a proposito: descartarlos del todo hace que una busqueda larga se quede sin " +
-             "candidatos. Con un resto de peso puede volver a pasar por un lugar, que es lo que " +
-             "hace de verdad alguien que busca. Cuando todo el disco ya esta barrido, el barrido " +
-             "se abre un paso en vez de repetir.")]
-    [SerializeField, Range(0f, 1f)] private float searchSweptPenalty = 0.15f;
-
-    [Tooltip("Segundos que el Nemesis se queda quieto en cada punto de busqueda antes de elegir " +
-             "el siguiente.\n\n" +
+    [Tooltip("Segundos que el Nemesis se queda quieto en cada lugar de la busqueda al que LLEGA, " +
+             "antes de elegir el siguiente.\n\n" +
              "Es lo que convierte la busqueda en algo LEGIBLE. Sin esta pausa encadena destinos " +
              "sin parar y desde afuera no se distingue de una patrulla rara: no hay forma de saber " +
              "que esta buscando, ni donde, ni si ya se fue de la zona. Con la pausa se planta, " +
              "mira alrededor (ver Scan Half Angle) y sigue - y desde un escondite se puede leer si " +
-             "te esta por encontrar o si ya paso de largo.\n\n" +
+             "te esta por encontrar o si ya paso de largo. Ademas, lo que barre con la mirada en esa " +
+             "pausa es lo que el mapa de busqueda da por vacio.\n\n" +
+             "Al ENTRAR a buscar no hace esta pausa: sale enseguida hacia donde pudiste ir. Si un " +
+             "lugar queda vacio antes de llegar (lo vio de lejos) tampoco: elige otro sin parar.\n\n" +
              "0 la desactiva y vuelve al encadenado de antes.")]
     [SerializeField, Min(0f)] private float searchPauseTime = 1.2f;
 
-    [Header("Search — sweep area (free roam)")]
+    [Header("Search — área de la búsqueda")]
     //
-    // The search sweeps an AREA on the NavMesh around the belief, with the waypoints inside it as
-    // just more candidates (NemesisFreeRoam). The area is clipped by the walls around its centre,
-    // and prefers the room the player was seen going into.
+    // The disc the search used to sweep is gone (Plan-Busqueda-Nemesis Fase 2b: the possibility map
+    // decides where it goes). What is left of "the area being searched" is this one radius, for the
+    // two things that still ask how far around a search something counts as inside it.
 
-    [Tooltip("The LARGEST the sweep around the belief may get, in metres.\n\n" +
-             "The sweep starts at the precision of the last evidence (a sighting: a tight disc; a " +
-             "footstep through a wall: a wider one) and opens a step at a time once it has covered " +
-             "what it has, up to this. Clipped by the walls around the centre — a point the centre " +
-             "cannot see across counts as another room. Roughly the size of your average interior; " +
-             "too large and the sweep leaks back out into the corridor it came from.")]
+    [Tooltip("Radio, en metros, de lo que cuenta como \"la zona que está buscando\", para dos cosas:\n" +
+             "• los escondites que usaste a esta distancia del lugar al que va tienen su tirada por " +
+             "hábito (una por búsqueda cada uno);\n" +
+             "• un señuelo que suena a esta distancia de donde cree que estás (más Lead Sums Margin) " +
+             "no compite con vos: suma, y la búsqueda lo cubre.\n\n" +
+             "Ya NO limita adónde busca. Eso lo decide el mapa de búsqueda (más abajo), que no tiene " +
+             "tope de distancia ni se recorta por paredes: te sigue por la puerta.")]
     [SerializeField, Min(1f)] private float roomSweepRadius = 7f;
 
     [Header("Chase - pursuit")]
@@ -291,8 +355,8 @@ public class SO_NemesisData : ScriptableObject
              "Without it, abandoning the link and re-evaluating it are the same frame: the agent " +
              "is still standing on the link, so the next Update starts the whole wait over, times " +
              "out again, and the Nemesis spends the rest of the run cycling at the landing " +
-             "without ever moving. The stuck watchdog cannot save it either — a traversal " +
-             "suppresses the watchdog by design.\n\n" +
+             "without ever moving. The stuck watchdog cannot save it either — a body held at a " +
+             "landing on purpose is not one it counts as stuck.\n\n" +
              "Keep it long enough for the agent to actually walk away and commit to another " +
              "route, or it steps off the link and immediately steps back on.")]
     [SerializeField, Min(0f)] private float elevatorAbandonCooldown = 10f;
@@ -594,8 +658,10 @@ public class SO_NemesisData : ScriptableObject
     [Tooltip("Segundos que tiene una persecución para acortar Chase Min Progress antes de " +
              "contar como estancada.\n\n" +
              "Solo corre mientras está en Chasing y lo vio hace menos de Vision Loss Grace " +
-             "Period. Cada ventana que vence sin progreso suma un 'ChaseStalled' (se ve en F9 y " +
-             "en la consola).\n\n" +
+             "Period; sin vista se PAUSA (F9 dice 'pausada') y no avanza. Cada ventana que vence " +
+             "sin progreso mantiene el estancamiento, pero UNA persecución suma un solo " +
+             "'ChaseStalled' a los hábitos: el de la primera ventana (ver Chase Stall Regroup " +
+             "Time). F9 muestra cuántas ventanas van y que ya se contó.\n\n" +
              "Más corto y cualquier persecución con una esquina de por medio se marca como " +
              "estancada; más largo y el loop de la mesa dura eso de más antes de que reaccione.")]
     [SerializeField, Min(0.5f)] private float chaseProgressWindow = 4f;
@@ -607,6 +673,27 @@ public class SO_NemesisData : ScriptableObject
              "en un loop se acerca de un lado y se aleja del otro, y eso no es progreso. Llegar " +
              "al alcance de captura (Catch Max Reach) cuenta siempre como progreso.")]
     [SerializeField, Min(0.05f)] private float chaseMinProgress = 1.5f;
+
+    [Tooltip("Metros que puede cambiar la distancia por NavMesh entre dos mediciones seguidas " +
+             "(cada Route Verdict Interval) para que se la tome por movimiento de verdad. Si " +
+             "cambia más que esto, lo que cambió es el CAMINO (el jugador pisó una pasarela cuyo " +
+             "acceso queda lejos, se selló una puerta, se activó un vínculo), no el terreno que " +
+             "ganó o perdió: esa medición no se juzga y pasa a ser la nueva referencia de la " +
+             "ventana.\n\n" +
+             "Caso que lo motivó: jugador a 2.9 m en línea recta y a 23.2 m por NavMesh en una " +
+             "sola medición, leído como 'se alejó 20 m' y contado como estancamiento. Tiene que " +
+             "ser bastante más que lo que recorren los dos en un intervalo (unos 3 m a 0.4 s). " +
+             "Más chico y una carrera normal se toma por salto; más grande y un cambio de camino " +
+             "chico vuelve a pasar por progreso o por estancamiento.")]
+    [SerializeField, Min(1f)] private float chasePathJumpDistance = 10f;
+
+    [Tooltip("Segundos fuera de Chasing que cierran una persecución a efectos de los hábitos: " +
+             "una persecución suma UN solo 'ChaseStalled', por larga que sea, y recién cuenta " +
+             "otro cuando pasa más que esto sin que esté persiguiendo (o cuando te agarra).\n\n" +
+             "Existe para el titileo Chasing / Searching: perderte de vista un segundo y volver a " +
+             "verte no es otra persecución. Tiene que pasar una búsqueda de verdad entre dos " +
+             "loops para que cuenten dos. 0 = cada vez que sale de Chasing cuenta como una nueva.")]
+    [SerializeField, Min(0f)] private float chaseStallRegroupTime = 10f;
 
     [Tooltip("Reemplaza a Chase Detour Tolerance mientras la persecución está estancada: cuánto " +
              "más puede tardar un desvío por un waypoint respecto de ir derecho.\n\n" +
@@ -711,26 +798,17 @@ public class SO_NemesisData : ScriptableObject
              "equivocado. Más corto, el error se promedia solo al oírte muchas veces.")]
     [SerializeField, Min(0.1f)] private float hearingErrorDriftTime = 4f;
 
-    [Header("Búsqueda por NavMesh (plan §18, Fase 2B parte 2)")]
+    [Header("Búsqueda: el punto o la zona de una evidencia")]
     //
-    // La búsqueda barre puntos del NavMesh alrededor de la creencia (NemesisFreeRoam), no waypoints.
-    // El disco se dimensiona con la precisión de la última evidencia, se abre de a un paso cuando ya
-    // lo barrió, y tiene como techo Room Sweep Radius (arriba).
-
-    [Tooltip("Radio mínimo del barrido, en metros. Un avistamiento es un punto (0.5 m): sin este " +
-             "piso, el barrido sobre el lugar donde te vio sería un círculo que no alcanza ni para " +
-             "dar una vuelta.")]
-    [SerializeField, Min(1f)] private float searchSweepMinRadius = 3f;
-
-    [Tooltip("Metros que se le suman al radio de la última evidencia para dimensionar el barrido. " +
-             "Radio del barrido = radio de la evidencia + esto, entre Search Sweep Min Radius y Room " +
-             "Sweep Radius.")]
-    [SerializeField, Min(0f)] private float searchSweepEvidenceMargin = 1f;
+    // La búsqueda ya no barre un disco (Plan Búsqueda, Fase 2b): va adonde el mapa de búsqueda tiene
+    // valor. Lo que queda acá es la regla de la Fase 1: cuándo la búsqueda puede pararse en el punto
+    // mismo de la evidencia y cuándo ese punto es solo "por ahí".
 
     [Tooltip("Radio de evidencia (m) hasta el que un ruido tuyo cuenta como preciso: lo oyó al lado " +
-             "suyo. Solo entonces la búsqueda camina primero hasta ese punto, como hace con una vista. " +
-             "Con un ruido más vago barre la zona sin ir al punto, que suele ser la puerta del " +
-             "escondite (Plan Búsqueda, Fase 1).")]
+             "suyo. Solo entonces la búsqueda puede pararse en ese punto mismo, como hace con una " +
+             "vista. Con un ruido más vago el punto es solo \"por ahí\": busca los lugares de la zona " +
+             "que marca el mapa y nunca camina al último paso, que suele ser la puerta del escondite " +
+             "(Plan Búsqueda, Fase 1).")]
     [SerializeField, Min(0f)] private float searchPreciseNoiseRadius = 1.5f;
 
     [Header("Bajadas entre pisos (plan §15)")]
@@ -747,6 +825,10 @@ public class SO_NemesisData : ScriptableObject
     // la ventana × la calidad de esa evidencia, con un mínimo y un tope. El Director estira o acorta
     // la ventana y el tope según el ritmo (persistencia, préstamo de números): por eso se leen de este
     // SO y no de constantes.
+    //
+    // También termina, pasado el mínimo, cuando "revisó todo". Desde la Fase 2b del Plan Búsqueda eso
+    // ya no es "barrió el disco entero": es que ningún lugar vale la caminata (el umbral está en Mapa
+    // de búsqueda, Search Map Worth Threshold).
 
     [Tooltip("Segundos que la búsqueda dura siempre, pase lo que pase: siempre mira un poco. Tiene " +
              "que quedar por debajo de Max Hold Seconds (SO_HidingData, 8 s): si no, quedarse sin aire " +
@@ -851,7 +933,9 @@ public class SO_NemesisData : ScriptableObject
     //
     // Una grilla sobre el NavMesh del Nemesis que guarda "qué tan posible es que estés acá". Verte o
     // oírte pone el valor; con el tiempo se esparce por donde se camina, a tu velocidad; lo que está
-    // mirando queda en cero. En la Fase 2a solo se mira (gizmo y F9): no cambia ninguna conducta.
+    // mirando queda en cero. Desde la Fase 2b la BÚSQUEDA DECIDE CON ESTO: va adonde todavía hay
+    // valor (Search Map Zone Radius, Candidates, Repick Share y Worth Threshold), y se ve en el gizmo
+    // y en F9.
 
     [Tooltip("Separación entre nodos del mapa, en metros. Más chico es más fino y más caro: el armado " +
              "y cada tick escalan con la cantidad de nodos (≈ área caminable / separación²).")]
@@ -882,6 +966,37 @@ public class SO_NemesisData : ScriptableObject
     [Tooltip("Altura sobre el piso a la que apunta el rayo del \"acá no está\", en metros: la de " +
              "alguien agachado. Una caja que tapa a alguien agachado deja ese lugar con valor.")]
     [SerializeField, Min(0.05f)] private float searchMapProbeHeight = 0.6f;
+
+    [Tooltip("Radio de un LUGAR del mapa, en metros. La búsqueda no elige un nodo suelto: junta el " +
+             "valor que hay dentro de este radio de un nodo y camina al medio de esa zona. Con nodos " +
+             "cada 2 m, 2.5 es un nodo y sus vecinos directos. Más chico, muchos lugares de poco " +
+             "valor cada uno (un ruido vago se busca en más puntos); más grande, pocos lugares " +
+             "grandes (un ruido vago es casi un solo lugar: va derecho al medio). Conviene que quede " +
+             "bien por debajo de lo que limpia mirando (View Range × Search Map Clear Range Scale): " +
+             "así, al llegar, ve la zona entera.")]
+    [SerializeField, Range(1f, 8f)] private float searchMapZoneRadius = 2.5f;
+
+    [Tooltip("Cuántos lugares compara en cada elección: los de más valor. Cada uno cuesta una " +
+             "consulta de camino, y elige una vez por llegada o cuando el lugar al que iba se quedó " +
+             "sin valor, nunca por frame. Entre ellos TIRA por valor ÷ (1 + segundos de caminata): " +
+             "no va siempre al mejor. No son candidatos un escondite, el Hub, donde ya está parado " +
+             "ni un lugar al que solo se llega por el montacargas.")]
+    [SerializeField, Range(2, 16)] private int searchMapCandidates = 8;
+
+    [Tooltip("Cuánto del valor que tenía un lugar al elegirlo le tiene que quedar para seguir yendo, " +
+             "como fracción. Si baja de esto —lo vio vacío de lejos, o evidencia nueva movió el " +
+             "valor— elige otro en vez de caminar hasta un lugar que ya sabe vacío. 0: va siempre " +
+             "hasta el final. Cerca de 1: cambia de idea con cada tick del mapa y titubea.")]
+    [SerializeField, Range(0f, 0.9f)] private float searchMapRepickShare = 0.35f;
+
+    [Tooltip("Umbral de \"revisé todo\": por debajo de este valor ÷ (1 + segundos de caminata), un " +
+             "lugar no vale la caminata. Cuando ningún lugar al que puede llegar a pie lo alcanza —el " +
+             "valor quedó muy repartido, o lejos, o adentro de escondites, o se fue al Hub— no camina " +
+             "más: mira alrededor donde está, y la búsqueda se enfría en cuanto pasó Search Min Time.\n\n" +
+             "Con 0.015 están justo en el límite un lugar con 6 % del valor a 3 s, o con 10 % a 6 s. " +
+             "Más alto abandona antes; 0 lo apaga (termina solo por silencio). Si más de la mitad del " +
+             "valor se fue al Hub, no camina sea cual sea este número: nunca acampa esa puerta.")]
+    [SerializeField, Range(0f, 0.2f)] private float searchMapWorthThreshold = 0.015f;
 
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
@@ -914,6 +1029,21 @@ public class SO_NemesisData : ScriptableObject
     public float RearSenseRange { get => rearSenseRange; set => rearSenseRange = value; }
     public float RearSenseStrength { get => rearSenseStrength; set => rearSenseStrength = value; }
     public float GlimpseCorroborationWindow { get => glimpseCorroborationWindow; set => glimpseCorroborationWindow = value; }
+    public float ViewHoldScale { get => viewHoldScale; set => viewHoldScale = value; }
+    public float ViewHuntScale { get => viewHuntScale; set => viewHuntScale = value; }
+    public float ViewHuntGrowTime { get => viewHuntGrowTime; set => viewHuntGrowTime = value; }
+    public float ViewHuntSettleTime { get => viewHuntSettleTime; set => viewHuntSettleTime = value; }
+    public float LostSightLookAhead { get => lostSightLookAhead; set => lostSightLookAhead = value; }
+    public float GazeTurnSpeed { get => gazeTurnSpeed; set => gazeTurnSpeed = value; }
+
+    /// <summary>How far it keeps seeing a standing player it is already seeing, in metres: the view
+    /// range as lent right now, times <see cref="ViewHoldScale"/> (never under the view range).
+    /// </summary>
+    public float ViewHoldRange => viewRange * Mathf.Max(1f, viewHoldScale);
+
+    /// <summary>The furthest it can see again a standing player it lost and is still hunting, in
+    /// metres: the view range as lent right now, times <see cref="ViewHuntScale"/>.</summary>
+    public float ViewHuntRange => viewRange * Mathf.Max(1f, viewHuntScale);
     public float ListenRange { get => listenRange; set => listenRange = value; }
     public float NoiseRangeScale { get => noiseRangeScale; set => noiseRangeScale = value; }
     public bool WallOcclusionEnabled { get => wallOcclusionEnabled; set => wallOcclusionEnabled = value; }
@@ -923,7 +1053,6 @@ public class SO_NemesisData : ScriptableObject
     public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
-    public float SearchSweptPenalty { get => searchSweptPenalty; set => searchSweptPenalty = value; }
     public float SearchPauseTime { get => searchPauseTime; set => searchPauseTime = value; }
     public float RoomSweepRadius { get => roomSweepRadius; set => roomSweepRadius = value; }
     public float ChaseTimePrediction { get => chaseTimePrediction; set => chaseTimePrediction = value; }
@@ -980,6 +1109,8 @@ public class SO_NemesisData : ScriptableObject
     public float ProximityRecalcInterval { get => proximityRecalcInterval; set => proximityRecalcInterval = value; }
     public float ChaseProgressWindow { get => chaseProgressWindow; set => chaseProgressWindow = value; }
     public float ChaseMinProgress { get => chaseMinProgress; set => chaseMinProgress = value; }
+    public float ChasePathJumpDistance { get => chasePathJumpDistance; set => chasePathJumpDistance = value; }
+    public float ChaseStallRegroupTime { get => chaseStallRegroupTime; set => chaseStallRegroupTime = value; }
     public float ChaseStagnantDetourTolerance { get => chaseStagnantDetourTolerance; set => chaseStagnantDetourTolerance = value; }
     public float ChaseTrailPenalty { get => chaseTrailPenalty; set => chaseTrailPenalty = value; }
     public float ChaseTrailPenaltyRadius { get => chaseTrailPenaltyRadius; set => chaseTrailPenaltyRadius = value; }
@@ -996,8 +1127,6 @@ public class SO_NemesisData : ScriptableObject
     public float BeliefNoiseFloorFactor { get => beliefNoiseFloorFactor; set => beliefNoiseFloorFactor = value; }
     public float BeliefGrowthSpeed { get => beliefGrowthSpeed; set => beliefGrowthSpeed = value; }
     public float BeliefNoiseHidingSpotFactor { get => beliefNoiseHidingSpotFactor; set => beliefNoiseHidingSpotFactor = value; }
-    public float SearchSweepMinRadius { get => searchSweepMinRadius; set => searchSweepMinRadius = value; }
-    public float SearchSweepEvidenceMargin { get => searchSweepEvidenceMargin; set => searchSweepEvidenceMargin = value; }
     public float DropLinkCooldown { get => dropLinkCooldown; set => dropLinkCooldown = value; }
     public float SearchMinTime { get => searchMinTime; set => searchMinTime = value; }
     public float SearchQuietWindow { get => searchQuietWindow; set => searchQuietWindow = value; }
@@ -1037,4 +1166,8 @@ public class SO_NemesisData : ScriptableObject
     /// times <see cref="SearchMapClearRangeScale"/>.</summary>
     public float SearchMapClearRange => viewRange * searchMapClearRangeScale;
     public float SearchMapProbeHeight { get => searchMapProbeHeight; set => searchMapProbeHeight = value; }
+    public float SearchMapZoneRadius { get => searchMapZoneRadius; set => searchMapZoneRadius = value; }
+    public int SearchMapCandidates { get => searchMapCandidates; set => searchMapCandidates = value; }
+    public float SearchMapRepickShare { get => searchMapRepickShare; set => searchMapRepickShare = value; }
+    public float SearchMapWorthThreshold { get => searchMapWorthThreshold; set => searchMapWorthThreshold = value; }
 }

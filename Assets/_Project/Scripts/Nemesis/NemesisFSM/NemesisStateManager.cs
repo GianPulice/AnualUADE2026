@@ -241,8 +241,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// <see cref="NemesisChoice"/>.</summary>
     public NemesisChoice Choice => choice;
 
-    /// <summary>Where the player can be now: the possibility map (Plan-Busqueda-Nemesis §3). In Fase
-    /// 2a nothing decides off it yet; the HUD and the gizmos read it.</summary>
+    /// <summary>Where the player can be now: the possibility map (Plan-Busqueda-Nemesis §3). Since
+    /// Fase 2b the search goes by it (NemesisSearchPicker); the HUD and the gizmos read it too.
+    /// </summary>
     public NemesisPossibilityMap PossibilityMap => possibilityMap;
 
     /// <summary>The hiding spot it is sure the player is in, or null. Read by the ladder as
@@ -819,7 +820,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     /// <summary>The Searching state instance, or null before the machine is built. Reached for by the
     /// ladder (IsCheckingSpot, IsSearchWarm), NemesisLookAround, the debug HUD and the gizmos, which
-    /// read the state's own phase: its pause, its sweep, how warm it still is.</summary>
+    /// read the state's own phase: its pause, where it is heading, how warm it still is.</summary>
     public NemesisSearchingState SearchingState =>
         States.TryGetValue(ENemesisState.Searching, out BaseState<ENemesisState> state)
             ? state as NemesisSearchingState
@@ -1735,9 +1736,10 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// freight elevator's landings, not chosen.
     ///
     /// FREE ROAM is for everything about hunting the player. The waypoints stay useful as hints
-    /// about where a person might be worth looking for — NemesisFreeRoam offers them first, and
-    /// NemesisPursuit will detour through one that has line of sight — but they stop being the
-    /// only places the Nemesis is allowed to stand.
+    /// about where a person might be worth looking for — NemesisPursuit will detour through one
+    /// that has line of sight — but they stop being the only places the Nemesis is allowed to
+    /// stand. The search does not look at them at all: it goes where the possibility map still
+    /// holds value (NemesisSearchPicker, Plan-Busqueda-Nemesis Fase 2b).
     ///
     /// A STATIC TABLE AND NOT A VIRTUAL PROPERTY. The alternative is re-parenting all six states
     /// onto a Nemesis-specific base class to declare one value each; BaseState is shared with the

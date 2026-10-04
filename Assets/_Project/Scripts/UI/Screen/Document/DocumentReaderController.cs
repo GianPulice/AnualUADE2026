@@ -5,9 +5,9 @@ using UnityEngine;
 /// CONTROLLER of the note reader. Two ways in, one sheet:
 ///
 ///   Open(<see cref="SO_InventoryItem"/>) — READING MODE. What a pickup calls the moment a note
-///     lands in the inventory. The game is frozen (<see cref="PausesGame"/>) and the sheet stays
-///     up until the player dismisses it; the note object itself is already gone from the level,
-///     so there is nothing to walk away from.
+///     lands in the inventory. The game is frozen (<see cref="PausesGame"/>), the module timer
+///     is held with it, and the sheet stays up until the player dismisses it; the note object
+///     itself is already gone from the level, so there is nothing to walk away from.
 ///
 ///   Open(<see cref="SO_DocumentData"/>) — READ IN PLACE. The older behaviour kept for
 ///     <see cref="NoteInteractable"/>: the world keeps running behind the sheet and it closes by
@@ -32,6 +32,9 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
 
     /// <summary>Reading mode: freeze the game and ignore what the crosshair is doing.</summary>
     private bool pausesWhileOpen;
+
+    /// <summary>True while this reader holds a <see cref="ModuleManager.PauseTicking"/> request.</summary>
+    private bool moduleTimerHeld;
 
     public bool IsOpen => isOpen;
 
@@ -70,6 +73,10 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     {
         InteractionEvents.OnTargetChanged -= HandleTargetChanged;
         if (view != null) view.OnCloseRequested -= RequestClose;
+
+        // The level unloading with the sheet still up: ModuleManager outlives this scene, and a
+        // request nobody is left to release would keep its timer stopped.
+        ReleaseModuleTimer();
 
         // Without this the static keeps pointing at a destroyed controller after a scene change,
         // and the next pickup opens a reader that is not in any scene any more.
@@ -129,6 +136,12 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
     {
         isOpen = true;
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
+
+        // Time.timeScale = 0 does not reach the module timer: it ticks unscaled, so that a menu
+        // cannot stop it. Left alone, the countdown kept running — and beeping — behind a sheet
+        // the game itself had put in front of the player, so reading mode stops it explicitly,
+        // the way the pause menu and a capture do. Read in place, the world is live and so is it.
+        if (pausesWhileOpen) HoldModuleTimer();
     }
 
     protected override void OnBeforeClose()
@@ -137,10 +150,30 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
         openingTarget = null;
         trackTarget = false;
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
+        ReleaseModuleTimer();
 
         // Cleared only after the Pop: UIStateManager re-reads PausesGame while unstacking, and a
         // false here before that would leave Time.timeScale at 0 with nothing left to unfreeze it.
         pausesWhileOpen = false;
+    }
+
+    // ── Module timer (reading mode only) ─────────────────────────────────────
+
+    private void HoldModuleTimer()
+    {
+        if (moduleTimerHeld || !ModuleManager.Exists) return;
+
+        ModuleManager.Instance.PauseTicking();
+        moduleTimerHeld = true;
+    }
+
+    // A new session resets the pause count on its own; this only balances the one taken above.
+    private void ReleaseModuleTimer()
+    {
+        if (!moduleTimerHeld) return;
+        moduleTimerHeld = false;
+
+        if (ModuleManager.Exists) ModuleManager.Instance.ResumeTicking();
     }
 
     // ── Auto-close on target change (read in place only) ─────────────────────

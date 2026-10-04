@@ -47,8 +47,11 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     [Header("Marks")]
     [Tooltip("The NEW tag on an item picked up and not yet looked at.")]
     [SerializeField] private Color newTagColor = new Color(1f, 0.6f, 0f);
-    [Tooltip("Text and icon of a note already read: greyed, so it reads as done at a glance.")]
-    [SerializeField] private Color readTextColor = new Color(0.5f, 0.5f, 0.5f);
+    [Tooltip("Text of a note already read: greyed, so it reads as done at a glance. A theme role " +
+             "and not a color, because the text carries a UIThemeApplier that repaints it every " +
+             "time the row is enabled; the unread look is the role that applier was authored with.")]
+    [SerializeField] private UIThemeRole readTextRole = UIThemeRole.TextMuted;
+    [Tooltip("Icon of a note already read.")]
     [SerializeField] private Color readIconColor = new Color(0.45f, 0.45f, 0.45f);
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +69,10 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     // What the row label is built from, so a mark can change without a full Setup.
     private int rowIndex;
     private string tagLabel;
+
+    // The name text's theme applier, and the role the prefab gave it: the unread look.
+    private UIThemeApplier nameTheme;
+    private UIThemeRole unreadTextRole;
 
     public SO_InventoryItem Item { get; private set; }
 
@@ -135,8 +142,26 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     public void SetMarks(bool isNew, bool isRead)
     {
         itemNameText.text = BuildRowLabel(Item, rowIndex, tagLabel, isNew);
-        itemNameText.color = isRead ? readTextColor : Color.white;
+        SetTextRead(isRead);
         iconImage.color = isRead ? readIconColor : Color.white;
+    }
+
+    /// <summary>
+    /// Greys the text through its <see cref="UIThemeApplier"/>, never by writing its color. The
+    /// applier repaints the text on every OnEnable and a pooled row is re-enabled on every refresh,
+    /// so a color written directly lasted until the list was rebuilt: the note went grey when it
+    /// was read and came back white the next time the inventory opened.
+    /// </summary>
+    private void SetTextRead(bool isRead)
+    {
+        // Resolved on first use, so it does not depend on this row's Awake having run.
+        if (nameTheme == null)
+        {
+            if (!itemNameText.TryGetComponent(out nameTheme)) return;
+            unreadTextRole = nameTheme.Role;
+        }
+
+        nameTheme.SetRole(isRead ? readTextRole : unreadTextRole);
     }
 
     private void ResetVisualState()

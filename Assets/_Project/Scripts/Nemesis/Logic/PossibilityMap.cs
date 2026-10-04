@@ -25,6 +25,11 @@ using UnityEngine;
 ///   5. RENORMALISE (<see cref="Normalize"/>), sink included: "not where I looked" makes everywhere
 ///      else more likely.
 ///
+/// WHO READS IT (§3.4, Fase 2b). The search goes where the value still is: <see cref="CollectZones"/>
+/// cuts what is left on the floor into a few places worth walking to, and the caller rolls among
+/// them by value ÷ (1 + time to get there). Looking at a place clears it (rule 3), so the map is also
+/// the search's only memory of where it has already been.
+///
 /// PURE: no NavMesh, no sensors, no Time — the caller passes the clock.
 /// </summary>
 public sealed class PossibilityMap
@@ -57,12 +62,27 @@ public sealed class PossibilityMap
     /// </summary>
     private const float MinHeadingSpeed = 0.3f;
 
+    /// <summary>A zone gathering less than this share is not a place to walk to, it is the tail of the
+    /// spread. Keeps <see cref="CollectZones"/> from handing back the leftovers of the zones it has
+    /// already cut as if they were somewhere to look.</summary>
+    private const float MinZoneShare = 1e-4f;
+
+    /// <summary>Two zones whose sums differ by less than this fraction gather "the same": see the
+    /// tie-break in <see cref="CollectZones"/>.</summary>
+    private const float ZoneTieTolerance = 1e-3f;
+
     private readonly PossibilityGraph graph;
     private float[] value;
     private float[] next;
     private readonly bool[] gateOpen;
     private readonly List<int> scratch = new List<int>();
     private readonly List<float> kernel = new List<float>();
+
+    // CollectZones' working set. Kept here so a pick allocates nothing.
+    private readonly float[] zoneRemaining;
+    private readonly float[] zoneSum;
+    private readonly List<int> zoneTouched = new List<int>();
+    private readonly List<int> zoneMembers = new List<int>();
 
     private float sink;
     private Vector3 heading;
@@ -76,6 +96,8 @@ public sealed class PossibilityMap
         this.graph = graph;
         value = new float[graph.NodeCount];
         next = new float[graph.NodeCount];
+        zoneRemaining = new float[graph.NodeCount];
+        zoneSum = new float[graph.NodeCount];
         gateOpen = new bool[graph.GateCount];
         for (int i = 0; i < gateOpen.Length; i++) gateOpen[i] = true;
     }
@@ -440,6 +462,185 @@ public sealed class PossibilityMap
             for (int i = 0; i < value.Length; i++) squares += value[i] * value[i];
             return squares > 0f ? 1f / squares : 0f;
         }
+    }
+
+    // ── Zones: where a search may go (Fase 2b) ───────────────────────────────
+
+    /// <summary>
+    /// A place worth walking to (plan §3.4): a floor node and how much of the value sits within the
+    /// zone radius of it. A ZONE and not a node on purpose: one 2 m node holds a sliver of what is
+    /// really one place to look at, and a search that weighed nodes would walk to the edge of a patch
+    /// of value as readily as to its middle.
+    /// </summary>
+    public readonly struct Zone
+    {
+        /// <summary>The floor node at its middle: where to stand to look at it.</summary>
+        public readonly int Node;
+
+        public readonly Vector3 Position;
+
+        /// <summary>Its share of everything the map believes (the map adds up to 1, the Hub's sink and
+        /// the hiding spots included). Zones never share a node, so the shares of one collection add up
+        /// to at most what is left on the floor.</summary>
+        public readonly float Share;
+
+        public Zone(int node, Vector3 position, float share)
+        {
+            Node = node;
+            Position = position;
+            Share = share;
+        }
+    }
+
+    /// <summary>
+    /// Whether a search can walk to this node and look at it: a point on the floor that is not the
+    /// Hub's doorway. A hiding spot is not — the value inside one is not somewhere to stand, and
+    /// looking does not clear it (when to OPEN a spot is another question, D38). A doorway node is not
+    /// either: what reaches it has gone into the Hub (C5), and nothing may ever send a search to that
+    /// door on the strength of it.
+    /// </summary>
+    public bool IsSearchable(int node) =>
+        graph.Kind(node) == PossibilityGraph.ENodeKind.Floor && !graph.IsDrain(node);
+
+    /// <summary>The value a search can still walk to and look at within <paramref name="radius"/> of a
+    /// point (plan view, floor band): <see cref="SumNear"/> without the hiding spots and the Hub's
+    /// doorway. What a zone centred there would gather.</summary>
+    public float SearchableSumNear(Vector3 point, float radius, float floorBand)
+    {
+        graph.CollectNear(point, radius, floorBand, scratch);
+
+        float sum = 0f;
+        for (int i = 0; i < scratch.Count; i++)
+            if (IsSearchable(scratch[i])) sum += value[scratch[i]];
+        return sum;
+    }
+
+    /// <summary>
+    /// The places a search could walk to, most valuable first: at most <paramref name="max"/> zones of
+    /// <paramref name="radius"/> metres, none sharing a node with another.
+    ///
+    /// HOW THEY ARE CUT. The node with the most value around it is the first zone, and takes every
+    /// searchable node within the radius. The node with the most of WHAT IS LEFT around it is the
+    /// second, and so on. So a patch of value comes out as one place to stand, in its middle, and a
+    /// corridor of it as a few places in a row — instead of every node of the patch competing with its
+    /// neighbours, which is what weighing nodes one by one would do.
+    ///
+    /// WHAT IS NEVER A ZONE:
+    ///   - a hiding spot, and the Hub (<see cref="IsSearchable"/>): neither is the middle of a zone,
+    ///     and what they hold is not counted in anyone's share. The sink is not a node at all;
+    ///   - where it already stands: a node within <paramref name="minTravel"/> of
+    ///     <paramref name="standing"/> (plan view, same floor) cannot be the middle of a zone. A
+    ///     destination under its own feet is reached without taking a step or turning, so whatever it
+    ///     failed to see from here it would fail to see again, for ever. The value on such a node
+    ///     still counts — in the zone of a node a step further away, which is where it has to go to
+    ///     look at it from.
+    ///
+    /// It only reads: nothing here changes what the map believes. The caller turns the zones into a
+    /// choice — how long each takes to reach, and a ROLL, never the first of the list.
+    /// </summary>
+    /// <param name="minTravel">0 or less: nowhere is "where it already stands".</param>
+    public void CollectZones(float radius, float floorBand, int max, Vector3 standing, float minTravel,
+                             List<Zone> results)
+    {
+        results.Clear();
+        if (!HasValue || max <= 0) return;
+
+        radius = Mathf.Max(0f, radius);
+
+        System.Array.Clear(zoneRemaining, 0, zoneRemaining.Length);
+        System.Array.Clear(zoneSum, 0, zoneSum.Length);
+        zoneTouched.Clear();
+
+        // 1. For every searchable node, how much searchable value sits within the radius of it. Walked
+        //    from the nodes that HOLD value outwards: a node with nothing of its own can still be the
+        //    middle of what is around it (two patches either side of a spot it has just cleared).
+        for (int i = 0; i < value.Length; i++)
+        {
+            float v = value[i];
+            if (v <= 0f || !IsSearchable(i)) continue;
+
+            zoneRemaining[i] = v;
+
+            graph.CollectNear(graph.Position(i), radius, floorBand, scratch);
+            for (int s = 0; s < scratch.Count; s++)
+            {
+                int around = scratch[s];
+                if (!IsSearchable(around)) continue;
+
+                if (zoneSum[around] <= 0f) zoneTouched.Add(around);
+                zoneSum[around] += v;
+            }
+        }
+
+        float minTravelSqr = minTravel > 0f ? minTravel * minTravel : 0f;
+
+        // 2. Peel them off, the most valuable first. Bounded by the touched nodes: every pass either
+        //    takes a zone or retires the node it looked at.
+        int guard = zoneTouched.Count;
+        while (results.Count < max && guard-- > 0)
+        {
+            int best = -1;
+            float bestSum = MinZoneShare;
+            float bestOwn = -1f;
+
+            for (int t = 0; t < zoneTouched.Count; t++)
+            {
+                int node = zoneTouched[t];
+                float sum = zoneSum[node];
+                float tie = bestSum * ZoneTieTolerance;
+                if (sum < bestSum - tie) continue;
+
+                // Between two middles that gather the same, the one holding more value itself: a
+                // lone node of value is surrounded by neighbours that each "gather" all of it, and
+                // the place to stand is the node, not whichever neighbour was listed first. "The
+                // same" within rounding — the sums are built by adding and taking away in different
+                // orders, and left to exact equality the choice was decided by the last bit.
+                float own = zoneRemaining[node];
+                if (sum <= bestSum + tie && own <= bestOwn) continue;
+
+                if (IsWithin(node, standing, minTravelSqr, floorBand)) continue;
+
+                best = node;
+                bestSum = sum;
+                bestOwn = own;
+            }
+
+            if (best < 0) break;
+
+            // Everything searchable within the radius that no earlier zone took is this zone's, and
+            // stops counting towards anyone else's.
+            graph.CollectNear(graph.Position(best), radius, floorBand, zoneMembers);
+
+            float share = 0f;
+            for (int m = 0; m < zoneMembers.Count; m++)
+            {
+                int member = zoneMembers[m];
+                float v = zoneRemaining[member];
+                if (v <= 0f) continue;
+
+                share += v;
+                zoneRemaining[member] = 0f;
+
+                graph.CollectNear(graph.Position(member), radius, floorBand, scratch);
+                for (int s = 0; s < scratch.Count; s++) zoneSum[scratch[s]] -= v;
+            }
+
+            // What was around it is all taken; whatever is left in the sum is rounding.
+            zoneSum[best] = 0f;
+
+            if (share >= MinZoneShare) results.Add(new Zone(best, graph.Position(best), share));
+        }
+    }
+
+    /// <summary>Whether a node is within a plan-view distance of a point, on its floor.</summary>
+    private bool IsWithin(int node, Vector3 point, float sqrRadius, float floorBand)
+    {
+        if (sqrRadius <= 0f) return false;
+
+        Vector3 offset = graph.Position(node) - point;
+        if (Mathf.Abs(offset.y) > floorBand) return false;
+
+        return offset.x * offset.x + offset.z * offset.z < sqrRadius;
     }
 
     private void Swap()

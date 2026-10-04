@@ -400,7 +400,9 @@ public class NemesisHidingAwareness : MonoBehaviour
         if (spot == null || stateManager == null || !stateManager.IsActive || eyes == null) return;
 
         SO_NemesisData data = stateManager.NemesisData;
-        float viewRange = data != null ? data.ViewRange : FallbackViewRange;
+        // The range its eyes are really working at (FieldOfView.EffectiveViewRange), not the base one:
+        // a player it is holding in sight at twelve metres was SEEN climbing into that locker.
+        float viewRange = data != null ? eyes.EffectiveViewRange : FallbackViewRange;
 
         // Too far to have told this spot from the next one, whatever it saw.
         if ((spot.InteriorPose.position - eyes.ViewTransform.position).sqrMagnitude > viewRange * viewRange)

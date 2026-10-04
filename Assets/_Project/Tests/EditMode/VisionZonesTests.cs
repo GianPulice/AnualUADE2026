@@ -50,6 +50,36 @@ public class VisionZonesTests
     [Test]
     public void NegativeAngle_IsTheOtherSide() => Assert.AreEqual(VisionZones.EZone.Peripheral, Zone(-60f, 5f));
 
+    // ── The range it is handed (AdaptiveViewRange) ───────────────────────────
+
+    [Test]
+    public void HeldRange_KeepsThePlayerInTheSameZone_PastTheBaseRange()
+    {
+        // Ten metres out is nothing to a Nemesis that has not seen anyone, and still the focus cone
+        // (or the periphery) to one that is holding the player in sight at twice the range.
+        float held = AdaptiveViewRange.Range(ViewRange, 2f);
+
+        Assert.AreEqual(VisionZones.EZone.None, Zone(0f, 10f));
+        Assert.AreEqual(VisionZones.EZone.Focus,
+                        VisionZones.Classify(0f, 10f, ViewAngle, FocusAngle, held, RearRange));
+        Assert.AreEqual(VisionZones.EZone.Peripheral,
+                        VisionZones.Classify(70f, 10f, ViewAngle, FocusAngle, held, RearRange));
+        Assert.AreEqual(VisionZones.EZone.None,
+                        VisionZones.Classify(0f, 14.5f, ViewAngle, FocusAngle, held, RearRange));
+    }
+
+    [Test]
+    public void HeldRange_DoesNotReachBehindIt()
+    {
+        // The rear zone has its own range: a longer view does not make it feel further back.
+        float held = AdaptiveViewRange.Range(ViewRange, 2f);
+
+        Assert.AreEqual(VisionZones.EZone.None,
+                        VisionZones.Classify(180f, 5f, ViewAngle, FocusAngle, held, RearRange));
+        Assert.AreEqual(VisionZones.EZone.Rear,
+                        VisionZones.Classify(180f, 3f, ViewAngle, FocusAngle, held, RearRange));
+    }
+
     // ── Rate ─────────────────────────────────────────────────────────────────
 
     [Test]

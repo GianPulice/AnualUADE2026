@@ -15,18 +15,31 @@ using UnityEngine.AI;
 ///   - opening a hiding spot clears that spot, and nothing else does;
 ///   - the Hub's door drains it (C5).
 ///
-/// FASE 2a: IT ONLY WATCHES. Nothing reads it to decide anything yet; NemesisGizmos draws it and F9
-/// has a row for it. The search starts reading it in 2b.
+/// WHO DECIDES OFF IT. Since Fase 2b the search does: NemesisSearchingState goes where this still
+/// holds value (NemesisSearchPicker rolls among the zones PossibilityMap.CollectZones cuts), drops a
+/// place that has lost its value before walking all the way to it, and calls the search over when no
+/// place is worth the walk. It has no other memory of where it has looked: looking IS the memory,
+/// because looking clears. The patrol after a hunt (2d) and the hiding spots (2e) do not read it yet.
+/// NemesisGizmos draws it and F9 has a row for it.
 ///
 /// SETUP: none. NemesisStateManager adds it next to itself, initializes it and ticks it every frame
-/// (it throttles itself to SearchMapTickInterval). The graph is built in Start, once per level load:
-/// its node count and build time go to the Console.
+/// (it throttles itself to SearchMapTickInterval; a reader that cannot wait for the next tick asks
+/// for it with CatchUp). The graph is built in Start, once per level load: its node count and build
+/// time go to the Console.
 /// </summary>
 [DisallowMultipleComponent]
 public class NemesisPossibilityMap : MonoBehaviour
 {
-    /// <summary>"Same floor" for seeding, the band the search uses.</summary>
-    private const float FloorBand = NemesisFreeRoam.FloorBand;
+    /// <summary>
+    /// Metres of height a node may sit above or below a point and still be on its floor: "same
+    /// floor" for seeding the map, for reading it and for the search that walks it.
+    ///
+    /// Loose enough for a ramp or a few steps inside a room, well under a storey. One definition and
+    /// public on purpose: with two, evidence a metre and a half up could count as inside an area whose
+    /// nodes the other definition had filtered out (plan §16.2, C2 #3). It lived on NemesisFreeRoam
+    /// while the search swept a disc; the map is what "the same place" is measured on now.
+    /// </summary>
+    public const float FloorBand = 1.5f;
 
     /// <summary>Longest stretch one tick may spread over: after a pause or a dormant spell it should
     /// not leap across the level in one go.</summary>
@@ -93,6 +106,41 @@ public class NemesisPossibilityMap : MonoBehaviour
         float now = Time.time;
         if (now - lastTickAt < data.SearchMapTickInterval) return;
 
+        RunTick(data, now);
+    }
+
+    /// <summary>
+    /// Brings the map up to date with the belief NOW, for a reader about to decide off it: when
+    /// evidence has come in since the last tick, the tick that would have folded it in runs at once
+    /// instead of up to SearchMapTickInterval later. Nothing happens when the map is already current.
+    ///
+    /// WHY NOT SEED ON EVERY FRAME INSTEAD. A reader must never see the map between "evidence put
+    /// value here" and "it is looking at here and nobody is there": a noise spreads value over an area
+    /// that includes floor the Nemesis is staring at, and a search choosing off that would walk to a
+    /// place in plain view. One tick does both, in that order, so the two always arrive together — and
+    /// the fan of raycasts behind the clearing stays on the tick's clock. The search asks for this
+    /// once per pick, which is once a second or so.
+    /// </summary>
+    public void CatchUp()
+    {
+        if (stateManager == null || map == null || belief == null) return;
+
+        // A belief forgotten without its sequence moving (the capture) is news as well: the map it
+        // left behind points at the one place the player provably is not.
+        bool pending = belief.Sequence != consumedSequence || (!belief.HasBelief && map.HasValue);
+        if (!pending) return;
+
+        SO_NemesisData data = stateManager.NemesisData;
+        if (data != null) RunTick(data, Time.time);
+    }
+
+    /// <summary>The belief sequence this map last folded in (NemesisBelief.Sequence). What a reader
+    /// compares to know the map has been redrawn by new evidence — the belief's own sequence runs up
+    /// to a tick ahead of it.</summary>
+    public int EvidenceSequence => consumedSequence;
+
+    private void RunTick(SO_NemesisData data, float now)
+    {
         float dt = Mathf.Min(MaxTickDelta, now - lastTickAt);
         lastTickAt = now;
         ClearedLastTick = 0;
@@ -257,7 +305,10 @@ public class NemesisPossibilityMap : MonoBehaviour
         if (nodeOfSpot.TryGetValue(spot, out int node)) map.Open(node);
     }
 
-    // ── Reading it (F9, gizmos) ──────────────────────────────────────────────
+    // ── Reading it (the search, F9, gizmos) ──────────────────────────────────
+    //
+    // The search reads the map itself (Map: CollectZones, SearchableSumNear) through
+    // NemesisSearchPicker; what is here are the few questions the HUD and the gizmos ask.
 
     /// <summary>The share of the value on the Nemesis's own floor.</summary>
     public float ShareOnOwnFloor => map != null && map.HasValue

@@ -83,8 +83,9 @@ public static class NemesisPossibilityGraphBuilder
     /// climbs about this much. Well under a storey.</summary>
     private const float MaxStep = 1.6f;
 
-    /// <summary>Same-floor band for the landings and approach points.</summary>
-    private const float FloorBand = 1.5f;
+    /// <summary>Same-floor band for the landings and approach points: the map's own, so a spot or a
+    /// landing hangs off a node the map will later call "its floor".</summary>
+    private const float FloorBand = NemesisPossibilityMap.FloorBand;
 
     /// <summary>How far an approach point may be from its floor node.</summary>
     private const float SpotReach = 2.5f;
