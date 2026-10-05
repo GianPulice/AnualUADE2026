@@ -505,6 +505,28 @@ typo there fails silently, because nothing ever looks up a puzzle that does not 
 `PuzzleController` / `PuzzleReward` are a generic wrapper that predates the per-type controllers and
 still has no callers; see *Current state* below.
 
+**SP2 box symbols.** `BoxSymbolSignalLoss`, on each push box, covers the basket symbol on the box's
+top face with TV static. The symbol is readable when **the player's feet are above it, or the symbol
+is inside a lit `BoxSymbolRevealLight`** — either is enough, and each rule has its own hysteresis. A
+reveal lamp's area is its real `Light` (position, direction, Spot Angle, Range), narrowed by
+`edgeReach` and `rangeReach`, and it reveals only while that Light is on. The Scene view always
+draws the cone and the pool where the beam lands. While a reveal lamp lights it the symbol also
+glows in its own colours (`revealGlow`, a runtime material copy): the lamp is a violet blacklight,
+and under violet the red and yellow badges would otherwise go nearly black. The look from above is
+unchanged.
+
+The SP2 lamps are not lit by the fuse. The fuse unlocks the SP1 panel, SP1 (`sp1_panel_electrico`)
+powers the two `PoweredLightSwitch` levers (`ButtonLights.prefab`), and a lever activates the
+GameObjects in its `objects` list: the six catwalk lamps plus
+`Prefabs/Light/Reflector Symbol Reveal.prefab`, the reveal lamp over the lower floor. Both levers
+must hold the same list — a lamp missing from one is simply not toggled by it, with no error.
+
+That reveal lamp is the one lamp whose `LightZone` **closes** the view instead of opening it: it
+pushes `SO_VisionFog_UVPool` (vision 1 → 2.4 m), and its `FogLightBypass` keeps the pool itself
+clear, so standing in the light the player sees the pool and darkness around it. The preset, the
+bypass and the trigger are sized to the pool by hand on the prefab's `Lamp` child; a lamp moved to
+another height needs the three re-fitted. See `docs/Materials-System.md` §6.4.1.
+
 ### Modules (the device timers)
 
 The run's clock. `ModuleManager` (`_Project/Scripts/Player/Modules/`) owns one `ModuleRuntime` per
@@ -1749,7 +1771,7 @@ Add `[SoundId]` to any new string field that names a sound, and `[PuzzleId]` to 
 puzzle. The nine `[SoundId]` fields today are on `PickUpInteractable`, `SocketInteractable`,
 `ElevatorCallPanel` (x2), `ElevatorRideButton` (x2), `SO_ItemCategoryConfig` and `SO_DoorData` (x2).
 The `[PuzzleId]` ones are on `Checkpoint`, `NemesisRoute`, `NemesisController`, `SO_DoorData`,
-`ModuleData`, `SO_ContainerData`, `SO_SocketData` and `SO_ValveData`.
+`ModuleData`, `SO_ContainerData`, `SO_SocketData`, `SO_ValveData` and `ArchitectPuzzleTrigger`.
 
 Two different jobs hide behind "names a puzzle", and only one of them takes the attribute. A field
 that **declares** an id — `puzzleId` on the five `SO_*PuzzleData` assets — is the source the

@@ -23,6 +23,10 @@ public enum ArchitectLineID
     Captured,           // ARC_09 — 15 variants
     GameOver,           // ARC_10 — absolute priority
     Idle,               // ARC_R01..R23 — inactivity pool
+
+    // Added after spec v1.2: not in its §6 table.
+    ContextBoxRoom,     // ARC_CTX_06 — first time in the SP2 box room
+    ContextBoxLights,   // ARC_CTX_07 — SP1 solved: the box room's lights have power
 }
 
 /// <summary>Spec §1.2. Decides what happens to a trigger that cannot play right now.</summary>

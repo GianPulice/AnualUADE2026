@@ -80,7 +80,7 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool footsteps = true;
 
     [Tooltip("Luz y niebla: LightZone, FogBeacon, FogLightBypass, FogLightBypassPlayerFade, " +
-             "VisionRangeController.")]
+             "VisionRangeController, BoxSymbolRevealLight.")]
     [SerializeField] private bool lightAndFog = true;
 
     [Header("Unity")]
@@ -138,6 +138,7 @@ public class GizmoManager : MonoBehaviour
         {
             typeof(LightZone), typeof(FogBeacon), typeof(FogLightBypass),
             typeof(FogLightBypassPlayerFade), typeof(VisionRangeController),
+            typeof(BoxSymbolRevealLight),
         });
 
         yield return (colliders, new[]

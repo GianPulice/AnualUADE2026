@@ -191,6 +191,20 @@ MonoBehaviour:
     clips: []
     alert: 
     playsOverMenus: 0
+  - id: 17
+    category: 1
+    variants:
+    - To solve this, you need another perspective.
+    clips: []
+    alert: 
+    playsOverMenus: 0
+  - id: 18
+    category: 1
+    variants:
+    - Power is back. The dark up there is a choice now.
+    clips: []
+    alert: 
+    playsOverMenus: 0
   readingCharsPerSecond: 14
   minLineDuration: 2
   holdAfterLine: 0.6

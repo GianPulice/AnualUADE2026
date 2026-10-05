@@ -69,6 +69,12 @@ Assets/_Project/
 │   │   ├─ mat_highlight_overlay.mat                  ← la usa SO_Highlight_Cores
 │   │   ├─ ItemGlint.shader                           ← estrella del destello (§5.5), unlit aditivo
 │   │   └─ mat_item_glint.mat                         ← forma de la estrella (lo crea Set Up Item Glints)
+│   ├─ UI/
+│   │   ├─ HidingOverlayCommon.hlsl                   ← grilla PSX, dither, grano y fundido del overlay del escondite (§7.4)
+│   │   ├─ HidingOverlay_Locker.shader                ← un look por tipo de escondite
+│   │   ├─ HidingOverlay_UnderTable.shader
+│   │   ├─ HidingOverlay_Container.shader
+│   │   └─ UI_HidingLocker / UnderTable / Container.mat ← donde se tunea cada look
 │   └─ Post Process/
 │       ├─ VisionFog_HLSL.shader                      ← shader del fog (el que corre, §6.1)
 │       ├─ VisionFog.mat                               ← material del fog fullscreen (PC_Renderer)
@@ -79,10 +85,11 @@ Assets/_Project/
 │       └─ PS1Effect.mat                               ← apunta a PS1_PostProcess_HLSL.shader
 ├─ Prefabs/Light/
 │   ├─ Light Base.prefab                               ← lámpara estándar (§6.4)
-│   └─ Light Base Switch.prefab                        ← variante para PoweredLightSwitch (§6.4.1)
+│   ├─ Light Base Switch.prefab                        ← variante para PoweredLightSwitch (§6.4.1)
+│   └─ Reflector Symbol Reveal.prefab                  ← luz negra que revela el símbolo de las cajas (§6.4.1)
 ├─ ScriptableObjects/
 │   ├─ Highlight/                                      ← SO_Highlight_*.asset (§5.3), SO_Glint_Items.asset (§5.5)
-│   ├─ Rendering/Fog/                                  ← SO_VisionFog_Dark / Darkness / Light / SilentHill
+│   ├─ Rendering/Fog/                                  ← SO_VisionFog_Dark / Darkness / Light / UVPool / SilentHill
 │   ├─ Escape/SO_VisionFog_Escape*.asset               ← presets del escape
 │   └─ SO_PostProcessToggle.asset                      ← prende/apaga PS1 + fog de un botón (§6.5)
 ├─ Settings/PC_Renderer.asset                          ← renderer features (§6.6)
@@ -450,7 +457,7 @@ Es la **v2** del modelo (`CurrentDataVersion = 2`). Los tooltips están en espa�
 
 **Inspector** (`SO_VisionFogConfigEditor` + `VisionFogPreviewDrawer`): una preview calculada con `VisionFogState` (rampas de color de una pared de referencia afuera y adentro de la luz del módulo, curva de visibilidad, y a qué distancia se pierde el 50 % / 90 %), que anda sin escena cargada; y botones **Aplicar como Default** (escribe `defaultConfig` del controller, queda en la escena) y **Previsualizar** / **Limpiar preview** (escriben los globals y nada más).
 
-**Presets** (`ScriptableObjects/Rendering/Fog/`): `SO_VisionFog_Dark` (default: 2 → 6.8 m, densidad 5.43, in-scattering rojo 0.033), `SO_VisionFog_Darkness`, `SO_VisionFog_Light` (10 → 25 m; lo pushea el `LightZone` de `Light Base`) y `SO_VisionFog_SilentHill`. El escape tiene los suyos en `ScriptableObjects/Escape/SO_VisionFog_Escape*.asset`.
+**Presets** (`ScriptableObjects/Rendering/Fog/`): `SO_VisionFog_Dark` (default: 2 → 6.8 m, densidad 5.43, in-scattering rojo 0.033), `SO_VisionFog_Darkness`, `SO_VisionFog_Light` (10 → 25 m; lo pushea el `LightZone` de `Light Base`), `SO_VisionFog_UVPool` (1 → 2.4 m; lo pushea el reflector UV de SP2, §6.4.1) y `SO_VisionFog_SilentHill`. El escape tiene los suyos en `ScriptableObjects/Escape/SO_VisionFog_Escape*.asset`.
 
 Los `LightZone` (`_Project/Scripts/Rendering/LightZone.cs`) son trigger volumes que pushean/popean un config al entrar/salir el player (tag `playerTag`, default `"Player"`) — así una safe room, un boss arena o un pasillo pueden tener cada uno su niebla.
 
@@ -486,6 +493,13 @@ El brillo de un `FogLightBypass` se suma **antes** de la extinción, así que pa
 Cambiar cualquiera de los topes pide reiniciar el editor: un array global conserva el largo de su primer upload durante toda la sesión.
 
 **`Light Base Switch.prefab`** (variante de `Light Base`, para las lámparas que prende un `PoweredLightSwitch`) junta las piezas: FogBeacon en el artefacto, FogLightVolume, un `FogLightBypass` esfera que sólo limpia niebla (intensity 0, clear 0.8, centrado en la pasarela) para que se vea el charco que pinta la Spot, y la Spot con range ≈ 1.6× la altura. No lleva `FogLightBypassPlayerFade`. Como el bypass no lee la Light (`overrideAppearance`, sin `Light Component`), no lo afecta el bug de `Resolve()`; el switch apaga la lámpara desactivando el GameObject entero, que se lleva las tres piezas.
+
+**`Reflector Symbol Reveal.prefab`** (`Prefabs/Light/`) es la lámpara de SP2 que ilumina el piso de abajo: una luz negra (ultravioleta). La raíz lleva `BoxSymbolRevealLight` (`Scripts/Puzzles/`); adentro tiene un `Light Base Switch` anidado (hijo `Lamp`) y el artefacto `CeilingLamp_Baked` (hijo `Fixture`). La prende el mismo `PoweredLightSwitch` que a las seis de la pasarela: está en `objects` de las dos palancas. Suma un bypass, un beacon y un volumen a los topes de arriba.
+
+- **Revela símbolos.** Mientras está prendida, el símbolo de una caja (`BoxSymbolSignalLoss`) se lee si **el player está arriba o el símbolo está adentro de su luz**. El área sale de la Light real (posición, dirección, Spot Angle, Range) y tres campos dicen cuánto de esa luz cuenta: `edgeReach` (0 = Inner Spot Angle, 1 = Spot Angle), `rangeReach` (fracción del Range) y `edgeHysteresis` (metros, para que una caja en el borde no parpadee). El gizmo se ve siempre: el cono y, donde el haz toca la primera superficie sólida, el charco con la banda de histéresis; se oculta con el `GizmoManager` → *Luz y niebla*. Bajo esta lámpara el símbolo además brilla con sus propios colores (`revealGlow` en la caja, sobre una copia de runtime del material): con violeta saturado, la insignia roja y la amarilla quedarían casi negras.
+- **Look UV.** Todo en overrides del hijo `Lamp`: la Spot (28° / inner 20°, range 14) en violeta (0.5, 0.08, 1) con intensity 120 —el violeta tiene ~12 % de la luminancia del blanco—; el `FogBeacon` en (0.62, 0.3, 1) con intensity 2.5; y el `FogLightVolume` en 1.8 (el color del haz sale de la Light).
+- **Achica la visión.** Es la única lámpara cuyo `LightZone` cierra en vez de abrir: pushea `SO_VisionFog_UVPool` (copia de Dark con visión 1 → 2.4 m, `bypassFalloff` 0.5, in-scattering violeta, tinte del player violeta y transición de 1.5 s). El `FogLightBypass` (esfera de radio 3.5 centrada a 0.3 m del piso, clear 1, sin inyección) mantiene despejado el charco, así que parado adentro se ve el charco y oscuridad alrededor. El `bypassFalloff` es del preset activo: con 0.5 el bypass limpia parejo todo el charco desde adentro, y desde afuera (Dark, 2) limpia sólo el centro. El trigger es una esfera de radio 1.7 a 0.9 m del piso: el player entra con el cuerpo a ~2 m del centro. Al salir, o si la palanca apaga la lámpara con el player adentro (`LightZone.OnDisable`), vuelve al preset anterior con la transición de ese preset.
+- **Preset, bypass y trigger están ajustados a mano al charco** (radio ~2.2 m en el piso, lámpara a 8.9 m). Si la lámpara cambia de altura hay que correr `Center Offset Z` del bypass y `Center Z` del collider; si cambia el Spot Angle, los radios y `visionEnd`.
 
 Las **sirenas del escape** (`EscapeAlarmLights`, `Scripts/Escape/`) arman la misma receta en runtime sobre las lámparas `Light Base` del pasillo: FogBeacon en la lámpara, bajado para que no lo tape el techo; el bypass convertido en pool sólo-clear; FogLightVolume; y la Spot en intensity 0 (no desactivada) en la mitad apagada del ciclo. Al terminar deja todo como estaba.
 
@@ -591,6 +605,36 @@ El ojo de pez es de verdad: `PlayerCameraFeed.LensFovOffset` abre el lente de Ci
 **Preview sin Play**: en `PlayerCameraFeed`, `Preview In Edit Mode` + `Preview Stage` (Boot / Calibrating / Gameplay) + `Preview Amount`. Fuera de Play el lente no se abre, así que el fisheye muestra más negro que en el juego.
 
 **HUD**: el HUD de módulos (la ventana `M1 // LEGS` con el anillo, `ModuleTimerHUDView`) **se eliminó** el 26/09: lo reemplaza la lectura de abajo a la izquierda. En `HUDCanvas.prefab` quedó el objeto `ModuleTimerBeeper`, sólo con el pitido de los últimos segundos. Las ventanas de las esquinas que quedan están adentro del visor (margen 50 a los costados, 96 arriba/abajo): `InteractionFeed` y `BreathMeter`. El overlay ocupa la franja de ~25–80 unidades de canvas desde cada borde.
+
+### 7.4 Overlay del escondite — shaders de UI con look PSX propio
+
+Lo que el player ve desde adentro de un escondite (`HidingOverlayView`, en `HUDCanvas.prefab`; ver `docs/UI-System.md` › *HUD del escondite*). Un shader y un material por tipo, todos en `Art/Materials/UI/`:
+
+| Tipo | Shader | Material | Qué dibuja |
+|---|---|---|---|
+| Locker | `HidingOverlay_Locker.shader` | `UI_HidingLocker.mat` | Puerta de chapa con un bloque de rejillas estampadas (filas × columnas). En cada ranura: la aleta de arriba (banda oscura con su borde iluminado), una banda plana de sombra y el cuarto limpio. Alrededor, la chapa en facetas: canto iluminado abajo y oscuro arriba, cara iluminada debajo de la ranura y cara en sombra arriba (donde se juntan dos queda el pliegue). Mugre en manchas planas y bordes gastados |
+| Bajo mesa | `HidingOverlay_UnderTable.shader` | `UI_HidingUnderTable.mat` | Tapa con faldón y canto iluminado, su cara de abajo oscureciéndose en escalones, una banda plana de sombra bajo el canto, patas lejanas con dos caras y arista, patas cercanas como masas oscuras de borde duro con una línea de luz |
+| Contenedor | `HidingOverlay_Container.shader` | `UI_HidingContainer.mat` | Dos puertas corrugadas iluminadas sólo desde la abertura que queda entre ellas (cada onda en tonos planos, apagándose hacia los costados), burlete negro con una línea de luz, marco arriba y abajo con luz filtrándose por el umbral. La abertura mide un décimo del ancho de pantalla (`_SeamWidth` 0.18) |
+
+Lo común está en `HidingOverlayCommon.hlsl`.
+
+**Por qué traen su propio pixelado.** `HUDCanvas` es Screen Space - Overlay: se dibuja después del pase `PSXEffect`, así que nada lo pixela. Cada look se evalúa una vez por celda de la misma grilla del PS1 (`_GridRows` = `_PixelSize` de `PS1Effect.mat`, hoy 256: **si cambia uno, cambiar los tres materiales**) y se pinta en tonos planos (`_ColorLevels` cuantiza el brillo conservando el tono; cuantizar canal por canal teñía los casi-negros de verde y violeta).
+
+**Sin dither, en ningún lado** (desde el 04/10; la primera versión sacaba cada transición suave como dither ordenado y sobre un cuarto claro se leía como una trama de puntos impresa en la imagen). La regla:
+
+- Lo que tapa es opaco y lo abierto se ve limpio. Una celda es el escondite, el cuarto, o **una** banda plana de sombra con una sola opacidad; nunca un patrón de las dos cosas.
+- El volumen sale de bandas planas con borde duro; un gradiente se corta en pocos escalones (`HidingBands`).
+- La viñeta oscurece sólo las partes sólidas: nunca tapa una abertura.
+- El fundido es el alfa de toda la capa, en `_FadeSteps` escalones (5; en 1 es suave). No hay dissolve por celdas.
+- El grano (`_Grain`, 0.008) va después de cuantizar y sólo sobre las partes sólidas; usa `_UnscaledTime`, así que sigue en pausa. En 0 se apaga.
+
+**Unidades.** Las medidas de los looks están en **alturas de pantalla** desde el centro (16:9 mide 1.78 de ancho) o en celdas de la grilla; lo dice el nombre de cada propiedad.
+
+**Colores.** Sombras casi negras apenas frías y luz gris fría. Ni rojo (peligro) ni ámbar (dispositivo del player). `Solid Opacity` en 1: por las partes sólidas no se ve nada; en el contenedor eso deja la abertura como única vista.
+
+**Lo que viene de C#**, nunca de propiedades del material: `_HidingOverlayLook` (xy = dónde cae el centro del look en pantalla, en alturas de pantalla; lo publica `HidingOverlayView` con el giro de la cámara y la deriva) y el alfa de vértice (el fundido). Los tres `.mat` no se escriben nunca en runtime.
+
+**Para tunear**: `HidingOverlayView` › `Preview In Edit Mode`, elegir el tipo y mover los sliders del material mirando la Game view. Destildar el preview al terminar.
 
 ---
 
