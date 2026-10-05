@@ -10,14 +10,11 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     // ── Four-way push ───────────────────────────────────────────────────────────
     //
-    // The box only ever travels along its own axes: away from the grabbed face, back towards the
-    // player, or sliding to either side. Which key does which is read off the camera every frame,
-    // like walking: each key points somewhere on screen (W up, D right...), and the box takes
-    // whichever of its four axes lies closest to that. With the camera behind the player that is
-    // W push, S pull, A / D slide; orbit it round to the player's right and W becomes the slide
-    // that carries the box away from the camera. Only one direction at a time: the most recently
-    // pressed key that is still held wins, so holding W and then pressing D switches to D, and
-    // releasing D falls back to W.
+    // W pushes the box away, S pulls it back, D / A slide it right / left — relative to the face
+    // the player grabbed, not to the camera, so the box always travels along its own axes and
+    // orbiting the camera mid-push never changes what a key does. Only one direction at a time:
+    // the most recently pressed key that is still held wins, so holding W and then pressing D
+    // switches to D, and releasing D falls back to W.
     //
     // Frame the key went down for each direction, or -1 while it is not held. Frames rather than
     // time so two presses are ordered even when they land within the same millisecond.
@@ -36,6 +33,18 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     private Vector3 boxOffset;
     private bool hasBoxOffset;
 
+    // The area the box stood in when grabbed, or null: the push may not carry it out of there.
+    private BoxLimitArea limitArea;
+
+    // The direction the pair last came to a stop in, or zero. Once stopped, that direction needs
+    // BlockReleaseMargin of extra clearance to read as free again. Without it the pair flickered:
+    // the box runs a few millimetres ahead of the player while moving, so on stopping DriveBox's
+    // drift correction drew it back just far enough to read as free, the push set off, stopped
+    // again, and the player twitched in place for as long as the key was held. A margin and not a
+    // latch, so a push does resume once the obstacle genuinely goes away.
+    private Vector3 blockedDirection;
+    private const float BlockReleaseMargin = 0.1f;
+
     // How hard drift from boxOffset is corrected, per second, and the most that correction may add
     // to the box's speed — enough to hold the pair together, never enough to yank the box.
     private const float BoxFollowGain = 10f;
@@ -44,6 +53,13 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     // Obstacle probes are shrunk by this so shapes resting on the floor or against each other do
     // not report a hit from where they already stand.
     private const float ProbeSkin = 0.05f;
+
+    // The box probe's sides, across the push, are shrunk far less. With the full ProbeSkin there a
+    // corner clipping an obstacle by under 5 cm slipped past the probe: the push read as free, the
+    // player kept walking and animating, and the real box sat stuck on the corner. Sliding along a
+    // wall the box already touches still reads as free, since a sweep parallel to a face never hits
+    // it, and a wall it has sunk into is skipped as a start-of-cast overlap.
+    private const float BoxSideSkin = 0.005f;
 
     // Contacts with a normal steeper than this are floor or ramp and never block a push.
     private const float FloorNormalY = 0.7f;
@@ -89,6 +105,8 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         for (int i = 0; i < pressedFrame.Length; i++) pressedFrame[i] = -1;
         box = playerStateManager.PushedBox;
         boxCollider = box != null ? box.GetComponent<BoxCollider>() : null;
+        limitArea = box != null ? BoxLimitArea.FindContaining(box.position) : null;
+        blockedDirection = Vector3.zero;
         hasBoxOffset = false;
         playerStateManager.PushDirection = Vector3.zero;
 
@@ -157,6 +175,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         boxSolidColliders = null;
         box = null;
         boxCollider = null;
+        limitArea = null;
     }
 
     public override void UpdateState()
@@ -197,7 +216,18 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
                 // Blocked is treated like no input: the pair stops together instead of the player
                 // walking off sideways while the box sits against a wall.
-                if (pushDir != Vector3.zero && IsPushBlocked(pushDir)) pushDir = Vector3.zero;
+                // Releasing the key keeps blockedDirection, so pressing it again against the same
+                // obstacle does not twitch once either.
+                if (pushDir != Vector3.zero)
+                {
+                    float releaseMargin = pushDir == blockedDirection ? BlockReleaseMargin : 0f;
+                    if (IsPushBlocked(pushDir, releaseMargin))
+                    {
+                        blockedDirection = pushDir;
+                        pushDir = Vector3.zero;
+                    }
+                    else blockedDirection = Vector3.zero;
+                }
 
                 playerStateManager.PushDirection = pushDir;
 
@@ -227,8 +257,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
     /// <summary>
     /// The world-space push direction for this frame, or zero. Tracks when each direction was
-    /// pressed and takes the latest one still held, then moves the box along whichever of its own
-    /// axes lies closest to where that key points on screen right now.
+    /// pressed and returns the latest one still held, so the box only ever moves along one axis.
     /// </summary>
     private Vector3 ReadPushDirection()
     {
@@ -256,29 +285,13 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         forward.Normalize();
         Vector3 right = Vector3.Cross(Vector3.up, forward);
 
-        // Where the key points on screen, laid flat on the floor: "up" on screen is the way the
-        // camera looks. The real view and not the camera-to-player line, which the over-the-
-        // shoulder framing skews away from what the screen shows (see ViewForward).
-        Vector3 view = playerStateManager.ViewForward;
-        view.y = 0f;
-        if (view.sqrMagnitude < 0.0001f) view = forward;
-        view.Normalize();
-        Vector3 viewRight = Vector3.Cross(Vector3.up, view);
-
-        Vector3 wanted;
         switch (latest)
         {
-            case Forward: wanted = view;       break;
-            case Right:   wanted = viewRight;  break;
-            case Back:    wanted = -view;      break;
-            default:      wanted = -viewRight; break;
+            case Forward: return forward;
+            case Back:    return -forward;
+            case Right:   return right;
+            default:      return -right;
         }
-
-        // The box axis closest to it: along the grabbed face's normal, or across it.
-        float along = Vector3.Dot(wanted, forward);
-        float across = Vector3.Dot(wanted, right);
-        if (Mathf.Abs(along) >= Mathf.Abs(across)) return along >= 0f ? forward : -forward;
-        return across >= 0f ? right : -right;
     }
 
     private void CacheBoxSolidColliders()
@@ -357,11 +370,37 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     /// Both are checked because the leading one depends on the direction: the box leads a forward
     /// push, the player leads a pull, and on a slide either can clip a wall first.
     /// </summary>
-    private bool IsPushBlocked(Vector3 direction)
+    private bool IsPushBlocked(Vector3 direction, float extraDistance)
     {
         float distance = Mathf.Max(playerStateManager.Movement.BoxPushSpeed * Time.fixedDeltaTime, ProbeSkin)
-                         + ProbeSkin;
-        return IsBoxBlocked(direction, distance) || IsPlayerBlocked(direction, distance);
+                         + ProbeSkin + extraDistance;
+        return IsBoxBlocked(direction, distance) || IsPlayerBlocked(direction, distance)
+               || WouldLeaveLimitArea(direction, distance);
+    }
+
+    /// <summary>
+    /// True if this frame's travel would carry the box further out of its <see cref="BoxLimitArea"/>.
+    /// "Further" rather than "out at all", so a box that already sticks out of its area — placed
+    /// across the edge in the level — can still be pushed back in instead of locking for good.
+    /// </summary>
+    private bool WouldLeaveLimitArea(Vector3 direction, float distance)
+    {
+        if (limitArea == null || boxCollider == null) return false;
+
+        return CornersOutside(direction * distance) > CornersOutside(Vector3.zero) + 0.0001f;
+    }
+
+    /// <summary>How far the box's four floor-plan corners stand outside its limit area, summed.</summary>
+    private float CornersOutside(Vector3 offset)
+    {
+        Transform t = boxCollider.transform;
+        Vector3 c = boxCollider.center;
+        Vector3 h = boxCollider.size * 0.5f;
+
+        return limitArea.DistanceOutside(t.TransformPoint(c + new Vector3( h.x, 0f,  h.z)) + offset)
+             + limitArea.DistanceOutside(t.TransformPoint(c + new Vector3(-h.x, 0f,  h.z)) + offset)
+             + limitArea.DistanceOutside(t.TransformPoint(c + new Vector3( h.x, 0f, -h.z)) + offset)
+             + limitArea.DistanceOutside(t.TransformPoint(c + new Vector3(-h.x, 0f, -h.z)) + offset);
     }
 
     private bool IsBoxBlocked(Vector3 direction, float distance)
@@ -371,9 +410,17 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         Transform t = boxCollider.transform;
         Vector3 centre = t.TransformPoint(boxCollider.center);
         Vector3 halfExtents = Vector3.Scale(boxCollider.size, t.lossyScale) * 0.5f;
-        halfExtents = new Vector3(Mathf.Max(0.01f, Mathf.Abs(halfExtents.x) - ProbeSkin),
+
+        // The push always runs along one of the box's own horizontal axes: that one keeps the full
+        // skin (the face the box already rests against), the one across it gets BoxSideSkin.
+        Vector3 localDirection = Quaternion.Inverse(t.rotation) * direction;
+        bool alongX = Mathf.Abs(localDirection.x) >= Mathf.Abs(localDirection.z);
+        float skinX = alongX ? ProbeSkin : BoxSideSkin;
+        float skinZ = alongX ? BoxSideSkin : ProbeSkin;
+
+        halfExtents = new Vector3(Mathf.Max(0.01f, Mathf.Abs(halfExtents.x) - skinX),
                                   Mathf.Max(0.01f, Mathf.Abs(halfExtents.y) - ProbeSkin),
-                                  Mathf.Max(0.01f, Mathf.Abs(halfExtents.z) - ProbeSkin));
+                                  Mathf.Max(0.01f, Mathf.Abs(halfExtents.z) - skinZ));
 
         RaycastHit[] hits = Physics.BoxCastAll(centre, halfExtents, direction, t.rotation, distance,
                                               Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
