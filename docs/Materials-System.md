@@ -753,6 +753,7 @@ Lo común está en `HidingOverlayCommon.hlsl`.
 | Que una lámpara se lea de lejos a través de la niebla | `FogBeacon` (el punto) y/o `FogLightVolume` (el haz) — §6.4.1. Receta armada: `Light Base Switch.prefab`. |
 | Velocidad del scroll del noise de la niebla | `VisionFog.mat → Enable Noise` + `_FogScrollSpeed` en Inspector. |
 | Intensidad de scanlines / dither / pixelado | `PS1Effect.mat` → `_ScanlineIntensity` / `_DitherStrength` / `_PixelSize`. |
+| Estática por cercanía del Nemesis (reemplaza a la viñeta roja de chase, 2026-10-05): cuánta nieve y tear con el Nemesis encima, curva, bandas de glitch, si sólo corre en persecución | `SO_PlayerCameraFeed.asset` § *Nemesis closing in* (`threatStatic`, `threatCurve`, `threatGlitchChance`, `threatOnlyWhileChasing`). El gradiente oscuro de `VignetteProximityView` sigue aparte. |
 | Booteo de la cámara del despertar (duración, barra, textos), cuánto ojo de pez y cómo se calibra, overlay en gameplay | `SO_PlayerCameraFeed.asset` (`ScriptableObjects/Rendering/`), §7.3. |
 | Look del feed del jugador (barril, grano, viñeta, color del overlay, estática) | `PlayerCamera.mat` (`Art/Materials/Post Process/`), §7.3. |
 | Volver a los párpados en el despertar | `WakeUpCinematicView` → `Opening = EyeLids` (en `HUDCanvas.prefab`). |

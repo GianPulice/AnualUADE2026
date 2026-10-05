@@ -570,7 +570,7 @@ MonoBehaviour:
   drawCatchReach: 1
   drawSearchSweep: 1
   drawRoomSweep: 1
-  drawPossibilityMap: 0
+  drawPossibilityMap: 1
   drawProximityVignette: 0
   drawHidingKnowledge: 1
   drawChaseTrail: 1

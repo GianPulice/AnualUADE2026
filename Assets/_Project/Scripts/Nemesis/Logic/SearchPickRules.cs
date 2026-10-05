@@ -55,4 +55,44 @@ public static class SearchPickRules
 
         return shareNow < shareWhenPicked * Mathf.Clamp01(keepFraction);
     }
+
+    /// <summary>
+    /// How far a place lies along the way the player was last seen going: 1 dead ahead of that
+    /// heading from the spot they were last seen at, 0 off to one side, -1 straight back. Flat: a
+    /// place one floor up is not "ahead" for being above. 0, no opinion, when there is no heading to
+    /// speak of or the place is that spot itself.
+    /// </summary>
+    public static float HeadingAlignment(Vector3 lastSeen, Vector3 heading, Vector3 place)
+    {
+        heading.y = 0f;
+
+        Vector3 toPlace = place - lastSeen;
+        toPlace.y = 0f;
+
+        if (heading.sqrMagnitude < 0.0001f || toPlace.sqrMagnitude < 0.0001f) return 0f;
+
+        return Vector3.Dot(heading.normalized, toPlace.normalized);
+    }
+
+    /// <summary>
+    /// What the pick a chase hands over with multiplies a place's worth by, for lying where the
+    /// player was heading: <paramref name="aheadBoost"/> dead ahead, 1 off to the side, one over the
+    /// boost straight back, and smoothly in between.
+    ///
+    /// WHY THE WORTH ALONE IS NOT ENOUGH (playtest 05/10: "cuando doblás la esquina no predice que
+    /// vas a seguir para adelante"). The map does spread faster along the heading, but worth divides
+    /// by the walk, and at the corner where it lost them the places a step away — beside it, behind
+    /// it — are the cheapest walks on the list: in three handovers out of seven it set off sideways,
+    /// with the player a few metres down the corridor it was not looking along.
+    ///
+    /// STILL A ROLL, NEVER AN ARGMAX, for the reason <see cref="Worth"/> gives: this leans the roll
+    /// towards "they kept going", it does not make the Nemesis know they did. A boost of 1 or less
+    /// leaves the worth as it is.
+    /// </summary>
+    public static float HeadingWeight(float alignment, float aheadBoost)
+    {
+        if (float.IsNaN(alignment) || aheadBoost <= 1f) return 1f;
+
+        return Mathf.Pow(aheadBoost, Mathf.Clamp(alignment, -1f, 1f));
+    }
 }

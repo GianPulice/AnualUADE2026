@@ -149,12 +149,15 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     //                      lens, towards 0 = equidistant fisheye), w = fisheye amount (0 = off).
     //   _PlayerFeedSignal  x = power (0 = black), y = static (0..1), z = focus blur (0..1),
     //                      w = exposure (1 = as rendered).
+    //   _PlayerFeedThreat  the Nemesis closing in: x = static it adds (0..1, same snow and tear as
+    //                      a lost signal), y = added chance of a glitch band per slot (0..1).
     #define FEED_LINE 32
     float  _PlayerFeedText[192];
     float4 _PlayerFeedInfo;
     float4 _PlayerFeedBoot;
     float4 _PlayerFeedLens;
     float4 _PlayerFeedSignal;
+    float4 _PlayerFeedThreat;
     float4 _PlayerFeedReadout;
     float4 _PlayerFeedReadoutTime;
     float4 _PlayerFeedBanner;
@@ -361,7 +364,7 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float frame = fmod(floor(_Time.y * _NoiseFps), 4096.0);
 
         float power = saturate(_PlayerFeedSignal.x);
-        float staticAmount = saturate(_PlayerFeedSignal.y);
+        float staticAmount = saturate(max(_PlayerFeedSignal.y, _PlayerFeedThreat.x));
         float blur = saturate(_PlayerFeedSignal.z);
         float exposure = max(_PlayerFeedSignal.w, 0.0);
 
@@ -415,7 +418,7 @@ Shader "Hidden/Custom/PlayerCameraFeed"
             float shift = (Hash21(float2(row, frame)) - 0.5) * _LineJitter;
 
             float slot = floor(_Time.y * 4.0);
-            float burst = step(1.0 - _GlitchChance, Hash21(float2(slot, 17.0)));
+            float burst = step(1.0 - saturate(_GlitchChance + _PlayerFeedThreat.y), Hash21(float2(slot, 17.0)));
             float inBand = 1.0 - step(0.05, abs(suv.y - Hash21(float2(slot, 29.0))));
             shift += burst * inBand * (Hash21(float2(row, slot)) - 0.5) * 2.0 * _GlitchShift;
             shift += staticAmount * (Hash21(float2(row, frame + 7.0)) - 0.5) * _StaticTear;

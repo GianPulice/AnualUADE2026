@@ -766,6 +766,16 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         return false;
     }
 
+    /// <summary>Whether the route to the belief has failed to get there for long enough to act on.
+    /// See <see cref="NemesisPathOracle.IsUnreachableSettled"/>. With no oracle nothing can be
+    /// measured, which reads as unreachable: what a failed query always meant.</summary>
+    public bool IsBeliefRouteUnreachable(Vector3 belief) =>
+        pathOracle == null || pathOracle.IsUnreachableSettled(belief);
+
+    /// <summary>Seconds since the eyes last had the player. Infinity if never. See
+    /// <see cref="FieldOfView.TimeSinceLastSighting"/>.</summary>
+    public float SightAge => fieldOfView != null ? fieldOfView.TimeSinceLastSighting : float.PositiveInfinity;
+
     /// <summary>Whether that route means changing floor by lift. See
     /// <see cref="NemesisPathOracle.IsAcrossFloors"/>.</summary>
     public bool IsRouteAcrossFloors(in NemesisNav.NavRoute route) =>

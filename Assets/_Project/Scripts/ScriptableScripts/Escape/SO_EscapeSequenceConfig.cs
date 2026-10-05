@@ -327,7 +327,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos después del golpe hasta el corte al plano medio del Nemesis entre el polvo.")]
     [SerializeField, Min(0f)] private float dustShotDelay = 0.35f;
 
-    [Tooltip("Segundos con el Nemesis trabado atrás del portón antes de la pantalla de victoria.")]
+    [Tooltip("Segundos que el Nemesis se queda parado frente al portón recién caído antes de " +
+             "pegarle. 0 = le pega apenas llega.")]
+    [SerializeField, Min(0f)] private float endingAttackDelay = 1f;
+
+    [Tooltip("Segundos desde que el Nemesis le pega al portón hasta la pantalla de victoria.")]
     [SerializeField, Min(0f)] private float endingHoldSeconds = 2.5f;
 
     // ── Nemesis (Paso 6) ────────────────────────────────────────────────────
@@ -471,6 +475,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public string GateSlamSoundId => gateSlamSoundId;
     public float GateShakeAmplitude => gateShakeAmplitude;
     public float GateShakeSeconds => gateShakeSeconds;
+    public float EndingAttackDelay => endingAttackDelay;
     public float EndingHoldSeconds => endingHoldSeconds;
 
     public float PaceNear => paceNear;

@@ -87,6 +87,7 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int BootId = Shader.PropertyToID("_PlayerFeedBoot");
     private static readonly int LensId = Shader.PropertyToID("_PlayerFeedLens");
     private static readonly int SignalId = Shader.PropertyToID("_PlayerFeedSignal");
+    private static readonly int ThreatId = Shader.PropertyToID("_PlayerFeedThreat");
     private static readonly int ReadoutId = Shader.PropertyToID("_PlayerFeedReadout");
     private static readonly int ReadoutTimeId = Shader.PropertyToID("_PlayerFeedReadoutTime");
     private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
@@ -193,9 +194,38 @@ public class PlayerCameraFeed : MonoBehaviour
     private bool rebootStandUpSeen;
 
     // Awake/OnDestroy for the static event, as the project does everywhere (docs/UI-System.md §7.1).
-    private void Awake() => CaptureFadeView.OnCaptureRevealStarted += HandleCaptureRevealStarted;
+    private void Awake()
+    {
+        CaptureFadeView.OnCaptureRevealStarted += HandleCaptureRevealStarted;
+        NemesisEvents.OnProximityChanged += HandleNemesisProximity;
+        NemesisEvents.OnChaseStarted += HandleChaseStarted;
+        NemesisEvents.OnChaseEnded += HandleChaseEnded;
+    }
 
-    private void OnDestroy() => CaptureFadeView.OnCaptureRevealStarted -= HandleCaptureRevealStarted;
+    private void OnDestroy()
+    {
+        CaptureFadeView.OnCaptureRevealStarted -= HandleCaptureRevealStarted;
+        NemesisEvents.OnProximityChanged -= HandleNemesisProximity;
+        NemesisEvents.OnChaseStarted -= HandleChaseStarted;
+        NemesisEvents.OnChaseEnded -= HandleChaseEnded;
+    }
+
+    // The Nemesis closing in disturbs the signal: 0 = at or beyond its proximity radius, 1 = on
+    // top of the player. Already interpolated by NemesisTelemetry, so it is used as it comes.
+    private float nemesisProximity;
+    private bool nemesisChasing;
+
+    private void HandleNemesisProximity(float t) => nemesisProximity = Mathf.Clamp01(t);
+    private void HandleChaseStarted() => nemesisChasing = true;
+    private void HandleChaseEnded() => nemesisChasing = false;
+
+    /// <summary>0..1: how far the Nemesis's closeness disturbs the picture right now.</summary>
+    private float Threat()
+    {
+        if (config == null || !Application.isPlaying) return 0f;
+        if (config.ThreatOnlyWhileChasing && !nemesisChasing) return 0f;
+        return Mathf.Pow(nemesisProximity, config.ThreatCurve);
+    }
 
     private void OnEnable()
     {
@@ -274,9 +304,10 @@ public class PlayerCameraFeed : MonoBehaviour
 
         float cut = playing ? CutStatic(now) : 0f;
         float noise = Mathf.Max(staticAmount, cut);
+        float threat = Threat();
 
         bool plain = PlayerCameraBoot.Current == PlayerCameraBoot.Phase.None &&
-                     overlay <= 0f && noise <= 0f && fisheye <= 0f;
+                     overlay <= 0f && noise <= 0f && fisheye <= 0f && threat <= 0f;
         if (plain && playing) return false;
 
         UpdateText(playing);
@@ -292,6 +323,8 @@ public class PlayerCameraFeed : MonoBehaviour
         Shader.SetGlobalVector(BootId, new Vector4(boot, bar, bootTitleLength, bootPercentLength));
         Shader.SetGlobalVector(LensId, LensGlobals(camera, playing));
         Shader.SetGlobalVector(SignalId, new Vector4(power, noise, blur, exposure));
+        Shader.SetGlobalVector(ThreatId, new Vector4(threat * config.ThreatStatic,
+                                                      threat * config.ThreatGlitchChance, 0f, 0f));
         return true;
     }
 

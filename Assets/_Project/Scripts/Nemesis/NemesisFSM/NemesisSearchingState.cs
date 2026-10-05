@@ -115,7 +115,11 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// <summary>Standing at a place it reached, looking around, before choosing the next one. Only
     /// while it is actually THERE: NemesisLookAround sweeps the gaze while this is true, and it used
     /// to stay true all the way to the next point (plan §18.1).</summary>
-    public bool IsPausing => pausedHere && pauseRemaining > 0f;
+    public bool IsPausing => pausedHere && pauseRemaining > 0f && !watching;
+
+    /// <summary>It has the player in plain view and cannot walk to them: it went as near as the
+    /// NavMesh lets it and is standing there, looking at them. See <see cref="TickWatch"/>.</summary>
+    public bool IsWatchingPlayer => watching;
 
     /// <summary>The hiding spot this search is walking to or checking, or null. See TickSpotCheck.
     /// </summary>
@@ -171,6 +175,12 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// <summary>It has reached the current place and started (or finished) looking around there.
     /// Reset every time it sets off somewhere.</summary>
     private bool pausedHere;
+
+    private bool watching;
+
+    /// <summary>How far the seen player has to move before the watch walks to a new closest point:
+    /// a destination set every frame is a path query every frame.</summary>
+    private const float WatchRetargetDistance = 1f;
 
     private ETarget target = ETarget.Scatter;
     private EPickReason lastPick = EPickReason.None;
@@ -346,6 +356,11 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         {
             if (!searchedEverything) return false;
 
+            // Looking straight at the player is not having looked everywhere (plan §18.5 A): the
+            // places around them are worth nothing to the pick because it cannot WALK to them, and
+            // that verdict used to cool the search and send it back to patrol with them in view.
+            if (nemesisStateManager.HasVisualTarget) return false;
+
             NemesisBelief belief = nemesisStateManager.Belief;
             if (belief == null || !belief.HasBelief || belief.Sequence == verdictSequence) return true;
 
@@ -417,6 +432,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         NextState = StateKey;
         pauseRemaining = 0f;
         pausedHere = false;
+        watching = false;
         spotTarget = null;
         spotCheckRemaining = -1f;
 
@@ -475,6 +491,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         EndSpotCheck();
         picker.Clear();
         pausedHere = false;
+        watching = false;
         pauseRemaining = 0f;
         headingToEvidence = false;
 
@@ -507,6 +524,8 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         // A hiding spot to check comes before everything else this state does — fresh evidence
         // included, which with the player in a locker is most likely their own breathing.
         if (TickSpotCheck()) return;
+
+        if (TickWatch()) return;
 
         TrackEvidence();
 
@@ -573,7 +592,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         pausedHere = false;
         pauseRemaining = 0f;
 
-        bool picked = picker.TryPick(out NemesisSearchPicker.Candidate chosen);
+        bool picked = picker.TryPick(out NemesisSearchPicker.Candidate chosen, ChaseHeading(why));
 
         // Whatever it chose, it chose off the map as the newest evidence left it: the pick has the
         // map catch up with the belief before it reads it.
@@ -629,6 +648,38 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         SetOff(ScatterPoint());
         targetZone = SearchTarget;
         ConsiderUsedSpots(scatterCentre);
+    }
+
+    /// <summary>The slowest the player may have been seen going for it to count as a heading: under
+    /// this they were standing, and there is no "ahead" to lean towards.</summary>
+    private const float MinHeadingSpeed = 0.5f;
+
+    /// <summary>
+    /// The way the player was last seen going, for the pick a chase hands over with — and only that
+    /// one (playtest 05/10: turning a corner, the search set off sideways as often as after them).
+    /// The map already spreads faster along the heading; this leans the first roll the same way
+    /// (SearchPickRules.HeadingWeight). Every later pick is the plain roll: by then the Nemesis has
+    /// looked down that way, and what the map holds is what is left to look at.
+    ///
+    /// The EYES' last sighting, like the pursuit that got it here (NemesisPursuit, "the SEEN spot"):
+    /// a heading is something it saw, and a sighting old enough not to be this chase is not one.
+    /// </summary>
+    private NemesisSearchPicker.HeadingHint ChaseHeading(EPickReason why)
+    {
+        if (why != EPickReason.Entered) return default;
+
+        if (!nemesisStateManager.HasPreviousState ||
+            nemesisStateManager.PreviousStateKey != NemesisStateManager.ENemesisState.Chasing) return default;
+
+        FieldOfView eyes = nemesisStateManager.FieldOfView;
+        if (eyes == null || !eyes.HasLastKnownPosition) return default;
+        if (eyes.TimeSinceLastSighting >= NemesisPursuit.RecentSightingSeconds) return default;
+
+        Vector3 heading = eyes.LastKnownVelocity;
+        heading.y = 0f;
+        if (heading.sqrMagnitude < MinHeadingSpeed * MinHeadingSpeed) return default;
+
+        return new NemesisSearchPicker.HeadingHint(eyes.LastKnownPosition, heading);
     }
 
     /// <summary>
@@ -753,6 +804,65 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         // Seeing it empty from here is the look it owed that place: silence counts from now.
         headingToEvidence = false;
         PickNext(EPickReason.LostItsValue, fromEvidence: false);
+    }
+
+    /// <summary>
+    /// The player is in plain view and it cannot walk to them: go as near as the NavMesh lets it and
+    /// stand there looking at them (playtest 04/10, "la búsqueda quieta").
+    ///
+    /// HOW IT GETS HERE. "lo está viendo" only takes a player it can REACH (WIR-018), so one on a
+    /// catwalk, in the Hub or across a gap leaves it in this state with them in sight. The search
+    /// then asked the map where to go, every place around the player was worth nothing because none
+    /// can be walked to, and it stood wherever it happened to be, sweeping its gaze from side to
+    /// side past the person it could see. From the player's side that is the monster ignoring them.
+    ///
+    /// The destination is the spot the eyes have them at, and the agent does the rest: with no
+    /// complete path it walks the partial one and stops at its end, which is the closest it can
+    /// get. NemesisLookAround keeps the gaze on them while this is true, and SearchedEverything is
+    /// false for as long as it sees them, so the search does not go cold under their nose. The
+    /// moment they are out of sight it picks off the map again, which those sightings have just
+    /// re-seeded around where they were.
+    /// </summary>
+    /// <returns>true while it is watching, and the rest of the update should not run.</returns>
+    private bool TickWatch()
+    {
+        FieldOfView eyes = nemesisStateManager.FieldOfView;
+
+        if (eyes == null || !nemesisStateManager.HasVisualTarget || !eyes.HasLastKnownPosition)
+        {
+            if (!watching) return false;
+
+            watching = false;
+            PickNext(EPickReason.NewEvidence, fromEvidence: true);
+            return true;
+        }
+
+        Vector3 seenAt = eyes.LastKnownPosition;
+
+        if (!watching || (seenAt - SearchTarget).sqrMagnitude > WatchRetargetDistance * WatchRetargetDistance)
+        {
+            watching = true;
+            target = ETarget.Standing;
+            targetZone = seenAt;
+            targetShare = 0f;
+            headingToEvidence = false;
+            SetOff(seenAt);
+        }
+
+        // Standing: at the end of the partial path, or with no path at all (the spot is too far from
+        // anything walkable to snap to). Without the second half it would keep the running gait on
+        // an agent that is going nowhere, which is the "corre en el lugar" of WIR-024.
+        UnityEngine.AI.NavMeshAgent agent = nemesisStateManager.NavAgent;
+        bool nowhereToGo = !agent.pathPending &&
+                           agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathInvalid;
+
+        if (nemesisStateManager.HasArrived || nowhereToGo)
+        {
+            agent.velocity = Vector3.zero;
+            nemesisStateManager.SetGait(NemesisStateManager.EGait.Idle, 0f);
+        }
+
+        return true;
     }
 
     private void SetOff(Vector3 point)

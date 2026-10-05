@@ -71,13 +71,14 @@ public static class NemesisSetupValidator
         problems += ValidateHabitRules(report);
         problems += ValidateEscalation(report);
         problems += ValidateDropLinks(report);
+        problems += NemesisLadderValidator.Validate(report);
 
         if (problems == 0)
         {
             // The notes (sweep points, zone coverage) are still worth reading when nothing is wrong.
             Debug.Log("[NemesisSetupValidator] All good: NavMeshSurface, modifiers and modifier " +
                       "volumes, the noise layer, sensors, camera, interaction, waypoints, doors, " +
-                      "the Director, the habit rules, the escalation and the drops are set up correctly." +
+                      "the Director, the habit rules, the escalation, the drops and the priority ladder are set up correctly." +
                       (report.Length > 0 ? $"\n\n{report}" : ""));
             return;
         }

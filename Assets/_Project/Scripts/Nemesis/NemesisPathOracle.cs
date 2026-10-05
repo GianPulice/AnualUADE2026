@@ -82,6 +82,14 @@ public class NemesisPathOracle : MonoBehaviour
     /// </summary>
     private const float TargetMatchRadius = 2.5f;
 
+    /// <summary>Used only when no SO_NemesisData can be found. See <see cref="FallbackInterval"/>.
+    /// </summary>
+    private const float FallbackSettleTime = 0.75f;
+
+    /// <summary>"The route to the belief does not get there", as the ladder is allowed to read it.
+    /// One instance because it is one question: see <see cref="IsUnreachableSettled"/>.</summary>
+    private readonly SettledVerdict unreachable = new SettledVerdict();
+
     private void Awake()
     {
         if (nemesisData != null) return;
@@ -163,6 +171,36 @@ public class NemesisPathOracle : MonoBehaviour
 
         route = fresh.Route;
         return fresh.Valid;
+    }
+
+    /// <summary>
+    /// Whether the route to where the Nemesis believes the player is does not get there (a partial
+    /// path, or no query possible at all), as a verdict that has HELD for
+    /// <see cref="SO_NemesisData.RouteVerdictSettleTime"/>, in either direction (plan §19.4, T1).
+    ///
+    /// The throttle above makes everybody read the same answer for an interval; it does nothing
+    /// about that answer being different in the next one. On a borderline path it is, and both
+    /// rungs that keep a chase going ask this: one failed query dropped the chase with the player in
+    /// plain view, the next good one handed it back, and the state traded several times a second.
+    /// <see cref="SettledVerdict"/> is the rule; this is the one place that owns its memory, for the
+    /// reason this class exists at all: the FSM asks, and the staleness of the answer is kept here.
+    ///
+    /// FOR THE BELIEF, AND ONLY THAT QUESTION. It remembers one answer, so a second asker with a
+    /// different point would be read the first one's. NemesisPursuit's own question (can the last
+    /// SEEN point be reached) goes through <see cref="TryGetRoute"/> and decides per query, as it did.
+    ///
+    /// <see cref="Invalidate"/> does not reset it: a state entry drops the cache, and the fresh
+    /// query that follows is one of the answers this exists to weigh.
+    /// </summary>
+    public bool IsUnreachableSettled(Vector3 belief)
+    {
+        bool fails = !TryGetRoute(belief, out NemesisNav.NavRoute route) || !route.IsComplete;
+
+        float settle = nemesisData != null ? nemesisData.RouteVerdictSettleTime : FallbackSettleTime;
+
+        // Asked every decision while a rung needs it; a gap longer than the settle time (sight was
+        // lost, a capture, a lift ride) means what was settled is no longer known.
+        return unreachable.Step(Time.time, fails, settle, Mathf.Max(settle, Interval));
     }
 
     /// <summary>

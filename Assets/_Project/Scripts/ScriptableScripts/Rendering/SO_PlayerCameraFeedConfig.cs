@@ -213,6 +213,22 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     [Tooltip("Seconds the picture takes to drop to black through static when the signal is lost.")]
     [SerializeField, Min(0.01f)] private float signalLostSeconds = 0.6f;
 
+    [Header("Nemesis closing in (NemesisEvents.OnProximityChanged)")]
+    [Tooltip("Static with the Nemesis on top of the player: the same snow and tear as a lost signal. " +
+             "0 = the Nemesis does not disturb the picture. At 1 the picture is gone.")]
+    [SerializeField, Range(0f, 1f)] private float threatStatic = 0.35f;
+
+    [Tooltip("How the static grows with proximity (0 = at the edge of the Nemesis's proximity radius, " +
+             "1 = on top of the player). 1 = straight; above 1 it stays quiet far away and rises late.")]
+    [SerializeField, Min(0.1f)] private float threatCurve = 1.5f;
+
+    [Tooltip("Added chance of a glitch band (rows torn sideways) per quarter of a second with the " +
+             "Nemesis on top of the player. Grows with the same curve.")]
+    [SerializeField, Range(0f, 1f)] private float threatGlitchChance = 0.6f;
+
+    [Tooltip("On = the picture is only disturbed while the Nemesis is chasing. Off = whenever it is near.")]
+    [SerializeField] private bool threatOnlyWhileChasing = false;
+
     [Header("Cuts")]
     [Tooltip("Static when the feed cuts in: back from another camera (a cinematic shot, a security " +
              "camera) or a skipped wake-up. 0..1.")]
@@ -381,6 +397,10 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     public string RebootTitle => rebootTitle;
     public float SignalLostSeconds => signalLostSeconds;
 
+    public float ThreatStatic => threatStatic;
+    public float ThreatCurve => threatCurve;
+    public float ThreatGlitchChance => threatGlitchChance;
+    public bool ThreatOnlyWhileChasing => threatOnlyWhileChasing;
     public float CutStatic => cutStatic;
     public float CutStaticSeconds => cutStaticSeconds;
 }

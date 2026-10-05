@@ -244,7 +244,17 @@ La intercepción (cortarte el paso en un waypoint) se sacó (D24).
 - **El Director** estira o acorta la ventana y el tope según el ritmo (persistencia).
 - `searchTimeOut` sigue existiendo: es cuánto recuerda un escondite conocido.
 
-**Donde no llega, no insiste.** Si tu posición no tiene camino completo (`IsBeliefUnreachable`, WIR-018), ni "lo está viendo" ni "va a donde lo vio" lo sostienen en `Chasing`: no se queda mirándote desde el borde del NavMesh.
+**Perderte de vista un instante no es perderte (05/10, plan §19.4).** Parado donde te vio por última vez, un solo barrido de vista que fallaba le pasaba la persecución a la búsqueda, y el siguiente se la devolvía: `Chasing` y `Searching` varias veces por segundo. Ahora el peldaño "todavía sabe dónde está" lo sostiene en `Chasing` mientras se cumplan las dos:
+- **Sabe dónde estás:** el radio de su creencia está por debajo de `Chase Hold Radius` (3 m). Ese radio mezcla lo que sabe: verte lo deja en 0.5 m, un ruido tuyo lo deja según qué tan bien te oyó (más lejos, o a través de una pared o un escondite, peor), y sin nada nuevo crece a 4.5 m/s. Sin oírte son 0.56 s.
+- **Te vio hace poco:** menos de `Chase Hold Max Time` (1.2 s). Es el tope: la persecución sin vista se queda en el último punto donde te vio, así que sin él, oyéndote correr, se quedaría parado en la esquina.
+
+Pasado eso busca, y la búsqueda sí usa lo que oye. El inspector de `SO_NemesisData` lo dibuja como línea de tiempo en la sección *Perderlo de vista*, y dice hasta qué distancia tu ruido lo sostiene.
+
+**Al pasar a buscar tira hacia donde ibas (05/10).** El primer lugar de la búsqueda después de una persecución se sortea por valor ÷ caminata, y en la esquina donde te perdió los lugares de al lado son las caminatas más baratas: salía para el costado tan seguido como detrás tuyo. Ese primer sorteo, y sólo ése, multiplica cada lugar por `Search Map Chase Heading Boost` (4) según qué tan en tu rumbo queda: ×4 justo adelante, ×1 al costado, ×0.25 atrás. Sigue siendo un sorteo, no va siempre al mismo lugar. En 1 se apaga. F9 lo marca con "tirando hacia donde ibas".
+
+**Si te ve y no puede llegar, se acerca y te mira (05/10).** Parado en una pasarela o adentro del Hub, a la vista: "lo está viendo" no lo persigue (WIR-018) y antes la búsqueda se quedaba donde estaba, barriendo la mirada de lado a lado. Ahora camina hasta el final del camino parcial, se queda ahí con la mirada en vos, y la búsqueda no se enfría mientras te ve. Al perderte vuelve a elegir sobre el mapa.
+
+**Donde no llega, no insiste.** Si tu posición no tiene camino completo (`IsBeliefUnreachable`, WIR-018), ni "lo está viendo" ni "va a donde lo vio" lo sostienen en `Chasing`: no se queda mirándote desde el borde del NavMesh. Desde el 05/10 ese veredicto tiene que sostenerse `Route Verdict Settle Time` (0.75 s, dos consultas de camino seguidas) para cambiar, en los dos sentidos: una consulta que falla mientras corrés por el borde del NavMesh ya no corta la persecución, y al bajar de un lugar inalcanzable tarda ese tiempo en volver a perseguirte. En 0 vale la última consulta, como antes.
 
 **El loop de la mesa.** Corriendo, el jugador (4.5 m/s) siempre le gana al Nemesis (3.0), así que dar vueltas a un obstáculo no termina nunca. `NemesisChaseProgress` mide, por NavMesh, si acorta distancia: si en `chaseProgressWindow` (4 s) no bajó `chaseMinProgress` (1.5 m), la persecución queda estancada (`ChaseStalled`, en F9). Mientras tanto `NemesisPursuit` castiga los waypoints de desvío que están sobre el rastro por donde vino el jugador (×`chaseTrailPenalty` 0.2 dentro de `chaseTrailPenaltyRadius`, 3 m) y acepta desvíos más largos (`chaseStagnantDetourTolerance` 2.5), para que la ruta salga por el otro lado. **Nunca lo hace más rápido.** Si no hay waypoints cerca del obstáculo no hay otro lado que elegir: eso se arregla con waypoints, no con tuning.
 
@@ -483,7 +493,7 @@ En `ScriptableObjects/Nemesis/`:
 
 | Asset | Qué contiene |
 |---|---|
-| `SO_NemesisData` | Todo lo que no es velocidad: rangos, tiempos, umbrales, sesgos de ruta, cúmulos, captura, persecución estancada, investigación, escondites. |
+| `SO_NemesisData` | Todo lo que no es velocidad: rangos, tiempos, umbrales, sesgos de ruta, cúmulos, captura, persecución estancada, investigación, escondites. Su inspector dibuja lo que significan los números: *Rangos* (a escala, desde arriba), *Probar un caso*, *Perderlo de vista* (línea de tiempo del aguante sin verte y del veredicto de ruta) y *Chequeos*. |
 | `SO_NemesisMovement` | Velocidades por estado + tuning del `NavMeshAgent` (angular 160, aceleración 14, stopping 1) + el movimiento a mano cuando el agente está apagado (links 2.5, subir y bajar del montacargas 1.5, giro 180) + las bajadas: costo por estado, tiempo de cada fase, arco y nombres de los estados del Animator (ver *Bajadas entre pisos*). El enfriamiento de cada bajada (`dropLinkCooldown`) está en `SO_NemesisData`. |
 | `SO_NemesisPriorities` | La escalera de prioridades. Reordenable. Incluye `minimumStateDwell` (0.35 s): la histéresis que evita que dos peldaños se lo pasen ida y vuelta cada frame. |
 | `SO_DirectorPacing` | El ritmo del Director (ver *Director y ritmo*). Lo lee `NemesisDirector`, no el Nemesis. |
@@ -511,7 +521,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 | `F10` | Consola de test (`NemesisTestConsole`, hoy en la testbed y en `TestIñaki`; en otra escena se agrega a mano al Nemesis): armar situaciones (Nemesis detrás o delante tuyo, vos encima de él, escondido, captura), la sección del Director (un botón por zona, *Release*, *Staged entrance*, pico de tensión, saltar el silencio) y la de hábitos (*Log ledger*, *Clear habits*). |
 | `1`–`6` / `0` | Con la consola en la escena, aunque esté cerrada: fija el estado que responde la escalera (Patrol, Investig, Chase, Search, Traverse, Catch); `0` o la misma tecla lo suelta. |
 
-**Registro**: `NemesisTraceRecorder` (se agrega solo; editor y development build) escribe un CSV por sesión en `Logs/NemesisTrace/` (en un development build, en `persistentDataPath/NemesisTrace`): regla ganadora, sentidos, estado del camino y velocidad real, cada 0.25 s y en cada cambio de estado. La ruta sale una vez por consola. Se apaga con `record` en el componente.
+**Registro**: `NemesisTraceRecorder` (se agrega solo; editor y development build) escribe un CSV por sesión en `Logs/NemesisTrace/` (en un development build, en `persistentDataPath/NemesisTrace`): regla ganadora, sentidos, estado del camino y velocidad real, cada 0.25 s, en cada cambio de estado y cada vez que gana o pierde la vista (fila `sight`). Desde el 05/10 cada fila trae además hasta dónde llegó el último barrido de vista con el agachado ya aplicado (`view_range`), por qué el rango es ese (`view_scale`, `view_why`), si estás agachado, escondido o aguantando la respiración (`crouch`, `hidden`, `breath`), por qué no te está viendo (`sight_miss`: `range`, `cone`, `occluded`, `periphery`, `hidden`), por qué te perdió la última vez (`lost_sight_why`) y hace cuánto (`since_lost_sight`). La ruta sale una vez por consola. Se apaga con `record` en el componente.
 
 **Gizmos** (`NemesisGizmos`): se dibujan siempre, no sólo con el Nemesis seleccionado, con un toggle por bloque y un interruptor maestro `drawGizmos` que también apaga las rutas. Conos de visión a escala (normal, agachado, bajo mesa, foco), proximidad, oído, los tres radios de ruido del jugador por paso, alcance de captura, el barrido de la búsqueda (disco, centro, punto al que va y puntos ya barridos), lo que sabe de escondites, el rastro de la persecución, el punto predicho y el de flanqueo. En Zona1, el `GizmoManager` de la escena (`Scripts/Managers/GizmoManager.cs`) oculta gizmos por familia; un script nuevo que dibuje gizmos va en su `Families()`, no con un bool propio.
 
@@ -528,6 +538,11 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
   Como nota, avisa *Generate Links* prendido y los estados de animación que faltan.
 - `Tests/EditMode` (Window > General > Test Runner, pestaña EditMode): los tests de la aritmética de los hábitos (`HabitLedgerTests`) y del arco de las bajadas (`DropPathTests`).
 - `Tools > Player > Validate Hiding Spots`, ver *Escondites*.
+- `Tools > Nemesis > Validate Ladder` (corre también dentro de *Validate Navigation Setup*) no necesita escena ni Play:
+  - compara la escalera del asset con `BuildDefaultLadder()`, regla por regla;
+  - reproduce la escalera sobre situaciones escritas a mano: la vista que va y viene en el último punto visto, el "inalcanzable" que cambia por un barrido, bajar del montacargas con una creencia vieja.
+
+  Lo que hoy falla por un bug ya anotado en el plan sale como nota *known*. El día que pasa, sale como problema, para que se le saque la marca junto con el arreglo.
 
 El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la testbed, Ground + Wall + Props (a propósito).
 

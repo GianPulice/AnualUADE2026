@@ -863,10 +863,11 @@ public class NemesisDebugHUD : MonoBehaviour
             return $"  ·  tirada: {weighed} lugares, {inRoll} valían la caminata";
 
         NemesisSearchPicker.Candidate chosen = picker.Candidates[picker.ChosenIndex];
-        float chance = picker.RollTotal > 0f ? chosen.Worth / picker.RollTotal : 0f;
+        float chance = picker.RollTotal > 0f ? chosen.Weight / picker.RollTotal : 0f;
+        string leant = picker.LeantOnHeading ? ", tirando hacia donde ibas" : "";
 
         return $"  ·  tirada: salió {chosen.Share:P0} a {chosen.Seconds:0.0} s (vale {chosen.Worth:0.000}, " +
-               $"{chance:P0} de salir) entre {inRoll} de {weighed} lugares";
+               $"{chance:P0} de salir) entre {inRoll} de {weighed} lugares{leant}";
     }
 
     private string DescribeCluster()

@@ -1513,7 +1513,7 @@ PrefabInstance:
     - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: 'overlaysHiddenDuringCapture.Array.data[1]'
       value: 
-      objectReference: {fileID: 1480766626}
+      objectReference: {fileID: 0}
     - target: {fileID: 3994650478364936466, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: 'overlaysHiddenDuringCapture.Array.data[2]'
       value: 
@@ -1550,10 +1550,6 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
-    - target: {fileID: 7651802258769972220, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-      propertyPath: m_Sprite
-      value: 
-      objectReference: {fileID: 21300000, guid: 99ef4b1b6c988c54f992f3b96981549a, type: 3}
     - target: {fileID: 9129640566100514954, guid: 5586e5510d88218478090069c3b9db15, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -1563,11 +1559,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 5586e5510d88218478090069c3b9db15, type: 3}
---- !u!1 &1480766626 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5834331884743655312, guid: 5586e5510d88218478090069c3b9db15, type: 3}
-  m_PrefabInstance: {fileID: 1480766625}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1480766627 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7611070534032540431, guid: 5586e5510d88218478090069c3b9db15, type: 3}

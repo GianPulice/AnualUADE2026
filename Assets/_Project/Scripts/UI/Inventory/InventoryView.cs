@@ -81,7 +81,7 @@ public class InventoryView : MonoBehaviour
         if (listHeaderText != null)
         {
             listHeaderText.text = InventoryTextFormat.DotLeader(
-                "// INVENTORY", allItems.Count.ToString("00") + " OBJ", headerCharWidth);
+                "// ITEMS", allItems.Count.ToString("00") + " OBJ", headerCharWidth);
         }
 
         // Continuous numbering across groups, like a directory listing.

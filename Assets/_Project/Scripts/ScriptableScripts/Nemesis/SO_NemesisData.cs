@@ -224,6 +224,16 @@ public class SO_NemesisData : ScriptableObject
              "drop it near zero to make it feel sharper.")]
     [SerializeField, Min(0.05f)] private float routeVerdictInterval = 0.4f;
 
+    [Tooltip("Seconds the verdict 'the route to the player does not get there' has to hold before " +
+             "the ladder acts on it, and the same going back to 'it does'.\n\n" +
+             "One failed path query (the player stepping over the edge of the NavMesh, the " +
+             "belief snapping across a railing) used to end a chase with the player in plain " +
+             "view, and the next good one restarted it: Chasing and Searching traded every third " +
+             "of a second. Under two Route Verdict Intervals it does nothing; much over a second " +
+             "the Nemesis is slow to notice a player who climbed somewhere it cannot follow.\n\n" +
+             "0 switches it off: the raw verdict, as before.")]
+    [SerializeField, Min(0f)] private float routeVerdictSettleTime = 0.75f;
+
     [Tooltip("Height difference, in metres, past which a target counts as being on another " +
              "floor. Roughly one storey; below a full storey it starts firing on ramps and " +
              "crates.")]
@@ -718,6 +728,28 @@ public class SO_NemesisData : ScriptableObject
              "elegir. Los gizmos lo dibujan alrededor del rastro durante la persecución.")]
     [SerializeField, Min(0f)] private float chaseTrailPenaltyRadius = 3f;
 
+    [Header("Chase - perderlo de vista un instante (plan §19.4)")]
+    [Tooltip("Qué tan seguro tiene que estar de dónde estás, en metros, para que perderte de vista " +
+             "sea un parpadeo y no una pérdida: mientras el radio de su creencia esté por debajo " +
+             "de esto, sigue en Chasing.\n\n" +
+             "El radio de la creencia ya mezcla todo lo que sabe (ver 'Creencia', más abajo): verte " +
+             "lo deja en Belief Sight Radius; un ruido tuyo lo deja en Belief Noise Base Radius + " +
+             "Belief Noise Radius Per Metre por cada metro, y más si pasó por una pared, un piso o " +
+             "un escondite, así que el oído pesa menos cuanto peor te oyó; y sin nada nuevo crece a " +
+             "Belief Growth Speed, que es 'hasta dónde pudiste llegar'.\n\n" +
+             "Sin esto, un solo barrido de vista que fallaba le pasaba la persecución a la " +
+             "búsqueda y el siguiente se la devolvía: Chasing y Searching varias veces por segundo " +
+             "parado donde te vio por última vez. Igual o menor que Belief Sight Radius lo apaga.")]
+    [SerializeField, Min(0f)] private float chaseHoldRadius = 3f;
+
+    [Tooltip("Lo máximo que aguanta sin VERTE, en segundos, por más seguro que esté de dónde " +
+             "estás.\n\n" +
+             "Es el tope del valor de arriba. Una persecución sin vista va al último punto donde " +
+             "te vio y se queda ahí, así que sin tope, oyéndote correr, se quedaría parado en la " +
+             "esquina por la que te fuiste. Pasado este tiempo empieza a buscarte, y la búsqueda " +
+             "sí usa lo que oye. 0 apaga el aguante entero.")]
+    [SerializeField, Min(0f)] private float chaseHoldMaxTime = 1.2f;
+
     [Header("Investigation - revisar el ruido (DIS-002 / WIR-006)")]
     //
     // Al final y no junto a InvestigationTimeOut, igual que el bloque de arriba: así el cambio es
@@ -957,6 +989,16 @@ public class SO_NemesisData : ScriptableObject
              "esparce parejo: cuanto más tiempo pasó, menos sabe hacia dónde ibas.")]
     [SerializeField, Min(0f)] private float searchMapHeadingDuration = 3f;
 
+    [Tooltip("Al pasar de la persecución a la búsqueda, cuánto más pesa en el primer sorteo un lugar " +
+             "que queda hacia donde te vio ir. Con 4: los que están justo en tu rumbo pesan ×4, los " +
+             "del costado ×1 y los de atrás ×0.25.\n\n" +
+             "El mapa ya esparce más rápido hacia tu rumbo (Search Map Heading Bias), pero el sorteo " +
+             "divide por la caminata, y en la esquina donde te perdió los lugares que tiene a un " +
+             "paso, al costado o atrás, son los más baratos de la lista: doblabas y salía a buscar " +
+             "para otro lado. Solo cuenta en ese primer sorteo, y sigue siendo un sorteo: no va " +
+             "siempre al mismo lugar. 1 lo apaga.")]
+    [SerializeField, Range(1f, 10f)] private float searchMapChaseHeadingBoost = 4f;
+
     [Tooltip("Hasta dónde lo que está mirando queda en cero (\"acá no está\"), como fracción de View " +
              "Range, dentro de su cono de visión y con línea de vista. 1 es todo su rango de vista (7 m " +
              "en el asset), y sigue a la escalada y al Director cuando lo agrandan. Un escondite " +
@@ -1050,6 +1092,9 @@ public class SO_NemesisData : ScriptableObject
     public float WallOcclusionMultiplier { get => wallOcclusionMultiplier; set => wallOcclusionMultiplier = value; }
     public float FloorOcclusionMultiplier { get => floorOcclusionMultiplier; set => floorOcclusionMultiplier = value; }
     public float RouteVerdictInterval { get => routeVerdictInterval; set => routeVerdictInterval = value; }
+    public float RouteVerdictSettleTime { get => routeVerdictSettleTime; set => routeVerdictSettleTime = value; }
+    public float ChaseHoldRadius { get => chaseHoldRadius; set => chaseHoldRadius = value; }
+    public float ChaseHoldMaxTime { get => chaseHoldMaxTime; set => chaseHoldMaxTime = value; }
     public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
     public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
@@ -1160,6 +1205,7 @@ public class SO_NemesisData : ScriptableObject
     public float SearchMapSpreadSpeed { get => searchMapSpreadSpeed; set => searchMapSpreadSpeed = value; }
     public float SearchMapHeadingBias { get => searchMapHeadingBias; set => searchMapHeadingBias = value; }
     public float SearchMapHeadingDuration { get => searchMapHeadingDuration; set => searchMapHeadingDuration = value; }
+    public float SearchMapChaseHeadingBoost { get => searchMapChaseHeadingBoost; set => searchMapChaseHeadingBoost = value; }
     public float SearchMapClearRangeScale { get => searchMapClearRangeScale; set => searchMapClearRangeScale = value; }
 
     /// <summary>How far the map's "not here" reaches, in metres: the view range as lent right now,

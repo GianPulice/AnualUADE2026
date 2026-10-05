@@ -46,7 +46,7 @@ Los 4 hooks (`OnBeforeOpen`, `OnAfterOpen`, `OnBeforeClose`, `OnAfterClose`) son
 
 **Importante**: los fades de `BaseScreenView.ShowAsync()` y `HideAsync()` usan `Time.unscaledDeltaTime`, así que **funcionan aunque `Time.timeScale = 0`**. Esto es clave porque varias pantallas (Pausa, Settings, SequencePanel, el reader en modo lectura) se abren con timeScale = 0 y deben poder animar el fade igual. El inventario ya no pausa (`PausesGame => false`).
 
-El método genérico `Fade(alpha, duration)` **también** usa `Time.unscaledDeltaTime` (antes usaba `deltaTime` y el fade del prompt de interacción quedaba a medias en pausa). Un overlay que tiene que "congelarse" al pausar anima su alpha por su cuenta con `Time.deltaTime`, sin `Fade()`: es el caso de `VignetteChaseView`.
+El método genérico `Fade(alpha, duration)` **también** usa `Time.unscaledDeltaTime` (antes usaba `deltaTime` y el fade del prompt de interacción quedaba a medias en pausa). Un overlay que tiene que "congelarse" al pausar anima su alpha por su cuenta con `Time.deltaTime`, sin `Fade()`: era el caso de `VignetteChaseView` (borrada el 2026-10-05; la amenaza ahora es estática en el feed de cámara).
 
 ---
 
@@ -223,7 +223,7 @@ SettingsScene (escena persistente)
 `CameraSensitivityApplier` vive en el prefab del player (`Player.prefab`, escena de gameplay; también en `HidingSpot.prefab`). `SettingsModel` vive en `SettingsScene`. **Son escenas distintas — no hay forma de pasarle referencia directa**. El evento estático `SettingsModel.OnSettingsApplied` permite que `CameraSensitivityApplier.HandleSettingsApplied()` se entere sin coupling.
 
 Este patrón se repite en todo el proyecto:
-- `NemesisEvents.OnChaseStarted` → escuchado por `VignetteChaseView`.
+- `NemesisEvents.OnChaseStarted` → escuchado por `PlayerCameraFeed` (sólo si `threatOnlyWhileChasing`), `NemesisChaseMusic` y `NemesisTension`.
 - `InventoryEvents.OnItemAdded` → escuchado por `InteractionPromptView`, `InteractionNotificationFeed`.
 - `GameResultManager.OnGameResult` → escuchado por `WinController`, `ResultScreenController`.
 
@@ -521,7 +521,7 @@ Assets/_Project/Scripts/
 │       ├─ BreathHoldMeterView.cs         ← medidor de aliento
 │       ├─ ModalVisibilityGate.cs         ← oculta un nodo del HUD bajo modales
 │       ├─ CaptureCanvasGate.cs           ← apaga un Canvas durante la captura (el punto central)
-│       └─ Vignette/                      ← Vignettes de proximidad/chase
+│       └─ Vignette/                      ← Vignette de proximidad (la roja de chase se borró el 2026-10-05)
 ├─ Player/
 │   ├─ PlayerCameraController.cs          ← Cinemachine config + lock del cursor
 │   ├─ CameraSensitivityApplier.cs        ← aplica Settings_Sensitivity + InvertY al rig
@@ -559,8 +559,8 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI, AudioBackgroundApplier, ModuleManager |
 | `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver (Win y GameOver pueden pasar antes por un presenter, ver abajo) | WinController, ResultScreenController, CaptureFadeView, SkillCheckController (+ audio del Nemesis y EscapeSequenceDirector) |
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | los appliers de §6, GlitchController, UISignalStaticBurst |
-| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView (+ NemesisChaseMusic, NemesisTension) |
-| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, VignetteChaseView |
+| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | PlayerCameraFeed, NemesisChaseMusic, NemesisTension |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, PlayerCameraFeed (estática que crece con la cercanía) |
 | `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisChaseMusic |
 | `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView (+ PlayerStateManager, EscapeChaseRestart) |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView, DocumentReaderController (auto-close in situ), ItemGlint, ItemProximityHighlight |
@@ -764,4 +764,4 @@ Para entender un pattern específico, leer estos archivos como modelo:
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
 - **View con sub-views y re-emisión de eventos**: `SettingsView.cs`.
 - **Vista permanentemente activa con CanvasGroup.alpha**: `InteractionPromptView.cs`.
-- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs` (anima el alfa en su propio `Update` con `Time.deltaTime`; el `Fade()` del base es unscaled).
+- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs`, ya borrada (animaba el alfa en su propio `Update` con `Time.deltaTime`; el `Fade()` del base es unscaled).
