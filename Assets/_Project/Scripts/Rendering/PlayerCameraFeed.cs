@@ -26,6 +26,11 @@ using UnityEngine;
 /// <see cref="LensFovOffset"/> (<see cref="CameraSprintEffect"/> adds it) and the shader folds the
 /// wider frame into a fisheye.
 ///
+/// While the Nemesis chases the player its closeness disturbs the feed
+/// (<see cref="SO_PlayerCameraFeedConfig"/> § Nemesis closing in): blocks of the picture come out
+/// corrupted, like a digital signal dropping data, and the overlay's letters scramble — more of
+/// both the closer it is.
+///
 /// After a capture it reboots on its own: the signal drops to black through static as the capture
 /// fade covers the screen, and when the fade starts lifting at the checkpoint
 /// (<see cref="CaptureFadeView.OnCaptureRevealStarted"/>) a short reboot runs, the lens calibrating
@@ -48,6 +53,7 @@ public class PlayerCameraFeed : MonoBehaviour
         Boot,           // The boot, Preview Amount through it: the picture coming in under the boot screen.
         Calibrating,    // Recording, the lens calibrating: Preview Amount = how far up the player is.
         Banner,         // The bomb banner, Preview Amount through its sweep in, hold and sweep out.
+        Threat,         // The Nemesis closing in: Preview Amount = how close (1 = on top of the player).
     }
 
     private const int LineCapacity = 32;
@@ -73,7 +79,8 @@ public class PlayerCameraFeed : MonoBehaviour
 
     [SerializeField] private PreviewStage previewStage = PreviewStage.Gameplay;
 
-    [Tooltip("How far through the previewed stage: the boot, or the player getting up.")]
+    [Tooltip("How far through the previewed stage: the boot, the player getting up, or how close " +
+             "the Nemesis is.")]
     [SerializeField, Range(0f, 1f)] private float previewAmount = 1f;
 
     private enum Status { None, Calibrating, Calibrated }
@@ -210,21 +217,38 @@ public class PlayerCameraFeed : MonoBehaviour
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
     }
 
-    // The Nemesis closing in disturbs the signal: 0 = at or beyond its proximity radius, 1 = on
+    // The Nemesis closing in disturbs the feed: 0 = at or beyond its proximity radius, 1 = on
     // top of the player. Already interpolated by NemesisTelemetry, so it is used as it comes.
     private float nemesisProximity;
     private bool nemesisChasing;
+
+    // 0..1: how much of that disturbance is let through. Eased, so a chase starting or ending
+    // brings it in and clears it instead of switching it.
+    private float threatGate;
 
     private void HandleNemesisProximity(float t) => nemesisProximity = Mathf.Clamp01(t);
     private void HandleChaseStarted() => nemesisChasing = true;
     private void HandleChaseEnded() => nemesisChasing = false;
 
-    /// <summary>0..1: how far the Nemesis's closeness disturbs the picture right now.</summary>
+    private void TickThreat()
+    {
+        if (config == null) return;
+
+        bool disturbed = nemesisChasing || !config.ThreatOnlyWhileChasing;
+        float step = config.ThreatFadeSeconds > 0f ? Time.unscaledDeltaTime / config.ThreatFadeSeconds : 1f;
+        threatGate = Mathf.MoveTowards(threatGate, disturbed ? 1f : 0f, step);
+    }
+
+    /// <summary>0..1: how far the Nemesis's closeness disturbs the feed right now. Out of Play, the
+    /// Threat preview stage's amount.</summary>
     private float Threat()
     {
-        if (config == null || !Application.isPlaying) return 0f;
-        if (config.ThreatOnlyWhileChasing && !nemesisChasing) return 0f;
-        return Mathf.Pow(nemesisProximity, config.ThreatCurve);
+        if (config == null) return 0f;
+
+        if (!Application.isPlaying)
+            return previewStage == PreviewStage.Threat ? Mathf.Pow(previewAmount, config.ThreatCurve) : 0f;
+
+        return threatGate * Mathf.Pow(nemesisProximity, config.ThreatCurve);
     }
 
     private void OnEnable()
@@ -254,6 +278,7 @@ public class PlayerCameraFeed : MonoBehaviour
     {
         if (!Application.isPlaying) return;
         TickReboot(Time.unscaledTime);
+        TickThreat();
         Evaluate(Time.unscaledTime);
         TickReadouts(Time.unscaledTime);
         LensFovOffset = config != null ? config.LensWidening * fisheye : 0f;
@@ -323,8 +348,8 @@ public class PlayerCameraFeed : MonoBehaviour
         Shader.SetGlobalVector(BootId, new Vector4(boot, bar, bootTitleLength, bootPercentLength));
         Shader.SetGlobalVector(LensId, LensGlobals(camera, playing));
         Shader.SetGlobalVector(SignalId, new Vector4(power, noise, blur, exposure));
-        Shader.SetGlobalVector(ThreatId, new Vector4(threat * config.ThreatStatic,
-                                                      threat * config.ThreatGlitchChance, 0f, 0f));
+        Shader.SetGlobalVector(ThreatId, new Vector4(threat * config.ThreatBlocks,
+                                                      threat * config.ThreatOverlayScramble, 0f, 0f));
         return true;
     }
 
@@ -681,6 +706,7 @@ public class PlayerCameraFeed : MonoBehaviour
             labelLine.Set(config.Label, false, now);
             readoutLine.Set(PreviewReadout, false, now);
             readoutTargetLength = PreviewReadout.Length;
+            FindTime(PreviewReadout, out readoutTimeStart, out readoutTimeLength);
         }
 
         if (textDirty)

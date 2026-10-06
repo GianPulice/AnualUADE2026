@@ -25,6 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _BannerScale: 3
     - _BootBarWidth: 96
     - _BootBlockY: 0.32
     - _BootPlate: 0.65
@@ -43,6 +44,7 @@ Material:
     - _OverlayGridRows: 256
     - _OverlayMargin: 12
     - _OverlayShadow: 0.7
+    - _ReadoutCentreScale: 2
     - _RecDotRadius: 3.5
     - _RollSpeed: 0.08
     - _RollStrength: 0.02
@@ -50,10 +52,19 @@ Material:
     - _Saturation: 1
     - _StaticFps: 30
     - _StaticTear: 0.04
+    - _ThreatBandRows: 18
+    - _ThreatBandSpeed: 55
+    - _ThreatBlockCells: 16
+    - _ThreatBlockFps: 8
+    - _ThreatBlockRun: 3
+    - _ThreatGustFps: 6
+    - _ThreatHaze: 0.14
+    - _ThreatScrambleFps: 8
     - _Vignette: 0.35
     m_Colors:
     - _OverlayColor: {r: 0.9, g: 0.93, b: 0.95, a: 1}
     - _RecColor: {r: 0.8, g: 0.101960786, b: 0.101960786, a: 1}
+    - _ThreatBlockTint: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     - _TimerCriticalColor: {r: 0.8, g: 0.101960786, b: 0.101960786, a: 1}
     - _TimerWarningColor: {r: 1, g: 0.6, b: 0, a: 1}
   m_BuildTextureStacks: []

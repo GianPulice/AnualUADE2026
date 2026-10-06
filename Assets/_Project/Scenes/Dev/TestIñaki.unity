@@ -1130,7 +1130,7 @@ MonoBehaviour:
   m_OverrideTileSize: 0
   m_TileSize: 256
   m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.16666667
+  m_VoxelSize: 0.1
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 9303cac95dd2faa41b1bf7fbbfdb500d, type: 2}
   m_BuildHeightMesh: 0
@@ -9735,6 +9735,18 @@ PrefabInstance:
     - target: {fileID: 236206719962157421, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: m_Name
       value: Player
+      objectReference: {fileID: 0}
+    - target: {fileID: 384041524205376192, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: previewStage
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 384041524205376192, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: previewAmount
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 384041524205376192, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
+      propertyPath: previewInEditMode
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1884531062299343120, guid: 786a169f697ca6749a1d3a48bcb278ea, type: 3}
       propertyPath: Lens.FieldOfView

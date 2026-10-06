@@ -560,7 +560,7 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver (Win y GameOver pueden pasar antes por un presenter, ver abajo) | WinController, ResultScreenController, CaptureFadeView, SkillCheckController (+ audio del Nemesis y EscapeSequenceDirector) |
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | los appliers de §6, GlitchController, UISignalStaticBurst |
 | `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | PlayerCameraFeed, NemesisChaseMusic, NemesisTension |
-| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, PlayerCameraFeed (estática que crece con la cercanía) |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, PlayerCameraFeed (bloques corruptos y overlay corrupto que crecen con la cercanía, sólo en persecución) |
 | `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisChaseMusic |
 | `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView (+ PlayerStateManager, EscapeChaseRestart) |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView, DocumentReaderController (auto-close in situ), ItemGlint, ItemProximityHighlight |

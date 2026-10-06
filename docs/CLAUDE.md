@@ -427,8 +427,8 @@ Communication between systems in different scenes uses **static C# events**. Key
 | `PauseManager.OnPauseStateChanged` | PauseManager | PauseManagerUI |
 | `GameResultManager.OnGameResult` | GameResultManager | WinController, ResultScreenController |
 | `SettingsModel.OnSettingsApplied` | SettingsModel | CameraSensitivityApplier |
-| `NemesisEvents.OnChaseStarted/Ended` | NemesisStateManager | PlayerCameraFeed (static gated by `threatOnlyWhileChasing`), NemesisChaseMusic, NemesisTension |
-| `NemesisEvents.OnProximityChanged` | NemesisStateManager | VignetteProximityView, PlayerCameraFeed (static that grows with proximity) |
+| `NemesisEvents.OnChaseStarted/Ended` | NemesisStateManager | PlayerCameraFeed (its disturbance is gated by `threatOnlyWhileChasing`, on by default), NemesisChaseMusic, NemesisTension |
+| `NemesisEvents.OnProximityChanged` | NemesisStateManager | VignetteProximityView, PlayerCameraFeed (corrupted blocks of picture and a scrambled overlay that grow with proximity) |
 | `NemesisEvents.OnStateChanged` | NemesisTelemetry | NemesisAudio, NemesisEyes |
 | `NemesisEvents.OnCaptureResolved` | NemesisCatchState | CaptureFadeView |
 | `NemesisEvents.OnSearchEnded` | NemesisTelemetry | PlayerHabitTracker |
