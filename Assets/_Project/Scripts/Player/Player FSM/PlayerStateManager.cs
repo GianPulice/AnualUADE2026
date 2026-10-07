@@ -627,6 +627,24 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public override void Start()
     {
         base.Start();
+        CatchUpModulePenalties();
+    }
+
+    /// <summary>
+    /// Applies the penalty of every module that had already exploded before this player existed.
+    /// ModuleManager outlives the level, the player does not: arriving at the next level (or at a
+    /// level entered with a <see cref="LevelStartState"/>) would otherwise drop a limp the run
+    /// earned. ApplyPenalty is idempotent, so a penalty that also arrives by event is harmless.
+    /// </summary>
+    private void CatchUpModulePenalties()
+    {
+        if (!ModuleManager.Exists) return;
+
+        foreach (ModuleRuntime runtime in ModuleManager.Instance.GetAllModules())
+        {
+            if (runtime != null && runtime.Status == ModuleStatus.Exploded && runtime.Data != null)
+                ApplyPenalty(runtime.Data.Penalty, runtime.Data);
+        }
     }
     public override void Update()
     {

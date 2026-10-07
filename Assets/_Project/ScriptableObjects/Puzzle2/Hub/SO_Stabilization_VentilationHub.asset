@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adaeecd4e425cbc4ab6d95717657718f, type: 3}
+  m_Name: SO_Stabilization_VentilationHub
+  m_EditorClassIdentifier: Assembly-CSharp::SO_StabilizationPuzzleData
+  puzzleId: puzzle_central_piso2
+  requiredPuzzleIds:
+  - p2_sp1_calderas
+  - p2_sp2_switches
+  - p2_sp3_mechanism
+  startPrompt: Start stabilization
+  pendingInfoFormat: 'Pending systems: {0}'
+  checks:
+  - needleSpeed: 0.9
+    successZoneWidth: 0.12
+    timerPenaltyOnFail: 10
+  - needleSpeed: 0.8
+    successZoneWidth: 0.18
+    timerPenaltyOnFail: 10
+  - needleSpeed: 0.7
+    successZoneWidth: 0.25
+    timerPenaltyOnFail: 10
+  - needleSpeed: 0.6
+    successZoneWidth: 0.35
+    timerPenaltyOnFail: 10
+  maxLapsPerAttempt: 2
+  zoneStartMin: 90
+  zoneStartMax: 300
+  warningLeadTime: 0.6
+  resultHoldTime: 0.6
+  completeHoldTime: 1.2
+  openSoundId: sfx_interaction_panel_electrico
+  successSoundId: sfx_interaction_panel_control_success
+  failSoundId: sfx_interaction_panel_password_error
+  completeSoundId: sfx_subpuzzle_3_completo
+  shakeAmplitude: 0.6
+  shakeFrequency: 9
+  shakeAfterCheck:
+  - 0.75
+  - 0.5
+  - 0.25
+  - 0
+  ambienceAgitation: 1.5
+  ambienceAfterCheck:
+  - 0.7
+  - 0.5
+  - 0.3
+  - 0
+  pendingColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
+  resolvedColor: {r: 0.15, g: 0.85, b: 0.25, a: 1}
+  stabilizedColor: {r: 0.35, g: 0.75, b: 1, a: 1}
+  indicatorFadeSeconds: 0.5
+  runningBlinkRate: 2
+  indicatorResolvedSoundId: sfx_interaction_panel_control_success

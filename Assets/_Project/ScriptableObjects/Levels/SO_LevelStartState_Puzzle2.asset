@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53881af809e8a65448edb5531218cae3, type: 3}
+  m_Name: SO_LevelStartState_Puzzle2
+  m_EditorClassIdentifier: Assembly-CSharp::SO_LevelStartState
+  resolvedUpTo: {fileID: 11400000, guid: ebe3d6a27c9860946b3db79d50da63d9, type: 2}
+  explodedUpTo: {fileID: 0}
+  completedPuzzleIds:
+  - puzzle_central_piso1

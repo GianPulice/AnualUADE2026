@@ -152,6 +152,27 @@ public class InventoryManager : Singleton<InventoryManager>, ISessionResettable
     }
 
     /// <summary>
+    /// Empties the inventory, raising <see cref="InventoryEvents.OnItemRemoved"/> per item so any
+    /// open UI follows. Used when the player leaves a level for the next one
+    /// (<see cref="LevelTransition"/>): nothing found in one level travels to the next. Unlike
+    /// <see cref="ResetForNewSession"/> it does not re-seed the testing list.
+    /// </summary>
+    public void ClearAll()
+    {
+        if (items.Count == 0) return;
+
+        List<SO_InventoryItem> removed = new List<SO_InventoryItem>(items);
+        items.Clear();
+        unseen.Clear();
+        read.Clear();
+
+        foreach (SO_InventoryItem item in removed)
+            InventoryEvents.ItemRemoved(item);
+
+        Debug.Log($"[Inventory] Cleared ({removed.Count} item(s)).");
+    }
+
+    /// <summary>
     /// <see cref="ISessionResettable"/> — dispatched by <see cref="GameSession.BeginNewSession"/>.
     /// Drops every picked-up item and re-seeds the testing list so the next run starts fresh.
     /// Runs while the gameplay scene is unloaded, so no UI events are raised.

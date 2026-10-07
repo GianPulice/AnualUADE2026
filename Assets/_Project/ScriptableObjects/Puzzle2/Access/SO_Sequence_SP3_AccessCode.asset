@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cc23749ce40b734f87f79deff54eb5d, type: 3}
+  m_Name: SO_Sequence_SP3_AccessCode
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SequencePuzzleData
+  puzzleId: p2_sp3_access_code
+  requiredSocketId: 
+  promptText: Enter access code
+  rewardItem: {fileID: 0}
+  correctSequence: 05000000020000000900000001000000

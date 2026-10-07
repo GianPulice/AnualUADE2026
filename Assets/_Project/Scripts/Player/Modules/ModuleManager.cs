@@ -152,10 +152,14 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
             return;
         }
 
-        if (index > 0 && runtimes[index - 1].Status != ModuleStatus.Resolved)
+        // The previous module has to be over, whichever way it ended. Exploded counts: when the
+        // explosion is not a GameOver the run goes on to the next level, and demanding Resolved
+        // there would leave every later module unable to ever start.
+        ModuleStatus previous = index > 0 ? runtimes[index - 1].Status : ModuleStatus.Resolved;
+        if (previous != ModuleStatus.Resolved && previous != ModuleStatus.Exploded)
         {
             Log($"ActivateModule({index}) blocked: previous module '{runtimes[index - 1].ModuleID}' " +
-                $"is '{runtimes[index - 1].Status}', must be Resolved first.");
+                $"is '{previous}', must be Resolved or Exploded first.");
             return;
         }
 
@@ -230,6 +234,39 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         Log($"Module '{moduleId}' resolved on time — no penalty.");
 
         ModuleEvents.RaiseStateChanged(target);
+    }
+
+    /// <summary>
+    /// Puts a module straight into a finished state — Resolved or Exploded — as if it had been
+    /// played earlier in the run. For a level entered without playing the ones before it
+    /// (<see cref="LevelStartState"/>, editor testing) and, later, for a save restore.
+    ///
+    /// A restore, not progress: no event is raised, no explosion is presented and no GameOver is
+    /// checked. The HUD, the LEDs and the camera feed read the manager on their own, and the
+    /// player picks the penalties up from <see cref="GetAllModules"/> when it starts.
+    /// </summary>
+    public void RestoreModuleState(string moduleId, ModuleStatus status)
+    {
+        ModuleRuntime target = GetRuntime(moduleId);
+        if (target == null)
+        {
+            Log($"RestoreModuleState('{moduleId}') ignored: no module with that id.");
+            return;
+        }
+
+        if (status != ModuleStatus.Resolved && status != ModuleStatus.Exploded)
+        {
+            Log($"RestoreModuleState('{moduleId}') ignored: only Resolved or Exploded can be restored.");
+            return;
+        }
+
+        target.HasBeenActivated = true;
+        target.IsTimerRunning = false;
+        target.Status = status;
+        target.TimeRemaining = status == ModuleStatus.Exploded ? 0f : target.TimeRemaining;
+        if (activeRuntime == target) activeRuntime = null;
+
+        Log($"Module '{moduleId}' restored as {status}.");
     }
 
     /// <summary>

@@ -49,6 +49,16 @@ MonoBehaviour:
     sceneNames:
     - TestAlesio
     - LevelUI
+  - label: TestAlesioPuzzle2
+    sceneAssets:
+    - {fileID: 102900000, guid: a30314b0490ce5d40ac900cae39f3126, type: 3}
+    - {fileID: 102900000, guid: 91c38a404c4044648b6a3ad672cc19bf, type: 3}
+    scenePaths:
+    - Assets/_Project/Scenes/Dev/TestAlesioPuzzle2.unity
+    - Assets/_Project/Scenes/UI/LevelUI.unity
+    sceneNames:
+    - TestAlesioPuzzle2
+    - LevelUI
   - label: TestFabri
     sceneAssets:
     - {fileID: 102900000, guid: e5c45e55ee68db845b576231abb65368, type: 3}

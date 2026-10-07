@@ -21,6 +21,9 @@ EditorBuildSettings:
     path: Assets/_Project/Scenes/Dev/TestAlesio.unity
     guid: 5706619538145cd409f2caee7c53bc45
   - enabled: 1
+    path: Assets/_Project/Scenes/Dev/TestAlesioPuzzle2.unity
+    guid: a30314b0490ce5d40ac900cae39f3126
+  - enabled: 1
     path: Assets/_Project/Scenes/Dev/TestLevel.unity
     guid: a0f71041ec58c8241bff773ecb9790d1
   - enabled: 1

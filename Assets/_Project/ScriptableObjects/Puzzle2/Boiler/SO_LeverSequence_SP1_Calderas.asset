@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8268b5702820beb4e834711dcd6c4909, type: 3}
+  m_Name: SO_LeverSequence_SP1_Calderas
+  m_EditorClassIdentifier: Assembly-CSharp::SO_LeverSequencePuzzleData
+  puzzleId: p2_sp1_calderas
+  leverCount: 5
+  sequence:
+  - lever: 2
+    pauseAfter: 0.9
+  - lever: 4
+    pauseAfter: 0.35
+  - lever: 1
+    pauseAfter: 1.2
+  - lever: 3
+    pauseAfter: 0.25
+  - lever: 3
+    pauseAfter: 0.6
+  leverKnockClips: []
+  boilerSequenceClip: {fileID: 0}
+  volume: 1
+  maxHearingDistance: 18
+  leadInSeconds: 0.8
+  boilerStartSoundId: sfx_interaction_valvula
+  wrongSequenceSoundId: sfx_secuencia_incorrecta_panel_electrico
+  completedSoundId: sfx_subpuzzle_1_completo
+  boilerPrompt: Activate the boiler
+  boilerPlayingInfo: Listen...
+  leverPrompt: Pull lever {0}
+  leverPullSeconds: 0.4
