@@ -175,4 +175,41 @@ public class SearchPickRulesTests
         Assert.AreEqual(1f, SearchPickRules.HeadingWeight(-1f, 1f), Tolerance);
         Assert.AreEqual(1f, SearchPickRules.HeadingWeight(-1f, 0.5f), Tolerance);
     }
+
+    // ── TakesPart: an owed visit is not cancelled for being far (07/10, WIR-058) ─
+
+    private const float Threshold = 0.015f;   // SO_NemesisData.SearchMapWorthThreshold as shipped
+
+    [Test]
+    public void TakesPart_HeardBelowTheCatwalk_FarAwayButOwed()
+    {
+        // The area below, split into places of ~12 %, eleven seconds round by the stairs.
+        float share = 0.12f;
+        float worth = SearchPickRules.Worth(share, 11f);
+        Assert.Less(worth, Threshold, "the case: not worth the walk by the plain rule");
+
+        Assert.IsFalse(SearchPickRules.TakesPart(share, worth, Threshold, owedVisit: false));
+        Assert.IsTrue(SearchPickRules.TakesPart(share, worth, Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_Owed_StillNotWhereItCannotWalk()
+    {
+        float worth = SearchPickRules.Worth(0.9f, float.PositiveInfinity);
+        Assert.IsFalse(SearchPickRules.TakesPart(0.9f, worth, Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_Owed_StillNotASliver()
+    {
+        float share = 0.01f;
+        Assert.IsFalse(SearchPickRules.TakesPart(share, SearchPickRules.Worth(share, 0f), Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_NotOwed_IsTheWorthAgainstTheThreshold()
+    {
+        Assert.IsTrue(SearchPickRules.TakesPart(0.1f, SearchPickRules.Worth(0.1f, 5f), Threshold, owedVisit: false));
+        Assert.IsFalse(SearchPickRules.TakesPart(0.1f, SearchPickRules.Worth(0.1f, 6f), Threshold, owedVisit: false));
+    }
 }

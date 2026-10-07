@@ -64,8 +64,11 @@ public class PlayerCameraController : MonoBehaviour
         bool standingUp = PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp;
         // Nor during a scripted cinematic (CinematicState): its own cameras are live, and look
         // input would turn this rig behind the cut so control comes back facing somewhere else.
+        // Nor while a scene shot (LookDownTrigger) is on: it is not the live camera, and a rig that
+        // kept turning behind it would hand control back facing somewhere else.
+        bool frozen = player != null && player.IsInputFrozen;
         bool shouldEnable = gameplayActive && !WakeUpCinematicEvents.IsCameraLocked && !standingUp &&
-                            !CinematicState.IsPlaying;
+                            !CinematicState.IsPlaying && !frozen;
         if (cinemachineInputAxisController.enabled != shouldEnable)
             cinemachineInputAxisController.enabled = shouldEnable;
 

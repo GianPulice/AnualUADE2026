@@ -999,10 +999,11 @@ public class SO_NemesisData : ScriptableObject
              "siempre al mismo lugar. 1 lo apaga.")]
     [SerializeField, Range(1f, 10f)] private float searchMapChaseHeadingBoost = 4f;
 
-    [Tooltip("Hasta dónde lo que está mirando queda en cero (\"acá no está\"), como fracción de View " +
-             "Range, dentro de su cono de visión y con línea de vista. 1 es todo su rango de vista (7 m " +
-             "en el asset), y sigue a la escalada y al Director cuando lo agrandan. Un escondite " +
-             "cerrado no se limpia mirándolo: solo al abrirlo.")]
+    [Tooltip("Hasta dónde lo que está mirando queda en cero (\"acá no está\"), como fracción del rango " +
+             "con el que está mirando de verdad, dentro de su cono de visión y con línea de vista. 1 es " +
+             "todo ese rango: View Range (7 m en el asset), estirado mientras te sostiene la mirada o te " +
+             "caza (Adaptive View Range), y sigue a la escalada y al Director cuando lo agrandan. Un " +
+             "escondite cerrado no se limpia mirándolo: solo al abrirlo.")]
     [SerializeField, Range(0f, 1.5f)] private float searchMapClearRangeScale = 1f;
 
     [Tooltip("Altura sobre el piso a la que apunta el rayo del \"acá no está\", en metros: la de " +
@@ -1039,6 +1040,19 @@ public class SO_NemesisData : ScriptableObject
              "Más alto abandona antes; 0 lo apaga (termina solo por silencio). Si más de la mitad del " +
              "valor se fue al Hub, no camina sea cual sea este número: nunca acampa esa puerta.")]
     [SerializeField, Range(0f, 0.2f)] private float searchMapWorthThreshold = 0.015f;
+
+    [Tooltip("Segundos que dura su RASTRO mientras persigue, busca o investiga: por donde caminó hace " +
+             "menos que esto, el valor no puede volver. Es \"la salida que él mismo estaba tapando\" " +
+             "(WIR-062): en un pasillo, nadie pasó por al lado suyo para quedar atrás, así que la " +
+             "búsqueda nunca vuelve por donde vino. Lo que oye o ve de vos cerca del rastro borra ese " +
+             "tramo: si te escuchó detrás, estás detrás. Mientras caza, donde está parado siempre tapa. " +
+             "0 lo apaga (también el tapón de su cuerpo).")]
+    [SerializeField, Range(0f, 15f)] private float searchMapTrailMemory = 4f;
+
+    [Tooltip("Ancho del rastro, en metros a cada lado de por donde caminó: los nodos del mapa a esta " +
+             "distancia quedan tapados. Con nodos cada 2 m, 2 tapa un pasillo de hasta 4 m de ancho; " +
+             "más chico que la separación de nodos, el valor se cuela entre nodos por el costado.")]
+    [SerializeField, Range(0f, 4f)] private float searchMapTrailRadius = 2f;
 
     public float InvestigationTimeOut { get => investigationTimeOut; set => investigationTimeOut = value; }
     public float SearchTimeOut { get => searchTimeOut; set => searchTimeOut = value; }
@@ -1216,4 +1230,6 @@ public class SO_NemesisData : ScriptableObject
     public int SearchMapCandidates { get => searchMapCandidates; set => searchMapCandidates = value; }
     public float SearchMapRepickShare { get => searchMapRepickShare; set => searchMapRepickShare = value; }
     public float SearchMapWorthThreshold { get => searchMapWorthThreshold; set => searchMapWorthThreshold = value; }
+    public float SearchMapTrailMemory { get => searchMapTrailMemory; set => searchMapTrailMemory = value; }
+    public float SearchMapTrailRadius { get => searchMapTrailRadius; set => searchMapTrailRadius = value; }
 }

@@ -592,7 +592,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         pausedHere = false;
         pauseRemaining = 0f;
 
-        bool picked = picker.TryPick(out NemesisSearchPicker.Candidate chosen, ChaseHeading(why));
+        bool picked = picker.TryPick(out NemesisSearchPicker.Candidate chosen, ChaseHeading(why), IsOwedVisit(why));
 
         // Whatever it chose, it chose off the map as the newest evidence left it: the pick has the
         // map catch up with the belief before it reads it.
@@ -648,6 +648,26 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         SetOff(ScatterPoint());
         targetZone = SearchTarget;
         ConsiderUsedSpots(scatterCentre);
+    }
+
+    /// <summary>
+    /// Whether this pick answers evidence that has just come in — so the walk it starts is a visit
+    /// the search owes it, and a long walk weighs in the roll but cannot cancel it
+    /// (SearchPickRules.TakesPart, 07/10, WIR-058): evidence that moved the value, and the first pick
+    /// out of a chase or a lift ride, which carry the sighting or the noise that set them off.
+    ///
+    /// Not every other pick: once it has got to a place and looked, "revisó todo" is a verdict about
+    /// the map, and a place far away is rightly not worth the walk. Nor the first pick out of an
+    /// empty investigation (D26): the noise was the point it just stood on.
+    /// </summary>
+    private bool IsOwedVisit(EPickReason why)
+    {
+        if (why == EPickReason.NewEvidence) return true;
+        if (why != EPickReason.Entered || !nemesisStateManager.HasPreviousState) return false;
+
+        NemesisStateManager.ENemesisState from = nemesisStateManager.PreviousStateKey;
+        return from == NemesisStateManager.ENemesisState.Chasing ||
+               from == NemesisStateManager.ENemesisState.Traversing;
     }
 
     /// <summary>The slowest the player may have been seen going for it to count as a heading: under

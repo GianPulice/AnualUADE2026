@@ -322,4 +322,169 @@ public class PossibilityMapTests
         Assert.IsFalse(map.HasValue);
         Assert.AreEqual(-1, map.BestNode());
     }
+
+    // ── 07/10, WIR-062: evidence is measured walking ─────────────────────────
+
+    /// <summary>Two corridors along +x, 2.5 m apart with a wall between them, joined only at the
+    /// x = 0 end. Corridor A is nodes 0..count-1 at z = 0; B is count..2·count-1 at z = 2.5.</summary>
+    private static PossibilityGraph TwoCorridorsWithAWall(int count)
+    {
+        var graph = new PossibilityGraph(Spacing);
+        for (int i = 0; i < count; i++) graph.AddNode(new Vector3(i * Spacing, 0f, 0f));
+        for (int i = 0; i < count; i++) graph.AddNode(new Vector3(i * Spacing, 0f, 2.5f));
+        for (int i = 0; i + 1 < count; i++)
+        {
+            graph.AddEdge(i, i + 1, Spacing);
+            graph.AddEdge(count + i, count + i + 1, Spacing);
+        }
+        graph.AddEdge(0, count, 2.5f);
+        graph.Freeze();
+        return graph;
+    }
+
+    [Test]
+    public void SeedArea_ThroughAWall_LeavesNothingOnTheOtherSide()
+    {
+        const int count = 10;
+        PossibilityMap map = new PossibilityMap(TwoCorridorsWithAWall(count));
+
+        // A footstep in corridor A, near its far end: a 3 m disc in plan view took in three nodes of
+        // B through the wall, the way back to which is the whole length of both corridors.
+        Assert.IsTrue(map.SeedArea(At(8), 3f, Band));
+
+        Assert.AreEqual(1f, SumRange(map, 0, count - 1), 1e-4f);
+        Assert.AreEqual(0f, SumRange(map, count, 2 * count - 1), 1e-6f, "value through the wall");
+    }
+
+    [Test]
+    public void SeedPoint_AgainstAWall_IsNotHalfInTheNextRoom()
+    {
+        const int count = 10;
+        PossibilityMap map = new PossibilityMap(TwoCorridorsWithAWall(count));
+
+        // Seen pressed against A's wall: B's node is 1.5 m away in plan, A's 1 m.
+        Vector3 seen = new Vector3(8 * Spacing, 0f, 1f);
+        Assert.IsTrue(map.SeedPoint(seen, Band, Vector3.zero, 0f));
+        Assert.AreEqual(0f, SumRange(map, count, 2 * count - 1), 1e-6f);
+
+        // And the caller's start node decides the side when it knows better (NavMesh check).
+        Assert.IsTrue(map.SeedPoint(seen, Band, Vector3.zero, 0f, start: count + 8));
+        Assert.AreEqual(1f, SumRange(map, count, 2 * count - 1), 1e-4f);
+    }
+
+    [Test]
+    public void SeedArea_InACorridor_CoversTheSameStretchAsBefore()
+    {
+        // No walls in the way, walking and plan view agree: nothing about an open corridor changes.
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        map.SeedArea(At(10), 3f, Band);
+
+        Assert.AreEqual(0f, SumRange(map, 0, 7), 1e-6f);
+        Assert.AreEqual(0f, SumRange(map, 13, 19), 1e-6f);
+        Assert.AreEqual(1f, SumRange(map, 8, 12), 1e-4f);
+    }
+
+    // ── 07/10, WIR-062: where the Nemesis is blocking ────────────────────────
+
+    [Test]
+    public void Blocked_NothingFlowsIntoIt_NorPastIt()
+    {
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        map.SeedPoint(At(10), Band, Vector3.zero, 0f);
+        Assert.IsTrue(map.Block(7));
+
+        for (int t = 1; t <= 40; t++)
+        {
+            map.Spread(Tick, Speed, t * Tick, 0f, 0f);
+            map.Normalize();
+        }
+
+        Assert.AreEqual(0f, SumRange(map, 0, 7), 1e-6f, "value got past the blocked node");
+        Assert.AreEqual(1f, SumRange(map, 8, 19), 1e-4f);
+    }
+
+    [Test]
+    public void Blocked_ClearsNothing_WhatIsThereCanLeave()
+    {
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        map.SeedPoint(At(7), Band, Vector3.zero, 0f);
+        float before = map.Value(7);
+
+        map.Block(7);
+        Assert.AreEqual(before, map.Value(7), 1e-6f, "blocking is not looking");
+
+        map.Spread(Tick, Speed, Tick, 0f, 0f);
+        Assert.Less(map.Value(7), before);
+        Assert.AreEqual(1f, SumRange(map, 0, 19), 1e-4f);
+    }
+
+    [Test]
+    public void Blocked_OnlyFloor_AndClearBlocksOpensEverything()
+    {
+        var graph = new PossibilityGraph(Spacing);
+        int floor = graph.AddNode(Vector3.zero);
+        int locker = graph.AddNode(new Vector3(0f, 0f, 1f), PossibilityGraph.ENodeKind.HidingSpot);
+        graph.AddEdge(floor, locker, 1f);
+        graph.Freeze();
+
+        var map = new PossibilityMap(graph);
+        Assert.IsFalse(map.Block(locker), "someone can be in a locker the Nemesis walks past");
+        Assert.IsTrue(map.Block(floor));
+        Assert.IsFalse(map.Block(floor), "already blocked");
+        Assert.AreEqual(1, map.BlockedCount);
+
+        map.ClearBlocks();
+        Assert.AreEqual(0, map.BlockedCount);
+        Assert.IsFalse(map.IsBlocked(floor));
+    }
+
+    [Test]
+    public void SeedArea_DoesNotReachThroughWhereTheNemesisIs()
+    {
+        // The Nemesis stands at node 6 and walked there along 2..6. A footstep just ahead of it, with
+        // a doubt wide enough to reach behind it: none of that doubt lands behind it.
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        for (int i = 2; i <= 6; i++) map.Block(i);
+
+        Assert.IsTrue(map.SeedArea(At(8), 4f, Band));
+        Assert.AreEqual(0f, SumRange(map, 0, 6), 1e-6f);
+        Assert.AreEqual(1f, SumRange(map, 7, 19), 1e-4f);
+    }
+
+    [Test]
+    public void SeedArea_HeardOnTheTrailItself_IsStillEvidence()
+    {
+        // A noise right on the floor it is blocking (the scene component forgets that part of the
+        // trail first; here, the map alone): the node it was heard at takes the value.
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        for (int i = 6; i <= 10; i++) map.Block(i);
+
+        Assert.IsTrue(map.SeedArea(At(8), 1f, Band));
+        Assert.AreEqual(1f, SumRange(map, 7, 9), 1e-4f, "it stays where it was heard");
+        Assert.Greater(map.Value(8), map.Value(7));
+    }
+
+    [Test]
+    public void Corridor_ChaseLostAhead_WithItsTrail_NothingEverGoesBackPastIt()
+    {
+        // WIR-062 as played: lost round the far end of a corridor, then heard running. The trail
+        // blocks the floor around where the Nemesis walked; it stops at node 6 and looks back down
+        // the way it came for a moment (the look-around), so its eyes clear nothing ahead.
+        PossibilityMap map = new PossibilityMap(Corridor(20));
+        map.SeedPoint(At(9), Band, Vector3.right * 4f, 0f);
+
+        for (int t = 1; t <= 24; t++)
+        {
+            map.ClearBlocks();
+            for (int i = 2; i <= 6; i++) map.Block(i);
+
+            // Heard once, a second in: a doubt wide enough to reach back to it.
+            if (t == 4) map.SeedArea(At(9), 5f, Band);
+
+            map.Spread(Tick, Speed, t * Tick, 1f, 3f);
+            map.Normalize();
+
+            Assert.AreEqual(0f, SumRange(map, 0, 6), 1e-6f, $"value behind it at t={t * Tick:0.00}");
+        }
+    }
 }

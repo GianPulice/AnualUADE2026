@@ -131,7 +131,7 @@ Eso **nunca** es detección inmediata: pasa por el acumulador de la periferia. M
 
 **Lo que sabe** (`NemesisHidingAwareness`, se agrega solo al Nemesis):
 
-- **Conocido**: al terminar tu subida, si te estaba viendo o te vio en los últimos `seenEnteringWindow` (0.75 s), con el escondite dentro de `viewRange` y su puerta en línea de vista ("lo vio entrar"). También si el medidor se llenó mirando a través del escondite, o por proximidad extrema.
+- **Conocido**: al terminar tu subida, si te estaba viendo o te vio en los últimos `seenEnteringWindow` (0.75 s), con el escondite dentro de su rango de vista, su puerta en línea de vista y dentro de su cono ("lo vio entrar"; el cono desde el 07/10, WIR-057: antes una puerta al costado o detrás contaba). También si el medidor se llenó mirando a través del escondite, o por proximidad extrema.
 - **Sospechado**: te tenía de reojo, con el medidor pasado el umbral, cuando te metiste.
 - **Se olvida** cuando lo revisa y está vacío, cuando te ve afuera, con una captura o un respawn, y como red de seguridad cuando nada lo confirma por más de `searchTimeOut` (conocido) o `investigationTimeOut` (sospechado).
 - Salir sin que te vea no se le informa: va, encuentra vacío y se olvida. Puede equivocarse; no es omnisciente.
@@ -251,6 +251,13 @@ La intercepción (cortarte el paso en un waypoint) se sacó (D24).
 Pasado eso busca, y la búsqueda sí usa lo que oye. El inspector de `SO_NemesisData` lo dibuja como línea de tiempo en la sección *Perderlo de vista*, y dice hasta qué distancia tu ruido lo sostiene.
 
 **Al pasar a buscar tira hacia donde ibas (05/10).** El primer lugar de la búsqueda después de una persecución se sortea por valor ÷ caminata, y en la esquina donde te perdió los lugares de al lado son las caminatas más baratas: salía para el costado tan seguido como detrás tuyo. Ese primer sorteo, y sólo ése, multiplica cada lugar por `Search Map Chase Heading Boost` (4) según qué tan en tu rumbo queda: ×4 justo adelante, ×1 al costado, ×0.25 atrás. Sigue siendo un sorteo, no va siempre al mismo lugar. En 1 se apaga. F9 lo marca con "tirando hacia donde ibas".
+
+**Nunca vuelve por donde vino (07/10, WIR-062).** Tres cambios en el mapa de búsqueda:
+- **Lo que oye o ve se mide caminando.** El área de un ruido son los nodos a esa distancia por donde se camina, no un círculo en planta. En un pasillo de 2 m, el círculo caía casi todo en las salas del otro lado de las paredes, y la búsqueda volvía por donde vino para revisarlas.
+- **Su rastro tapa.** Mientras persigue, busca o investiga, por donde caminó en los últimos `Search Map Trail Memory` (4 s) queda tapado en un ancho de `Search Map Trail Radius` (2 m a cada lado): el valor no puede volver por ahí, así que no busca detrás suyo en un pasillo que él mismo estaba tapando. Si te oye o te ve cerca del rastro, ese tramo se borra: si estás detrás, busca detrás. En 0 se apaga. El gizmo `Draw Possibility Map` lo dibuja (cuadrados grises) y F9 dice cuántos nodos tapa.
+- **Limpia hasta donde mira de verdad.** El "acá no está" usa el rango con el que está mirando (hasta 14 m cazándote), no los 7 m de base.
+
+**Lo que oyó, lo va a ver aunque quede lejos (07/10, WIR-058).** Recién oído o visto (la elección que sigue a un ruido nuevo, y la primera al salir de una persecución o del montacargas), la caminata ya no descarta lugares: alcanza con que tengan `Search Map Worth Threshold` del valor, y lo lejos sólo pesa en el sorteo. Antes, oyéndote debajo de una pasarela, ningún lugar de abajo "valía la caminata" por la escalera: se quedaba arriba sus 6 s y se iba a patrullar. F9 marca esas elecciones con "se lo debe a lo que sintió". Falta el caso en que para llegar toma el montacargas o una bajada (D7, etapa D): al bajar busca en el mapa y no pasa primero por el punto que oyó.
 
 **Si te ve y no puede llegar, se acerca y te mira (05/10).** Parado en una pasarela o adentro del Hub, a la vista: "lo está viendo" no lo persigue (WIR-018) y antes la búsqueda se quedaba donde estaba, barriendo la mirada de lado a lado. Ahora camina hasta el final del camino parcial, se queda ahí con la mirada en vos, y la búsqueda no se enfría mientras te ve. Al perderte vuelve a elegir sobre el mapa.
 

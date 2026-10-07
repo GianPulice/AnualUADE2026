@@ -35,6 +35,26 @@ public static class SearchPickRules
     }
 
     /// <summary>
+    /// Whether a place takes part in the roll. Normally its WORTH has to reach the threshold: a likely
+    /// place far away is not worth the walk, and when nothing is, the search has looked everywhere it
+    /// could ("revisó todo").
+    ///
+    /// A VISIT OWED TO NEW EVIDENCE IS NOT CANCELLED FOR BEING FAR (07/10, WIR-058). Right after it
+    /// heard or saw the player — the first pick of a search out of a chase or a lift ride, or the pick
+    /// fresh evidence moved — the place only needs the SHARE: the walk still weighs in the roll, it no
+    /// longer vetoes it. Heard from a catwalk, the area below is a long walk round by the stairs, split
+    /// into several places of a few percent each: every one of them fell under share ÷ (1 + seconds),
+    /// the search called it "revisó todo" on the spot, stood there for its minimum and went back to
+    /// patrol — "se fue a otro lado". A place it cannot walk to is still out (worth 0).
+    /// </summary>
+    public static bool TakesPart(float share, float worth, float threshold, bool owedVisit)
+    {
+        if (worth <= 0f || float.IsNaN(worth)) return false;
+
+        return owedVisit ? share >= threshold : worth >= threshold;
+    }
+
+    /// <summary>
     /// Whether the place it is heading to is no longer worth finishing the walk to: what the map holds
     /// there now has fallen under <paramref name="keepFraction"/> of what it held when it was picked.
     /// It saw the place from a distance and nobody was there, or new evidence moved the value

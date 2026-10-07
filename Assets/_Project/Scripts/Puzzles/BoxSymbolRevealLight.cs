@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// A lamp a push box can be read by. While a box's basket symbol sits inside this lamp's light,
-/// <see cref="BoxSymbolSignalLoss"/> shows the symbol instead of static, without the player having
+/// <see cref="BoxSymbolSignalLoss"/> fades the symbol in from black, without the player having
 /// to look down on it from above: push the box into the pool of light and read it there.
 ///
 /// The lit area is the real <see cref="Light"/>'s own — its position, its direction, its Spot Angle

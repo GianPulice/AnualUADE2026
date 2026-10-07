@@ -444,11 +444,30 @@ public class NemesisGizmos : MonoBehaviour
         NemesisPossibilityMap possibility = manager.PossibilityMap;
         if (possibility == null || !possibility.IsBuilt) return;
 
-        // "Acá no está": the reach of the clearing, at the real view angle.
-        DrawCone(eye, data.SearchMapClearRange, data.ViewAngle, MapClearColor, "acá no está");
+        // "Acá no está": the reach of the clearing — the range its eyes are really using, not the
+        // base one — at the real view angle.
+        DrawCone(eye, possibility.ClearRange, data.ViewAngle, MapClearColor, "acá no está");
 
         PossibilityMap map = possibility.Map;
         PossibilityGraph graph = map.Graph;
+
+        // Its trail (WIR-062): the line it walked during the hunt, and the floor it blocks — grey
+        // squares nothing can flow into. In a corridor they have to span its width, or the value
+        // slips back past it along the side.
+        IReadOnlyList<NemesisPossibilityMap.TrailPoint> trail = possibility.Trail;
+        if (trail.Count > 0)
+        {
+            Gizmos.color = VignetteColor;
+            for (int i = 1; i < trail.Count; i++)
+                Gizmos.DrawLine(trail[i - 1].Position + Vector3.up * 0.1f, trail[i].Position + Vector3.up * 0.1f);
+
+            float blockedSize = graph.Spacing * 0.5f;
+            Vector3 blockedTile = new Vector3(blockedSize, 0.02f, blockedSize);
+            for (int i = 0; i < graph.NodeCount; i++)
+                if (map.IsBlocked(i)) Gizmos.DrawWireCube(graph.Position(i) + Vector3.up * 0.05f, blockedTile);
+
+            DrawLabel(trail[0].Position + Vector3.up * 0.6f, $"rastro ({map.BlockedCount} tapados)", VignetteColor);
+        }
 
         // The Hub's doorway nodes, always: if these are not at its doors, value drains through walls.
         Gizmos.color = MapClearColor;

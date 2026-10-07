@@ -832,8 +832,12 @@ public class NemesisDebugHUD : MonoBehaviour
         float hidden = map.SumOfKind(PossibilityGraph.ENodeKind.HidingSpot);
         string spots = hidden > 0.005f ? $"  ·  escondites {hidden:P0}" : "";
 
+        // The trail (WIR-062): how much floor it is closing behind itself right now.
+        string trail = possibility.BlockedLastTick > 0 ? $"  ·  rastro tapa {possibility.BlockedLastTick}" : "";
+
         return $"en su piso {possibility.ShareOnOwnFloor:P0}  ·  mejor {best}  ·  repartido " +
-               $"{possibility.SpreadArea:0} m²{hub}{spots}  ·  limpió {possibility.ClearedLastTick}" +
+               $"{possibility.SpreadArea:0} m²{hub}{spots}  ·  limpió {possibility.ClearedLastTick} " +
+               $"hasta {possibility.ClearRange:0.#} m{trail}" +
                DescribeLastRoll();
     }
 
@@ -866,8 +870,11 @@ public class NemesisDebugHUD : MonoBehaviour
         float chance = picker.RollTotal > 0f ? chosen.Weight / picker.RollTotal : 0f;
         string leant = picker.LeantOnHeading ? ", tirando hacia donde ibas" : "";
 
+        // WIR-058: a visit owed to fresh evidence goes however long the walk.
+        string owed = picker.WasOwedVisit ? ", se lo debe a lo que sintió" : "";
+
         return $"  ·  tirada: salió {chosen.Share:P0} a {chosen.Seconds:0.0} s (vale {chosen.Worth:0.000}, " +
-               $"{chance:P0} de salir) entre {inRoll} de {weighed} lugares{leant}";
+               $"{chance:P0} de salir) entre {inRoll} de {weighed} lugares{leant}{owed}";
     }
 
     private string DescribeCluster()

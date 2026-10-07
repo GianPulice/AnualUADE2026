@@ -468,6 +468,10 @@ The manager fires `InteractionEvents.TargetChanged(interactable)` when the targe
 
 Selection is the **nearest candidate along the crosshair line**, with no dot-product priority when several interactables overlap — see `docs/TODO-UI.md` · Interaction Prompt.
 
+**Zone interactable (the third target slot).** The manager picks its target in this order: the forced one (`SetForcedInteractable`: a push box in hand, a locker the player is inside), then the crosshair cast, then the **zone** one (`SetZoneInteractable` / `ClearZoneInteractable(owner)`). The zone slot is the prompt of the *place* the player stands in rather than of a prop, so it shows only while the crosshair is on nothing else: a door or lever under the reticle still wins. One slot; a caller whose volumes overlap decides who owns it, and clears only with its own reference.
+
+**`LookDownTrigger`** (`_Project/Scripts/Interactables/`) is the one user of it today: a trigger volume with a `CinemachineCamera` as its shot. Standing in it the prompt reads "Look down" (`[E]` key cap from the prompt view); E raises the camera over the player rig (`shotPriority` 100, under the defeat camera's 1000), holds it `holdSeconds` after the brain's blend in has landed, drops it and returns control once the blend out has landed too — both blends are the brain's Default Blend, nothing is hand-lerped. The player is frozen for the shot through `PlayerStateManager.SetInputFrozen` (movement zeroed like `hidingTransition`, minus the Nemesis reading it; `PlayerCameraController` stops reading look input so control comes back facing the way it was left). E again ("Go back") cuts the shot short, even during the blend in; while it plays the trigger is pinned with `SetForcedInteractable`, because the crosshair belongs to the shot's camera and could otherwise find a lever below and pull it with that same E. **No looking down in a chase**: `NemesisEvents.IsChasing` (the "being hunted" set, Chasing plus an unresolved Catch) hides the prompt, and a chase that starts mid-shot ends it at once. A capture, a respawn, a cinematic or the trigger being disabled end it at once too. The camera frame (`PlayerCameraFeed`: area name, recording dot, module readout) is only drawn while the player's own rig is the live shot, so the shot camera registers with `PlayerCameraFeed.RegisterPlayerView` in Awake; without that the frame dropped for the whole look and came back with static. Add one with **GameObject > WIRED > Look Down Trigger** (builds volume + camera + wiring; frame the camera with Ctrl+Shift+F). Its volume is drawn in the pale blue of `CameraAreaZone`, in the GizmoManager's `cameras` family.
+
 ### Puzzles
 
 Progress is **not** stored on the puzzle objects. `PuzzleStateManager` (`_Project/Scripts/Managers/`) is the
@@ -504,14 +508,22 @@ typo there fails silently, because nothing ever looks up a puzzle that does not 
 still has no callers; see *Current state* below.
 
 **SP2 box symbols.** `BoxSymbolSignalLoss`, on each push box, covers the basket symbol on the box's
-top face with TV static. The symbol is readable when **the player's feet are above it, or the symbol
-is inside a lit `BoxSymbolRevealLight`** — either is enough, and each rule has its own hysteresis. A
+top face with a plain black disc (a runtime copy of the symbol's material, so it lights like the
+symbol and gives nothing away). The symbol is readable when **the player's feet are above it, or the
+symbol is inside a lit `BoxSymbolRevealLight`** — either is enough, and each rule has its own
+hysteresis. From above the plain symbol shows at once. Under a lamp it fades in from the black over
+`revealSeconds` (1.5 s, a linear lerp) and fades back out to black in the same time when the box
+leaves the light or the lamp goes off; the fade runs on scaled time, so the pause holds it. A
 reveal lamp's area is its real `Light` (position, direction, Spot Angle, Range), narrowed by
 `edgeReach` and `rangeReach`, and it reveals only while that Light is on. The Scene view always
 draws the cone and the pool where the beam lands. While a reveal lamp lights it the symbol also
-glows in its own colours (`revealGlow`, a runtime material copy): the lamp is a violet blacklight,
-and under violet the red and yellow badges would otherwise go nearly black. The look from above is
-unchanged.
+glows in its own colours (`revealGlow`, a runtime material copy, faded with the symbol): the lamp is
+a violet blacklight, and under violet the red and yellow badges would otherwise go nearly black. The
+look from above is unchanged. While hidden or fading the Plane carries a fully transparent decoy in
+slot 0, the disc in slot 1 and, under the lamp, the symbol in slot 2: `ItemProximityHighlight` pins
+`_EmissionColor` on slot 0 of every renderer under the box (from Awake, and it goes light grey while
+the box is targeted or pushed), which would turn the disc white in the player's hands and overwrite
+the glow. The decoy takes that block where it shows nothing.
 
 The SP2 lamps are not lit by the fuse. The fuse unlocks the SP1 panel, SP1 (`sp1_panel_electrico`)
 powers the two `PoweredLightSwitch` levers (`ButtonLights.prefab`), and a lever activates the
@@ -1115,6 +1127,15 @@ the eyes last observed, 1 off to the side, 1/boost straight back. `NemesisSearch
 builds the hint from `FieldOfView.LastKnownPosition` / `LastKnownVelocity` (observed, never the
 player's transform); `NemesisSearchPicker.TryPick` takes it as an optional `HeadingHint`.
 `Candidate.Weight` is what a place rolled by; `Worth` stays what the threshold is asked of.
+
+**A visit owed to fresh evidence is not cancelled for being far** (07/10, WIR-058). The pick that
+answers new evidence (`EPickReason.NewEvidence`) and the first pick out of `Chasing` or `Traversing`
+pass `owedVisit` to `TryPick`: a place takes part when its SHARE reaches `SearchMapWorthThreshold`
+(`SearchPickRules.TakesPart`), the walk still weighs the roll, and "nothing worth the walk" is judged
+on the best reachable share. Heard from a catwalk, the area below is a long walk round by the stairs
+split into places of a few percent each; by worth every one fell under the threshold, the search
+stood its `SearchMinTime` on the catwalk and went back to patrol. Every other pick (after arriving,
+after an empty investigation) keeps the plain rule. F9's roll says "se lo debe a lo que sintió".
 
 **A search that sees the player and cannot reach them watches them** (05/10, etapa C).
 "lo está viendo" only takes a reachable player (WIR-018), so one on a catwalk leaves the Nemesis in
@@ -1760,16 +1781,27 @@ now. **Fase 2a: it only watches** — nothing decides off it yet; the gizmo and 
 - **The rules** (`PossibilityMap`, pure, in `WIRED.Nemesis.Logic`, tested in `PossibilityMapTests`):
   a sighting seeds a point with the observed heading; a noise seeds the area of its (perceived)
   position ± evidence radius, half the map's prior inside it and half even — hearing the same thing
-  twenty times never sharpens it. The value spreads along edges at `SearchMapSpreadSpeed`, faster
-  along the heading for `SearchMapHeadingDuration` (`SearchMapHeadingBias`). What it looks at it
-  clears: floor nodes in its cone within `ViewRange` × `SearchMapClearRangeScale`, with line of sight
-  to `SearchMapProbeHeight` (a crouching player) over the node, plus whatever is under it; skipped
-  while it sees the player. A closed hiding spot is cleared only by `NemesisHidingAwareness.Open`
-  (`SpotOpened`). Doorway drains move value into a sink ("went into the Hub", C5) that never leaks
-  back. Then everything, sink included, renormalises.
-- **Seen in** `NemesisGizmos` › `drawPossibilityMap` (off by default: heat tiles, the cleared cone, a
-  line to the likeliest place) and F9's `mapa` row (share on its floor, likeliest place and its share
-  within 4 m, spread as m², Hub and hiding-spot shares, nodes cleared last tick).
+  twenty times never sharpens it. **Both are measured walking** (07/10, WIR-062): the nodes within
+  reach along open edges of a start node, never a disc in plan view (`CollectAlongEdges`, a small
+  Dijkstra). The facade picks that start node as the nearest one a `NavMesh.Raycast` from the evidence
+  reaches, so a point against a thin wall does not start in the next room. The value spreads along
+  edges at `SearchMapSpreadSpeed`, faster along the heading for `SearchMapHeadingDuration`
+  (`SearchMapHeadingBias`). What it looks at it clears: floor nodes in its cone within the range the
+  eyes are really using (`FieldOfView.EffectiveViewRange`, held/hunt included) ×
+  `SearchMapClearRangeScale`, with line of sight to `SearchMapProbeHeight` (a crouching player) over
+  the node, plus whatever is under it; skipped while it sees the player. A closed hiding spot is
+  cleared only by `NemesisHidingAwareness.Open` (`SpotOpened`). Doorway drains move value into a sink
+  ("went into the Hub", C5) that never leaks back. Then everything, sink included, renormalises.
+- **The trail** (07/10, WIR-062, "la salida que él mismo estaba tapando"): while it chases, searches or
+  investigates, the facade records where it walks for `SearchMapTrailMemory` s (4) and blocks the
+  floor nodes within `SearchMapTrailRadius` (2 m) of it (`PossibilityMap.Block`). A blocked node takes
+  no inflow and a noise's area does not reach through it; blocking clears nothing (what is there may
+  leave). New evidence wipes the trail within its own doubt (at least one node) before seeding: a
+  player heard behind the monster is behind it. Rebuilt every tick; 0 in either value switches it off.
+- **Seen in** `NemesisGizmos` › `drawPossibilityMap` (off by default: heat tiles, the cleared cone at
+  its live range, the trail and its blocked nodes as grey squares, a line to the likeliest place) and
+  F9's `mapa` row (share on its floor, likeliest place and its share within 4 m, spread as m², Hub and
+  hiding-spot shares, nodes cleared last tick and the clear range, nodes the trail blocks).
 - **Next** (the plan's 2b–2e): the search picks by value ÷ (1 + time to get there) instead of a disc,
   cooling becomes "the value is too spread to be worth it", the noise-led short search and the
   post-hunt patrol read it, and hiding spots open on value × habit (D38).

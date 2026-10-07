@@ -139,6 +139,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// <summary>Called by <see cref="HidingSpot"/> only, at both ends of the transition.</summary>
     public void SetHidingTransition(bool active) => hidingTransition = active;
 
+    // ── Frozen by a scene shot ──────────────────────────────────────────────────
+
+    private bool inputFrozen;
+
+    /// <summary>
+    /// True while a scripted shot of the level holds the player still (<see cref="LookDownTrigger"/>):
+    /// no walking, and <see cref="PlayerCameraController"/> stops reading look input so control comes
+    /// back facing the way it was left. Unlike <see cref="IsHidingTransition"/> the Nemesis reads
+    /// nothing from it, and unlike <see cref="IsImmobilized"/> it does not send the FSM to Disabled.
+    /// </summary>
+    public bool IsInputFrozen => inputFrozen;
+
+    /// <summary>Called by <see cref="LookDownTrigger"/> only, at both ends of the shot.</summary>
+    public void SetInputFrozen(bool frozen) => inputFrozen = frozen;
+
     /// <summary>
     /// Called by <see cref="HidingSpot"/> only: once when the player is in, once with null on
     /// every way back out. Not a property with a setter, because "anyone can assign this" is how
@@ -640,8 +655,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // During a scene change the level is already running behind the loading screen: keys
         // pressed there must not walk the player off before it is revealed. Same while lying on
-        // the floor or getting up, and while climbing into or out of a hiding spot.
-        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition) inputDir = Vector3.zero;
+        // the floor or getting up, while climbing into or out of a hiding spot, and while a scene
+        // shot holds the player still.
+        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition || inputFrozen) inputDir = Vector3.zero;
         else InputUpdate();
         CheckGround();
         base.Update();

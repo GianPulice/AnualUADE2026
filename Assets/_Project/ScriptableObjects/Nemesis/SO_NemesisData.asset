@@ -155,3 +155,5 @@ MonoBehaviour:
   searchMapCandidates: 8
   searchMapRepickShare: 0.35
   searchMapWorthThreshold: 0.015
+  searchMapTrailMemory: 4
+  searchMapTrailRadius: 2

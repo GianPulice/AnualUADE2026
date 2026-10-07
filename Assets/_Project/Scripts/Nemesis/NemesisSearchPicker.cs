@@ -230,6 +230,14 @@ public sealed class NemesisSearchPicker
     /// <summary>Whether the last pick leant towards where the player was heading. For F9.</summary>
     public bool LeantOnHeading { get; private set; }
 
+    /// <summary>Whether the last pick was a visit owed to new evidence (see TryPick): the walk
+    /// weighed in the roll but could not rule a place out. For F9.</summary>
+    public bool WasOwedVisit { get; private set; }
+
+    /// <summary>The largest share among the places of the last pick it could walk to. What an owed
+    /// visit's "nothing worth the walk" is judged on.</summary>
+    public float BestOwedShare { get; private set; }
+
     /// <summary>How far away a place has to be to count as somewhere to go. See
     /// <see cref="MinTravelMargin"/>.</summary>
     public float MinTravel => stateManager.DefaultStoppingDistance + MinTravelMargin;
@@ -272,13 +280,16 @@ public sealed class NemesisSearchPicker
     /// (<see cref="NothingWorthTheWalk"/> — the caller stays put and looks around).</returns>
     /// <param name="heading">Which way the player was last seen going, when this is the pick a chase
     /// hands over with; left out, the plain roll by worth.</param>
-    public bool TryPick(out Candidate chosen, in HeadingHint heading = default)
+    /// <param name="owedVisit">The pick answers evidence that just came in (SearchPickRules.TakesPart):
+    /// a place only needs its share to be in the roll, however long the walk.</param>
+    public bool TryPick(out Candidate chosen, in HeadingHint heading = default, bool owedVisit = false)
     {
         chosen = default;
         Clear();
 
         float boost = HeadingBoost;
         LeantOnHeading = heading.Known && boost > 1f;
+        WasOwedVisit = owedVisit;
 
         // The map ticks four times a second, and the belief may be up to a tick ahead of it. A pick
         // off a map that has not heard the last footstep yet is a walk the wrong way and a turn
@@ -311,7 +322,8 @@ public sealed class NemesisSearchPicker
             // skipped is a path query saved.
             float seconds = zone.Share >= threshold ? SecondsOnFoot(origin, zone.Position, speed) : float.NaN;
             float worth = SearchPickRules.Worth(zone.Share, seconds);
-            bool inRoll = worth > 0f && worth >= threshold;
+            bool inRoll = SearchPickRules.TakesPart(zone.Share, worth, threshold, owedVisit);
+            if (inRoll && zone.Share > BestOwedShare) BestOwedShare = zone.Share;
 
             // The threshold is asked of the worth, never of the weight: leaning the roll towards the
             // player's heading must not make a place that is not worth the walk worth it.
@@ -331,7 +343,10 @@ public sealed class NemesisSearchPicker
             RollTotal += weight;
         }
 
-        NothingWorthTheWalk = SearchCooling.NothingWorthTheWalk(BestWorth, threshold, SinkShare);
+        // An owed visit is judged on what it may walk to at all, not on what the walk costs.
+        NothingWorthTheWalk = owedVisit
+            ? SearchCooling.NothingWorthTheWalk(BestOwedShare, threshold, SinkShare)
+            : SearchCooling.NothingWorthTheWalk(BestWorth, threshold, SinkShare);
         if (NothingWorthTheWalk || RollTotal <= 0f) return false;
 
         // Roulette answers uniformly when every weight is zero ("it still has to go somewhere"); here
@@ -353,10 +368,12 @@ public sealed class NemesisSearchPicker
         weights.Clear();
         ChosenIndex = -1;
         BestWorth = 0f;
+        BestOwedShare = 0f;
         RollTotal = 0f;
         SinkShare = 0f;
         NothingWorthTheWalk = false;
         LeantOnHeading = false;
+        WasOwedVisit = false;
     }
 
     /// <summary>

@@ -37,6 +37,12 @@ public class InteractionManager : Singleton<InteractionManager>
     // with ClearForcedInteractable(this) so a stale owner cannot steal the lock.
     private IInteractable forcedInteractable;
 
+    // What the place the player is standing in offers (a LookDownTrigger's "Look down"). The lowest
+    // priority of the three: it is the target only while the crosshair is on nothing else, so a door
+    // or a lever under the reticle still wins, and so does a forced target. Cleared with
+    // ClearZoneInteractable(this), for the same stale-owner reason as the forced one.
+    private IInteractable zoneInteractable;
+
     // Cooldown between E presses to avoid double activations.
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
@@ -94,6 +100,9 @@ public class InteractionManager : Singleton<InteractionManager>
             ? forcedInteractable
             : RaycastForInteractable();
 
+        // Nothing under the crosshair: fall back to what the player's surroundings offer.
+        if (detected == null && IsAlive(zoneInteractable)) detected = zoneInteractable;
+
         if (detected != lastInteractable)
         {
             lastInteractable = detected;
@@ -150,6 +159,39 @@ public class InteractionManager : Singleton<InteractionManager>
         }
     }
 
+
+    /// <summary>
+    /// Offers <paramref name="target"/> as the prompt of the place the player is standing in. It is
+    /// the target only while the crosshair is on nothing else — see <c>zoneInteractable</c> — and
+    /// stays until <see cref="ClearZoneInteractable"/> is called with the same reference. There is
+    /// one slot: a caller whose volumes overlap decides which of them owns it.
+    /// </summary>
+    public void SetZoneInteractable(IInteractable target)
+    {
+        zoneInteractable = target;
+    }
+
+    /// <summary>
+    /// Clears the zone target only if it is still <paramref name="owner"/>, so a trigger the player
+    /// has already left cannot take down the prompt of the one they walked into. Null clears it
+    /// whoever owns it.
+    /// </summary>
+    public void ClearZoneInteractable(IInteractable owner)
+    {
+        if (owner == null || ReferenceEquals(zoneInteractable, owner))
+        {
+            zoneInteractable = null;
+        }
+    }
+
+    // A raw `!= null` on an IInteractable skips UnityEngine.Object's fake-null overload, so a zone
+    // trigger destroyed with the player inside would stay "alive" here. See InteractionPromptView.IsAlive.
+    private static bool IsAlive(IInteractable target)
+    {
+        if (target == null) return false;
+        if (target is UnityEngine.Object unityObj) return unityObj != null;
+        return true;
+    }
 
     private IInteractable RaycastForInteractable()
     {

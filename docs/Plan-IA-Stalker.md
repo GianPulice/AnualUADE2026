@@ -68,8 +68,8 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
 - **Respondido por Iñaki (D46):** el ruido no dirige la persecución. Parado en el último punto
   visto y oyéndote correr, pasa a buscar; no te sigue por el oído.
 
-**Etapa C — Búsqueda** — 🟡 construida en parte el 05/10 (sin commitear), falta jugarla →
-[§19.2](#192-búsqueda)
+**Etapa C — Búsqueda** — 🟡 C0–C2 construidas el 05/10 (commit `417ce019`); C3, C5, C6 y C7 el
+07/10 (sin commitear); falta jugarla → [§19.2](#192-búsqueda) y [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062)
 
 - **C0, hecho: al pasar a buscar tira hacia donde ibas** (playtest del 05/10: "cuando doblás la
   esquina no predice que vas a seguir para adelante"). En la traza, de 7 pases de la persecución a
@@ -87,26 +87,47 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
   `NemesisLookAround`). Mientras te ve, la búsqueda no se enfría: ya no vuelve a patrullar con vos
   a la vista. Cumple el [§18.5](#185-modelo-propuesto) A. Cuando te pierde, vuelve a elegir sobre
   el mapa.
-- **C3, a medias: WIR-062, busca hacia atrás.** Lo principal era C0. Falta lo que todavía lo puede
-  mandar para atrás:
-  - un ruido después de perderte siembra un disco que no ve paredes ni dirección: pasar a sembrarlo
-    por distancia en el grafo, no por radio en planta;
-  - el mapa limpia hasta 7 m aunque la vista sostenga 14: que el rango de limpieza siga al efectivo;
-  - sin mapa o sin creencia, reparte puntos al azar.
+- **C3, hecho el 07/10 salvo un punto: WIR-062, busca hacia atrás.** Lo principal era C0. Lo que
+  todavía lo podía mandar para atrás:
+  - ✅ un ruido después de perderte sembraba un disco en planta que cruzaba paredes. Ahora el ruido y
+    el avistamiento se siembran por distancia caminando sobre el grafo (`PossibilityMap.CollectAlongEdges`),
+    desde un nodo de arranque que el componente valida con un `NavMesh.Raycast`;
+  - ✅ el mapa limpiaba hasta 7 m aunque la vista sostuviera 14: ahora limpia hasta
+    `EffectiveViewRange` × `Search Map Clear Range Scale`;
+  - sin mapa o sin creencia, reparte puntos al azar: queda. Pasa sólo entrando desde una captura o con
+    un escondite conocido y sin creencia, no al perderte.
+- **C5, hecho el 07/10: el rastro, "la salida que él mismo estaba tapando" (WIR-062).** Mientras
+  persigue, busca o investiga, los nodos a `Search Map Trail Radius` (2 m) de por donde caminó en los
+  últimos `Search Map Trail Memory` (4 s) quedan tapados: el valor no entra y un ruido no los
+  atraviesa. Lo que te oye o te ve dentro de la duda de esa evidencia borra ese tramo. Es nuevo, no
+  estaba en el plan; suma una memoria corta de dónde estuvo, al lado de "mirar es la memoria".
+- **C6, hecho el 07/10: WIR-058 sin montacargas.** Buscando en la pasarela, un ruido tuyo abajo no
+  pasa por `Investigating` ("la búsqueda sigue tibia" va antes que "escucha un ruido"), y los lugares
+  de abajo, lejos por la escalera, no llegaban al umbral de valor ÷ caminata: "revisó todo" en el
+  acto, 6 s parado y a patrullar. Ahora la elección que responde a evidencia nueva, y la primera al
+  salir de `Chasing` o `Traversing`, es una visita debida: alcanza con la parte del valor
+  (`SearchPickRules.TakesPart`), y la caminata pesa sólo en el sorteo.
+- **C7, hecho el 07/10: "lo vio entrar" pide el cono (WIR-057).** Contaba como visto si te había
+  visto hace menos de 0,75 s y tenía línea a la puerta, aunque la puerta quedara al costado o
+  detrás. Ahora la puerta también tiene que estar dentro de `View Angle`.
 - **C4, DIS-002: sin reproducir.** No hay ningún término de distancia en la duración de la
   investigación. En la traza del 05/10, de 6 investigaciones por ruido, 5 terminaron en menos de
   2,5 s porque **te vio**, y la que no, duró 10,7 s con sus 4 s de mirar alrededor. Ninguna fue a
   menos de 4 m (la más cercana, 4,8 m): falta jugar el I-c del checklist para cerrarlo.
 - **Las cuatro reglas de búsqueda**, hoy:
-  - (a) te ve o te oye → va a ese punto: falta el caso entre pisos (D7); el inalcanzable, con C2;
+  - (a) te ve o te oye → va a ese punto: con C6, también lejos y en otro piso a pie; falta el caso
+    con montacargas o bajada (D7); el inalcanzable, con C2. Un ruido vago va a su área, no a su
+    punto (Fase 1, WIR-057): si el reporte pide "el punto" literal, choca con eso;
   - (b) llega y no te ve → investiga alrededor: se cumple;
   - (c) te perdió persiguiendo → busca cerca del último punto visto, hacia donde ibas: con C0;
-  - (d) no busca al azar ni hacia atrás: con C0, y lo que falta de C3. "Por donde no pasaste" no se
-    modela como un rastro: el mapa es adónde pudiste llegar desde el último punto, con sesgo por tu
-    rumbo.
-- **Jugar:** casos 77 a 79 del §13, y 62, 63, 65 y 67, con `Draw Possibility Map` y
+  - (d) no busca al azar ni hacia atrás: con C0, C3 y C5. "Por donde no pasaste" ahora sí se
+    modela, en corto: su propio rastro de los últimos segundos tapa.
+- **Para decidir (Iñaki):** las causas de WIR-057 que quedan son decisiones, no bugs. Están en el
+  [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
+- **Jugar:** casos 77 a 84 del §13, y 62, 63, 65 y 67, con `Draw Possibility Map` y
   `Draw Search Pick`. F9 dice "tirando hacia donde ibas" en la fila de la búsqueda cuando el sorteo
-  usó tu rumbo.
+  usó tu rumbo, "se lo debe a lo que sintió" cuando fue una visita debida, y "rastro tapa N" en la
+  fila del mapa.
 
 ### Semana 2 (12–18/10) — Pisos, montacargas y escondites por el mapa
 
@@ -135,8 +156,8 @@ este plan.
 - **D6 (S–M) Montacargas sin energía.** El Nemesis ignora `ElevatorPower` y lo usa igual
   ([decisión 4](#decisiones-de-iñaki-del-0510)). `NemesisElevatorLink` pasa a ser dueño de
   "activo = con energía y no suspendido". Negarlo dentro del cruce crearía el loop de D4.
-- **D7 (M) WIR-058, no va adonde escuchó.** Pasa cuando la ruta al ruido usa el montacargas o una
-  bajada: al llegar, la única salida de `Traversing` es `Searching`, sobre un mapa que se dispersó
+- **D7 (M) WIR-058, no va adonde escuchó.** El caso a pie lo cerró C6. Queda cuando la ruta al ruido
+  usa el montacargas o una bajada: al llegar, la única salida de `Traversing` es `Searching`, sobre un mapa que se dispersó
   durante todo el viaje, y el punto escuchado nunca se visita. Predicado nuevo "venía por un ruido"
   y peldaño a `Investigating`, y resembrar el mapa al aterrizar. Con escalera sola la regla ya se
   cumple.
@@ -252,7 +273,9 @@ bloquean ninguna etapa.
 | Qué | Cómo quedó | Con qué se cambia |
 |---|---|---|
 | Vista sin tope | Sostener ×2 y cazar ×2 se apilan con la escalada y el Director: el rango puede pasar los 20 m. | `View Hold Scale`, `View Hunt Scale` y `View Hunt Grow Time` (en 1 se apagan). Un tope sería un tunable nuevo. |
-| "Lo vio entrar" | Vale hasta el rango con el que te estaba viendo (14 m en persecución): esconderte a la vista en un pasillo largo deja de servir. | No tiene tunable. |
+| "Lo vio entrar" | Vale hasta el rango con el que te estaba viendo (14 m en persecución): esconderte a la vista en un pasillo largo deja de servir. Desde el 07/10 la puerta tiene que estar dentro de su cono (C7). | No tiene tunable. |
+| Rastro (C5) | Lo que caminó en los últimos 4 s, 2 m a cada lado, queda tapado. | `Search Map Trail Memory` y `Search Map Trail Radius` (0 lo apaga). |
+| Visita debida (C6) | Recién oído o visto, un lugar lejos con al menos 1,5 % del valor entra al sorteo. | `Search Map Worth Threshold` (el mismo umbral, pedido a la parte del valor). |
 | Espacios abiertos | Casi no se detiene a mirar, porque descarta lugares de lejos. | `Search Map Repick Share` (en 0 vuelve al ritmo de antes). |
 | "Revisé todo" | Umbral 0,015: la búsqueda termina a los 6–9 s en un hall abierto y a los 10–13 s en pasillo o sala. | `Search Map Worth Threshold`. |
 | "Estanca" | Cuenta en la primera ventana sin progreso, aunque sea una corrida recta y no un loop. | No tiene tunable. |
@@ -278,7 +301,7 @@ dice.
     verte si seguís en el pasillo;
   - el sigilo: patrullando te nota a 7 m parado y a 3,5 m agachado;
   - "estanca": una persecución larga alrededor de una mesa suma 1.
-- **Etapa C, búsqueda (05/10):** casos 77 a 79, y otra vez 62, 63, 65 y 67.
+- **Etapa C, búsqueda (05/10 y 07/10):** casos 77 a 84, y otra vez 62, 63, 65 y 67.
 - **Etapa B, titileo (05/10):** jugada. De los casos 72 a 76 quedó sin probar el 76.
 - [Fase 0](#fase-0--ajustes-sin-código): esperas distintas por waypoint en F9, y las seis zonas
   del Director en F10.
@@ -628,7 +651,24 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   - si te ve y no puede llegar, se acerca lo más que puede y te mira (`TickWatch`), y la búsqueda no
     se enfría mientras te ve.
 
-  Falta de la etapa: el resto de C3 y jugar el I-c para DIS-002.
+  Commiteada en `417ce019`.
+- ✅ **Etapa C — Búsqueda, segunda parte** (07/10, sin commitear) → [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
+  Compila (los cuatro ensamblados, con el Roslyn de Unity sobre los `.rsp` de Bee, con el editor
+  abierto) y pasan 280 de 285 tests EditMode corridos fuera de Unity (13 nuevos: 9 en
+  `PossibilityMapTests`, 4 en `SearchPickRulesTests`). Los 5 de `ChaseGazeTests` llaman a
+  `Quaternion.AngleAxis`, que fuera de Unity no corre: fallan igual con la versión anterior. Falta
+  correrlos en el Test Runner y jugarla (casos 80 a 84). Incluye:
+  - C3: el ruido y el avistamiento se siembran por distancia caminando (`PossibilityMap.CollectAlongEdges`,
+    nodo de arranque validado con `NavMesh.Raycast` en `NemesisPossibilityMap.StartNodeFor`), y el
+    "acá no está" limpia hasta `EffectiveViewRange` × `Search Map Clear Range Scale`;
+  - C5: el rastro (`PossibilityMap.Block`, `NemesisPossibilityMap.RecordTrail` / `BlockTrail`,
+    `Search Map Trail Memory` y `Search Map Trail Radius` en `SO_NemesisData` con dos chequeos en el
+    inspector, cuadrados grises en el gizmo del mapa y "rastro tapa N" en F9);
+  - C6: la visita debida (`SearchPickRules.TakesPart`, `NemesisSearchPicker.TryPick(owedVisit)`,
+    `NemesisSearchingState.IsOwedVisit`, "se lo debe a lo que sintió" en F9);
+  - C7: "lo vio entrar" pide el cono (`NemesisHidingAwareness.HandleEntered`).
+
+  Falta de la etapa: jugar el I-c para DIS-002, y las decisiones del §19.9.
 - ✅ **Revisión del consejo** (21/09): cuatro modelos revisaron la Fase 2 y encontraron un bug
   bloqueante, ya corregido. → [§16](#16-revisión-del-consejo-21092026)
 - ✅ **Análisis de percepción y creencia** (27/09). → [§17](#17-percepción-y-creencia)
@@ -2257,6 +2297,11 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 77 | Te persigue por un pasillo, doblás una esquina y seguís derecho por el pasillo nuevo. Diez veces. | Llega a la esquina y la mayoría de las veces sigue por donde fuiste, sin salir primero para el costado ni volver. F9, fila de la búsqueda: "tirando hacia donde ibas" en la primera tirada. Etapa C0. |
 | 78 | Subite a un lugar al que no llega (una pasarela, el Hub) y quedate a la vista. | No vuelve a patrullar mientras te ve. Camina hasta lo más cerca que puede, se queda ahí y te mira; no barre la mirada de lado a lado ni corre en el lugar. Al taparte, vuelve a buscar. Etapa C2. |
 | 79 | Sin haber usado ningún escondite, hacé que te persiga, cortá la vista y metete en un locker sin que te vea entrar. Diez veces. | Busca la zona y nunca va derecho a la puerta con el motivo "lo usaste antes". F9 `escondites`: el uso del locker aparece recién cuando salís. Etapa C1, WIR-057. |
+| 80 | Pasillo angosto con una sola salida y salas del otro lado de sus paredes: que te persiga, perdelo de vista adentro y seguí corriendo hacia la salida (te oye). Diez veces. | Nunca vuelve por donde vino ni da la vuelta para revisar las salas de al lado. Con `Draw Possibility Map`: ningún valor detrás suyo ni del otro lado de las paredes; cuadrados grises sobre su rastro. F9, fila `mapa`: "rastro tapa N". Etapas C3 y C5, WIR-062. |
+| 81 | Lo mismo, pero después de perderlo volvé por detrás suyo en silencio y hacé un ruido a unos metros de su espalda. | Se da vuelta y busca detrás: el ruido borra ese tramo del rastro. Etapa C5. |
+| 82 | Que te persiga hasta una sala grande y perdelo ahí. | Lo que ya miró de lejos no lo camina: no va hasta el fondo de la sala a revisar algo que vio vacío desde la entrada. F9, fila `mapa`: "limpió … hasta 14 m" mientras te caza (no 7). Etapa C3. |
+| 83 | Que te busque en una pasarela (perdelo de vista ahí) y hacé ruido abajo, donde se llega por la escalera. Diez veces. | Baja por la escalera hacia donde te oyó; no se queda arriba 6 s para después irse a patrullar. F9, fila de la búsqueda: "se lo debe a lo que sintió". Etapa C6, WIR-058. |
+| 84 | Que te persiga, cortá la vista y metete en un locker con la puerta al costado o detrás de él cuando termina de doblar la esquina. | No lo sabe: no va derecho al locker con el motivo "lo vio entrar". Con la puerta de frente y a la vista, sí. Etapa C7, WIR-057. |
 
 ---
 
@@ -3839,3 +3884,64 @@ el barrido):
 
 Historia a propósito, se deja: `NemesisSearchPicker.cs:10`, `SearchPickRules.cs:7` y
 `NemesisSearchingState.cs:8, 219, 387, 708`.
+
+### 19.9 Análisis de causas del 07/10 (WIR-057, 058 y 062)
+
+Sobre `HEAD` `8a3e16ba`, que ya tenía C0, C1 y C2 (`417ce019`), leyendo el código y la traza del
+05/10 (`trace_20261005_143612.csv`, anterior a la etapa C). Sin jugar. La regla de base del reporte
+("la búsqueda arranca de lo que percibió, nunca de tu posición real") ya se cumplía salvo en el
+Director (abajo): lo que fallaba era cómo convertía lo percibido en dónde buscar.
+
+**Un dato de la traza que explica casi todo WIR-062.** En 5 de los 7 pases de `Chasing` a
+`Searching`, la creencia ya venía de un ruido (`belief_from=noise`), no de la vista.
+`NemesisBelief.SightAnchorWindow` es 0,25 s: si te oye correr apenas te pierde, el mapa deja de
+sembrar "punto + rumbo" y siembra el disco del ruido. Ese disco era en planta y cruzaba paredes.
+
+**Arreglado el 07/10** (etapa C, en [Pendiente](#pendiente)):
+
+| Bug | Causa | Arreglo |
+|---|---|---|
+| WIR-062 | El disco del ruido (y el del avistamiento, de 2 m) se medía en planta: en un pasillo angosto caía casi todo en las salas del otro lado de las paredes, a las que sólo se llega volviendo y que el cono nunca limpia. | C3: se siembra caminando por el grafo. |
+| WIR-062 | Nada modelaba "la salida que él tapaba": el valor podía volver por donde vino él. | C5: el rastro. |
+| WIR-062 | El "acá no está" llegaba a 7 m con la vista en 14. | C3: limpia hasta el rango efectivo. |
+| WIR-062 | La renormalización convierte cualquier sobra detrás suyo en "lo más probable" una vez limpio lo de adelante. | Sin cambio propio: con C3 y C5 esas sobras ya no se forman. |
+| WIR-058 | Buscando en la pasarela, tu ruido abajo no pasa por `Investigating` (la búsqueda tibia va antes), y con el oído midiendo por camino el área de abajo sale grande y lejos: ningún lugar llegaba a valor ÷ (1 + caminata) ≥ 0,015. "Revisó todo", 6 s parado, patrulla. | C6: visita debida. |
+| WIR-057 | "Lo vio entrar" no pedía el cono: una puerta al costado o detrás, con línea a la puerta y una vista de hace menos de 0,75 s, contaba. | C7: pide el cono. |
+
+**Lo que queda.** Ninguna de estas causas es un bug. Las de WIR-057 son decisiones de diseño, y
+falta que Iñaki decida si se mantienen.
+
+- **WIR-057 — su última evidencia es la puerta del escondite.** La búsqueda va a donde te percibió
+  por última vez, y se para en el punto mismo si es preciso (te vio, o un paso a menos de ~3,3 m sin
+  pared, `MayVisitEvidence`). Si te metiste justo ahí, la puerta queda a un paso. Ahí terminan los
+  sentidos de cerca, todos por diseño: proximidad a 1,5 m salvo que aguantes la respiración (D21),
+  las rendijas (nivel B) y la respiración, que se oye a ~2 m (D22). Para el jugador es "fue derecho".
+- **WIR-057 — el hábito (D23).** Un locker que ya usaste y del que saliste se sortea con hasta 85 %
+  en cada elección a 8 m, y otra vez cada vez que vuelve a buscar o investigar. En un playtest que
+  reusa el mismo locker se ve igual que saber dónde estás. F9 lo distingue: "lo usaste antes (n)".
+- **WIR-057 — el Director usa tu zona real aunque estés escondido.** La "sensibilidad creciente"
+  (`NemesisDirector.ApplyRisingSensitivity`) elige la zona con `player.position`, y
+  `TryGetPressureAnchor` se devuelve en `NemesisController.TryGetZoneAnchor` antes de las guardas de
+  D40 (escondido, o caza reciente). Trae la patrulla a tu zona, emite ruidos sintéticos ahí y le
+  sube los sentidos. Sólo después de 90 s de calma (`quietTimeout`): explica "me quedé escondido y
+  vino", no "me perdió y vino derecho". **A decidir:** aplicarle las guardas de D40 o dejarlo como
+  el anti-estancamiento de Mr. X.
+- **WIR-057 — el valor queda encerrado en los escondites** (inferido). Un escondite pierde valor
+  10 veces más lento y mirarlo no lo limpia; limpio el piso, casi todo queda adentro, la búsqueda no
+  tiene adónde caminar y a los 6 s patrulla cerca (`RequestNearbyPatrol`). En la traza, las dos
+  búsquedas con el jugador escondido duraron 6 s justos. No va derecho, pero vuelve a pasar por la
+  puerta. Lo cambia la etapa E (escondites por el mapa).
+- **WIR-058 — con montacargas o bajada:** D7, etapa D.
+- **WIR-058 — una pista le gana:** tu ruido en otro piso vale ×0,7 frente a una pista
+  (`FocusArbiter`), y además se castiga por distancia de camino; un ruido del Director o un señuelo
+  en su piso gana "su atención está en una pista". Por diseño (D18, D35).
+- **WIR-058 — choque de reglas.** El reporte pide "va al punto donde escuchó"; la Fase 1 dejó a
+  propósito de ir al punto de un ruido vago, porque ese punto suele ser la puerta del locker
+  (WIR-057). Hoy va al área del ruido, y al punto sólo si fue preciso. **A decidir.**
+- **WIR-062 — si la búsqueda termina, la patrulla puede volver** (E3, etapa E). La patrulla no lee
+  el mapa. F9 lo distingue: volver en `Searching` es el mapa; en `Patrolling` "nada que atender", es
+  el fin de la búsqueda.
+- **WIR-062 — el mapa se queda atrás de un jugador que corre** (inferido). El valor se esparce
+  como una difusión: el grueso avanza ~3·√t m (≈ 6 m a los 4 s) mientras el jugador corre 18. La
+  salida lejana tiene poco valor y cae bajo el umbral antes de que la busque. C6 lo alivia sólo en
+  la primera elección.

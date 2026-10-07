@@ -39,7 +39,9 @@ using UnityEngine;
 /// Nothing has to call it: every frame the renderer feature asks whether the camera's brain has the
 /// player's rig on the air (<see cref="FindLive"/>), so a cut to any other shot — a cinematic, a
 /// security camera — drops the look on the very frame of the cut, and cutting back brings it in with
-/// a little static.
+/// a little static. The exception is the player's own views: a <see cref="LookDownTrigger"/>'s shot
+/// registers with <see cref="RegisterPlayerView"/> and keeps the frame on, since it is still the
+/// player looking.
 ///
 /// SETUP: on the FreeLook Camera of the Player prefab, with SO_PlayerCameraFeed.
 /// </summary>
@@ -100,8 +102,30 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
     private static readonly int RecBlinkId = Shader.PropertyToID("_PlayerFeedRecBlink");
 
+    // Cameras that are the player's own view without being the player's rig: a LookDownTrigger's
+    // shot. They keep the feed on the air; any other camera takes it off (see FindLive).
+    private static readonly List<CinemachineVirtualCameraBase> playerViewShots = new List<CinemachineVirtualCameraBase>();
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => LensFovOffset = 0f;
+    private static void ResetStatics()
+    {
+        LensFovOffset = 0f;
+        playerViewShots.Clear();
+    }
+
+    /// <summary>
+    /// Declares <paramref name="shot"/> a view the PLAYER is looking through — not a cinematic, not a
+    /// security camera. While it is the live shot the feed stays on the air: the area name, the
+    /// recording dot and the module readout do not drop for a look down from the catwalk, and
+    /// coming back from it is not a cut in with static. Being registered costs nothing while the
+    /// camera is off; only a live shot is ever matched.
+    /// </summary>
+    public static void RegisterPlayerView(CinemachineVirtualCameraBase shot)
+    {
+        if (shot != null && !playerViewShots.Contains(shot)) playerViewShots.Add(shot);
+    }
+
+    public static void UnregisterPlayerView(CinemachineVirtualCameraBase shot) => playerViewShots.Remove(shot);
 
     /// <summary>
     /// Degrees the camera's lens must open up this frame for the fisheye; 0 outside the wake-up.
@@ -297,7 +321,16 @@ public class PlayerCameraFeed : MonoBehaviour
         if (!Application.isPlaying) return feed.previewInEditMode ? feed : null;
 
         if (!camera.TryGetComponent(out CinemachineBrain brain)) return null;
-        return feed.shot != null && brain.IsLiveChild(feed.shot, true) ? feed : null;
+        if (feed.shot != null && brain.IsLiveChild(feed.shot, true)) return feed;
+
+        // Still the player's own view, through another camera (a look down).
+        for (int i = 0; i < playerViewShots.Count; i++)
+        {
+            CinemachineVirtualCameraBase view = playerViewShots[i];
+            if (view != null && brain.IsLiveChild(view, true)) return feed;
+        }
+
+        return null;
     }
 
     /// <summary>

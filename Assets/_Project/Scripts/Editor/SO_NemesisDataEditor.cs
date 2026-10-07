@@ -1035,10 +1035,14 @@ public class SO_NemesisDataEditor : Editor
             $"(×{data.HearingLocalizationError:0.##} del radio de la evidencia).",
             EditorStyles.wordWrappedMiniLabel);
 
-        bool clearInsideView = data.SearchMapClearRangeScale <= 1f;
+        // The clearing follows the range the eyes are really using (07/10, WIR-062): the base one,
+        // stretched while it holds the player in sight or hunts one it lost.
+        float scale = data.SearchMapClearRangeScale;
+        bool clearInsideView = scale <= 1f;
         PlayerDiagramGUI.Verdict(clearInsideView,
             clearInsideView
-                ? $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, dentro de lo que ve ({data.ViewRange:0.##} m)"
+                ? $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, dentro de lo que ve ({data.ViewRange:0.##} m); " +
+                  $"cazándote, hasta {data.ViewHuntRange * scale:0.##} m (ve hasta {data.ViewHuntRange:0.##} m)"
                 : $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, más lejos de lo que ve " +
                   $"({data.ViewRange:0.##} m) — descarta lugares donde no te podría ver: hace trampa por eliminación");
 
@@ -1102,7 +1106,8 @@ public class SO_NemesisDataEditor : Editor
                   $"caminata hasta {Mathf.Max(0f, 0.1f / threshold - 1f):0.#} s de distancia; uno con 30 %, hasta " +
                   $"{Mathf.Max(0f, 0.3f / threshold - 1f):0.#} s; pegado a él, hace falta al menos {threshold:P1}. " +
                   "Si ninguno llega, mira alrededor donde está y la búsqueda termina pasado Search Min Time " +
-                  $"({data.SearchMinTime:0.#} s)."
+                  $"({data.SearchMinTime:0.#} s). Recién oído o visto (y al salir de una persecución o del " +
+                  $"montacargas) la caminata no descarta: alcanza con que el lugar tenga {threshold:P1} del valor."
                 : "Search Map Worth Threshold en 0: nunca da por revisado todo. La búsqueda termina solo por " +
                   "silencio (o porque más de la mitad del valor se fue al Hub).",
             EditorStyles.wordWrappedMiniLabel);
@@ -1114,6 +1119,43 @@ public class SO_NemesisDataEditor : Editor
                   $"entre los {data.SearchMapCandidates} de más valor."
                 : "Search Map Repick Share en 0: camina siempre hasta el lugar que eligió, aunque de lejos ya " +
                   "lo haya visto vacío.",
+            EditorStyles.wordWrappedMiniLabel);
+
+        DrawTrailChecks(data);
+    }
+
+    /// <summary>
+    /// The trail (07/10, WIR-062: "descartar la salida que él mismo estaba tapando"). Two ways it
+    /// fails silently: switched off, the search goes back the way it came as soon as the value leaks
+    /// past it; narrower than the node spacing, the value slips past it between nodes and the gizmo
+    /// still draws a trail.
+    /// </summary>
+    private static void DrawTrailChecks(SO_NemesisData data)
+    {
+        float memory = data.SearchMapTrailMemory;
+        float radius = data.SearchMapTrailRadius;
+        bool on = memory > 0f && radius > 0f;
+
+        PlayerDiagramGUI.Verdict(on,
+            on
+                ? $"Rastro: por donde caminó cazándote en los últimos {memory:0.#} s el valor no vuelve — la " +
+                  "búsqueda no sale para atrás por donde vino"
+                : "Rastro apagado (Search Map Trail Memory o Radius en 0) — el valor puede volver por detrás suyo " +
+                  "y la búsqueda sale para atrás, por donde vino él (WIR-062)");
+
+        if (!on) return;
+
+        bool spansNodes = radius >= data.SearchMapNodeSpacing;
+        PlayerDiagramGUI.Verdict(spansNodes,
+            spansNodes
+                ? $"El rastro tapa una franja de {radius * 2f:0.#} m de ancho: en un pasillo así de angosto nadie " +
+                  "pasa por al lado suyo"
+                : $"Search Map Trail Radius ({radius:0.##} m) por debajo de la separación de nodos " +
+                  $"({data.SearchMapNodeSpacing:0.##} m) — el valor se cuela entre nodos por el costado del rastro");
+
+        EditorGUILayout.LabelField(
+            "Lo que te oye o te ve cerca del rastro borra ese tramo: si te escuchó detrás, busca detrás. " +
+            "En Patrolling no deja rastro.",
             EditorStyles.wordWrappedMiniLabel);
     }
 
