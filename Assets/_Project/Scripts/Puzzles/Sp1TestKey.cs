@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// F3 completes SP1 (the electrical panel) in Play Mode, so the SP2 light switches have power
 /// without solving the sequence first — the short way to look at the lamps, their beams and their
-/// pools in the fog. F3 is free: F4, F6, F8, F9 and F10 are taken by the escape sequence, the skill
-/// check, the module explosion, the Nemesis debug HUD and the Nemesis test console.
+/// pools in the fog. F3 is free: F4, F6, F8, F9 and F10 are taken by the escape sequence, the
+/// teleport to zone 2, the module explosion, the Nemesis debug HUD and the Nemesis test console.
 ///
 /// It does exactly what the panel does when it is solved — <see cref="PuzzleStateManager"/>'s
 /// SetPuzzleCompleted — so everything gated behind SP1 reacts the same way. It does not hand over

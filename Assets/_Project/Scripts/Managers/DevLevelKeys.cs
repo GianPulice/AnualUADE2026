@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Two debug keys for walking around the blockout with the Nemesis, plus the F10 console there.
+/// Three debug keys for walking around the blockout with the Nemesis, plus the F10 console there.
 ///
 /// <b>F5 — wake the Nemesis.</b> In WIRED_Zona1_Blockout it is <c>wakeOnlyFromScript</c>: it sleeps
 /// until the escape cinematic, so out of the box there is nothing in the level to test against.
@@ -21,12 +21,19 @@ using UnityEngine.SceneManagement;
 /// it warns and does nothing: <c>DevScenesBuildFilter</c> strips the Dev scenes from every build
 /// except NemesisTestbed in a Development Build, so only there is there somewhere to go.
 ///
+/// <b>F6 — go to Zona 2.</b> Puts the player at Zona 2's entry, any time in Play, through
+/// <see cref="Zone2EntryTeleport.TeleportNow"/> — the same path the escape's end takes, so what F6
+/// shows is what the real handover does. Needs that component in the loaded scenes (in Zona1, on
+/// <c>Zona_2_Spawnpoint</c>); warns when there is none. Ignored while a cinematic owns the screen
+/// (<see cref="CinematicState.IsPlaying"/>), and refused by the component itself while the player is
+/// hidden or being captured. It only moves the player: nothing else is skipped or solved.
+///
 /// <b>F10 console in the blockout.</b> <c>NemesisTestConsole</c> is added to scenes by hand and the
 /// blockout's Nemesis never had one. Rather than edit the scene, every Nemesis that turns up
 /// without a console gets one here. Editor and development builds, like the console itself.
 ///
-/// F2 and F5 are free: the game itself uses W A S D, E, F, Tab, Esc, Ctrl, Shift, Space, 1, 2, and
-/// the other debug keys are F3, F4, F6, F7, F8, F9, F10 and 0-6 (see the list in
+/// F2, F5 and F6 are this component's: the game itself uses W A S D, E, F, Tab, Esc, Ctrl, Shift,
+/// Space, 1, 2, and the other debug keys are F3, F4, F7, F8, F9, F10 and 0-6 (see the list in
 /// <c>docs/CLAUDE.md</c>).
 ///
 /// No setup: the object that polls the keys builds itself on the first frame, like
@@ -36,6 +43,7 @@ public class DevLevelKeys : MonoBehaviour
 {
     private const KeyCode WakeNemesisKey = KeyCode.F5;
     private const KeyCode TestZoneKey = KeyCode.F2;
+    private const KeyCode Zone2Key = KeyCode.F6;
 
     /// <summary>The real level: Zona1 + LevelUI. The name is misleading, see <c>build-no-test-content</c>.</summary>
     private const string LevelGroup = "TestBlocking";
@@ -48,7 +56,7 @@ public class DevLevelKeys : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        var host = new GameObject("Dev Level Keys (F2 / F5)") { hideFlags = HideFlags.DontSave };
+        var host = new GameObject("Dev Level Keys (F2 / F5 / F6)") { hideFlags = HideFlags.DontSave };
         host.AddComponent<DevLevelKeys>();
         DontDestroyOnLoad(host);
     }
@@ -70,6 +78,26 @@ public class DevLevelKeys : MonoBehaviour
 
         if (Input.GetKeyDown(WakeNemesisKey)) WakeNemesis();
         if (Input.GetKeyDown(TestZoneKey)) ToggleTestZone();
+
+        // Not under a cinematic: it owns the player and the cameras, and would cut back to a body
+        // that is no longer where its shots were framed.
+        if (Input.GetKeyDown(Zone2Key) && !CinematicState.IsPlaying) GoToZone2();
+    }
+
+    /// <summary>Through the component's own teleport, never a copy of it: F6 must show what the
+    /// escape's handover does.</summary>
+    private static void GoToZone2()
+    {
+        Zone2EntryTeleport entry = FindAnyObjectByType<Zone2EntryTeleport>();
+        if (entry == null)
+        {
+            Debug.LogWarning($"[{nameof(DevLevelKeys)}] F6: no {nameof(Zone2EntryTeleport)} in the " +
+                             "loaded scenes (in Zona1 it goes on Zona_2_Spawnpoint).");
+            return;
+        }
+
+        if (entry.TeleportNow())
+            Debug.Log($"[{nameof(DevLevelKeys)}] F6: player moved to '{entry.Target.name}'.");
     }
 
     /// <summary>

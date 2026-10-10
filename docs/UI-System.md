@@ -509,7 +509,7 @@ Assets/_Project/Scripts/
 │   │   ├─ PauseManagerUI.cs              ← controller del view de pausa
 │   │   ├─ InventoryManagerUI.cs          ← Tab abre, ESC capas (los módulos están en ModuleManager)
 │   │   ├─ SequencePanelUIController.cs   ← puzzles de secuencia
-│   │   └─ SkillCheckController.cs        ← skill check (+ SkillCheckTestKey, F6)
+│   │   └─ SkillCheckController.cs        ← skill check
 │   ├─ Interaction/
 │   │   ├─ InteractionPromptView.cs       ← prompt "Pick up X", "You need X"
 │   │   └─ SequencePanel*/SkillCheck*     ← model + view de cada puzzle
@@ -618,7 +618,8 @@ en `SO_SkillCheck_Ventilation` el último check tiene 28° de zona (antes 24°, 
   se apaga desde el perfect y un brillo de fósforo en el centro.
 - **API**: `Open(data, completed => …)` devuelve `false` si ya estaba abierto; el callback llega
   cuando el overlay se cerró (`true` = completó, `false` = falló un check, o se canceló por `Cancel()`,
-  fin de la run o sesión nueva). **Prueba: F6** (`SkillCheckTestKey`, sólo editor/dev).
+  fin de la run o sesión nueva). **Prueba:** la `SkillCheck Test Area` de `TestIñaki` (la tecla F6
+  de prueba se quitó el 2026-10-10).
 - **Disparador en el mundo**: `SkillCheckPanelInteractable` con un `SO_SkillCheckPuzzleData` (puzzle id +
   secuencia). Al completar llama `PuzzleStateManager.SetPuzzleCompleted`, y el módulo cuyo
   `associatedPuzzleId` coincide (`M2_Chest` → `puzzle_central_piso2`) se resuelve. Fallar o cancelar no

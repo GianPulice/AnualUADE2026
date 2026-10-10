@@ -1907,7 +1907,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1872597452}
   - component: {fileID: 1872597451}
-  - component: {fileID: 1872597450}
   m_Layer: 0
   m_Name: SkillCheckController
   m_TagString: Untagged
@@ -1915,21 +1914,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1872597450
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1872597449}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 770295355cfeee243a8bc7c5a4ee1baa, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SkillCheckTestKey
-  controller: {fileID: 1872597451}
-  data: {fileID: 11400000, guid: 4b034718e82b4dae85fc452892b907b2, type: 2}
-  key: 287
 --- !u!114 &1872597451
 MonoBehaviour:
   m_ObjectHideFlags: 0

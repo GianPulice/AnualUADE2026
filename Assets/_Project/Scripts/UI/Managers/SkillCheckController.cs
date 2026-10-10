@@ -20,7 +20,7 @@ using UnityEngine;
 /// module it is timing, freezes the needle instead of letting a lap run out unseen.
 ///
 /// Lives in the LevelUI scene next to its canvas, like <see cref="SequencePanelUIController"/>. The
-/// caller — the Hub panel, or <see cref="SkillCheckTestKey"/> for now — calls <see cref="Open"/> and
+/// caller — the Hub panel, <see cref="SkillCheckPanelInteractable"/> — calls <see cref="Open"/> and
 /// is told how it ended. What this does NOT do: decide whether the Hub may start it, resolve the
 /// module (the caller completes the puzzle and the module resolves on that), or the spec's progressive
 /// calm-down of camera shake and ambience between checks.

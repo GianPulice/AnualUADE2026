@@ -3,7 +3,7 @@ using UnityEngine;
 /// <summary>
 /// The puzzle a skill check panel solves: which puzzle id it completes and which sequence it plays.
 /// The sequence tuning itself lives in <see cref="SO_SkillCheckData"/>, so the same tuning can back
-/// more than one panel — and the F6 test key — without any of them completing a puzzle by accident.
+/// more than one panel.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_SkillCheckPuzzleData", menuName = "Scriptable Objects/Puzzles/Skill Check Puzzle Data")]
 public class SO_SkillCheckPuzzleData : ScriptableObject

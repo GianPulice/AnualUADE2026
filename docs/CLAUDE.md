@@ -368,7 +368,7 @@ its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene
 `UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
 applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (DBD format;
 `SkillCheckPanelInteractable` completes `puzzle_central_piso2` and so resolves M2, but no scene
-places it yet — F6 opens it for testing) · the ball/basket push puzzle.
+places it yet outside the `TestIñaki` dev scene) · the ball/basket push puzzle.
 
 ## Architecture
 
@@ -681,6 +681,28 @@ Hips, the same rule `PlayerStandUpSetup` applies.
 sets the Grabbing gait from `Capture()` and nowhere earlier. The pull-out of a hidden player stands
 in the Idle gait for that reason: started there, the clip ran `HiddenPullOutTime` ahead of the
 player's.
+
+#### Zona 1 → Zona 2 (`Zone2EntryTeleport`)
+
+Zona 1 ends at the level's `WinTrigger`, past the gate: `GameResultManager.ReportWin` hands the win
+to `EscapeSequenceDirector` (the `IWinPresenter` during the chase), which plays the gate shot and
+then calls the commit — the Win screen, game frozen. **`Zone2EntryTeleport`** (`Scripts/Escape/`, on
+`Zona_2_Spawnpoint`) turns that into a handover: while it is enabled with `continueAfterEscape` on,
+it sits in the static slot `EscapeSequenceDirector.ContinuePastEnding`, and the director, instead of
+committing, runs `HandOverPastEnding` — shots released, shot fog and fog centre popped, HUD back,
+player released, module clock resumed, sirens / alarm / escape fog ended, presenter unregistered,
+proximity zeroed, `GameResultManager.ResetSession()` (the win was flagged and never raised, so
+without it a later loss or game over would be swallowed) — and then calls it. Empty slot = the Win
+screen exactly as before.
+
+`TeleportNow()` is the one path, shared with the **F6** key of `DevLevelKeys`: `PlayerStateManager.TeleportTo`
+(the checkpoint respawn's own call) to the target, yaw only, then the look camera behind the player
+at the rig's `VerticalAxis.Center` with `PreviousStateIsValid = false`. It refuses while the player
+is in a hiding spot or being captured. It does **not** move the respawn point — put a `Checkpoint`
+with a trigger collider around the spawn and the arrival activates it, otherwise a capture in Zona 2
+sends the player back to the last Zona 1 checkpoint and rolls the puzzles back to its snapshot (the
+hub's cores included) — nor wake or move the Nemesis, which the ending
+leaves parked against the gate under `NemesisCinematicActor`, its FSM off.
 
 ### Inventory
 
@@ -2305,6 +2327,63 @@ the door with a physical barrier the vision/hearing raycasts already respect.
 
 **Camera feeds**: `SecurityCameraFeed` (security shots) and `PlayerCameraFeed` (the player's FreeLook rig) each drive a fullscreen pass that is only enqueued while their Cinemachine camera is live on the brain — see `docs/Materials-System.md` §7.3. The player feed also draws the camera's boots — the wake-up's (`WakeUpCinematicView`, `OpeningStyle.CameraBoot`) and its own reboot after a capture — through the shared static state in `PlayerCameraBoot`, and opens the lens for their fisheye through `PlayerCameraFeed.LensFovOffset`, which `CameraSprintEffect` — still the only writer of the lens FOV — adds on top.
 
+### Living darkness barrier (`DarknessGaze`)
+
+A membrane of near-black smoke stretched across an opening so the player cannot go back the way
+they came. Calm, it curls slowly; while the player looks at it, it churns faster, bows toward them
+and reaches for them where their gaze lands, then settles once they look away. Two pieces, one job
+each, plus the collider:
+
+- **`WIRED/Environment/Living Darkness`** (`Art/Materials/Environment/Darkness/LivingDarkness.shader`)
+  — all the look: unlit, transparent queue, alpha-blended **and depth-writing**, no shadow pass.
+  The material has to be created by hand (right-click the shader ▸ Create ▸ Material; suggested
+  `mat_living_darkness.mat` next to it) — no `.mat` ships with it.
+- **`DarknessGaze`** (`Scripts/Environment/`) — measures the look and writes `_Agitation` (0..1,
+  eased), `_LookTarget` (the player's chest, `w` = 1 once set) and `_GazePoint` (where the reach grows
+  from, `w` = 1 once set) per renderer through a `MaterialPropertyBlock`. Look = angle from
+  `Camera.main`'s forward to the view ray snapped onto the gaze volume, fading between
+  `fullGazeAngle` (12°) and `noGazeAngle` (40°); distance from the player's chest to the nearest part
+  of the volume, fading between `fullReactionDistance` (4 m) and `maxDistance` (9 m); one occlusion
+  ray against `obstacleMask` (the four solid layers) in which the barrier's own collider never
+  counts. `riseSeconds` 0.6 / `settleSeconds` 2.5 / `gazeFollowSeconds` 0.35 shape the response;
+  `reachHeight` 1.3 m is where on the player it reaches. `Agitation` is public for a future audio hook.
+- **Blocking is a plain non-trigger `BoxCollider`** on the same object. The reach is vertex
+  displacement only: the collider never moves, and the component does not require it.
+
+**Placing one.** GameObject ▸ 3D Object ▸ **Plane** (10×10 quads — the reach needs the vertices; a
+Quad has four and cannot bend). Rotate X 90 so it stands up, scale X = width / 10 and Z = height / 10,
+keep Y = 1, and make it ~0.5 m larger than the opening on every side: the frayed and pinned border
+(`_EdgeWidth`, `_EdgePin`, in UV) then sits inside the walls. Delete the Plane's MeshCollider (thin,
+non-convex — `Collider.ClosestPoint` does not support it) and add a `BoxCollider` of size
+(10, 0.5, 10): local Y is the thickness in metres while the Y scale stays 1. Layer **`Wall`**, so the
+player's `obstacleMask`, the camera's deoccluder, the Nemesis's sight and the interaction raycast all
+treat it as solid (see *Layers*). Renderer: the darkness material, Cast Shadows Off, Light Probes Off.
+Add `DarknessGaze`; its fields fill themselves from the object. On `Wall` it **goes into the next
+NavMesh bake**, closing the corridor to the Nemesis too; if the Nemesis must keep crossing, give it a
+`NavMeshModifier` with Ignore From Build. A barrier that appears at runtime (switched on behind the
+player) is not in any bake: add a carving `NavMeshObstacle` if the Nemesis must not cross, as in
+*Environmental obstacles*.
+
+**Material knobs** (shader defaults): `_NoiseScale` 1.1 cells/m, `_CalmSpeed` 0.12 / `_AgitatedSpeed`
+0.9 (two layers at fixed speeds mixed by agitation — scaling one clock by the agitation would make
+the pattern jump), `_FlowDirection` (0, 1, 0) upward drift; `_CalmWrithe` 0.04 m /
+`_AgitatedWrithe` 0.22 m along the normal; `_Swell` 0.35 m (the whole membrane bows toward the
+player), `_ReachDistance` 1.1 m over a gaussian `_ReachRadius` 1.2 m around the gaze point, never
+closer than `_ReachStopDistance` 0.9 m to the target; `_SoftContact` 0.3 m (fades into walls and
+floor through the depth texture) and `_CameraFade` 0.3 m. Colour: `_BaseColor` near-black, plus a faint
+`_SwirlColor` in the ridged tendrils and `_SheenColor` on the folds (faceted normals from screen
+derivatives), both × (1 + `_AgitatedGlow` × agitation). With `_LookTarget.w` = 0 (the material
+default) the swell and reach are off, so `_Agitation` can be previewed on the material in edit mode.
+
+**What it does not hide.** URP copies `_CameraDepthTexture` right after the GBuffer here (deferred,
+and SSAO reads depth early), so the membrane never reaches it. Vision Fog therefore fogs each
+darkness pixel by the depth of what is *behind* it — black stays black, but the tendrils and sheen
+fade where the space behind is past the fog's clear radius; the reliable read is the silhouette
+eating the lit floor and walls. `FogBeacon`s (the Nemesis's eyes) are composited in that same pass
+and show through it. Later transparents (`ItemGlint` at Transparent+50, particles) are hidden, because
+it writes the depth buffer. Culling uses the flat Plane's bounds, so a reach still out while the Plane
+itself leaves the frustum can pop. Not placed in any scene yet.
+
 ### Footsteps and breathing (`FootstepEmitter`, `HiddenBreathing`)
 
 Both walkers step through **one** component. `FootstepEmitter` fires a footstep every time its
@@ -2509,9 +2588,9 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 **Still not wired:**
 
-- **There is no win condition.** `GameResultManager.ReportWin` has no caller at all — the debug `WinLoseTest.cs` that used to call it (key `I`) was deleted. The only reachable ending is the Nemesis catching you.
+- **Zona 1's win is a "to be continued".** `WinTrigger` (past the gate) is `ReportWin`'s only caller; with a `Zone2EntryTeleport` enabled the escape's ending hands over to Zona 2 instead (see *Zona 1 → Zona 2*), and nothing in Zona 2 reports a win yet.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
-- **The skill check works but nothing in the level opens it.** `SkillCheckController` (LevelUI, canvas `SkillCheckCanvas.prefab`, data `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset`) plays the Dead by Daylight sequence and moves the active module's timer through `ApplyTimePenalty` / `ApplyTimeBonus`. Its only caller is the debug `SkillCheckTestKey` (F6, editor/dev builds), which just logs the result. Missing: the Hub panel that calls `Open(data, completed => …)` and completes the M2 puzzle, and the spec's progressive shake/ambience calm-down between checks.
+- **The skill check works but nothing in the level opens it.** `SkillCheckController` (LevelUI, canvas `SkillCheckCanvas.prefab`, data `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset`) plays the Dead by Daylight sequence and moves the active module's timer through `ApplyTimePenalty` / `ApplyTimeBonus`. Its only caller is `SkillCheckPanelInteractable`, placed only in the `TestIñaki` dev scene (SkillCheck Test Area). The old F6 test key (`SkillCheckTestKey` + `SO_SkillCheck_TestF6`) was removed on 2026-10-10; F6 is now the teleport to zone 2. Missing: the Hub panel that calls `Open(data, completed => …)` and completes the M2 puzzle, and the spec's progressive shake/ambience calm-down between checks.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
   per-category `pickupSoundId` on `SO_ItemCategoryConfig` when its own field is empty — which it is

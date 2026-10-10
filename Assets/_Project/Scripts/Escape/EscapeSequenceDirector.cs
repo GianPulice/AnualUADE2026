@@ -171,6 +171,14 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     /// <summary>The player reached the last door of the route (the gate).</summary>
     public event Action GateReached;
 
+    /// <summary>
+    /// Carries the run on past the ending instead of the win screen (today:
+    /// <see cref="Zone2EntryTeleport"/>, which takes the player on to Zona 2). Set by that component
+    /// while it is enabled. Called once, when the ending's last shot is over and everything the
+    /// ending held has been given back (<see cref="HandOverPastEnding"/>). Null = the win, as before.
+    /// </summary>
+    public static Action ContinuePastEnding { get; set; }
+
     private enum Phase { Idle, Armed, Reveal, Escape, Ending, Done }
 
     private Phase phase = Phase.Idle;
@@ -1273,7 +1281,40 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         // Only the skip prompt goes: the shot stays behind the win screen.
         CinematicState.End();
+
+        // The run goes on past the gate (Zona 2): no win screen, so nothing of the ending stays up.
+        Action continuation = ContinuePastEnding;
+        if (continuation != null)
+        {
+            HandOverPastEnding();
+            continuation();
+            return;
+        }
+
         commit();
+    }
+
+    /// <summary>
+    /// The ending is over and <see cref="ContinuePastEnding"/> takes the run on: what stays up behind
+    /// the win screen is given back instead — the shot, its fog and the fog's centre, the HUD, the
+    /// player, the module clock, the sirens, the alarm and the escape's fog — and the win ReportWin
+    /// flagged is taken back, so the next result (a module running out) can still end the run. Left
+    /// as the ending put them: the doors locked, the gate down, and the Nemesis parked against it
+    /// (still the actor's, its FSM off). Parked, it stops reporting how close it is, so that is
+    /// zeroed here: the last value, on the player's heels, would hold the vignette up for good.
+    /// </summary>
+    private void HandOverPastEnding()
+    {
+        EndEscapeSystems();
+        ReleaseShots();
+        CinematicState.SetHudHidden(false);
+        TearDownCinematic(releasePlayer: true);
+        ResumeModuleTicks();
+        UnregisterWinPresenter();
+        phase = Phase.Done;
+
+        NemesisEvents.ProximityChanged(0f);
+        GameResultManager.ResetSession();
     }
 
     // The longest the ending waits for the Nemesis to reach its mark before it strikes where it
