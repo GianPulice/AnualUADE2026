@@ -8,7 +8,7 @@ using UnityEngine;
 /// LEVEL A, "I SAW YOU GET IN". On <see cref="HidingEvents.OnEntered"/> — raised at the END of the
 /// climb-in, which is the whole reason the climb-in takes any time — it asks its own eyes what they
 /// had at that moment. Seeing the player, or having seen them within SeenEnteringWindow, with the
-/// spot inside view range and its door in line of sight: KNOWN. The player in the corner of its eye on the last sweep, with the
+/// spot inside view range and its door in line of sight and inside the view cone: KNOWN. The player in the corner of its eye on the last sweep, with the
 /// meter past the threshold: SUSPECTED, worth walking over to, not certain. A meter that is only
 /// still DRAINING from a chase that already lost them does not count — that is a memory, not a
 /// glimpse, and a player who broke line of sight and then hid has done everything right (§13
@@ -412,8 +412,14 @@ public class NemesisHidingAwareness : MonoBehaviour
         // moment ago round the corner" count as "saw you get in"; this is what makes it a sighting
         // of the climb. Aimed where the climbing player stands, at body height, looking through the
         // spot's own shell only.
-        if (!eyes.HasLineOfSightTo(spot.ApproachPoint.position + Vector3.up * DoorProbeHeight, spot))
-            return;
+        Vector3 door = spot.ApproachPoint.position + Vector3.up * DoorProbeHeight;
+        if (!eyes.HasLineOfSightTo(door, spot)) return;
+
+        // Inside its view cone, too (07/10, WIR-057). A line to the door is not a look at it: with
+        // the door beside or behind it, a player it had seen half a second earlier further up the
+        // corridor counted as seen climbing in — and the search walked straight to the locker.
+        float viewAngle = data != null ? data.ViewAngle : 170f;
+        if (!LineOfSight.CheckAngle(eyes.ViewTransform.position, door, eyes.LookDirection, viewAngle)) return;
 
         float window = data != null ? data.SeenEnteringWindow : FallbackSeenWindow;
         if (eyes.HasVisualTarget || eyes.TimeSinceLastSighting < window)

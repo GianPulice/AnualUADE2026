@@ -35,6 +35,26 @@ public static class SearchPickRules
     }
 
     /// <summary>
+    /// Whether a place takes part in the roll. Normally its WORTH has to reach the threshold: a likely
+    /// place far away is not worth the walk, and when nothing is, the search has looked everywhere it
+    /// could ("revisó todo").
+    ///
+    /// A VISIT OWED TO NEW EVIDENCE IS NOT CANCELLED FOR BEING FAR (07/10, WIR-058). Right after it
+    /// heard or saw the player — the first pick of a search out of a chase or a lift ride, or the pick
+    /// fresh evidence moved — the place only needs the SHARE: the walk still weighs in the roll, it no
+    /// longer vetoes it. Heard from a catwalk, the area below is a long walk round by the stairs, split
+    /// into several places of a few percent each: every one of them fell under share ÷ (1 + seconds),
+    /// the search called it "revisó todo" on the spot, stood there for its minimum and went back to
+    /// patrol — "se fue a otro lado". A place it cannot walk to is still out (worth 0).
+    /// </summary>
+    public static bool TakesPart(float share, float worth, float threshold, bool owedVisit)
+    {
+        if (worth <= 0f || float.IsNaN(worth)) return false;
+
+        return owedVisit ? share >= threshold : worth >= threshold;
+    }
+
+    /// <summary>
     /// Whether the place it is heading to is no longer worth finishing the walk to: what the map holds
     /// there now has fallen under <paramref name="keepFraction"/> of what it held when it was picked.
     /// It saw the place from a distance and nobody was there, or new evidence moved the value
@@ -54,5 +74,45 @@ public static class SearchPickRules
         if (shareWhenPicked <= 0f) return false;
 
         return shareNow < shareWhenPicked * Mathf.Clamp01(keepFraction);
+    }
+
+    /// <summary>
+    /// How far a place lies along the way the player was last seen going: 1 dead ahead of that
+    /// heading from the spot they were last seen at, 0 off to one side, -1 straight back. Flat: a
+    /// place one floor up is not "ahead" for being above. 0, no opinion, when there is no heading to
+    /// speak of or the place is that spot itself.
+    /// </summary>
+    public static float HeadingAlignment(Vector3 lastSeen, Vector3 heading, Vector3 place)
+    {
+        heading.y = 0f;
+
+        Vector3 toPlace = place - lastSeen;
+        toPlace.y = 0f;
+
+        if (heading.sqrMagnitude < 0.0001f || toPlace.sqrMagnitude < 0.0001f) return 0f;
+
+        return Vector3.Dot(heading.normalized, toPlace.normalized);
+    }
+
+    /// <summary>
+    /// What the pick a chase hands over with multiplies a place's worth by, for lying where the
+    /// player was heading: <paramref name="aheadBoost"/> dead ahead, 1 off to the side, one over the
+    /// boost straight back, and smoothly in between.
+    ///
+    /// WHY THE WORTH ALONE IS NOT ENOUGH (playtest 05/10: "cuando doblás la esquina no predice que
+    /// vas a seguir para adelante"). The map does spread faster along the heading, but worth divides
+    /// by the walk, and at the corner where it lost them the places a step away — beside it, behind
+    /// it — are the cheapest walks on the list: in three handovers out of seven it set off sideways,
+    /// with the player a few metres down the corridor it was not looking along.
+    ///
+    /// STILL A ROLL, NEVER AN ARGMAX, for the reason <see cref="Worth"/> gives: this leans the roll
+    /// towards "they kept going", it does not make the Nemesis know they did. A boost of 1 or less
+    /// leaves the worth as it is.
+    /// </summary>
+    public static float HeadingWeight(float alignment, float aheadBoost)
+    {
+        if (float.IsNaN(alignment) || aheadBoost <= 1f) return 1f;
+
+        return Mathf.Pow(aheadBoost, Mathf.Clamp(alignment, -1f, 1f));
     }
 }

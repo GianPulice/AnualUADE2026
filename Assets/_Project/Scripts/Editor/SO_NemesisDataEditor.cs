@@ -10,7 +10,7 @@ using UnityEditor;
 /// once <c>crouchVisionMultiplier</c> eats into it (2.09 m in this project's shipped asset — most
 /// people guessing that number land nowhere close).
 ///
-/// Three sections, same shape as the player editor:
+/// Four sections, the first three the same shape as the player editor:
 /// <list type="bullet">
 /// <item><b>Rangos</b> — every detection range drawn top-down, to scale, around a "you are here"
 /// marker for the Nemesis. Hearing and the two detection circles are full circles; vision is a
@@ -18,6 +18,9 @@ using UnityEditor;
 /// matters most.</item>
 /// <item><b>Probar un caso</b> — distance + angle sliders with live pass/fail against every sense,
 /// and the test point drawn on the diagram so the verdicts and the picture read as one thing.</item>
+/// <item><b>Perderlo de vista</b> — the second and a bit after the eyes lose the player, to scale
+/// in time rather than in metres: how long the chase holds on what it still knows, with and without
+/// hearing them, and how long a route verdict has to stand before the ladder believes it.</item>
 /// <item><b>Chequeos</b> — the two relationships the fields' own tooltips already assert
 /// (proximity detection should stay well under view range; hearing through a floor should be more
 /// generous than through a wall) turned into something that actually fails loudly when an edit
@@ -72,6 +75,9 @@ public class SO_NemesisDataEditor : Editor
 
         PlayerDiagramGUI.SectionHeader("Probar un caso");
         DrawCaseTester(data);
+
+        PlayerDiagramGUI.SectionHeader("Perderlo de vista");
+        DrawLostSightTimeline(data);
 
         PlayerDiagramGUI.SectionHeader("Chequeos");
         DrawChecks(data);
@@ -664,6 +670,208 @@ public class SO_NemesisDataEditor : Editor
         return rate <= 0.0001f ? float.PositiveInfinity : data.AwarenessTriggerThreshold / rate;
     }
 
+    // Perderlo de vista =======================================================================
+    //
+    // Every other picture on this asset is in metres. These three numbers are seconds, and what
+    // they decide lasts about one: nobody can see it in game, only that the Nemesis "se quedó
+    // parado" or "titila". So it is drawn as a timeline from the last sighting.
+
+    private static readonly Color HeardColor = PlayerDiagramGUI.Standing;
+
+    /// <summary>
+    /// The chase without a sighting, as time: how long "todavía sabe dónde está" holds with nothing
+    /// but the memory of the sighting, how long with the player's noise keeping the belief tight,
+    /// and where Chase Hold Max Time cuts both. Under it, the route verdict: how long "it does not
+    /// get there" has to stand before the ladder acts on it, against the path queries it is made of.
+    /// </summary>
+    private static void DrawLostSightTimeline(SO_NemesisData data)
+    {
+        float cap = data.ChaseHoldMaxTime;
+        float blind = BlindHoldSeconds(data);
+        float heard = HeardHoldSeconds(data);
+        float settle = data.RouteVerdictSettleTime;
+        float interval = Mathf.Max(0.05f, data.RouteVerdictInterval);
+
+        float span = Mathf.Max(1.5f, cap * 1.35f, settle * 1.35f, interval * 3f);
+
+        Rect canvas = PlayerDiagramGUI.Canvas(158f);
+        float x0 = canvas.x + 4f;
+        float x1 = canvas.xMax - 4f;
+        float px = (x1 - x0) / span;
+
+        // -- how long the chase holds --
+        float y = canvas.y;
+        PlayerDiagramGUI.Text(new Rect(x0, y, canvas.width, 13f),
+            blind > 0f ? $"Sin oírte: sigue en Chasing {blind:0.##} s" : "Sin oírte: no aguanta nada",
+            FocusColor);
+        PlayerDiagramGUI.Box(new Rect(x0, y + 15f, Mathf.Max(1f, blind * px), 7f), FocusColor);
+
+        y += 28f;
+        PlayerDiagramGUI.Text(new Rect(x0, y, canvas.width, 13f),
+            heard > blind + 0.005f
+                ? $"Oyéndote cerca: hasta {heard:0.##} s"
+                : "Oyéndote: no agrega nada con estos valores",
+            HeardColor);
+        PlayerDiagramGUI.Box(new Rect(x0, y + 15f, Mathf.Max(1f, heard * px), 7f), HeardColor);
+
+        // The bound, across both rows, and what comes after it.
+        if (cap > 0f)
+        {
+            float capX = x0 + cap * px;
+            PlayerDiagramGUI.VLine(capX, canvas.y + 13f, y + 24f, PlayerDiagramGUI.Bad, 1.5f);
+            PlayerDiagramGUI.Text(new Rect(capX + 5f, y + 10f, 150f, 13f), "tope → Searching",
+                                  PlayerDiagramGUI.Bad);
+        }
+
+        y += 30f;
+        DrawSecondsAxis(x0, x1, y, span, px, "s desde que dejó de verte");
+
+        // -- how long a route verdict has to stand --
+        y += 32f;
+        bool settles = settle > 0f;
+        PlayerDiagramGUI.Text(new Rect(x0, y, canvas.width, 13f),
+            settles
+                ? $"Veredicto de ruta: tiene que sostenerse {settle:0.##} s ({VerdictsToSettle(data)} consultas seguidas)"
+                : "Veredicto de ruta: sin espera, vale la última consulta",
+            PlayerDiagramGUI.Ink);
+
+        Color settleColor = PlayerDiagramGUI.Accent;
+        PlayerDiagramGUI.Box(new Rect(x0, y + 15f, Mathf.Max(1f, settle * px), 7f),
+                             new Color(settleColor.r, settleColor.g, settleColor.b, 0.55f));
+
+        // One tick per path query: the verdict cannot change more often than this.
+        for (float t = 0f; t <= span + 0.0001f; t += interval)
+            PlayerDiagramGUI.VLine(x0 + t * px, y + 12f, y + 25f, PlayerDiagramGUI.Ink, 1.5f);
+
+        PlayerDiagramGUI.Text(new Rect(x0, y + 26f, canvas.width, 13f),
+            $"cada marca es una consulta de camino ({interval:0.##} s)", PlayerDiagramGUI.Muted);
+    }
+
+    /// <summary>A time axis under a row of bars: a tick every half second, labelled.</summary>
+    private static void DrawSecondsAxis(float x0, float x1, float y, float span, float px, string caption)
+    {
+        PlayerDiagramGUI.HLine(x0, x1, y, PlayerDiagramGUI.Floor, 1.5f);
+
+        for (float t = 0f; t <= span + 0.0001f; t += 0.5f)
+        {
+            float x = x0 + t * px;
+            PlayerDiagramGUI.VLine(x, y - 3f, y + 3f, PlayerDiagramGUI.Floor);
+            PlayerDiagramGUI.Text(new Rect(x - 16f, y + 3f, 32f, 12f), t.ToString("0.#"),
+                                  PlayerDiagramGUI.Muted, TextAnchor.MiddleCenter);
+        }
+
+        PlayerDiagramGUI.Text(new Rect(x1 - 170f, y - 15f, 170f, 12f), caption, PlayerDiagramGUI.Muted,
+                              TextAnchor.MiddleRight);
+    }
+
+    /// <summary>
+    /// Seconds the chase holds with no sighting and no sound: what the belief takes to grow from a
+    /// sighting's radius to Chase Hold Radius, cut at Chase Hold Max Time. The same arithmetic the
+    /// rung comes down to (NemesisBelief.Radius under the threshold, sight age under the bound).
+    /// </summary>
+    private static float BlindHoldSeconds(SO_NemesisData data)
+    {
+        if (data.ChaseHoldMaxTime <= 0f) return 0f;
+
+        float room = data.ChaseHoldRadius - data.BeliefSightRadius;
+        if (room <= 0f) return 0f;
+
+        float grows = data.BeliefGrowthSpeed > 0.0001f ? room / data.BeliefGrowthSpeed : float.PositiveInfinity;
+        return Mathf.Min(grows, data.ChaseHoldMaxTime);
+    }
+
+    /// <summary>The same with the player heard close by all the while: the bound itself, as long as
+    /// a noise next to it is precise enough to keep the belief under the radius at all.</summary>
+    private static float HeardHoldSeconds(SO_NemesisData data)
+    {
+        bool aCloseNoiseHolds = NemesisBelief.NoiseRadiusFor(data, 0f, false, false, false) < data.ChaseHoldRadius;
+        return aCloseNoiseHolds ? Mathf.Max(BlindHoldSeconds(data), data.ChaseHoldMaxTime) : BlindHoldSeconds(data);
+    }
+
+    /// <summary>
+    /// The farthest a noise of the player's can be heard from and still leave the belief under
+    /// Chase Hold Radius, in metres: past it the ears are too vague to keep a chase going. Asked of
+    /// NemesisBelief's own formula rather than solved here, so the two cannot drift.
+    /// </summary>
+    private static float HoldingNoiseDistance(SO_NemesisData data, bool wall, bool floor, bool hidingSpot)
+    {
+        float radius = data.ChaseHoldRadius;
+        if (NemesisBelief.NoiseRadiusFor(data, 0f, wall, floor, hidingSpot) >= radius) return 0f;
+
+        float near = 0f;
+        float far = Mathf.Max(1f, data.ListenRange);
+        if (NemesisBelief.NoiseRadiusFor(data, far, wall, floor, hidingSpot) < radius) return far;
+
+        for (int i = 0; i < 20; i++)
+        {
+            float middle = (near + far) * 0.5f;
+            if (NemesisBelief.NoiseRadiusFor(data, middle, wall, floor, hidingSpot) < radius) near = middle;
+            else far = middle;
+        }
+
+        return near;
+    }
+
+    /// <summary>How many path queries in a row have to agree for the route verdict to change: each
+    /// one stands for Route Verdict Interval.</summary>
+    private static int VerdictsToSettle(SO_NemesisData data)
+    {
+        float interval = Mathf.Max(0.05f, data.RouteVerdictInterval);
+        return Mathf.Max(1, Mathf.CeilToInt(data.RouteVerdictSettleTime / interval));
+    }
+
+    /// <summary>
+    /// The chase's two holds (plan §19.4): what it still knows of the player once the eyes lose them,
+    /// and a route verdict that has to stand. Both fail silently when tuned off: the Nemesis goes
+    /// back to trading Chasing and Searching several times a second, and nothing says why.
+    /// </summary>
+    private static void DrawLostSightChecks(SO_NemesisData data)
+    {
+        float blind = BlindHoldSeconds(data);
+
+        bool holds = blind > 0f;
+        bool holdIsABlink = blind <= 1f;
+        PlayerDiagramGUI.Verdict(holds && holdIsABlink,
+            !holds
+                ? "Chase Hold Radius no supera a Belief Sight Radius (o Chase Hold Max Time está en 0) — " +
+                  "un solo barrido de vista que falle le pasa la persecución a la búsqueda, y el " +
+                  "siguiente se la devuelve: el titileo entre Chasing y Searching"
+                : holdIsABlink
+                    ? $"Perderte de vista un instante no corta la persecución: sin oírte aguanta {blind:0.##} s, " +
+                      $"lo que tarda su creencia en pasar de {data.BeliefSightRadius:0.##} a {data.ChaseHoldRadius:0.##} m"
+                    : $"Sin verte ni oírte aguanta {blind:0.##} s — es más que un parpadeo: ese tiempo se " +
+                      "queda parado en la esquina por la que te fuiste antes de empezar a buscar");
+
+        if (holds)
+        {
+            float open = HoldingNoiseDistance(data, false, false, false);
+            float wall = HoldingNoiseDistance(data, true, false, false);
+            float hiding = HoldingNoiseDistance(data, false, false, true);
+
+            EditorGUILayout.LabelField(
+                open <= 0f
+                    ? "Ningún ruido tuyo es tan preciso como para sostener la persecución: el oído no cuenta."
+                    : $"El oído la sostiene, hasta {data.ChaseHoldMaxTime:0.##} s sin verte, si te oye a menos de " +
+                      $"{open:0.#} m al aire libre, {wall:0.#} m a través de una pared o {hiding:0.#} m desde un " +
+                      "escondite. Más lejos tu ruido es demasiado vago, y pasa a buscarte.",
+                EditorStyles.wordWrappedMiniLabel);
+        }
+
+        float settle = data.RouteVerdictSettleTime;
+        float interval = data.RouteVerdictInterval;
+        bool filters = settle > interval;
+        PlayerDiagramGUI.Verdict(filters,
+            settle <= 0f
+                ? "Route Verdict Settle Time en 0 — vale la última consulta de camino: una sola que falle " +
+                  "corta la persecución con vos a la vista"
+                : !filters
+                    ? $"Route Verdict Settle Time ({settle:0.##} s) no supera a Route Verdict Interval " +
+                      $"({interval:0.##} s) — cada consulta dura un intervalo entero, así que no filtra ninguna"
+                    : $"Hacen falta {VerdictsToSettle(data)} consultas de camino seguidas para pasar de 'llega' a " +
+                      $"'no llega' o al revés; una sola no alcanza. Tarda {settle:0.##} s en darse cuenta de que " +
+                      "te subiste a un lugar al que no puede llegar");
+    }
+
     // Chequeos ================================================================================
 
     private static void DrawChecks(SO_NemesisData data)
@@ -717,6 +925,7 @@ public class SO_NemesisDataEditor : Editor
         }
 
         DrawChaseProgressChecks(data);
+        DrawLostSightChecks(data);
         DrawSearchChecks(data);
     }
 
@@ -826,10 +1035,14 @@ public class SO_NemesisDataEditor : Editor
             $"(×{data.HearingLocalizationError:0.##} del radio de la evidencia).",
             EditorStyles.wordWrappedMiniLabel);
 
-        bool clearInsideView = data.SearchMapClearRangeScale <= 1f;
+        // The clearing follows the range the eyes are really using (07/10, WIR-062): the base one,
+        // stretched while it holds the player in sight or hunts one it lost.
+        float scale = data.SearchMapClearRangeScale;
+        bool clearInsideView = scale <= 1f;
         PlayerDiagramGUI.Verdict(clearInsideView,
             clearInsideView
-                ? $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, dentro de lo que ve ({data.ViewRange:0.##} m)"
+                ? $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, dentro de lo que ve ({data.ViewRange:0.##} m); " +
+                  $"cazándote, hasta {data.ViewHuntRange * scale:0.##} m (ve hasta {data.ViewHuntRange:0.##} m)"
                 : $"El mapa limpia hasta {data.SearchMapClearRange:0.##} m, más lejos de lo que ve " +
                   $"({data.ViewRange:0.##} m) — descarta lugares donde no te podría ver: hace trampa por eliminación");
 
@@ -852,6 +1065,18 @@ public class SO_NemesisDataEditor : Editor
     /// </summary>
     private static void DrawSearchPickChecks(SO_NemesisData data)
     {
+        // Fails silently at 1: the search still sets off at once, just as often sideways as after
+        // the player, and it reads as "no predice que seguís para adelante".
+        float boost = data.SearchMapChaseHeadingBoost;
+        bool leans = boost > 1f;
+        PlayerDiagramGUI.Verdict(leans,
+            leans
+                ? $"Al perderte en una persecución, el primer lugar que busca tira hacia donde ibas: los que " +
+                  $"quedan en tu rumbo pesan ×{boost:0.#} en el sorteo, los del costado ×1 y los de atrás " +
+                  $"×{1f / boost:0.##}"
+                : "Search Map Chase Heading Boost en 1 — el primer lugar se sortea sin mirar hacia dónde " +
+                  "ibas: al doblar una esquina sale a buscar para el costado tan seguido como detrás tuyo");
+
         float zone = data.SearchMapZoneRadius;
 
         bool zoneGathers = zone >= data.SearchMapNodeSpacing;
@@ -881,7 +1106,8 @@ public class SO_NemesisDataEditor : Editor
                   $"caminata hasta {Mathf.Max(0f, 0.1f / threshold - 1f):0.#} s de distancia; uno con 30 %, hasta " +
                   $"{Mathf.Max(0f, 0.3f / threshold - 1f):0.#} s; pegado a él, hace falta al menos {threshold:P1}. " +
                   "Si ninguno llega, mira alrededor donde está y la búsqueda termina pasado Search Min Time " +
-                  $"({data.SearchMinTime:0.#} s)."
+                  $"({data.SearchMinTime:0.#} s). Recién oído o visto (y al salir de una persecución o del " +
+                  $"montacargas) la caminata no descarta: alcanza con que el lugar tenga {threshold:P1} del valor."
                 : "Search Map Worth Threshold en 0: nunca da por revisado todo. La búsqueda termina solo por " +
                   "silencio (o porque más de la mitad del valor se fue al Hub).",
             EditorStyles.wordWrappedMiniLabel);
@@ -893,6 +1119,43 @@ public class SO_NemesisDataEditor : Editor
                   $"entre los {data.SearchMapCandidates} de más valor."
                 : "Search Map Repick Share en 0: camina siempre hasta el lugar que eligió, aunque de lejos ya " +
                   "lo haya visto vacío.",
+            EditorStyles.wordWrappedMiniLabel);
+
+        DrawTrailChecks(data);
+    }
+
+    /// <summary>
+    /// The trail (07/10, WIR-062: "descartar la salida que él mismo estaba tapando"). Two ways it
+    /// fails silently: switched off, the search goes back the way it came as soon as the value leaks
+    /// past it; narrower than the node spacing, the value slips past it between nodes and the gizmo
+    /// still draws a trail.
+    /// </summary>
+    private static void DrawTrailChecks(SO_NemesisData data)
+    {
+        float memory = data.SearchMapTrailMemory;
+        float radius = data.SearchMapTrailRadius;
+        bool on = memory > 0f && radius > 0f;
+
+        PlayerDiagramGUI.Verdict(on,
+            on
+                ? $"Rastro: por donde caminó cazándote en los últimos {memory:0.#} s el valor no vuelve — la " +
+                  "búsqueda no sale para atrás por donde vino"
+                : "Rastro apagado (Search Map Trail Memory o Radius en 0) — el valor puede volver por detrás suyo " +
+                  "y la búsqueda sale para atrás, por donde vino él (WIR-062)");
+
+        if (!on) return;
+
+        bool spansNodes = radius >= data.SearchMapNodeSpacing;
+        PlayerDiagramGUI.Verdict(spansNodes,
+            spansNodes
+                ? $"El rastro tapa una franja de {radius * 2f:0.#} m de ancho: en un pasillo así de angosto nadie " +
+                  "pasa por al lado suyo"
+                : $"Search Map Trail Radius ({radius:0.##} m) por debajo de la separación de nodos " +
+                  $"({data.SearchMapNodeSpacing:0.##} m) — el valor se cuela entre nodos por el costado del rastro");
+
+        EditorGUILayout.LabelField(
+            "Lo que te oye o te ve cerca del rastro borra ese tramo: si te escuchó detrás, busca detrás. " +
+            "En Patrolling no deja rastro.",
             EditorStyles.wordWrappedMiniLabel);
     }
 

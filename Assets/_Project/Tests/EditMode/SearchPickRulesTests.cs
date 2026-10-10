@@ -102,4 +102,114 @@ public class SearchPickRulesTests
     {
         Assert.IsFalse(SearchPickRules.LostItsValue(0f, 0.4f, 0f));
     }
+
+    // ── The heading: the pick a chase hands over with leans towards where the player was going ──
+
+    private const float Boost = 4f;   // SO_NemesisData.SearchMapChaseHeadingBoost as shipped
+
+    private static readonly UnityEngine.Vector3 LastSeen = new UnityEngine.Vector3(10f, 0f, 5f);
+    private static readonly UnityEngine.Vector3 GoingEast = new UnityEngine.Vector3(4.5f, 0f, 0f);
+
+    private static float Alignment(float dx, float dz, float dy = 0f) =>
+        SearchPickRules.HeadingAlignment(LastSeen, GoingEast, LastSeen + new UnityEngine.Vector3(dx, dy, dz));
+
+    [Test]
+    public void Alignment_DeadAhead_IsOne() => Assert.AreEqual(1f, Alignment(6f, 0f), Tolerance);
+
+    [Test]
+    public void Alignment_OffToTheSide_IsZero() => Assert.AreEqual(0f, Alignment(0f, 6f), Tolerance);
+
+    [Test]
+    public void Alignment_StraightBack_IsMinusOne() => Assert.AreEqual(-1f, Alignment(-6f, 0f), Tolerance);
+
+    [Test]
+    public void Alignment_IsFlat_AFloorUpIsNotAhead()
+    {
+        // Straight above the spot: no direction along the floor at all.
+        Assert.AreEqual(0f, Alignment(0f, 0f, 4f), Tolerance);
+
+        // Ahead and a floor up counts as ahead, not as "partly ahead".
+        Assert.AreEqual(1f, Alignment(6f, 0f, 4f), Tolerance);
+    }
+
+    [Test]
+    public void Alignment_WithNoHeading_HasNoOpinion()
+    {
+        var place = LastSeen + new UnityEngine.Vector3(6f, 0f, 0f);
+        Assert.AreEqual(0f, SearchPickRules.HeadingAlignment(LastSeen, UnityEngine.Vector3.zero, place), Tolerance);
+    }
+
+    [Test]
+    public void HeadingWeight_AheadSideAndBack()
+    {
+        Assert.AreEqual(Boost, SearchPickRules.HeadingWeight(1f, Boost), Tolerance);
+        Assert.AreEqual(1f, SearchPickRules.HeadingWeight(0f, Boost), Tolerance);
+        Assert.AreEqual(1f / Boost, SearchPickRules.HeadingWeight(-1f, Boost), Tolerance);
+    }
+
+    /// <summary>The corner of the playtest: a place two steps to the side against one four times the
+    /// walk away down the corridor the player took. By worth alone the near one wins the roll more
+    /// often than not; leant on the heading, the one ahead does.</summary>
+    [Test]
+    public void HeadingWeight_TurnsTheCornerRoll_TowardsWhereTheyWent()
+    {
+        float beside = SearchPickRules.Worth(0.25f, 1f);
+        float ahead = SearchPickRules.Worth(0.35f, 4f);
+        Assert.Greater(beside, ahead, "the case is not the one from the playtest");
+
+        float besideLeant = beside * SearchPickRules.HeadingWeight(0f, Boost);
+        float aheadLeant = ahead * SearchPickRules.HeadingWeight(1f, Boost);
+        Assert.Greater(aheadLeant, besideLeant);
+    }
+
+    [Test]
+    public void HeadingWeight_NeverTakesAPlaceOutOfTheRoll()
+    {
+        Assert.Greater(SearchPickRules.HeadingWeight(-1f, 10f), 0f);
+    }
+
+    [Test]
+    public void HeadingWeight_BoostOfOne_IsOff()
+    {
+        Assert.AreEqual(1f, SearchPickRules.HeadingWeight(1f, 1f), Tolerance);
+        Assert.AreEqual(1f, SearchPickRules.HeadingWeight(-1f, 1f), Tolerance);
+        Assert.AreEqual(1f, SearchPickRules.HeadingWeight(-1f, 0.5f), Tolerance);
+    }
+
+    // ── TakesPart: an owed visit is not cancelled for being far (07/10, WIR-058) ─
+
+    private const float Threshold = 0.015f;   // SO_NemesisData.SearchMapWorthThreshold as shipped
+
+    [Test]
+    public void TakesPart_HeardBelowTheCatwalk_FarAwayButOwed()
+    {
+        // The area below, split into places of ~12 %, eleven seconds round by the stairs.
+        float share = 0.12f;
+        float worth = SearchPickRules.Worth(share, 11f);
+        Assert.Less(worth, Threshold, "the case: not worth the walk by the plain rule");
+
+        Assert.IsFalse(SearchPickRules.TakesPart(share, worth, Threshold, owedVisit: false));
+        Assert.IsTrue(SearchPickRules.TakesPart(share, worth, Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_Owed_StillNotWhereItCannotWalk()
+    {
+        float worth = SearchPickRules.Worth(0.9f, float.PositiveInfinity);
+        Assert.IsFalse(SearchPickRules.TakesPart(0.9f, worth, Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_Owed_StillNotASliver()
+    {
+        float share = 0.01f;
+        Assert.IsFalse(SearchPickRules.TakesPart(share, SearchPickRules.Worth(share, 0f), Threshold, owedVisit: true));
+    }
+
+    [Test]
+    public void TakesPart_NotOwed_IsTheWorthAgainstTheThreshold()
+    {
+        Assert.IsTrue(SearchPickRules.TakesPart(0.1f, SearchPickRules.Worth(0.1f, 5f), Threshold, owedVisit: false));
+        Assert.IsFalse(SearchPickRules.TakesPart(0.1f, SearchPickRules.Worth(0.1f, 6f), Threshold, owedVisit: false));
+    }
 }

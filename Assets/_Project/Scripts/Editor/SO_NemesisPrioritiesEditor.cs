@@ -192,7 +192,9 @@ public class SO_NemesisPrioritiesEditor : Editor
             name = $"está en {state.enumDisplayNames[state.enumValueIndex]}";
         }
         else if (predicate.enumValueIndex == (int)ENemesisPredicate.BeliefAgeUnder ||
-                 predicate.enumValueIndex == (int)ENemesisPredicate.TimeInStateUnder)
+                 predicate.enumValueIndex == (int)ENemesisPredicate.TimeInStateUnder ||
+                 predicate.enumValueIndex == (int)ENemesisPredicate.SightAgeUnder ||
+                 predicate.enumValueIndex == (int)ENemesisPredicate.BeliefRadiusUnder)
         {
             SerializedProperty threshold = condition.FindPropertyRelative("threshold");
 
@@ -235,7 +237,9 @@ public class NemesisConditionDrawer : PropertyDrawer
 
         bool usesState = predicateValue == (int)ENemesisPredicate.IsInState;
         bool usesThreshold = predicateValue == (int)ENemesisPredicate.BeliefAgeUnder ||
-                             predicateValue == (int)ENemesisPredicate.TimeInStateUnder;
+                             predicateValue == (int)ENemesisPredicate.TimeInStateUnder ||
+                             predicateValue == (int)ENemesisPredicate.SightAgeUnder ||
+                             predicateValue == (int)ENemesisPredicate.BeliefRadiusUnder;
 
         float remaining = position.width - toggleWidth - gap;
         float predicateWidth = usesState || usesThreshold ? remaining * 0.55f : remaining;

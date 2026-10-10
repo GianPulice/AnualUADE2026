@@ -249,16 +249,29 @@ public sealed class NemesisDecision
     /// the Nemesis's own end of the query is not what failed. The one exception, the capture
     /// during a lift ride, is decided by "lo tiene al alcance de la mano", which sits above every
     /// rung that asks this.
+    ///
+    /// A VERDICT THAT HAS HELD, NOT THE LAST QUERY (05/10, plan §19.4 T1). Both chase rungs ask this,
+    /// and one failed query used to take the chase away with the player in plain view; the next good
+    /// one gave it back. The oracle settles it in both directions
+    /// (<see cref="NemesisPathOracle.IsUnreachableSettled"/>, SO_NemesisData.RouteVerdictSettleTime)
+    /// and keeps the memory, so this class still has no clock of its own.
     /// </summary>
-    public bool IsBeliefUnreachable
+    public bool IsBeliefUnreachable =>
+        stateManager.TryGetBelief(out Vector3 belief) && stateManager.IsBeliefRouteUnreachable(belief);
+
+    /// <summary>Seconds since the EYES last had the player. Not <see cref="BeliefAge"/>, which the
+    /// player's own noise keeps young: a rung that has to tell "the sighting blinked" from "it lost
+    /// them and can still hear them running" asks both.</summary>
+    public float SightAge => stateManager.SightAge;
+
+    /// <summary>How sure it is of where the player is, in metres: the fused belief's radius
+    /// (<see cref="NemesisBelief.Radius"/>). Infinity with no belief.</summary>
+    public float BeliefRadius
     {
         get
         {
-            if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
-
-            if (!stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route)) return true;
-
-            return !route.IsComplete;
+            NemesisBelief belief = stateManager.Belief;
+            return belief != null ? belief.Radius : float.PositiveInfinity;
         }
     }
 
@@ -416,7 +429,7 @@ public sealed class NemesisDecision
         float dwell = DwellWindow;
 
         currentKey = current;
-        holding = current.HasValue && dwell > 0f && stateManager.TimeInCurrentState < dwell;
+        holding = IsInsideDwell(current, dwell, stateManager.TimeInCurrentState);
 
         decided = null;
         LastRungIndex = -1;
@@ -542,14 +555,28 @@ public sealed class NemesisDecision
     {
         if (rung == null || !rung.enabled) return false;
 
-        if (holding && !rung.interrupts &&
-            (!currentKey.HasValue || currentKey.Value != rung.target))
-        {
-            return false;
-        }
+        if (IsHeldBack(holding, rung, currentKey)) return false;
 
         return Holds(rung);
     }
+
+    // ── The rules the replay shares ─────────────────────────────────────────
+    //
+    // Static and public for one caller besides this class: the editor's ladder replay
+    // (NemesisLadderValidator), which walks the same rungs over scripted predicates to catch a
+    // rung change that makes two states hand the Nemesis back and forth. It asks these instead of
+    // carrying a copy of its own, so what it replays is the hysteresis this class applies and the
+    // thresholds this class reads. Nothing here decides anything new.
+
+    /// <summary>Whether the hysteresis window is open: a state was entered less than
+    /// <paramref name="dwell"/> seconds ago.</summary>
+    public static bool IsInsideDwell(NemesisStateManager.ENemesisState? current, float dwell, float timeInState) =>
+        current.HasValue && dwell > 0f && timeInState < dwell;
+
+    /// <summary>Whether the open window refuses this rung: only an interrupt, or a rung asking for
+    /// the state the Nemesis is already in, may win inside it.</summary>
+    public static bool IsHeldBack(bool holding, NemesisPriorityRung rung, NemesisStateManager.ENemesisState? current) =>
+        holding && !rung.interrupts && (!current.HasValue || current.Value != rung.target);
 
     /// <summary>
     /// The leaf: records which rung won and why, and stops the walk by virtue of having no
@@ -619,6 +646,8 @@ public sealed class NemesisDecision
             ENemesisPredicate.IsSearchWarm => IsSearchWarm,
             ENemesisPredicate.IsInvestigationWarm => IsInvestigationWarm,
             ENemesisPredicate.FocusIsLead => FocusIsLead,
+            ENemesisPredicate.SightAgeUnder => SightAge < Resolve(condition),
+            ENemesisPredicate.BeliefRadiusUnder => BeliefRadius < Resolve(condition),
             _ => false,
         };
 
@@ -632,11 +661,13 @@ public sealed class NemesisDecision
     /// with no data asset degrades to the shipped tuning rather than to zero — which would make
     /// every "under" condition false and strand it in whatever state it happened to be in.
     /// </summary>
-    private float Resolve(NemesisCondition condition)
+    private float Resolve(NemesisCondition condition) => ResolveThreshold(condition, Data);
+
+    /// <summary><see cref="Resolve"/> against a given data asset (or none). Shared with the ladder
+    /// replay, see above.</summary>
+    public static float ResolveThreshold(NemesisCondition condition, SO_NemesisData data)
     {
         if (condition.threshold == ENemesisThreshold.Custom) return condition.customSeconds;
-
-        SO_NemesisData data = Data;
 
         return condition.threshold switch
         {
@@ -646,6 +677,8 @@ public sealed class NemesisDecision
             ENemesisThreshold.ElevatorCommitTime => data != null ? data.ElevatorCommitTime : 12f,
             ENemesisThreshold.BeliefMemoryTime => data != null ? data.BeliefMemoryTime : 45f,
             ENemesisThreshold.SearchQuietWindow => data != null ? data.SearchQuietWindow : 8f,
+            ENemesisThreshold.ChaseHoldRadius => data != null ? data.ChaseHoldRadius : 3f,
+            ENemesisThreshold.ChaseHoldMaxTime => data != null ? data.ChaseHoldMaxTime : 1.2f,
             _ => 0f,
         };
     }

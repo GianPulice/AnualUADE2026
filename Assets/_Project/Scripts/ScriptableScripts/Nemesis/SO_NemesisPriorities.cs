@@ -239,6 +239,36 @@ public class SO_NemesisPriorities : ScriptableObject
                  },
                  NemesisCondition.Not(ENemesisPredicate.IsBeliefUnreachable)),
 
+            // THE SIGHTING BLINKED; IT DID NOT LOSE THEM (05/10, plan §19.4 T2).
+            //
+            // The rung above stops holding the moment it stands where it last saw the player, and
+            // from there one vision sweep that missed handed the chase to the search, which the next
+            // sweep, seeing them again, took straight back: "lo está viendo" is an interrupt, with no
+            // window to wait out. Standing at the last seen point with the player ducking in and out
+            // of a doorway, that was Chasing and Searching several times a second.
+            //
+            // HOW SURE IT STILL IS OF WHERE THEY ARE, NOT A CLOCK (Iñaki, 05/10: "una mezcla entre
+            // la última posición vista, lo último escuchado y la creencia de dónde podría estar").
+            // That mix already exists and has one number: the belief's radius (NemesisBelief). A
+            // sighting pins it to half a metre; a noise of the player's sets it by how far and
+            // through what it was heard, so the ears count for less the worse they heard; and with
+            // nothing new it grows at the player's top speed, which is "where they could have got to
+            // by now". While that radius is under ChaseHoldRadius the Nemesis has not lost them.
+            //
+            // ...AND NOT FOR LONG WITHOUT THE EYES. A chase that has lost sight goes to the last SEEN
+            // point and stays there (NemesisPursuit, on purpose: plan §16.4), so a radius kept
+            // tight by footsteps alone would leave it standing at the corner, listening to them go.
+            // ChaseHoldMaxTime, counted from the last sighting, is the bound on that.
+            //
+            // Below "sabe en qué escondite está", like the rung above and for its reason.
+            Rung(NemesisStateManager.ENemesisState.Chasing,
+                 "todavía sabe dónde está",
+                 interrupts: false,
+                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
+                 NemesisCondition.BeliefRadiusUnder(ENemesisThreshold.ChaseHoldRadius),
+                 NemesisCondition.SightAgeUnder(ENemesisThreshold.ChaseHoldMaxTime),
+                 NemesisCondition.Not(ENemesisPredicate.IsBeliefUnreachable)),
+
             // STANDING AT THE LOCKER DOOR, HAND ON IT — THE SEARCH BUDGET BELOW MUST NOT BE ABLE TO
             // PULL THE NEMESIS AWAY MID-CHECK.
             //
@@ -507,6 +537,12 @@ public struct NemesisCondition
     public static NemesisCondition BeliefAgeUnder(ENemesisThreshold threshold) =>
         new NemesisCondition { predicate = ENemesisPredicate.BeliefAgeUnder, threshold = threshold };
 
+    public static NemesisCondition SightAgeUnder(ENemesisThreshold threshold) =>
+        new NemesisCondition { predicate = ENemesisPredicate.SightAgeUnder, threshold = threshold };
+
+    public static NemesisCondition BeliefRadiusUnder(ENemesisThreshold threshold) =>
+        new NemesisCondition { predicate = ENemesisPredicate.BeliefRadiusUnder, threshold = threshold };
+
     public static NemesisCondition TimeInStateUnder(ENemesisThreshold threshold) =>
         new NemesisCondition { predicate = ENemesisPredicate.TimeInStateUnder, threshold = threshold };
 
@@ -524,7 +560,9 @@ public struct NemesisCondition
 
     /// <summary>Whether this predicate reads <see cref="threshold"/>.</summary>
     public bool UsesThreshold => predicate == ENemesisPredicate.BeliefAgeUnder ||
-                                 predicate == ENemesisPredicate.TimeInStateUnder;
+                                 predicate == ENemesisPredicate.TimeInStateUnder ||
+                                 predicate == ENemesisPredicate.SightAgeUnder ||
+                                 predicate == ENemesisPredicate.BeliefRadiusUnder;
 }
 
 /// <summary>
@@ -690,6 +728,23 @@ public enum ENemesisPredicate
     /// across the level while the belief is fresh, is heard and ignored.
     /// </summary>
     FocusIsLead,
+
+    /// <summary>
+    /// The EYES had the player less than a threshold ago (05/10, plan §19.4 T2). BeliefAgeUnder
+    /// cannot ask this: the belief is kept young by the player's own noise, and a rung that bounds
+    /// how long a chase may go on without a sighting needs the sighting's own age. A number
+    /// condition like the two above: it reads the threshold.
+    /// </summary>
+    SightAgeUnder,
+
+    /// <summary>
+    /// The belief's radius is under a threshold, in METRES: how sure the Nemesis is of where the
+    /// player is right now (NemesisBelief.Radius). The one number that already mixes its senses: a
+    /// sighting pins it, a noise sets it by how well it was heard, and time without either grows
+    /// it at the player's top speed. A number condition too; it reads the threshold, and with
+    /// Custom the "seconds" field is metres.
+    /// </summary>
+    BeliefRadiusUnder,
 }
 
 /// <summary>
@@ -715,4 +770,12 @@ public enum ENemesisThreshold
     /// tolerates. The D26 rung used to ask "is the belief still inside it"; it asks
     /// IsInvestigationWarm since 27/09, and this stays for any rung a designer builds on it.</summary>
     SearchQuietWindow,
+
+    /// <summary>SO_NemesisData.ChaseHoldRadius, in metres: how tight the belief has to be for a
+    /// chase without a sighting to still be a chase. See "todavía sabe dónde está".</summary>
+    ChaseHoldRadius,
+
+    /// <summary>SO_NemesisData.ChaseHoldMaxTime: the longest that rung holds, counted from the
+    /// last sighting.</summary>
+    ChaseHoldMaxTime,
 }

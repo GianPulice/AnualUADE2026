@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: UI_HidingUnderTable
+  m_Shader: {fileID: 4800000, guid: 4155e5a6949bfcb4c9547b636aebf582, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _ApronHeight: 0.05
+    - _ApronLight: 0.7
+    - _ColorLevels: 32
+    - _ColorMask: 15
+    - _DitherAlpha: 1
+    - _DitherFade: 1
+    - _EdgeLight: 0.55
+    - _EdgeWidth: 1
+    - _EnableDither: 1
+    - _FadeSteps: 5
+    - _Grain: 0.008
+    - _GrainFps: 12
+    - _GridRows: 256
+    - _Grime: 0.3
+    - _GrimeScale: 6
+    - _LegShade: 0.12
+    - _LegShadow: 0.35
+    - _LegShadowReach: 0.02
+    - _LegSide: 0.4
+    - _LegSideLight: 0.14
+    - _LegWidth: 0.075
+    - _LegX: 0.62
+    - _NearLegEdge: 0.2
+    - _NearLegSoftness: 0.045
+    - _NearLegWidth: 0.36
+    - _NearLegX: 1
+    - _Opacity: 1
+    - _Stencil: 0
+    - _StencilComp: 8
+    - _StencilOp: 0
+    - _StencilReadMask: 255
+    - _StencilWriteMask: 255
+    - _TableShadow: 0.35
+    - _TableShadowReach: 0.03
+    - _TopReach: 0.3
+    - _UndersideBands: 3
+    - _UndersideFalloff: 0.22
+    - _UseUIAlphaClip: 0
+    - _Vignette: 0.6
+    - _VignetteStart: 0.55
+    m_Colors:
+    - _LightColor: {r: 0.39999998, g: 0.43999997, b: 0.47999996, a: 1}
+    - _ShadeColor: {r: 0.015, g: 0.015, b: 0.02, a: 1}
+    - _SurfaceColor: {r: 0.09, g: 0.096, b: 0.11, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

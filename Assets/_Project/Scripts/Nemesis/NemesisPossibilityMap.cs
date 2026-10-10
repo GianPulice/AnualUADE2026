@@ -10,8 +10,13 @@ using UnityEngine.AI;
 ///     that IS the player; never the real position, never a decoy);
 ///   - the value spreads along the NavMesh at the player's speed, faster the way they were last seen
 ///     going;
-///   - what it is looking at right now, it clears — out to SO_NemesisData.SearchMapClearRange, inside
-///     its cone, with the ray aimed at a crouching player's height so cover still hides someone;
+///   - what it is looking at right now, it clears — out to the range its eyes are really working at
+///     (FieldOfView.EffectiveViewRange × SearchMapClearRangeScale), inside its cone, with the ray
+///     aimed at a crouching player's height so cover still hides someone;
+///   - where it is standing, and where it walked in the last few seconds of a hunt, nobody gets
+///     through (the TRAIL, 07/10, WIR-062): those floor nodes are blocked, so the value cannot run
+///     back past it down the corridor it came along. Evidence of the player near the trail wipes
+///     that part of it — a player heard behind the monster is behind the monster;
 ///   - opening a hiding spot clears that spot, and nothing else does;
 ///   - the Hub's door drains it (C5).
 ///
@@ -55,9 +60,50 @@ public class NemesisPossibilityMap : MonoBehaviour
     private float builtSpacing = -1f;
     private float lastTickAt = float.NegativeInfinity;
     private int consumedSequence = int.MinValue;
+    private NavMeshQueryFilter navFilter;
 
     private readonly List<int> scratch = new List<int>();
     private readonly Dictionary<HidingSpot, int> nodeOfSpot = new Dictionary<HidingSpot, int>();
+
+    /// <summary>One place the Nemesis stood during a hunt, and when.</summary>
+    public readonly struct TrailPoint
+    {
+        public readonly Vector3 Position;
+        public readonly float Time;
+
+        public TrailPoint(Vector3 position, float time)
+        {
+            Position = position;
+            Time = time;
+        }
+    }
+
+    /// <summary>A new trail point only once it has moved this far from the last one: standing still
+    /// it refreshes that one's time instead of piling up copies.</summary>
+    private const float TrailStep = 0.5f;
+
+    private readonly List<TrailPoint> trail = new List<TrailPoint>();
+
+    /// <summary>Where it has been in the last SearchMapTrailMemory seconds of a hunt, oldest first.
+    /// For the gizmos.</summary>
+    public IReadOnlyList<TrailPoint> Trail => trail;
+
+    /// <summary>Floor nodes blocked by the trail after the last tick. For F9 and the gizmos.</summary>
+    public int BlockedLastTick => map != null ? map.BlockedCount : 0;
+
+    /// <summary>How far the "not here" reaches right now, in metres: the range its eyes are really
+    /// working at (held up when it is looking at the player, stretched when hunting one it lost),
+    /// times SearchMapClearRangeScale. Not the base View Range: the map clearing seven metres while
+    /// the eyes reached fourteen left value down a corridor it had just looked along (WIR-062).</summary>
+    public float ClearRange
+    {
+        get
+        {
+            SO_NemesisData data = stateManager != null ? stateManager.NemesisData : null;
+            if (data == null) return 0f;
+            return eyes != null ? eyes.EffectiveViewRange * data.SearchMapClearRangeScale : data.SearchMapClearRange;
+        }
+    }
 
     /// <summary>The map, or null before the graph is built.</summary>
     public PossibilityMap Map => map;
@@ -146,7 +192,11 @@ public class NemesisPossibilityMap : MonoBehaviour
         ClearedLastTick = 0;
 
         UpdateGates();
-        TakeEvidence(now);
+
+        // The trail first: the evidence decides what part of it still stands, and a noise's area
+        // must not reach through the floor the Nemesis is blocking.
+        RecordTrail(data, now);
+        if (!TakeEvidence(data, now)) BlockTrail(data);
         if (!map.HasValue) return;
 
         map.Spread(dt, data.SearchMapSpreadSpeed, now, data.SearchMapHeadingBias, data.SearchMapHeadingDuration);
@@ -175,12 +225,14 @@ public class NemesisPossibilityMap : MonoBehaviour
             agentTypeID = agent != null ? agent.agentTypeID : 0,
             areaMask = agent != null ? agent.areaMask : NemesisNav.AreaMask,
         };
+        navFilter = filter;
 
         LayerMask walls = eyes != null ? eyes.ObstacleMask : (LayerMask)LayerMask.GetMask("Default", "Wall");
         built = NemesisPossibilityGraphBuilder.Build(spacing, filter, data.SearchMapSpreadSpeed, walls);
         builtSpacing = spacing;
         map = new PossibilityMap(built.Graph);
         consumedSequence = int.MinValue;
+        trail.Clear();
 
         nodeOfSpot.Clear();
         foreach (NemesisPossibilityGraphBuilder.SpotNode spot in built.Spots) nodeOfSpot[spot.Spot] = spot.Node;
@@ -226,30 +278,160 @@ public class NemesisPossibilityMap : MonoBehaviour
     /// The belief's newest evidence, once: a sighting is a point with a heading, a noise is the area of
     /// its doubt (the perceived position and its radius — Fase 1), and evidence from inside the Hub is
     /// the sink. No belief at all (a capture, a respawn) believes nothing.
+    ///
+    /// Evidence of the player beats the trail: the part of it within reach of the evidence goes
+    /// before anything is seeded, and the rest is blocked so the area does not reach through it.
     /// </summary>
-    private void TakeEvidence(float now)
+    /// <returns>Whether it blocked the trail itself (new evidence on the map): the caller does it
+    /// otherwise.</returns>
+    private bool TakeEvidence(SO_NemesisData data, float now)
     {
-        if (belief == null) return;
+        if (belief == null) return false;
 
         if (!belief.HasBelief)
         {
             if (map.HasValue) map.Clear();
             consumedSequence = belief.Sequence;
-            return;
+
+            // A capture or a respawn: the hunt that laid the trail is over, and the player is
+            // somewhere else entirely.
+            trail.Clear();
+            return false;
         }
 
-        if (belief.Sequence == consumedSequence) return;
+        if (belief.Sequence == consumedSequence) return false;
         consumedSequence = belief.Sequence;
 
         Vector3 at = belief.Position;
         if (NemesisSafeZones.Contains(at))
         {
             map.SeedSink();
+            return false;
+        }
+
+        // Only inside the evidence's own doubt (a node at least, so a sighting's neighbours can take
+        // their share): a footstep a few metres ahead of it must not lift the plug of its own body,
+        // or the noise's area reaches back past it — the very leak the trail is there to stop.
+        ForgetTrailNear(at, Mathf.Max(belief.EvidenceRadius, map.Graph.Spacing));
+        BlockTrail(data);
+
+        int start = StartNodeFor(at);
+        if (belief.IsAnchoredBySight) map.SeedPoint(at, FloorBand, belief.ObservedVelocity, now, start);
+        else map.SeedArea(at, belief.EvidenceRadius, FloorBand, start);
+        return true;
+    }
+
+    /// <summary>How far from the evidence a node may be and still be where it stands: a little over a
+    /// node spacing, so a point between nodes always has one.</summary>
+    private const float StartNodeReach = 1.5f;
+
+    /// <summary>
+    /// The node the evidence stands on, checked against the NavMesh: the nearest one that a straight
+    /// walk from the evidence reaches without leaving the mesh. The nearest node by distance alone can
+    /// be on the far side of a thin wall, and then the whole area would be walked out from the wrong
+    /// room. -1 when none qualifies or the evidence is off the mesh: the map takes the nearest.
+    /// </summary>
+    private int StartNodeFor(Vector3 point)
+    {
+        PossibilityGraph graph = map.Graph;
+        if (!NemesisNav.TrySnapToNavMesh(point, out Vector3 onMesh)) return -1;
+
+        graph.CollectNear(onMesh, graph.Spacing * StartNodeReach, FloorBand, scratch);
+
+        int best = -1;
+        float bestSqr = float.PositiveInfinity;
+        for (int i = 0; i < scratch.Count; i++)
+        {
+            int node = scratch[i];
+            if (graph.Kind(node) != PossibilityGraph.ENodeKind.Floor) continue;
+
+            float sqr = (graph.Position(node) - onMesh).sqrMagnitude;
+            if (sqr >= bestSqr) continue;
+            if (NavMesh.Raycast(onMesh, graph.Position(node), out _, navFilter)) continue;
+
+            bestSqr = sqr;
+            best = node;
+        }
+
+        return best;
+    }
+
+    // ── The trail (07/10, WIR-062) ───────────────────────────────────────────
+
+    /// <summary>
+    /// Whether where it walks says anything about where the player is not: while it chases them, and
+    /// while it searches or investigates what it sensed of them. On patrol, on a lift ride or carrying
+    /// someone off, it is not between the player and anywhere.
+    /// </summary>
+    private bool IsHunting
+    {
+        get
+        {
+            switch (stateManager.CurrentStateKey)
+            {
+                case NemesisStateManager.ENemesisState.Chasing:
+                case NemesisStateManager.ENemesisState.Searching:
+                case NemesisStateManager.ENemesisState.Investigating:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    /// <summary>Drops what is older than SearchMapTrailMemory and, during a hunt, adds where it is
+    /// standing now.</summary>
+    private void RecordTrail(SO_NemesisData data, float now)
+    {
+        float memory = data.SearchMapTrailMemory;
+
+        int expired = 0;
+        while (expired < trail.Count && now - trail[expired].Time > memory) expired++;
+        if (expired > 0) trail.RemoveRange(0, expired);
+
+        if (memory <= 0f || !IsHunting) return;
+
+        Vector3 body = stateManager.transform.position;
+        int last = trail.Count - 1;
+        if (last >= 0 && (trail[last].Position - body).sqrMagnitude < TrailStep * TrailStep)
+        {
+            trail[last] = new TrailPoint(trail[last].Position, now);
             return;
         }
 
-        if (belief.IsAnchoredBySight) map.SeedPoint(at, FloorBand, belief.ObservedVelocity, now);
-        else map.SeedArea(at, belief.EvidenceRadius, FloorBand);
+        trail.Add(new TrailPoint(body, now));
+    }
+
+    /// <summary>The player was sensed around <paramref name="point"/>: the trail there says nothing
+    /// any more.</summary>
+    private void ForgetTrailNear(Vector3 point, float radius)
+    {
+        float sqr = radius * radius;
+        for (int i = trail.Count - 1; i >= 0; i--)
+        {
+            Vector3 offset = trail[i].Position - point;
+            if (Mathf.Abs(offset.y) > FloorBand) continue;
+
+            offset.y = 0f;
+            if (offset.sqrMagnitude <= sqr) trail.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Blocks the floor within SearchMapTrailRadius of every trail point (PossibilityMap.Block).
+    /// Rebuilt every tick: the trail moves, and part of it can be wiped by evidence.</summary>
+    private void BlockTrail(SO_NemesisData data)
+    {
+        map.ClearBlocks();
+
+        float radius = data.SearchMapTrailRadius;
+        if (radius <= 0f) return;
+
+        PossibilityGraph graph = map.Graph;
+        for (int i = 0; i < trail.Count; i++)
+        {
+            graph.CollectNear(trail[i].Position, radius, FloorBand, scratch);
+            for (int n = 0; n < scratch.Count; n++) map.Block(scratch[n]);
+        }
     }
 
     /// <summary>
@@ -267,7 +449,7 @@ public class NemesisPossibilityMap : MonoBehaviour
         Vector3 front = eyes.LookDirection;
         Vector3 body = stateManager.transform.position;
 
-        float range = data.SearchMapClearRange;
+        float range = ClearRange;
         float probe = data.SearchMapProbeHeight;
         float proximity = data.ProximityDetectionRange;
         float sameFloor = data.CatchMaxVerticalOffset;

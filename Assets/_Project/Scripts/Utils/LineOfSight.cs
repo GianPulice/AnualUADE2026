@@ -163,10 +163,25 @@ public static class LineOfSight
     /// <paramref name="minDistance"/>).</param>
     public static bool CheckConeSampled(Vector3 origin, Vector3 front, Collider target, float angle,
                                         float innerAngle, float minDistance, LayerMask obstacleMask,
-                                        out Vector3 seenPoint, out bool insideInner)
+                                        out Vector3 seenPoint, out bool insideInner) =>
+        CheckConeSampled(origin, front, target, angle, innerAngle, minDistance, obstacleMask,
+                         out seenPoint, out insideInner, out _);
+
+    /// <summary>
+    /// The same test, also saying WHY it failed when it does: <paramref name="anyInsideCone"/> is
+    /// whether any sample was inside the outer cone (or inside <paramref name="minDistance"/>) and
+    /// so had its occlusion ray cast. False on a failed test means the target is outside the cone;
+    /// true means it is inside it with geometry in between. It is what the test already works out
+    /// per sample, handed back: no extra ray. For diagnostics (SightMiss); a caller deciding
+    /// anything wants the return value.
+    /// </summary>
+    public static bool CheckConeSampled(Vector3 origin, Vector3 front, Collider target, float angle,
+                                        float innerAngle, float minDistance, LayerMask obstacleMask,
+                                        out Vector3 seenPoint, out bool insideInner, out bool anyInsideCone)
     {
         seenPoint = Vector3.zero;
         insideInner = false;
+        anyInsideCone = false;
         if (target == null) return false;
 
         Bounds bounds = target.bounds;
@@ -184,12 +199,15 @@ public static class LineOfSight
             {
                 seenPoint = point;
                 insideInner = true;
+                anyInsideCone = true;
                 return true;
             }
 
             float offAxis = Vector3.Angle(front, toPoint);
             bool rightNextToIt = distance <= minDistance;
             if (!rightNextToIt && offAxis > angle * 0.5f) continue;
+
+            anyInsideCone = true;
 
             // Triggers ignored, same as CheckView and for the same reason.
             if (Physics.Raycast(origin, toPoint / distance, distance, obstacleMask, QueryTriggerInteraction.Ignore)) continue;

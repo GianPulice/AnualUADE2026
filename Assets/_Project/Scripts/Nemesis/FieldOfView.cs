@@ -129,6 +129,30 @@ public class FieldOfView : MonoBehaviour
     /// settling back. For the debug HUD and the gizmos.</summary>
     public AdaptiveViewRange.EReason ViewRangeReason => rangeAdaptation.Reason;
 
+    // -- Why it is not seeing the player (SightMiss) -------------------------------
+    //
+    // Diagnostics for NemesisTraceRecorder and nothing else: no rung, state or other sense reads any
+    // of it. Filled in from what the sweep already worked out, so it costs no ray of its own.
+
+    private SightMiss.EReason lastMiss = SightMiss.EReason.NoTarget;
+    private bool wasSeeing;
+
+    /// <summary>Why it is not seeing the player right now, as of the last sweep. None while it is.
+    /// </summary>
+    public SightMiss.EReason MissReason => hasVisualTarget ? SightMiss.EReason.None : lastMiss;
+
+    /// <summary>Why it LOST the player the last time it did: <see cref="MissReason"/> on the frame
+    /// the sighting dropped. None until it loses one.</summary>
+    public SightMiss.EReason LostSightReason { get; private set; }
+
+    /// <summary>When that was, on the Time.time clock. Negative infinity until it loses one.</summary>
+    public float LostSightTime { get; private set; } = float.NegativeInfinity;
+
+    /// <summary>The range the last sweep really measured the player against, in metres:
+    /// <see cref="EffectiveViewRange"/> with the crouch multiplier in. 0 when the sweep had nobody
+    /// out in the open to measure (the player was hiding).</summary>
+    public float SweepViewRange { get; private set; }
+
     private float awareness;
 
     /// <summary>Until when a soft noise of the player's keeps feeding the suspicion meter. See
@@ -346,6 +370,17 @@ public class FieldOfView : MonoBehaviour
     /// </summary>
     public void ForgetLastKnownPosition()
     {
+        // For the trace: this sighting was not lost, it was thrown away. Stamped here and not left
+        // to TrackSightEdge, where the next sweep's own reason would overwrite it.
+        if (hasVisualTarget || wasSeeing)
+        {
+            LostSightReason = SightMiss.EReason.Forgotten;
+            LostSightTime = Time.time;
+        }
+
+        lastMiss = SightMiss.EReason.Forgotten;
+        wasSeeing = false;
+
         hasVisualTarget = false;
         hasLastKnownPosition = false;
         lastKnownVelocity = Vector3.zero;
@@ -396,7 +431,11 @@ public class FieldOfView : MonoBehaviour
         // it does not wait for the viewDelay cadence and it is the only thing that defeats
         // Hidden. Skipping the normal sweep when it hits also stops FindVisibleTargets from
         // immediately clearing the flag it just set.
-        if (CheckExtremeProximity()) return;
+        if (CheckExtremeProximity())
+        {
+            TrackSightEdge();
+            return;
+        }
 
         if (currentTimer < viewDelay) currentTimer += Time.deltaTime;
         else
@@ -410,6 +449,23 @@ public class FieldOfView : MonoBehaviour
         // on a 0.1 s cadence would make the whole feature depend on how the timer happened to line
         // up with the frames.
         TickAwareness(Time.deltaTime);
+
+        TrackSightEdge();
+    }
+
+    /// <summary>
+    /// Notes the frame a sighting drops, and why (<see cref="LostSightReason"/>). Last thing in
+    /// Update, after everything that can raise or drop the flag this frame. Diagnostics only.
+    /// </summary>
+    private void TrackSightEdge()
+    {
+        if (wasSeeing && !hasVisualTarget)
+        {
+            LostSightReason = lastMiss;
+            LostSightTime = Time.time;
+        }
+
+        wasSeeing = hasVisualTarget;
     }
 
     /// <summary>
@@ -592,6 +648,7 @@ public class FieldOfView : MonoBehaviour
         if (spot != null)
         {
             hasVisualTarget = false;
+            lastMiss = SightMiss.EReason.Hidden;
             HiddenPlayerSpotted?.Invoke(spot, true);
             return true;
         }
@@ -705,6 +762,8 @@ public class FieldOfView : MonoBehaviour
         if (player != null && player.IsHidden)
         {
             hasVisualTarget = false;
+            lastMiss = SightMiss.EReason.Hidden;
+            SweepViewRange = 0f;
 
             // Cleared before the spot gets its say, or the meter keeps climbing off the last sweep
             // that saw them in the open — which would have the Nemesis work out that someone is in
@@ -732,6 +791,8 @@ public class FieldOfView : MonoBehaviour
         // held and hunting included: a crouch is worth the same fraction against an alert Nemesis.
         if (player != null && player.IsCrouch) viewRange *= nemesisData.CrouchVisionMultiplier;
 
+        SweepViewRange = viewRange;
+
         Vector3 eye = viewTransform.position;
         Vector3 front = LookDirection;
         float focusAngle = nemesisData.FocusAngle;
@@ -742,6 +803,10 @@ public class FieldOfView : MonoBehaviour
         GameObject focusHit = null;
         GameObject peripheralHit = null;
         float peripheralDistance = float.PositiveInfinity;
+
+        // For SightMiss only: whether anything that failed the test below was at least inside the
+        // cone, which is what tells "behind a wall" from "not looking that way".
+        bool anyInsideCone = false;
 
         Collider[] targetsInViewRadius = Physics.OverlapSphere(eye, viewRange, targetMask);
         for (int i = 0; i < targetsInViewRadius.Length; i++)
@@ -758,8 +823,10 @@ public class FieldOfView : MonoBehaviour
             // is in the middle of it. minDistance still overrides the angle: something touching the
             // Nemesis is not "in the corner of its eye" no matter which way it happens to be facing.
             if (!LineOfSight.CheckConeSampled(eye, front, candidate, viewAngle, focusAngle, minDistance,
-                                              obstacleMask, out Vector3 seenPoint, out bool inFocus))
+                                              obstacleMask, out Vector3 seenPoint, out bool inFocus,
+                                              out bool insideCone))
             {
+                anyInsideCone |= insideCone;
                 continue;
             }
 
@@ -807,6 +874,11 @@ public class FieldOfView : MonoBehaviour
         }
 
         hasVisualTarget = false;
+
+        bool anyInRange = targetsInViewRadius.Length > 0;
+        lastMiss = player == null && !anyInRange
+            ? SightMiss.EReason.NoTarget
+            : SightMiss.Classify(anyInRange, anyInsideCone, peripheralHit != null);
 
         if (peripheralHit == null)
         {

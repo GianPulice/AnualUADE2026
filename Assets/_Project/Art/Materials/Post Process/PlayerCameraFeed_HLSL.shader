@@ -25,7 +25,13 @@
 //      readout (the device's module, all of it amber then red as the module runs out, blinking
 //      with the dot, faster as it gets worse), the bomb banner that sweeps across the middle when a
 //      module starts, a status line and corner brackets — or, while it boots, the boot screen with its bar,
-//      over the picture on a darkened plate.
+//      over the picture on a darkened plate. With the Nemesis closing in its letters scramble
+//      (never the readout's time).
+//
+// The Nemesis closing in also corrupts the picture in blocks (ThreatBlock), like a digital signal
+// dropping data: before 1) a corrupted block changes where it reads the picture from, and after 6)
+// some go to rows of black and grey. The blocks are whole cells of the overlay grid, so they
+// land on the PSX's own blocks; everything outside a corrupted block is the plain picture.
 //
 // _OverlayGridRows has to equal PS1Effect.mat's _PixelSize (256): each overlay cell then lands on
 // exactly one PSX block and the text comes out whole.
@@ -60,6 +66,13 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         _RollWidth          ("Rolling Band Width", Range(0.01, 0.5)) = 0.07
         _StaticTear         ("Static Tear (UV, with the static)", Range(0, 0.1)) = 0.04
         _StaticFps          ("Static FPS", Range(1, 60)) = 30
+
+        [Header(Nemesis closing in)]
+        _ThreatBlockCells   ("Corrupt Block Size (cells)", Range(4, 64)) = 16
+        _ThreatBlockRun     ("Corrupt Run (blocks side by side)", Range(1, 8)) = 3
+        _ThreatBlockFps     ("Corrupt Block FPS (a new draw this often)", Range(1, 30)) = 8
+        _ThreatBlockTint    ("Grey Block Tint (the grey of the black and grey blocks)", Color) = (0.6, 0.6, 0.6, 1)
+        _ThreatScrambleFps  ("Overlay Scramble FPS", Range(1, 30)) = 8
 
         [Header(Overlay)]
         [ToggleUI] _EnableOverlay   ("Enable Overlay (text, REC, brackets, boot screen)", Float) = 1
@@ -106,6 +119,12 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float  _StaticTear;
         float  _StaticFps;
 
+        float  _ThreatBlockCells;
+        float  _ThreatBlockRun;
+        float  _ThreatBlockFps;
+        float4 _ThreatBlockTint;
+        float  _ThreatScrambleFps;
+
         float  _EnableOverlay;
         float4 _OverlayColor;
         float4 _RecColor;
@@ -149,12 +168,15 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     //                      lens, towards 0 = equidistant fisheye), w = fisheye amount (0 = off).
     //   _PlayerFeedSignal  x = power (0 = black), y = static (0..1), z = focus blur (0..1),
     //                      w = exposure (1 = as rendered).
+    //   _PlayerFeedThreat  the Nemesis closing in: x = part of the picture's blocks corrupted
+    //                      (0..1), y = part of the overlay's letters scrambled (0..1).
     #define FEED_LINE 32
     float  _PlayerFeedText[192];
     float4 _PlayerFeedInfo;
     float4 _PlayerFeedBoot;
     float4 _PlayerFeedLens;
     float4 _PlayerFeedSignal;
+    float4 _PlayerFeedThreat;
     float4 _PlayerFeedReadout;
     float4 _PlayerFeedReadoutTime;
     float4 _PlayerFeedBanner;
@@ -169,6 +191,85 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float2( 0.92,  0.38), float2( 0.38,  0.92), float2(-0.38,  0.92), float2(-0.92,  0.38),
         float2(-0.92, -0.38), float2(-0.38, -0.92), float2( 0.38, -0.92), float2( 0.92, -0.38),
     };
+
+    // A hash of three whole numbers that holds whatever their size. Hash21 (the font's) spends its
+    // float precision on large arguments: with a frame counter in the thousands its y is gone, and
+    // snow drawn with it comes out as vertical stripes for most of every cycle of the counter.
+    float HashCell(float x, float y, float z)
+    {
+        uint h = (uint)(int)x * 1597334677u ^ (uint)(int)y * 3812015801u ^ (uint)(int)z * 2798796415u;
+        h ^= h >> 16;
+        h *= 2246822519u;
+        h ^= h >> 13;
+        h *= 3266489917u;
+        h ^= h >> 16;
+        return (float)(h >> 8) * (1.0 / 16777216.0);
+    }
+
+    // The Nemesis closing in scrambles the overlay's text: _PlayerFeedThreat.y of its letters come
+    // out as some other glyph, drawn again _ThreatScrambleFps times a second. A space stays a
+    // space, so a line keeps its outline, and the readout's time is spared: the countdown has to
+    // stay readable through a chase.
+    uint ScrambledGlyph(uint glyph, int textLine, uint index)
+    {
+        float amount = saturate(_PlayerFeedThreat.y);
+        if (amount <= 0.001 || glyph == 0u) return glyph;
+
+        float place = (float)index;
+        if (textLine == 1 && place >= _PlayerFeedReadoutTime.x &&
+            place < _PlayerFeedReadoutTime.x + _PlayerFeedReadoutTime.y) return glyph;
+
+        float slot = fmod(floor(_Time.y * _ThreatScrambleFps), 4096.0);
+        if (HashCell(place, (float)textLine, slot) >= amount) return glyph;
+
+        return 1u + (uint)(HashCell(place, (float)textLine + 64.0, slot) * ((float)GLYPH_COUNT - 1.001));
+    }
+
+    // What the Nemesis closing in made of the block of the picture a pixel is in.
+    #define BLOCK_CLEAN  0
+    #define BLOCK_MOSAIC 1  // The whole block takes the colour at its centre.
+    #define BLOCK_SLIP   2  // It shows the picture from up to a block away.
+    #define BLOCK_GREY   3  // A mosaic in rows of black and grey (applied in Frag, after the picture).
+
+    // The Nemesis closing in corrupts the picture in blocks: _PlayerFeedThreat.x of them, in runs of
+    // _ThreatBlockRun side by side, drawn again _ThreatBlockFps times a second. A block is
+    // _ThreatBlockCells cells of the overlay grid, shifted half a cell like the overlay's, so its
+    // edges fall between the PSX's blocks. `pictureUv` comes out as where the pixel reads the
+    // picture from: `uv` itself in a clean block.
+    int ThreatBlock(float2 uv, float2 gridSize, out float2 pictureUv)
+    {
+        pictureUv = uv;
+
+        float amount = saturate(_PlayerFeedThreat.x);
+        if (amount <= 0.001) return BLOCK_CLEAN;
+
+        float size = max(floor(_ThreatBlockCells), 1.0);
+        float2 blockIndex = floor(floor(uv * gridSize + 0.5) / size);
+        float slot = fmod(floor(_Time.y * _ThreatBlockFps), 4096.0);
+
+        float run = floor(blockIndex.x / max(floor(_ThreatBlockRun), 1.0));
+        if (HashCell(run, blockIndex.y, slot) >= amount) return BLOCK_CLEAN;
+
+        float2 centre = saturate((blockIndex * size + size * 0.5 - 0.5) / gridSize);
+        float kind = HashCell(blockIndex.x, blockIndex.y, slot + 4096.0);
+        if (kind < 0.4)
+        {
+            pictureUv = centre;
+            return BLOCK_MOSAIC;
+        }
+        if (kind < 0.75)
+        {
+            // Half a block or a whole one to either side, and up to half a block up or down.
+            float across = floor(HashCell(blockIndex.x, blockIndex.y, slot + 8192.0) * 4.0);
+            float up = floor(HashCell(blockIndex.x, blockIndex.y, slot + 12288.0) * 3.0);
+            float2 slip = float2(across < 2.0 ? across - 2.0 : across - 1.0, up - 1.0) * (size * 0.5);
+            pictureUv = saturate(uv + slip / gridSize);
+            return BLOCK_SLIP;
+        }
+
+        pictureUv = centre;
+        return BLOCK_GREY;
+    }
 
     // A line of text with its bottom-left corner on cell `origin`: 1 where a letter paints the cell.
     // Cells are 6 wide (5 of letter + 1 of air), each font cell `scale` cells of the grid. `glyph`
@@ -191,7 +292,7 @@ Shader "Hidden/Custom/PlayerCameraFeed"
 
         glyphIndex = index;
         uint glyph = (uint)_PlayerFeedText[textLine * FEED_LINE + (int)index];
-        return GlyphBit(glyph, int2(column, 6 - p.y));
+        return GlyphBit(ScrambledGlyph(glyph, textLine, index), int2(column, 6 - p.y));
     }
 
     float LineMask(int2 cell, int2 origin, int textLine, int length, int scale)
@@ -365,11 +466,15 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         float blur = saturate(_PlayerFeedSignal.z);
         float exposure = max(_PlayerFeedSignal.w, 0.0);
 
+        // The Nemesis closing in: a corrupted block reads the picture from somewhere else.
+        float2 pictureUv;
+        int blockKind = ThreatBlock(uv, gridSize, pictureUv);
+
         half3 color = 0.0;
         if (power > 0.0001)
         {
             // 1) Lens barrel, normalized so the corners sample the corners.
-            float2 d = uv - 0.5;
+            float2 d = pictureUv - 0.5;
             float2 da = float2(d.x * aspect, d.y);
             float r2 = dot(da, da);
             float maxR2 = 0.25 * (aspect * aspect + 1.0);
@@ -449,6 +554,16 @@ Shader "Hidden/Custom/PlayerCameraFeed"
             pc *= saturate(1.0 - _Vignette * pow(saturate(r2 / maxR2), 1.25));
 
             color = pow(saturate(pc), 2.2) * (coverage * ring * power);
+
+            // A block gone to rows of black and grey: no colour left, the picture's brightness
+            // (lifted a little, so it reads over a dark picture too) in the grey of
+            // _ThreatBlockTint on every other row of cells, black on the rows between.
+            if (blockKind == BLOCK_GREY)
+            {
+                half oddRow = fmod(floor(uv.y * rows + 0.5), 2.0);
+                half grey = lerp(dot(color, half3(0.2126, 0.7152, 0.0722)), 1.0, 0.15);
+                color = grey * _ThreatBlockTint.rgb * (1.0 - oddRow);
+            }
         }
 
         // 7) Static: snow, one value per PSX block, faster than the grain. Replaces the picture as
@@ -456,7 +571,8 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         if (staticAmount > 0.001)
         {
             float snowFrame = fmod(floor(_Time.y * _StaticFps), 4096.0);
-            half snow = Hash21(floor(uv * gridSize) + snowFrame * 3.17);
+            float2 snowCell = floor(uv * gridSize);
+            half snow = HashCell(snowCell.x, snowCell.y, snowFrame);
             color = lerp(color, pow(snow, 2.2).xxx * 0.85, staticAmount);
         }
 

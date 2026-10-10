@@ -46,7 +46,7 @@ Los 4 hooks (`OnBeforeOpen`, `OnAfterOpen`, `OnBeforeClose`, `OnAfterClose`) son
 
 **Importante**: los fades de `BaseScreenView.ShowAsync()` y `HideAsync()` usan `Time.unscaledDeltaTime`, así que **funcionan aunque `Time.timeScale = 0`**. Esto es clave porque varias pantallas (Pausa, Settings, SequencePanel, el reader en modo lectura) se abren con timeScale = 0 y deben poder animar el fade igual. El inventario ya no pausa (`PausesGame => false`).
 
-El método genérico `Fade(alpha, duration)` **también** usa `Time.unscaledDeltaTime` (antes usaba `deltaTime` y el fade del prompt de interacción quedaba a medias en pausa). Un overlay que tiene que "congelarse" al pausar anima su alpha por su cuenta con `Time.deltaTime`, sin `Fade()`: es el caso de `VignetteChaseView`.
+El método genérico `Fade(alpha, duration)` **también** usa `Time.unscaledDeltaTime` (antes usaba `deltaTime` y el fade del prompt de interacción quedaba a medias en pausa). Un overlay que tiene que "congelarse" al pausar anima su alpha por su cuenta con `Time.deltaTime`, sin `Fade()`: era el caso de `VignetteChaseView` (borrada el 2026-10-05; la amenaza ahora es estática en el feed de cámara).
 
 ---
 
@@ -223,7 +223,7 @@ SettingsScene (escena persistente)
 `CameraSensitivityApplier` vive en el prefab del player (`Player.prefab`, escena de gameplay; también en `HidingSpot.prefab`). `SettingsModel` vive en `SettingsScene`. **Son escenas distintas — no hay forma de pasarle referencia directa**. El evento estático `SettingsModel.OnSettingsApplied` permite que `CameraSensitivityApplier.HandleSettingsApplied()` se entere sin coupling.
 
 Este patrón se repite en todo el proyecto:
-- `NemesisEvents.OnChaseStarted` → escuchado por `VignetteChaseView`.
+- `NemesisEvents.OnChaseStarted` → escuchado por `PlayerCameraFeed` (sólo si `threatOnlyWhileChasing`), `NemesisChaseMusic` y `NemesisTension`.
 - `InventoryEvents.OnItemAdded` → escuchado por `InteractionPromptView`, `InteractionNotificationFeed`.
 - `GameResultManager.OnGameResult` → escuchado por `WinController`, `ResultScreenController`.
 
@@ -517,10 +517,11 @@ Assets/_Project/Scripts/
 │       ├─ ModuleTimerBeeper.cs           ← bip de los últimos segundos del módulo
 │       ├─ InteractionNotificationFeed.cs ← feed de notificaciones
 │       ├─ HidingOverlayView.cs           ← lo que se ve desde el escondite
+│       ├─ HidingOverlayLayer.cs          ← una capa del overlay: a qué tipo de escondite responde
 │       ├─ BreathHoldMeterView.cs         ← medidor de aliento
 │       ├─ ModalVisibilityGate.cs         ← oculta un nodo del HUD bajo modales
 │       ├─ CaptureCanvasGate.cs           ← apaga un Canvas durante la captura (el punto central)
-│       └─ Vignette/                      ← Vignettes de proximidad/chase
+│       └─ Vignette/                      ← Vignette de proximidad (la roja de chase se borró el 2026-10-05)
 ├─ Player/
 │   ├─ PlayerCameraController.cs          ← Cinemachine config + lock del cursor
 │   ├─ CameraSensitivityApplier.cs        ← aplica Settings_Sensitivity + InvertY al rig
@@ -558,8 +559,8 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 | `PauseManager.OnPauseStateChanged` | toggle de pausa | PauseManagerUI, AudioBackgroundApplier, ModuleManager |
 | `GameResultManager.OnGameResult` | ReportWin/ReportLoss/ReportGameOver (Win y GameOver pueden pasar antes por un presenter, ver abajo) | WinController, ResultScreenController, CaptureFadeView, SkillCheckController (+ audio del Nemesis y EscapeSequenceDirector) |
 | `SettingsModel.OnSettingsApplied` | Apply en Settings | los appliers de §6, GlitchController, UISignalStaticBurst |
-| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | VignetteChaseView (+ NemesisChaseMusic, NemesisTension) |
-| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, VignetteChaseView |
+| `NemesisEvents.OnChaseStarted/Ended` | Nemesis entra/sale de `{Chasing, Catch}` | PlayerCameraFeed, NemesisChaseMusic, NemesisTension |
+| `NemesisEvents.OnProximityChanged` | cada frame, distancia real al player | VignetteProximityView, PlayerCameraFeed (bloques corruptos y overlay corrupto que crecen con la cercanía, sólo en persecución) |
 | `NemesisEvents.OnStateChanged` | el Nemesis cambia de estado | NemesisAudio, NemesisChaseMusic |
 | `NemesisEvents.OnCaptureResolved` | terminó la captura: el Nemesis ya se reubicó | CaptureFadeView (+ PlayerStateManager, EscapeChaseRestart) |
 | `InteractionEvents.OnTargetChanged` | InteractionManager cambia interactable activo | InteractionPromptView, DocumentReaderController (auto-close in situ), ItemGlint, ItemProximityHighlight |
@@ -686,19 +687,70 @@ segundos)`. Hoy la usan:
 Dos nodos de `HUDCanvas.prefab`, el prefab es la fuente de verdad de su layout:
 
 - **`HidingOverlay` (`HidingOverlayView`)**: lo que el player ve del escondite desde adentro, a
-  pantalla completa y **debajo** del resto del HUD (viñetas, timer y medidor se dibujan encima). Un
-  look por `EHidingSpotType`: rendijas de locker, la parte de abajo y las patas de una mesa, la juntura
-  de luz de un contenedor. Es procedural: cada look es un `RawImage` con una textura de alfa de 320×180
-  generada en `Awake`, teñida con `shade` (casi negro, nunca rojo: el rojo es peligro). Entra y sale con
-  `HidingEvents.OnEntered` / `OnExited` (0.35 s / 0.25 s, en unscaled) y nunca toma clicks.
-- **`BreathMeter` (`BreathHoldMeterView`)**: ventana abajo a la izquierda (anclada a un punto, en 24, 24)
-  con 10 pips del aire que le queda al player (`PlayerStateManager.BreathAir`) y una línea de estado:
-  `[F] HOLD BREATH` (con la tecla real de `GameInput.HoldBreath`), `HOLDING...` o `RECOVERING`. Por
-  debajo de `lowAir` (0.3) los pips pasan a Accent. Se ve mientras el player está en un escondite
-  (`CurrentHidingSpot`) y no está deshabilitado; como el timer, **pollea** `PlayerRegistry.Current` en
-  `Update` porque el aire no tiene evento. Sólo dibuja: el estado escondido es dueño del aliento y del
-  ruido. El root lleva un `ModalVisibilityGate` sobre su propio `CanvasGroup` y la view fadea el de la
-  ventana, así no se pelean por el mismo alfa.
+  pantalla completa y **debajo** del resto del HUD (viñetas, alertas y medidor se dibujan encima).
+  Entra y sale con `HidingEvents.OnEntered` / `OnExited` (0.35 s / 0.25 s, en unscaled) y nunca toma
+  clicks.
+  - **Un hijo por tipo de escondite** (`Locker`, `UnderTable`, `Container`): un `RawImage` a pantalla
+    completa sin textura, con el material del look, y un `HidingOverlayLayer` que dice a qué
+    `EHidingSpotType` responde. La view no arma nada: busca esas capas y funde la que corresponde. Un
+    tipo nuevo es un hijo nuevo con su material, sin código; si falta la capa de un tipo, avisa por
+    consola al esconderse y no muestra nada.
+  - **El look es el material** (`Art/Materials/UI/UI_HidingLocker`, `UI_HidingUnderTable`,
+    `UI_HidingContainer`): bloque de rejillas estampadas en la puerta del locker; tapa, faldón y patas
+    con volumen bajo la mesa; puertas corrugadas con la abertura entre las dos en el contenedor (un
+    décimo del ancho de la pantalla: el más cerrado de los tres). Formas, proporciones y colores se
+    tocan ahí. Como el HUD es Overlay y se dibuja después del pase PSX, el shader trae su propio
+    pixelado: **tonos planos con borde duro sobre la grilla PSX, sin dither** (ver
+    `docs/Materials-System.md` §7.4). Lo que tapa es opaco y lo abierto se ve limpio: sobre el cuarto
+    hay, a lo sumo, una banda plana de sombra.
+  - **El fundido es el alfa de toda la capa, en escalones** (`Fade Steps` en el material, 5; en 1 es
+    suave). No hay dissolve por celdas.
+  - **Sigue a la cámara**: al girar adentro del escondite el look se desliza en contra, como algo fijo
+    en el mundo. Cuánto, por capa: `Look Parallax` (0 = pegado a la pantalla, 1 = fijo en el mundo;
+    locker 1, mesa 0.8, contenedor 0.6). Entra quieto y empieza a seguir cuando terminó el fundido
+    (`lookEaseSeconds`). Además deriva apenas solo (`swayAmplitude`); no es el aliento.
+  - **Preview sin Play**: en `HidingOverlayView`, `Preview In Edit Mode` + `Preview Type` (+
+    `Preview Look Degrees` para girar la cámara y `Preview Fade` para ver el fundido). Sólo mueve el
+    alfa de un `CanvasRenderer`, que no se serializa. **Destildarlo al terminar**: si queda tildado en
+    el prefab, el look tapa la Game view fuera de Play (en Play no hace nada).
+  - No escribe materiales ni assets, ni en Play ni en edición: el fundido es el alfa del
+    `CanvasRenderer` y la mirada es el global de shader `_HidingOverlayLook`.
+- **`BreathMeter` (`BreathHoldMeterView`)**: mini ventana Win95 abajo a la izquierda, anclada a un
+  punto en **(50, 96)** (adentro del visor, por encima de la lectura de la cámara), de 312×72. Se ve
+  mientras el player está en un escondite (`CurrentHidingSpot`) y no está deshabilitado. Sólo dibuja: el
+  estado escondido es dueño del aliento y del ruido.
+  - **Arriba**, el prompt fijo `[F] HOLD BREATH` (`PromptText`) y a la derecha una palabra de estado
+    (`StatusText`). La tecla sale del binding de `GameInput.HoldBreath` para el dispositivo en uso
+    (`InputHintEvents.BindingLabel`, igual que el input hint) y cambia en vivo entre teclado y gamepad.
+    El prompt nunca se apaga: se puede volver a aguantar en cualquier punto de la recuperación.
+  - **Abajo**, el `Gauge`: la barra de progreso Win95 de la pantalla de carga (pozo hundido +
+    `UIBlockFill`, 10 bloques de 24 con 4 de hueco). Drena **continuo**, no de a bloque: la view mueve
+    `anchorMax.x` de `Fill`, que lleva un `RectMask2D` y recorta los bloques en el borde del aire
+    (`PlayerStateManager.BreathAir`).
+  - **Estados**, que se distinguen sin leer:
+
+    | Estado | Barra | Texto | Ventana |
+    |---|---|---|---|
+    | Lista | llena, `TextSecondary` | vacío | atenuada a `idleAlpha` (0.75) |
+    | Aguantando | drena, `TextPrimary` | `HOLDING` | al 100 % |
+    | Poco aire (< `lowAir` 0.3) | Accent, parpadea de 2 a 3 Hz | `HOLDING` | lavado rojo al ritmo del parpadeo |
+    | Sin aire (exhalación forzada) | Accent, parpadea | `OUT OF AIR` parpadeando 1.4 s | flash rojo que se apaga en 0.5 s |
+    | Soltó la tecla | `TextMuted` | `EXHALE` 0.7 s | flash blanco corto |
+    | Recuperando | se rellena, `TextMuted` | `RECOVERING` | flash blanco al llenarse |
+
+    El rojo (Accent) aparece sólo cuando el aire se acaba o se acabó, nunca en reposo. El texto nunca va
+    en rojo: el color lo lleva la barra y las líneas quedan blancas para leerse encima del flash
+    (`Flash`, un `Image` detrás del texto que pinta la view).
+  - El aire se **pollea** de `PlayerRegistry.Current` en `Update` porque no tiene evento; la exhalación
+    sí lo tiene (`PlayerStateManager.OnBreathExhaled`, el mismo que dispara el jadeo de
+    `HiddenBreathing`) y es lo que arranca los golpes de `EXHALE` / `OUT OF AIR`.
+  - Todo corre en unscaled. Los golpes y el parpadeo se congelan mientras
+    `PauseManager.IsGameplayInputBlocked`, igual que el aliento; el fade de la ventana no.
+  - El root lleva un `ModalVisibilityGate` sobre su propio `CanvasGroup` y la view fadea el de la
+    ventana, así no se pelean por el mismo alfa. `Blocks`, `Flash`, `PromptText` y `StatusText` **no**
+    llevan `UIThemeApplier`: los pinta la view, y un applier los repintaría en `OnEnable`.
+  - Todos los tiempos, opacidades y textos están en el inspector de `BreathMeter`, con tooltip. Los
+    colores salen de `SO_UIThemeConfig`.
 
 ---
 
@@ -712,4 +764,4 @@ Para entender un pattern específico, leer estos archivos como modelo:
 - **Model con snapshot/revert + PlayerPrefs**: `SettingsModel.cs`.
 - **View con sub-views y re-emisión de eventos**: `SettingsView.cs`.
 - **Vista permanentemente activa con CanvasGroup.alpha**: `InteractionPromptView.cs`.
-- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs` (anima el alfa en su propio `Update` con `Time.deltaTime`; el `Fade()` del base es unscaled).
+- **HUD overlay que se congela con timeScale=0**: `VignetteChaseView.cs`, ya borrada (animaba el alfa en su propio `Update` con `Time.deltaTime`; el `Fade()` del base es unscaled).

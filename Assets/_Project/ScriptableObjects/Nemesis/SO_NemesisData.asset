@@ -26,6 +26,15 @@ MonoBehaviour:
   awarenessTriggerThreshold: 0.4
   proximityDetectionRange: 1.5
   crouchVisionMultiplier: 0.5
+  glimpseCorroborationWindow: 8
+  rearSenseRange: 3
+  rearSenseStrength: 0.25
+  viewHoldScale: 2
+  viewHuntScale: 2
+  viewHuntGrowTime: 2
+  viewHuntSettleTime: 2
+  lostSightLookAhead: 6
+  gazeTurnSpeed: 200
   listenRange: 15
   noiseRangeScale: 2.5
   wallOcclusionEnabled: 1
@@ -33,26 +42,17 @@ MonoBehaviour:
   floorOcclusionMultiplier: 0.75
   hearingUsesPathDistance: 1
   routeVerdictInterval: 0.4
+  routeVerdictSettleTime: 0.75
   floorHeightThreshold: 2.5
   elevatorCommitTime: 12
-  searchLeadTime: 0.4
   searchSweepRadius: 8
-  searchLastKnownBias: 4
-  searchPredictionBias: 2.5
-  searchBiasFalloff: 20
-  searchSweptPenalty: 0.33
   searchPauseTime: 1.2
   roomSweepRadius: 8
-  roomCommitRange: 12
-  sightCommitTime: 6
   chaseTimePrediction: 0.45
   chaseRouteReplanInterval: 0.66
   chaseBeliefMoveThreshold: 3
   chaseDetourTolerance: 1.25
   beliefTraceRadius: 4
-  interceptForwardDot: 0.25
-  interceptTimeMargin: 1.25
-  assumedPlayerSpeed: 4.5
   beliefMemoryTime: 45
   elevatorWaitTimeout: 20
   elevatorAbandonCooldown: 10
@@ -85,6 +85,7 @@ MonoBehaviour:
   zoneBiasUsesRealPlayer: 1
   zonePlayerBiasStrength: 4
   zonePlayerBiasFalloff: 40
+  huntGraceSeconds: 45
   crossRouteTransferChance: 0.3
   waypointBiasSampleCount: 8
   catchMaxReach: 1
@@ -95,12 +96,64 @@ MonoBehaviour:
   proximityRecalcInterval: 0.2
   chaseProgressWindow: 4
   chaseMinProgress: 1.5
+  chasePathJumpDistance: 10
+  chaseStallRegroupTime: 10
   chaseStagnantDetourTolerance: 2.5
   chaseTrailPenalty: 0.2
   chaseTrailPenaltyRadius: 3
+  chaseHoldRadius: 3
+  chaseHoldMaxTime: 1.2
   investigationDwellTime: 4
   investigationRetargetInterval: 1.5
   investigationRetargetDistance: 3
   underTableVisionMultiplier: 0.5
   seenEnteringWindow: 0.75
   hiddenPullOutTime: 0.8
+  beliefSightRadius: 0.5
+  beliefNoiseBaseRadius: 1
+  beliefNoiseRadiusPerMetre: 0.15
+  beliefNoiseWallFactor: 1.5
+  beliefNoiseFloorFactor: 1.3
+  beliefGrowthSpeed: 4.5
+  beliefNoiseHidingSpotFactor: 2
+  hearingLocalizationError: 0.6
+  hearingErrorDriftTime: 4
+  searchPreciseNoiseRadius: 1.5
+  dropLinkCooldown: 8
+  searchMinTime: 6
+  searchQuietWindow: 8
+  searchHardCap: 0
+  searchQualitySight: 1.25
+  searchQualityMuffled: 0.75
+  searchEscalatedCapScale: 0.5
+  leadValueRadio: 0.6
+  leadValueFireAlarm: 0.7
+  leadValueChains: 0.45
+  leadValueOther: 0.4
+  glimpseValue: 0.5
+  leadHabituation: 0.6
+  focusAttentionFloor: 0.12
+  focusMargin: 0.05
+  focusCommitmentBonus: 0.3
+  focusCommitmentDecay: 3
+  focusFreshnessHalfLife: 6
+  focusCostDistance: 60
+  focusAntiDither: 2
+  leadSumsMargin: 3
+  softNoiseLoudness: 1.5
+  softNoiseSuspicionRate: 0.6
+  noiseOnlySuspicionCap: 0.9
+  searchMapNodeSpacing: 2
+  searchMapTickInterval: 0.25
+  searchMapSpreadSpeed: 4.5
+  searchMapHeadingBias: 1
+  searchMapHeadingDuration: 3
+  searchMapChaseHeadingBoost: 4
+  searchMapClearRangeScale: 1
+  searchMapProbeHeight: 0.6
+  searchMapZoneRadius: 2.5
+  searchMapCandidates: 8
+  searchMapRepickShare: 0.35
+  searchMapWorthThreshold: 0.015
+  searchMapTrailMemory: 4
+  searchMapTrailRadius: 2

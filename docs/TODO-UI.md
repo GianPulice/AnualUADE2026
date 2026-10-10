@@ -33,10 +33,12 @@ están resueltos: el loop de juego (timers, victoria, reset de run) ya corre.
 
 ### Detalles diferidos (mejoras visuales, baja prioridad)
 
-- [ ] **Topbar del inventario** — fila ~28px arriba con `// inventario` a la izquierda y `[TAB] cerrar` a la derecha. Spec inventory §2.
-      Hoy hay un equivalente parcial sobre la lista, no una tira arriba: `ItemsText`
-      (`// INVENTORY .........00 OBJ`) y `CloseInventoryButton` (`[X] CLOSE [TAB]`).
-- [ ] **Bottom hint** — fila ~22px abajo con `[E] usar / insertar` y `[ESC] cerrar inventario`. Spec inventory §2.
+- [x] **Topbar del inventario** — hecho el 2026-10-05: nodo `Topbar` (tira de 44px sobre el panel, con
+      `UIBevelFrame`), `// INVENTORY` a la izquierda (`TopbarTitle`) y `CloseInventoryButton`
+      (`[TAB] CLOSE`) encima de su extremo derecho. El encabezado de la lista pasó de
+      `// INVENTORY ...00 OBJ` a `// ITEMS ...00 OBJ` (`InventoryView.RefreshList`) para no repetir el título.
+- [x] **Bottom hint** — descartado (Iñaki, 2026-10-05): la E no hace nada dentro del inventario y ESC
+      no lo cierra de una (primero cierra la nota y suelta la selección), así que no hay fila de hints.
 - [x] **Estado vacío del panel de detalle** — `Empty State Panel/EmptyStateText`, texto centrado
       "SELECT AN ITEM / TO SEE THE DETAIL" en `#8A8A8A`. El panel de fondo quedó con alpha 0.
 - [ ] **Borde izquierdo rojo** (`#cc1a1a`, 2px) en item seleccionado de la lista + fondo `#110808`. Spec inventory §4.3.
@@ -116,10 +118,9 @@ Pendiente en esta zona:
       `UIBevelFrame` (nodo `BevelFrame`, puesto por el perfil de estilo del inventario): lo tienen
       `OpenDocButton`, `CloseInventoryButton`, `CloseDocButton` y el chip de categoría
       (`Item Type Color Box`). Ya no se resuelve solo con fondo.
-- [ ] **Sweep del `CloseDocButton`** — ya tiene `ButtonHoverColorSwap` (la cruz se aclara a blanco)
-      y `UIBevelPressFeedback`, pero no `ButtonHoverSweepEffect`, porque le faltan el `SweepBar` y el
-      `RectMask2D`. En el inventario el sweep sólo lo tiene `OpenDocButton` (`CloseInventoryButton`
-      tampoco; el botón de descarte ya no existe).
+- [x] **Sweep del `CloseDocButton`** — hecho el 2026-10-05: `SweepBar` rojo propio (stretch,
+      `hiddenOffsetX -44`), `RectMask2D` y `ButtonHoverSweepEffect`, además del `ButtonHoverColorSwap`
+      que ya tenía. En el inventario `CloseInventoryButton` sigue sin sweep.
 - [ ] **Calibrar el gris del cuerpo de la nota.** La referencia usa `#3a3a3a` sobre `#070707`, que
       a 10px en un browser lee bien pero a pantalla completa queda casi ilegible. Hoy `DocText` va en
       blanco `#FFFFFF`: el rol `TextPrimary` del tema, vía su `UIThemeApplier`. Bajarlo
@@ -169,24 +170,6 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
   - `AudioSource.ignoreListenerPause = true` para que el audio siga sonando con `Time.timeScale = 0`.
   - La barra se actualiza con `unscaledDeltaTime`.
   - Al cerrar el inventario, detener la reproducción.
-
----
-
-## 📜 Lateral Inventory (Variante B de puzzle)
-
-El esqueleto está creado (`LateralInventoryView.cs` + `LateralInventorySlotView.cs`), sin colocar en
-ninguna escena ni prefab. Ojo: el estado `Interacting` que existe hoy en el FSM del player
-(`PlayerBoxInteractingState`) es el de empujar cajas, no éste.
-Cuando se implemente la Variante B de interacción con puzzles, completar:
-
-- [ ] **Paneo de cámara cinematográfico** (Lerp 0.6s) hacia un `puzzleCameraPoint` que define cada puzzle. Spec interaction §6.2.
-- [ ] **Player en estado Interacting** con WASD + cámara libre + Tab bloqueados. Solo el lateral inventory + ESC activo.
-- [ ] **Navegación con mouse/gamepad** sobre la lista de items.
-- [ ] **Feedback shake/sonido** cuando el item es incorrecto. Spec interaction §9.2 ("Item incorrecto (Var B): Sonido corto de error").
-- [ ] **Cancelación por ESC** — cerrar inventario lateral, lerp de cámara de vuelta, `SetState(Idle)`. Spec interaction §6.2.
-- [ ] **Interrupción por Nemesis** — al disparar `OnDangerDetected`, cancelar igual que ESC y devolver control inmediatamente. Spec interaction §10.
-- [ ] **Filtro por categoría opcional** — ej. para el Hub Central, solo mostrar `Component`.
-- [ ] **Método `puzzle.CanAcceptItem(item)`** en los interactables que reciben items vía Variante B.
 
 ---
 

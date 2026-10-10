@@ -25,6 +25,19 @@ using UnityEngine;
 ///   5. RENORMALISE (<see cref="Normalize"/>), sink included: "not where I looked" makes everywhere
 ///      else more likely.
 ///
+/// EVIDENCE IS MEASURED WALKING (07/10, WIR-062). A noise's area and a sighting's spot are the
+/// nodes within reach ALONG THE EDGES of where it was sensed, not a disc in plan view: a disc
+/// crossed walls, and in a corridor two metres wide most of a four-metre one landed in the rooms on
+/// either side — places only reached by walking back, and that the cone can never clear because it
+/// has no line to them. That was the search "going back the way it came".
+///
+/// WHERE THE NEMESIS HAS JUST BEEN IS A WALL (<see cref="Block"/>, 07/10, WIR-062: "descartar la
+/// salida que él mismo estaba tapando"). The scene component blocks the floor around the Nemesis
+/// and its trail of the last few seconds: value may leave a blocked node but never enter one, and a
+/// noise's area does not reach through one. Nobody slips past the monster down the corridor it is
+/// standing in. Blocking clears nothing — what is there stays (evidence beside it is still evidence)
+/// — it only closes the way through.
+///
 /// WHO READS IT (§3.4, Fase 2b). The search goes where the value still is: <see cref="CollectZones"/>
 /// cuts what is left on the floor into a few places worth walking to, and the caller rolls among
 /// them by value ÷ (1 + time to get there). Looking at a place clears it (rule 3), so the map is also
@@ -75,8 +88,16 @@ public sealed class PossibilityMap
     private float[] value;
     private float[] next;
     private readonly bool[] gateOpen;
+    private readonly bool[] blocked;
     private readonly List<int> scratch = new List<int>();
     private readonly List<float> kernel = new List<float>();
+
+    // The walk out from a piece of evidence (CollectAlongEdges). Kept here so a seed allocates
+    // nothing: walkDistance is +∞ everywhere outside the walk in progress.
+    private readonly float[] walkDistance;
+    private readonly List<int> walkTouched = new List<int>();
+    private readonly List<int> walkFrontier = new List<int>();
+    private readonly List<float> walked = new List<float>();
 
     // CollectZones' working set. Kept here so a pick allocates nothing.
     private readonly float[] zoneRemaining;
@@ -98,6 +119,9 @@ public sealed class PossibilityMap
         next = new float[graph.NodeCount];
         zoneRemaining = new float[graph.NodeCount];
         zoneSum = new float[graph.NodeCount];
+        blocked = new bool[graph.NodeCount];
+        walkDistance = new float[graph.NodeCount];
+        for (int i = 0; i < walkDistance.Length; i++) walkDistance[i] = float.PositiveInfinity;
         gateOpen = new bool[graph.GateCount];
         for (int i = 0; i < gateOpen.Length; i++) gateOpen[i] = true;
     }
@@ -140,34 +164,42 @@ public sealed class PossibilityMap
     /// A sighting: all of the value on the floor nodes around <paramref name="point"/>, weighted by
     /// closeness, and the direction it saw the player moving. Returns false when there is no floor
     /// node near enough to put it on (off the map: the map is left as it was).
+    ///
+    /// "Around" is within one node spacing WALKING from the node the point stands on (see
+    /// <see cref="CollectAlongEdges"/>): a player seen against a wall is not half in the next room.
     /// </summary>
-    public bool SeedPoint(Vector3 point, float floorBand, Vector3 velocity, float now)
+    /// <param name="start">The floor node the point stands on, as the caller worked it out (the scene
+    /// component checks it against the NavMesh: the nearest node can be on the far side of a thin
+    /// wall). Below 0, or not a floor node: the nearest floor node.</param>
+    public bool SeedPoint(Vector3 point, float floorBand, Vector3 velocity, float now, int start = -1)
     {
         float spacing = graph.Spacing;
-        graph.CollectNear(point, spacing, floorBand, scratch);
+        start = StartNode(point, start, spacing * 3f, floorBand);
+        if (start < 0) return false;
+
+        CollectAlongEdges(point, start, spacing, floorBand, scratch, walked);
 
         // Seen means out in the open: never inside a hiding spot.
-        for (int i = scratch.Count - 1; i >= 0; i--)
-            if (graph.Kind(scratch[i]) != PossibilityGraph.ENodeKind.Floor) scratch.RemoveAt(i);
-
         kernel.Clear();
         float sum = 0f;
+        for (int i = scratch.Count - 1; i >= 0; i--)
+        {
+            if (graph.Kind(scratch[i]) == PossibilityGraph.ENodeKind.Floor) continue;
+            scratch.RemoveAt(i);
+            walked.RemoveAt(i);
+        }
+
         for (int i = 0; i < scratch.Count; i++)
         {
-            float d = FlatDistance(graph.Position(scratch[i]), point);
-            float w = Mathf.Max(0.05f, 1f - d / spacing);
+            float w = Mathf.Max(0.05f, 1f - walked[i] / spacing);
             kernel.Add(w);
             sum += w;
         }
 
+        // Nothing within a spacing of the point, walking: the node it stands on takes it all.
         if (scratch.Count == 0)
         {
-            int nearest = graph.FindNearest(point, spacing * 3f, floorBand, PossibilityGraph.ENodeKind.Floor,
-                                            scratch);
-            if (nearest < 0) return false;
-
-            scratch.Clear();
-            scratch.Add(nearest);
+            scratch.Add(start);
             kernel.Add(1f);
             sum = 1f;
         }
@@ -190,13 +222,23 @@ public sealed class PossibilityMap
     /// rule 1 for the half-and-half. If what the map had inside the area is nothing — the noise is
     /// somewhere it had ruled out, or it believed nothing — the area replaces it outright, the same as
     /// the belief does with a noise that cannot be the same spot. Returns false when no node is near.
+    ///
+    /// THE AREA IS MEASURED WALKING (07/10, WIR-062): the nodes within <paramref name="radius"/> of
+    /// the noise along the open edges (<see cref="CollectAlongEdges"/>), never through a wall, a closed
+    /// lift or the floor the Nemesis is blocking. A footstep in a corridor is somewhere along the
+    /// corridor.
     /// </summary>
-    public bool SeedArea(Vector3 centre, float radius, float floorBand)
+    /// <param name="start">The floor node the noise was heard at, as the caller worked it out. See
+    /// <see cref="SeedPoint"/>.</param>
+    public bool SeedArea(Vector3 centre, float radius, float floorBand, int start = -1)
     {
         float spacing = graph.Spacing;
         float r = Mathf.Max(radius, spacing * 0.5f);
 
-        graph.CollectNear(centre, r + spacing, floorBand, scratch);
+        start = StartNode(centre, start, r + spacing * 3f, floorBand);
+        if (start < 0) return false;
+
+        CollectAlongEdges(centre, start, r + spacing, floorBand, scratch, walked);
 
         // The prior is what the map had INSIDE the area, unweighted: weighting it by the kernel again
         // on every noise would sharpen the edges a little each time — the precision for free rule 1
@@ -207,25 +249,23 @@ public sealed class PossibilityMap
         for (int i = 0; i < scratch.Count; i++)
         {
             int node = scratch[i];
-            float d = FlatDistance(graph.Position(node), centre);
+            float d = walked[i];
             float k = d <= r ? 1f : Mathf.Clamp01(1f - (d - r) / spacing);
             kernel.Add(k);
             kernelSum += k;
             if (k > 0f) prior += value[node];
         }
 
+        // The node it was heard at is further than the whole area from the noise itself (a noise
+        // off the edge of the map): that node takes it all.
         if (kernelSum <= 0f)
         {
-            int nearest = graph.FindNearest(centre, r + spacing * 3f, floorBand,
-                                            PossibilityGraph.ENodeKind.Floor, scratch);
-            if (nearest < 0) return false;
-
             scratch.Clear();
-            scratch.Add(nearest);
+            scratch.Add(start);
             kernel.Clear();
             kernel.Add(1f);
             kernelSum = 1f;
-            prior = value[nearest];
+            prior = value[start];
         }
 
         bool keepPrior = HasValue && prior > 1e-4f;
@@ -255,6 +295,144 @@ public sealed class PossibilityMap
         System.Array.Clear(value, 0, value.Length);
         sink = 1f;
         HasValue = true;
+    }
+
+    // ── Walking out from a piece of evidence ─────────────────────────────────
+
+    /// <summary>The caller's start node when it is a floor node, otherwise the nearest floor node
+    /// within <paramref name="maxDistance"/> (plan view, floor band), or -1.</summary>
+    private int StartNode(Vector3 point, int start, float maxDistance, float floorBand)
+    {
+        if (start >= 0 && start < graph.NodeCount && graph.Kind(start) == PossibilityGraph.ENodeKind.Floor)
+            return start;
+
+        return graph.FindNearest(point, maxDistance, floorBand, PossibilityGraph.ENodeKind.Floor, scratch);
+    }
+
+    /// <summary>
+    /// Every node within <paramref name="maxDistance"/> of <paramref name="point"/> measured along
+    /// the open edges, and that distance, into <paramref name="nodes"/> and
+    /// <paramref name="distances"/> (cleared and refilled, same order).
+    ///
+    /// WHERE THE WALK STARTS. At <paramref name="start"/> and at those of its floor neighbours that lie
+    /// within one spacing of the point, each at its own plan-view distance from it — the point is
+    /// somewhere between them, and an edge never crosses a wall, so all of them are on its side.
+    ///
+    /// WHAT STOPS IT: a closed gate (a lift without power, a burned spot), a node outside the floor
+    /// band of the point, and a node the Nemesis is blocking (<see cref="Block"/>) — unless the walk
+    /// starts there: evidence of the player on the monster's own trail is still evidence.
+    ///
+    /// A Dijkstra over the few dozen nodes a noise covers, picking the nearest of the frontier by a
+    /// plain scan: small enough that a heap would only add code.
+    /// </summary>
+    private void CollectAlongEdges(Vector3 point, int start, float maxDistance, float floorBand,
+                                   List<int> nodes, List<float> distances)
+    {
+        nodes.Clear();
+        distances.Clear();
+        ResetWalk();
+        if (start < 0) return;
+
+        float spacing = graph.Spacing;
+        Reach(start, FlatDistance(graph.Position(start), point));
+
+        for (int e = graph.EdgesBegin(start); e < graph.EdgesEnd(start); e++)
+        {
+            int neighbour = graph.EdgeTarget(e);
+            if (!IsGateOpen(graph.EdgeGate(e)) || graph.Kind(neighbour) != PossibilityGraph.ENodeKind.Floor) continue;
+            if (!InBand(neighbour, point, floorBand)) continue;
+
+            float d = FlatDistance(graph.Position(neighbour), point);
+            if (d <= spacing) Reach(neighbour, d);
+        }
+
+        while (walkFrontier.Count > 0)
+        {
+            int best = 0;
+            for (int i = 1; i < walkFrontier.Count; i++)
+                if (walkDistance[walkFrontier[i]] < walkDistance[walkFrontier[best]]) best = i;
+
+            int node = walkFrontier[best];
+            walkFrontier[best] = walkFrontier[walkFrontier.Count - 1];
+            walkFrontier.RemoveAt(walkFrontier.Count - 1);
+
+            float d = walkDistance[node];
+            if (d > maxDistance) break;   // Everything left on the frontier is further still.
+
+            nodes.Add(node);
+            distances.Add(d);
+
+            for (int e = graph.EdgesBegin(node); e < graph.EdgesEnd(node); e++)
+            {
+                if (!IsGateOpen(graph.EdgeGate(e))) continue;
+
+                int next = graph.EdgeTarget(e);
+                if (blocked[next] || !InBand(next, point, floorBand)) continue;
+
+                Reach(next, d + graph.EdgeLength(e));
+            }
+        }
+
+        ResetWalk();
+    }
+
+    /// <summary>Puts a node on the walk's frontier at <paramref name="distance"/>, or shortens the
+    /// distance it already had. A node already taken off the frontier never comes back: its distance
+    /// is final, and anything reaching it later reaches it longer.</summary>
+    private void Reach(int node, float distance)
+    {
+        float known = walkDistance[node];
+        if (distance >= known) return;
+
+        if (float.IsPositiveInfinity(known))
+        {
+            walkTouched.Add(node);
+            walkFrontier.Add(node);
+        }
+
+        walkDistance[node] = distance;
+    }
+
+    private void ResetWalk()
+    {
+        for (int i = 0; i < walkTouched.Count; i++) walkDistance[walkTouched[i]] = float.PositiveInfinity;
+        walkTouched.Clear();
+        walkFrontier.Clear();
+    }
+
+    private bool InBand(int node, Vector3 point, float floorBand) =>
+        Mathf.Abs(graph.Position(node).y - point.y) <= floorBand;
+
+    // ── Where the Nemesis is blocking ────────────────────────────────────────
+
+    /// <summary>Floor nodes currently blocked (<see cref="Block"/>).</summary>
+    public int BlockedCount { get; private set; }
+
+    public bool IsBlocked(int node) => blocked[node];
+
+    /// <summary>
+    /// The Nemesis is standing here, or was a moment ago with the player ahead of it: nobody gets
+    /// through this node without going through it. Value may still LEAVE it, but none enters, and a
+    /// noise's area does not reach through it (<see cref="SeedArea"/>). Only floor nodes: someone can
+    /// be inside a locker the Nemesis walks past. Returns whether it was newly blocked.
+    /// </summary>
+    public bool Block(int node)
+    {
+        if (node < 0 || node >= blocked.Length || blocked[node]) return false;
+        if (graph.Kind(node) != PossibilityGraph.ENodeKind.Floor) return false;
+
+        blocked[node] = true;
+        BlockedCount++;
+        return true;
+    }
+
+    /// <summary>Unblocks everything. The scene component rebuilds the set every tick.</summary>
+    public void ClearBlocks()
+    {
+        if (BlockedCount == 0) return;
+
+        System.Array.Clear(blocked, 0, blocked.Length);
+        BlockedCount = 0;
     }
 
     // ── 2. Spreading ─────────────────────────────────────────────────────────
@@ -325,11 +503,12 @@ public sealed class PossibilityMap
         Swap();
     }
 
-    /// <summary>Zero when the edge's gate is closed; otherwise shorter edges and edges along the
-    /// heading carry more.</summary>
+    /// <summary>Zero when the edge's gate is closed or it leads into a node the Nemesis is blocking;
+    /// otherwise shorter edges and edges along the heading carry more.</summary>
     private float EdgeWeight(int edge, float tilt)
     {
         if (!IsGateOpen(graph.EdgeGate(edge))) return 0f;
+        if (blocked[graph.EdgeTarget(edge)]) return 0f;
 
         float w = graph.Spacing / graph.EdgeLength(edge);
         if (tilt > 0f)

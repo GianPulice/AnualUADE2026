@@ -213,6 +213,29 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     [Tooltip("Seconds the picture takes to drop to black through static when the signal is lost.")]
     [SerializeField, Min(0.01f)] private float signalLostSeconds = 0.6f;
 
+    [Header("Nemesis closing in (NemesisEvents.OnProximityChanged)")]
+    [Tooltip("Part of the picture's blocks that are corrupted at any moment with the Nemesis on top " +
+             "of the player: a block turns into a mosaic, shows the picture from next to it, or " +
+             "goes to rows of black and grey. Everything outside those blocks stays as it is. " +
+             "0 = the picture stays clean. Block size and pace are on PlayerCamera.mat.")]
+    [SerializeField, Range(0f, 1f)] private float threatBlocks = 0.42f;
+
+    [Tooltip("How the disturbance grows with proximity (0 = at the edge of the Nemesis's proximity " +
+             "radius, 1 = on top of the player). 1 = straight; above 1 it stays quiet far away and " +
+             "rises late.")]
+    [SerializeField, Min(0.1f)] private float threatCurve = 1.5f;
+
+    [Tooltip("Part of the overlay's letters that come out as another glyph with the Nemesis on top " +
+             "of the player. The readout's time is never scrambled. 0 = the overlay stays clean.")]
+    [SerializeField, Range(0f, 1f)] private float threatOverlayScramble = 0.35f;
+
+    [Tooltip("On = the feed is only disturbed while the Nemesis is chasing. Off = whenever it is near.")]
+    [SerializeField] private bool threatOnlyWhileChasing = true;
+
+    [Tooltip("Seconds the disturbance takes to come in when it starts (a chase starting, with Only " +
+             "While Chasing) and to clear when it ends. 0 = at once.")]
+    [SerializeField, Min(0f)] private float threatFadeSeconds = 0.4f;
+
     [Header("Cuts")]
     [Tooltip("Static when the feed cuts in: back from another camera (a cinematic shot, a security " +
              "camera) or a skipped wake-up. 0..1.")]
@@ -381,6 +404,11 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     public string RebootTitle => rebootTitle;
     public float SignalLostSeconds => signalLostSeconds;
 
+    public float ThreatBlocks => threatBlocks;
+    public float ThreatCurve => threatCurve;
+    public float ThreatOverlayScramble => threatOverlayScramble;
+    public bool ThreatOnlyWhileChasing => threatOnlyWhileChasing;
+    public float ThreatFadeSeconds => threatFadeSeconds;
     public float CutStatic => cutStatic;
     public float CutStaticSeconds => cutStaticSeconds;
 }

@@ -15,6 +15,7 @@ public static class NemesisEvents
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
+        IsChasing = false;
         OnChaseStarted = null;
         OnChaseEnded = null;
         OnProximityChanged = null;
@@ -33,6 +34,18 @@ public static class NemesisEvents
 
     public static event Action OnChaseStarted;
     public static event Action OnChaseEnded;
+
+    /// <summary>
+    /// The player is being hunted right now: between <see cref="OnChaseStarted"/> and
+    /// <see cref="OnChaseEnded"/>, the same "being chased" set the red vignette and the chase music
+    /// use (Chasing, plus Catch while the capture is unresolved). The pair has no catch-up, so
+    /// something that only needs to ASK — whether looking down is allowed — reads this instead of
+    /// tracking the events itself and missing the half that fired before it existed.
+    ///
+    /// Set by the same two raisers below, so it cannot disagree with the events; and closed by
+    /// <c>NemesisTelemetry.CloseChase</c> when the Nemesis is disabled mid-chase, like the vignette.
+    /// </summary>
+    public static bool IsChasing { get; private set; }
 
     // Normalized value [0,1]: 0 = far away / out of range, 1 = minimum distance.
     // The Nemesis is responsible for computing and raising this event every frame.
@@ -100,8 +113,18 @@ public static class NemesisEvents
     /// </summary>
     public static event Action OnBaselineChanged;
 
-    public static void ChaseStarted()                   => OnChaseStarted?.Invoke();
-    public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
+    public static void ChaseStarted()
+    {
+        IsChasing = true;
+        OnChaseStarted?.Invoke();
+    }
+
+    public static void ChaseEnded()
+    {
+        IsChasing = false;
+        OnChaseEnded?.Invoke();
+    }
+
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
     public static void CaptureResolved()                 => OnCaptureResolved?.Invoke();

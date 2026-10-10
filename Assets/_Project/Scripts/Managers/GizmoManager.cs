@@ -80,7 +80,7 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool footsteps = true;
 
     [Tooltip("Luz y niebla: LightZone, FogBeacon, FogLightBypass, FogLightBypassPlayerFade, " +
-             "VisionRangeController.")]
+             "VisionRangeController, BoxSymbolRevealLight.")]
     [SerializeField] private bool lightAndFog = true;
 
     [Header("Unity")]
@@ -88,7 +88,8 @@ public class GizmoManager : MonoBehaviour
              "hay unos 300 en esta escena.")]
     [SerializeField] private bool colliders = true;
 
-    [Tooltip("Camera y CinemachineCamera: los frustums (las líneas blancas largas) y sus íconos.")]
+    [Tooltip("Camera y CinemachineCamera: los frustums (las líneas blancas largas) y sus íconos. " +
+             "También los volúmenes celestes de la cámara: CameraAreaZone y LookDownTrigger.")]
     [SerializeField] private bool cameras = true;
 
     [Tooltip("Light, ReflectionProbe y LightProbeGroup, con sus íconos.")]
@@ -138,6 +139,7 @@ public class GizmoManager : MonoBehaviour
         {
             typeof(LightZone), typeof(FogBeacon), typeof(FogLightBypass),
             typeof(FogLightBypassPlayerFade), typeof(VisionRangeController),
+            typeof(BoxSymbolRevealLight),
         });
 
         yield return (colliders, new[]
@@ -145,7 +147,7 @@ public class GizmoManager : MonoBehaviour
             typeof(BoxCollider), typeof(SphereCollider), typeof(CapsuleCollider), typeof(MeshCollider),
             typeof(CharacterController),
         });
-        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone) });
+        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone), typeof(LookDownTrigger) });
         yield return (lights, new[] { typeof(Light), typeof(ReflectionProbe), typeof(LightProbeGroup) });
         yield return (audioSources, new[] { typeof(AudioSource), typeof(AudioReverbZone), typeof(AudioListener) });
         yield return (navMesh, new[]

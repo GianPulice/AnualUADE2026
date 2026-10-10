@@ -186,6 +186,9 @@ public class NemesisLookAround : MonoBehaviour
             // the Nemesis just stands there for a second and moves on, and from the outside that
             // says nothing about whether it is about to find you.
             case NemesisStateManager.ENemesisState.Searching:
+                // Not past a player it is looking at: see TryGetChaseAim.
+                if (fieldOfView.HasVisualTarget) return false;
+
                 NemesisSearchingState searching = stateManager.SearchingState;
                 return searching != null && searching.IsPausing;
 
@@ -251,9 +254,16 @@ public class NemesisLookAround : MonoBehaviour
         aim = Vector3.zero;
         kind = EGaze.Body;
 
-        if (stateManager == null ||
-            stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Chasing)
-            return false;
+        if (stateManager == null) return false;
+
+        // A SEARCH THAT SEES THE PLAYER KEEPS ITS EYES ON THEM TOO (05/10). The only way to be
+        // searching with them in view is not being able to walk there ("lo está viendo" takes
+        // everything else), and it used to stand sweeping its gaze past them. The lost-trail half
+        // below stays the chase's alone.
+        bool inChase = stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Chasing;
+        bool watching = stateManager.CurrentStateKey == NemesisStateManager.ENemesisState.Searching &&
+                        fieldOfView.HasVisualTarget;
+        if (!inChase && !watching) return false;
 
         // The one switch for both halves: at 0 the gaze stays welded to the body all chase long,
         // which is what it did before this existed.
@@ -276,6 +286,8 @@ public class NemesisLookAround : MonoBehaviour
             kind = EGaze.OnPlayer;
             return ChaseGaze.TryGetDirectionTo(eye, fieldOfView.LastKnownPosition, out aim);
         }
+
+        if (!inChase) return false;
 
         NemesisChasingState chasing = stateManager.ChasingState;
         NemesisPursuit pursuit = chasing != null ? chasing.Pursuit : null;

@@ -12,115 +12,380 @@
 
 ## Pendiente
 
-Al 28/09/2026, lo que falta, lo más urgente primero. Lo construido está en [✅ Hecho](#-hecho), y el
-detalle de cada fase, en el [§9](#9-fases-de-implementación).
+Al 05/10/2026. **Plan de ejecución a tres semanas (05/10 → 25/10)**, en orden de dependencia.
+Reemplaza la lista del 28/09: lo que seguía vigente de ella está en las etapas F a H, en
+[Falta jugar](#falta-jugar-de-las-fases-ya-construidas) y en [Más adelante](#más-adelante). El
+diagnóstico detrás de cada ítem (causa, archivo y línea, arreglo) está en el
+[§19](#19-rediagnóstico-del-05102026). Lo construido está en [✅ Hecho](#-hecho), y el detalle de
+cada fase, en el [§9](#9-fases-de-implementación).
 
-1. **Fase 2B parte 5 — Limpieza y tests** (lo que sigue): sacar de a uno los parches de
-   `NemesisPursuit` e `Investigating`, el gizmo del radio de la creencia, y los tests de la escalera y
-   la creencia en `WIRED.Nemesis.Logic` (los del árbitro, `FocusArbiterTests`, ya están). →
-   [Fase 2B](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas) ·
-   [§18.6](#186-orden-dentro-de-la-2b)
-2. **[Fase 6](#fase-6--contra-jugadas-desbloqueables) — Contra-jugadas desbloqueables:**
-   `ExitAmbush`, `BurnHidingSpot` (necesita el locker roto), `ChaseFlank` y `ZoneDefense` con
-   `NemesisAmbushPoint`, más el "soltar y emboscar" que quedó de la
-   [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar).
-   `CheckHidingSpots` y `PrioritizeSuspiciousSpots` los reemplaza la 2D. Casos 6 y 8.
-3. **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) — Bajadas entre pisos:** la parte 2
-   (código) está hecha (ver [✅ Hecho](#-hecho)). Falta:
-   - **rehacer el *Drop Lab* como un agujero en el piso** (pedido en el playtest del 28/09): lo que
-     se quería es un agujero en el suelo por el que el Nemesis sólo baja, nunca sube. El lab de hoy
-     baja por el borde de dos entrepisos. El código ya sirve: arranca en el borde del agujero y
-     aterriza abajo, sólo hacia abajo, y el §15.1 ya contaba el hueco en el piso como una opción. Lo
-     que cambia es la geometría: una losa con un agujero y una sala abajo, en vez de los bloques
-     macizos. Un agujero entre pisos mide 2.5–5 m, así que es una `Hang`; la `Hop` sólo sirve para
-     bordes bajos. Falta confirmar si el jugador también puede caer (hoy D9 dice que no). El builder
-     del lab actual (`NemesisTestbedDropLabBuilder`) se borró el 29/09: el agujero va con uno nuevo
-     (el viejo está en git, en `a9980073`, y sirve de base);
-   - la parte 1: apagar *Generate Links* y rebakear, con el editor (D10);
-   - la parte 3: las animaciones del §15.5, y clips propios de golpe de manos e impacto (hoy son
-     provisorios);
-   - jugar los casos 12–16 y 55 en el *Drop Lab* de la testbed (ya armado, ver
-     [✅ Hecho](#-hecho)), y después poner bajadas en la Zona 2.
+> **De dónde sale.** `Plan-Busqueda-Nemesis.md`, el docx del 30/09 y `Logs/fase3-descartada/` se
+> perdieron ([§19.1](#191-qué-se-perdió-y-qué-quedó)). Búsqueda, montacargas y titileo se
+> rediagnosticaron del código el 05/10. WIR-057, WIR-058 y WIR-062 se planifican como rotos, sin
+> esperar a jugar el commit `145eaf5e` (decisión de Iñaki, 05/10).
 
-   → [§15](#15-bajadas-entre-pisos)
-4. **Falta jugar** lo construido, con sus casos del [§13](#13-casos-de-prueba):
-   - [Fase 0](#fase-0--ajustes-sin-código): esperas distintas por waypoint en F9, y las seis zonas
-     del Director en F10.
-   - [Fase 2](#fase-2--el-nemesis-sabe-de-escondites---construida-2109-sin-commitear-falta-jugarla):
-     casos 1–5, 11 y 17–21, en el *Hiding Lab* de la testbed (checklist H-1..H-10) o en `TestIñaki`.
-   - [Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla):
-     casos 34–36 y 38.
-   - [Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
-     no tiene casos propios; entra en "todos los casos de la 2B" de la parte 5.
-   - [Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
-     casos 23, 27, 41 y 42 en la testbed, y el 36 en `TestIñaki`. F9 fila `búsqueda` y el gizmo del
-     barrido.
-   - [Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
-     casos 2, 9, 25, 34 y 43–48. F9: fila `búsqueda` ("tibia s/ventana", "tope", "se enfrió") y fila
-     `presión` (acecho, persistencia, "vuelta en N s"). El 45 (el Hub) en una escena con Hub.
-   - [Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes): perderlo lejos (fuera del
-     oído) y ver que va al último punto, "yendo al último punto" y "tibia (sin contar)" en F9, y las
-     puertas (una al costado del pasillo, cerrársela en la cara, y las selladas del escape).
-   - [Fase 3](#fase-3--contar-sin-reaccionar): casos 10 y 49–54, con F9 abierto (filas `hábitos`,
-     `desbloquea` y `escondites`). Anotar cuántos de cada uno salen por partida, para ajustar los
-     umbrales de `SO_CounterplayRules` con datos. Escondites en `TestIñaki`; la persecución y el *Hide*
-     de F10, en la testbed.
-   - [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar):
-     caso 7. En la testbed, `Column_Loop` no tiene waypoints alrededor: sumar 2–3 o probar en
-     `Cover_Pasillo`.
-   - [Fase 5](#fase-5--tensión-y-ritmo---construida-2209-sin-commitear-falta-jugarla): caso 9, y
-     *Pico de tensión* y *Saltar silencio* en F10.
-   - [Fase 7](#fase-7--escalada-por-puzzles) (28/09): casos 56 y 57 en la testbed, con la sección
-     *ESCALATION* de F10 (*Tier +* / *Tier -* / *Auto*) y la fila `escalada` de F9. En una escena con
-     puzzles, resolver uno tiene que subir el nivel sin tocar F10.
-   - [Fase 8 parte 2](#fase-8--bajadas-entre-pisos-independiente): casos 12–16 y 55, con F9 (fila
-     `bajada`), en el *Drop Lab* de la testbed: al sur de ENTRADA, por la puerta nueva de su pared
-     sur.
-   - [Voz y avisos](#162-lo-que-quedó-abierto) (28/09): caso 58 en el *Hiding Lab* (escondites) y 59
-     en la testbed. *Validate Hiding Spots* ya pasa en la testbed (9 escondites, 29/09); falta en `TestIñaki`.
-   - [Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-     (28/09): casos 22, 24–26, 28–33 y 37 en la testbed, con los señuelos puestos (ya están en la escena), y el 60
-     (F9 fila `foco`: qué, cuánto vale y la pregunta que decidió). El 61 (el Director te oye más
-     lejos caminando) con una presión de F10.
-   - [Fase 2D, la mitad del Nemesis](#fase-2d--memoria-de-escondites-después-de-la-2b) (28/09):
-     casos 35, 39 y 40 en el *Hiding Lab* de la testbed o en `TestIñaki` (escondites). Para el 39, esconderse dos o tres veces en la
-     misma mesa con él cerca, y después hacer ruido en esa zona.
-5. **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
-   - La animación `Pull Out` con el SFX de la puerta (con ella se decide si 0.8 s alcanza). El aviso
-     audible al saber el escondite ya está (28/09, D34), con clip provisorio.
-   - Container en escenas que no hornean `Default`: pasarlo a `Props` o sumar un
-     `NavMeshModifierVolume` ([§14.4](#144-dónde-va-cada-pieza-nueva-del-plan)).
-   - Tests de Play mode: no hay ninguno. Ya hay EditMode en `WIRED.Nemesis.Logic`:
-     - `HabitLedgerTests` y `HidingStayBookTests`, de la Fase 3;
-     - `SearchSweepRulesTests` y `SearchCoolingTests`, de la 2B partes 2 y 3;
-     - `FocusArbiterTests`, de la 2B parte 4;
-     - `EscalationRulesTests`, de la Fase 7;
-     - `DropPathTests`, de la Fase 8.
+Tamaños: **S** menos de 2 h · **M** medio día · **L** un día o más.
 
-     Los de la escalera y la creencia van en la 2B parte 5.
-6. **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
-   - **D1** (captura o persecución al encontrarte escondido): a revisar con playtest y con la Fase 3.
-   - **D14** (detección por la espalda del locker, decidida 2 a 1) y **D17** (clavar la mirada en vez
-     de ir a mirar): a probar en playtest.
-   - **D15** (container dominante): no se toca por ahora; se revisa con los datos de la Fase 3.
-   - **D2** (romper escondites): necesita el arte del locker roto; va con la Fase 6.
-   - **D3** y **D4** (lo aprendido sobrevive a la captura y decae lento): recomendaciones para el
-     tracker de la Fase 3.
-   - **D6** (espiar con la cámara) y **D8** (dificultad seleccionable): recomendaciones sin decidir.
-   - **D9** y **D10** (bajadas): recomendaciones para las partes 1 y 3 de la Fase 8 (D11 y las
-     nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
-     la Fase 8.
-7. **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
-    Zona1, sólo en la cinemática final. La Zona 2 tiene que nacer con su Director armado
-    ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)) y sus rutas validadas; hasta
-    entonces, los §17 y §18 se prueban en la testbed y en `TestIñaki`.
-8. **Sueltos**
-    - Zona1 no tiene escondites puestos ni el blend en su `CinemachineBrain`
-      ([Fase 1](#fase-1--escondites-lado-jugador-prerrequisito---construida-commit-9eba9b46)).
-    - El cue de activación está enganchado (28/09), pero el SO `sfx_nemesis_activacion` sigue sin
-      clip. Lo usan el despertar por puzzle y el escape. Falta un clip propio para el aviso de
-      escondite, que hoy es `voice_chase` provisorio, igual que el gruñido de las bajadas
-      ([§1](#1-los-12-principios-contra-el-código), principio 7).
+Cada etapa se cierra igual:
+
+1. Código y tests EditMode: compila en batch y pasan los tests.
+2. Sus docs: `CLAUDE.md`, `Nemesis-System.md` y sus casos en el [§13](#13-casos-de-prueba).
+3. Una pasada de juego de Iñaki con los casos que lista la etapa. Lo que salga ahí cierra o reabre
+   el ítem.
+
+Todo peldaño nuevo va en `SO_NemesisPriorities.asset` **y** en `BuildDefaultLadder()`, y los enums
+sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede-romper)).
+
+### Semana 1 (05–11/10) — Que busque bien y que no titile
+
+**Etapa A — Preparación** — ✅ hecha el 05/10 (sin commitear; el detalle está en [✅ Hecho](#-hecho))
+
+- Falta sólo mirar una traza nueva después de jugar: las columnas `view_range`, `sight_miss` y
+  `lost_sight_why`, y las filas `sight`.
+- *Tools > Nemesis > Validate Ladder* es desde ahora la primera verificación de las etapas B y D:
+  reproducía el titileo (T1 y T2, arreglados en la etapa B) y reproduce la búsqueda con creencia
+  vieja al bajar del montacargas (M1), que sigue marcada como conocida hasta la etapa D.
+
+**Etapa B — Titileo entre `Chasing` y `Searching`** — ✅ construida y jugada el 05/10 (sin commitear)
+→ [§19.4](#194-titileo-entre-chasing-y-searching)
+
+- **B1, hecho: "todavía sabe dónde está".** Parado en el último punto visto, sigue en `Chasing`
+  mientras el radio de su creencia esté por debajo de `Chase Hold Radius` (3 m) y te haya visto hace
+  menos de `Chase Hold Max Time` (1,2 s). El radio ya es la mezcla que pidió Iñaki (D45): verte lo
+  deja en 0,5 m, un ruido tuyo lo deja según qué tan bien te oyó, y sin nada nuevo crece a 4,5 m/s.
+  Sin oírte aguanta 0,56 s.
+- **B2, hecho: el veredicto de ruta tiene que sostenerse.** `IsBeliefUnreachable` cambia recién
+  cuando la respuesta nueva se mantuvo `Route Verdict Settle Time` (0,75 s, dos consultas seguidas),
+  en los dos sentidos. La primera respuesta después de un rato sin preguntar vale como viene.
+- **B3, cerrado sin tocar nada.** En la sesión de Iñaki del 05/10 (`trace_20261005_143612.csv`, 6,8
+  min) la persecución perdió la vista 27 veces y las 27 fueron `occluded`: se las ganó el jugador
+  tapándose. Ninguna fue `cone` ni `range`, así que la decisión del 04/10 (romper la línea de visión
+  tiene que valer) queda como está.
+- **Jugada el 05/10:** en esa traza no hay ninguna estadía en `Searching` de menos de un segundo, y
+  las dos estadías cortas en `Chasing` son una captura y un estado fijado con F10. Corriendo por el
+  borde del NavMesh lo persigue sin cortar. Lo que salió mal no era titileo: al doblar la esquina
+  salía a buscar para otro lado. Eso pasó a la etapa C.
+- **Respondido por Iñaki (D46):** el ruido no dirige la persecución. Parado en el último punto
+  visto y oyéndote correr, pasa a buscar; no te sigue por el oído.
+
+**Etapa C — Búsqueda** — 🟡 C0–C2 construidas el 05/10 (commit `417ce019`); C3, C5, C6 y C7 el
+07/10 (sin commitear); falta jugarla → [§19.2](#192-búsqueda) y [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062)
+
+- **C0, hecho: al pasar a buscar tira hacia donde ibas** (playtest del 05/10: "cuando doblás la
+  esquina no predice que vas a seguir para adelante"). En la traza, de 7 pases de la persecución a
+  la búsqueda, 3 salieron para un lado que no era el del jugador; en uno estuvo 2,5 s a 6–9 m, sin
+  nada en el medio, fuera de su cono. El primer sorteo dividía por la caminata y los lugares de al
+  lado le ganaban al de adelante. Ahora ese sorteo, y sólo ése, multiplica cada lugar por
+  `Search Map Chase Heading Boost` (4) según qué tan en tu rumbo queda: ×4 adelante, ×1 al costado,
+  ×0,25 atrás. Sigue siendo un sorteo.
+- **C1, hecho: WIR-057, va derecho a tu escondite.** El uso de un escondite se cuenta al **salir**,
+  no al entrar (`PlayerHabitTracker`). Antes, en tu primer escondite el único "usado" era el que
+  estabas ocupando, y la búsqueda lo sorteaba con 25 % por tirada. Es lo que pedía R4 ("no el
+  escondite donde estás"); D23 sigue igual para los escondites que ya usaste.
+- **C2, hecho: búsqueda quieta.** Si te ve y no puede llegar, va hasta lo más cerca que le deja el
+  NavMesh, se queda ahí y te sostiene la mirada (`NemesisSearchingState.TickWatch`,
+  `NemesisLookAround`). Mientras te ve, la búsqueda no se enfría: ya no vuelve a patrullar con vos
+  a la vista. Cumple el [§18.5](#185-modelo-propuesto) A. Cuando te pierde, vuelve a elegir sobre
+  el mapa.
+- **C3, hecho el 07/10 salvo un punto: WIR-062, busca hacia atrás.** Lo principal era C0. Lo que
+  todavía lo podía mandar para atrás:
+  - ✅ un ruido después de perderte sembraba un disco en planta que cruzaba paredes. Ahora el ruido y
+    el avistamiento se siembran por distancia caminando sobre el grafo (`PossibilityMap.CollectAlongEdges`),
+    desde un nodo de arranque que el componente valida con un `NavMesh.Raycast`;
+  - ✅ el mapa limpiaba hasta 7 m aunque la vista sostuviera 14: ahora limpia hasta
+    `EffectiveViewRange` × `Search Map Clear Range Scale`;
+  - sin mapa o sin creencia, reparte puntos al azar: queda. Pasa sólo entrando desde una captura o con
+    un escondite conocido y sin creencia, no al perderte.
+- **C5, hecho el 07/10: el rastro, "la salida que él mismo estaba tapando" (WIR-062).** Mientras
+  persigue, busca o investiga, los nodos a `Search Map Trail Radius` (2 m) de por donde caminó en los
+  últimos `Search Map Trail Memory` (4 s) quedan tapados: el valor no entra y un ruido no los
+  atraviesa. Lo que te oye o te ve dentro de la duda de esa evidencia borra ese tramo. Es nuevo, no
+  estaba en el plan; suma una memoria corta de dónde estuvo, al lado de "mirar es la memoria".
+- **C6, hecho el 07/10: WIR-058 sin montacargas.** Buscando en la pasarela, un ruido tuyo abajo no
+  pasa por `Investigating` ("la búsqueda sigue tibia" va antes que "escucha un ruido"), y los lugares
+  de abajo, lejos por la escalera, no llegaban al umbral de valor ÷ caminata: "revisó todo" en el
+  acto, 6 s parado y a patrullar. Ahora la elección que responde a evidencia nueva, y la primera al
+  salir de `Chasing` o `Traversing`, es una visita debida: alcanza con la parte del valor
+  (`SearchPickRules.TakesPart`), y la caminata pesa sólo en el sorteo.
+- **C7, hecho el 07/10: "lo vio entrar" pide el cono (WIR-057).** Contaba como visto si te había
+  visto hace menos de 0,75 s y tenía línea a la puerta, aunque la puerta quedara al costado o
+  detrás. Ahora la puerta también tiene que estar dentro de `View Angle`.
+- **C4, DIS-002: sin reproducir.** No hay ningún término de distancia en la duración de la
+  investigación. En la traza del 05/10, de 6 investigaciones por ruido, 5 terminaron en menos de
+  2,5 s porque **te vio**, y la que no, duró 10,7 s con sus 4 s de mirar alrededor. Ninguna fue a
+  menos de 4 m (la más cercana, 4,8 m): falta jugar el I-c del checklist para cerrarlo.
+- **Las cuatro reglas de búsqueda**, hoy:
+  - (a) te ve o te oye → va a ese punto: con C6, también lejos y en otro piso a pie; falta el caso
+    con montacargas o bajada (D7); el inalcanzable, con C2. Un ruido vago va a su área, no a su
+    punto (Fase 1, WIR-057): si el reporte pide "el punto" literal, choca con eso;
+  - (b) llega y no te ve → investiga alrededor: se cumple;
+  - (c) te perdió persiguiendo → busca cerca del último punto visto, hacia donde ibas: con C0;
+  - (d) no busca al azar ni hacia atrás: con C0, C3 y C5. "Por donde no pasaste" ahora sí se
+    modela, en corto: su propio rastro de los últimos segundos tapa.
+- **Para decidir (Iñaki):** las causas de WIR-057 que quedan son decisiones, no bugs. Están en el
+  [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
+- **Jugar:** casos 77 a 84 del §13, y 62, 63, 65 y 67, con `Draw Possibility Map` y
+  `Draw Search Pick`. F9 dice "tirando hacia donde ibas" en la fila de la búsqueda cuando el sorteo
+  usó tu rumbo, "se lo debe a lo que sintió" cuando fue una visita debida, y "rastro tapa N" en la
+  fila del mapa.
+
+### Semana 2 (12–18/10) — Pisos, montacargas y escondites por el mapa
+
+**Etapa D — Pisos y montacargas** (≈ 3 días) → [§19.3](#193-pisos-y-montacargas)
+
+En el plan perdido esto era su "Fase 3", que no es la [Fase 3](#fase-3--contar-sin-reaccionar) de
+este plan.
+
+- **D1 (S) Llega y busca sobre una creencia vieja.** El peldaño "venía hacia el montacargas y
+  todavía cree algo" sólo pregunta si hay creencia, y la creencia no vence. Se le suma
+  `BeliefAgeUnder(ElevatorCommitTime)`.
+- **D2 (M) Sólo cruza quien tiene motivo.** Cualquier estado puede pisar el hueco y arrancar un
+  cruce; sólo `NemesisSearchPicker` descarta las rutas con montacargas. Una misma prueba "a pie"
+  para la revisión de escondites y para `Investigating`. Si la patrulla puede viajar es la
+  [decisión 2](#decisiones-de-iñaki-del-0510).
+- **D3 (S) Abandona el viaje por un veredicto que oscila.** Hoy abandona si te ve y "la ruta no
+  cruza pisos", que también da falso cuando la consulta no pudo correr (vos en la cabina en
+  movimiento, o a más de 2 m del NavMesh). Pasa a abandonar sólo con una ruta completa que no
+  cruza, o con la prueba de altura que D30 ya usa en las bajadas.
+- **D4 (M) Se rinde, espera 10 s y vuelve a comprometerse** mientras la causa sigue ahí (vos parado
+  en la cabina). Enfriamiento por hueco que crece y se reinicia con un viaje completo, y la bandera
+  por link en vez de la global.
+- **D5 (M) Ida y vuelta sin tope** (cheese C7). Presupuesto de viajes y después espera en el
+  descanso ([decisión 3](#decisiones-de-iñaki-del-0510)). Un link común sólo suelta el
+  compromiso si el viaje no era de piso. No toca la liberación de D29.
+- **D6 (S–M) Montacargas sin energía.** El Nemesis ignora `ElevatorPower` y lo usa igual
+  ([decisión 4](#decisiones-de-iñaki-del-0510)). `NemesisElevatorLink` pasa a ser dueño de
+  "activo = con energía y no suspendido". Negarlo dentro del cruce crearía el loop de D4.
+- **D7 (M) WIR-058, no va adonde escuchó.** El caso a pie lo cerró C6. Queda cuando la ruta al ruido
+  usa el montacargas o una bajada: al llegar, la única salida de `Traversing` es `Searching`, sobre un mapa que se dispersó
+  durante todo el viaje, y el punto escuchado nunca se visita. Predicado nuevo "venía por un ruido"
+  y peldaño a `Investigating`, y resembrar el mapa al aterrizar. Con escalera sola la regla ya se
+  cumple.
+- **Con el editor:** en la testbed, el link de abordaje de arriba (`End`) sigue sin unir nada.
+- **Sin jugar:** *Validate Ladder* tiene que dejar de marcar M1 (con D1).
+- **Jugar:** G22 a G27 del checklist. Para WIR-058, F9 fila `decisión`.
+- **Queda afuera:** el "asomarse" antes de cambiar de piso (caso 66).
+
+**Etapa E — Escondites por el mapa y patrulla después de la caza** (≈ 2 días) →
+[§19.5](#195-escondites-por-el-mapa-y-patrulla-después-de-la-caza)
+
+Es la tanda 2 del plan perdido, que no llegó a entrar. Reemplaza el sorteo que arregla C1.
+
+- **E1 (S) Fórmula de D38** ([decisión 1](#decisiones-de-iñaki-del-0510)).
+- **E2 Escondites por el mapa:**
+  - la regla pura `Logic/SpotOpenRules.cs`, con sus tests (S);
+  - `NemesisPossibilityMap.ShareInSpot` (S);
+  - el umbral y la escala del hábito en `SO_NemesisData` y su editor (S);
+  - `ConsiderSpotsByMap` en `NemesisHidingAwareness`, en lugar de los tres llamados a
+    `ConsiderUsedSpots`, y afuera `usedSpotsRolled` (M);
+  - F9 y gizmo por escondite (S);
+  - reescribir los casos 6, 39 y 40 (S).
+- **E3 (M) Patrulla después de la caza.** Hoy nada de la patrulla lee el mapa. Valor por cluster
+  (`ShareNear` sobre el centroide), un multiplicador en `NemesisClusterPatrol.PickCluster` sólo
+  durante la caza y su gracia de 45 s, un tunable, una fila en F9 y el test del peso. El retiro de
+  `Relax` del Director tiene que seguir ganando.
+- **E4 (M) Un ruido que no alcanza para investigar reordena la patrulla** (D46, Iñaki, 05/10: "iba a
+  ir por izquierda pero escuchó algo por derecha, entonces va a la derecha"). Hoy cualquier ruido
+  tuyo que oye lo manda a `Investigating` ("escucha un ruido" sólo pregunta `HearsPlayer`): no
+  hay ruido "que no alcanza". Falta decidir cuál es. Toca el mismo `PickCluster` que E3.
+- **Jugar:** 65, 39 y 40 en el *Hiding Lab*, con la fila del mapa en F9. Y una búsqueda que termina
+  vacía: la primera vuelta de patrulla pasa cerca de donde quedó valor.
+
+### Semana 3 (19–25/10) — Deuda del plan, contra-jugadas y documentación
+
+Es el colchón: si las pasadas de juego de las semanas 1 y 2 abren trabajo, se cae primero la etapa
+H, después la G y después la F.
+
+**Etapa F — [Fase 2B parte 5](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
+limpieza y tests** (≈ 2 días) → [§18.6](#186-orden-dentro-de-la-2b)
+
+- Sacar el parche del "punto visto" de `NemesisPursuit` (su motivo de orden,
+  `IsStandingWhereLost`, ya no existe) y el filtro de `Investigating` (S–M).
+- El gizmo del radio de la creencia (S).
+- Tests de la creencia y de la escalera (los del árbitro, `FocusArbiterTests`, ya están).
+  `NemesisBelief` es un `MonoBehaviour` fuera de `WIRED.Nemesis.Logic`: hay que extraer su lógica
+  (L). El replay de la escalera ya está (etapa A, `NemesisLadderValidator`): acá se le suman
+  escenarios.
+
+**Etapa G — [Fase 6](#fase-6--contra-jugadas-desbloqueables): contra-jugadas** (≈ 1 día de lo que
+no está bloqueado) → [§19.7](#197-fase-6-ganchos-y-bloqueos)
+
+- **G1 (S) `ChaseFlank`.** Necesita 2 o 3 waypoints alrededor de `Column_Loop` en la testbed.
+- **G2 (M) `ExitAmbush`.** Después de la etapa E.
+- **Bloqueado por nivel:** `ZoneDefense` y el "soltar y emboscar" que quedó de la
+  [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar)
+  (M–L) necesitan puntos de emboscada puestos a mano. `NemesisAmbushPoint` no existe todavía, y la
+  Zona 2 tampoco.
+- **Bloqueado por arte:** `BurnHidingSpot` necesita el locker roto, su animación y su sonido. El
+  llamado en sí es S. ([decisión 6](#decisiones-de-iñaki-del-0510))
+- `CheckHidingSpots` y `PrioritizeSuspiciousSpots` los reemplaza la 2D, y ahora la etapa E. Casos
+  6 y 8.
+
+**Etapa H — [Fase 8](#fase-8--bajadas-entre-pisos-independiente): bajadas entre pisos** →
+[§15](#15-bajadas-entre-pisos)
+
+- **H1 (M–L) Rehacer el *Drop Lab* como un agujero en el piso** (pedido en el playtest del 28/09):
+  un agujero por el que el Nemesis sólo baja, nunca sube. Una losa con un agujero y una sala abajo,
+  en vez de los bloques macizos. Entre pisos hay 2.5–5 m, así que es una `Hang`; la `Hop` sólo
+  sirve para bordes bajos. El código de la bajada sirve tal cual. El builder del lab actual se borró
+  el 29/09; el viejo está en git (`a9980073`) y sirve de base.
+  ([decisión 5](#decisiones-de-iñaki-del-0510))
+- **H2, con el editor:** apagar *Generate Links* y rebakear (D10).
+- **H3, bloqueado por animación:** los clips del §15.5, y clips propios de golpe de manos e impacto
+  (hoy son provisorios). El controller ya tiene los seis estados (`Drop Look`, `Hop Takeoff`,
+  `Hang Turn`, `Hang Release`, `Fall Loop`, `Land Heavy`), vacíos.
+- **Jugar:** casos 12 a 16 y 55, y después poner bajadas en la Zona 2.
+
+**Etapa I — Documentación y limpieza** (≈ 1 día) → [§19.6](#196-el-plan-contra-el-código)
+
+- `CLAUDE.md` y `Nemesis-System.md` todavía describen el barrido borrado y dan por "siguiente" lo
+  que ya está hecho. La búsqueda por mapa del 04/10 no está documentada en ningún lado.
+- §13: sacar los casos 41 y 42, y corregir los que nombran el barrido o números viejos (1, 2, 6, 7,
+  23, 33, 43, 45 y 52). Los 62 a 71 ya están, reconstruidos del handout.
+- §11: anotar D38, D39 y D40, que hoy sólo están en `CLAUDE.md` y en comentarios del código. D37
+  no aparece en ningún lado.
+- §16.2: la lista de tests nombra uno borrado y le faltan los nuevos.
+- Los comentarios que nombran tipos borrados, listados en el
+  [§19.8](#198-diagnóstico-y-comentarios-viejos).
+- Retirar `Handout-Busqueda-Nemesis.md` cuando todo lo suyo esté acá.
+
+### Decisiones de Iñaki del 05/10
+
+Iñaki tomó las seis recomendaciones. Las cuatro que son de diseño quedaron en el
+[§11](#11-decisiones-abiertas) como D41 a D44.
+
+1. **D41 — D38 con un escondite nunca usado:** el mapa solo puede abrirlo, con un umbral alto. Y
+   `Investigating` deja de sortear escondites.
+2. **D42 — La patrulla puede tomar el montacargas** cuando su ruta lo pide. No se cruza por un
+   escondite sospechado ni por una creencia vieja en el otro piso.
+3. **D43 — Ida y vuelta por el montacargas:** después de dos viajes siguiéndote, se planta a
+   esperarte en el descanso.
+4. **D44 — Montacargas sin energía:** el Nemesis tampoco puede usarlo.
+5. **Agujero en el piso:** se mantiene D9, el jugador no cae.
+6. **Fase 6:** entran sólo `ChaseFlank` y `ExitAmbush`. El resto espera al locker roto y a los
+   puntos de emboscada.
+
+### A decidir jugando
+
+Valores que el trabajo del 04/10 dejó por defecto, más las tres decisiones del docx perdido. No
+bloquean ninguna etapa.
+
+| Qué | Cómo quedó | Con qué se cambia |
+|---|---|---|
+| Vista sin tope | Sostener ×2 y cazar ×2 se apilan con la escalada y el Director: el rango puede pasar los 20 m. | `View Hold Scale`, `View Hunt Scale` y `View Hunt Grow Time` (en 1 se apagan). Un tope sería un tunable nuevo. |
+| "Lo vio entrar" | Vale hasta el rango con el que te estaba viendo (14 m en persecución): esconderte a la vista en un pasillo largo deja de servir. Desde el 07/10 la puerta tiene que estar dentro de su cono (C7). | No tiene tunable. |
+| Rastro (C5) | Lo que caminó en los últimos 4 s, 2 m a cada lado, queda tapado. | `Search Map Trail Memory` y `Search Map Trail Radius` (0 lo apaga). |
+| Visita debida (C6) | Recién oído o visto, un lugar lejos con al menos 1,5 % del valor entra al sorteo. | `Search Map Worth Threshold` (el mismo umbral, pedido a la parte del valor). |
+| Espacios abiertos | Casi no se detiene a mirar, porque descarta lugares de lejos. | `Search Map Repick Share` (en 0 vuelve al ritmo de antes). |
+| "Revisé todo" | Umbral 0,015: la búsqueda termina a los 6–9 s en un hall abierto y a los 10–13 s en pasillo o sala. | `Search Map Worth Threshold`. |
+| "Estanca" | Cuenta en la primera ventana sin progreso, aunque sea una corrida recta y no un loop. | No tiene tunable. |
+| Foco de cerca | A menos de 2,3 m de frente te ve al instante. | Revertir la llamada en `FieldOfView` y `LineOfSight.CheckConeSampled`. |
+| D38 | Decidido: ver la decisión 1 (D41). | Tunables de la etapa E. |
+| Aguante sin verte (etapa B) | Sin oírte, 0,56 s; oyéndote cerca, hasta 1,2 s. Después busca. | `Chase Hold Radius` y `Chase Hold Max Time`. El inspector de `SO_NemesisData` lo dibuja en *Perderlo de vista*. |
+| Veredicto de ruta (etapa B) | Tarda 0,75 s en darse cuenta de que te subiste a un lugar al que no llega, y lo mismo en volver a perseguirte cuando bajás. | `Route Verdict Settle Time` (0 lo apaga). |
+| Vista sostenida (B3) | Cerrado el 05/10: en la traza, las 27 pérdidas de vista en persecución fueron por tapar la línea de visión. | — |
+| Rumbo al pasar a buscar (etapa C) | El primer lugar pesa ×4 hacia donde ibas y ×0,25 hacia atrás. | `Search Map Chase Heading Boost` (1 lo apaga). |
+| Corrida abierta | Hoy siempre te escapás, pero tarda unos 10 s en vez de 2 o 3. | Del docx perdido: sólo queda esta línea. |
+| `PeakFade` | 47 s. | Del docx perdido: sólo queda esta línea. |
+| Hábito desde el primer escape | Sin detalle. | Del docx perdido: sólo queda el nombre. |
+
+### Falta jugar de las fases ya construidas
+
+Con sus casos del [§13](#13-casos-de-prueba). Lo marcado *(cambió)* se juega con la salvedad que
+dice.
+
+- **Búsqueda por mapa (03–04/10):** casos 62, 63, 65 y 67 a 71. Además, en la testbed con F9:
+  - la recta: dejate ver a 6 m y corré. Sigue en `Chasing` hasta unos 14 m y no se frena cuando F9
+    dice ESTANCADO;
+  - la esquina: doblá a 4 o 5 m y seguí corriendo. Llega y sale sin quedarse quieto, y vuelve a
+    verte si seguís en el pasillo;
+  - el sigilo: patrullando te nota a 7 m parado y a 3,5 m agachado;
+  - "estanca": una persecución larga alrededor de una mesa suma 1.
+- **Etapa C, búsqueda (05/10 y 07/10):** casos 77 a 84, y otra vez 62, 63, 65 y 67.
+- **Etapa B, titileo (05/10):** jugada. De los casos 72 a 76 quedó sin probar el 76.
+- [Fase 0](#fase-0--ajustes-sin-código): esperas distintas por waypoint en F9, y las seis zonas
+  del Director en F10.
+- [Fase 2](#fase-2--el-nemesis-sabe-de-escondites---construida-2109-sin-commitear-falta-jugarla):
+  casos 1–5, 11 y 17–21, en el *Hiding Lab* de la testbed (checklist H-1..H-10) o en `TestIñaki`.
+  *(Cambió: en el caso 1, "lo vio entrar" ahora llega a 14 m.)*
+- [Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla):
+  casos 34–36 y 38.
+- [Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
+  no tiene casos propios; entra en "todos los casos de la 2B" de la etapa F.
+- [Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
+  casos 23 y 27 en la testbed, y el 36 en `TestIñaki`. *(Cambió: el barrido se borró. Los casos 41
+  y 42 y el gizmo del barrido ya no aplican; el 23 ahora también vuelve a elegir cuando el lugar
+  pierde valor.)*
+- [Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas):
+  casos 2, 9, 25, 34 y 43–48. F9: fila `búsqueda` ("tibia s/ventana", "se enfrió") y fila
+  `presión` (acecho, persistencia, "vuelta en N s"). El 45 (el Hub) en una escena con Hub.
+  *(Cambió: el tope de 30 s está apagado, `searchHardCap = 0`; el 43 y el 45 no valen como están.)*
+- [Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes): perderlo lejos (fuera del
+  oído) y ver que va al último punto, "tibia (sin contar)" en F9, y las puertas (una al costado del
+  pasillo, cerrársela en la cara, y las selladas del escape). *(Cambió: F9 ya no dice "yendo al
+  último punto"; ahora es `ancla:`.)*
+- [Fase 3](#fase-3--contar-sin-reaccionar): casos 10 y 49–54, con F9 abierto (filas `hábitos`,
+  `desbloquea` y `escondites`). Anotar cuántos de cada uno salen por partida, para ajustar los
+  umbrales de `SO_CounterplayRules` con datos. Escondites en `TestIñaki`; la persecución y el *Hide*
+  de F10, en la testbed. *(Cambió: "estanca" suma 1 por persecución; afecta el 52.)*
+- [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar):
+  caso 7 *(mismo cambio)*. En la testbed, `Column_Loop` no tiene waypoints alrededor: sumar 2–3 o
+  probar en `Cover_Pasillo`.
+- [Fase 5](#fase-5--tensión-y-ritmo---construida-2209-sin-commitear-falta-jugarla): caso 9, y
+  *Pico de tensión* y *Saltar silencio* en F10.
+- [Fase 7](#fase-7--escalada-por-puzzles) (28/09): casos 56 y 57 en la testbed, con la sección
+  *ESCALATION* de F10 (*Tier +* / *Tier -* / *Auto*) y la fila `escalada` de F9. En una escena con
+  puzzles, resolver uno tiene que subir el nivel sin tocar F10.
+- [Fase 8 parte 2](#fase-8--bajadas-entre-pisos-independiente): casos 12–16 y 55, con F9 (fila
+  `bajada`), en el *Drop Lab* de la testbed: al sur de ENTRADA, por la puerta nueva de su pared
+  sur. Hasta que H1 lo rehaga.
+- [Voz y avisos](#162-lo-que-quedó-abierto) (28/09): caso 58 en el *Hiding Lab* (escondites) y 59
+  en la testbed. *Validate Hiding Spots* ya pasa en la testbed (9 escondites, 29/09); falta en
+  `TestIñaki`.
+- [Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
+  (28/09): casos 22, 24–26, 28–33 y 37 en la testbed, con los señuelos puestos (ya están en la
+  escena), y el 60 (F9 fila `foco`: qué, cuánto vale y la pregunta que decidió). El 61 (el Director
+  te oye más lejos caminando) con una presión de F10.
+- [Fase 2D, la mitad del Nemesis](#fase-2d--memoria-de-escondites-después-de-la-2b) (28/09):
+  casos 35, 39 y 40 en el *Hiding Lab* de la testbed o en `TestIñaki` (escondites). Para el 39,
+  esconderse dos o tres veces en la misma mesa con él cerca, y después hacer ruido en esa zona.
+  Valen hasta que la etapa E cambie el sorteo.
+
+### Más adelante
+
+- **El "asomarse" antes de cambiar de piso** (caso 66 del plan perdido): sólo queda el nombre.
+- **La cabeza del modelo no gira con la mirada**, así que no se ve hacia dónde mira en la esquina.
+  Es trabajo de rig.
+- **Lo que quedó abierto del consejo** → [§16.2](#162-lo-que-quedó-abierto)
+  - La animación `Pull Out` con el SFX de la puerta (con ella se decide si 0.8 s alcanza). El aviso
+    audible al saber el escondite ya está (28/09, D34), con clip provisorio.
+  - Container en escenas que no hornean `Default`: pasarlo a `Props` o sumar un
+    `NavMeshModifierVolume` ([§14.4](#144-dónde-va-cada-pieza-nueva-del-plan)).
+  - Tests de Play mode: no hay ninguno. EditMode sí: 14 archivos del Nemesis en
+    `Assets/_Project/Tests/EditMode`. Los de la escalera y la creencia van en la etapa F.
+- **Decisiones abiertas** → [§11](#11-decisiones-abiertas)
+  - **D1** (captura o persecución al encontrarte escondido): a revisar con playtest y con la Fase 3.
+  - **D14** (detección por la espalda del locker, decidida 2 a 1) y **D17** (clavar la mirada en vez
+    de ir a mirar): a probar en playtest.
+  - **D15** (container dominante): no se toca por ahora; se revisa con los datos de la Fase 3.
+  - **D2** (romper escondites): necesita el arte del locker roto; va con la Fase 6.
+  - **D3** y **D4** (lo aprendido sobrevive a la captura y decae lento): recomendaciones para el
+    tracker de la Fase 3.
+  - **D6** (espiar con la cámara) y **D8** (dificultad seleccionable): recomendaciones sin decidir.
+  - **D9** y **D10** (bajadas): recomendaciones para las partes 1 y 3 de la Fase 8 (D11 y las
+    nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
+    la Fase 8.
+- **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
+  Zona1, sólo en la cinemática final. La Zona 2 tiene que nacer con su Director armado
+  ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)) y sus rutas validadas; hasta
+  entonces, los §17 y §18 se prueban en la testbed y en `TestIñaki`.
+- **Sueltos**
+  - Zona1 no tiene escondites puestos ni el blend en su `CinemachineBrain`
+    ([Fase 1](#fase-1--escondites-lado-jugador-prerrequisito---construida-commit-9eba9b46)).
+  - El cue de activación está enganchado (28/09), pero el SO `sfx_nemesis_activacion` sigue sin
+    clip. Lo usan el despertar por puzzle y el escape. Falta un clip propio para el aviso de
+    escondite, que hoy es `voice_chase` provisorio, igual que el gruñido de las bajadas
+    ([§1](#1-los-12-principios-contra-el-código), principio 7).
 
 ---
 
@@ -324,6 +589,86 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   [§14.1](#141-el-director-hoy-estado-en-zona1)
 - ✅ **Mejoras de editor** (22/09): `[PressureZoneId]` y los chequeos del Director en *Validate
   Navigation Setup*. → [§14.5](#145-mejoras-chicas-de-editor-para-hacer-en-el-camino)
+- ✅ **Búsqueda por el mapa de posibilidades** (03–04/10, `00d97c61` y `145eaf5e`). Era el
+  `Plan-Busqueda-Nemesis.md`, que se perdió ([§19.1](#191-qué-se-perdió-y-qué-quedó)); lo que sigue
+  sale del handout y del código. Falta jugarla y documentarla. Incluye:
+  - el oído ya no es un GPS (`HearingLocalization`, D39), y sólo camina al punto de la evidencia
+    cuando el punto significa algo;
+  - el mapa de posibilidades (`PossibilityGraph`, `PossibilityMap`, `NemesisPossibilityMap`) y la
+    búsqueda que elige entre hasta 8 lugares por valor ÷ tiempo de llegada (`NemesisSearchPicker`,
+    `SearchPickRules`). Reemplaza al barrido: `SearchSweepRules`, `NemesisFreeRoam` y `NemesisRooms`
+    se borraron;
+  - la vista adaptativa (`AdaptiveViewRange`): te nota a 7 m, te sostiene hasta 14 m y, si te
+    pierde cazándote, el rango para volver a verte crece de 7 a 14 m en 2 s. Y el sentido de
+    espaldas (`VisionZones`);
+  - la mirada en las esquinas (`ChaseGaze`): al perderte mira 6 m más allá en el rumbo que llevabas;
+  - "estanca" suma 1 por persecución, y un salto de más de 10 m por NavMesh no cuenta
+    (`ChaseStallCounter`, `ChaseGapWindow`);
+  - el foco de cerca: a menos de 2,3 m de frente te ve al instante;
+  - del mismo `00d97c61`, sin documentar: el agarre de la captura, `NemesisArmWallGuard`,
+    `NemesisArmThud` y `ElevatorPower`.
+
+  247 atributos de test EditMode. No entró su tanda 2 (escondites por el mapa y patrulla después de
+  la caza): es la etapa E de [Pendiente](#pendiente).
+- ✅ **Etapa A — Preparación** (05/10, sin commitear). Compila en batch y pasan los 254 tests EditMode
+  (7 nuevos, `SightMissTests`). Falta ver una traza nueva después de jugar. Incluye:
+  - `SO_NemesisData.asset` reserializado: 57 campos nuevos con su valor por defecto y 10 campos
+    muertos menos (los del barrido y la intercepción, ya sin código). Ningún valor existente cambió;
+  - `Draw Possibility Map` prendido en el prefab `Nemesis`;
+  - la traza (`NemesisTraceRecorder`): una fila `sight` cada vez que gana o pierde la vista, y las
+    columnas `view_range` (hasta dónde llegó el barrido, con el agachado), `view_scale`, `view_why`,
+    `crouch`, `hidden`, `breath`, `sight_miss` (por qué no lo ve: `range`, `cone`, `occluded`,
+    `periphery`, `hidden`), `lost_sight_why` y `since_lost_sight`. El motivo lo arma `FieldOfView`
+    con lo que el barrido ya calculó (`SightMiss`, en `WIRED.Nemesis.Logic`), sin rayos extra:
+    `LineOfSight.CheckConeSampled` devuelve además si alguna muestra estaba dentro del cono;
+  - *Tools > Nemesis > Validate Ladder* (`NemesisLadderValidator`, también dentro de *Validate
+    Navigation Setup*): la paridad entre el asset y `BuildDefaultLadder()` (hoy, 22 reglas iguales)
+    y un replay de la escalera real sobre situaciones escritas. Hoy reproduce el titileo T2 (20
+    cambios de estado en 4 s) y T1 (14), y la búsqueda con creencia vieja de M1; van marcados como
+    conocidos hasta las etapas B y D. No hizo falta extraer `NemesisDecision`: expone
+    `IsInsideDwell`, `IsHeldBack` y `ResolveThreshold`, y el replay usa esa misma histéresis.
+- ✅ **Etapa B — Titileo entre `Chasing` y `Searching`** (05/10, sin commitear). Compila en batch,
+  pasan los 263 tests EditMode (9 nuevos, `SettledVerdictTests`) y *Validate Ladder* no reporta
+  problemas. Falta jugarla. Incluye:
+  - el peldaño "todavía sabe dónde está" (el 23.º, en el asset y en `BuildDefaultLadder()`), con dos
+    preguntas nuevas al final de `ENemesisPredicate`: `SightAgeUnder` (hace cuánto lo vio) y
+    `BeliefRadiusUnder` (qué tan seguro está de dónde está, en metros);
+  - `Chase Hold Radius` (3 m) y `Chase Hold Max Time` (1,2 s) en `SO_NemesisData`, como umbrales
+    nuevos de `ENemesisThreshold`;
+  - `SettledVerdict` (`WIRED.Nemesis.Logic`) y `NemesisPathOracle.IsUnreachableSettled`: el veredicto
+    de ruta que lee `IsBeliefUnreachable` tiene que sostenerse `Route Verdict Settle Time` (0,75 s);
+  - la sección *Perderlo de vista* del inspector de `SO_NemesisData`: una línea de tiempo con cuánto
+    aguanta sin verte (sin oírte y oyéndote), el tope, y el veredicto de ruta contra sus consultas;
+    y tres chequeos nuevos;
+  - en el replay del validador: la edad de la última vista, el radio de la creencia y el veredicto
+    de ruta asentado, y cinco escenarios (dos que eran `KnownIssue` y tres de control).
+- ✅ **Etapa C — Búsqueda, primera parte** (05/10, sin commitear). Compila en batch y pasan los 272
+  tests EditMode (9 nuevos en `SearchPickRulesTests`). Falta jugarla. Incluye:
+  - el primer sorteo de la búsqueda después de una persecución tira hacia donde ibas
+    (`SearchPickRules.HeadingAlignment` / `HeadingWeight`, `NemesisSearchPicker.HeadingHint`,
+    `Search Map Chase Heading Boost` en `SO_NemesisData`, con su chequeo en el inspector);
+  - el uso de un escondite se cuenta al salir (WIR-057);
+  - si te ve y no puede llegar, se acerca lo más que puede y te mira (`TickWatch`), y la búsqueda no
+    se enfría mientras te ve.
+
+  Commiteada en `417ce019`.
+- ✅ **Etapa C — Búsqueda, segunda parte** (07/10, sin commitear) → [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
+  Compila (los cuatro ensamblados, con el Roslyn de Unity sobre los `.rsp` de Bee, con el editor
+  abierto) y pasan 280 de 285 tests EditMode corridos fuera de Unity (13 nuevos: 9 en
+  `PossibilityMapTests`, 4 en `SearchPickRulesTests`). Los 5 de `ChaseGazeTests` llaman a
+  `Quaternion.AngleAxis`, que fuera de Unity no corre: fallan igual con la versión anterior. Falta
+  correrlos en el Test Runner y jugarla (casos 80 a 84). Incluye:
+  - C3: el ruido y el avistamiento se siembran por distancia caminando (`PossibilityMap.CollectAlongEdges`,
+    nodo de arranque validado con `NavMesh.Raycast` en `NemesisPossibilityMap.StartNodeFor`), y el
+    "acá no está" limpia hasta `EffectiveViewRange` × `Search Map Clear Range Scale`;
+  - C5: el rastro (`PossibilityMap.Block`, `NemesisPossibilityMap.RecordTrail` / `BlockTrail`,
+    `Search Map Trail Memory` y `Search Map Trail Radius` en `SO_NemesisData` con dos chequeos en el
+    inspector, cuadrados grises en el gizmo del mapa y "rastro tapa N" en F9);
+  - C6: la visita debida (`SearchPickRules.TakesPart`, `NemesisSearchPicker.TryPick(owedVisit)`,
+    `NemesisSearchingState.IsOwedVisit`, "se lo debe a lo que sintió" en F9);
+  - C7: "lo vio entrar" pide el cono (`NemesisHidingAwareness.HandleEntered`).
+
+  Falta de la etapa: jugar el I-c para DIS-002, y las decisiones del §19.9.
 - ✅ **Revisión del consejo** (21/09): cuatro modelos revisaron la Fase 2 y encontraron un bug
   bloqueante, ya corregido. → [§16](#16-revisión-del-consejo-21092026)
 - ✅ **Análisis de percepción y creencia** (27/09). → [§17](#17-percepción-y-creencia)
@@ -333,7 +678,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   la Fase 3 y la Fase 8 parte 2 compila entero, Editor incluido, y pasan los 71 tests EditMode. Se
   midió también el NavMesh de Zona1 y de la testbed ([§18.3](#183-el-director-qué-hace-de-verdad)).
 - ✅ **Decisiones tomadas** en el [§11](#11-decisiones-abiertas): D5, D13, D14, D20, D21, D22 (en el
-  §17.6), D23, D24, D25, D26, D27, D28, D29, D30, D31, D32, D33, D34, D35 y D36. Ya aplicadas, aunque la tabla no las marque: D7 y
+  §17.6), D23, D24, D25, D26, D27, D28, D29, D30, D31, D32, D33, D34, D35, D36 y, del 05/10, D41 a D46. Ya aplicadas, aunque la tabla no las marque: D7 y
   D17 (Fase 2), D18 y D19 (2B parte 1), D11 (Fase 8); D16 la respondió el consejo.
 
 ### Historial
@@ -427,6 +772,7 @@ Las notas de estado que antes abrían el plan, de la más vieja a la más nueva.
 16. [Revisión del consejo (21/09/2026)](#16-revisión-del-consejo-21092026)
 17. [Percepción y creencia](#17-percepción-y-creencia)
 18. [Búsqueda: dónde y cuánto, y el Director](#18-búsqueda-dónde-y-cuánto-y-el-director)
+19. [Rediagnóstico del 05/10/2026](#19-rediagnóstico-del-05102026)
 
 ---
 
@@ -1331,7 +1677,8 @@ puede ir en paralelo con la 1.
 ### Fase 2D — Memoria de escondites *(después de la 2B)*
 - ✅ **Los datos, construidos con la Fase 3 (27/09, sin commitear).** El medidor de uso por escondite
   (D23, [§17.6](#176-los-escondites-en-la-elección)) vive en `PlayerHabitTracker`:
-  - +1 al entrar, y +1 más cuando esa estadía se vuelve escape (R1, D28; ver la
+  - +1 al **salir** (desde el 05/10, WIR-057; antes era al entrar, y el escondite ocupado ya contaba
+    como usado), y +1 más cuando esa estadía se vuelve escape (R1, D28; ver la
     [Fase 3](#fase-3--contar-sin-reaccionar)). "Cazó cerca" es investigar, perseguir o buscar a
     ≤ 8 m por NavMesh, medido cada 0.5 s.
   - −0.1/min desde el primer minuto; sobrevive a la captura (R5).
@@ -1758,6 +2105,13 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D34 | ¿Cuándo suena el aviso de que **sabe** en qué escondite estás (§16.2, D1, D16)? | **Decidido (28/09): cuando el escondite pasa a conocido y el Nemesis está a más de 2 m de su puerta.** Es lo único que, desde adentro, separa "sabe" de "adivina", y el margen de D1 para salir antes de que llegue. Casos: <br>• Te vio entrar, o te distinguió por las rendijas: suena. <br>• Sólo sospecha: no suena. Es justamente la duda que el aviso tiene que distinguir. <br>• Lo sabe ya en la puerta ("lo tiene encima", "lo abrió"): no suena. Abre en el acto, y el golpe es la música al abrir (D13: llega en silencio). <br>Se lee de `KnownHidingSpot` en `NemesisAudio`, sin tocar `NemesisHidingAwareness`. Comparte un enfriamiento de 3 s con "te perdí". Clip provisorio: `voice_chase` a pitch 0.8. |
 | D35 | Una pista (un señuelo) que llega mientras la búsqueda sigue tibia, ¿la saca de buscar? | **Decidido (28/09, 2B parte 4): sí, si el foco pasó a la pista.** El peldaño de la pista ("su atención está en una pista", `FocusIsLead`) va **arriba** de "le queda presupuesto de búsqueda". Antes, `HearsLead` estaba abajo, y con la búsqueda tibia ninguna radio lo sacaba: el caso 31 no podía pasar. No es cualquier pista: antes el árbitro la compara con la creencia, con compromiso, margen y anti-titubeo. Una que no le gana a una búsqueda fresca no cambia el foco, y una que suena donde ya busca "suma" (§17.5) y tampoco. Abajo de "está revisando un escondite": un escondite sospechado le gana a cualquier pista. Y el peldaño "para llegar hay que tomar el montacargas" pide que el foco **no** esté en una pista (revisión del 28/09): si no, tomaba el montacargas hacia la creencia que el árbitro acababa de descartar, y del otro lado la pista lo hacía volver. Un viaje ya empezado se termina igual. |
 | D36 | ¿Cómo suman el vistazo y un ruido suave tuyo (§17.3, caso 26)? | **Decidido (28/09, 2B parte 4): en el mismo medidor, con tope.** Un ruido tuyo suave (sonoridad ≤ `softNoiseLoudness`, 1.5: agachado) que no sale de un escondite sube la sospecha del vistazo a `softNoiseSuspicionRate` (0.6 por tiempo de detección). Sin contacto de reojo, el ruido lo sube sólo hasta `noiseOnlySuspicionCap` (0.9), y nunca lo baja: lo que ya puso el ojo se sostiene mientras sigan los pasos. **Un ruido solo nunca es un avistamiento**, porque el oído no ve. Sí puede pasar el umbral de sospecha y mandarlo a mirar. Con un vistazo en el mismo momento, se llena antes que con cualquiera de los dos solo. |
+| D37–D40 | Del `Plan-Busqueda-Nemesis.md`, que se perdió (§19.1). | D38 (escondites por el mapa), D39 (el oído no es un GPS) y D40 (el ancla de zona ignora al jugador real durante la caza) están en `CLAUDE.md` y en comentarios del código; se pasan a esta tabla en la etapa I. D37 no aparece en ningún lado. |
+| D41 | D38 abre un escondite por "valor del mapa × cuánto lo usaste": ¿y uno que nunca usaste? | **Decidido (05/10): el mapa solo puede abrirlo, con un umbral alto.** `Investigating` deja de sortear escondites. Etapa E. |
+| D42 | ¿La patrulla puede tomar el montacargas sin estar siguiendo nada? | **Decidido (05/10): sí, cuando su ruta lo pide.** No se cruza por un escondite sospechado ni por una creencia vieja en el otro piso. Etapa D. |
+| D43 | Ida y vuelta por el montacargas (cheese C7): ¿hay tope? | **Decidido (05/10): después de dos viajes siguiéndote, se planta a esperar en el descanso.** Etapa D. |
+| D44 | Montacargas sin energía: ¿el Nemesis lo usa igual? | **Decidido (05/10): no puede usarlo, igual que el jugador.** Etapa D. |
+| D45 | ¿De qué depende que la persecución aguante cuando te pierde de vista un instante? | **Decidido (05/10, Iñaki): de una mezcla de la última posición vista, lo último escuchado y la creencia de dónde podrías estar, con el oído pesando menos.** Esa mezcla es el radio de `NemesisBelief`; el peldaño "todavía sabe dónde está" lo compara con `Chase Hold Radius`, con un tope de tiempo sin vista (`Chase Hold Max Time`) porque la persecución sin vista se queda en el último punto visto (§16.4). Etapa B. |
+| D46 | ¿Para qué sirve el ruido del jugador cuando no alcanza para más? | **Decidido (05/10, Iñaki): el ruido no dirige la persecución, y uno que no alcanza para investigar sólo reordena la patrulla** ("iba a ir por izquierda pero escuchó algo por derecha, entonces va a la derecha"). Lo primero ya es así: perdida la vista va al último punto visto y pasa a buscar. Lo segundo es la etapa E4, y falta decidir qué ruido es el que no alcanza: hoy todo ruido oído manda a `Investigating`. |
 
 ---
 
@@ -1925,6 +2279,29 @@ mientras la testbed no tenga escondites. El checklist completo de la testbed, pa
 | 59 | Te pierde, busca y la búsqueda se vence sin encontrarte. | Al volver a patrullar dice "te perdí" (`voice_lost_01/02`) una sola vez, junto con el final de la música (D5). Si antes de patrullar se va a investigar un ruido o una radio, espera a que termine y vuelva a patrullar. Si te encuentra en el medio (`Chasing`/`Catch`), no la dice. |
 | 60 | Testbed con F9 abierto: te pierde, busca, y sacudís las cadenas lejos; después hacé un paso suave cerca. | Fila `foco`: qué atiende (`vos`, `radio`, `alarma`, `cadenas`, `vistazo` o `nada`), cuánto vale, hace cuánto y, en un señuelo, las visitas vacías. Durante 10 s, la última decisión con la pregunta del §17.4 que la tomó, por ejemplo `cambió: cadenas 0.35 > vos 0.12 [11]`, `siguió con cadenas: … [9]` o `ignoró cadenas (0.08) [7]`. Después de revisar un señuelo sin nada, el foco vuelve a `vos` (`soltó cadenas: revisó: nada → vos`), no a `nada`, mientras haya creencia. |
 | 61 | Testbed con una presión del Director sobre tu zona (F10, el botón de la zona) y la escalada en *Auto*: caminá (sin correr) alejándote de él. | Te oye caminando a ~12.5 m en vez de 10: el préstamo de sentidos (×1.25) escala también el radio de tus ruidos, no sólo el tope (D32). Al soltar la presión (*Release*) vuelve a 10 m. |
+| 62 | Pasillo con una sola salida: te persigue y lo perdés de vista adentro del pasillo. Diez veces. | Va al último punto donde te vio y sigue hacia la salida. Nunca vuelve por donde vino. Con `Draw Search Pick`, ningún candidato dibujado detrás de él. *(Reconstruido el 05/10 del handout; WIR-062.)* |
+| 63 | Una T: ibas hacia la izquierda cuando te perdió. Diez veces. | Izquierda la mayoría de las veces; nunca por donde vino. *(Reconstruido el 05/10 del handout.)* |
+| 64 | *(Perdido: estaba en `Plan-Busqueda-Nemesis.md` y el handout no lo nombra. §19.1.)* | — |
+| 65 | Corré hasta un locker que quede dentro de su oído y escondete sin que te vea entrar. | Busca la zona; no va a la puerta del locker. *(Reconstruido el 05/10 del handout; WIR-057.)* |
+| 66 | El "asomarse" antes de cambiar de piso. *(Sólo queda el nombre: era la fase de pisos del plan perdido. Diferido.)* | — |
+| 67 | Metete al Hub en plena búsqueda. | No acampa la puerta. *(Reconstruido el 05/10 del handout.)* |
+| 68 | Te persigue y te pierde de vista. | Entra a `Searching` y sale a buscar sin quedarse 1,2 s parado en el lugar. |
+| 69 | Búsqueda en un espacio abierto: el lugar que eligió queda a la vista de lejos y está vacío. | Elige otro sin caminar hasta ahí. |
+| 70 | Patrullando, sin que te haya visto, hacé un ruido. | El rango de vista no se agranda: un ruido solo no lo sube; hace falta que te haya visto. |
+| 71 | En una persecución, su ruta por el NavMesh da un salto de más de 10 m (una puerta que se cierra, un desvío largo). | No suma "estanca". |
+| 72 | Te persigue hasta donde te vio por última vez y vos entrás y salís de su vista (el marco de una puerta, una columna) cada medio segundo. | Sigue en `Chasing` todo el tiempo. F9 `decisión`: "todavía sabe dónde está" en los huecos; nunca estadías de menos de un segundo en `Searching`. Etapa B, T2. |
+| 73 | Te persigue, doblás una esquina a 4 o 5 m y te quedás quieto y en silencio del otro lado. | Llega a la esquina y pasa a `Searching` enseguida: no se queda parado más de medio segundo. Etapa B. |
+| 74 | Lo mismo, pero seguís corriendo (te oye). | Aguanta en `Chasing` a lo sumo `Chase Hold Max Time` (1,2 s) desde que te perdió de vista y pasa a `Searching`, que sí va hacia donde te oye. No se queda parado en la esquina escuchándote. Etapa B. |
+| 75 | A la vista y con camino, corré pisando el borde del NavMesh (el filo de una pasarela, pegado a una baranda). | Sigue en `Chasing`: una consulta de camino que falla no corta la persecución. En la traza, `state` no alterna `Chasing`/`Searching` con `sees=1`. Etapa B, T1. |
+| 76 | Subite a un lugar al que no llega (el Hub, la escalera de arriba) y dejate ver; después bajá. | Arriba: no te persigue (WIR-018), como antes. Al bajar: tarda unos 0,75 s en volver a `Chasing` (`Route Verdict Settle Time`), no más. Etapa B. |
+| 77 | Te persigue por un pasillo, doblás una esquina y seguís derecho por el pasillo nuevo. Diez veces. | Llega a la esquina y la mayoría de las veces sigue por donde fuiste, sin salir primero para el costado ni volver. F9, fila de la búsqueda: "tirando hacia donde ibas" en la primera tirada. Etapa C0. |
+| 78 | Subite a un lugar al que no llega (una pasarela, el Hub) y quedate a la vista. | No vuelve a patrullar mientras te ve. Camina hasta lo más cerca que puede, se queda ahí y te mira; no barre la mirada de lado a lado ni corre en el lugar. Al taparte, vuelve a buscar. Etapa C2. |
+| 79 | Sin haber usado ningún escondite, hacé que te persiga, cortá la vista y metete en un locker sin que te vea entrar. Diez veces. | Busca la zona y nunca va derecho a la puerta con el motivo "lo usaste antes". F9 `escondites`: el uso del locker aparece recién cuando salís. Etapa C1, WIR-057. |
+| 80 | Pasillo angosto con una sola salida y salas del otro lado de sus paredes: que te persiga, perdelo de vista adentro y seguí corriendo hacia la salida (te oye). Diez veces. | Nunca vuelve por donde vino ni da la vuelta para revisar las salas de al lado. Con `Draw Possibility Map`: ningún valor detrás suyo ni del otro lado de las paredes; cuadrados grises sobre su rastro. F9, fila `mapa`: "rastro tapa N". Etapas C3 y C5, WIR-062. |
+| 81 | Lo mismo, pero después de perderlo volvé por detrás suyo en silencio y hacé un ruido a unos metros de su espalda. | Se da vuelta y busca detrás: el ruido borra ese tramo del rastro. Etapa C5. |
+| 82 | Que te persiga hasta una sala grande y perdelo ahí. | Lo que ya miró de lejos no lo camina: no va hasta el fondo de la sala a revisar algo que vio vacío desde la entrada. F9, fila `mapa`: "limpió … hasta 14 m" mientras te caza (no 7). Etapa C3. |
+| 83 | Que te busque en una pasarela (perdelo de vista ahí) y hacé ruido abajo, donde se llega por la escalera. Diez veces. | Baja por la escalera hacia donde te oyó; no se queda arriba 6 s para después irse a patrullar. F9, fila de la búsqueda: "se lo debe a lo que sintió". Etapa C6, WIR-058. |
+| 84 | Que te persiga, cortá la vista y metete en un locker con la puerta al costado o detrás de él cuando termina de doblar la esquina. | No lo sabe: no va derecho al locker con el motivo "lo vio entrar". Con la puerta de frente y a la vista, sí. Etapa C7, WIR-057. |
 
 ---
 
@@ -3002,3 +3379,569 @@ Fase 3/4: a decidir si una ventana en la que la distancia **creció** es "se esc
 
 Compila (Logic, Assembly-CSharp y tests). Falta jugarlo: casos 41, 42, 43, 45 y 46 del §13 más los de
 esta tabla. En Zona1, la persecución del escape pasa por puertas selladas: ahora son paredes.
+
+---
+
+## 19. Rediagnóstico del 05/10/2026
+
+Por qué existe: el plan de la búsqueda por mapa (`Plan-Busqueda-Nemesis.md`), el docx del 30/09 con
+los cuatro arreglos del montacargas y las tres decisiones abiertas, y el material de
+`Logs/fase3-descartada/` se perdieron. Lo que sigue se reconstruyó leyendo el código de `HEAD`
+(`0b131bec`) y las trazas de `Logs/NemesisTrace/`, sin abrir Unity ni jugar. Es la base del plan de
+[Pendiente](#pendiente).
+
+Cómo leerlo:
+
+- Las rutas son relativas a `Assets/_Project/Scripts/`, y los números de línea, los del 05/10.
+- **Verificado** es "leído en el código"; **inferido** es razonado sin jugarlo.
+- Las trazas son del 27 y 28/09: anteriores al arreglo del montacargas de esa noche, al cambio de
+  la escalera del 03/10 y a la búsqueda nueva del 04/10. Muestran mecanismos, no el comportamiento
+  de hoy.
+- El asset de la escalera y `BuildDefaultLadder()` coinciden hoy: 22 peldaños.
+- Sale de tres análisis de sólo lectura. Se revisaron a mano la causa de WIR-057, los peldaños
+  "lo está viendo", "venía persiguiendo y todavía cree algo" y "venía hacia el montacargas y
+  todavía cree algo", que ningún peldaño lee `VisionLossGracePeriod`, y `ShouldAbandonForPlayer`.
+  El resto no se volvió a comprobar línea por línea.
+
+### 19.1 Qué se perdió y qué quedó
+
+| Material | Estado |
+|---|---|
+| `docs/Plan-Busqueda-Nemesis.md` (fases 1, 2a–2e y 3; casos 62–67; D37–D40) | Nunca se commiteó y no está en disco. Quedan las menciones de `CLAUDE.md`, los comentarios del código y `Handout-Busqueda-Nemesis.md`. |
+| Docx del 30/09 (cuatro arreglos del loop del montacargas y tres decisiones) | No está. Reconstruido en el [§19.3](#193-pisos-y-montacargas). |
+| `Logs/fase3-descartada/` (`titileo.patch`, dos patches de la fase de pisos y cinco archivos nuevos) | `Logs/` está fuera de git y la carpeta ya no existe. Reconstruido en el [§19.4](#194-titileo-entre-chasing-y-searching). |
+| `Logs/nemesis-tanda1-reportes.json`, `nemesis-batch.log`, `nemesis-batch-tests.xml` | No están. |
+
+Se buscó en el repo (todas las ramas y el stash), en Descargas, Escritorio, Documentos, los
+scratchpads de otras sesiones y sus transcripciones.
+
+Lo que el handout daba por hecho o en curso, y cómo está de verdad:
+
+- **La tanda 2 no entró.** `NemesisSearchingState.ConsiderUsedSpots` sigue siendo el sorteo, con el
+  comentario "Fase 2e replaces this roll". →
+  [§19.5](#195-escondites-por-el-mapa-y-patrulla-después-de-la-caza)
+- **La revisión y la documentación no se hicieron.** → [§19.6](#196-el-plan-contra-el-código)
+- **`SO_NemesisData.asset` no se guardó.** Su último commit es del 22/09 (`3d262aef`): no tiene
+  ninguno de los 12 campos de `145eaf5e` ni los cerca de 15 de `00d97c61`.
+- **`Draw Possibility Map` sigue apagado** en `Assets/_Project/Prefabs/Nemesis.prefab`.
+- **Coincide:** los seis archivos nuevos existen, los tres borrados están borrados, y hay 247
+  atributos de test en 15 archivos.
+
+### 19.2 Búsqueda
+
+**WIR-057 — va derecho a tu escondite. Sigue reproducible (verificado).**
+
+- Causa: el sorteo por hábito cuenta la estadía en curso.
+  - `Nemesis/PlayerHabitTracker.cs:182-190` suma un uso al **entrar** al escondite.
+  - `Nemesis/NemesisHidingAwareness.cs:260-285` sortea `OpenChance` (0,25 por punto,
+    `SO_CounterplayRules.asset:39,45`) sobre los escondites usados cerca de la búsqueda.
+  - En el primer escondite de la partida, el único usado es el ocupado: 25 % por tirada de que
+    camine a la puerta y la abra. F9 lo muestra como "lo usaste antes (1.0)".
+  - Se sortea en cada elección de la búsqueda (`NemesisFSM/NemesisSearchingState.cs:224-231, 598,
+    620, 631`, radio 8 m) y al llegar en `Investigating` (`NemesisInvestigatingState.cs:288`, 6 m).
+    Cada entrada de estado limpia el conjunto de ya sorteados (`:448`, `:207`), así que reentrar
+    vuelve a sortear.
+- Arreglo (S): sumar el uso al salir, o excluir la estadía en curso de `OpenChance`.
+- Tests: `HabitLedgerTests.cs:234` cubre sólo la fórmula. Agregar "una estadía en curso no sube
+  `OpenChance`".
+- Choque con el plan: R4 ("no el escondite donde estás") contra la Fase 2D, "+1 al entrar" (D23).
+  El arreglo cumple R4.
+
+Lecturas de la posición real del jugador mientras no lo ve:
+
+| Dónde | Qué lee | Qué es |
+|---|---|---|
+| `PlayerHabitTracker.cs:182-190` + `NemesisHidingAwareness.cs:269, 290-302` | La estadía en curso en el medidor; la posición real habilita la primera apertura por hábito. | Trampa: es WIR-057. |
+| `NemesisController.cs:649` + `NemesisDirector.cs:1160-1178` | El ancla de presión del Director sobre la zona real del jugador, devuelta antes de las guardas de D40 (`:664-666`). | Trampa por diseño, gruesa, sólo cuando está "tranquilo". |
+| `FieldOfListening.cs:322-326, 532-554` | De la posición real al punto percibido, con error ≤ 0,6 × radio: a menos de ~3,3 m el error es ≤ 0,9 m y además cuenta como "preciso" (`NemesisSearchingState.cs:685-693`). | Legítimo (D39). De cerca es casi un GPS. |
+| `FieldOfListening.cs:511-515` + `NemesisHidingAwareness.cs:337-373` | La bandera `IsHidden`; la segunda respiración sospecha del escondite más cercano. | Legítimo por D22, en el límite. |
+| `NemesisHidingAwareness.cs:398-428` | El escondite al que entraste, si te vio hace menos de 0,75 s y tiene línea a la puerta (sin prueba de cono), hasta 14 m. | Legítimo. |
+| `FieldOfView.cs:550-601, 833-857, 889-917` | Proximidad a 1,5 m, rendijas y sentido de espaldas. | Sentidos legítimos. |
+| `NemesisStateManager.cs:922-963`; `NemesisHidingAwareness.cs:194-214` | El alcance del agarre; abrir un escondite. | Legítimo. |
+| Tensión, telemetría, HUD, destrabe y ciclo de vida | No dirigen al Nemesis. | Legítimo. |
+
+**WIR-062 — busca hacia atrás. Probablemente arreglado si sólo te vio; no se puede afirmar sin
+jugar.**
+
+- Un avistamiento siembra un punto con rumbo, y el cono lo limpia
+  (`Nemesis/NemesisPossibilityMap.cs:230-253, 261-300`).
+- No hay una exclusión explícita de "atrás de mí" ni de "por donde vine":
+  `Nemesis/Logic/SearchPickRules.cs:29-35` puntúa valor ÷ (1 + segundos) y nada más. Depende de que
+  el mapa no tenga nada ahí.
+- Los tests lo cubren sólo en una dimensión idealizada: `PossibilityMapTests.cs:55, 78` y
+  `PossibilityZonesTests.cs:82`.
+- Caminos que quedan (verificados):
+  - Un ruido después de la pérdida resiembra un disco ciego a las paredes y sin dirección
+    (`Logic/PossibilityMap.cs:194-249`, `Logic/PossibilityGraph.cs:197-224`). El valor puede caer
+    detrás de él o del otro lado de una pared, y sólo se limpia dentro del cono de 170° o a 1,5 m.
+  - El rango de limpieza es el base, 7 m (`ScriptableScripts/Nemesis/SO_NemesisData.cs:1167`),
+    aunque los ojos sostengan 14 m.
+  - Con el mapa vacío o inalcanzable se queda 6 s parado y pasa a `Patrolling`, que puede volver
+    por donde vino (`NemesisSearchingState.cs:609-622`).
+  - Sin mapa o sin creencia reparte puntos al azar (`:626-631, 957-990`).
+- Arreglo (M): sembrar por distancia en el grafo desde el nodo más cercano, no por radio en planta;
+  opcional, una penalización al valor que queda detrás de la mirada.
+- Tests: un pasillo de dos columnas con la mirada girada 90°; "`SeedArea` a través de una pared no
+  deja nada detrás".
+- Juego: caso 62, diez veces, con `Draw Possibility Map` y `Draw Search Pick`, con ruido y en
+  silencio. Un candidato dibujado detrás de él en `Searching` es un fallo.
+
+**Búsqueda quieta. Sigue reproducible (verificado).**
+
+- "lo está viendo" exige que la creencia sea alcanzable
+  (`ScriptableScripts/Nemesis/SO_NemesisPriorities.cs:199-203`, WIR-018), así que cae a `Searching`.
+- Las zonas inalcanzables valen 0 (`Nemesis/NemesisSearchPicker.cs:317-323`): la búsqueda pasa a
+  *Standing* y vuelve a preguntar cada ~1,2 s (`NemesisSearchingState.cs:602-622, 772-781`),
+  mirando alrededor en vez de mirar al jugador (`NemesisLookAround.cs:188-190`).
+- A los 6 s puede caer a `Patrolling` con el jugador todavía a la vista (`:343-354`).
+- Arreglo (M): en la rama *Standing* con un objetivo a la vista, caminar al final del camino
+  parcial o a un punto con línea de visión (reusar `NemesisPursuit.CanSeeFrom`) y sostener la mirada.
+- Tests: `SearchCoolingTests.cs:142` afirma hoy que inalcanzable = "revisó todo". Partirlo en dos
+  motivos.
+- Con el plan: el [§18.5](#185-modelo-propuesto) A dice que inalcanzable no cuenta como revisado.
+  El arreglo lo cumple.
+
+**DIS-002 — un ruido a menos de 4 m acorta la investigación. Probablemente ya no existe.**
+
+- La duración es `IsInspecting` (`NemesisInvestigatingState.cs:105-121`): una permanencia de 4 s
+  desde que llega, con el cuadro de llegada contado, sostenida por el peldaño de
+  `SO_NemesisPriorities.cs:389-393`; después, la búsqueda de D26 (`:411-415`).
+- No hay ningún término de distancia en ese código.
+- Lo que hay cerca de los 4 m y puede explicar el reporte (inferido):
+  - al entrar gira hacia el ruido (`:539-586`), y un jugador agachado a menos de 7 × 0,5 = 3,5 m
+    queda a la vista en el acto → `Chasing`. Es lo esperado;
+  - la permanencia limpia toda el área escuchada, así que la búsqueda que sigue es quedarse 6 s
+    parado;
+  - `FocusArbiter.NearDistance` (4 m) sólo protege una pista.
+- Test: extraer la regla de permanencia a `Logic`, con "el cuadro de llegada cuenta".
+- Juego: el I-c del checklist.
+
+**Las cuatro reglas de búsqueda, hoy:**
+
+| Regla | Estado | Por qué |
+|---|---|---|
+| (a) Te ve o te oye → va a ese punto | Parcial | Verte lleva a `Chasing`; un ruido en su piso lleva al punto percibido. Desde `Searching` va a una zona de 2,5 m, y al punto sólo si el radio es ≤ 1,5 m. Rota entre pisos (WIR-058) y cuando no puede llegar (búsqueda quieta). |
+| (b) Llega y no te ve → investiga alrededor | Se cumple en el papel | Permanencia y después la búsqueda de D26. En salas abiertas se reduce a quedarse ~6 s parado. |
+| (c) Te perdió persiguiendo → busca cerca del último punto visto | Se cumple en el papel | Corre al último punto visto (`NemesisPursuit.cs:161-170`) y busca sobre el mapa. Un ruido posterior mueve la búsqueda al área escuchada, a propósito. Ya no mira alrededor en el punto donde te perdió. |
+| (d) No busca al azar: hacia donde pudiste escapar, nunca hacia atrás | Parcial | Es un sorteo ponderado, no determinista. "Nunca hacia atrás" sólo emerge del mapa (WIR-062). "Por donde no pasaste" no se modela: el mapa es alcance a 4,5 m/s, no un rastro. |
+
+### 19.3 Pisos y montacargas
+
+Las líneas sin archivo son de `Nemesis/NemesisElevatorUser.cs`.
+
+**WIR-058 — no va adonde escuchó. No lo tocó `145eaf5e`; reproducible cuando la ruta usa el
+montacargas o una bajada (lógica verificada, nivel inferido).**
+
+- El peldaño del montacargas lo manda a `Traversing`
+  (`ScriptableScripts/Nemesis/SO_NemesisPriorities.cs:187-192`).
+- Después de un viaje o una bajada, el compromiso se suelta
+  (`NemesisFSM/NemesisStateManager.cs:207-209`) y la única salida es `Searching`, no
+  `Investigating` (`SO_NemesisPriorities.cs:312-316`).
+- Esa búsqueda sortea sobre un mapa que se dispersó a 4,5 m/s durante todo el viaje
+  (`Nemesis/NemesisPossibilityMap.cs:142-156`): elige una zona cerca del descanso, o se queda
+  parado. Al punto escuchado no se le debe ninguna visita.
+- Causas secundarias (inferidas):
+  - sin un camino completo, el oído cae a distancia en línea recta
+    (`FieldOfListening.cs:671-691`) e `Investigating` camina hasta el final de un camino parcial
+    (`NemesisInvestigatingState.cs:184-192, 591-600`);
+  - un ruido del jugador en otro piso vale ×0,7 frente a una pista
+    (`Logic/FocusArbiter.cs:249-252`);
+  - la creencia funde niveles cuando Δy ≤ 2,5 m (`NemesisBelief.cs:361-365`).
+- Con escalera sola no hay link, `Investigating` va a la creencia y la regla se cumple.
+- Arreglo (M): un predicado nuevo, al final del enum, y un peldaño "venía por un ruido →
+  `Investigating`" en el asset y en `BuildDefaultLadder`; o que `Searching`, cuando viene de
+  `Traversing`, visite primero la creencia. Y resembrar el mapa al aterrizar.
+- Con el plan: §10 (peldaño en los dos lados, enums al final), D29 y D35.
+- Juego: en F9, fila `decisión`, "para llegar hay que tomar el montacargas" seguido de "venía
+  hacia el montacargas…" lo confirma.
+
+**El loop del montacargas: cinco mecanismos, del más probable al menos.**
+
+**M1. Estados que no son de la escalera pisan el hueco; al llegar, busca sobre una creencia vieja.**
+Verificado y con traza.
+
+- `NemesisElevatorUser.Update` (363–424) arranca un cruce para cualquier estado. Sólo
+  `NemesisSearchPicker.SecondsOnFoot` (317–323) descarta las rutas con montacargas.
+  `NemesisPatrolState:114`, `NemesisInvestigatingState:344, 599` y la revisión de escondites
+  (`NemesisSearchingState` 904–915) no.
+- Al llegar, "venía hacia el montacargas y todavía cree algo" (`SO_NemesisPriorities.cs` 312–316)
+  sólo pregunta `HasBelief`, que nunca vence.
+- `trace_20260928_182056.csv`, t=11.8 y 151.6: `Patrolling`→`Traversing` con la creencia a edad
+  infinita / 31 s, y después `Searching` a los 20 s. `trace_20260928_184032.csv`, t=215–217:
+  `Searching`↔`Traversing` cada 0,5 s sobre la puerta de la cabina (un link común).
+- Cómo se ve: que te sienta una vez y quedate en silencio; la patrulla viaja, busca en el descanso
+  y vuelve. O un locker sospechado en el otro piso.
+- Arreglo: (S) sumar `BeliefAgeUnder(ElevatorCommitTime)` a ese peldaño, sin enum nuevo; (M) una
+  sola prueba "a pie" compartida por la revisión de escondites e `Investigating`, y decidir si la
+  patrulla puede viajar.
+
+**M2. El viaje se abandona por un veredicto que se da vuelta.** Verificado; D30 ya describe la
+falla.
+
+- `ShouldAbandonForPlayer` (486–492) es "lo ve && !`RouteToBeliefCrossesFloors`". Eso también es
+  falso cuando la consulta no puede correr (`NemesisFSM/NemesisDecision.cs` 222–231): el jugador en
+  una cabina en movimiento (el NavMesh de la cabina está apagado,
+  `Environment/ElevatorCabinNavMesh.cs` 537–548) o a más de 2 m del NavMesh.
+- D30 pasó la bajada a una prueba de altura (`IsPlayerUpHere`, 887–893) porque este veredicto
+  oscila sobre un link. El montacargas quedó con el veredicto viejo.
+- Cada falso positivo corre `AbandonElevator` (566–580): el hueco apagado 10 s, y después vuelve a
+  comprometerse.
+- Cómo se ve: G23, viajar en la cabina a la vista mientras él espera en el descanso.
+- Arreglo (S): abandonar sólo con una ruta completa que no cruza pisos, o reusar la prueba de
+  altura de D30.
+
+**M3. Se rinde, espera 10 s y vuelve a comprometerse, mientras la causa sigue.** Verificado.
+
+- El peldaño de entrada (187–192) no tiene memoria. `HasGivenUpOnElevator` sólo bloquea el peldaño
+  de sostén (174–180) y es una bandera global (`NemesisStateManager.cs` 207–209).
+- Un jugador parado en la cabina la deja en `WaitingForExit`
+  (`Environment/MovingPlatform.cs` 242–257, 511–526): la espera vence a los 20 s (1694–1706),
+  abandona, el link vuelve (592–604), y se repite. Valores del asset: espera 20, enfriamiento 10,
+  compromiso 12.
+- Cómo se ve: subir, quedarse en la cabina haciendo ruido.
+- Arreglo (M): enfriamiento por hueco que crece y se reinicia con un viaje completo; bandera por
+  link.
+
+**M4. Ida y vuelta sin tope.** Verificado en el código; que haga loop jugando es inferido.
+
+- Después de un viaje hay 0,5 s de `HasJustEndedRide` (1280) y el destino restaurado (1276). Si la
+  ruta sigue cruzando, `Traversing` no sale nunca y el peldaño de compromiso lo vuelve a fijar (el
+  reloj del estado no se reinicia). El cheese C7 del plan está sólo en "vigilar".
+- Los links comunes sueltan el compromiso sin condición (693), también a mitad del acercamiento.
+- Cómo se ve: G27, alternar de piso por la escalera.
+- Arreglo (M): presupuesto de viajes y después emboscada en el descanso (C7); soltar en un link
+  común sólo si el viaje no era de piso.
+
+**M5. Montacargas sin energía.** Verificado: el Nemesis ignora `ElevatorPower` (no aparece en
+`NemesisElevatorUser`, `NemesisElevatorLink`, `NemesisNav` ni `RequestRide`), mientras que
+`NemesisPossibilityMap.cs` 207–214 sí cierra el montacargas para el mapa. Hoy no es un loop. El
+arreglo ingenuo (negarse dentro del cruce) crearía un M3 cada 10 s. Arreglo (S–M):
+`NemesisElevatorLink` es dueño de `activated = powered && !suspended`.
+
+**Revisado, sin loop:** la cabina fuera de su piso y el plan B están cubiertos
+(`BringCabinHereAsync` 1332–1362, `WrongFloorAfterStepOff`). La búsqueda nueva excluye el hueco en
+sus elecciones y en la dispersión, pero no la puerta de la cabina ni la revisión de escondites.
+
+**Reglas del §10 que tocan estos arreglos:**
+
+- Todo entra como peldaños o predicados (un solo votante), en el asset y en `BuildDefaultLadder()`.
+- Los miembros nuevos de los enums van después de `FocusIsLead` (22) y de `SearchQuietWindow`.
+- Las pruebas "a pie" pasan por `NemesisNav`.
+- Ya hay warps que saltean `WarpTo`: `TryWarpNear` (1776–1783) y
+  `MovingPlatform.DropLooseRiders` (456–482). No sumar más.
+- M2 sigue a D30; M4 tiene que conservar la liberación de D29.
+
+### 19.4 Titileo entre Chasing y Searching
+
+**Las condiciones, hoy (verificado):**
+
+- A `Chasing`: "lo está viendo" (`SO_NemesisPriorities.cs` 199–203), que interrumpe y no tiene
+  permanencia mínima. Es la bandera cruda del barrido de 0,1 s (`Nemesis/FieldOfView.cs` 801–809,
+  sin antirrebote) && !`IsBeliefUnreachable`.
+- A `Searching`: "venía persiguiendo y todavía cree algo" (306–310), en cuanto falla "va a donde
+  lo vio" (229–240: !`HasArrived`, edad < 10, !`Unreachable`). Sólo aplica `MinimumStateDwell`,
+  0,35 s (`NemesisFSM/NemesisDecision.cs` 416–419, 541–552).
+- La única pista del arreglo perdido: `00d97c61` agregó `Not(SeesPlayer)` al compromiso de 0,5 s de
+  la búsqueda (115–120), o sea que sacó el freno del lado de la búsqueda.
+- `VisionLossGracePeriod` (2,5 s) no lo lee ningún peldaño: sólo `NemesisChaseProgress.cs:443`. El
+  texto de `Editor/SO_NemesisDataEditor.cs:948` que dice lo contrario quedó viejo.
+
+**T1. `IsBeliefUnreachable` aletea y corta los dos peldaños de persecución sin margen.** Con traza.
+
+- `trace_20260928_221019.csv`, t=11.23, 14.30 y 33.68: `Chasing` dura exactamente 0,35 s con
+  `sees=1` ("esperando la histéresis", y después `Searching`). Lo mismo en el montacargas:
+  `trace_20260928_184624.csv`, t=97.75.
+- De dónde sale: el oráculo reusa cualquier respuesta a menos de 2,5 m durante 0,4 s
+  (`Nemesis/NemesisPathOracle.cs` 83, 141–146); el ajuste de 2 m (`Nemesis/NemesisNav.cs` 167–168);
+  y "no pude consultar = inalcanzable" (`NemesisDecision.cs` 253–263). No se determinó por qué la
+  creencia daba inalcanzable en esa traza.
+- El checklist nombra este loop en S3-b. Cómo se ve: S3-a y S3-b, la puerta de G20, el jugador en
+  la cabina.
+- Arreglo (S–M): un "inalcanzable" calificado por tiempo (predicado nuevo, al final) o un
+  antirrebote dentro del oráculo.
+
+**T2. No hay gracia del lado de la persecución.** Con traza.
+
+- En el último punto visto (`HasArrived`), un barrido perdido termina la persecución en 0,35 s, y
+  la reentrada es instantánea.
+- `trace_20260928_182056.csv`, t=109–114: le quedaban ≈ 0,59 m en cada salida, con estadías en
+  `Searching` de exactamente 0,50 s (el freno que después se sacó).
+- Arreglo (S): un peldaño `InState(Chasing) && BeliefAgeUnder(VisionLossGracePeriod) &&
+  !Unreachable`, debajo de "sabe en qué escondite está" ([§3.5](#35-cómo-se-expresa-en-el-fsm--sin-estado-nuevo)).
+
+**T3. `AdaptiveViewRange` (131–152) cae de 14 a 7 m con un barrido perdido.** Inferido.
+
+- Entre 7 y 14 m eso son (d/7 − 1) · 2 s de ceguera. Hace titilar la vista, no el estado, pero
+  alimenta T1 y T2.
+- Arreglo (S): un decaimiento corto del rango sostenido. Cambia el test `LosingSight_DropsToTheBase`.
+
+**Cómo quedó (05/10, etapa B).**
+
+- **T2 no se arregló como decía arriba.** `BeliefAgeUnder(VisionLossGracePeriod)` habría estado mal:
+  la edad de la creencia la renuevan tus propios pasos, y una persecución sin vista va al último
+  punto donde te **vio** y se queda ahí (`NemesisPursuit`, §16.4). Con esa regla se quedaba parado
+  en la esquina todo el tiempo que te oyera correr. Iñaki pidió que el aguante dependa de una mezcla
+  de la última posición vista, lo último escuchado y la creencia de dónde podrías estar, con el oído
+  pesando menos (D45). Esa mezcla ya existe y tiene un número: el radio de `NemesisBelief`. El
+  peldaño "todavía sabe dónde está" lo compara con `Chase Hold Radius`, y `Chase Hold Max Time`,
+  contado desde la última **vista**, es el tope que impide que el oído solo sostenga la persecución.
+- **T1 se arregló en el oráculo, en los dos sentidos.** `SettledVerdict` cambia de respuesta recién
+  cuando la nueva se sostuvo `Route Verdict Settle Time`. La primera después de un rato sin preguntar
+  vale como viene: un Nemesis que recién te ve en un lugar inalcanzable no te persigue 0,75 s antes
+  de darse cuenta.
+- **T3 no se tocó.** Que el rango caiga a la base al perder la vista es una decisión del 04/10
+  (romper la línea de visión le da al jugador los 2 s que tarda en volver a crecer). Con la traza
+  nueva se ve si las pérdidas en persecución son `cone` u `occluded`/`range`.
+
+**Tests.** Existen los de `AdaptiveViewRange`, `ChaseProgress` (`ChaseGapWindow`), `ChaseGaze`,
+`VisionZones`, `SearchCooling`, `SearchPickRules`, `PossibilityMap`/`Zones` y `DropPath`. Ninguno
+mira la escalera, el oráculo ni `NemesisElevatorUser`. A agregar: un replay de la escalera sobre
+secuencias de predicados (ningún A→B→A dentro de N s), la paridad entre el asset y los valores por
+defecto, las reglas puras de abandonar / enfriar / soltar, y el antirrebote del oráculo.
+
+### 19.5 Escondites por el mapa y patrulla después de la caza
+
+Es la tanda 2 del plan perdido (sus fases 2e y 2d). No hay nada de su código en el repo.
+
+**2e — Escondites por el mapa (D38)**
+
+Lo que ya existe (verificado):
+
+- Un nodo y una compuerta por escondite: `Nemesis/NemesisPossibilityGraphBuilder.cs:389`.
+- La salida lenta, ×0,1 (`Logic/PossibilityMap.cs:56, 312`). La vista nunca limpia un escondite
+  (`:345`); sólo `Open` (`NemesisPossibilityMap.cs:302`, alimentado por
+  `NemesisHidingAwareness.SpotOpened`).
+- Los escondites no entran en las zonas de búsqueda (`IsSearchable`, `PossibilityMap.cs:502`). F9
+  muestra sólo el total, "escondites %".
+- El consumidor está completo: `SpotToCheck` → `NemesisSearchingState.TickSpotCheck:856` → `Open`
+  → `MarkChecked`.
+- El lado del hábito: `PlayerHabitTracker.GetSpotUsage` / `OpenChance:485-491`,
+  `CollectUsedSpots:510`, y la compuerta de R3 dentro de
+  `NemesisHidingAwareness.ConsiderUsedSpots:260`.
+- Sigue siendo el sorteo: `NemesisSearchingState.ConsiderUsedSpots:224` (llamado en 598, 620 y 631)
+  y `NemesisInvestigatingState.cs:288`.
+
+Lo que falta (verificado):
+
+- Un acceso al valor por escondite (`nodeOfSpot` es privado, `NemesisPossibilityMap.cs:60`).
+- La regla pura y sus tests.
+- Tunables: `SO_NemesisData` tiene 11 campos `searchMap*` y ninguno para escondites.
+- Una entrada pública para sospechar por el mapa (`Suspect` es privado,
+  `NemesisHidingAwareness.cs:453`).
+- F9 y gizmo por escondite.
+
+Pasos:
+
+1. La fórmula, decidida el 05/10 (D41): el mapa solo puede abrir un escondite nunca usado, con un
+   umbral alto, e `Investigating` deja de sortear.
+2. `Logic/SpotOpenRules.cs` y sus tests (S).
+3. `NemesisPossibilityMap.ShareInSpot` (S).
+4. El umbral y la escala del hábito en el SO, y `SO_NemesisDataEditor` (S).
+5. `ConsiderSpotsByMap` en `NemesisHidingAwareness`, reusando el `habitSpot` / `MarkRun` de R3;
+   reemplazar los tres llamados y sacar `usedSpotsRolled` (M).
+6. F9 y gizmo (S).
+7. Reescribir los casos 6, 39 y 40 (S).
+
+**2d — Patrulla después de la caza**
+
+Lo que ya existe (verificado):
+
+- `NemesisSearchingState.ExitState:485` llama a `RequestNearbyPatrol`, de un solo uso, que
+  `NemesisController.BeginPatrolCycle:327` consume como `preferNeighbours`.
+- `NemesisClusterPatrol.PickCluster:533` pondera: peso de la ruta × sesgo por el punto de la
+  creencia (decae con `BeliefFreshness`) × ancla de zona × sesgo de vecinos × recencia.
+- El ancla de zona ignora al jugador real durante una caza más `HuntGraceSeconds`, 45 s (D40,
+  `NemesisController.cs:255, 660-666`).
+- Replanifica cada `RouteReplanInterval`.
+- El "vuelve a pasar" del Director (`NemesisDirector.cs:1207-1278`, sólo en *BuildUp*, 20–40 s
+  después).
+- El mapa sigue corriendo en todos los estados (`NemesisStateManager.cs:1511`); la creencia sólo
+  se olvida en la captura y el respawn.
+
+Lo que falta (verificado): nada del controller, de la patrulla por clusters ni del grafo de rutas
+lee el mapa.
+
+Pasos (M en total, independiente de la 2e):
+
+1. Valor por cluster con el `NemesisPossibilityMap.ShareNear:327` que ya existe, sobre el centroide.
+2. Un multiplicador en `PickCluster:558-599`, y el ancla del prefiltro (`:548`) puesta en
+   `TryGetBest`. Se le pasan números sueltos, para que la clase siga sin conocer sensores.
+3. Llenarlo en `BuildClusterSettings:605` sólo mientras `IsInHuntOrGrace`, apagándose.
+4. La fuerza en el SO y una fila en F9.
+5. El test del peso, puro.
+
+Salvedades:
+
+- (Inferido) El mapa se dispersa a 4,5 m/s: a los ~20–30 s está casi plano, salvo dentro de los
+  escondites. El sesgo pesa en la primera vuelta o dos, y el residuo ata la 2d a la 2e.
+- El retiro de *Relax* del Director tiene que seguir ganando.
+- El comentario de `NemesisController.cs:292-294` ("NOT biased towards staying nearby") contradice
+  el código de `:327`.
+
+### 19.6 El plan contra el código
+
+**La lista de Pendiente del 28/09, ítem por ítem:**
+
+| Ítem | Estado |
+|---|---|
+| 1. 2B parte 5 | **Cambió.** El parche del "punto visto" de `NemesisPursuit` sigue (`:149-170`), pero su motivo de orden (`IsStandingWhereLost`) ya no existe. El filtro de `Investigating` sigue (`:459-460`). No hay gizmo del radio de la creencia ni tests de la creencia o de la escalera; `NemesisBelief` es un `MonoBehaviour` fuera de `WIRED.Nemesis.Logic` y hay que extraerlo (L). |
+| 2. Fase 6 | Vigente. Ver el [§19.7](#197-fase-6-ganchos-y-bloqueos). |
+| 3. Fase 8 | Vigente. Dato nuevo: `Art/Models/Characters/Nemesis/New/NemesisController.controller` ya tiene `Drop Look`, `Hop Takeoff`, `Hang Turn`, `Hang Release`, `Fall Loop` y `Land Heavy`, todos sin clip. |
+| 4. Falta jugar | 2B parte 2, **obsoleta** ("gizmo del barrido", casos 41 y 42). Arreglos del 27/09: el texto de F9 "yendo al último punto" ya no existe (ahora es `ancla:`). 2B parte 3: el "tope" está apagado (`searchHardCap = 0`, `SO_NemesisData.cs:848`). Fases 3 y 4: "estanca" ahora suma 1 por persecución. La mitad de la 2D vale hasta la 2e. El resto, vigente. |
+| 5. §16.2 | La lista de tests nombra el borrado `SearchSweepRulesTests` y le faltan 9 archivos nuevos; la viñeta de `NemesisFreeRoam.AddSampledPoints` ya no aplica. `Pull Out`, el bake del container y los tests de Play mode siguen vigentes. |
+| 6. Decisiones | Vigente. D38 (sin confirmar), D39 y D40 faltan en el §11; D37 no existe en ningún lado. |
+| 7 y 8. Zona 2 y sueltos | Vigentes (inferido: no se volvió a mirar en las escenas). |
+
+**Casos del §13 que describen comportamiento borrado:**
+
+- Obsoletos: 41 y 42.
+- Con texto o números viejos: 2 y 33 (el barrido); 6 (superado); 23 (ahora también vuelve a elegir
+  cuando el lugar pierde valor); 43 y 45 (el tope de 30 s); 7 y 52 (una "estanca" por ventana); 1
+  ("lo vio entrar" ahora llega a 14 m).
+- Los 62 a 67 no estaban: se agregaron el 05/10, reconstruidos del handout. El 64 se perdió del
+  todo y el 66 quedó sólo con el nombre.
+
+**Lo que el plan no menciona en ningún lado** (cero resultados al buscar):
+
+- El mapa de posibilidades entero y `NemesisSearchPicker`.
+- `AdaptiveViewRange` (sostener ×2, cazar ×2 en 2 s), `VisionZones` (el sentido de espaldas),
+  `ChaseGaze`, `ChaseGapWindow` y `ChaseStallCounter`.
+- `HearingLocalization`, `MayVisitEvidence`, `IsInvestigationWarm` y `HuntGraceSeconds`.
+- De `00d97c61`: el agarre de la captura, `NemesisArmWallGuard`, `NemesisArmThud` y `ElevatorPower`.
+
+**Los otros docs:**
+
+- `CLAUDE.md` no es la verdad para la búsqueda: las líneas 1475–1501, 1522 y 1558–1621 todavía
+  documentan el disco borrado (`SearchSweepRules`, `NemesisFreeRoam`); la 1703 dice "Fase 2a: it
+  only watches", y las 1728–1730 listan las fases 2b–2e como "Next". También 365 y 1311–1312.
+- `Nemesis-System.md`: 226–233 y 241.
+- `Checklist-NemesisTestbed.md`: 71, 148, 157, 227, 311–312, 350–351 y 390.
+- Este plan, por sección y no por línea (las líneas se corren con cada edición): dos menciones en
+  ✅ Hecho, una en la Fase 2D del §9, tres en el §12 y una en el §16.2. Se encuentran buscando
+  `SearchSweepRules`, `NemesisFreeRoam` y "barrido".
+
+### 19.7 Fase 6: ganchos y bloqueos
+
+Ganchos que ya existen (verificado):
+
+- `ECounterplay` (6 valores) y las filas de `SO_CounterplayRules`: `ExitAmbush` a los 3 escapes
+  escondido, `ChaseFlank` a 1 "estanca", `ZoneDefense` a 2 "estanca" o 2 escapes por el Hub.
+- `PlayerHabitTracker.IsUnlocked` / `CounterplayChance` / `HasRun` / `MarkRun` (`:544-555`). El
+  único que lee es `NemesisDebugHUD.cs:1066`; el único que llama a `MarkRun` es
+  `NemesisHidingAwareness.cs:206`.
+- `IsChaseStagnant` sólo lo lee `NemesisPursuit.Replan:391`. El predicado de índice 12 no lo usa
+  ningún peldaño, ni en los valores por defecto ni en `SO_NemesisPriorities.asset`.
+- `OnChaseStalled` sólo llega al tracker.
+- `HidingSpot.Burn()` (`:508`) no tiene ningún llamador.
+- `NemesisAmbushPoint` no existe.
+
+| Contra-jugada | Trabajo | Bloqueada por |
+|---|---|---|
+| `ChaseFlank` | S: sumar con un OR una bandera armada en `:391`, sorteada al empezar la persecución. | Waypoints alrededor de `Column_Loop` en la testbed (nivel, S). |
+| `ExitAmbush` | M: una fase final o un peldaño nuevo, un punto de espera con línea al `ExitPose`, 8–15 s. | Nada de arte. Mejor después de la 2e. |
+| Soltar y emboscar + `ZoneDefense` | M–L: componente nuevo, validador, familia en `GizmoManager`, un peldaño sobre `IsChaseStagnant` y una fuente de presión del Director. | Puntos de emboscada puestos a mano (nivel; la Zona 2 no existe). |
+| `BurnHidingSpot` | El llamado, S. | El modelo del locker roto, la animación y el SFX; `HidingSpot` no tiene cambio de visual. |
+
+También bloqueado por arte: `Pull Out` (no hay estado en el Animator), los clips de las bajadas, la
+mirada en el rig de la cabeza y los clips de voz. La 2B parte 5 es sólo código.
+
+### 19.8 Diagnóstico y comentarios viejos
+
+**`Nemesis/NemesisTraceRecorder.cs`.** Columnas de hoy (`:159-163`): `time`, `kind`, `state`,
+`time_in_state`, `rung`, `reason`, `gait`, `sees`, `hears`, `suspicious`, `awareness`,
+`belief_age`, `belief_from`, `dist_belief`, `dist_player`, `player_dy`, `agent_ready`,
+`path_pending`, `has_path`, `path_status`, `remaining`, `agent_speed_now`, `net_flat_speed`,
+`agent_speed_cmd`, `using_lift`, `chase_stagnant`, `repaths`, `warps`, `x`, `y`, `z`.
+
+Lo que falta y dónde vive:
+
+- **Rango efectivo:** `FieldOfView.EffectiveViewRange:121`, `ViewRangeScale:126` y
+  `ViewRangeReason:130` son públicos. El valor partido por estar agachado es una variable local
+  (`:727-733`).
+- **Agachado:** `PlayerStateManager.IsCrouch:82` (también `IsHidden` e `IsHoldingBreath:156`).
+- **Causa de la pérdida de vista:** no se guarda en ningún lado. `FindVisibleTargets:690-820`
+  descarta candidatos en silencio: escondido (`:705`), rango (`:746`), y cono y oclusión juntos en
+  un solo booleano (`:760`, `LineOfSight.CheckConeSampled`). Necesita un enum de motivo, escrito en
+  el flanco (S–M). El recorder no tiene que tirar rayos.
+
+**Comentarios que nombran tipos borrados** (`NemesisRooms`, `NemesisFreeRoam`, `SearchSweepRules`,
+el barrido):
+
+- `Editor/Nemesis/NemesisTestbedHidingLabBuilder.cs:17, 48, 526`
+- `Nemesis/NemesisDebugHUD.cs:267-268, 277-278`
+- `Nemesis/NemesisFSM/NemesisStateManager.cs:751, 1757` (el enum vivo `FreeRoam`) y `:1510`
+- `Nemesis/NemesisController.cs:292-294, 389`
+- `Nemesis/NemesisHidingAwareness.cs:238, 257, 332`
+- `Nemesis/PlayerHabitTracker.cs:507`
+- `Nemesis/NemesisBelief.cs:53, 136`
+- `Nemesis/NemesisChoice.cs:332-333`
+- `ScriptableScripts/Nemesis/SO_NemesisPriorities.cs:280, 301`
+- `ScriptableScripts/Nemesis/SO_CounterplayRules.cs:77` (dice 8; el valor por defecto es 7)
+- `Nemesis/NemesisFSM/NemesisTraversingState.cs:18` y `NemesisChasingState.cs:63`
+- `Nemesis/NemesisRouteGraph.cs:138`, `FieldOfListening.cs:527`, `NemesisChaseMusic.cs:194` y
+  `NemesisPossibilityMap.cs:22`
+- `Hiding/HidingSpot.cs:42`
+
+Historia a propósito, se deja: `NemesisSearchPicker.cs:10`, `SearchPickRules.cs:7` y
+`NemesisSearchingState.cs:8, 219, 387, 708`.
+
+### 19.9 Análisis de causas del 07/10 (WIR-057, 058 y 062)
+
+Sobre `HEAD` `8a3e16ba`, que ya tenía C0, C1 y C2 (`417ce019`), leyendo el código y la traza del
+05/10 (`trace_20261005_143612.csv`, anterior a la etapa C). Sin jugar. La regla de base del reporte
+("la búsqueda arranca de lo que percibió, nunca de tu posición real") ya se cumplía salvo en el
+Director (abajo): lo que fallaba era cómo convertía lo percibido en dónde buscar.
+
+**Un dato de la traza que explica casi todo WIR-062.** En 5 de los 7 pases de `Chasing` a
+`Searching`, la creencia ya venía de un ruido (`belief_from=noise`), no de la vista.
+`NemesisBelief.SightAnchorWindow` es 0,25 s: si te oye correr apenas te pierde, el mapa deja de
+sembrar "punto + rumbo" y siembra el disco del ruido. Ese disco era en planta y cruzaba paredes.
+
+**Arreglado el 07/10** (etapa C, en [Pendiente](#pendiente)):
+
+| Bug | Causa | Arreglo |
+|---|---|---|
+| WIR-062 | El disco del ruido (y el del avistamiento, de 2 m) se medía en planta: en un pasillo angosto caía casi todo en las salas del otro lado de las paredes, a las que sólo se llega volviendo y que el cono nunca limpia. | C3: se siembra caminando por el grafo. |
+| WIR-062 | Nada modelaba "la salida que él tapaba": el valor podía volver por donde vino él. | C5: el rastro. |
+| WIR-062 | El "acá no está" llegaba a 7 m con la vista en 14. | C3: limpia hasta el rango efectivo. |
+| WIR-062 | La renormalización convierte cualquier sobra detrás suyo en "lo más probable" una vez limpio lo de adelante. | Sin cambio propio: con C3 y C5 esas sobras ya no se forman. |
+| WIR-058 | Buscando en la pasarela, tu ruido abajo no pasa por `Investigating` (la búsqueda tibia va antes), y con el oído midiendo por camino el área de abajo sale grande y lejos: ningún lugar llegaba a valor ÷ (1 + caminata) ≥ 0,015. "Revisó todo", 6 s parado, patrulla. | C6: visita debida. |
+| WIR-057 | "Lo vio entrar" no pedía el cono: una puerta al costado o detrás, con línea a la puerta y una vista de hace menos de 0,75 s, contaba. | C7: pide el cono. |
+
+**Lo que queda.** Ninguna de estas causas es un bug. Las de WIR-057 son decisiones de diseño, y
+falta que Iñaki decida si se mantienen.
+
+- **WIR-057 — su última evidencia es la puerta del escondite.** La búsqueda va a donde te percibió
+  por última vez, y se para en el punto mismo si es preciso (te vio, o un paso a menos de ~3,3 m sin
+  pared, `MayVisitEvidence`). Si te metiste justo ahí, la puerta queda a un paso. Ahí terminan los
+  sentidos de cerca, todos por diseño: proximidad a 1,5 m salvo que aguantes la respiración (D21),
+  las rendijas (nivel B) y la respiración, que se oye a ~2 m (D22). Para el jugador es "fue derecho".
+- **WIR-057 — el hábito (D23).** Un locker que ya usaste y del que saliste se sortea con hasta 85 %
+  en cada elección a 8 m, y otra vez cada vez que vuelve a buscar o investigar. En un playtest que
+  reusa el mismo locker se ve igual que saber dónde estás. F9 lo distingue: "lo usaste antes (n)".
+- **WIR-057 — el Director usa tu zona real aunque estés escondido.** La "sensibilidad creciente"
+  (`NemesisDirector.ApplyRisingSensitivity`) elige la zona con `player.position`, y
+  `TryGetPressureAnchor` se devuelve en `NemesisController.TryGetZoneAnchor` antes de las guardas de
+  D40 (escondido, o caza reciente). Trae la patrulla a tu zona, emite ruidos sintéticos ahí y le
+  sube los sentidos. Sólo después de 90 s de calma (`quietTimeout`): explica "me quedé escondido y
+  vino", no "me perdió y vino derecho". **A decidir:** aplicarle las guardas de D40 o dejarlo como
+  el anti-estancamiento de Mr. X.
+- **WIR-057 — el valor queda encerrado en los escondites** (inferido). Un escondite pierde valor
+  10 veces más lento y mirarlo no lo limpia; limpio el piso, casi todo queda adentro, la búsqueda no
+  tiene adónde caminar y a los 6 s patrulla cerca (`RequestNearbyPatrol`). En la traza, las dos
+  búsquedas con el jugador escondido duraron 6 s justos. No va derecho, pero vuelve a pasar por la
+  puerta. Lo cambia la etapa E (escondites por el mapa).
+- **WIR-058 — con montacargas o bajada:** D7, etapa D.
+- **WIR-058 — una pista le gana:** tu ruido en otro piso vale ×0,7 frente a una pista
+  (`FocusArbiter`), y además se castiga por distancia de camino; un ruido del Director o un señuelo
+  en su piso gana "su atención está en una pista". Por diseño (D18, D35).
+- **WIR-058 — choque de reglas.** El reporte pide "va al punto donde escuchó"; la Fase 1 dejó a
+  propósito de ir al punto de un ruido vago, porque ese punto suele ser la puerta del locker
+  (WIR-057). Hoy va al área del ruido, y al punto sólo si fue preciso. **A decidir.**
+- **WIR-062 — si la búsqueda termina, la patrulla puede volver** (E3, etapa E). La patrulla no lee
+  el mapa. F9 lo distingue: volver en `Searching` es el mapa; en `Patrolling` "nada que atender", es
+  el fin de la búsqueda.
+- **WIR-062 — el mapa se queda atrás de un jugador que corre** (inferido). El valor se esparce
+  como una difusión: el grueso avanza ~3·√t m (≈ 6 m a los 4 s) mientras el jugador corre 18. La
+  salida lejana tiene poco valor y cae bajo el umbral antes de que la busque. C6 lo alivia sólo en
+  la primera elección.

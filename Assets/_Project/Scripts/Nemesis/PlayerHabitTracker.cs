@@ -179,14 +179,25 @@ public class PlayerHabitTracker : Singleton<PlayerHabitTracker>, ISessionResetta
 
     // ── Hiding stays ────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The player got into a spot. The stay starts; the USE is counted when it ends
+    /// (<see cref="HandleSpotExited"/>).
+    ///
+    /// IT USED TO BE COUNTED HERE, AND THAT WAS WIR-057. The meter is what the Nemesis rolls to open
+    /// the used spots around a search (NemesisHidingAwareness.ConsiderUsedSpots, D23), and on a
+    /// player's first hide the only used spot in the level was the one they were sitting in: one
+    /// roll in four walked it straight to the door of a locker it had not seen them enter. The
+    /// tracker knows everything (R4), and what it knows has to be about spots the player USED, not
+    /// about where they are: a stay in progress is the second thing.
+    /// </summary>
     private void HandleSpotEntered(HidingSpot spot)
     {
         if (spot == null) return;
 
         string key = BeginStay(spot);
 
-        float meter = ledger.AddSpotUse(key, Now);
-        Log($"Hid in '{key}': use {ledger.GetSpotUses(key)}, meter {meter:0.0}{SpotFlags(key)}.");
+        Log($"Hid in '{key}': meter {ledger.GetSpotMeter(key, Now):0.0} from before{SpotFlags(key)}. " +
+            "This stay counts when it ends.");
     }
 
     /// <summary>Starts tracking a stay in <paramref name="spot"/>, confirming the escape a previous
@@ -209,6 +220,11 @@ public class PlayerHabitTracker : Singleton<PlayerHabitTracker>, ISessionResetta
         string key = stays.StayKey;
         stays.Exit(IsChosenExit(), Now);
         staySpot = null;
+
+        // The use, now that the stay is over — walked out or pulled out, it was used either way.
+        // See HandleSpotEntered for why not on the way in.
+        float meter = ledger.AddSpotUse(key, Now);
+        Log($"Left '{key}': use {ledger.GetSpotUses(key)}, meter {meter:0.0}{SpotFlags(key)}.");
 
         if (stays.HasPendingEscape)
         {

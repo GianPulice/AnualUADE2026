@@ -26,6 +26,11 @@ using UnityEngine;
 /// <see cref="LensFovOffset"/> (<see cref="CameraSprintEffect"/> adds it) and the shader folds the
 /// wider frame into a fisheye.
 ///
+/// While the Nemesis chases the player its closeness disturbs the feed
+/// (<see cref="SO_PlayerCameraFeedConfig"/> § Nemesis closing in): blocks of the picture come out
+/// corrupted, like a digital signal dropping data, and the overlay's letters scramble — more of
+/// both the closer it is.
+///
 /// After a capture it reboots on its own: the signal drops to black through static as the capture
 /// fade covers the screen, and when the fade starts lifting at the checkpoint
 /// (<see cref="CaptureFadeView.OnCaptureRevealStarted"/>) a short reboot runs, the lens calibrating
@@ -34,7 +39,9 @@ using UnityEngine;
 /// Nothing has to call it: every frame the renderer feature asks whether the camera's brain has the
 /// player's rig on the air (<see cref="FindLive"/>), so a cut to any other shot — a cinematic, a
 /// security camera — drops the look on the very frame of the cut, and cutting back brings it in with
-/// a little static.
+/// a little static. The exception is the player's own views: a <see cref="LookDownTrigger"/>'s shot
+/// registers with <see cref="RegisterPlayerView"/> and keeps the frame on, since it is still the
+/// player looking.
 ///
 /// SETUP: on the FreeLook Camera of the Player prefab, with SO_PlayerCameraFeed.
 /// </summary>
@@ -48,6 +55,7 @@ public class PlayerCameraFeed : MonoBehaviour
         Boot,           // The boot, Preview Amount through it: the picture coming in under the boot screen.
         Calibrating,    // Recording, the lens calibrating: Preview Amount = how far up the player is.
         Banner,         // The bomb banner, Preview Amount through its sweep in, hold and sweep out.
+        Threat,         // The Nemesis closing in: Preview Amount = how close (1 = on top of the player).
     }
 
     private const int LineCapacity = 32;
@@ -73,7 +81,8 @@ public class PlayerCameraFeed : MonoBehaviour
 
     [SerializeField] private PreviewStage previewStage = PreviewStage.Gameplay;
 
-    [Tooltip("How far through the previewed stage: the boot, or the player getting up.")]
+    [Tooltip("How far through the previewed stage: the boot, the player getting up, or how close " +
+             "the Nemesis is.")]
     [SerializeField, Range(0f, 1f)] private float previewAmount = 1f;
 
     private enum Status { None, Calibrating, Calibrated }
@@ -87,13 +96,36 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int BootId = Shader.PropertyToID("_PlayerFeedBoot");
     private static readonly int LensId = Shader.PropertyToID("_PlayerFeedLens");
     private static readonly int SignalId = Shader.PropertyToID("_PlayerFeedSignal");
+    private static readonly int ThreatId = Shader.PropertyToID("_PlayerFeedThreat");
     private static readonly int ReadoutId = Shader.PropertyToID("_PlayerFeedReadout");
     private static readonly int ReadoutTimeId = Shader.PropertyToID("_PlayerFeedReadoutTime");
     private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
     private static readonly int RecBlinkId = Shader.PropertyToID("_PlayerFeedRecBlink");
 
+    // Cameras that are the player's own view without being the player's rig: a LookDownTrigger's
+    // shot. They keep the feed on the air; any other camera takes it off (see FindLive).
+    private static readonly List<CinemachineVirtualCameraBase> playerViewShots = new List<CinemachineVirtualCameraBase>();
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => LensFovOffset = 0f;
+    private static void ResetStatics()
+    {
+        LensFovOffset = 0f;
+        playerViewShots.Clear();
+    }
+
+    /// <summary>
+    /// Declares <paramref name="shot"/> a view the PLAYER is looking through — not a cinematic, not a
+    /// security camera. While it is the live shot the feed stays on the air: the area name, the
+    /// recording dot and the module readout do not drop for a look down from the catwalk, and
+    /// coming back from it is not a cut in with static. Being registered costs nothing while the
+    /// camera is off; only a live shot is ever matched.
+    /// </summary>
+    public static void RegisterPlayerView(CinemachineVirtualCameraBase shot)
+    {
+        if (shot != null && !playerViewShots.Contains(shot)) playerViewShots.Add(shot);
+    }
+
+    public static void UnregisterPlayerView(CinemachineVirtualCameraBase shot) => playerViewShots.Remove(shot);
 
     /// <summary>
     /// Degrees the camera's lens must open up this frame for the fisheye; 0 outside the wake-up.
@@ -193,9 +225,55 @@ public class PlayerCameraFeed : MonoBehaviour
     private bool rebootStandUpSeen;
 
     // Awake/OnDestroy for the static event, as the project does everywhere (docs/UI-System.md §7.1).
-    private void Awake() => CaptureFadeView.OnCaptureRevealStarted += HandleCaptureRevealStarted;
+    private void Awake()
+    {
+        CaptureFadeView.OnCaptureRevealStarted += HandleCaptureRevealStarted;
+        NemesisEvents.OnProximityChanged += HandleNemesisProximity;
+        NemesisEvents.OnChaseStarted += HandleChaseStarted;
+        NemesisEvents.OnChaseEnded += HandleChaseEnded;
+    }
 
-    private void OnDestroy() => CaptureFadeView.OnCaptureRevealStarted -= HandleCaptureRevealStarted;
+    private void OnDestroy()
+    {
+        CaptureFadeView.OnCaptureRevealStarted -= HandleCaptureRevealStarted;
+        NemesisEvents.OnProximityChanged -= HandleNemesisProximity;
+        NemesisEvents.OnChaseStarted -= HandleChaseStarted;
+        NemesisEvents.OnChaseEnded -= HandleChaseEnded;
+    }
+
+    // The Nemesis closing in disturbs the feed: 0 = at or beyond its proximity radius, 1 = on
+    // top of the player. Already interpolated by NemesisTelemetry, so it is used as it comes.
+    private float nemesisProximity;
+    private bool nemesisChasing;
+
+    // 0..1: how much of that disturbance is let through. Eased, so a chase starting or ending
+    // brings it in and clears it instead of switching it.
+    private float threatGate;
+
+    private void HandleNemesisProximity(float t) => nemesisProximity = Mathf.Clamp01(t);
+    private void HandleChaseStarted() => nemesisChasing = true;
+    private void HandleChaseEnded() => nemesisChasing = false;
+
+    private void TickThreat()
+    {
+        if (config == null) return;
+
+        bool disturbed = nemesisChasing || !config.ThreatOnlyWhileChasing;
+        float step = config.ThreatFadeSeconds > 0f ? Time.unscaledDeltaTime / config.ThreatFadeSeconds : 1f;
+        threatGate = Mathf.MoveTowards(threatGate, disturbed ? 1f : 0f, step);
+    }
+
+    /// <summary>0..1: how far the Nemesis's closeness disturbs the feed right now. Out of Play, the
+    /// Threat preview stage's amount.</summary>
+    private float Threat()
+    {
+        if (config == null) return 0f;
+
+        if (!Application.isPlaying)
+            return previewStage == PreviewStage.Threat ? Mathf.Pow(previewAmount, config.ThreatCurve) : 0f;
+
+        return threatGate * Mathf.Pow(nemesisProximity, config.ThreatCurve);
+    }
 
     private void OnEnable()
     {
@@ -224,6 +302,7 @@ public class PlayerCameraFeed : MonoBehaviour
     {
         if (!Application.isPlaying) return;
         TickReboot(Time.unscaledTime);
+        TickThreat();
         Evaluate(Time.unscaledTime);
         TickReadouts(Time.unscaledTime);
         LensFovOffset = config != null ? config.LensWidening * fisheye : 0f;
@@ -242,7 +321,16 @@ public class PlayerCameraFeed : MonoBehaviour
         if (!Application.isPlaying) return feed.previewInEditMode ? feed : null;
 
         if (!camera.TryGetComponent(out CinemachineBrain brain)) return null;
-        return feed.shot != null && brain.IsLiveChild(feed.shot, true) ? feed : null;
+        if (feed.shot != null && brain.IsLiveChild(feed.shot, true)) return feed;
+
+        // Still the player's own view, through another camera (a look down).
+        for (int i = 0; i < playerViewShots.Count; i++)
+        {
+            CinemachineVirtualCameraBase view = playerViewShots[i];
+            if (view != null && brain.IsLiveChild(view, true)) return feed;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -274,9 +362,10 @@ public class PlayerCameraFeed : MonoBehaviour
 
         float cut = playing ? CutStatic(now) : 0f;
         float noise = Mathf.Max(staticAmount, cut);
+        float threat = Threat();
 
         bool plain = PlayerCameraBoot.Current == PlayerCameraBoot.Phase.None &&
-                     overlay <= 0f && noise <= 0f && fisheye <= 0f;
+                     overlay <= 0f && noise <= 0f && fisheye <= 0f && threat <= 0f;
         if (plain && playing) return false;
 
         UpdateText(playing);
@@ -292,6 +381,8 @@ public class PlayerCameraFeed : MonoBehaviour
         Shader.SetGlobalVector(BootId, new Vector4(boot, bar, bootTitleLength, bootPercentLength));
         Shader.SetGlobalVector(LensId, LensGlobals(camera, playing));
         Shader.SetGlobalVector(SignalId, new Vector4(power, noise, blur, exposure));
+        Shader.SetGlobalVector(ThreatId, new Vector4(threat * config.ThreatBlocks,
+                                                      threat * config.ThreatOverlayScramble, 0f, 0f));
         return true;
     }
 
@@ -648,6 +739,7 @@ public class PlayerCameraFeed : MonoBehaviour
             labelLine.Set(config.Label, false, now);
             readoutLine.Set(PreviewReadout, false, now);
             readoutTargetLength = PreviewReadout.Length;
+            FindTime(PreviewReadout, out readoutTimeStart, out readoutTimeLength);
         }
 
         if (textDirty)

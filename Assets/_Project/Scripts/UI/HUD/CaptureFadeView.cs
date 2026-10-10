@@ -24,7 +24,7 @@ using UnityEngine;
 ///
 /// Purely reactive by necessity — it lives in the additively loaded LevelUI scene and could not
 /// hold an inspector reference to the Nemesis, the player or the CheckpointManager even if it
-/// wanted to. Same shape as its two siblings under this HUD canvas (VignetteChaseView /
+/// wanted to. Same shape as its sibling under this HUD canvas, the proximity vignette (
 /// VignetteProximityView): subscribe in Awake, unsubscribe in OnDestroy.
 /// </summary>
 [RequireComponent(typeof(CanvasGroup))]
@@ -85,7 +85,7 @@ public class CaptureFadeView : MonoBehaviour
     }
 
     /// <summary>
-    /// Picks up the sibling overlays under this HUD canvas (VignetteChaseView,
+    /// Picks up the sibling overlays under this HUD canvas (today only
     /// VignetteProximityView). They all derive from BaseScreenView and this component does not,
     /// so there is no need to filter this object out of the result.
     /// </summary>

@@ -1283,7 +1283,8 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     /// <summary>
     /// The Nemesis strikes at the gate that has just fallen in its face. It lands a beat behind the
     /// gate (<see cref="SO_EscapeSequenceConfig.EndingNemesisArrivalDelay"/>), so this waits for it to
-    /// stand on its mark first, and only then throws the strike: from a stop, facing the gate. It
+    /// stand on its mark first, holds there a moment facing the gate
+    /// (<see cref="SO_EscapeSequenceConfig.EndingAttackDelay"/>), and only then throws the strike. It
     /// does not wait for the clip to end: the hold that follows covers it, and the win screen
     /// freezes the game on its last frame.
     /// </summary>
@@ -1295,6 +1296,8 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             await UniTask.Yield(PlayerLoopTiming.Update, token);
             waited += Time.deltaTime;
         }
+
+        await WaitOrSkip(config.EndingAttackDelay, token);
 
         // A skip goes straight to the win, with the Nemesis already put on its mark.
         if (!skipRequested) actor.Attack();
