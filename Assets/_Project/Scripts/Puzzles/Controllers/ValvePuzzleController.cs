@@ -28,36 +28,12 @@ public class ValvePuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(valvePuzzleData.PuzzleId);
 
+        // The same 2D confirmation every sub-puzzle plays, heard alike from anywhere.
         if (AudioManager.Exists)
-        {
-            if (TryGetCompletionSoundOrigin(out Vector3 origin))
-                AudioManager.Instance.PlaySFX("sfx_subpuzzle_3_completo", origin);
-            else
-                AudioManager.Instance.PlaySFX("sfx_subpuzzle_3_completo");
-        }
+            AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
 
         PuzzleRewardDelivery.Deliver(valvePuzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
-    }
-
-    private bool TryGetCompletionSoundOrigin(out Vector3 origin)
-    {
-        origin = default;
-
-        string valveId = valvePuzzleData.CompletionSoundValveId;
-        if (string.IsNullOrWhiteSpace(valveId)) return false;
-
-        foreach (ValveInteractable valve in FindObjectsByType<ValveInteractable>(FindObjectsInactive.Exclude))
-        {
-            if (valve.ValveId != valveId) continue;
-
-            origin = valve.transform.position;
-            return true;
-        }
-
-        Debug.LogWarning($"[{nameof(ValvePuzzleController)}] No valve '{valveId}' in the scene — the " +
-                         "completion sound plays in 2D.", this);
-        return false;
     }
 }
