@@ -29,11 +29,15 @@ MonoBehaviour:
   boilerSequenceClip: {fileID: 0}
   volume: 1
   maxHearingDistance: 18
+  occluders:
+    serializedVersion: 2
+    m_Bits: 2048
+  occludedVolume: 0.1
   leadInSeconds: 0.8
-  boilerStartSoundId: sfx_interaction_valvula
+  boilerStartSoundId: 
   wrongSequenceSoundId: sfx_secuencia_incorrecta_panel_electrico
   completedSoundId: sfx_subpuzzle_1_completo
   boilerPrompt: Activate the boiler
   boilerPlayingInfo: Listen...
   leverPrompt: Pull lever {0}
-  leverPullSeconds: 0.4
+  leverPullSeconds: 0.75

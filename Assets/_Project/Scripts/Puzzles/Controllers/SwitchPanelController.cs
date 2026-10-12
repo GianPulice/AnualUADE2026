@@ -90,7 +90,7 @@ public class SwitchPanelController : MonoBehaviour
         PuzzleStateManager.Instance.SetPuzzleCompleted(puzzleData.PuzzleId);
 
         if (AudioManager.Exists && !string.IsNullOrEmpty(puzzleData.CompletedSoundId))
-            AudioManager.Instance.PlaySFX(puzzleData.CompletedSoundId, transform.position);
+            AudioManager.Instance.PlaySFX(puzzleData.CompletedSoundId);   // 2D: heard alike from anywhere
 
         Debug.Log($"[{nameof(SwitchPanelController)}] Puzzle completed: {puzzleData.PuzzleId}");
     }

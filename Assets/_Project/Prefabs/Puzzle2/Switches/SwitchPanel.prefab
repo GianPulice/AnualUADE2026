@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4224668289979398822}
   - component: {fileID: 8174415619262139915}
   - component: {fileID: 1323707647656986864}
+  - component: {fileID: 6478555470379037668}
   m_Layer: 6
   m_Name: Switch5
   m_TagString: Untagged
@@ -70,6 +71,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwitchInteractable
   tiltAngle: -35
+--- !u!114 &6478555470379037668
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 813636442286456250}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &856366340397943001
 GameObject:
   m_ObjectHideFlags: 0
@@ -136,7 +150,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
+  - {fileID: 2100000, guid: 0d04be5a3e202a14886be41d803e8668, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -290,7 +304,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b47d3ab9e3f50164c844b4021c04f95d, type: 2}
+  - {fileID: 2100000, guid: 74ffff9207d53014cac7c474cf9ade4f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -357,6 +371,7 @@ GameObject:
   - component: {fileID: 4855387157390009545}
   - component: {fileID: 3653157664502582998}
   - component: {fileID: 2947571263217731147}
+  - component: {fileID: 4759521408098587717}
   m_Layer: 6
   m_Name: Switch3
   m_TagString: Untagged
@@ -416,6 +431,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwitchInteractable
   tiltAngle: -35
+--- !u!114 &4759521408098587717
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2482442358474403524}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &2703135416795289138
 GameObject:
   m_ObjectHideFlags: 0
@@ -482,7 +510,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
+  - {fileID: 2100000, guid: 0d04be5a3e202a14886be41d803e8668, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -572,7 +600,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b47d3ab9e3f50164c844b4021c04f95d, type: 2}
+  - {fileID: 2100000, guid: 74ffff9207d53014cac7c474cf9ade4f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -694,7 +722,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b47d3ab9e3f50164c844b4021c04f95d, type: 2}
+  - {fileID: 2100000, guid: 74ffff9207d53014cac7c474cf9ade4f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1323,6 +1351,7 @@ GameObject:
   - component: {fileID: 3758974177649775493}
   - component: {fileID: 6892564979856581414}
   - component: {fileID: 5698218514865087376}
+  - component: {fileID: 4649539072607029211}
   m_Layer: 6
   m_Name: Switch1
   m_TagString: Untagged
@@ -1382,6 +1411,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwitchInteractable
   tiltAngle: -35
+--- !u!114 &4649539072607029211
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4077059503198373504}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &4646933161686890712
 GameObject:
   m_ObjectHideFlags: 0
@@ -1630,7 +1672,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 777c3d9b487334e4c83a1b09d061af19, type: 2}
+  - {fileID: 2100000, guid: 0401466fe0bd37c4b8197e6f6b79d69e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1686,6 +1728,7 @@ GameObject:
   - component: {fileID: 3359460414248952961}
   - component: {fileID: 2970525855045838958}
   - component: {fileID: 382056085506983544}
+  - component: {fileID: 8276162421981263321}
   m_Layer: 6
   m_Name: Switch2
   m_TagString: Untagged
@@ -1745,6 +1788,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwitchInteractable
   tiltAngle: -35
+--- !u!114 &8276162421981263321
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5147407780218196995}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &5212506215913449387
 GameObject:
   m_ObjectHideFlags: 0
@@ -1811,7 +1867,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b47d3ab9e3f50164c844b4021c04f95d, type: 2}
+  - {fileID: 2100000, guid: 74ffff9207d53014cac7c474cf9ade4f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1901,7 +1957,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
+  - {fileID: 2100000, guid: 0d04be5a3e202a14886be41d803e8668, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2117,6 +2173,7 @@ GameObject:
   - component: {fileID: 8202625062533082448}
   - component: {fileID: 1082095196883197796}
   - component: {fileID: 8235319365320602336}
+  - component: {fileID: 5387730557116545817}
   m_Layer: 6
   m_Name: Switch4
   m_TagString: Untagged
@@ -2176,6 +2233,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwitchInteractable
   tiltAngle: -35
+--- !u!114 &5387730557116545817
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7166161420737301593}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &7406024640455475438
 GameObject:
   m_ObjectHideFlags: 0
@@ -2242,7 +2312,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b47d3ab9e3f50164c844b4021c04f95d, type: 2}
+  - {fileID: 2100000, guid: 74ffff9207d53014cac7c474cf9ade4f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2332,7 +2402,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
+  - {fileID: 2100000, guid: 0d04be5a3e202a14886be41d803e8668, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2454,7 +2524,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fbdbae5df03a5b34e9c21c67f761c1a9, type: 2}
+  - {fileID: 2100000, guid: 0d04be5a3e202a14886be41d803e8668, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

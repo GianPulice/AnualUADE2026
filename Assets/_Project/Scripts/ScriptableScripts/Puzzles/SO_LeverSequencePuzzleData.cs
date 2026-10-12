@@ -56,6 +56,13 @@ public class SO_LeverSequencePuzzleData : ScriptableObject
              "between the boiler and the lever panel, so one cannot be heard from the other.")]
     [SerializeField, Min(1f)] private float maxHearingDistance = 18f;
 
+    [Tooltip("What muffles the knocks between them and the player's ears (the camera). Keep the " +
+             "walls between the boiler room and the lever room on one of these layers.")]
+    [SerializeField] private LayerMask occluders = 1 << 11;   // Wall
+
+    [Tooltip("Volume of a knock heard through an occluder, as a fraction (0 = not heard at all).")]
+    [SerializeField, Range(0f, 1f)] private float occludedVolume = 0.1f;
+
     [Tooltip("Silence between pressing [E] on the boiler and its first knock.")]
     [SerializeField, Min(0f)] private float leadInSeconds = 0.8f;
 
@@ -79,6 +86,12 @@ public class SO_LeverSequencePuzzleData : ScriptableObject
     public AudioClip BoilerSequenceClip => boilerSequenceClip;
     public float Volume => volume;
     public float MaxHearingDistance => maxHearingDistance;
+    public LayerMask Occluders => occluders;
+    public float OccludedVolume => occludedVolume;
+
+    /// <summary>Volume for a knock played at <paramref name="position"/>, walls between it and the listener included.</summary>
+    public float VolumeAt(Vector3 position) =>
+        volume * AudioOcclusion.VolumeMultiplier(position + Vector3.up * 0.5f, occluders, occludedVolume);
     public float LeadInSeconds => leadInSeconds;
     public string BoilerStartSoundId => boilerStartSoundId;
     public string WrongSequenceSoundId => wrongSequenceSoundId;

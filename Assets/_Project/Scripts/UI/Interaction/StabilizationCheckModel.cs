@@ -5,7 +5,7 @@ using UnityEngine;
 /// the player is on, where its success zone landed this attempt, and whether a needle angle hits
 /// it. Pure data and rules — the needle, the time and the input belong to the controller.
 ///
-/// A failed attempt does not move the sequence: the same check is played again with a new zone.
+/// What a failed attempt does (repeat the check, or restart) is the controller's call, from the asset.
 /// Angles follow a clock face (0 = twelve o'clock, clockwise), the convention of UIRingArc.
 /// </summary>
 public class StabilizationCheckModel : BaseScreenModel
@@ -57,6 +57,13 @@ public class StabilizationCheckModel : BaseScreenModel
     /// <summary>Whether a press with the needle at <paramref name="needleAngle"/> passes the check.</summary>
     public bool Judge(float needleAngle) =>
         TotalChecks > 0 && !IsComplete && ClockArc.Contains(needleAngle, ZoneStart, ZoneDegrees);
+
+    /// <summary>Back to the first check (a failure with the Restart From First Check rule).</summary>
+    public void Restart()
+    {
+        CheckIndex = 0;
+        NotifyDataChanged();
+    }
 
     /// <summary>The current check was passed: on to the next one.</summary>
     public void Advance()

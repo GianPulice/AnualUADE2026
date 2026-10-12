@@ -32,7 +32,11 @@ MonoBehaviour:
   - needleSpeed: 0.6
     successZoneWidth: 0.35
     timerPenaltyOnFail: 10
+  onFail: 0
   maxLapsPerAttempt: 2
+  penalizeTimeout: 1
+  newZoneOnRetry: 1
+  allowAbort: 1
   zoneStartMin: 90
   zoneStartMax: 300
   warningLeadTime: 0.6
@@ -41,7 +45,7 @@ MonoBehaviour:
   openSoundId: sfx_interaction_panel_electrico
   successSoundId: sfx_interaction_panel_control_success
   failSoundId: sfx_interaction_panel_password_error
-  completeSoundId: sfx_subpuzzle_3_completo
+  completeSoundId: 
   shakeAmplitude: 0.6
   shakeFrequency: 9
   shakeAfterCheck:
@@ -55,9 +59,18 @@ MonoBehaviour:
   - 0.5
   - 0.3
   - 0
+  lightsIdleAgitation: 0.5
+  lightsAfterCheck:
+  - 0.75
+  - 0.5
+  - 0.25
+  - 0
+  lightsFlickerDepth: 0.8
+  lightsFlickerSpeed: 12
+  lightsDropoutRate: 1.5
   pendingColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
   resolvedColor: {r: 0.15, g: 0.85, b: 0.25, a: 1}
   stabilizedColor: {r: 0.35, g: 0.75, b: 1, a: 1}
   indicatorFadeSeconds: 0.5
   runningBlinkRate: 2
-  indicatorResolvedSoundId: sfx_interaction_panel_control_success
+  indicatorResolvedSoundId: 

@@ -10,9 +10,10 @@ using UnityEngine;
 /// The checks (spec §3): a needle turning at constant speed and a success zone on the dial; [E]
 /// inside the zone passes, anywhere else fails. Difficulty goes DOWN — the first check is the
 /// hardest and every next one has a wider zone and a slower needle. A failure takes
-/// <see cref="StabilizationCheck.timerPenaltyOnFail"/> seconds off the running module and repeats
-/// the SAME check; the sequence never starts over unless it is interrupted (ESC), in which case its
-/// progress is lost and the panel starts from the first check next time.
+/// <see cref="StabilizationCheck.timerPenaltyOnFail"/> seconds off the running module and, by
+/// default, repeats the SAME check (the Rules section can change that, and whether timeouts cost
+/// time, and whether ESC may interrupt). An interrupted sequence loses its progress: the panel
+/// starts from the first check next time.
 ///
 /// Completing every check completes <see cref="PuzzleId"/>, which resolves M2 (its
 /// associatedPuzzleId) in ModuleManager.
@@ -23,6 +24,12 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "SO_StabilizationPuzzleData", menuName = "Scriptable Objects/Puzzles/Stabilization Puzzle Data")]
 public class SO_StabilizationPuzzleData : ScriptableObject
 {
+    public enum FailBehavior
+    {
+        RepeatSameCheck,
+        RestartFromFirstCheck
+    }
+
     [Serializable]
     public struct StabilizationCheck
     {
@@ -59,9 +66,25 @@ public class SO_StabilizationPuzzleData : ScriptableObject
         new StabilizationCheck { needleSpeed = 0.6f,  successZoneWidth = 0.35f, timerPenaltyOnFail = 10f },
     };
 
+    [Header("Rules")]
+    [Tooltip("What a failed check does. Repeat Same Check = the spec: try that check again. " +
+             "Restart From First Check = back to the first (hardest) check, losing the progress.")]
+    [SerializeField] private FailBehavior onFail = FailBehavior.RepeatSameCheck;
+
     [Tooltip("Full laps the needle may turn without a press before the attempt counts as failed. " +
              "0 = it keeps turning until the player presses.")]
     [SerializeField, Min(0)] private int maxLapsPerAttempt = 2;
+
+    [Tooltip("Whether running out of laps without pressing also takes the check's penalty off the " +
+             "module (it always counts as a failed attempt).")]
+    [SerializeField] private bool penalizeTimeout = true;
+
+    [Tooltip("Whether a retried check puts its success zone somewhere new. Off = same place.")]
+    [SerializeField] private bool newZoneOnRetry = true;
+
+    [Tooltip("Whether ESC interrupts the stabilization (its progress is lost). Off = ESC opens the " +
+             "pause menu over it and the checks wait.")]
+    [SerializeField] private bool allowAbort = true;
 
     [Tooltip("Where the success zone may start, in degrees (0 = twelve o'clock, clockwise). " +
              "The needle starts at twelve, so keep the minimum away from 0 to give time to react.")]
@@ -80,7 +103,7 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     [SoundId, SerializeField] private string openSoundId = "sfx_interaction_panel_electrico";
     [SoundId, SerializeField] private string successSoundId = "sfx_interaction_panel_control_success";
     [SoundId, SerializeField] private string failSoundId = "sfx_interaction_panel_password_error";
-    [SoundId, SerializeField] private string completeSoundId = "sfx_subpuzzle_3_completo";
+    [SoundId, SerializeField] private string completeSoundId = "";
 
     [Header("Progressive calm-down (provisional values)")]
     [Tooltip("Camera shake while the system is unstable (the checks are running), in degrees.")]
@@ -95,6 +118,20 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     [Tooltip("Ambience agitation left after each passed check (spec: 70%, 50%, 30%, normal).")]
     [SerializeField] private float[] ambienceAfterCheck = { 0.7f, 0.5f, 0.3f, 0f };
 
+    [Header("Hub lighting (lights with a StabilizationFlickerLight)")]
+    [Tooltip("How unstable the hub lights are before the checks start, while the hub puzzle is not " +
+             "completed. 0 = steady, 1 = as bad as the start of the checks.")]
+    [SerializeField, Range(0f, 1f)] private float lightsIdleAgitation = 0.5f;
+    [Tooltip("Instability left after each passed check (spec: the lighting settles step by step). " +
+             "Element 0 = after the first check. Steady once the hub puzzle is completed.")]
+    [SerializeField] private float[] lightsAfterCheck = { 0.75f, 0.5f, 0.25f, 0f };
+    [Tooltip("How far the intensity can drop at full instability. 0.8 = down to 20% of normal.")]
+    [SerializeField, Range(0f, 1f)] private float lightsFlickerDepth = 0.8f;
+    [Tooltip("How fast the lights flicker at full instability.")]
+    [SerializeField, Min(0.1f)] private float lightsFlickerSpeed = 12f;
+    [Tooltip("Chance per second of a short blackout at full instability.")]
+    [SerializeField, Min(0f)] private float lightsDropoutRate = 1.5f;
+
     [Header("Monitor")]
     [SerializeField] private Color pendingColor = new Color(0.8f, 0.1f, 0.1f);
     [SerializeField] private Color resolvedColor = new Color(0.15f, 0.85f, 0.25f);
@@ -103,14 +140,22 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     [SerializeField, Min(0.01f)] private float indicatorFadeSeconds = 0.5f;
     [Tooltip("Blinks per second of the indicators while the checks are running.")]
     [SerializeField, Min(0.1f)] private float runningBlinkRate = 2f;
-    [SoundId, SerializeField] private string indicatorResolvedSoundId = "sfx_interaction_panel_control_success";
+    [SoundId, SerializeField] private string indicatorResolvedSoundId = "";
 
     public string PuzzleId => puzzleId;
     public string[] RequiredPuzzleIds => requiredPuzzleIds ?? Array.Empty<string>();
     public string StartPrompt => startPrompt;
     public string PendingInfoFormat => pendingInfoFormat;
     public StabilizationCheck[] Checks => checks ?? Array.Empty<StabilizationCheck>();
+    public FailBehavior OnFail => onFail;
     public int MaxLapsPerAttempt => maxLapsPerAttempt;
+    public bool PenalizeTimeout => penalizeTimeout;
+    public bool NewZoneOnRetry => newZoneOnRetry;
+    public bool AllowAbort => allowAbort;
+    public float LightsIdleAgitation => lightsIdleAgitation;
+    public float LightsFlickerDepth => lightsFlickerDepth;
+    public float LightsFlickerSpeed => lightsFlickerSpeed;
+    public float LightsDropoutRate => lightsDropoutRate;
     public float ZoneStartMin => Mathf.Min(zoneStartMin, zoneStartMax);
     public float ZoneStartMax => Mathf.Max(zoneStartMin, zoneStartMax);
     public float WarningLeadTime => warningLeadTime;
@@ -135,6 +180,9 @@ public class SO_StabilizationPuzzleData : ScriptableObject
 
     /// <summary>Ambience agitation left (0..1) once <paramref name="passed"/> checks are done.</summary>
     public float AmbienceLeft(int passed) => Left(ambienceAfterCheck, passed);
+
+    /// <summary>Hub light instability left (0..1) once <paramref name="passed"/> checks are done.</summary>
+    public float LightsLeft(int passed) => Left(lightsAfterCheck, passed);
 
     /// <summary>The authored value for this many passed checks; falls back to a straight line when
     /// the list is shorter than the checks, and 0 once every check is passed.</summary>

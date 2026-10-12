@@ -21,7 +21,7 @@ public class SO_PuzzleActivatorData : ScriptableObject
     [SerializeField] private string lockedInfoText = "It has no power";
 
     [SoundId, SerializeField] private string useSoundId = "sfx_interaction_panel_control_01";
-    [SoundId, SerializeField] private string completedSoundId = "sfx_subpuzzle_3_completo";
+    [SoundId, SerializeField] private string completedSoundId = "sfx_subpuzzle_1_completo";
 
     public string PuzzleId => puzzleId;
     public string RequiredPuzzleId => requiredPuzzleId;

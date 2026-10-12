@@ -12,7 +12,9 @@ using UnityEngine;
 ///
 /// The colours are the LED's own emissive materials (LED_Naranja / LED_Verde / LED_Rojo),
 /// untextured: the button textures are solid red and would tint any colour back to red. The Light
-/// only glows for the steady ones when castLightWhenSteady is on.
+/// only glows for the steady ones when castLightWhenSteady is on, and then only while no other
+/// module is Active and this is the most recently finished one: the floor glow follows the module
+/// that matters now (see RefreshSteadyGlow).
 ///
 /// The blink Animator writes _EmissionColor through renderer property blocks and the Light's
 /// intensity every frame, so it is disabled outside Active and the blocks are cleared before a
@@ -64,6 +66,7 @@ public class ModuleLED : MonoBehaviour
     private Color activeLightColor;
     private float activeLightIntensity;
     private ModuleStatus? shownStatus;
+    private bool? castingSteadyGlow;
 
     /// <summary>
     /// The module this LED reports. Read by <see cref="ModuleExplosionSequence"/> so a blast goes
@@ -160,7 +163,55 @@ public class ModuleLED : MonoBehaviour
         blinkAnimator.Play(BlinkStateHash, 0, BlinkPeakTime);
     }
 
-    private void Update() => Refresh();
+    private void Update()
+    {
+        Refresh();
+        RefreshSteadyGlow();
+    }
+
+    /// <summary>
+    /// The glow a finished module casts on the floor (castLightWhenSteady) belongs to it only while
+    /// it is the latest news: as soon as another module goes Active the floor shows that one's blink
+    /// alone, and with none active only the most recently finished module glows. The LED itself
+    /// (its material) keeps its green or red either way.
+    /// </summary>
+    private void RefreshSteadyGlow()
+    {
+        if (ledLight == null || shownStatus == null) return;
+
+        ModuleStatus status = shownStatus.Value;
+        if (status != ModuleStatus.Resolved && status != ModuleStatus.Exploded)
+        {
+            castingSteadyGlow = null;
+            return;
+        }
+
+        bool cast = castLightWhenSteady && OwnsFloorGlow();
+        if (castingSteadyGlow == cast) return;
+
+        castingSteadyGlow = cast;
+        ledLight.enabled = cast;
+    }
+
+    /// <summary>
+    /// True while no module is Active and this one is the last finished module in config order —
+    /// the modules run in that order, so that is the one that finished most recently.
+    /// </summary>
+    private bool OwnsFloorGlow()
+    {
+        if (module == null || !ModuleManager.Exists) return true;
+
+        var modules = ModuleManager.Instance.GetAllModules();
+        int lastFinished = -1, mine = -1;
+        for (int i = 0; i < modules.Count; i++)
+        {
+            ModuleRuntime runtime = modules[i];
+            if (runtime.Status == ModuleStatus.Active) return false;
+            if (runtime.Status == ModuleStatus.Resolved || runtime.Status == ModuleStatus.Exploded) lastFinished = i;
+            if (runtime.ModuleID == module.ModuleID) mine = i;
+        }
+        return mine >= 0 && mine == lastFinished;
+    }
 
     private void HandleExplosionShown(ModuleRuntime runtime)
     {
@@ -200,6 +251,9 @@ public class ModuleLED : MonoBehaviour
 
     private void Apply(ModuleStatus status)
     {
+        // Apply sets the Light for the new status; the floor-glow rule re-decides right after.
+        castingSteadyGlow = null;
+
         switch (status)
         {
             case ModuleStatus.Active:

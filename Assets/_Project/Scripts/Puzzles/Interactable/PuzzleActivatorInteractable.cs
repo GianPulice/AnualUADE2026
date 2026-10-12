@@ -74,8 +74,9 @@ public class PuzzleActivatorInteractable : BaseRangeInteractable, IPuzzleInterac
         PuzzleStateManager.Instance.SetPuzzleCompleted(activatorData.PuzzleId);
 
         if (AudioManager.Exists && !string.IsNullOrEmpty(activatorData.CompletedSoundId))
-            AudioManager.Instance.PlaySFX(activatorData.CompletedSoundId, transform.position);
+            AudioManager.Instance.PlaySFX(activatorData.CompletedSoundId);   // 2D: heard alike from anywhere
 
+        InteractionEvents.RequestPromptRefresh();   // used up: the prompt goes away at once
         Debug.Log($"[{nameof(PuzzleActivatorInteractable)}] Puzzle completed: {activatorData.PuzzleId}");
     }
 }

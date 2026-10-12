@@ -79,5 +79,6 @@ public class SwitchInteractable : BaseRangeInteractable, IPuzzleInteractable
         }
         if (handle != null) handle.localRotation = to;
         flipRoutine = null;
+        InteractionEvents.RequestPromptRefresh();   // usable again under the crosshair
     }
 }

@@ -16,5 +16,5 @@ MonoBehaviour:
   requiredPuzzleId: p2_sp3_access_code
   promptText: Activate the stabilization mechanism
   lockedInfoText: The access room is locked
-  useSoundId: sfx_interaction_panel_control_01
-  completedSoundId: sfx_subpuzzle_3_completo
+  useSoundId: 
+  completedSoundId: sfx_subpuzzle_1_completo

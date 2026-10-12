@@ -99,12 +99,14 @@ public class HubMonitorPanel : MonoBehaviour
         lights[index].color = color;
         lights[index].enabled = color.maxColorComponent > 0.01f;
 
+        // Per slot, reading the slot back first: ItemProximityHighlight writes per-slot blocks on the
+        // same renderers, and a per-slot block replaces a renderer-wide one for that slot.
         Renderer r = renderers[index];
         if (r == null) return;
-        r.GetPropertyBlock(block);
+        r.GetPropertyBlock(block, 0);
         block.SetColor(BaseColorId, color);
         block.SetColor(EmissionColorId, color * 2f);
-        r.SetPropertyBlock(block);
+        r.SetPropertyBlock(block, 0);
     }
 
     private static bool IsCompleted(string id) =>

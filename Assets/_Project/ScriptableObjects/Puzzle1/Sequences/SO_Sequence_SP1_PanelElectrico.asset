@@ -17,3 +17,4 @@ MonoBehaviour:
   promptText: Interact with electrical panel
   rewardItem: {fileID: 11400000, guid: 85c61301028d4d64ba4dd8f9a552dcf6, type: 2}
   correctSequence: 03000000010000000400000002000000
+  completedSoundId: sfx_subpuzzle_1_completo

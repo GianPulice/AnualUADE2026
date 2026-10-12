@@ -17,3 +17,4 @@ MonoBehaviour:
   promptText: Enter access code
   rewardItem: {fileID: 0}
   correctSequence: 05000000020000000900000001000000
+  completedSoundId: 

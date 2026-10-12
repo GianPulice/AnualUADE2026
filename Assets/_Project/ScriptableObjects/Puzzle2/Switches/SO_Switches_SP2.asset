@@ -15,8 +15,18 @@ MonoBehaviour:
   puzzleId: p2_sp2_switches
   correctUp: 0100010100
   startUp: 0
+  revealMode: 0
   revealFadeSeconds: 0.5
-  flipSoundId: sfx_interaction_panel_control_01
-  completedSoundId: sfx_subpuzzle_2_completo
+  lightReachFraction: 0.6
+  fallbackLightRange: 4.4
+  lightHeight: 1
+  lightBlockers:
+    serializedVersion: 2
+    m_Bits: 6145
+  lightDegradation:
+  - module: {fileID: 11400000, guid: 4d22063d83df3d74ebc3345f10687fa5, type: 2}
+    reachMultiplier: 0.5
+  flipSoundId: 
+  completedSoundId: sfx_subpuzzle_1_completo
   switchPrompt: Flip switch
   flipSeconds: 0.15

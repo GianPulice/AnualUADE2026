@@ -66,7 +66,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 777c3d9b487334e4c83a1b09d061af19, type: 2}
+  - {fileID: 2100000, guid: 0401466fe0bd37c4b8197e6f6b79d69e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -101,6 +101,7 @@ GameObject:
   - component: {fileID: 2488788300979967497}
   - component: {fileID: 7931248120884469667}
   - component: {fileID: 1961130168487098190}
+  - component: {fileID: 8133019540043518213}
   m_Layer: 6
   m_Name: StabilizationMechanism
   m_TagString: Untagged
@@ -160,6 +161,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PuzzleActivatorInteractable
   activatorData: {fileID: 11400000, guid: dfba7881760db3a43a2bd97a8439c1c8, type: 2}
   usedHandleAngle: -100
+--- !u!114 &8133019540043518213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1057548313996790391}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0503af96aabe5bd40a58a8e72bb62503, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemProximityHighlight
+  profile: {fileID: 11400000, guid: 88863c0dc30e67646ba86f911bfe28b5, type: 2}
 --- !u!1 &1093352582757673120
 GameObject:
   m_ObjectHideFlags: 0
@@ -226,7 +240,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: cfd61fcd7830c73448c43fedd4278b07, type: 2}
+  - {fileID: 2100000, guid: 62a9c10a6280d094c85dc6c99cd74cdc, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -316,7 +330,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 431d6ac5239cee948b3f112f560e0f4c, type: 2}
+  - {fileID: 2100000, guid: b22492f5571363e48816b02e73e09ad3, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

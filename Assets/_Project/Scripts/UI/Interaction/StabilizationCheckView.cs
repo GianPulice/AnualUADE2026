@@ -26,6 +26,11 @@ public class StabilizationCheckView : BaseScreenView
     [SerializeField] private RectTransform needlePivot;
     [SerializeField] private Graphic needle;
 
+    [Header("Window")]
+    [Tooltip("The title bar's [X]: interrupts the stabilization, like ESC. Hidden when the asset " +
+             "does not allow aborting.")]
+    [SerializeField] private Button closeButton;
+
     [Header("Readouts")]
     [SerializeField] private TMP_Text titleText;
     [SerializeField] private TMP_Text stepText;
@@ -37,10 +42,14 @@ public class StabilizationCheckView : BaseScreenView
     [SerializeField] private string title = "VENTILATION STABILIZATION";
     [SerializeField] private string statusPrefix = "> ";
     [SerializeField] private string standbyString = "STAND BY";
-    [SerializeField] private string readyString = "PRESS [E]   ([ESC] ABORT)";
+    [SerializeField] private string readyString = "PRESS [E]";
+    [Tooltip("Added after the ready line when the asset lets ESC interrupt the stabilization.")]
+    [SerializeField] private string abortHintString = "   ([ESC] ABORT)";
     [SerializeField] private string successString = "STABLE";
     [Tooltip("{0} = seconds taken off the module.")]
     [SerializeField] private string failString = "FAILURE  -{0:0}s";
+    [Tooltip("A failure that cost no time (no module running, or a timeout the asset does not penalize).")]
+    [SerializeField] private string failNoPenaltyString = "FAILURE";
     [SerializeField] private string completeString = "SYSTEM STABILIZED";
 
     [Header("Feel")]
@@ -51,15 +60,30 @@ public class StabilizationCheckView : BaseScreenView
 
     private Vector2 dialRest;
     private bool dialRestCaptured;
+    private bool isSuspended;
+    private float alphaBeforeSuspend = 1f;
+
+    /// <summary>The window's [X] was clicked.</summary>
+    public event System.Action CloseClicked;
+
+    private void Awake()
+    {
+        if (closeButton != null) closeButton.onClick.AddListener(HandleCloseClicked);
+    }
 
     private void OnDestroy()
     {
+        if (closeButton != null) closeButton.onClick.RemoveListener(HandleCloseClicked);
         if (dial != null) LeanTween.cancel(dial.gameObject);
     }
 
-    /// <summary>A fresh sequence: every pip pending.</summary>
-    public void Setup(int totalChecks)
+    private void HandleCloseClicked() => CloseClicked?.Invoke();
+
+    /// <summary>A fresh sequence: every pip pending, the [X] only when it may be interrupted.</summary>
+    public void Setup(int totalChecks, bool canAbort)
     {
+        isSuspended = false;
+        if (closeButton != null) closeButton.gameObject.SetActive(canAbort);
         StopFeedback();
         if (titleText != null) titleText.text = title;
         if (track != null) track.color = Disabled;
@@ -76,7 +100,7 @@ public class StabilizationCheckView : BaseScreenView
     }
 
     /// <summary>An attempt: the zone where it landed, the needle waiting at twelve.</summary>
-    public void ShowCheck(float zoneStart, float zoneDegrees, int checkIndex, int totalChecks)
+    public void ShowCheck(float zoneStart, float zoneDegrees, int checkIndex, int totalChecks, bool canAbort)
     {
         StopFeedback();
         if (zone != null)
@@ -88,7 +112,7 @@ public class StabilizationCheckView : BaseScreenView
         SetNeedleVisible(true);
         SetStep(checkIndex, totalChecks);
         SetPips(checkIndex, totalChecks);
-        SetStatus(readyString, Primary);
+        SetStatus(canAbort ? readyString + abortHintString : readyString, Primary);
     }
 
     public void SetNeedle(float angle)
@@ -108,8 +132,30 @@ public class StabilizationCheckView : BaseScreenView
     public void ShowFailure(float penaltySeconds)
     {
         if (zone != null) zone.color = Accent;
-        SetStatus(string.Format(failString, penaltySeconds), Accent);
+        SetStatus(penaltySeconds > 0f ? string.Format(failString, penaltySeconds) : failNoPenaltyString, Accent);
         Shake();
+    }
+
+    /// <summary>
+    /// Hides the overlay without closing it, while another modal (an explosion cinematic, the
+    /// pause menu) is on top, and puts it back as it was. Through the root CanvasGroup's alpha:
+    /// the CRT presenter stops drawing the canvas at alpha 0 (disabling the Canvas would leave the
+    /// tube's black backdrop on screen). Only called while the overlay is open, between its fades.
+    /// </summary>
+    public void SetSuspended(bool suspended)
+    {
+        if (canvasGroup == null || suspended == isSuspended) return;
+        isSuspended = suspended;
+
+        if (suspended)
+        {
+            alphaBeforeSuspend = canvasGroup.alpha;
+            canvasGroup.alpha = 0f;
+        }
+        else
+        {
+            canvasGroup.alpha = alphaBeforeSuspend;
+        }
     }
 
     public void ShowComplete(int totalChecks)

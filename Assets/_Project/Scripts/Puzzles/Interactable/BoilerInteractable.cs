@@ -7,8 +7,9 @@ using UnityEngine;
 /// the next room is where it is solved. Nothing is stored: a player interrupted by the Nemesis
 /// just comes back and listens again.
 ///
-/// The knocks are 3D at the boiler and fade out at the asset's Max Hearing Distance — keep the
-/// lever panel farther than that.
+/// The knocks are 3D at the boiler, fade out at the asset's Max Hearing Distance and drop to its
+/// Occluded Volume through a wall (one check per knock) — keep the lever panel farther than that
+/// distance, or behind walls on the asset's Occluders layers.
 /// </summary>
 public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
 {
@@ -46,6 +47,9 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
             AudioManager.Instance.PlaySFX(puzzleData.BoilerStartSoundId, transform.position);
 
         playRoutine = StartCoroutine(PlaySequence());
+
+        // "Listen..." right away, not only after looking away and back.
+        InteractionEvents.RequestPromptRefresh();
     }
 
     private void OnDisable()
@@ -75,12 +79,13 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         }
 
         playRoutine = null;
+        InteractionEvents.RequestPromptRefresh();   // back to "Activate the boiler"
     }
 
     private void Play(AudioClip clip)
     {
         if (clip == null || !AudioManager.Exists) return;
-        AudioManager.Instance.PlaySFX(clip, transform.position, puzzleData.Volume, 1f,
+        AudioManager.Instance.PlaySFX(clip, transform.position, puzzleData.VolumeAt(transform.position), 1f,
                                       1f, puzzleData.MaxHearingDistance);
     }
 }

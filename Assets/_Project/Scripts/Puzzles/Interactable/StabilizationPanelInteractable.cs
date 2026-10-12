@@ -68,7 +68,11 @@ public class StabilizationPanelInteractable : BaseRangeInteractable, IPuzzleInte
     private void HandleFinished(bool completed)
     {
         // The panel may be gone (scene unloaded while the overlay was closing).
-        if (!completed || this == null || IsCompleted) return;
+        if (this == null) return;
+
+        // The prompt under the crosshair follows: "Start stabilization" again, or gone once solved.
+        InteractionEvents.RequestPromptRefresh();
+        if (!completed || IsCompleted) return;
 
         if (!PuzzleStateManager.Exists)
         {
@@ -78,6 +82,7 @@ public class StabilizationPanelInteractable : BaseRangeInteractable, IPuzzleInte
         }
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(puzzleData.PuzzleId);
+        InteractionEvents.RequestPromptRefresh();
         Debug.Log($"[{nameof(StabilizationPanelInteractable)}] Puzzle completed: {puzzleData.PuzzleId}");
     }
 }

@@ -179,8 +179,8 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
 
         PuzzleRewardDelivery.Deliver(sequenceData.RewardItem, rewardDropPoint, this);
 
-        if (AudioManager.Exists)
-            AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
+        if (AudioManager.Exists && !string.IsNullOrEmpty(sequenceData.CompletedSoundId))
+            AudioManager.Instance.PlaySFX(sequenceData.CompletedSoundId);
 
         OnSequenceCompleted?.Invoke();
 

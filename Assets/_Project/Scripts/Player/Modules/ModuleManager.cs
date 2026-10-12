@@ -85,6 +85,11 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
     private void Update()
     {
+        // The run's clocks only move while there is a run on screen: with no player in the world
+        // (back in the main menu, between levels behind the loading screen) the active module
+        // waits instead of running out — and exploding, or ending the run — in the menu.
+        if (!PlayerRegistry.HasPlayer) return;
+
         // Session time starts ticking as soon as the first module goes Active. Before that we are
         // still in menus / bootstrapping and should not count.
         if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0)
