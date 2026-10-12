@@ -33,7 +33,7 @@ using UnityEngine.SceneManagement;
 /// without a console gets one here. Editor and development builds, like the console itself.
 ///
 /// F2, F5 and F6 are this component's: the game itself uses W A S D, E, F, Tab, Esc, Ctrl, Shift,
-/// Space, 1, 2, and the other debug keys are F3, F4, F7, F8, F9, F10 and 0-6 (see the list in
+/// Space, 1, 2, and the other debug keys are F3, F4, F7, F8, F9, F10, F11 and 0-6 (see the list in
 /// <c>docs/CLAUDE.md</c>).
 ///
 /// No setup: the object that polls the keys builds itself on the first frame, like

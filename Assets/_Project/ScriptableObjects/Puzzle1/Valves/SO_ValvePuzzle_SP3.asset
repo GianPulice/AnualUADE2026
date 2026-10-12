@@ -17,7 +17,14 @@ MonoBehaviour:
   requirements:
   - valveId: valve_sp3_1
     requiredPosition: 2
+    clueName: yellow
+    clueSide: on the left
   - valveId: valve_sp3_2
     requiredPosition: 0
+    clueName: red
+    clueSide: in the center
   - valveId: valve_sp3_3
     requiredPosition: 3
+    clueName: blue
+    clueSide: on the right
+  shuffleEachRun: 1

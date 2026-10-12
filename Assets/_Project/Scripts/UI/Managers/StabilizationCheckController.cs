@@ -4,11 +4,12 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
-/// Runs the stabilization checks of the Ventilation Hub (Central Puzzle 2 — spec §3).
+/// Runs the stabilization checks of the Ventilation Hub (Central Puzzle 2).
 ///
 /// Each attempt: the success zone appears somewhere on the dial, a short warning, then the needle
 /// turns at the check's constant speed. [E] inside the zone passes and moves on to the next
-/// (easier) check; [E] outside — or no press within the asset's lap limit — fails: the running
+/// (harder) check — inside its leading orange slice it is a perfect, and that next check is eased
+/// relative to its own values (wider zone, slower needle); [E] outside — or no press within the asset's lap limit — fails: the running
 /// module loses the check's penalty seconds and, by default, the SAME check is played again (the
 /// asset can make it restart from the first one instead). The sequence only ends when every check
 /// is passed, or when it is interrupted with ESC (if the asset allows it), which loses its progress.
@@ -56,7 +57,7 @@ public class StabilizationCheckController
     /// <summary>Checks passed so far in the running sequence (0 when none is running).</summary>
     public int PassedChecks => IsOpen && model != null ? model.CheckIndex : 0;
 
-    private enum SweepResult { Hit, Miss, Timeout }
+    private enum SweepResult { Hit, Perfect, Miss, Timeout }
 
     private Action<bool> onFinished;
     private CancellationTokenSource runCts;
@@ -162,10 +163,10 @@ public class StabilizationCheckController
             bool retry = false;
             while (!model.IsComplete)
             {
-                bool passed = await PlayAttemptAsync(retry, token);
-                if (passed)
+                SweepResult result = await PlayAttemptAsync(retry, token);
+                if (result == SweepResult.Hit || result == SweepResult.Perfect)
                 {
-                    model.Advance();
+                    model.Advance(result == SweepResult.Perfect);
                     retry = false;
                 }
                 else if (ActiveData.OnFail == SO_StabilizationPuzzleData.FailBehavior.RestartFromFirstCheck)
@@ -197,22 +198,23 @@ public class StabilizationCheckController
     }
 
     /// <summary>
-    /// One attempt at the current check. True when it was passed. A retry of the same check keeps
-    /// its zone unless the asset asks for a new one.
+    /// One attempt at the current check. A retry of the same check keeps its zone unless the asset
+    /// asks for a new one.
     /// </summary>
-    private async UniTask<bool> PlayAttemptAsync(bool retry, CancellationToken token)
+    private async UniTask<SweepResult> PlayAttemptAsync(bool retry, CancellationToken token)
     {
         if (!retry || ActiveData.NewZoneOnRetry) model.RollZone();
         SO_StabilizationPuzzleData.StabilizationCheck check = model.CurrentCheck;
 
-        view.ShowCheck(model.ZoneStart, model.ZoneDegrees, model.CheckIndex, model.TotalChecks, ActiveData.AllowAbort);
+        view.ShowCheck(model.ZoneStart, model.ZoneDegrees, model.PerfectDegrees, model.CheckIndex,
+                       model.TotalChecks, ActiveData.AllowAbort);
         await WaitAsync(ActiveData.WarningLeadTime, token);   // [E] is not read in this window
 
         SweepResult result = await SweepAsync(token);
 
-        if (result == SweepResult.Hit)
+        if (result == SweepResult.Hit || result == SweepResult.Perfect)
         {
-            view.ShowSuccess(model.CheckIndex + 1, model.TotalChecks);
+            view.ShowSuccess(model.CheckIndex + 1, model.TotalChecks, result == SweepResult.Perfect);
             PlaySound(ActiveData.SuccessSoundId);
         }
         else
@@ -224,7 +226,7 @@ public class StabilizationCheckController
 
         await WaitAsync(ActiveData.ResultHoldTime, token);
         view.ShowStandby();
-        return result == SweepResult.Hit;
+        return result;
     }
 
     /// <summary>
@@ -258,7 +260,11 @@ public class StabilizationCheckController
             await UniTask.Yield(PlayerLoopTiming.Update, token);
             if (!IsTopModal) continue;
 
-            if (GameInput.InteractPressed) return model.Judge(angle) ? SweepResult.Hit : SweepResult.Miss;
+            if (GameInput.InteractPressed)
+            {
+                if (!model.Judge(angle)) return SweepResult.Miss;
+                return model.IsPerfect(angle) ? SweepResult.Perfect : SweepResult.Hit;
+            }
 
             angle += degreesPerSecond * Time.deltaTime;
             if (maxLaps > 0 && angle >= 360f * maxLaps) return SweepResult.Timeout;

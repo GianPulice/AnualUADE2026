@@ -275,7 +275,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     }
 
     /// <summary>
-    /// Subtract seconds from the active module's timer. Used by systems like the SkillCheck to
+    /// Subtract seconds from the active module's timer. Used by systems like the stabilization checks to
     /// apply a time penalty on failure without touching runtime fields directly.
     /// </summary>
     public void ApplyTimePenalty(float seconds)
@@ -291,7 +291,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
     /// <summary>
     /// Give seconds back to the active module's timer, capped at its full duration. The reward side
-    /// of <see cref="ApplyTimePenalty"/> — a perfect skill check hit uses it. Ignored with no module
+    /// of <see cref="ApplyTimePenalty"/>. Ignored with no module
     /// running, so it can never revive an exploded one.
     /// </summary>
     public void ApplyTimeBonus(float seconds)

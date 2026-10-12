@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SwitchPuzzleData
   puzzleId: p2_sp2_switches
   correctUp: 0100010100
-  startUp: 0
+  startUp: 1
   revealMode: 0
   revealFadeSeconds: 0.5
   lightReachFraction: 0.6
@@ -29,4 +29,4 @@ MonoBehaviour:
   flipSoundId: 
   completedSoundId: sfx_subpuzzle_1_completo
   switchPrompt: Flip switch
-  flipSeconds: 0.15
+  flipSeconds: 0.3

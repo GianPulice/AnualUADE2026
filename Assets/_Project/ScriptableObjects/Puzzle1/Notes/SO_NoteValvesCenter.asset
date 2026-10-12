@@ -25,9 +25,10 @@ MonoBehaviour:
   textContent: 'I already told you this a thousand times, Johnny.
 
     NEVER touch
-    the valve in the center.
+    the valve {side:0}.
 
 '
+  clueSource: {fileID: 11400000, guid: 85ebba1ea57f57342896ff8ae0fa5f1c, type: 2}
   audioClip: {fileID: 0}
   targetID: 
   worldPickupPrefab: {fileID: 0}

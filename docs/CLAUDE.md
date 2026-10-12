@@ -366,9 +366,10 @@ fog and its Timeline track · the whole Nemesis director layer (`NemesisDirector
 stuck escalation, telemetry, the test console and the editor validators) · the freight elevator and
 its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene MVC UI framework,
 `UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
-applier · `SequencePanelInteractable` and its panel UI · `SkillCheckController` (DBD format;
-`SkillCheckPanelInteractable` completes `puzzle_central_piso2` and so resolves M2, but no scene
-places it yet outside the `TestIñaki` dev scene) · the ball/basket push puzzle.
+applier · `SequencePanelInteractable` and its panel UI · `StabilizationCheckController` (the
+Ventilation Hub's checks, easy to hard, an orange perfect slice that eases the next check;
+`StabilizationPanelInteractable` completes `puzzle_central_piso2` and so resolves M2) · the
+ball/basket push puzzle.
 
 ## Architecture
 
@@ -506,6 +507,33 @@ typo there fails silently, because nothing ever looks up a puzzle that does not 
 
 `PuzzleController` / `PuzzleReward` are a generic wrapper that predates the per-type controllers and
 still has no callers; see *Current state* below.
+
+**Per-run solutions (Puzzle 1).** Three solutions change every run: the SP1 code, which basket each
+SP2 box goes in, and which SP3 valve gets which rule. `RunSeed` (`Scripts/Puzzles/`) holds one seed
+per run, dropped by `GameSession.BeginNewSession` (New Game, Retry) and drawn again on first use;
+each data asset derives its run's answer from it and its own puzzle id (`RunSeed.RandomFor`).
+Nothing stores the answer, so checkpoints, captures and scene reloads keep it without help. Each is a
+switch on the asset, and the asset's usual property returns the run's answer, so the controllers did
+not change:
+
+- `SO_SequencePuzzleData` · *Randomize Each Run*: a code as long as *Correct Sequence*, digits
+  *Min Digit*–*Max Digit* (1–9: the newspaper cannot say "0th floor").
+- `SO_ContainerPuzzleData` · *Shuffle Each Run*: deals the table's baskets out among its boxes.
+  `ContainerPuzzleRunLayout`, next to the controller, moves the baskets' symbols to match (each
+  basket is built showing the symbol of the box the written table puts in it). The baskets never move.
+- `SO_ValvePuzzleData` · *Shuffle Each Run*: deals the table's Required Positions (0 untouched,
+  2 pointing at the feet, 3 = three turns) out among the valves. The valves never change: yellow
+  left, red centre, blue right: each row's *Clue Name* (colour) and *Clue Side* ("on the left").
+
+The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
+fills the text's placeholders with the run's values (`ClueText`). The newspaper uses `{1}`…`{4}`
+for the digits, `{1:worker|workers}` for agreement and `{4:ord}` for "2nd"; the valve notes use
+`{valve:N}` and `{side:N}`, the Clue Name and Clue Side of the valve that must end at position N:
+the centre note names the untouched one (0) by where it is ("NEVER touch the valve on the left"),
+the left note the one pointing at the feet (2) by its colour. The right note ("Turn it 2 or 3
+times") names none, as it always did: the three turns are left to deduction. An unknown placeholder is left
+visible on purpose. In the editor and development builds each asset logs its run's answer the first
+time it is asked (`this run's code is …`).
 
 **SP2 box symbols.** `BoxSymbolSignalLoss`, on each push box, covers the basket symbol on the box's
 top face with a plain black disc (a runtime copy of the symbol's material, so it lights like the
@@ -2590,7 +2618,6 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 - **Zona 1's win is a "to be continued".** `WinTrigger` (past the gate) is `ReportWin`'s only caller; with a `Zone2EntryTeleport` enabled the escape's ending hands over to Zona 2 instead (see *Zona 1 → Zona 2*), and nothing in Zona 2 reports a win yet.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
-- **The skill check works but nothing in the level opens it.** `SkillCheckController` (LevelUI, canvas `SkillCheckCanvas.prefab`, data `ScriptableObjects/Puzzle2/SO_SkillCheck_Ventilation.asset`) plays the Dead by Daylight sequence and moves the active module's timer through `ApplyTimePenalty` / `ApplyTimeBonus`. Its only caller is `SkillCheckPanelInteractable`, placed only in the `TestIñaki` dev scene (SkillCheck Test Area). The old F6 test key (`SkillCheckTestKey` + `SO_SkillCheck_TestF6`) was removed on 2026-10-10; F6 is now the teleport to zone 2. Missing: the Hub panel that calls `Open(data, completed => …)` and completes the M2 puzzle, and the spec's progressive shake/ambience calm-down between checks.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
   per-category `pickupSoundId` on `SO_ItemCategoryConfig` when its own field is empty — which it is

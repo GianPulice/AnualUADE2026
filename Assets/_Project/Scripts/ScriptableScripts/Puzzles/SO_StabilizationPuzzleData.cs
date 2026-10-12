@@ -7,9 +7,11 @@ using UnityEngine;
 /// indicator per <see cref="RequiredPuzzleIds"/> entry, and the stabilization panel only opens once
 /// all of them are completed, then plays <see cref="Checks"/>.
 ///
-/// The checks (spec §3): a needle turning at constant speed and a success zone on the dial; [E]
-/// inside the zone passes, anywhere else fails. Difficulty goes DOWN — the first check is the
-/// hardest and every next one has a wider zone and a slower needle. A failure takes
+/// The checks: a needle turning at constant speed and a success zone on the dial; [E] inside the
+/// zone passes, anywhere else fails. Difficulty goes UP — the first check is the easiest and every
+/// next one has a narrower zone and a faster needle. The start of the zone (the part the needle
+/// reaches first) is an orange perfect slice: passing in it eases the NEXT check, relative to its
+/// own values (a wider zone and a slower needle by the Perfect section's fractions). A failure takes
 /// <see cref="StabilizationCheck.timerPenaltyOnFail"/> seconds off the running module and, by
 /// default, repeats the SAME check (the Rules section can change that, and whether timeouts cost
 /// time, and whether ESC may interrupt). An interrupted sequence loses its progress: the panel
@@ -17,9 +19,6 @@ using UnityEngine;
 ///
 /// Completing every check completes <see cref="PuzzleId"/>, which resolves M2 (its
 /// associatedPuzzleId) in ModuleManager.
-///
-/// Not to be confused with SO_SkillCheckData / SkillCheckController: that is a different, earlier
-/// take on the same panel (easy-to-hard, a miss restarts the sequence) kept as it is.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_StabilizationPuzzleData", menuName = "Scriptable Objects/Puzzles/Stabilization Puzzle Data")]
 public class SO_StabilizationPuzzleData : ScriptableObject
@@ -39,6 +38,11 @@ public class SO_StabilizationPuzzleData : ScriptableObject
         [Tooltip("Size of the success zone as a fraction of the dial (0.25 = a quarter). Higher = easier.")]
         [Range(0.02f, 0.9f)] public float successZoneWidth;
 
+        [Tooltip("Size of the orange perfect slice at the START of the success zone (the part the " +
+                 "needle reaches first), as a fraction of the dial. Never wider than the zone. " +
+                 "0 = no perfect slice on this check.")]
+        [Range(0f, 0.2f)] public float perfectZoneWidth;
+
         [Tooltip("Seconds taken off the running module's timer when this check is failed.")]
         [Min(0f)] public float timerPenaltyOnFail;
     }
@@ -57,18 +61,27 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     [Tooltip("Shown while sub-puzzles are missing. {0} = how many.")]
     [SerializeField] private string pendingInfoFormat = "Pending systems: {0}";
 
-    [Header("Checks (played in order, hardest first)")]
+    [Header("Checks (played in order, easiest first)")]
     [SerializeField] private StabilizationCheck[] checks =
     {
-        new StabilizationCheck { needleSpeed = 0.9f,  successZoneWidth = 0.12f, timerPenaltyOnFail = 10f },
-        new StabilizationCheck { needleSpeed = 0.8f,  successZoneWidth = 0.18f, timerPenaltyOnFail = 10f },
-        new StabilizationCheck { needleSpeed = 0.7f,  successZoneWidth = 0.25f, timerPenaltyOnFail = 10f },
-        new StabilizationCheck { needleSpeed = 0.6f,  successZoneWidth = 0.35f, timerPenaltyOnFail = 10f },
+        new StabilizationCheck { needleSpeed = 0.6f,  successZoneWidth = 0.35f, perfectZoneWidth = 0.04f,  timerPenaltyOnFail = 10f },
+        new StabilizationCheck { needleSpeed = 0.7f,  successZoneWidth = 0.25f, perfectZoneWidth = 0.035f, timerPenaltyOnFail = 10f },
+        new StabilizationCheck { needleSpeed = 0.8f,  successZoneWidth = 0.18f, perfectZoneWidth = 0.03f,  timerPenaltyOnFail = 10f },
+        new StabilizationCheck { needleSpeed = 0.9f,  successZoneWidth = 0.12f, perfectZoneWidth = 0.025f, timerPenaltyOnFail = 10f },
     };
 
+    [Header("Perfect (the orange slice)")]
+    [Tooltip("After a perfect, how much wider the NEXT check's success zone is, relative to its own " +
+             "width (0.25 = 25% wider). It still gets harder, just less of a jump.")]
+    [SerializeField, Range(0f, 1f)] private float perfectZoneWidening = 0.25f;
+    [Tooltip("After a perfect, how much slower the NEXT check's needle turns, relative to its own " +
+             "speed (0.15 = 15% slower).")]
+    [SerializeField, Range(0f, 0.9f)] private float perfectNeedleSlowdown = 0.15f;
+
     [Header("Rules")]
-    [Tooltip("What a failed check does. Repeat Same Check = the spec: try that check again. " +
-             "Restart From First Check = back to the first (hardest) check, losing the progress.")]
+    [Tooltip("What a failed check does. Repeat Same Check = try that check again (an ease earned " +
+             "by a perfect stays on it). Restart From First Check = back to the first (easiest) " +
+             "check, losing the progress and the ease.")]
     [SerializeField] private FailBehavior onFail = FailBehavior.RepeatSameCheck;
 
     [Tooltip("Full laps the needle may turn without a press before the attempt counts as failed. " +
@@ -147,6 +160,8 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     public string StartPrompt => startPrompt;
     public string PendingInfoFormat => pendingInfoFormat;
     public StabilizationCheck[] Checks => checks ?? Array.Empty<StabilizationCheck>();
+    public float PerfectZoneWidening => perfectZoneWidening;
+    public float PerfectNeedleSlowdown => perfectNeedleSlowdown;
     public FailBehavior OnFail => onFail;
     public int MaxLapsPerAttempt => maxLapsPerAttempt;
     public bool PenalizeTimeout => penalizeTimeout;

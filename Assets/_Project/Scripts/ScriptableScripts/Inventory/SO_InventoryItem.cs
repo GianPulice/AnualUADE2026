@@ -47,6 +47,12 @@ public class SO_InventoryItem : ScriptableObject
     private string textContent;
 
     [SerializeField]
+    [Tooltip("Optional: the puzzle whose solution this text gives away (a puzzle data asset that " +
+             "changes every run). Its {placeholders} in the text are filled with this run's values, " +
+             "e.g. {1} = the first digit of a code. Empty = the text is shown as written.")]
+    private ScriptableObject clueSource;
+
+    [SerializeField]
     [Tooltip("Audio clip. Only used if ContentType == Audio.")]
     private AudioClip audioClip;
 
@@ -84,7 +90,8 @@ public class SO_InventoryItem : ScriptableObject
 
     // -- Detail panel content ───────────────────────────────────────────────────────────────
     public ItemContentType ContentType => contentType;
-    public string TextContent => contentType == ItemContentType.Text ? textContent : null;
+    public string TextContent =>
+        contentType == ItemContentType.Text ? ClueText.Fill(textContent, clueSource as IClueSource) : null;
     public AudioClip AudioClip => contentType == ItemContentType.Audio ? audioClip : null;
     public string TargetID => targetID;
     public PickupInteractable WorldPickupPrefab => worldPickupPrefab;
