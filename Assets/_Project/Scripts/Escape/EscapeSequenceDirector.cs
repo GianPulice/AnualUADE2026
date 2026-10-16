@@ -25,7 +25,8 @@ using UnityEngine.Serialization;
 ///              and every door locks. The dense fog rolls in. The Nemesis is put at the far end of
 ///              the corridor with its eyes shut. A fixed hold of silence.
 ///   Reveal     the same shot pans round to the far end of the corridor; cut to the detail of the
-///              Nemesis's eyes opening in the dark (the fog eats the body); cut to the wide shot
+///              Nemesis's eyes opening in the dark (the fog eats the body), flaring up to the
+///              config's power and easing back to normal before the shot ends; cut to the wide shot
 ///              over the player's shoulder as it charges, and once it has covered a few metres,
 ///              cut to the player's own view, looking at it: control comes back and the chase is on.
 ///   Escape     gameplay (Pasos 4-7): the corridor's lamps turn into sirens, red and amber taking
@@ -766,7 +767,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             // for one model's height lands on the mouth of a taller one.
             CutTo(eyesShot);
             if (hasNemesis) eyesShot.LockOn(actor.EyesPoint);
-            await WaitOrSkip(config.EyesHoldSeconds, token);
+            await HoldEyesShotAsync(hasNemesis, token);
         }
 
         // The charge: it runs at the player, and control comes back once it has covered the
@@ -1183,6 +1184,10 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         if (chaseRestart != null) chaseRestart.End();
         CancelEndGate();
 
+        // And it stops sounding like one: the alarm, the tension layer and the chase music come down
+        // over a few seconds instead of playing on under the whole ending and cutting at the win.
+        FadeOutChaseAudio();
+
         // Closed, and the gate shot's own fog on top: it ends just past the gate.
         if (fogCycle != null) fogCycle.Hold(open: false);
         PushShotFog(config.GateShotFog);
@@ -1354,6 +1359,51 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         }
     }
 
+    /// <summary>
+    /// The eyes shot's hold, with the eyes flaring in it: a hot core and a halo round it (the eyes'
+    /// own bloom, see <see cref="NemesisEyes.SetFlare"/>) that come up just after the cut, are held,
+    /// and ease back to what the eyes always are over the end of the hold — so the charge starts
+    /// with them normal. Always leaves them at normal, a skip or a cancel included.
+    /// </summary>
+    private async UniTask HoldEyesShotAsync(bool hasNemesis, CancellationToken token)
+    {
+        float hold = config.EyesHoldSeconds;
+
+        float power = config.EyesFlarePower;
+        float coreRadius = config.EyesFlareCoreRadius;
+        float haloIntensity = config.EyesFlareHaloIntensity;
+        float haloRadius = config.EyesFlareHaloRadius;
+
+        bool flares = power > 1.001f || coreRadius > 0.5f || haloIntensity > 0.001f;
+        if (!hasNemesis || actor == null || !flares)
+        {
+            await WaitOrSkip(hold, token);
+            return;
+        }
+
+        float rise = Mathf.Min(config.EyesFlareRiseSeconds, hold);
+        float fall = Mathf.Min(config.EyesFlareFallSeconds, hold - rise);
+        float fallStart = hold - fall;
+
+        try
+        {
+            float elapsed = 0f;
+            while (elapsed < hold && !skipRequested)
+            {
+                float up = rise > 0f ? Mathf.SmoothStep(0f, 1f, elapsed / rise) : 1f;
+                float down = fall > 0f ? Mathf.SmoothStep(0f, 1f, (elapsed - fallStart) / fall) : 0f;
+                actor.SetEyesFlare(up * (1f - down), power, coreRadius, haloIntensity, haloRadius);
+
+                await UniTask.Yield(PlayerLoopTiming.Update, token);
+                elapsed += Time.deltaTime;
+            }
+        }
+        finally
+        {
+            if (actor != null) actor.SetEyesFlare(0f, power, coreRadius, haloIntensity, haloRadius);
+        }
+    }
+
     private void RegisterWinPresenter() => GameResultManager.WinPresenter = this;
 
     private void UnregisterWinPresenter()
@@ -1442,7 +1492,26 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     {
         if (pursuit != null) pursuit.End();
         if (chaseRestart != null) chaseRestart.End();
-        if (escapeAudio != null) escapeAudio.Stop();
+
+        // The ending's fade-out finishes by itself: cutting it here (the win, or the hand-over past
+        // the gate) would turn it back into the abrupt stop it replaces.
+        if (escapeAudio != null && !escapeAudio.IsFadingOut) escapeAudio.Stop();
+    }
+
+    /// <summary>
+    /// The chase is over: everything that sounded like it fades out over the config's seconds. The
+    /// escape's own loops, and the chase music (found in the scene: it belongs to the Nemesis's
+    /// audio, not to this sequence, and a puppeteered Nemesis never raises the state change that
+    /// ends it by itself).
+    /// </summary>
+    private void FadeOutChaseAudio()
+    {
+        float seconds = config.ChaseAudioFadeOutSeconds;
+
+        if (escapeAudio != null) escapeAudio.FadeOut(seconds);
+
+        NemesisChaseMusic chaseMusic = FindAnyObjectByType<NemesisChaseMusic>();
+        if (chaseMusic != null) chaseMusic.FadeOutForCinematic(seconds);
     }
 
     // ── Retired opening ─────────────────────────────────────────────────────

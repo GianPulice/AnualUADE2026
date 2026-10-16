@@ -21,6 +21,17 @@ public static class PuzzleRewardDelivery
     // up, they settle on the floor instead of starting inside it.
     private const float SpawnLift = 0.5f;
 
+    /// <summary>
+    /// Delivery for a puzzle that has an id. When a <see cref="PuzzleRewardBox"/> is set up for
+    /// <paramref name="puzzleId"/>, the reward goes into the box, which hands it over when the player
+    /// opens it; otherwise it is delivered as below.
+    /// </summary>
+    public static void Deliver(string puzzleId, SO_InventoryItem item, Transform dropPoint, Component context)
+    {
+        if (PuzzleRewardBox.TryReceiveReward(puzzleId, item)) return;
+        Deliver(item, dropPoint, context);
+    }
+
     /// <param name="dropPoint">Where the reward lands if it cannot be carried. Null = in front of the player.</param>
     /// <param name="context">The puzzle granting it. Used for logs and to keep the dropped pickup in its scene.</param>
     public static void Deliver(SO_InventoryItem item, Transform dropPoint, Component context)

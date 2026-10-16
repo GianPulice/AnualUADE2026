@@ -489,6 +489,45 @@ the same **subscribe + catch-up** shape, and they have to: the event only fires 
 and an object loaded after the puzzle was solved would otherwise never hear about it. Subscribe in
 `OnEnable`/`Awake`, then re-check `IsPuzzleCompleted(id)` in `Start`.
 
+A second event says when the world may **react** to the completion:
+`PuzzleCompletionAftermath.Settled(string puzzleId)` (`Scripts/Puzzles/`). For a puzzle with no
+reward box it fires in the same call, right after `OnPuzzleCompleted`. For a puzzle with a box it
+fires when the box's cinematic ends (or is skipped), because the player is frozen during it. The
+three Nemesis listeners that would act on a frozen player use `Settled` instead of
+`OnPuzzleCompleted`: the activation gate (`NemesisStateManager`), the Director's puzzle triggers
+(pressure and staged entrance) and `NemesisEscalation`. Everything else (power, Architect lines,
+checkpoints, routes, modules) stays on `OnPuzzleCompleted` and happens under the shot.
+
+**Reward boxes** (`Scripts/Puzzles/RewardBox/`, prefabs `Prefabs/Box/Caja Panel` and `Caja
+Teclado`). A sub-puzzle no longer hands its item straight to the inventory when a box is set up for
+it: `PuzzleRewardDelivery.Deliver(puzzleId, …)` asks `PuzzleRewardBox.TryReceiveReward` first.
+The box is linked by its `puzzleId` dropdown (`[PuzzleId]`); its inspector finds the puzzle asset
+that declares that id (any SO implementing `IPuzzleRewardSource`) and shows the item it will give.
+The flow:
+
+- **Locked.** Red glow (lock LEDs and screen, the model's `Brillo` material) and a red `Light` +
+  `FogBeacon` (`RewardLight` child), so it reads through the fog from the start. E says "Locked".
+- **Solved.** A short skippable shot (`RewardBoxCinematic`): the player is frozen, the camera is
+  the box's `Shot` child (an `EscapeShotCamera`, framed per box in the Scene view), the fog is
+  measured from the shot, and an active Nemesis is held with `SetExternalHold`. The right latch
+  opens and its lock falls, then the left one, the screen and light turn cyan, and the lid opens
+  on the item model (`ItemAnchor/ItemVisual`, kept switched off until then; drag a model onto
+  *Item Model* in the box's inspector to fill it, scaled to fit and stripped of pickup scripts and
+  physics). `InteractionManager` targets nothing while `CinematicState.IsPlaying`, so the box the
+  shot is aimed at does not light up or take the prompt. Latches and lid are the model's clips through
+  `BoxController` (one layer per part, Write Defaults off). The locks fall procedurally
+  (`RewardBoxRig`): the model has no animation for them.
+- **Open.** E takes the item like a floor pickup (`AddItem`, the one-Special rule applies). The
+  light and beacon go out.
+
+A box that loads with its puzzle already solved opens at once, with no shot. Tunables (colours,
+timings, prompts, sounds, skip key) live in `ScriptableObjects/RewardBox/SO_RewardBoxConfig`.
+`Tools > Puzzles > Set Up Reward Boxes` (re-runnable) builds the controller and the config, wires
+both prefabs and links the Zona 1 boxes (`BoxSupport P1_SP1..3`) to their puzzles. The glow parts
+carry `ExcludeFromHighlight`, because the crosshair highlight would pin their emission back to its
+Awake colour. To test in Play mode: F3 solves SP1, and the component's context menu has *Test: solve
+this box's puzzle*.
+
 Sub-puzzle types, each an interactable plus a controller that watches for its completion condition:
 
 | Puzzle | Interactable | Controller | State key |

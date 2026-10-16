@@ -104,6 +104,40 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos del plano detalle de los ojos.")]
     [SerializeField, Min(0f)] private float eyesHoldSeconds = 1.6f;
 
+    // El destello es el "bloom" propio de los ojos. La cámara del juego NO renderiza el
+    // post-proceso de URP (Main Camera: Post Processing apagado), así que un Volume con Bloom no
+    // hace nada: el resplandor sale del pase de niebla, que dibuja cada ojo como una gaussiana.
+    // Un núcleo más grande y brillante + un halo ancho y tenue por ojo lo imitan.
+    [Tooltip("Destello de los ojos en ese plano: cuántas veces se multiplica el brillo del " +
+             "NÚCLEO en el pico (1 = sin esa parte). Sube al cortar al plano, se sostiene y vuelve " +
+             "a lo normal antes de la carga. El valor normal de los ojos (NemesisEyes.intensity) no " +
+             "se toca.")]
+    [SerializeField, Min(1f)] private float eyesFlarePower = 4f;
+
+    [Tooltip("Radio en pantalla del núcleo de cada ojo en el pico, en píxeles a 1080p (se escala " +
+             "a la resolución real). De lejos manda el mínimo de NemesisEyes; en este teleobjetivo " +
+             "el radio ya está en el tope global (beaconMaxPixels, 26), así que para que crezca " +
+             "tiene que pasar de ese número. 0 = no lo agranda.")]
+    [SerializeField, Min(0f)] private float eyesFlareCoreRadius = 40f;
+
+    [Tooltip("Brillo en el centro del halo de cada ojo en el pico: el resplandor que se desparrama " +
+             "alrededor del núcleo, que es lo que hace de bloom. Ojo con subirlo mucho: el borde " +
+             "del halo se corta en seco y arriba de ~2 el círculo se nota. 0 = sin halo.")]
+    [SerializeField, Min(0f)] private float eyesFlareHaloIntensity = 1.5f;
+
+    [Tooltip("Radio en pantalla del halo en el pico, en píxeles a 1080p. Cada ojo tiene el suyo; " +
+             "con los ojos cerca se pisan y forman un resplandor común.")]
+    [SerializeField, Min(0f)] private float eyesFlareHaloRadius = 160f;
+
+    [Tooltip("Segundos que tardan los ojos en subir de lo normal al pico, contados desde el corte " +
+             "al plano. Si no entra en 'Eyes Hold Seconds' se recorta.")]
+    [SerializeField, Min(0f)] private float eyesFlareRiseSeconds = 0.25f;
+
+    [Tooltip("Segundos que tardan en volver a lo normal, justo al final del plano: el pico se " +
+             "sostiene en lo que sobra entre la subida y la bajada. Si no entra en 'Eyes Hold " +
+             "Seconds' se recorta.")]
+    [SerializeField, Min(0f)] private float eyesFlareFallSeconds = 0.7f;
+
     [Tooltip("Metros que corre el Nemesis hacia el jugador en el plano general antes de que vuelva " +
              "el control.")]
     [SerializeField, Min(0.5f)] private float chargeDistance = 6f;
@@ -395,6 +429,12 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos que tarda la capa de tensión en seguir a la cercanía del Nemesis.")]
     [SerializeField, Min(0.05f)] private float tensionSmoothing = 1.5f;
 
+    [Tooltip("Segundos en los que se apaga de a poco todo el sonido de la persecución (alarma, " +
+             "capa de tensión y música de persecución) al cruzar el trigger del final. 0 = corte " +
+             "directo. El final dura unos 7 s: con 4 s queda en silencio antes de la pantalla de " +
+             "victoria.")]
+    [SerializeField, Min(0f)] private float chaseAudioFadeOutSeconds = 4f;
+
     [Tooltip("Sonido de traba de cada puerta (id de AudioManager): las otras salidas del hub al " +
              "poner el último núcleo.")]
     [SerializeField, SoundId] private string doorLockSoundId = "sfx_interaction_puerta_bloqueada";
@@ -420,6 +460,12 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public AnimationCurve PanCurve => panCurve;
     public int PanTurnSign => panTurnSign;
     public float EyesHoldSeconds => eyesHoldSeconds;
+    public float EyesFlarePower => eyesFlarePower;
+    public float EyesFlareCoreRadius => eyesFlareCoreRadius;
+    public float EyesFlareHaloIntensity => eyesFlareHaloIntensity;
+    public float EyesFlareHaloRadius => eyesFlareHaloRadius;
+    public float EyesFlareRiseSeconds => eyesFlareRiseSeconds;
+    public float EyesFlareFallSeconds => eyesFlareFallSeconds;
     public float ChargeDistance => chargeDistance;
     public float ChargeMaxSeconds => chargeMaxSeconds;
 
@@ -494,6 +540,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float TensionMinVolume => tensionMinVolume;
     public float TensionMaxVolume => tensionMaxVolume;
     public float TensionSmoothing => tensionSmoothing;
+    public float ChaseAudioFadeOutSeconds => chaseAudioFadeOutSeconds;
     public string DoorLockSoundId => doorLockSoundId;
     public float DoorLockInterval => doorLockInterval;
 

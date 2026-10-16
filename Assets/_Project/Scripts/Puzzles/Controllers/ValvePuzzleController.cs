@@ -32,7 +32,7 @@ public class ValvePuzzleController : MonoBehaviour
         if (AudioManager.Exists)
             AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
 
-        PuzzleRewardDelivery.Deliver(valvePuzzleData.RewardItem, rewardDropPoint, this);
+        PuzzleRewardDelivery.Deliver(valvePuzzleData.PuzzleId, valvePuzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
     }

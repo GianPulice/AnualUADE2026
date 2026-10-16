@@ -1277,10 +1277,11 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Not in OnEnable because docs/CLAUDE.md is explicit that static events are subscribed in
         // Awake and released in OnDestroy — a static delegate outlives the GameObject's enabled
         // state, so an enabled-scoped subscription is a listener that silently stops listening.
-        // Here that was not cosmetic: PuzzleStateManager.OnPuzzleCompleted is this Nemesis's
-        // ACTIVATION gate, and the catch-up for an already-solved puzzle only runs in Start(). A
-        // Nemesis disabled for so much as a frame around its puzzle would never wake up again,
-        // with nothing in the log to say why.
+        // Here that was not cosmetic: PuzzleCompletionAftermath.Settled (OnPuzzleCompleted, held back
+        // while a reward box shows itself opening) is this Nemesis's ACTIVATION gate, and the
+        // catch-up for an already-solved puzzle only runs in Start(). A Nemesis disabled for so
+        // much as a frame around its puzzle would never wake up again, with nothing in the log to
+        // say why.
         //
         // Last, and after the early return above, so a Nemesis whose references failed validation
         // stays deaf: it is disabled and cannot service an Activate() call. OnDestroy still
@@ -1545,7 +1546,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
         PlayerRegistry.OnPlayerUnregistered += HandlePlayerUnregistered;
         CheckpointManager.OnRespawned += HandleCheckpointRespawned;
-        PuzzleStateManager.OnPuzzleCompleted += HandleActivationPuzzleCompleted;
+        PuzzleCompletionAftermath.Settled += HandleActivationPuzzleCompleted;
     }
 
     private void OnDestroy()
@@ -1553,7 +1554,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
         PlayerRegistry.OnPlayerUnregistered -= HandlePlayerUnregistered;
         CheckpointManager.OnRespawned -= HandleCheckpointRespawned;
-        PuzzleStateManager.OnPuzzleCompleted -= HandleActivationPuzzleCompleted;
+        PuzzleCompletionAftermath.Settled -= HandleActivationPuzzleCompleted;
     }
 
     /// <summary>

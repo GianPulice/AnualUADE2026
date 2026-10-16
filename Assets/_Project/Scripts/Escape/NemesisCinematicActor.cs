@@ -163,6 +163,18 @@ public class NemesisCinematicActor : MonoBehaviour
         if (eyes != null) eyes.SetLightsEnabled(visible);
     }
 
+    /// <summary>
+    /// The flare of the eyes shot: 0 = the eyes as authored, 1 = the full flare, with the given core
+    /// and halo (see <see cref="NemesisEyes.SetFlare"/>). Whoever raises it gives it back: nothing
+    /// else resets it.
+    /// </summary>
+    public void SetEyesFlare(float amount, float power, float coreRadiusPixels,
+                             float haloIntensity, float haloRadiusPixels)
+    {
+        NemesisEyes eyes = FindEyes();
+        if (eyes != null) eyes.SetFlare(amount, power, coreRadiusPixels, haloIntensity, haloRadiusPixels);
+    }
+
     /// <summary>The point between the Nemesis's eyes, riding on its head, for a shot to be trained
     /// on. Null when there is no Nemesis or it has no eyes.</summary>
     public Transform EyesPoint

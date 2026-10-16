@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "SO_ValvePuzzleData", menuName = "Scriptable Objects/Puzzles/Valve Puzzle Data")]
-public class SO_ValvePuzzleData : ScriptableObject, IClueSource
+public class SO_ValvePuzzleData : ScriptableObject, IClueSource, IPuzzleRewardSource
 {
     [System.Serializable]
     public class ValveRequirement

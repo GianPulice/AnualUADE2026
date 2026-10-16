@@ -26,7 +26,18 @@ public class EscapeAudio : MonoBehaviour
     private float tensionVolume;
     private float tensionVelocity;
 
+    // A fade-out in progress (see FadeOut): both loops ride from where they were down to silence.
+    private bool fading;
+    private float fadeSeconds;
+    private float fadeElapsed;
+    private float alarmFadeFrom;
+    private float tensionFadeFrom;
+
     public bool IsRunning => running;
+
+    /// <summary>The loops are on their way down to silence and will stop themselves at the end.
+    /// A <see cref="Stop"/> from outside would cut that fade short.</summary>
+    public bool IsFadingOut => running && fading;
 
     private void Awake() => NemesisEvents.OnProximityChanged += HandleProximity;
 
@@ -41,6 +52,7 @@ public class EscapeAudio : MonoBehaviour
 
         config = escapeConfig;
         running = true;
+        fading = false;
         proximity = 0f;
         tensionVolume = config.TensionMinVolume;
         tensionVelocity = 0f;
@@ -55,12 +67,37 @@ public class EscapeAudio : MonoBehaviour
                             audio != null ? audio.MusicGroup : null);
     }
 
-    /// <summary>Stops both loops.</summary>
+    /// <summary>Stops both loops, at once.</summary>
     public void Stop()
     {
         running = false;
+        fading = false;
         if (alarm != null) alarm.Stop();
         if (tension != null) tension.Stop();
+    }
+
+    /// <summary>
+    /// Brings both loops down to silence over <paramref name="seconds"/>, from wherever they are,
+    /// and stops them at the end: the chase is over and the sound should leave with it, not cut.
+    /// Runs on unscaled time, so the win screen freezing the game does not freeze the fade.
+    /// Does nothing if the loops are not running or are already fading; 0 is a plain
+    /// <see cref="Stop"/>.
+    /// </summary>
+    public void FadeOut(float seconds)
+    {
+        if (!running || fading) return;
+
+        if (seconds <= 0.01f)
+        {
+            Stop();
+            return;
+        }
+
+        fading = true;
+        fadeSeconds = seconds;
+        fadeElapsed = 0f;
+        alarmFadeFrom = alarm != null ? alarm.volume : 0f;
+        tensionFadeFrom = tension != null ? tension.volume : 0f;
     }
 
     private AudioSource StartLoop(string objectName, AudioClip clip, float volume,
@@ -91,6 +128,18 @@ public class EscapeAudio : MonoBehaviour
     private void Update()
     {
         if (!running || config == null) return;
+
+        if (fading)
+        {
+            fadeElapsed += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01(fadeElapsed / fadeSeconds);
+
+            if (alarm != null) alarm.volume = Mathf.Lerp(alarmFadeFrom, 0f, k);
+            if (tension != null) tension.volume = Mathf.Lerp(tensionFadeFrom, 0f, k);
+
+            if (k >= 1f) Stop();
+            return;
+        }
 
         if (alarm != null) alarm.volume = config.AlarmVolume;
 

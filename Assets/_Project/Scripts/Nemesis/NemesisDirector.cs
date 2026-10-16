@@ -288,7 +288,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private void OnEnable()
     {
-        PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled += HandlePuzzleCompleted;
 
         // Back from a disable that returned everything: the rhythm may still want its persistence.
         RefreshLoan();
@@ -296,7 +296,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private void OnDisable()
     {
-        PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled -= HandlePuzzleCompleted;
 
         // Everything this class does is a temporary edit to somebody else's state. A Director torn
         // down mid-request would otherwise leave boosted route weights and a cloned data asset
