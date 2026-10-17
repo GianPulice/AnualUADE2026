@@ -16,6 +16,24 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     [Header("Temp")]
     [SerializeField] private string firstSceneLabel = "TestBlocking";
 
+    [Header("Audio")]
+    [Tooltip("Menu music: SO_SoundData ids (Music category), played in this order by a " +
+             "MusicCrossfadePlaylist. Starts when the menu opens and fades out when the game starts. " +
+             "Empty = silent menu.")]
+    [SerializeField, SoundId] private string[] menuMusicIds = { "mus_mainmenu", "mus_mainmenu_alt_01" };
+
+    [Tooltip("Times each track plays, whole, before the next one takes over (2 = A A B B A A ...).")]
+    [SerializeField, Min(1)] private int menuMusicPlaysPerTrack = 2;
+
+    [Tooltip("Seconds of overlap at every transition, between two tracks and between two plays of " +
+             "the same one. It is what hides the loop point. Clamped to a quarter of the shortest clip.")]
+    [SerializeField, Min(0.25f)] private float menuMusicCrossfade = 4f;
+
+    [Tooltip("Seconds the music takes to fade out when the game starts.")]
+    [SerializeField, Min(0f)] private float menuMusicFadeOut = 1.5f;
+
+    private MusicCrossfadePlaylist menuMusic;
+
     //To unsubscribe lambdas
     private System.Action _onNewGame;
     private System.Action _onLoadGame;
@@ -32,6 +50,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         Debug.Log("<color=green>Controller: doing my thing</color>");
 
         FreeCursor();
+        PlayMenuMusic();
 
         // With no saved games there is nothing to load: the button starts disabled.
         view.SetLoadGameInteractable(_saveSlotsController != null && _saveSlotsController.HasAnySave);
@@ -81,6 +100,36 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    // AudioManager lives in the Data scene; with the menu opened on its own there may be none.
+    // The playlist hangs from the AudioManager and not from the menu, so its fade-out can finish
+    // after the menu scene is unloaded.
+    private void PlayMenuMusic()
+    {
+        if (menuMusicIds == null || menuMusicIds.Length == 0 || !AudioManager.Exists) return;
+        if (menuMusic != null && menuMusic.IsActive) return;
+
+        var tracks = new System.Collections.Generic.List<SO_SoundData>(menuMusicIds.Length);
+        foreach (string id in menuMusicIds)
+        {
+            SO_SoundData data = AudioManager.Instance.GetSound(id);
+            if (data == null)
+                Debug.LogWarning($"[MainMenuController] Menu music id '{id}' is not registered in the AudioManager.");
+            else
+                tracks.Add(data);
+        }
+        if (tracks.Count == 0) return;
+
+        menuMusic = MusicCrossfadePlaylist.Create(AudioManager.Instance.transform, "MenuMusic");
+        menuMusic.Begin(tracks, menuMusicPlaysPerTrack, menuMusicCrossfade);
+    }
+
+    private void StopMenuMusic()
+    {
+        if (menuMusic == null) return;
+        menuMusic.FadeOutAndDestroy(menuMusicFadeOut);
+        menuMusic = null;
     }
 
     private async UniTask HandleNewGame()
@@ -133,6 +182,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     {
         if (!ValidateSceneGroup(sceneLabel)) return;
 
+        StopMenuMusic();
         await Close();
 
         await UnloadBootstrapAsync();

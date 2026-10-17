@@ -434,8 +434,8 @@ Tres caminos independientes al mixer. **Ninguno de los tres es intercambiable co
 | Música de persecución | `NemesisChaseMusic`, objeto suelto en la escena | **Music** | Funciona |
 | Puertas que abre | `DoorInteractable.AnimateOpen/Close` | SFX | Funciona |
 | Bajadas: gruñido, golpe de manos, impacto | `NemesisAudio.PlayDropCue`, uno por fase | Nemesis | Clips provisorios (ver *Bajadas entre pisos*) |
-| Stinger de captura | — | — | **No existe** |
-| Cue de activación | Cuando lo despierta un puzzle, `NemesisAudio` (`activationSoundId`). En el escape, cuando arranca a correr (`SO_EscapeSequenceConfig.revealSoundId`) | Nemesis | **Falta el clip**: los dos piden `sfx_nemesis_activacion`, que está vacío |
+| Stinger de captura | `NemesisAudio.HandlePlayerCaptured` (`captureStingerSoundId`), una vez en el agarre | Nemesis | Funciona (`sfx_nemesis_captura_stinger`; hay una variante `_alt_01` sin SO) |
+| Cue de activación | Cuando lo despierta un puzzle, `NemesisAudio` (`activationSoundId`). En el escape, cuando arranca a correr (`SO_EscapeSequenceConfig.revealSoundId`) | Nemesis | Funciona (`sfx_nemesis_activacion`; hay una variante `_alt_01` sin SO) |
 
 La música de persecución no se corta cuando te pierde de vista: sigue durante la búsqueda que viene después (también en `Traversing`) y termina cuando termina la búsqueda, así el silencio quiere decir "dejó de buscar" y no "dejó de verte" (decisión D5 del plan). `searchTailTimeout` (25 s) es la red de seguridad.
 
@@ -469,7 +469,7 @@ También tiene one-shots, que no son loops: van por el pool del `AudioManager` a
 - **Voz y avisos** (plan §16.2), con un enfriamiento común (`voiceCooldown`, 3 s) para que no hable encima de sí mismo:
   - **"Sabe tu escondite"** (`knownSpotStings`). Suena cuando pasa a saber en qué escondite estás (te vio entrar, o te distinguió por las rendijas) y todavía está a más de `knownSpotStingMinDistance` (2 m) de la puerta. Desde adentro es lo único que separa "sabe" de "adivina": el margen para salir antes de que llegue (D1, D16, D34). Si sólo sospecha no suena, y tampoco en la puerta, donde el golpe es la música al abrir (D13). Clip provisorio: `voice_chase` a pitch 0.8.
   - **"Te perdí"** (`lostVoices`: `voice_lost_01/02`). Suena al volver a patrullar después de una búsqueda que terminó sin encontrarte, y confirma lo que ya dice el silencio de la música (D5). Si en el medio se fue a investigar un ruido, espera a que vuelva a patrullar. Si te encontró, no suena.
-  - **Cue de activación** (`activationSoundId`, `sfx_nemesis_activacion`). Suena cuando lo despierta un puzzle, no un script: el escape toca el suyo. El SO todavía no tiene clip.
+  - **Cue de activación** (`activationSoundId`, `sfx_nemesis_activacion`). Suena cuando lo despierta un puzzle, no un script: el escape toca el suyo. Ya tiene clip.
 
 Crossfade de 0.4 s entre estados, `spatialBlend` 1 (3D puro), y oclusión que **atenúa, nunca corta** (`occludedVolumeMultiplier`: 0.35 en el código, 0.5 en el prefab): que el monstruo desaparezca del audio apenas se mete detrás de una columna es peor información que que se escuche de más.
 
@@ -588,22 +588,22 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 |---|---|
 | Voz: el aviso de "sabe tu escondite" usa `voice_chase` provisorio. Falta un clip propio, que no se confunda con el gruñido de las bajadas | Audio |
 | Decidir qué hacer con `SO_FootstepBank_Nemesis` y los `pasos_chase_*`: quedaron sin uso desde que los pasos usan el banco del jugador | Audio |
-| **Conseguir dos clips**: el stinger de captura y el cue de activación — ver abajo | Audio |
+| Oír en juego el stinger de captura y el cue de activación (ya tienen clip; falta decidir si las variantes `_alt_01` se sortean) | Audio |
 | Marcar superficies con `FootstepSurface` en el blockout | Nivel |
 | Definir qué es la cinemática de captura del spec §5.6, y la animación de sacar al jugador de un escondite | Diseño |
 | Poner `NemesisDecoyBreaker` en el prefab antes de colocar radios en un nivel (ver *Señuelos*), y los ids de sonido de los tres señuelos | Nivel + audio |
 | Revisar los umbrales de la escalada (0 / 2 / 3 puzzles) cuando exista la Zona 2 | Diseño |
 | Bajadas: las animaciones del plan §15.5 y el setup del Animator, clips propios de golpe de manos e impacto, apagar *Generate Links* y rebakear (D10), y jugarlas en el *Drop Lab* de la testbed (casos 12–16 y 55) | Arte + audio + nivel |
 
-### Dos `SO_SoundData` esperando clip
+### Stinger de captura y cue de activación
 
-Están creados y ya enganchados al `AudioManager`, pero con el campo `clip` vacío. **Reservan el id** para que el código que los dispara se pueda escribir contra ellos; hasta que alguien arrastre un clip suenan silencio, sin error y sin warning.
+Los dos `SO_SoundData` que esperaban clip ya lo tienen (los clips viven en `Audio/SFX/Nemesis/`). Cada uno tiene una variante `_alt_01` que **no tiene SO**: está en disco, sin que nadie la pida.
 
-| Asset | id | Para qué |
-|---|---|---|
-| `SO_sfx_nemesis_captura_stinger` | `sfx_nemesis_captura_stinger` | El impacto sonoro que cierra el intento (spec §5.5) |
-| `SO_sfx_nemesis_activacion` | `sfx_nemesis_activacion` | El momento en que el Nemesis entra al juego (spec §7.1). Ya tiene quien lo dispare: el escape, cuando el Nemesis arranca a correr |
+| Asset | id | Clip | Para qué | Quién lo dispara |
+|---|---|---|---|---|
+| `SO_sfx_nemesis_captura_stinger` | `sfx_nemesis_captura_stinger` | `sfx_nemesis_captura_stinger.mp3` | El impacto sonoro que cierra el intento (spec §5.5) | `NemesisAudio.HandlePlayerCaptured` (campo `captureStingerSoundId`), solo en el agarre propio (el Nemesis en `Catch`) |
+| `SO_sfx_nemesis_activacion` | `sfx_nemesis_activacion` | `sfx_nemesis_activacion.mp3` | El momento en que el Nemesis entra al juego (spec §7.1) | `NemesisAudio` si lo despierta un puzzle; el escape, cuando arranca a correr |
 
-Llenarlos es arrastrar el clip al campo `Clip`, nada más. El id, la categoría (Nemesis) y el rango 3D ya están puestos.
+Pendiente de oído: no se probaron en juego, y los dos clips se asignaron por el nombre del archivo.
 
 Los de la voz de «te perdí» (`SO_sfx_nemesis_voice_lost_01` y `_02`) sí tienen clip y están registrados, pero todavía no los pide ningún código.

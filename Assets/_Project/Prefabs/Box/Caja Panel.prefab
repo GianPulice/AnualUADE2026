@@ -944,8 +944,8 @@ MonoBehaviour:
   limitByFacing: 0
   facingAngle: 150
   facingSoftness: 0.35
-  nearFadeStart: 0
-  nearFadeEnd: 0
+  nearFadeStart: 4
+  nearFadeEnd: 7
   maxDistance: 0
 --- !u!1 &4923293437233364697
 GameObject:

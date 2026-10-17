@@ -28,12 +28,38 @@ public class ValvePuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(valvePuzzleData.PuzzleId);
 
-        // The same 2D confirmation every sub-puzzle plays, heard alike from anywhere.
-        if (AudioManager.Exists)
-            AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
+        // The valves' own sound, the gas escaping, and not the generic chime: from the valve the puzzle
+        // names, so it comes out of the pipes; in 2D when none is named or it is not in the scene.
+        if (AudioManager.Exists && !string.IsNullOrWhiteSpace(valvePuzzleData.CompletedSoundId))
+        {
+            if (TryGetCompletionSoundOrigin(out Vector3 origin))
+                AudioManager.Instance.PlaySFX(valvePuzzleData.CompletedSoundId, origin);
+            else
+                AudioManager.Instance.PlaySFX(valvePuzzleData.CompletedSoundId);
+        }
 
         PuzzleRewardDelivery.Deliver(valvePuzzleData.PuzzleId, valvePuzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Valve puzzle completed: {valvePuzzleData.PuzzleId}");
+    }
+
+    private bool TryGetCompletionSoundOrigin(out Vector3 origin)
+    {
+        origin = default;
+
+        string valveId = valvePuzzleData.CompletionSoundValveId;
+        if (string.IsNullOrWhiteSpace(valveId)) return false;
+
+        foreach (ValveInteractable valve in FindObjectsByType<ValveInteractable>(FindObjectsInactive.Exclude))
+        {
+            if (valve.ValveId != valveId) continue;
+
+            origin = valve.transform.position;
+            return true;
+        }
+
+        Debug.LogWarning($"[{nameof(ValvePuzzleController)}] No valve '{valveId}' in the scene — the " +
+                         "completion sound plays in 2D.", this);
+        return false;
     }
 }

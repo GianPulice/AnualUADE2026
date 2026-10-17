@@ -119,7 +119,7 @@ real system and the two disagree. The mapping:
 | `IInteractable.GetPromptText()` | `GetPromptText()` (the same name since 2026-09-25; it was `GetInteractText()`) **plus** `GetInfoText()` — the second is exactly the spec's §6.1 "Necesitas X" informative prompt, and it already exists |
 | `IInteractable.OnInteract(PlayerController player)` | `Interact()`, no argument. Interactables reach the player through `PlayerRegistry` and the manager singletons |
 | `PlayerController.OnDangerDetected()` | **Does not exist**, and neither does the `InDanger` state it would set. The danger *feedback* survives as `VignetteProximityView` (the dark gradient) and the static `PlayerCameraFeed` adds as the Nemesis closes in (the red `VignetteChaseView` was removed on 2026-10-05), driven straight off `NemesisEvents` |
-| `MusicManager` (`SetZone`, `PlayChaseMusic`, `OnEnterHiding`, `OnPuzzleResolved`, stinger source) | **Does not exist.** `NemesisChaseMusic` covers the chase cue only; `AudioManager.PlayMusic(id)` owns one 2D source and has **zero callers** |
+| `MusicManager` (`SetZone`, `PlayChaseMusic`, `OnEnterHiding`, `OnPuzzleResolved`, stinger source) | **Does not exist.** `NemesisChaseMusic` covers the chase cue only; `AudioManager.PlayMusic(id)` owns one 2D source and has **zero callers**. The one other music player is `MusicCrossfadePlaylist` (menu music, driven by `MainMenuController`) |
 | `AmbientManager` / `DuckAmbience` / `RestoreAmbience` | `AmbienceController` + `AmbienceZone`. The duck hooks are `FadeOutAll` / `FadeInAll` (already used by `NemesisChaseMusic`) and `SetTensionScalars` (no callers) |
 | `ZoneTracker.OnPlayerZoneChanged` / a `ZoneType` enum | **Does not exist.** The project has no notion of "which zone is the player in". The nearest equivalents are two independent trigger push/pop stacks: `AmbienceZone` → `AmbienceController` and `LightZone` → `VisionRangeController` |
 | `FootstepSystem` (player or Nemesis) | `FootstepEmitter` + `SO_FootstepBank`, one component on both walkers — see *Footsteps and breathing*. The spec's `footstepInterval = distance / speed` is not how either of them is cadenced today: both run on `AnimationEvent` |
@@ -298,7 +298,12 @@ of that is in the spec.
 
 There is **no `MusicManager`**, and therefore none of the spec's transition table: no `ZoneType`, no
 `SetZone`, no exploration pieces for Hub / zone / corridor, no crossfade pair of AudioSources, no
-stinger source, no menu music (`AudioManager.PlayMusic` has zero callers anywhere), no ending piece.
+stinger source, no ending piece (`AudioManager.PlayMusic` has zero callers anywhere). The menu music
+is the one exception to "unreachable as code", and it does not go through `MusicManager` or
+`PlayMusic`: `MainMenuController` builds a `MusicCrossfadePlaylist` (`Scripts/Managers/`) over
+`mus_mainmenu` and `mus_mainmenu_alt_01`, each played whole twice (A A B B A A ...) with a 4 s
+equal-power crossfade at every transition, the loop point of a track included. `Music/` also holds
+two short dark stingers (`mus_stinger_dark_01/02`) that nothing plays.
 `MUS_02`–`MUS_05` and `MUS_07` are unwritten as content *and* unreachable as code.
 
 Two deltas in the one piece that does exist:
@@ -471,7 +476,7 @@ Selection is the **nearest candidate along the crosshair line**, with no dot-pro
 
 **Zone interactable (the third target slot).** The manager picks its target in this order: the forced one (`SetForcedInteractable`: a push box in hand, a locker the player is inside), then the crosshair cast, then the **zone** one (`SetZoneInteractable` / `ClearZoneInteractable(owner)`). The zone slot is the prompt of the *place* the player stands in rather than of a prop, so it shows only while the crosshair is on nothing else: a door or lever under the reticle still wins. One slot; a caller whose volumes overlap decides who owns it, and clears only with its own reference.
 
-**`LookDownTrigger`** (`_Project/Scripts/Interactables/`) is the one user of it today: a trigger volume with a `CinemachineCamera` as its shot. Standing in it the prompt reads "Look down" (`[E]` key cap from the prompt view); E raises the camera over the player rig (`shotPriority` 100, under the defeat camera's 1000), holds it `holdSeconds` after the brain's blend in has landed, drops it and returns control once the blend out has landed too — both blends are the brain's Default Blend, nothing is hand-lerped. The player is frozen for the shot through `PlayerStateManager.SetInputFrozen` (movement zeroed like `hidingTransition`, minus the Nemesis reading it; `PlayerCameraController` stops reading look input so control comes back facing the way it was left). E again ("Go back") cuts the shot short, even during the blend in; while it plays the trigger is pinned with `SetForcedInteractable`, because the crosshair belongs to the shot's camera and could otherwise find a lever below and pull it with that same E. **No looking down in a chase**: `NemesisEvents.IsChasing` (the "being hunted" set, Chasing plus an unresolved Catch) hides the prompt, and a chase that starts mid-shot ends it at once. A capture, a respawn, a cinematic or the trigger being disabled end it at once too. The camera frame (`PlayerCameraFeed`: area name, recording dot, module readout) is only drawn while the player's own rig is the live shot, so the shot camera registers with `PlayerCameraFeed.RegisterPlayerView` in Awake; without that the frame dropped for the whole look and came back with static. Add one with **GameObject > WIRED > Look Down Trigger** (builds volume + camera + wiring; frame the camera with Ctrl+Shift+F). Its volume is drawn in the pale blue of `CameraAreaZone`, in the GizmoManager's `cameras` family.
+**`LookDownTrigger`** (`_Project/Scripts/Interactables/`) is the one user of it today: a trigger volume with a `CinemachineCamera` as its shot. Standing in it the prompt reads "Look down" (`[E]` key cap from the prompt view); E raises the camera over the player rig (`shotPriority` 100, under the defeat camera's 1000), holds it `holdSeconds` after the brain's blend in has landed, drops it and returns control once the blend out has landed too — both blends are the brain's Default Blend, nothing is hand-lerped. The player is frozen for the shot through `PlayerStateManager.SetInputFrozen` (movement zeroed like `hidingTransition`, minus the Nemesis reading it; `PlayerCameraController` stops reading look input so control comes back facing the way it was left). E again ("Go back") cuts the shot short, even during the blend in; while it plays the trigger is pinned with `SetForcedInteractable`, because the crosshair belongs to the shot's camera and could otherwise find a lever below and pull it with that same E. **No looking down in the dark**: with `requireLightsOn` (default on) the prompt only shows while `PoweredLightSwitch.LevelLightsOn` is true — the lights of any `PoweredLightSwitch` are active, read off the lights themselves because the two `ButtonLights` share one array. A level with no switch is never held back, and a shot already running is not cut when the lights go. The switch's `RequestPromptRefresh` is what makes the prompt appear or vanish while the player stands in the volume. **No looking down in a chase**: `NemesisEvents.IsChasing` (the "being hunted" set, Chasing plus an unresolved Catch) hides the prompt, and a chase that starts mid-shot ends it at once. A capture, a respawn, a cinematic or the trigger being disabled end it at once too. The camera frame (`PlayerCameraFeed`: area name, recording dot, module readout) is only drawn while the player's own rig is the live shot, so the shot camera registers with `PlayerCameraFeed.RegisterPlayerView` in Awake; without that the frame dropped for the whole look and came back with static. Add one with **GameObject > WIRED > Look Down Trigger** (builds volume + camera + wiring; frame the camera with Ctrl+Shift+F). Its volume is drawn in the pale blue of `CameraAreaZone`, in the GizmoManager's `cameras` family.
 
 ### Puzzles
 
@@ -507,11 +512,16 @@ The flow:
 
 - **Locked.** Red glow (lock LEDs and screen, the model's `Brillo` material) and a red `Light` +
   `FogBeacon` (`RewardLight` child), so it reads through the fog from the start. E says "Locked".
+  The beacon hangs 0.47 m above and 0.42 m in front of the box, which at head height next to it read as
+  a stray dot (green once unlocked, seen on opening); so it fades out when the player is closer than
+  4 m (`nearFadeStart` 4, `nearFadeEnd` 7, measured from the player) and is a long-range tell only.
 - **Solved.** A short skippable shot (`RewardBoxCinematic`): the player is frozen, the camera is
   the box's `Shot` child (an `EscapeShotCamera`, framed per box in the Scene view), the fog is
   measured from the shot, and an active Nemesis is held with `SetExternalHold`. The right latch
-  opens and its lock falls, then the left one, the screen and light turn cyan, and the lid opens
-  on the item model (`ItemAnchor/ItemVisual`, kept switched off until then; drag a model onto
+  opens and its lock falls, then the left one, the screen and light turn green (the glow is one
+  channel high and the other two near zero, in linear: the old cyan at 5 on two channels and the old
+  red with 0.41 in green and blue both read as white / pale pink under the shot; the unlocked light
+  drops to 0.4), and the lid opens on the item model (`ItemAnchor/ItemVisual`, kept switched off until then; drag a model onto
   *Item Model* in the box's inspector to fill it, scaled to fit and stripped of pickup scripts and
   physics). `InteractionManager` targets nothing while `CinematicState.IsPlaying`, so the box the
   shot is aimed at does not light up or take the prompt. Latches and lid are the model's clips through
@@ -563,6 +573,12 @@ not change:
 - `SO_ValvePuzzleData` · *Shuffle Each Run*: deals the table's Required Positions (0 untouched,
   2 pointing at the feet, 3 = three turns) out among the valves. The valves never change: yellow
   left, red centre, blue right: each row's *Clue Name* (colour) and *Clue Side* ("on the left").
+  Completing it plays *Completed Sound Id* (`sfx_subpuzzle_3_completo` = `sfx_interaction_valvulas_all.wav`,
+  the gas escaping, 28 s, volume 0.25, 35 m linear) in 3D from the valve named in *Completion Sound
+  Valve Id* (`valve_sp3_2`), 2D if that is empty or not in the scene. It is NOT the generic
+  `sfx_subpuzzle_1_completo` chime of the other puzzles: commit `14a6e2f5` (12/10) swapped it for that
+  one ("the same 2D confirmation every sub-puzzle plays") and dropped the field; restored on 17/10 at
+  Iñaki's request.
 
 The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
 fills the text's placeholders with the run's values (`ClueText`). The newspaper uses `{1}`…`{4}`
@@ -593,7 +609,7 @@ the box is targeted or pushed), which would turn the disc white in the player's 
 the glow. The decoy takes that block where it shows nothing.
 
 The SP2 lamps are not lit by the fuse. The fuse unlocks the SP1 panel, SP1 (`sp1_panel_electrico`)
-powers the two `PoweredLightSwitch` levers (`ButtonLights.prefab`), and a lever activates the
+powers the two `PoweredLightSwitch` levers (`ButtonLights.prefab`; each press plays the click plus `turnOnSoundId` = `sfx_warehouse_lights_on` when the lights come on and `turnOffSoundId` = `sfx_big_switch_lights_off` when they go off; the off clip, `Big switch sound effect.wav`, was trimmed on 17/10 to 0.5 s of silence before the sound, so the clunk lands half a second after the press. **On is a sequence**: with UniTask the lights come on one by one, nearest to the pressed lever first, each at one of the seven clicks of the warehouse sound (`turnOnTimes`: 0.69, 1.11, 1.80, 1.88, 2.48, 3.18, 3.25 s after the press, measured on the wav; both levers hold the same lights, so they share the run and the prompt hides until it ends). **Off is instant**: every light in the press; `turnOffDelay` (0) can push it to the clunk, 0.5 s), and a lever activates the
 GameObjects in its `objects` list: the six catwalk lamps plus
 `Prefabs/Light/Reflector Symbol Reveal.prefab`, the reveal lamp over the lower floor. Both levers
 must hold the same list — a lamp missing from one is simply not toggled by it, with no error.
@@ -2536,6 +2552,8 @@ the ragged M2 clip when `ChestPenaltyActive`, chosen per episode so the swap nev
 mid-loop. Fully 3D at 3–15 m linear: this is a third-person camera, the listener rides it a few
 metres back, and the breath is meant to come from the body on screen.
 
+**The breath follows the Nemesis** (17/10). `HiddenBreathing` listens to `NemesisEvents.OnProximityChanged` (the red vignette's value, 1 − path distance / 12 m) and climbs four steps: nothing near → `breathing_idle`, inside the radius (≥ 0.05) → `breathing_hidden`, close (≥ 0.35, about 8 m) → `breathing_indanger`, on top of the spot (≥ 0.7, about 3.5 m) → `breathing_critical`. Rising is immediate; stepping down waits `calmDownSeconds` (3) and a `tierHysteresis` margin, one step at a time. A step with no clip falls back to the calmer one. A step change dips the volume, swaps the clip at the bottom and fades back up. The M2 chest penalty clip stands in for the two calm steps only. With the Nemesis asleep (all of Zona 1 until the escape) nothing reports proximity, so a hidden player in Zona 1 hears `idle`, not `hidden` as before. The gasp on letting go of a held breath, forced or not, is now `sfx_player_exhale_involuntario` (0.7 s); it used to borrow the first second of `indanger`. All the clips are fields on the prefab's `HiddenBreathing`; the thresholds are fields too.
+
 The banks live in `_Project/ScriptableObjects/Audio/Footsteps/` — 45 player clips across six
 surfaces, 48 references for the Nemesis.
 
@@ -2683,8 +2701,8 @@ The systems below are **implemented but not connected to anything**. Read this b
   tick clips from the start of the module, getting faster up to the last 10 s. `ModuleManager` still runs activations, explosions, penalties and
   resolutions without a single audio call, and the rest of `MOD_01`–`MOD_09` have clips waiting.
 - **There is no music system.** One chase track played by `NemesisChaseMusic`. No `MusicManager`, no
-  zone/exploration music, no stinger, no menu or ending piece — `AudioManager.PlayMusic` has zero
-  callers. See *Spec deltas — Music*.
+  zone/exploration music, no stinger source, no ending piece — `AudioManager.PlayMusic` has zero
+  callers (the menu has its own `MusicCrossfadePlaylist`). See *Spec deltas — Music*.
 - **Light is not an input to detection.** No `lightLevel`, no `playerVisibilityFactor`, no visual
   adaptation and no generator; `FieldOfView` has no light term. The vision fog changes what the
   player sees, not what the Nemesis sees. See *Spec deltas — Light*.

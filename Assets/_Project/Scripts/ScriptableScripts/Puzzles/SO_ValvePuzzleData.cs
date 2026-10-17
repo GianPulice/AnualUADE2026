@@ -22,6 +22,14 @@ public class SO_ValvePuzzleData : ScriptableObject, IClueSource, IPuzzleRewardSo
     [SerializeField] private SO_InventoryItem rewardItem;
     [SerializeField] private ValveRequirement[] requirements;
 
+    [Tooltip("What plays when the puzzle is solved: the gas escaping, which is the valves' own sound and " +
+             "not the generic sub-puzzle chime.")]
+    [SoundId, SerializeField] private string completedSoundId = "sfx_subpuzzle_3_completo";
+
+    [Tooltip("Id of the valve the completion sound plays from, in 3D. How far it carries is set on " +
+             "its SO_SoundData (Max Distance + Rolloff). Empty = 2D.")]
+    [SerializeField] private string completionSoundValveId;
+
     [Tooltip("ON: every run (see RunSeed) deals the Required Positions of the table out among its " +
              "valves at random, so the same rules (one untouched, one pointing down, one turned three " +
              "times) fall on different colours. The valves themselves never change. OFF: the table is " +
@@ -34,6 +42,8 @@ public class SO_ValvePuzzleData : ScriptableObject, IClueSource, IPuzzleRewardSo
 
     public string PuzzleId => puzzleId;
     public SO_InventoryItem RewardItem => rewardItem;
+    public string CompletedSoundId => completedSoundId;
+    public string CompletionSoundValveId => completionSoundValveId;
 
     /// <summary>The answer for this run: the table as written, or its shuffle.</summary>
     public ValveRequirement[] Requirements => shuffleEachRun ? RunRequirements() : requirements;

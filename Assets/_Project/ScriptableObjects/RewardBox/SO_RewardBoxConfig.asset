@@ -13,10 +13,12 @@ MonoBehaviour:
   m_Name: SO_RewardBoxConfig
   m_EditorClassIdentifier: Assembly-CSharp::SO_RewardBoxConfig
   lockedColor: {r: 0.8, g: 0.102, b: 0.102, a: 1}
-  lockedEmission: {r: 3.2, g: 0.41, b: 0.41, a: 1}
-  unlockedColor: {r: 0.342, g: 0.906, b: 0.862, a: 1}
-  unlockedEmission: {r: 0.893, g: 5.239, b: 5.063, a: 1}
+  lockedEmission: {r: 2.4, g: 0.025, b: 0.025, a: 1}
+  unlockedColor: {r: 0.1, g: 0.9, b: 0.25, a: 1}
+  unlockedEmission: {r: 0.02, g: 2, b: 0.06, a: 1}
   droppedLockEmission: {r: 0, g: 0, b: 0, a: 1}
+  lockedLightIntensity: 1
+  unlockedLightIntensity: 0.4
   playCinematic: 1
   maxWaitSeconds: 10
   holdBeforeSeconds: 0.8

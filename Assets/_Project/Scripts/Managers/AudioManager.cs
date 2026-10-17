@@ -366,6 +366,14 @@ public class AudioManager : Singleton<AudioManager>
         return data.Clip.length;
     }
 
+    /// <summary>
+    /// The SO_SoundData registered under <paramref name="id"/>, or null (with no warning, unlike
+    /// the Play* calls: the caller decides whether a miss matters). For code that runs its own
+    /// AudioSources and so needs the clip and its trim, not a pooled one-shot.
+    /// </summary>
+    public SO_SoundData GetSound(string id)
+        => !string.IsNullOrEmpty(id) && byId.TryGetValue(id, out var data) ? data : null;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — getters
     // ──────────────────────────────────────────────────────────────────────────

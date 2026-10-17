@@ -16,6 +16,10 @@ using UnityEngine;
 /// when the chase ends), and a chase that begins during the shot ends it at once, giving the body
 /// back without waiting for the camera.
 ///
+/// It is also only offered with the level's lights on (<see cref="requireLightsOn"/>,
+/// <see cref="PoweredLightSwitch.LevelLightsOn"/>): in the dark there is nothing to see below. The
+/// switch refreshes the prompt when it is pressed, so the spot lights up with the room.
+///
 /// WHY NOT A PLAIN INTERACTABLE. Every other interactable is found by the crosshair, and a view of
 /// the drop is something you offer to a place, not to a prop: the player can be facing the railing,
 /// the stairs or the wall and still be at the spot. So the volume registers itself with the
@@ -62,6 +66,12 @@ public class LookDownTrigger : BaseRangeInteractable
     [SerializeField] private string prompt = "Look down";
     [Tooltip("Shown while the shot is on: E cuts it short.")]
     [SerializeField] private string leavePrompt = "Go back";
+
+    [Header("Lights")]
+    [Tooltip("The spot is only offered while the level's lights are on (the ones a PoweredLightSwitch " +
+             "turns on and off): in the dark there is nothing to see below. A level with no light " +
+             "switch never holds it back. A shot already running is not cut when the lights go.")]
+    [SerializeField] private bool requireLightsOn = true;
 
     [Header("Detection")]
     [Tooltip("Tag of the GameObject that fires the trigger. Default: Player.")]
@@ -232,6 +242,9 @@ public class LookDownTrigger : BaseRangeInteractable
         // During the shot E cuts it short — until the camera is already on its way back, when there
         // is nothing left to cut and the prompt goes away until control returns.
         if (shotRunning) return !ending;
+
+        // Dark room: nothing to look at. PoweredLightSwitch refreshes the prompt when it is pressed.
+        if (requireLightsOn && !PoweredLightSwitch.LevelLightsOn) return false;
 
         // Not in the middle of a chase: there is no time to stop and look at the floor, and the
         // player would stand frozen in front of the Nemesis. The prompt hides, and comes back when

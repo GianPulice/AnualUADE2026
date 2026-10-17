@@ -103,6 +103,10 @@ public class NemesisAudio : MonoBehaviour
              "el escape trae el suyo (SO_EscapeSequenceConfig.revealSoundId). Vacío = sin cue.")]
     [SerializeField, SoundId] private string activationSoundId = "sfx_nemesis_activacion";
 
+    [Tooltip("Sonido (SO_SoundData) del impacto cuando el Nemesis agarra al jugador (spec §5.5). " +
+             "Suena una vez, en el momento del agarre. Vacío = sin stinger.")]
+    [SerializeField, SoundId] private string captureStingerSoundId = "sfx_nemesis_captura_stinger";
+
     [SerializeField, Range(0f, 1f)] private float voiceVolume = 1f;
 
     [Tooltip("Segundos mínimos entre dos voces (el aviso o \"te perdí\"), para que no hable encima de " +
@@ -216,13 +220,21 @@ public class NemesisAudio : MonoBehaviour
     /// Catch too, but silent here until the hands arrive: the event is the grab, not the state.
     ///
     /// What brings the loops back is the state leaving Catch (<see cref="HandleStateChanged"/>).
+    ///
+    /// The capture stinger (<see cref="captureStingerSoundId"/>) rides the same guard: one impact,
+    /// at the grab, on the Nemesis bus.
     /// </summary>
     private void HandlePlayerCaptured(PlayerStateManager captured)
     {
         if (stateManager == null || stateManager.CurrentStateKey != NemesisStateManager.ENemesisState.Catch) return;
 
         grabbing = true;
-        if (!silenced) StartCrossfade(null, 0f);
+        if (silenced) return;
+
+        StartCrossfade(null, 0f);
+
+        if (!string.IsNullOrWhiteSpace(captureStingerSoundId) && AudioManager.Exists)
+            AudioManager.Instance.PlayNemesis(captureStingerSoundId, transform.position);
     }
 
     /// <summary>

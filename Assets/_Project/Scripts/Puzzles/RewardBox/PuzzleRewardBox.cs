@@ -13,7 +13,7 @@ using UnityEngine;
 ///      reward comes here instead of to the inventory (<see cref="PuzzleRewardDelivery"/> asks
 ///      <see cref="TryReceiveReward"/> first), and the box opens in a short skippable shot
 ///      (<see cref="RewardBoxCinematic"/>): the right lock springs and falls, then the left one,
-///      the screen and the light go cyan, the lid opens on the item inside.
+///      the screen and the light go green, the lid opens on the item inside.
 ///   3. Open: E takes the item, like a pickup on the floor. The light goes out.
 ///
 /// The power, the Architect, the checkpoint — everything on OnPuzzleCompleted — still happens the

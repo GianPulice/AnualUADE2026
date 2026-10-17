@@ -111,19 +111,19 @@ public class RewardBoxRig : MonoBehaviour
         SetGlow(GlowOwner.Body, config.LockedColor, config.LockedEmission);
         SetGlow(GlowOwner.LockRight, config.LockedColor, config.LockedEmission);
         SetGlow(GlowOwner.LockLeft, config.LockedColor, config.LockedEmission);
-        SetLight(true, config.LockedColor);
+        SetLight(true, config.LockedColor, config.LockedLightIntensity);
     }
 
-    /// <summary>The screen and the light turn cyan: both locks are off.</summary>
+    /// <summary>The screen and the light turn green: both locks are off.</summary>
     public void ShowUnlocked(SO_RewardBoxConfig config, bool lightOn)
     {
         SetGlow(GlowOwner.Body, config.UnlockedColor, config.UnlockedEmission);
-        SetLight(lightOn, config.UnlockedColor);
+        SetLight(lightOn, config.UnlockedColor, config.UnlockedLightIntensity);
     }
 
     /// <summary>
     /// The end of the whole opening at once: latches and lid open, both locks on the floor, glow
-    /// cyan. For a skip and for a box that loads already open.
+    /// green. For a skip and for a box that loads already open.
     /// </summary>
     public void SnapOpen(SO_RewardBoxConfig config, bool lightOn)
     {
@@ -145,7 +145,7 @@ public class RewardBoxRig : MonoBehaviour
 
     // ── Steps ───────────────────────────────────────────────────────────────
 
-    /// <summary>Starts a latch opening and turns its lock's LEDs cyan. Returns the clip's length.</summary>
+    /// <summary>Starts a latch opening and turns its lock's LEDs green. Returns the clip's length.</summary>
     public float OpenLatch(Side side, SO_RewardBoxConfig config)
     {
         PlayLayer(side == Side.Right ? LatchRightLayer : LatchLeftLayer, 0f);
@@ -360,11 +360,12 @@ public class RewardBoxRig : MonoBehaviour
         }
     }
 
-    private void SetLight(bool on, Color color)
+    private void SetLight(bool on, Color color, float intensity)
     {
         if (boxLight != null)
         {
             boxLight.color = color;
+            boxLight.intensity = intensity;
             boxLight.enabled = on;
         }
         if (beacon != null)

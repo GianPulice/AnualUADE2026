@@ -151,6 +151,11 @@ public class UISignalStaticBurst : MonoBehaviour
         staticNoise.enabled = true;
         PushTube();
         Hold(now, 0f);
+
+        // The burst is silent on its own; the sound is one shot at the instant the noise lands. Its
+        // level is the SO's volume (and the UI bus), not scaled by burstPeak: the player has to hear
+        // the glitch even when the picture only blinks.
+        UISounds.Play(UISounds.SignalGlitch);
     }
 
     private void Hold(float now, float t)

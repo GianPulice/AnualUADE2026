@@ -5,7 +5,7 @@ using UnityEngine;
 /// game, so the boxes of every level open the same way and a tweak reaches all of them.
 ///
 /// The colours are an agreed exception to the colour rules (docs/Materials-System.md): red while the
-/// box is locked, cyan once it is unlocked.
+/// box is locked, green once it is unlocked (the same green as a placed core and a resolved module).
 /// </summary>
 [CreateAssetMenu(fileName = "SO_RewardBoxConfig", menuName = "Scriptable Objects/Puzzles/Reward Box Config")]
 public class SO_RewardBoxConfig : ScriptableObject
@@ -15,17 +15,28 @@ public class SO_RewardBoxConfig : ScriptableObject
              "colour of the box's light and fog beacon.")]
     [SerializeField] private Color lockedColor = new Color(0.8f, 0.102f, 0.102f);
 
-    [Tooltip("Emission of the glow parts while locked.")]
-    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(3.2f, 0.41f, 0.41f);
+    [Tooltip("Emission of the glow parts while locked. HDR values are linear, so the two weak channels " +
+             "have to be near zero: 0.4 in each reads as pale pink, not red.")]
+    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(2.4f, 0.025f, 0.025f);
 
     [Tooltip("Base colour of the glow parts once unlocked, and of the light and beacon.")]
-    [SerializeField] private Color unlockedColor = new Color(0.342f, 0.906f, 0.862f);
+    [SerializeField] private Color unlockedColor = new Color(0.1f, 0.9f, 0.25f);
 
-    [Tooltip("Emission of the glow parts once unlocked.")]
-    [SerializeField, ColorUsage(false, true)] private Color unlockedEmission = new Color(0.893f, 5.239f, 5.063f);
+    [Tooltip("Emission of the glow parts once unlocked. One channel high, the other two near zero " +
+             "(linear values): a cyan with two channels above 1, or a green with 0.3 in red and blue, " +
+             "reads as white or mint on the shot.")]
+    [SerializeField, ColorUsage(false, true)] private Color unlockedEmission = new Color(0.02f, 2f, 0.06f);
 
     [Tooltip("Emission of a lock's LEDs once it has fallen off: a dead lock.")]
     [SerializeField, ColorUsage(false, true)] private Color droppedLockEmission = Color.black;
+
+    [Tooltip("Intensity of the box's Light while locked. The light hangs half a metre from the lid, so " +
+             "it lands on it with a lot of punch; this is what the shot sees before the locks open.")]
+    [SerializeField, Min(0f)] private float lockedLightIntensity = 1f;
+
+    [Tooltip("Intensity of the box's Light once unlocked: what the shot sees while the lid opens. " +
+             "Lower it if the lid and the item read washed out.")]
+    [SerializeField, Min(0f)] private float unlockedLightIntensity = 0.4f;
 
     [Header("Cinematic")]
     [Tooltip("Off: the box opens in place with no shot and the player keeps control.")]
@@ -42,7 +53,7 @@ public class SO_RewardBoxConfig : ScriptableObject
     [SerializeField, Min(0f)] private float gapBetweenLocksSeconds = 0.35f;
 
     [Tooltip("Seconds between the left lock landing and the lid starting to open. The screen and the " +
-             "light turn cyan at the start of this gap.")]
+             "light turn green at the start of this gap.")]
     [SerializeField, Min(0f)] private float holdBeforeLidSeconds = 0.5f;
 
     [Tooltip("Seconds the open box stays on screen before control returns.")]
@@ -82,7 +93,7 @@ public class SO_RewardBoxConfig : ScriptableObject
     [SoundId, SerializeField] private string latchSoundId = "sfx_interaction_puerta_desbloqueada";
     [Tooltip("A lock hitting the floor.")]
     [SoundId, SerializeField] private string lockLandSoundId = "sfx_interaction_key";
-    [Tooltip("Both locks off: the screen turns cyan.")]
+    [Tooltip("Both locks off: the screen turns green.")]
     [SoundId, SerializeField] private string unlockedSoundId = "sfx_interaction_panel_control_success";
     [Tooltip("The lid opening.")]
     [SoundId, SerializeField] private string lidSoundId = "sfx_interaction_box";
@@ -96,6 +107,8 @@ public class SO_RewardBoxConfig : ScriptableObject
     public Color UnlockedColor => unlockedColor;
     public Color UnlockedEmission => unlockedEmission;
     public Color DroppedLockEmission => droppedLockEmission;
+    public float LockedLightIntensity => lockedLightIntensity;
+    public float UnlockedLightIntensity => unlockedLightIntensity;
 
     public bool PlayCinematic => playCinematic;
     public float MaxWaitSeconds => maxWaitSeconds;
