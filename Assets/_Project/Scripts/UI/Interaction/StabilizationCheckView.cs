@@ -4,7 +4,8 @@ using UnityEngine.UI;
 
 /// <summary>
 /// View of the stabilization checks (Central Puzzle 2 — Ventilation Hub): a dial with a ring as the
-/// track, the success zone as an arc over it and a needle turning around, plus a status line, a
+/// track, the success zone as an arc over it with its orange perfect slice at the start, and a
+/// needle turning around, plus a status line, a
 /// "2/4" counter and one pip per check. It only draws: the controller says what to show, with
 /// angles already in clock degrees (0 = twelve o'clock, clockwise), the convention UIRingArc draws in.
 ///
@@ -22,6 +23,10 @@ public class StabilizationCheckView : BaseScreenView
     [SerializeField] private RectTransform dial;
     [SerializeField] private UIRingArc track;
     [SerializeField] private UIRingArc zone;
+    [Tooltip("The perfect slice, drawn over the start of the zone. Must come after Zone in the hierarchy.")]
+    [SerializeField] private UIRingArc perfectZone;
+    [Tooltip("The perfect slice and the PERFECT result. The module timer's amber.")]
+    [SerializeField] private Color perfectColor = new Color(1f, 0.6f, 0f);
     [Tooltip("Rotated around the dial's centre. At rest it points at twelve o'clock.")]
     [SerializeField] private RectTransform needlePivot;
     [SerializeField] private Graphic needle;
@@ -46,6 +51,7 @@ public class StabilizationCheckView : BaseScreenView
     [Tooltip("Added after the ready line when the asset lets ESC interrupt the stabilization.")]
     [SerializeField] private string abortHintString = "   ([ESC] ABORT)";
     [SerializeField] private string successString = "STABLE";
+    [SerializeField] private string perfectString = "PERFECT";
     [Tooltip("{0} = seconds taken off the module.")]
     [SerializeField] private string failString = "FAILURE  -{0:0}s";
     [Tooltip("A failure that cost no time (no module running, or a timeout the asset does not penalize).")]
@@ -99,14 +105,20 @@ public class StabilizationCheckView : BaseScreenView
         SetStatus(standbyString, Muted);
     }
 
-    /// <summary>An attempt: the zone where it landed, the needle waiting at twelve.</summary>
-    public void ShowCheck(float zoneStart, float zoneDegrees, int checkIndex, int totalChecks, bool canAbort)
+    /// <summary>An attempt: the zone where it landed with its perfect slice, the needle waiting at twelve.</summary>
+    public void ShowCheck(float zoneStart, float zoneDegrees, float perfectDegrees, int checkIndex,
+                          int totalChecks, bool canAbort)
     {
         StopFeedback();
         if (zone != null)
         {
             zone.color = Secondary;
             zone.SetArc(zoneStart, zoneDegrees);
+        }
+        if (perfectZone != null)
+        {
+            perfectZone.color = perfectColor;
+            perfectZone.SetArc(zoneStart, perfectDegrees);
         }
         SetNeedle(0f);
         SetNeedleVisible(true);
@@ -121,10 +133,11 @@ public class StabilizationCheckView : BaseScreenView
         if (needlePivot != null) needlePivot.localRotation = Quaternion.Euler(0f, 0f, -angle);
     }
 
-    public void ShowSuccess(int passedChecks, int totalChecks)
+    public void ShowSuccess(int passedChecks, int totalChecks, bool perfect)
     {
         if (zone != null) zone.color = Primary;
-        SetStatus(successString, Primary);
+        if (perfectZone != null) perfectZone.color = perfect ? perfectColor : Primary;
+        SetStatus(perfect ? perfectString : successString, perfect ? perfectColor : Primary);
         SetPips(passedChecks, totalChecks);
         Pulse();
     }
@@ -132,6 +145,7 @@ public class StabilizationCheckView : BaseScreenView
     public void ShowFailure(float penaltySeconds)
     {
         if (zone != null) zone.color = Accent;
+        if (perfectZone != null) perfectZone.color = Accent;
         SetStatus(penaltySeconds > 0f ? string.Format(failString, penaltySeconds) : failNoPenaltyString, Accent);
         Shake();
     }
@@ -174,6 +188,7 @@ public class StabilizationCheckView : BaseScreenView
     private void HideZone()
     {
         if (zone != null) zone.SetSweep(0f);
+        if (perfectZone != null) perfectZone.SetSweep(0f);
     }
 
     private void SetNeedleVisible(bool visible)

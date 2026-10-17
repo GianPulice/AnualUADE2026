@@ -20,18 +20,24 @@ MonoBehaviour:
   startPrompt: Start stabilization
   pendingInfoFormat: 'Pending systems: {0}'
   checks:
-  - needleSpeed: 0.9
-    successZoneWidth: 0.12
-    timerPenaltyOnFail: 10
-  - needleSpeed: 0.8
-    successZoneWidth: 0.18
+  - needleSpeed: 0.6
+    successZoneWidth: 0.35
+    perfectZoneWidth: 0.04
     timerPenaltyOnFail: 10
   - needleSpeed: 0.7
     successZoneWidth: 0.25
+    perfectZoneWidth: 0.035
     timerPenaltyOnFail: 10
-  - needleSpeed: 0.6
-    successZoneWidth: 0.35
+  - needleSpeed: 0.8
+    successZoneWidth: 0.18
+    perfectZoneWidth: 0.03
     timerPenaltyOnFail: 10
+  - needleSpeed: 0.9
+    successZoneWidth: 0.12
+    perfectZoneWidth: 0.025
+    timerPenaltyOnFail: 10
+  perfectZoneWidening: 0.25
+  perfectNeedleSlowdown: 0.15
   onFail: 0
   maxLapsPerAttempt: 2
   penalizeTimeout: 1

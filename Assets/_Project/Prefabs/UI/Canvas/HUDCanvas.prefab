@@ -2969,8 +2969,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModalVisibilityGate
   canvasGroup: {fileID: 6118209528458720759}
-  ignoredModalIds:
-  - SkillCheck
+  ignoredModalIds: []
 --- !u!114 &3860439797000637506
 MonoBehaviour:
   m_ObjectHideFlags: 0

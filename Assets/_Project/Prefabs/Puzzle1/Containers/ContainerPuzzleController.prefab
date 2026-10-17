@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7617666571462438763}
   - component: {fileID: 8144704329190993024}
+  - component: {fileID: 7578897342185339403}
   m_Layer: 0
   m_Name: ContainerPuzzleController
   m_TagString: Untagged
@@ -45,3 +46,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ContainerPuzzleController
   containerPuzzleData: {fileID: 11400000, guid: e9e55b2100a83c244965ee8eb00173b3, type: 2}
+  rewardDropPoint: {fileID: 0}
+--- !u!114 &7578897342185339403
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6370923280467301571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fee8d3591016b5a43be5003aa3673a6e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ContainerPuzzleRunLayout
+  symbolChildName: Plane

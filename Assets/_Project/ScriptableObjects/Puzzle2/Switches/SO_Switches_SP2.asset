@@ -29,4 +29,4 @@ MonoBehaviour:
   flipSoundId: 
   completedSoundId: sfx_subpuzzle_1_completo
   switchPrompt: Flip switch
-  flipSeconds: 0.15
+  flipSeconds: 0.3

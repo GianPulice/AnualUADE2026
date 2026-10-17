@@ -23,11 +23,13 @@ MonoBehaviour:
   consumeDescription: 
   isUnique: 1
   contentType: 1
-  textContent: 'The yellow one has to point toward your feet.
+  textContent: 'The {valve:2} one has to point toward your feet.
 
-    The rest is missing...
+    The rest is
+    missing...
 
 '
+  clueSource: {fileID: 11400000, guid: 85ebba1ea57f57342896ff8ae0fa5f1c, type: 2}
   audioClip: {fileID: 0}
   targetID: 
   worldPickupPrefab: {fileID: 0}

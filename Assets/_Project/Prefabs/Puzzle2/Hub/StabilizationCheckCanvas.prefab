@@ -1670,6 +1670,81 @@ MonoBehaviour:
   endAlpha: 0.3
   outerAlpha: 1
   innerAlpha: 0.55
+--- !u!1 &7391846205513768201
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2948175036642910573}
+  - component: {fileID: 6620419758301147742}
+  - component: {fileID: 4170583926615032419}
+  m_Layer: 5
+  m_Name: PerfectZone
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &2948175036642910573
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7391846205513768201}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3467677801711175603}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &6620419758301147742
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7391846205513768201}
+  m_CullTransparentMesh: 1
+--- !u!114 &4170583926615032419
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7391846205513768201}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7005cda5622c3304a866cb2a5b923615, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIRingArc
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 0.6, b: 0, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  startAngle: 150
+  sweep: 0
+  thickness: 14
+  segmentsPerCircle: 128
+  blockCount: 0
+  blockGapDegrees: 0
+  startAlpha: 1
+  endAlpha: 1
+  outerAlpha: 1
+  innerAlpha: 0.55
 --- !u!1 &5006329882131410371
 GameObject:
   m_ObjectHideFlags: 0
@@ -2187,6 +2262,7 @@ RectTransform:
   - {fileID: 132570054976801997}
   - {fileID: 8717673335842719750}
   - {fileID: 5395878804079272763}
+  - {fileID: 2948175036642910573}
   - {fileID: 4088953509412172486}
   - {fileID: 2682376100743351335}
   - {fileID: 3457645697273210895}
@@ -2839,6 +2915,8 @@ MonoBehaviour:
   dial: {fileID: 3467677801711175603}
   track: {fileID: 4333912406552823077}
   zone: {fileID: 806703534295186289}
+  perfectZone: {fileID: 4170583926615032419}
+  perfectColor: {r: 1, g: 0.6, b: 0, a: 1}
   needlePivot: {fileID: 4088953509412172486}
   needle: {fileID: 7424220955319842053}
   closeButton: {fileID: 7240966361664853184}
