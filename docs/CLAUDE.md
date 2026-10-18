@@ -580,6 +580,14 @@ not change:
   one ("the same 2D confirmation every sub-puzzle plays") and dropped the field; restored on 17/10 at
   Iñaki's request.
 
+The SP2 UV lamp follows the seed too, though it is not a solution. `BoxSymbolRevealLightRunPlacement`,
+on the root of `Reflector Symbol Reveal.prefab`, draws one SP2 box in Awake (`RunSeed.RandomFor`, key
+`sp2_contenedores.reveal_lamp`, unrelated to the basket shuffle's draw; the boxes are sorted by id
+first, so only the seed decides) and moves the lamp to that box's X and Z. Its height never changes:
+it hangs from the ceiling and the beam comes down from the same place whichever box is drawn. It
+does not follow the box once pushed. If no box is found it warns and the lamp stays where the scene
+has it. In the editor and development builds it logs `this run's UV lamp hangs over …`.
+
 The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
 fills the text's placeholders with the run's values (`ClueText`). The newspaper uses `{1}`…`{4}`
 for the digits, `{1:worker|workers}` for agreement and `{4:ord}` for "2nd"; the valve notes use
