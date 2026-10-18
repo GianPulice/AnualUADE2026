@@ -54,6 +54,7 @@ MonoBehaviour:
 --- !u!114 &8007842315726195712
 MonoBehaviour:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2643445336680900700}
