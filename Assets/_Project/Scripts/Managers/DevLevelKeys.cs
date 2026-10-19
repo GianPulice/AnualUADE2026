@@ -14,12 +14,13 @@ using UnityEngine.SceneManagement;
 /// puzzle. Editor and development builds.
 ///
 /// <b>F2 — toggle the test zone.</b> The blockout has no test area of its own, so the "zone" is
-/// the NemesisTestbed group. One press swaps to it, the next swaps back to the level — through the
+/// the TestAlesioPuzzle2 group, where Puzzle 2 is laid out (until 19/10 it was the NemesisTestbed
+/// group). One press swaps to it, the next swaps back to the level — through the
 /// <see cref="ScreenManager"/> like any scene change, so the loading screen and the input lock
 /// apply. It is a scene swap, not a teleport: coming back reloads the level, so the wake-up
 /// cinematic plays again (F skips it) and the level restarts from the top. In a release build
 /// it warns and does nothing: <c>DevScenesBuildFilter</c> strips the Dev scenes from every build
-/// except NemesisTestbed in a Development Build, so only there is there somewhere to go.
+/// except TestAlesioPuzzle2 in a Development Build, so only there is there somewhere to go.
 ///
 /// <b>F6 — go to Zona 2.</b> Puts the player at Zona 2's entry, any time in Play, through
 /// <see cref="Zone2EntryTeleport.TeleportNow"/> — the same path the escape's end takes, so what F6
@@ -48,10 +49,10 @@ public class DevLevelKeys : MonoBehaviour
     /// <summary>The real level: Zona1 + LevelUI. The name is misleading, see <c>build-no-test-content</c>.</summary>
     private const string LevelGroup = "TestBlocking";
 
-    /// <summary>NemesisTestbed + LevelUI.</summary>
-    private const string TestZoneGroup = "TestNemesis";
+    /// <summary>TestAlesioPuzzle2 + LevelUI. The Nemesis testbed's group is "TestNemesis".</summary>
+    private const string TestZoneGroup = "TestAlesioPuzzle2";
 
-    private const string TestZoneScene = "NemesisTestbed";
+    private const string TestZoneScene = "TestAlesioPuzzle2";
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()

@@ -638,9 +638,19 @@ The loop is fully wired end to end:
 
 ```
 ZoneTrigger (player walks into a zone)  -> ModuleManager.ActivateModule(data)   [timer starts]
+  or PuzzleCompletionAftermath.Settled  -> ActivateModule (first start puzzle)  [timer starts]
 PuzzleStateManager.OnPuzzleCompleted    -> ResolveModule(matching module)       [timer stops]
 timer hits zero                         -> ModuleEvents.OnExploded              [penalty is permanent]
 ```
+
+`ModuleData` › *Start Mode* picks what starts the timer. `ZoneTrigger` (the default) is the zone, as
+every module worked until 19/10. `FirstPuzzle` ignores the ZoneTrigger: the first of *Started By
+Puzzle Ids* to be solved starts it, on `Settled` (after its reward box's shot); with the list empty
+it falls back to the zone. M1 is on `FirstPuzzle` with the three Zona 1 sub-puzzles, so the first one
+is played off the clock (designer request, 19/10). `ZoneTriggerM1` stays in the scene on purpose:
+switching M1 back to `ZoneTrigger` restores the old behaviour with no scene change. The session time
+(the result screen's) still counts from the start: it ticks while the first module waits on its
+puzzle.
 
 `ModuleData` is the designer asset and the manager **never writes to it** — live values are in the
 POCO `ModuleRuntime`, so a run cannot leave dirty state in a `.asset`. Timers tick on

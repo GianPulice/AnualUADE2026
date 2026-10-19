@@ -16,6 +16,11 @@ MonoBehaviour:
   moduleLogLabel: M1
   penalty: 0
   associatedPuzzleId: puzzle_central_piso1
+  startMode: 1
+  startedByPuzzleIds:
+  - sp1_panel_electrico
+  - sp2_contenedores
+  - sp3_valvulas
   timerDuration: 900
   walkAndRunSpeedPercent: 80
   sprintReduction: 0.25

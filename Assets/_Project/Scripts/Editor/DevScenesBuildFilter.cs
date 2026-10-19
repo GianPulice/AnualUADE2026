@@ -15,8 +15,9 @@ using UnityEngine;
 /// So they are dropped here instead: the Build and Build and Run buttons get the scene list minus
 /// everything under <c>Assets/_Project/Scenes/Dev/</c>. Nothing else about the build changes.
 ///
-/// One exception: <c>NemesisTestbed</c> stays in when the build has Development Build ticked, so the
-/// F2 key (<c>DevLevelKeys</c>) has somewhere to go. A release build never gets it.
+/// One exception: <c>TestAlesioPuzzle2</c> stays in when the build has Development Build ticked, so
+/// the F2 key (<c>DevLevelKeys</c>) has somewhere to go (until 19/10 F2 went to, and this kept,
+/// <c>NemesisTestbed</c>). A release build never gets it.
 ///
 /// Not covered: a build started from a script (<c>BuildPipeline.BuildPlayer</c> with its own scene
 /// list). Run those through <see cref="WithoutDevScenes"/>.
@@ -26,8 +27,8 @@ public static class DevScenesBuildFilter
 {
     private const string DevScenesFolder = "Assets/_Project/Scenes/Dev/";
 
-    /// <summary>The one Dev scene that travels in a Development Build.</summary>
-    private const string DevBuildScene = "Assets/_Project/Scenes/Dev/NemesisTestbed.unity";
+    /// <summary>The one Dev scene that travels in a Development Build: F2's destination.</summary>
+    private const string DevBuildScene = "Assets/_Project/Scenes/Dev/TestAlesioPuzzle2.unity";
 
     static DevScenesBuildFilter()
     {

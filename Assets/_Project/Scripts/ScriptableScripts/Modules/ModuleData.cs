@@ -29,6 +29,18 @@ public class ModuleData : ScriptableObject
     [SerializeField] private string associatedPuzzleId;
 
     [Header("Timer")]
+    [Tooltip("What starts this module's timer.\n" +
+             "Zone Trigger: walking into its ZoneTrigger (how every module started until 19/10).\n" +
+             "First Puzzle: the first of Started By Puzzle Ids the player solves, once its reward box " +
+             "has finished showing itself, so that first sub-puzzle is played off the clock. Its " +
+             "ZoneTrigger is ignored. With the list empty it falls back to the ZoneTrigger.")]
+    [SerializeField] private ModuleStartMode startMode = ModuleStartMode.ZoneTrigger;
+
+    [Tooltip("Only read with Start Mode = First Puzzle: the puzzles that can start the timer. The first " +
+             "one solved starts it; the others, solved later, do nothing.")]
+    [PuzzleId]
+    [SerializeField] private string[] startedByPuzzleIds = new string[0];
+
     [Tooltip("Seconds from activation to explosion.")]
     [SerializeField] private float timerDuration = 60f;
 
@@ -67,6 +79,14 @@ public class ModuleData : ScriptableObject
     public string AssociatedPuzzleId => associatedPuzzleId;
     public float TimerDuration => timerDuration;
 
+    public ModuleStartMode StartMode => startMode;
+
+    /// <summary>Started by its puzzles (<see cref="IsStartedBy"/>), not by a ZoneTrigger.</summary>
+    public bool StartsOnPuzzle =>
+        startMode == ModuleStartMode.FirstPuzzle && startedByPuzzleIds != null && startedByPuzzleIds.Length > 0;
+    public bool IsStartedBy(string puzzleId) =>
+        StartsOnPuzzle && !string.IsNullOrEmpty(puzzleId) && System.Array.IndexOf(startedByPuzzleIds, puzzleId) >= 0;
+
     public float CojeraMultiplier => walkAndRunSpeedPercent / 100f;
 
     public float SprintReduction => sprintReduction;
@@ -77,4 +97,11 @@ public class ModuleData : ScriptableObject
     public float BlindnessDuration => blindnessDuration;
     public float BlindnessFadeIn => blindnessFadeIn;
     public float BlindnessFadeOut => blindnessFadeOut;
+}
+
+/// <summary>What starts a module's timer. Serialized by index: only add at the end.</summary>
+public enum ModuleStartMode
+{
+    ZoneTrigger,    // Walking into the module's ZoneTrigger.
+    FirstPuzzle     // The first of its Started By Puzzle Ids to be solved.
 }
