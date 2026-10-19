@@ -27,6 +27,14 @@ public class SO_PushableBoxConfig : ScriptableObject
              "case — the box will just look uninteractable until the player walks closer.")]
     [SerializeField] private string outOfRangePrompt = "Get closer to push";
 
+    [Header("Basket symbol")]
+    [Tooltip("On: the symbol on top of the box is also readable without the UV lamp whenever the " +
+             "player's feet are above it (looking down from a higher floor or a ledge) — the old " +
+             "rule. Off: only a lit BoxSymbolRevealLight shows it, from anywhere, above included. " +
+             "Read every frame by BoxSymbolSignalLoss, so it can be flipped in Play mode.")]
+    [SerializeField] private bool revealSymbolFromAbove = false;
+
     public float MaxGrabDistance => maxGrabDistance;
     public string OutOfRangePrompt => outOfRangePrompt;
+    public bool RevealSymbolFromAbove => revealSymbolFromAbove;
 }

@@ -600,9 +600,11 @@ time it is asked (`this run's code is …`).
 
 **SP2 box symbols.** `BoxSymbolSignalLoss`, on each push box, covers the basket symbol on the box's
 top face with a plain black disc (a runtime copy of the symbol's material, so it lights like the
-symbol and gives nothing away). The symbol is readable when **the player's feet are above it, or the
-symbol is inside a lit `BoxSymbolRevealLight`** — either is enough, and each rule has its own
-hysteresis. From above the plain symbol shows at once. Under a lamp it fades in from the black over
+symbol and gives nothing away). The symbol is readable when **the symbol is inside a lit
+`BoxSymbolRevealLight`**, from wherever the player looks, above included. Looking down on it from
+above without a lamp also reveals it only when `SO_PushableBoxConfig.revealSymbolFromAbove` is on
+(off since 2026-10-19, Iñaki's call; the old rule, kept one tick away): then the plain symbol shows
+at once, and each rule has its own hysteresis. Under a lamp it fades in from the black over
 `revealSeconds` (1.5 s, a linear lerp) and fades back out to black in the same time when the box
 leaves the light or the lamp goes off; the fade runs on scaled time, so the pause holds it. A
 reveal lamp's area is its real `Light` (position, direction, Spot Angle, Range), narrowed by

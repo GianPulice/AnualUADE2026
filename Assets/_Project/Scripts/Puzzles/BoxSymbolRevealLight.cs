@@ -3,8 +3,9 @@ using UnityEngine;
 
 /// <summary>
 /// A lamp a push box can be read by. While a box's basket symbol sits inside this lamp's light,
-/// <see cref="BoxSymbolSignalLoss"/> fades the symbol in from black, without the player having
-/// to look down on it from above: push the box into the pool of light and read it there.
+/// <see cref="BoxSymbolSignalLoss"/> fades the symbol in from black, wherever the player looks from:
+/// push the box into the pool of light and read it there. By default it is the only way to read
+/// it; looking down from above without a lamp is SO_PushableBoxConfig.RevealSymbolFromAbove.
 ///
 /// The lit area is the real <see cref="Light"/>'s own — its position, its direction, its Spot Angle
 /// and its Range — so what reveals is what the player sees lit, and retuning the lamp retunes the
