@@ -26,6 +26,8 @@ En el prefab, `NemesisController > Activation > Activated By Puzzle Id` (hoy `sp
 
 **`Wake Only From Script`**, en el mismo bloque: prendido, el puzzle se ignora y el Nemesis duerme hasta que un script llama a `NemesisStateManager.ActivateInPlace()`, que lo despierta donde está **sin buscar spawn point** (el script lo pone él mismo en su marca). En Zona1 está prendido como override de la escena: lo despierta la cinemática del escape (`NemesisCinematicActor.TryTakeControl`). Apagarlo vuelve al despertar con `sp2_contenedores`.
 
+**En la Zona 2 lo despierta `NemesisZoneWake`** (`---- GAMEPLAY ---- / Nemesis Zona 2`), con el primero de los puzzles de su lista que se resuelva. Hoy la lista son los tres sub-puzzles que pide el hub: `p2_sp1_calderas`, `p2_sp2_switches` y `p2_sp3_mechanism`. Al despertarlo, le **reemplaza** rutas y spawn points por los de la zona (`NemesisController.ReplaceArea`): la Zona 1 no está unida por NavMesh y sus rutas serían islas. Si lo tiene la cinemática (después del escape queda estacionado en el portón), se lo devuelve. Después lo duerme (`NemesisStateManager.Sleep`) y lo despierta con la búsqueda de spawn de siempre, así que aparece fuera de tu vista y suena el cue de activación. Sirve igual si llegaste con F6 sin pasar por el escape.
+
 Cuando el puzzle se completa, elige un spawn point. Un punto sólo sirve si cumple **las tres**:
 
 1. está a más de `SpawnMinPlayerDistance` (15 m) **medido sobre el NavMesh**, no en línea recta — este piso no se relaja nunca;
@@ -269,7 +271,7 @@ Pasado eso busca, y la búsqueda sí usa lo que oye. El inspector de `SO_Nemesis
 
 ## Bajadas entre pisos
 
-El Nemesis puede **bajar** de un piso a otro por puntos que elige diseño: un hueco en el piso, una baranda rota, el borde de una pasarela. Es de un solo sentido: para subir sigue usando la escalera o el montacargas. Hay dos en la testbed, en el *Drop Lab* al sur de ENTRADA: una Hop de 2 m y una Hang de 3.6 m, con rampas de vuelta. En Zona1 no hay ninguna. Diseño completo: plan §15.
+El Nemesis puede **bajar** de un piso a otro por puntos que elige diseño: un hueco en el piso, una baranda rota, el borde de una pasarela. Es de un solo sentido: para subir sigue usando la escalera o el montacargas. Hay dos en la testbed, en el *Drop Lab* al sur de ENTRADA: una Hop de 2 m y una Hang de 3.6 m, con rampas de vuelta. En Zona1 no hay ninguna. En la Zona 2 está `Drop_Hueco02` (`---- NAV ---- / Drop Links`): una Hang de 6 m por el `HUECO_02`, del SUB_02 al SUB_03, con baranda invisible en `Ignore Raycast` para que el jugador no caiga. El alto máximo es 6.5 m por los pisos de la Zona 2 (plan D47). Diseño completo: plan §15.
 
 **Cómo se arma** (el header de `NemesisDropLink` tiene la receta):
 
@@ -557,7 +559,7 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 
 ## Errores comunes
 
-**"El Nemesis nunca aparece."** En Zona1 es lo esperado: `Wake Only From Script` está prendido y sólo lo despierta el escape. En otra escena, ningún spawn point pasa los tres tests. Mirá la consola, dice cuál falla. Casi siempre están todos demasiado cerca de donde termina el puzzle de activación.
+**"El Nemesis nunca aparece."** En Zona1 es lo esperado: `Wake Only From Script` está prendido y sólo lo despierta el escape. En la Zona 2, hasta que se resuelve un sub-puzzle de la lista de `NemesisZoneWake`; después, si no aparece, es que ningún spawn point de esa lista pasa los tres tests. En otra escena, ningún spawn point pasa los tres tests. Mirá la consola, dice cuál falla. Casi siempre están todos demasiado cerca de donde termina el puzzle de activación.
 
 **"Se queda trabado contra una esquina."** Hay un watchdog (`NemesisStuckEscape`) que escala: primero recalcula el camino y le da `stuckRepathGrace` (1.5 s), después lo teletransporta a un waypoint fuera de la vista del jugador, desde el que pueda seguir hacia donde iba y a 3 m o más de donde se trabó. Si pasa seguido en un lugar concreto, es geometría, no IA — corré el validador.
 

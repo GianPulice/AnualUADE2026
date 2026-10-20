@@ -68,7 +68,7 @@ public enum EDropCue
 ///   1. The NavMeshLink is configured in Awake from the two ends: one way (top to bottom), on the
 ///      NemesisDrop area, with no cost override. Whatever is typed into it by hand is overwritten.
 ///   2. The kind comes from the height alone: up to FloorHeightThreshold (2.5 m) a Hop, above it a
-///      Hang. Between 1.5 and 5 m.
+///      Hang. Between 1.5 and 6.5 m.
 ///   3. It faces the way the landing lies, so the ends' rotation does not matter. That is also
 ///      why the landing needs to be out from the edge: straight below it reads as a lift.
 ///   4. Keep the player off it unless the level means to share it (D9): a rail at the edge on
@@ -94,9 +94,10 @@ public class NemesisDropLink : MonoBehaviour
     public const int FallbackArea = 5;
 
     /// <summary>Shortest and tallest drop worth authoring (plan §12). Below, the agent's step climb
-    /// covers it. Above, a humanoid does not fall without consequences.</summary>
+    /// covers it. Above, a humanoid does not fall without consequences. The top was 5 m until Zona 2,
+    /// whose storeys are 6 m apart (D47).</summary>
     public const float MinHeight = 1.5f;
-    public const float MaxHeight = 5f;
+    public const float MaxHeight = 6.5f;
 
     /// <summary>Where the edge is assumed to be, ahead of the start, when the NavMesh cannot say.
     /// The middle of the 0.3-0.5 m the setup asks for.</summary>

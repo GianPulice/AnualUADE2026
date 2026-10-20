@@ -930,6 +930,38 @@ public class NemesisController : MonoBehaviour
         clusterPatrol.Reset();
     }
 
+    /// <summary>
+    /// Swaps every route and spawn point for another area's: from now on the Nemesis patrols, spawns
+    /// and is put back after a capture there, and nowhere else. For a run that moves on to a part of
+    /// the level the NavMesh does not join to this one (Zona 1 to Zona 2 is a teleport), where the old
+    /// routes would only be islands it cannot reach and the old spawn points somewhere a capture could
+    /// send it (<see cref="NemesisLifecycle"/> picks among them at random). Called by
+    /// <see cref="NemesisZoneWake"/>.
+    ///
+    /// The walk starts over: the graph is rebuilt and the next patrol cycle picks among the new routes.
+    /// </summary>
+    public void ReplaceArea(IReadOnlyList<NemesisRoute> areaRoutes, IReadOnlyList<Transform> areaSpawnPoints)
+    {
+        routes.Clear();
+        for (int i = 0; i < areaRoutes.Count; i++)
+        {
+            if (areaRoutes[i] != null) routes.Add(areaRoutes[i]);
+        }
+
+        spawnPoints.Clear();
+        for (int i = 0; i < areaSpawnPoints.Count; i++)
+        {
+            if (areaSpawnPoints[i] != null) spawnPoints.Add(areaSpawnPoints[i]);
+        }
+
+        currentRoute = null;
+        currentWaypointIndex = 0;
+        currentStopPosition = null;
+        nearbyPatrolRequested = false;
+        hasReportedNoSafeSpawn = false;
+        InvalidateRouteGraph();
+    }
+
     // ── Spawn point selection ───────────────────────────────────────────────
 
     /// <summary>

@@ -1632,6 +1632,35 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// </summary>
     public void ActivateInPlace() => Activate(chooseSpawnPoint: false);
 
+    /// <summary>
+    /// Puts an awake Nemesis back to sleep, as it was before <see cref="Activate"/>: out of its state,
+    /// invisible, no navigation and no senses. The next Activate spawns it again at one of its spawn
+    /// points. A spawn still waiting for somewhere safe is called off too.
+    ///
+    /// For moving the run somewhere the Nemesis is not: the escape leaves it parked against Zona 1's
+    /// gate, and <see cref="NemesisZoneWake"/> sends it to sleep there before waking it among Zona 2's
+    /// spawn points, because Activate does nothing to a Nemesis that is already awake.
+    ///
+    /// The state it was in is exited, so whatever it held is given back (the stopping distance, a
+    /// door). The chase pair and the proximity are closed by hand: the FSM and the telemetry that
+    /// would close them stop ticking here. Not for a Nemesis mid-capture or mid-traversal, which own
+    /// the player and the agent.
+    /// </summary>
+    public void Sleep()
+    {
+        awaitingSafeSpawn = false;
+
+        if (isActive)
+        {
+            isActive = false;
+            CurrentState.ExitState();
+            telemetry.CloseChase();
+            NemesisEvents.ProximityChanged(0f);
+        }
+
+        lifecycle.SetDormant(true);
+    }
+
     private void Activate(bool chooseSpawnPoint)
     {
         if (isActive) return;

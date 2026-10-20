@@ -1010,6 +1010,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// The horizontal normal of the first obstacle a capsule cast along <paramref name="direction"/>
     /// meets. False when nothing is in the way, and also when all it meets is floor or ceiling:
     /// deflecting along a vertical normal would cancel the movement instead of redirecting it.
+    ///
+    /// A walkable ramp is floor too. obstacleMask includes Ground, and on any slope steeper than
+    /// about 20 degrees the cast meets the ramp itself a few centimetres ahead: its tilted normal
+    /// still has a horizontal part, and deflecting along it cancelled the uphill movement, so the
+    /// player stood at the foot of every stair ramp unable to climb it.
     /// </summary>
     private bool TryGetObstacleNormal(Vector3 bottom, Vector3 top, float radius, Vector3 direction,
                                       float distance, out Vector3 normal)
@@ -1020,12 +1025,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                                  obstacleMask, QueryTriggerInteraction.Ignore))
             return false;
 
+        if (IsWalkableGround(hit)) return false;
+
         normal = new Vector3(hit.normal.x, 0f, hit.normal.z);
         if (normal.sqrMagnitude <= 0.0001f) return false;
 
         normal.Normalize();
         return true;
     }
+
+    /// <summary>Ground the player could stand on: a surface the ground probe sees, no steeper than
+    /// CheckGround accepts. Props and walls are not on the ground mask, so they still deflect.</summary>
+    private bool IsWalkableGround(RaycastHit hit) =>
+        (groundLeyerMask.value & (1 << hit.collider.gameObject.layer)) != 0 &&
+        Vector3.Angle(hit.normal, Vector3.up) < groundAngleLimit;
 
     /// <summary>Margin the obstacle cast is shrunk by, so a capsule already resting against a wall
     /// does not report a zero-distance hit every frame and jitter.</summary>

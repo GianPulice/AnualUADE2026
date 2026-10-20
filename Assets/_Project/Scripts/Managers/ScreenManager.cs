@@ -302,6 +302,19 @@ public class ScreenManager : Singleton<ScreenManager>
     /// </summary>
     private const float QuitScreenDuration = 3f;
 
+    /// <summary>
+    /// Most the progress bar's clock may advance in a single frame, in seconds (a 30 fps frame). A
+    /// scene activating can block the main thread for a second or more; on real time, the frame
+    /// after that would throw the bar forward by the whole stall — frozen, then a jump.
+    /// </summary>
+    private const float MaxBarStep = 1f / 30f;
+
+    /// <summary>
+    /// How much faster than real time the bar's clock runs while it is behind, so a stall is made
+    /// up for gradually instead of in one jump.
+    /// </summary>
+    private const float BarCatchUpSpeed = 2f;
+
     private async UniTask RunLoadingSequenceAsync(Func<UniTask> work, bool revealAfter, bool exiting,
                                                   CancellationToken token)
     {
@@ -318,23 +331,37 @@ public class ScreenManager : Singleton<ScreenManager>
         LoadingScreen.SetLoading(true);
 
         float startTime = Time.realtimeSinceStartup;
+        float lastFrameTime = startTime;
+
+        // The bar's own clock: real time, except that no frame advances it more than MaxBarStep.
+        // After a stall it is behind real time and catches up at BarCatchUpSpeed, so the bar
+        // only ever looks like it paused, never like it froze and leapt.
+        float barTime = 0f;
 
         // Preserve: the task is polled every frame below and awaited once at the end.
         UniTask workTask = RunSafely(work).Preserve();
 
-        // Wait for BOTH the work and the minimum time. Real time, not scaled: the pause and
-        // result screens can hand over with Time.timeScale still at 0.
+        // Wait for BOTH the work and the minimum time, the latter on the bar's clock: a stall
+        // late in the load stretches the screen a little rather than cutting the bar short.
+        // Real time, not scaled: the pause and result screens can hand over with
+        // Time.timeScale still at 0.
         while (true)
         {
-            float elapsed = Time.realtimeSinceStartup - startTime;
+            float now = Time.realtimeSinceStartup;
+            float frame = now - lastFrameTime;
+            lastFrameTime = now;
+
+            float behind = (now - startTime) - barTime;
+            barTime += Mathf.Min(Mathf.Min(frame, MaxBarStep) * BarCatchUpSpeed, behind);
+
             bool workDone = workTask.Status != UniTaskStatus.Pending;
 
-            if (workDone && elapsed >= minimumDuration) break;
+            if (workDone && barTime >= minimumDuration) break;
 
             // The bar tracks the minimum time. While the scenes are still loading it stops just
             // short of full, so a load that runs past the minimum reads as "almost there" rather
             // than as a full bar that is stuck.
-            float progress = minimumDuration > 0f ? elapsed / minimumDuration : 1f;
+            float progress = minimumDuration > 0f ? barTime / minimumDuration : 1f;
             loadingScreen.SetProgress(workDone ? progress : Mathf.Min(progress, 0.95f));
 
             await UniTask.Yield(PlayerLoopTiming.Update, token);

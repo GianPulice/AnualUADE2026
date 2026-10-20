@@ -234,7 +234,8 @@ no está bloqueado) → [§19.7](#197-fase-6-ganchos-y-bloqueos)
 - **H3, bloqueado por animación:** los clips del §15.5, y clips propios de golpe de manos e impacto
   (hoy son provisorios). El controller ya tiene los seis estados (`Drop Look`, `Hop Takeoff`,
   `Hang Turn`, `Hang Release`, `Fall Loop`, `Land Heavy`), vacíos.
-- **Jugar:** casos 12 a 16 y 55, y después poner bajadas en la Zona 2.
+- **Jugar:** casos 12 a 16 y 55. La primera bajada de la Zona 2, `Drop_Hueco02`, ya está puesta
+  (20/10, ver Hecho).
 
 **Etapa I — Documentación y limpieza** (≈ 1 día) → [§19.6](#196-el-plan-contra-el-código)
 
@@ -375,10 +376,20 @@ dice.
   - **D9** y **D10** (bajadas): recomendaciones para las partes 1 y 3 de la Fase 8 (D11 y las
     nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
     la Fase 8.
-- **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis se activa ahí y, en
-  Zona1, sólo en la cinemática final. La Zona 2 tiene que nacer con su Director armado
-  ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)) y sus rutas validadas; hasta
-  entonces, los §17 y §18 se prueban en la testbed y en `TestIñaki`.
+- **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis ya se despierta ahí y
+  patrulla (20/10, ver Hecho); falta el Director: sus zonas y disparadores
+  ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)), que hoy no cubren ningún waypoint de
+  la Zona 2. Lo que queda de la Zona 2:
+  - **Jugarla.** Llegar con F6 o por el escape, resolver un sub-puzzle y ver que aparece fuera de
+    vista, patrulla los tres pisos y baja por `Drop_Hueco02`.
+  - **El SUB_01 oeste está aislado:** tres `Pipes_vertical_long` (capa `Props`, 0.64 m) cruzan el
+    pasillo `DISTRIBUIDOR_N` a x≈201 y el agente sube 0.5 m. Ahí están el SP5 (switches) y la salida a
+    la zona 3. Sus cuatro waypoints esperan en `ROUTE SUB01 OESTE (sin conexion)`, apagada y fuera de
+    `NemesisZoneWake`. Cuando el pasillo conecte, se prende y se suma a la lista.
+  - **El hub de la Zona 2 no es zona segura:** no tiene `Safe Area` (`NavMeshModifierVolume` +
+    `SafeZoneMarker`) como el de Zona1. Ninguna ruta entra al `HUB_02`, pero nada se lo impide al
+    Nemesis cuando caza.
+  - **La escalada** llega al nivel más alto con los puzzles de Zona1 (D33): revisar los umbrales.
 - **Sueltos**
   - Zona1 no tiene escondites puestos ni el blend en su `CinemachineBrain`
     ([Fase 1](#fase-1--escondites-lado-jugador-prerrequisito---construida-commit-9eba9b46)).
@@ -677,8 +688,26 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 - ✅ **Chequeos en Unity** (batchmode, 27/09): el working tree con la 2C, las partes 1 a 3 de la 2B,
   la Fase 3 y la Fase 8 parte 2 compila entero, Editor incluido, y pasan los 71 tests EditMode. Se
   midió también el NavMesh de Zona1 y de la testbed ([§18.3](#183-el-director-qué-hace-de-verdad)).
+- ✅ **El Nemesis en la Zona 2** (20/10, sin commitear; falta jugarlo):
+  - **Despertar.** `NemesisZoneWake` (`Scripts/Nemesis/`, en `---- GAMEPLAY ---- / Nemesis Zona 2`)
+    lo despierta con el primero de los tres sub-puzzles que pide el hub (`p2_sp1_calderas`,
+    `p2_sp2_switches`, `p2_sp3_mechanism`). Si la cinemática del escape lo tiene estacionado en el
+    portón, se lo devuelve. Le cambia rutas y spawn points por los de la zona
+    (`NemesisController.ReplaceArea`), lo duerme (`NemesisStateManager.Sleep`, nuevo) y lo despierta
+    con la búsqueda de spawn de siempre: lejos, fuera de vista y detrás de geometría.
+  - **Patrulla.** Tres rutas, una por piso (`ROUTE SUB01/02/03`, 17 waypoints), y 4 spawn points.
+    Todos quedan en la misma isla del NavMesh, alcanzables entre sí; ninguno está en el `HUB_02` ni
+    detrás de la puerta del SP3.
+  - **Bajada.** `---- NAV ---- / Drop Links / Drop_Hueco02`, del SUB_02 al SUB_03 por el `HUECO_02`,
+    con `Hang` de 6 m (D47) y aterrizaje frente al keypad del SP3. Tiene `PlayerRail` invisible en
+    `Ignore Raycast` en el único lado abierto (D9).
+  - **Capas** como en Zona1. En `WIRED_ZONA_02.prefab` y en los objetos agregados en la escena, los
+    pisos van en `Ground` y las paredes, dividers y rellenos en `Wall`. Techos, rejas, barandas y
+    bordes de agujero quedan como estaban. Con los pisos en `Default`, el oído del Nemesis los tomaba
+    como paredes.
+  - *Validate Navigation Setup* da todo en orden. El NavMesh lo rebakea Iñaki a mano.
 - ✅ **Decisiones tomadas** en el [§11](#11-decisiones-abiertas): D5, D13, D14, D20, D21, D22 (en el
-  §17.6), D23, D24, D25, D26, D27, D28, D29, D30, D31, D32, D33, D34, D35, D36 y, del 05/10, D41 a D46. Ya aplicadas, aunque la tabla no las marque: D7 y
+  §17.6), D23, D24, D25, D26, D27, D28, D29, D30, D31, D32, D33, D34, D35, D36 y, del 05/10, D41 a D46; del 20/10, D47. Ya aplicadas, aunque la tabla no las marque: D7 y
   D17 (Fase 2), D18 y D19 (2B parte 1), D11 (Fase 8); D16 la respondió el consejo.
 
 ### Historial
@@ -2112,6 +2141,7 @@ Todas salen de `docs/CLAUDE.md`. Cada una ya costó un bug.
 | D44 | Montacargas sin energía: ¿el Nemesis lo usa igual? | **Decidido (05/10): no puede usarlo, igual que el jugador.** Etapa D. |
 | D45 | ¿De qué depende que la persecución aguante cuando te pierde de vista un instante? | **Decidido (05/10, Iñaki): de una mezcla de la última posición vista, lo último escuchado y la creencia de dónde podrías estar, con el oído pesando menos.** Esa mezcla es el radio de `NemesisBelief`; el peldaño "todavía sabe dónde está" lo compara con `Chase Hold Radius`, con un tope de tiempo sin vista (`Chase Hold Max Time`) porque la persecución sin vista se queda en el último punto visto (§16.4). Etapa B. |
 | D46 | ¿Para qué sirve el ruido del jugador cuando no alcanza para más? | **Decidido (05/10, Iñaki): el ruido no dirige la persecución, y uno que no alcanza para investigar sólo reordena la patrulla** ("iba a ir por izquierda pero escuchó algo por derecha, entonces va a la derecha"). Lo primero ya es así: perdida la vista va al último punto visto y pasa a buscar. Lo segundo es la etapa E4, y falta decidir qué ruido es el que no alcanza: hoy todo ruido oído manda a `Investigating`. |
+| D47 | ¿Qué hacer con las bajadas de la Zona 2, si sus pisos están a 6 m y el tope era 5 m? | **Decidido (20/10, Iñaki): sube el tope a 6.5 m** (`NemesisDropLink.MaxHeight`). Con 5 m ninguna bajada de la Zona 2 pasaba el validador. Colgada 1.9 m bajo el borde, una `Hang` de 6 m es una caída de 4.1 m. En la misma charla: los conductos `NEMESIS_NET` (con rejas) de la Zona 2 quedan cerrados también para el Nemesis, porque son ductos y el [§2.3](#23-lo-que-no-conviene-copiar) los descarta; y el agujero lleva baranda invisible para el jugador (D9). |
 
 ---
 
@@ -2141,7 +2171,7 @@ Puntos de partida para calibrar con la Fase 3, no para dejar fijos.
 | Rampa de la sensibilidad creciente | 0.3, +0.15 cada 20 s, tope 1.0 | Llega al máximo en ~100 s después del `quietTimeout` |
 | Intensidad de la retirada | 0.8, sólo ancla y pesos | Si te lo cruzás, sus sentidos están intactos |
 | `patrolWaitVariance` | 0.6 s (hoy 0.25) | `docs/CLAUDE.md` |
-| Bajadas: alto mínimo / máximo | 1.5 m / 5 m (verificar el alto real entre `PISO_01` y `PISO_02` en el editor) | Debajo de 1.5 m lo cubre `agentClimb`/escalón; arriba de 5 m un humanoide no cae sin consecuencias |
+| Bajadas: alto mínimo / máximo | 1.5 m / 6.5 m (era 5 m; D47, por los 6 m entre pisos de la Zona 2) | Debajo de 1.5 m lo cubre `agentClimb`/escalón; arriba de 6.5 m un humanoide no cae sin consecuencias |
 | Bajadas: umbral salto corto ↔ descolgarse | 2.5 m (= `FloorHeightThreshold`) | Mismo número que ya separa "otro piso" de "desnivel" |
 | Bajadas: costo del link | 2 cazando / 20 en patrulla (D11) | Más barato que el montacargas (10) al cazar |
 | Bajadas: recuperación al aterrizar | 0.6–0.9 s (la duración del clip); 0.75 en `SO_NemesisMovement` | La ventana del jugador; menos se siente injusto |
@@ -2644,7 +2674,7 @@ locker (en par con `Pull Out`).
 | Problema | Por qué importa |
 |---|---|
 | `TopEdge` o `BottomLanding` fuera del NavMesh (`SamplePosition` a 0.3 m) | El link no se registra y la bajada no existe. |
-| Alto fuera de 1.5–5 m | Debajo lo cubre el escalón; encima es irreal. |
+| Alto fuera de 1.5–6.5 m (D47) | Debajo lo cubre el escalón; encima es irreal. |
 | `BottomLanding` sin camino de vuelta a `TopEdge` (escalera o montacargas) | Rompe las islas de `NemesisRouteGraph` (§15.2) y puede dejar al Nemesis atrapado abajo. |
 | El arco choca con geometría (`CapsuleCast` por tramos contra la máscara de oclusión) | Atravesaría una viga en el aire. |
 | Radio libre de 1 m alrededor de `BottomLanding` con colliders sólidos | Aterriza adentro de una caja. |

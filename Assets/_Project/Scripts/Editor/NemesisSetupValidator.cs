@@ -26,7 +26,7 @@ using UnityEngine.AI;
 ///     it differently: the camera clipped through floors and the player interacted through walls.
 ///   - That waypoints are tagged and land on the NavMesh.
 ///   - That NemesisDoorUser has a usable door mask.
-///   - The drops between floors (plan §15.6): both ends on the mesh, a height between 1.5 and 5 m,
+///   - The drops between floors (plan §15.6): both ends on the mesh, a height between 1.5 and 6.5 m,
 ///     a way back up, a fall clear of geometry and a landing with room, away from the Hub.
 ///
 /// It checks nothing that depends on Play mode: for what only shows up at runtime (NavMesh

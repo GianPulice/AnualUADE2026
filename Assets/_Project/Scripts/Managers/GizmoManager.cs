@@ -115,7 +115,7 @@ public class GizmoManager : MonoBehaviour
         yield return (nemesisDebug, new[]
         {
             typeof(NemesisDirector), typeof(NemesisController), typeof(NemesisElevatorLink),
-            typeof(NemesisDoorUser), typeof(NemesisDropLink),
+            typeof(NemesisDoorUser), typeof(NemesisDropLink), typeof(NemesisZoneWake),
         });
 
         yield return (inputHints, new[] { typeof(InputHintTrigger) });
