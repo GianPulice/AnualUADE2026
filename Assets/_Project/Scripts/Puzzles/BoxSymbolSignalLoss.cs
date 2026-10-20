@@ -1,14 +1,15 @@
 using UnityEngine;
 
 /// <summary>
-/// Hides a push box's basket symbol behind a plain black disc unless the player looks down on it
-/// from above or the box stands in the light of a reveal lamp.
+/// Hides a push box's basket symbol behind a plain black disc unless the box stands in the light of
+/// a reveal lamp — or, when the boxes' <see cref="SO_PushableBoxConfig"/> allows it, the player
+/// looks down on it from above.
 ///
 /// The symbol (the "Plane" under the box's "Model") tells the player which basket the box belongs
-/// to. It lies flat on the box's top face, and the puzzle wants it readable only from a higher
-/// vantage point — a second floor, a ledge — or under the UV lamp, never from the same floor
-/// standing in front of the box. So while the player's feet are at or below the Plane and no lamp
-/// lights it, the Plane shows a solid black disc the size of the symbol's circular badge.
+/// to. It lies flat on the box's top face, and the puzzle wants it readable under the UV lamp, never
+/// from the same floor standing in front of the box. So while no lamp lights it, the Plane shows a
+/// solid black disc the size of the symbol's circular badge. The lamp reveals it from anywhere,
+/// looking down from above included.
 ///
 /// The disc is a solid mask and not the symbol's own alpha: the symbol has small cut-outs (the
 /// skull's eyes, the badge's ragged rim) that would let the box's top show through and give the
@@ -23,8 +24,12 @@ using UnityEngine;
 /// the lamp can be any colour, and under a saturated violet the red and the yellow badges would
 /// otherwise go nearly black. The glow fades in and out with the symbol.
 ///
-/// Looking from above is a separate way in and stays immediate: the plain symbol, exactly as it
-/// always looked, the moment the player's feet clear the Plane. Each rule keeps its own hysteresis.
+/// LOOKING FROM ABOVE, without a lamp, is a second way in that is OFF by default
+/// (<see cref="SO_PushableBoxConfig.RevealSymbolFromAbove"/>, read from the box's
+/// <see cref="PushableBox"/>): Iñaki asked on 2026-10-19 for the lamp to be the only way, and for
+/// the old rule to stay one tick away. Turned on, it is immediate: the plain symbol, exactly as it
+/// always looked, the moment the player's feet clear the Plane (a second floor, a ledge). Each rule
+/// keeps its own hysteresis. Read every frame, so it can be flipped in Play mode.
 ///
 /// THE MATERIAL SLOTS. While the symbol is hidden or fading the Plane carries several materials (an
 /// extra material draws the same mesh again, on top): a decoy in slot 0, the black disc in slot 1
@@ -69,7 +74,8 @@ public class BoxSymbolSignalLoss : MonoBehaviour
     [Min(0.01f)] [SerializeField] private float revealSeconds = 1.5f;
 
     [Tooltip("Metres the feet must clear the Plane by before the symbol shows, and drop back by " +
-             "before it is hidden again, so standing right at the edge height does not flicker.")]
+             "before it is hidden again, so standing right at the edge height does not flicker. " +
+             "Only used when the box config's Reveal Symbol From Above is on.")]
     [Min(0f)] [SerializeField] private float heightHysteresis = 0.05f;
 
     [Tooltip("How much the symbol glows in its own colours while a reveal lamp lights it, like " +
@@ -77,6 +83,10 @@ public class BoxSymbolSignalLoss : MonoBehaviour
              "0 = no glow: only the lamp's own colour lights it, and under a violet lamp the red " +
              "and yellow badges go nearly black. Does not change the look from above.")]
     [Range(0f, 3f)] [SerializeField] private float revealGlow = 1f;
+
+    // The box's shared config, which says whether looking from above reveals the symbol. Null (no
+    // PushableBox, or one with no config) means it does not.
+    private SO_PushableBoxConfig boxConfig;
 
     private Material symbolMaterial;
     private Material decoyMaterial;
@@ -132,9 +142,12 @@ public class BoxSymbolSignalLoss : MonoBehaviour
         blackSet = new[] { decoyMaterial, blackMaterial };
         revealSet = new[] { decoyMaterial, blackMaterial, revealMaterial };
 
+        PushableBox pushable = GetComponent<PushableBox>();
+        if (pushable != null) boxConfig = pushable.Config;
+
         // Decide before the first frame renders, so a box on the player's floor never flashes its
         // symbol on load. A box already under a lit lamp starts revealed: nothing fades on load.
-        playerAbove = IsPlayerAbove(false);
+        playerAbove = RevealsFromAbove && IsPlayerAbove(false);
         inRevealLight = BoxSymbolRevealLight.IsLit(symbolRenderer.transform.position, false);
         lampReveal = inRevealLight ? 1f : 0f;
 
@@ -156,7 +169,7 @@ public class BoxSymbolSignalLoss : MonoBehaviour
     {
         // Both are asked every time, so each one's remembered answer stays current for its own
         // hysteresis.
-        playerAbove = IsPlayerAbove(playerAbove);
+        playerAbove = RevealsFromAbove && IsPlayerAbove(playerAbove);
         inRevealLight = BoxSymbolRevealLight.IsLit(symbolRenderer.transform.position, inRevealLight);
 
         // Scaled time on purpose: the pause (timeScale 0) holds the fade where it is.
@@ -201,6 +214,8 @@ public class BoxSymbolSignalLoss : MonoBehaviour
         shownSet = set;
         symbolRenderer.sharedMaterials = set;
     }
+
+    private bool RevealsFromAbove => boxConfig != null && boxConfig.RevealSymbolFromAbove;
 
     /// <summary>
     /// True if the player's feet are above the Plane. <paramref name="currentlyAbove"/> is the

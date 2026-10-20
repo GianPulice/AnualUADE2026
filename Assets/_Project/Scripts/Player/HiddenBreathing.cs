@@ -22,6 +22,15 @@ using UnityEngine.Audio;
 /// to your face is louder from the inside (spec's <c>closetBreathingMultiplier</c>), which is a mix
 /// decision and therefore belongs to the component that owns the mix.
 ///
+/// TENSION. The loop follows how close the Nemesis is (<see cref="NemesisEvents.OnProximityChanged"/>,
+/// the same value as the red vignette), in four steps: nothing near (<see cref="idleLoop"/>), the
+/// Nemesis inside its proximity radius (<see cref="hiddenLoop"/>, the stifled breath of someone hiding
+/// with it around), close (<see cref="dangerLoop"/>) and on top of the spot (<see cref="criticalLoop"/>).
+/// Rising is immediate; calming down waits <see cref="calmDownSeconds"/> so a Nemesis walking back and
+/// forth past the door does not make the breath flutter. A step that has no clip assigned falls back to
+/// the calmer one, so none of them is required. With the Nemesis asleep nothing reports proximity and
+/// the loop stays on the first step.
+///
 /// Setup: drop it on the player root, assign the loop. Everything else has a working default.
 /// </summary>
 [DisallowMultipleComponent]
@@ -33,12 +42,14 @@ public class HiddenBreathing : MonoBehaviour
     [SerializeField] private PlayerStateManager player;
 
     [Header("Clips")]
-    [Tooltip("The loop that plays while hidden and healthy.")]
+    [Tooltip("The loop that plays while hidden and healthy, with the Nemesis somewhere inside its " +
+             "proximity radius. It is also what any step below with no clip of its own falls back to.")]
     [SerializeField] private AudioClip hiddenLoop;
 
     [Tooltip("Optional. Replaces the loop above once M2 has exploded — the ragged, tense breathing " +
              "the module spec gives the chest penalty. Left empty, the normal loop is used " +
-             "regardless of penalties.")]
+             "regardless of penalties. It also replaces the Idle Loop, but never the Danger and " +
+             "Critical ones: those are already the tense ones.")]
     [SerializeField] private AudioClip hiddenLoopChestPenalty;
 
     [Tooltip("Played once when the player lets go of a held breath: the gasp that comes after it. " +
@@ -57,6 +68,34 @@ public class HiddenBreathing : MonoBehaviour
     [Tooltip("Seconds the loop takes to go quiet when the player starts holding. Shorter than the " +
              "normal fade: holding your breath is abrupt.")]
     [SerializeField, Min(0.02f)] private float holdFadeSeconds = 0.12f;
+
+    [Header("Tension (follows the Nemesis)")]
+    [Tooltip("Nothing near: the Nemesis is asleep or out of its proximity radius. Empty = the Hidden Loop.")]
+    [SerializeField] private AudioClip idleLoop;
+
+    [Tooltip("The Nemesis is close to the spot. Empty = the Hidden Loop.")]
+    [SerializeField] private AudioClip dangerLoop;
+
+    [Tooltip("The Nemesis is on top of the spot: the breath gives out. Empty = the Danger Loop.")]
+    [SerializeField] private AudioClip criticalLoop;
+
+    [Tooltip("Proximity (0 = out of range, 1 = on top of the player; the red vignette's value) from " +
+             "which the Hidden Loop plays instead of the Idle one. 0.05 = just inside the radius.")]
+    [SerializeField, Range(0f, 1f)] private float alertProximity = 0.05f;
+
+    [Tooltip("Proximity from which the Danger Loop plays. With the Nemesis's proximity radius at 12 m, " +
+             "0.35 is about 8 m of path.")]
+    [SerializeField, Range(0f, 1f)] private float dangerProximity = 0.35f;
+
+    [Tooltip("Proximity from which the Critical Loop plays. 0.7 is about 3.5 m of path.")]
+    [SerializeField, Range(0f, 1f)] private float criticalProximity = 0.7f;
+
+    [Tooltip("How far below a step's proximity the value has to fall before the breath steps down.")]
+    [SerializeField, Range(0f, 0.3f)] private float tierHysteresis = 0.05f;
+
+    [Tooltip("Seconds a step has to last before the breath may step down to a calmer one. Going up " +
+             "is never delayed.")]
+    [SerializeField, Min(0f)] private float calmDownSeconds = 3f;
 
     [Header("Source")]
     [Tooltip("The AudioSource to breathe through. The player prefab already carries an unused one " +
@@ -102,9 +141,19 @@ public class HiddenBreathing : MonoBehaviour
     private float gaspLeft;
     private float gaspTarget;
 
+    // How tense the breath is. Ordered: a higher value is a tenser step.
+    private enum Tier { Calm, Alert, Danger, Critical }
+
+    private Tier tier = Tier.Calm;
+    private float tierSince;
+    private float proximity;
+
     private void Awake()
     {
         if (player == null) player = GetComponentInParent<PlayerStateManager>();
+
+        // Awake/OnDestroy and not OnEnable/OnDisable: static bus, see docs/UI-System.md §7.1.
+        NemesisEvents.OnProximityChanged += HandleProximity;
 
         if (source == null)
         {
@@ -150,15 +199,29 @@ public class HiddenBreathing : MonoBehaviour
         if (gaspSource != null) gaspSource.Stop();
     }
 
+    private void OnDestroy() => NemesisEvents.OnProximityChanged -= HandleProximity;
+
+    private void HandleProximity(float t) => proximity = t;
+
     private void Update()
     {
         bool shouldBreathe = player != null && player.IsHidden && !player.IsDisabled;
         bool holding = shouldBreathe && player.IsHoldingBreath;
 
+        if (shouldBreathe) UpdateTier();
+        else tier = Tier.Calm;   // Each time in a spot starts from how things are then.
+
+        // The step changed under a loop that is playing: dip the volume, change the clip at the bottom
+        // (StartLoop picks it), come back up. A hard swap mid-breath is a click.
+        bool swapping = shouldBreathe && source.isPlaying && source.clip != null && ClipFor(tier) != null
+                        && source.clip != ClipFor(tier);
+
         if (shouldBreathe && !source.isPlaying) StartLoop();
 
         // Quiet while holding, and while the gasp is out: the gasp IS the breath for that beat.
-        float target = shouldBreathe && !holding && gaspLeft <= 0f ? volume * SpotVolumeMultiplier() : 0f;
+        float target = shouldBreathe && !holding && !swapping && gaspLeft <= 0f
+            ? volume * SpotVolumeMultiplier()
+            : 0f;
 
         // Unscaled: this fade is paired with the pause and the hiding lowpass, and a fade frozen
         // half way through by a modal is audible as a stuck drone. Same convention as
@@ -168,9 +231,62 @@ public class HiddenBreathing : MonoBehaviour
         currentVolume = Mathf.MoveTowards(currentVolume, target, rate * Time.unscaledDeltaTime);
         source.volume = currentVolume;
 
+        // Bottom of the dip: the new step's loop starts here, at zero volume, and fades up.
+        if (swapping && currentVolume <= 0.001f)
+        {
+            source.Stop();
+            StartLoop();
+        }
+
         if (!shouldBreathe && currentVolume <= 0f && source.isPlaying) source.Stop();
 
         TickGasp(shouldBreathe);
+    }
+
+    // ── Tension ─────────────────────────────────────────────────────────────
+
+    private float Threshold(Tier t) => t == Tier.Alert ? alertProximity
+                                    : t == Tier.Danger ? dangerProximity
+                                    : criticalProximity;
+
+    /// <summary>Rises at once, calms down one step at a time (see the class summary).</summary>
+    private void UpdateTier()
+    {
+        Tier next = tier;
+        while (next < Tier.Critical && proximity >= Threshold(next + 1)) next++;
+
+        if (next == tier && tier > Tier.Calm
+            && proximity < Threshold(tier) - tierHysteresis
+            && Time.unscaledTime - tierSince >= calmDownSeconds)
+            next = tier - 1;
+
+        if (next == tier) return;
+        tier = next;
+        tierSince = Time.unscaledTime;
+    }
+
+    /// <summary>
+    /// The loop for a step. A missing clip falls back to the calmer step, so only the hidden loop is
+    /// required. The chest penalty's ragged breath stands in for the two calm steps; the tense ones
+    /// keep their own.
+    /// </summary>
+    private AudioClip ClipFor(Tier t)
+    {
+        bool ragged = player != null && player.ChestPenaltyActive && hiddenLoopChestPenalty != null;
+        AudioClip calmer = ragged ? hiddenLoopChestPenalty : hiddenLoop;
+
+        switch (t)
+        {
+            case Tier.Critical:
+                if (criticalLoop != null) return criticalLoop;
+                return dangerLoop != null ? dangerLoop : calmer;
+            case Tier.Danger:
+                return dangerLoop != null ? dangerLoop : calmer;
+            case Tier.Alert:
+                return calmer;
+            default:   // Calm
+                return ragged ? hiddenLoopChestPenalty : (idleLoop != null ? idleLoop : hiddenLoop);
+        }
     }
 
     // ── Gasp ────────────────────────────────────────────────────────────────
@@ -222,10 +338,9 @@ public class HiddenBreathing : MonoBehaviour
 
     private void StartLoop()
     {
-        // Chosen per episode rather than per frame: swapping the clip mid-breath would restart it.
-        AudioClip clip = hiddenLoop;
-        if (player != null && player.ChestPenaltyActive && hiddenLoopChestPenalty != null)
-            clip = hiddenLoopChestPenalty;
+        // The clip of the current step, picked here and never swapped under a playing loop: a change
+        // of step goes through the dip in Update, which stops the loop first.
+        AudioClip clip = ClipFor(tier);
 
         if (clip == null)
         {
@@ -265,6 +380,10 @@ public class HiddenBreathing : MonoBehaviour
     private void OnValidate()
     {
         if (maxDistance <= minDistance) maxDistance = minDistance + 0.1f;
+
+        // The steps have to stay in order for UpdateTier's walk up the ladder to mean anything.
+        dangerProximity = Mathf.Max(dangerProximity, alertProximity);
+        criticalProximity = Mathf.Max(criticalProximity, dangerProximity);
 
         // Only live-update the source in play mode. Writing to it in edit mode would mark the
         // player prefab dirty every time one of these fields is nudged, since the source it is

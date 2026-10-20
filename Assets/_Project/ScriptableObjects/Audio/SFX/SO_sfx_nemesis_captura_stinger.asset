@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_nemesis_captura_stinger
   category: 3
-  clip: {fileID: 0}
+  clip: {fileID: 8300000, guid: ce2d52870089e2048946ec232b138869, type: 3}
   loop: 0
   ignoreListenerPause: 0
   minDistance: 2

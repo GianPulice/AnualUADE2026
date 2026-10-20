@@ -45,6 +45,17 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     private Vector3 blockedDirection;
     private const float BlockReleaseMargin = 0.1f;
 
+    // The probes above only see what a cast can see. A wall the box has already sunk into is skipped
+    // as a start-of-cast overlap, and a collider on Ignore Raycast is not cast against at all, yet
+    // both stop the box. The player's velocity is its own, so it kept walking and animating while
+    // the box stayed put: the two came apart, the player pushed thin air metres from the box and
+    // the latch was lost. So the pair is also checked by what actually happened — if the box or
+    // the player falls more than StallTolerance behind the other along the push, that direction
+    // counts as blocked. Unlike blockedDirection it cannot be re-probed (the probes are what missed
+    // it), so it holds while that same key stays held and is tried again on the next press.
+    private Vector3 stalledDirection;
+    private const float StallTolerance = 0.04f;
+
     // How hard drift from boxOffset is corrected, per second, and the most that correction may add
     // to the box's speed — enough to hold the pair together, never enough to yank the box.
     private const float BoxFollowGain = 10f;
@@ -107,6 +118,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         boxCollider = box != null ? box.GetComponent<BoxCollider>() : null;
         limitArea = box != null ? BoxLimitArea.FindContaining(box.position) : null;
         blockedDirection = Vector3.zero;
+        stalledDirection = Vector3.zero;
         hasBoxOffset = false;
         playerStateManager.PushDirection = Vector3.zero;
 
@@ -214,19 +226,30 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
 
                 Vector3 pushDir = ReadPushDirection();
 
-                // Blocked is treated like no input: the pair stops together instead of the player
-                // walking off sideways while the box sits against a wall.
+                // A stall only holds while the same direction stays selected (see stalledDirection).
+                if (pushDir != stalledDirection) stalledDirection = Vector3.zero;
+
+                // Blocked or stalled is treated like no input: the pair stops together instead of
+                // the player walking off sideways while the box sits against a wall.
                 // Releasing the key keeps blockedDirection, so pressing it again against the same
                 // obstacle does not twitch once either.
                 if (pushDir != Vector3.zero)
                 {
-                    float releaseMargin = pushDir == blockedDirection ? BlockReleaseMargin : 0f;
-                    if (IsPushBlocked(pushDir, releaseMargin))
+                    if (pushDir == stalledDirection || IsPairSplitting(pushDir))
                     {
-                        blockedDirection = pushDir;
+                        stalledDirection = pushDir;
                         pushDir = Vector3.zero;
                     }
-                    else blockedDirection = Vector3.zero;
+                    else
+                    {
+                        float releaseMargin = pushDir == blockedDirection ? BlockReleaseMargin : 0f;
+                        if (IsPushBlocked(pushDir, releaseMargin))
+                        {
+                            blockedDirection = pushDir;
+                            pushDir = Vector3.zero;
+                        }
+                        else blockedDirection = Vector3.zero;
+                    }
                 }
 
                 playerStateManager.PushDirection = pushDir;
@@ -247,8 +270,9 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                 else playerStateManager.CurrentVelocity = 0;
 
                 Vector3 move = pushDir * playerStateManager.CurrentVelocity;
-                playerStateManager.RigBody.linearVelocity = move + Vector3.down;
-                DriveBox(move);
+                float followGain = pushDir == Vector3.zero ? RestFollowGain() : BoxFollowGain;
+                playerStateManager.RigBody.linearVelocity = move + PlayerLatchCorrection(pushDir, followGain) + Vector3.down;
+                DriveBox(move, followGain);
                 UpdatePushBlend(pushDir);
                 playerStateManager.AnimController.SetFloat("moveSpeed", playerStateManager.CurrentVelocity);
             }
@@ -348,7 +372,7 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
     /// Moves the box with the player at the same velocity, plus a small correction back to the
     /// offset captured at latch time so the two cannot slowly drift apart over a long push.
     /// </summary>
-    private void DriveBox(Vector3 move)
+    private void DriveBox(Vector3 move, float followGain)
     {
         if (box == null) return;
 
@@ -357,12 +381,48 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         {
             Vector3 drift = playerStateManager.RigBody.position + boxOffset - box.position;
             drift.y = 0f;
-            velocity += Vector3.ClampMagnitude(drift * BoxFollowGain, MaxBoxCorrection);
+            velocity += Vector3.ClampMagnitude(drift * followGain, MaxBoxCorrection);
         }
 
         // Vertical left to the physics so the box still rests on and falls with the floor.
         velocity.y = box.linearVelocity.y;
         box.linearVelocity = velocity;
+    }
+
+    /// <summary>
+    /// The player's half of closing the gap, at rest only: while a direction is pushed the player
+    /// leads and the box follows (<see cref="DriveBox"/>). At rest both head for their place beside
+    /// the other, so whichever one is free does the moving — the box comes back to a player that got
+    /// stuck, the player comes back to a box that did. That is what restores the latch after a stall.
+    /// </summary>
+    private Vector3 PlayerLatchCorrection(Vector3 pushDir, float followGain)
+    {
+        if (pushDir != Vector3.zero || box == null || !hasBoxOffset) return Vector3.zero;
+
+        Vector3 drift = box.position - boxOffset - playerStateManager.RigBody.position;
+        drift.y = 0f;
+        return Vector3.ClampMagnitude(drift * followGain, MaxBoxCorrection);
+    }
+
+    /// <summary>
+    /// <see cref="BoxFollowGain"/>, capped so each body closes at most half the gap per frame: with
+    /// both correcting at rest, the full gain would overshoot below ~20 fps and the pair would jitter.
+    /// </summary>
+    private static float RestFollowGain() => Mathf.Min(BoxFollowGain, 0.5f / Mathf.Max(Time.deltaTime, 0.0001f));
+
+    /// <summary>
+    /// True once the box or the player has fallen more than <see cref="StallTolerance"/> behind the
+    /// other along <paramref name="direction"/>: one of them is stopped by something the probes did
+    /// not see. Either way round — the box stuck while the player goes on, or the player stuck while
+    /// the box goes on.
+    /// </summary>
+    private bool IsPairSplitting(Vector3 direction)
+    {
+        if (box == null || !hasBoxOffset) return false;
+
+        Vector3 drift = playerStateManager.RigBody.position + boxOffset - box.position;
+        drift.y = 0f;
+        return Mathf.Abs(Vector3.Dot(drift, direction)) > StallTolerance;
     }
 
     /// <summary>

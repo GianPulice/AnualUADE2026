@@ -213,7 +213,7 @@ Detalles diferidos:
 
 - [x] **Sorting order del Canvas** — se subió la pausa (1 → 70) y Settings detrás de ella (3 → 80) en los **prefabs**, en vez de bajar el del reader. El 22/09 se revirtieron los overrides de escena que lo pisaban (`LevelUI.unity`: `CanvasPause`, `HUDCanvas`, `InteractionCanvas`; `SettingsScene.unity`: `CanvasSettings`) y el HUD pasó a 1 en el prefab. La escalera completa está en UI-System §7.7. En modo lectura la pausa igual sigue bloqueada por `BlocksPause`.
 - [ ] **Indicador visual de reproducción** si el documento incluye audio (futuro, cuando haya audio en documents).
-- [ ] **Sonido de apertura** — `openSoundId` del `DocumentReaderController` sigue vacío en `LevelUI.unity`; hay `sfx_puzzle_document_read_01/02` (`Audio/SFX/Puzzles/`) sin usar y todavía sin SO de sonido que los registre como id.
+- [ ] **Sonido de apertura** — `openSoundId` del `DocumentReaderController` sigue vacío en `LevelUI.unity`; hay `sfx_puzzle_document_read_02` (`Audio/SFX/Puzzles/`) sin usar y todavía sin SO de sonido que lo registre como id. (`_01` se borró el 17/10: era byte a byte `sfx_interaction_nota.mp3`, el que ya suena al leer una nota.)
 
 ---
 

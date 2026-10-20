@@ -60,7 +60,13 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>, ISessionResetta
         // is an event, so a checkpoint does not re-activate every time the puzzle is re-run.
         if (!completedPuzzles.Add(puzzleId)) return;
 
+        // Taken before the event so a presenter (a reward box) is holding the puzzle by the time
+        // anyone hears about it; settled right after it when nobody holds it.
+        bool held = PuzzleCompletionAftermath.BeginHold(puzzleId);
+
         OnPuzzleCompleted?.Invoke(puzzleId);
+
+        if (!held) PuzzleCompletionAftermath.SettleNow(puzzleId);
     }
 
     public bool IsPuzzleCompleted(string puzzleId)

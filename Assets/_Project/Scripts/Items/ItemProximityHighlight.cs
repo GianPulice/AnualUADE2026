@@ -204,6 +204,10 @@ public class ItemProximityHighlight : MonoBehaviour
 
         foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
         {
+            // A part that drives its own emission (a reward box's glow) opted out.
+            ExcludeFromHighlight exclusion = renderer.GetComponentInParent<ExcludeFromHighlight>(true);
+            if (exclusion != null && exclusion.transform.IsChildOf(root)) continue;
+
             if (ReferenceEquals(renderer.GetComponentInParent<IInteractable>(true), owner))
                 result.Add(renderer);
         }

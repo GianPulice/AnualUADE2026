@@ -14,6 +14,9 @@ using UnityEngine;
 ///   PauseOpen / PauseClose — the pause menu opens / closes.
 ///   SaveSlotHover          — hovering a save slot card's action button.
 ///   SaveConfirm            — clicking a save slot (new game / load), one of three variants.
+///   SignalGlitch           — the static burst over a menu (<see cref="UISignalStaticBurst"/>), the
+///                            moment the screen fills with pixelated noise. Kept quiet on purpose:
+///                            nothing the player did triggers it, so it must register without startling.
 ///
 /// Clips are reused on purpose so the whole UI sounds the same. Settings: sliders tick with Hover,
 /// open / close reuse PauseOpen / PauseClose, Apply reuses SaveConfirm and Reset reuses ItemDiscard.
@@ -30,6 +33,8 @@ public static class UISounds
     public const string PauseClose = "sfx_ui_pause_02";
 
     public const string SaveSlotHover = "sfx_save_slot_hover";
+
+    public const string SignalGlitch = "sfx_ui_signal_glitch";
 
     public static readonly string[] SaveConfirm =
     {

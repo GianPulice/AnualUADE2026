@@ -80,6 +80,7 @@ public class PushableBox : BaseRangeInteractable
     public bool PlayerNearby { get; set; }
     public bool IsLocked => locked;
     public bool IsSnapping => snapping;
+    public SO_PushableBoxConfig Config => config;
 
     /// <summary>
     /// A basket is driving this rigidbody and nothing else may write to it — mid-slide onto one,

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_nemesis_activacion
   category: 3
-  clip: {fileID: 0}
+  clip: {fileID: 8300000, guid: 7d50df90e22a9d14e925d56d8ffb8f71, type: 3}
   loop: 0
   ignoreListenerPause: 0
   minDistance: 5

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "SO_ContainerPuzzleData", menuName = "Scriptable Objects/Puzzles/Container Puzzle Data")]
-public class SO_ContainerPuzzleData : ScriptableObject
+public class SO_ContainerPuzzleData : ScriptableObject, IPuzzleRewardSource
 {
     /// <summary>
     /// One line of the solution: "this box belongs in that basket".

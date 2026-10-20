@@ -59,8 +59,11 @@ public class InteractionManager : Singleton<InteractionManager>
         RefreshCamera();
 
         // If a modal UI is open or the game is paused, we do not process interactions. Nor while
-        // the player is lying on the floor or getting up.
+        // the player is lying on the floor or getting up, nor while a cinematic owns the screen:
+        // Camera.main is then the shot's camera, and whatever it is aimed at (a reward box opening)
+        // would light up and take the prompt.
         if (PauseManager.IsGameplayInputBlocked ||
+            CinematicState.IsPlaying ||
             (PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp))
         {
             if (currentInteractable != null)

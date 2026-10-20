@@ -72,6 +72,100 @@ public class NemesisEyes : MonoBehaviour
     private readonly List<FogBeacon> _beacons = new List<FogBeacon>();
     private Transform _center;
 
+    // The flare (see SetFlare): one halo per eye, enabled only while it is up, plus the last values
+    // it was given so a retune in Play Mode can re-apply them.
+    private readonly List<FogBeacon> _halos = new List<FogBeacon>();
+    private bool _lightsOn = true;
+    private float _flareAmount;
+    private float _flarePower = 1f;
+    private float _flareCoreRadius;
+    private float _flareHaloIntensity;
+    private float _flareHaloRadius;
+
+    // Pixel sizes are authored for a 1080p frame and scaled to the real one.
+    private const float ReferenceHeight = 1080f;
+
+    /// <summary>
+    /// Makes the eyes flare, and takes the flare back. For a moment that wants them to be seen far
+    /// more than they normally are (the escape's eyes shot), without touching the values the
+    /// designer tuned: at <paramref name="amount"/> 0 the eyes are exactly as authored.
+    ///
+    /// This is the eyes' own bloom, and it has to be: the gameplay camera does not render URP's
+    /// post-processing, so there is no Bloom volume to push. The fog pass draws each beacon as a
+    /// gaussian, so a bigger radius at a high brightness reads as a hot core, and a second, much
+    /// wider and fainter gaussian per eye (the halo) reads as the glow bleeding round it. The
+    /// halo also hides the hard edge the core's disc would otherwise show.
+    /// </summary>
+    /// <param name="amount">0..1: how far into the flare.</param>
+    /// <param name="power">Brightness multiplier of the core at amount 1.</param>
+    /// <param name="coreRadiusPixels">On-screen radius of the core at amount 1, in pixels at 1080p.
+    /// Above the fog's <c>beaconMaxPixels</c> to take effect at close range.</param>
+    /// <param name="haloIntensity">Brightness of the halo at its centre, at amount 1.</param>
+    /// <param name="haloRadiusPixels">On-screen radius of the halo at amount 1, in pixels at 1080p.</param>
+    public void SetFlare(float amount, float power, float coreRadiusPixels,
+                         float haloIntensity, float haloRadiusPixels)
+    {
+        _flareAmount = Mathf.Clamp01(amount);
+        _flarePower = Mathf.Max(1f, power);
+        _flareCoreRadius = Mathf.Max(0f, coreRadiusPixels);
+        _flareHaloIntensity = Mathf.Max(0f, haloIntensity);
+        _flareHaloRadius = Mathf.Max(0f, haloRadiusPixels);
+
+        ApplyFlare();
+    }
+
+    private void ApplyFlare()
+    {
+        float screen = Screen.height / ReferenceHeight;
+
+        for (int i = 0; i < _beacons.Count; i++)
+        {
+            FogBeacon beacon = _beacons[i];
+            if (beacon == null) continue;
+
+            beacon.IntensityScale = Mathf.Lerp(1f, _flarePower, _flareAmount);
+            beacon.minPixelRadius = Mathf.Max(
+                minPixelRadius, Mathf.Lerp(minPixelRadius, _flareCoreRadius * screen, _flareAmount));
+        }
+
+        bool haloUp = _lightsOn && _flareAmount > 0.001f;
+        for (int i = 0; i < _halos.Count; i++)
+        {
+            FogBeacon halo = _halos[i];
+            if (halo == null) continue;
+
+            halo.intensity = _flareHaloIntensity;
+            halo.IntensityScale = _flareAmount;
+
+            // Grows with the flare rather than appearing at full size on its first frame.
+            halo.minPixelRadius = Mathf.Max(1f, _flareHaloRadius * screen * Mathf.Lerp(0.35f, 1f, _flareAmount));
+            halo.enabled = haloUp && _flareHaloIntensity > 0.0001f && _flareHaloRadius > 0.5f;
+        }
+    }
+
+    private FogBeacon CreateHalo(Light anchor)
+    {
+        GameObject go = new GameObject("EyeHalo");
+        go.transform.SetParent(anchor.transform, false);
+
+        FogBeacon halo = go.AddComponent<FogBeacon>();
+        halo.enabled = false;
+        ConfigureHalo(halo);
+        return halo;
+    }
+
+    // The halo follows the eye's own look: same colour, same cone (a halo round eyes that are
+    // turned away would give the monster's back away), same near fade.
+    private void ConfigureHalo(FogBeacon halo)
+    {
+        halo.color          = eyeColor;
+        halo.worldRadius    = worldRadius;
+        halo.limitByFacing  = true;
+        halo.facingAngle    = facingAngle;
+        halo.nearFadeStart  = nearFadeStart;
+        halo.nearFadeEnd    = nearFadeEnd;
+    }
+
     /// <summary>
     /// The point half way between the eyes, riding on the head: for a camera to be trained on "the
     /// eyes" as one point, whatever the model's height or pose. Made the first time it is asked for
@@ -142,6 +236,7 @@ public class NemesisEyes : MonoBehaviour
             beacon.nearFadeEnd    = nearFadeEnd;
 
             _beacons.Add(beacon);
+            _halos.Add(CreateHalo(light));
         }
     }
 
@@ -152,10 +247,15 @@ public class NemesisEyes : MonoBehaviour
     /// </summary>
     public void SetLightsEnabled(bool value)
     {
+        _lightsOn = value;
+
         for (int i = 0; i < _beacons.Count; i++)
         {
             if (_beacons[i] != null) _beacons[i].enabled = value;
         }
+
+        // The halos ride on the eyes: dormant or shut, they are down too.
+        ApplyFlare();
 
         if (disableRealLights) return;
 
@@ -180,11 +280,18 @@ public class NemesisEyes : MonoBehaviour
             beacon.color          = eyeColor;
             beacon.intensity      = intensity;
             beacon.worldRadius    = worldRadius;
-            beacon.minPixelRadius = minPixelRadius;
             beacon.facingAngle    = facingAngle;
             beacon.nearFadeStart  = nearFadeStart;
             beacon.nearFadeEnd    = nearFadeEnd;
         }
+
+        for (int i = 0; i < _halos.Count; i++)
+        {
+            if (_halos[i] != null) ConfigureHalo(_halos[i]);
+        }
+
+        // Sets the pixel radius of the cores (and the halos) back from the authored value.
+        ApplyFlare();
     }
 #endif
 }

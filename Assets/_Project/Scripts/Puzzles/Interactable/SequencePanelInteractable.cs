@@ -177,7 +177,7 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
                              $"completing '{sequenceData.PuzzleId}' was not recorded, so nothing " +
                              $"gated behind it will open.", this);
 
-        PuzzleRewardDelivery.Deliver(sequenceData.RewardItem, rewardDropPoint, this);
+        PuzzleRewardDelivery.Deliver(sequenceData.PuzzleId, sequenceData.RewardItem, rewardDropPoint, this);
 
         if (AudioManager.Exists && !string.IsNullOrEmpty(sequenceData.CompletedSoundId))
             AudioManager.Instance.PlaySFX(sequenceData.CompletedSoundId);

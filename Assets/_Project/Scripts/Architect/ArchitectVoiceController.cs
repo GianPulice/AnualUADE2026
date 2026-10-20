@@ -12,6 +12,9 @@ using UnityEngine;
 ///   - Context lines play once per run (<see cref="TriggerContext"/>).
 ///   - Variants never repeat until all of them have played (shuffle bag per line).
 ///   - Random lines after N seconds without touching a puzzle.
+///   - Lines about the Nemesis are a separate pool (<see cref="ArchitectLineID.IdleNemesis"/>) that
+///     only plays once the Nemesis is out; before that the inactivity lines are the ones that never
+///     mention it (<see cref="ArchitectLineID.Idle"/>). See <see cref="NemesisOut"/>.
 ///   - Nothing plays with a menu open, except lines flagged PlaysOverMenus (ARC_03, ARC_10).
 ///
 /// One deliberate deviation: a Mandatory or Context line that is blocked (by another line or by a
@@ -81,12 +84,32 @@ public class ArchitectVoiceController : MonoBehaviour
     private readonly HashSet<ArchitectLineID> warnedMissing = new HashSet<ArchitectLineID>();
 
     private PlayerStateManager player;
+    private NemesisStateManager nemesis;
+    private bool nemesisOut;
     private bool lockedPlayerForWakeUp;
     private bool wakeUpDone;
     private float wakeUpCountdown = -1f;
     private float inactivityTimer;
 
     public bool IsSpeaking => currentLine != null;
+
+    /// <summary>
+    /// The Nemesis has come out this run: the escape wakes it (it sleeps all of Zona 1 before that),
+    /// and in a dev scene it is awake from Play. Latched: once out it stays out for this level load,
+    /// parked against the gate or not. Until then the Architect has nothing to say about it.
+    /// </summary>
+    private bool NemesisOut
+    {
+        get
+        {
+            if (nemesisOut) return true;
+
+            // Catch-up: OnActivated has no replay, and the Nemesis can wake before this exists.
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            nemesisOut = nemesis != null && nemesis.IsActive;
+            return nemesisOut;
+        }
+    }
 
     /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts.</summary>
     public bool PlaysWakeUpOnStart =>
@@ -140,6 +163,7 @@ public class ArchitectVoiceController : MonoBehaviour
         InteractionEvents.OnInteracted += HandleInteracted;
         InventoryEvents.OnItemAdded += HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        NemesisEvents.OnActivated += HandleNemesisActivated;
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
     }
 
@@ -155,6 +179,7 @@ public class ArchitectVoiceController : MonoBehaviour
         InteractionEvents.OnInteracted -= HandleInteracted;
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        NemesisEvents.OnActivated -= HandleNemesisActivated;
         PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
 
         ReleaseWakeUpLock();
@@ -211,6 +236,8 @@ public class ArchitectVoiceController : MonoBehaviour
     }
 
     private void HandlePlayerRegistered(PlayerStateManager registered) => player = registered;
+
+    private void HandleNemesisActivated() => nemesisOut = true;
 
     // ── Public API ───────────────────────────────────────────────────────────────────────
 
@@ -475,7 +502,21 @@ public class ArchitectVoiceController : MonoBehaviour
         if (inactivityTimer < inactivityThreshold) return;
 
         inactivityTimer = 0f;
-        TriggerLine(ArchitectLineID.Idle);
+        TriggerLine(IdleLineForSituation());
+    }
+
+    /// <summary>
+    /// The inactivity pool is split by situation: with the Nemesis out, the lines about it; before
+    /// that, the ones that never mention it. A bank without the Nemesis pool falls back to the plain
+    /// one, so the Architect does not go quiet.
+    /// </summary>
+    private ArchitectLineID IdleLineForSituation()
+    {
+        if (!NemesisOut) return ArchitectLineID.Idle;
+
+        SO_ArchitectLineBank.Line nemesisPool = bank != null ? bank.Find(ArchitectLineID.IdleNemesis) : null;
+        bool hasNemesisPool = nemesisPool != null && nemesisPool.variants != null && nemesisPool.variants.Length > 0;
+        return hasNemesisPool ? ArchitectLineID.IdleNemesis : ArchitectLineID.Idle;
     }
 
     private static bool IsInMenus =>

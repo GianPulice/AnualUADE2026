@@ -75,7 +75,7 @@ public class NemesisEscalation : Singleton<NemesisEscalation>, ISessionResettabl
         GameSession.Register(this);
 
         SceneManager.sceneLoaded += HandleSceneLoaded;
-        PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled += HandlePuzzleCompleted;
         CheckpointManager.OnRespawned += HandleRespawned;
         NemesisEvents.OnActivated += Refresh;
         NemesisEvents.OnStateChanged += HandleNemesisStateChanged;
@@ -86,7 +86,7 @@ public class NemesisEscalation : Singleton<NemesisEscalation>, ISessionResettabl
         GameSession.Unregister(this);
 
         SceneManager.sceneLoaded -= HandleSceneLoaded;
-        PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled -= HandlePuzzleCompleted;
         CheckpointManager.OnRespawned -= HandleRespawned;
         NemesisEvents.OnActivated -= Refresh;
         NemesisEvents.OnStateChanged -= HandleNemesisStateChanged;

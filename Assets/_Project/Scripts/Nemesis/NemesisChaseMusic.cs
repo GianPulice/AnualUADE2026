@@ -82,6 +82,9 @@ public class NemesisChaseMusic : MonoBehaviour
     // Set once the run has a result: nothing may start the track again after that.
     private bool runOver;
 
+    // Seconds of a fade-out a script asked for (FadeOutForCinematic). 0 = the usual fadeDuration.
+    private float scriptedFadeSeconds;
+
     private void Awake()
     {
         source = CreateSource();
@@ -168,6 +171,7 @@ public class NemesisChaseMusic : MonoBehaviour
 
         volumeTarget = maxVolume;
         isTrailingSearch = false;
+        scriptedFadeSeconds = 0f;
 
         if (source.clip != chaseMusicClip) source.clip = chaseMusicClip;
         if (!source.isPlaying) source.Play();
@@ -214,6 +218,22 @@ public class NemesisChaseMusic : MonoBehaviour
         if (ambienceController != null) ambienceController.FadeInAll(fadeDuration);
     }
 
+    /// <summary>
+    /// The chase is over because a script says so (the escape's ending): fades the track out over
+    /// <paramref name="seconds"/> and brings the ambience back, without waiting for the state change
+    /// that ends it by itself. A cinematic puppets the Nemesis with its FSM switched off, so that
+    /// change never arrives and the track would play on through the whole ending. Not a result:
+    /// the music can start again with the next chase.
+    /// </summary>
+    public void FadeOutForCinematic(float seconds)
+    {
+        isTrailingSearch = false;
+        volumeTarget = 0f;
+        scriptedFadeSeconds = Mathf.Max(0.05f, seconds);
+
+        if (ambienceController != null) ambienceController.FadeInAll(scriptedFadeSeconds);
+    }
+
     private void Update()
     {
         // The tail cannot outlive its timeout. A Nemesis switched off mid-search — dormant, a
@@ -228,7 +248,8 @@ public class NemesisChaseMusic : MonoBehaviour
         // Unscaled, not scaled: this fade is paired with AmbienceController's own (also unscaled)
         // takeover fade, and a pause mid-transition must not leave one of the two frozen while the
         // other keeps moving — that is what would turn a paused chase into dead silence.
-        float rate = fadeDuration > 0f ? maxVolume / fadeDuration : maxVolume;
+        float seconds = scriptedFadeSeconds > 0f ? scriptedFadeSeconds : fadeDuration;
+        float rate = seconds > 0f ? maxVolume / seconds : maxVolume;
         currentVolume = Mathf.MoveTowards(currentVolume, volumeTarget, rate * Time.unscaledDeltaTime);
         source.volume = currentVolume;
 
