@@ -416,6 +416,37 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         ArmEscape(quiet: true);
     }
 
+    /// <summary>
+    /// The F4 key (<see cref="EscapeSequenceTestKey"/>), release builds included: wins the module
+    /// the escape closes (M1) the way a run does when the last core goes in. Its timer starts if it
+    /// never had, the player is put inside the hub, and the trigger puzzle is completed: the module
+    /// resolves and the escape arms by its usual path. The cores do not show in the sockets. Once
+    /// the puzzle is completed, or during a capture, it does nothing.
+    /// </summary>
+    public void WinModuleForTest()
+    {
+        if (config == null || phase != Phase.Idle || CaptureInProgress()) return;
+        if (!PuzzleStateManager.Exists || PuzzleStateManager.Instance.IsPuzzleCompleted(config.TriggerPuzzleId)) return;
+
+        ActivateModuleClosedByTrigger();
+        PlacePlayerForTest();
+        PuzzleStateManager.Instance.SetPuzzleCompleted(config.TriggerPuzzleId);
+    }
+
+    /// <summary>ResolveModule ignores a module that never started: start it first.</summary>
+    private void ActivateModuleClosedByTrigger()
+    {
+        if (!ModuleManager.Exists) return;
+
+        IReadOnlyList<ModuleRuntime> modules = ModuleManager.Instance.GetAllModules();
+        for (int i = 0; i < modules.Count; i++)
+        {
+            if (modules[i].Data == null || modules[i].Data.AssociatedPuzzleId != config.TriggerPuzzleId) continue;
+            if (!modules[i].HasBeenActivated) ModuleManager.Instance.ActivateModule(i);
+            return;
+        }
+    }
+
     /// <summary>A capture is under way: the player grabbed, on the black screen or getting up, or the
     /// Nemesis in its own Catch state (a pull-out from a hiding spot starts before the grab).</summary>
     private bool CaptureInProgress()

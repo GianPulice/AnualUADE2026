@@ -16,7 +16,9 @@ MonoBehaviour:
   moduleLogLabel: M2
   penalty: 1
   associatedPuzzleId: puzzle_central_piso2
-  timerDuration: 180
+  startMode: 0
+  startedByPuzzleIds: []
+  timerDuration: 900
   walkAndRunSpeedPercent: 60
   sprintReduction: 0.25
   shakeAmplitude: 0.03
