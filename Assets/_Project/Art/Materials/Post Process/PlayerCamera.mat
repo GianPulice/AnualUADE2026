@@ -27,7 +27,7 @@ Material:
     m_Floats:
     - _BannerScale: 3
     - _BootBarWidth: 96
-    - _BootBlockY: 0.32
+    - _BootBlockY: 0.5
     - _BootPlate: 0.65
     - _BracketLength: 16
     - _EnableBrackets: 1

@@ -146,9 +146,10 @@ Shader "Hidden/Custom/PlayerCameraFeed"
 
     // Globals from PlayerCameraFeed. Outside Properties on purpose: a material property would hide
     // them.
-    //   _PlayerFeedText    glyph indices, 6 lines of 32: [0] label (top left), [1] readout (bottom
+    //   _PlayerFeedLines   glyph indices, 12 lines of 32: [0] label (top left), [1] readout (bottom
     //                      left, or travelling there from the middle), [2] status (under the
-    //                      label), [3] boot title, [4] boot percentage, [5] bomb banner.
+    //                      label), [3] boot title, [4] boot percentage, [5] bomb banner,
+    //                      [6..11] the boot log (under the boot percentage).
     //   _PlayerFeedInfo    x = label length, y = readout length, z = status length,
     //                      w = live overlay (0..1: label, recording dot, readout, status, brackets).
     //   _PlayerFeedReadout the readout of the device's module: x = travel (0 = middle of the
@@ -163,6 +164,10 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     //   _PlayerFeedRecBlink  blinks per second of the recording dot.
     //   _PlayerFeedBoot    x = boot screen (0..1), y = bar fill (0..1), z = title length,
     //                      w = percentage length.
+    //   _PlayerFeedBootLog the boot log, one line under the percentage: x = entry on screen
+    //                      (text line 6 + x), y = characters of it typed so far, z = 1 if this boot
+    //                      has a log (0: the reboot), w = widest entry in characters (the line is
+    //                      laid out for it).
     //   _PlayerFeedLens    x = focal length the frame was rendered with, y = focal length of the
     //                      output (both 1 / tan(vertical FOV / 2)), z = projection (1 = ordinary
     //                      lens, towards 0 = equidistant fisheye), w = fisheye amount (0 = off).
@@ -171,9 +176,10 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     //   _PlayerFeedThreat  the Nemesis closing in: x = part of the picture's blocks corrupted
     //                      (0..1), y = part of the overlay's letters scrambled (0..1).
     #define FEED_LINE 32
-    float  _PlayerFeedText[192];
+    float  _PlayerFeedLines[384];
     float4 _PlayerFeedInfo;
     float4 _PlayerFeedBoot;
+    float4 _PlayerFeedBootLog;
     float4 _PlayerFeedLens;
     float4 _PlayerFeedSignal;
     float4 _PlayerFeedThreat;
@@ -291,7 +297,7 @@ Shader "Hidden/Custom/PlayerCameraFeed"
         if (column > 4u) return 0.0;
 
         glyphIndex = index;
-        uint glyph = (uint)_PlayerFeedText[textLine * FEED_LINE + (int)index];
+        uint glyph = (uint)_PlayerFeedLines[textLine * FEED_LINE + (int)index];
         return GlyphBit(ScrambledGlyph(glyph, textLine, index), int2(column, 6 - p.y));
     }
 
@@ -386,19 +392,34 @@ Shader "Hidden/Custom/PlayerCameraFeed"
     }
 
 
-    // Centre of the boot block, in cells: centred across, at _BootBlockY of the height.
-    int2 BootCentre(int2 lastCell)
+    // The boot log's line has its bottom row BOOT_LOG_TOP cells below the block's centre (letters
+    // are 7 cells tall).
+    #define BOOT_LOG_TOP 30
+
+    // Cells from the block's centre down to the bottom of its last line: the percentage alone, or
+    // the boot log.
+    int BootBlockDepth()
     {
-        return int2((int)((uint)lastCell.x / 2u), (int)(lastCell.y * _BootBlockY));
+        return _PlayerFeedBootLog.z > 0.5 ? BOOT_LOG_TOP : 14;
     }
 
-    // 1 inside the plate behind the boot block (title, bar and percentage, with a margin).
+    // Centre of the boot block, in cells: centred across, and with the whole block (title on top,
+    // boot log at the bottom) centred on _BootBlockY of the height.
+    int2 BootCentre(int2 lastCell)
+    {
+        int lift = (int)((uint)max(BootBlockDepth() - 15, 0) / 2u);
+        return int2((int)((uint)lastCell.x / 2u), (int)(lastCell.y * _BootBlockY) + lift);
+    }
+
+    // 1 inside the plate behind the boot block (title, bar, percentage and log, with a margin).
     float BootPlateMask(int2 cell, int2 lastCell)
     {
         int2 centre = BootCentre(lastCell);
-        int halfWidth = (int)((uint)max((int)_BootBarWidth, 8) / 2u) + 8;
-        int2 d = abs(cell - centre);
-        return (d.x <= halfWidth && d.y <= 18) ? 1.0 : 0.0;
+        int halfBar = (int)((uint)max((int)_BootBarWidth, 8) / 2u);
+        int halfLog = (int)((uint)max((int)_PlayerFeedBootLog.w * 6 - 1, 0) / 2u);
+        int halfWidth = max(halfBar, halfLog) + 8;
+        int2 d = cell - centre;
+        return (abs(d.x) <= halfWidth && d.y <= 18 && d.y >= -(BootBlockDepth() + 4)) ? 1.0 : 0.0;
     }
 
     // The boot screen: title, a bar with a one-cell outline and a one-cell gap round the fill, and
@@ -409,6 +430,16 @@ Shader "Hidden/Custom/PlayerCameraFeed"
 
         float ink = CentredLineMask(cell, centre.x, centre.y + 8, 3, (int)_PlayerFeedBoot.z);
         ink = max(ink, CentredLineMask(cell, centre.x, centre.y - 14, 4, (int)_PlayerFeedBoot.w));
+
+        // The boot log: one line, left-aligned where the widest entry would start if centred, so an
+        // entry does not slide while it types.
+        if (_PlayerFeedBootLog.z > 0.5 && _PlayerFeedBootLog.y > 0.5)
+        {
+            uint logWidth = (uint)max((int)_PlayerFeedBootLog.w * 6 - 1, 0);
+            int left = centre.x - (int)(logWidth / 2u);
+            ink = max(ink, LineMask(cell, int2(left, centre.y - BOOT_LOG_TOP),
+                                    6 + (int)_PlayerFeedBootLog.x, (int)_PlayerFeedBootLog.y, 1));
+        }
 
         int width = max((int)_BootBarWidth, 8);
         int2 b = cell - int2(centre.x - (int)((uint)width / 2u), centre.y - 3);

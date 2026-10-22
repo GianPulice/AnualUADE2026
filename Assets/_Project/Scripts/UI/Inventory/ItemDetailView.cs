@@ -13,16 +13,16 @@ using UnityEngine.UI;
 /// Responsibilities:
 ///   - Stay folded until something is selected
 ///   - Populate header, description, metadata and content from the item
-///   - Own the doc toggle button for Text-type items
+///   - Keep the doc panel in step with the selection: a Text-type item shows its document at once
 ///   - Unfold / fold the pop-up
 ///
 /// Notes:
 ///   - Audio WIP: structure ready, logic disabled with enableAudioFeatures.
 ///   - There is no discard: items leave the inventory only through the world (puzzles, consumption).
-///   - The doc pop-up itself is <see cref="DocPanelView"/>, a separate layer. This view only
-///     owns the button that toggles it, because whether the button exists at all depends on
-///     the item's ContentType — which is this view's business.
-///     The Controller decides when to open/close it (not ShowEmpty nor ShowDetail).
+///   - The doc panel itself is <see cref="DocPanelView"/>, a separate layer outside this pop-up.
+///     There is no button to open it: whether it is visible follows the item's ContentType
+///     — which is this view's business — and nothing else. ShowDetail shows or swaps it, ShowEmpty
+///     hides it.
 /// </summary>
 public class ItemDetailView : MonoBehaviour
 {
@@ -61,13 +61,10 @@ public class ItemDetailView : MonoBehaviour
     // ── Doc panel ─────────────────────────────────────────────────────────────
 
     [Header("Doc Panel (Text-type items)")]
-    [Tooltip("Pop-up that opens on top of the detail. Closable with ESC without deselecting the item.")]
+    [Tooltip("Shows the selected Text item's document, above the description, as soon as the item " +
+             "is selected. It hides with the selection (ESC, deselect, another item type, inventory " +
+             "closed). Its X clears the selection.")]
     [SerializeField] private DocPanelView docPanel;
-    [Tooltip("Toggles the pop-up. Only visible while a Text-type item is selected.")]
-    [SerializeField] private Button openDocButton;
-    [SerializeField] private TextMeshProUGUI openDocButtonText;
-    [SerializeField] private string openDocLabel = "[ OPEN DOC ]";
-    [SerializeField] private string closeDocLabel = "[ CLOSE DOC ]";
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
 
@@ -102,20 +99,12 @@ public class ItemDetailView : MonoBehaviour
 
     private SO_InventoryItem currentItem;
 
-    /// <summary>
-    /// The Controller queries this to know whether ESC should close the doc
-    /// before closing the inventory.
-    /// </summary>
-    public bool IsDocOpen => docPanel != null && docPanel.IsOpen;
-
     // ── Unity ─────────────────────────────────────────────────────────────────
 
     void Awake()
     {
-        openDocButton?.onClick.AddListener(OnDocButtonClicked);
-
-        // The X inside the pop-up routes back through the Controller like ESC does, so there is
-        // a single close path and IsDocOpen can never lie.
+        // The X inside the doc panel routes back through the Controller and clears the selection,
+        // exactly like ESC does, so the panel can never outlive the selection it belongs to.
         if (docPanel != null) docPanel.OnCloseRequested += OnDocCloseRequested;
 
         if (enableAudioFeatures)
@@ -129,7 +118,6 @@ public class ItemDetailView : MonoBehaviour
         docPanel?.gameObject.SetActive(false);
         EnsurePopup();
         SetPopupScale(0f);
-        RefreshDocButtonLabel();
     }
 
     void Update()
@@ -140,7 +128,6 @@ public class ItemDetailView : MonoBehaviour
     void OnDestroy()
     {
         if (popupRect != null) LeanTween.cancel(popupRect.gameObject);
-        openDocButton?.onClick.RemoveListener(OnDocButtonClicked);
 
         if (docPanel != null) docPanel.OnCloseRequested -= OnDocCloseRequested;
 
@@ -154,29 +141,28 @@ public class ItemDetailView : MonoBehaviour
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// No selection. Folds the pop-up back into its corner.
-    /// It does NOT touch docPanel — the Controller closes it first via HideDoc() if it was open.
+    /// No selection. Folds the pop-up back into its corner and hides the doc panel with it: the
+    /// document belongs to the selected item, so it never outlives the selection.
     /// </summary>
     public void ShowEmpty()
     {
         currentItem = null;
 
         HidePopup();
+        docPanel?.Hide();
 
         if (enableAudioFeatures) StopAudio();
     }
 
     /// <summary>
     /// Populates and shows the item's detail.
-    /// If a doc from a previous item was open, it closes it first.
-    /// The previous item is replaced — there is never a mixed state.
+    /// The previous item is replaced — there is never a mixed state. A Text item shows its
+    /// document in the doc panel (swapping the previous one if it was showing); any other item
+    /// hides the doc panel.
     /// </summary>
     public void ShowDetail(SO_InventoryItem item)
     {
         if (item == null) { ShowEmpty(); return; }
-
-        // Item change with the doc open -> close the previous item's doc
-        if (IsDocOpen) HideDoc();
 
         currentItem = item;
 
@@ -188,42 +174,6 @@ public class ItemDetailView : MonoBehaviour
         PopulateContent(item);
 
         ShowPopup();
-    }
-
-    /// <summary>
-    /// Opens the doc panel on top of the detail.
-    /// Called by the Controller when the player presses "read document".
-    /// The item stays selected — only a visual layer is added.
-    /// </summary>
-    public void ShowDoc()
-    {
-        if (docPanel == null) return;
-
-        docPanel.Open();
-        RefreshDocButtonLabel();
-    }
-
-    /// <summary>
-    /// Closes the doc panel through its reverse animation.
-    /// Called by the Controller via the ESC stack, by the toggle button and by the panel's X.
-    /// It does NOT deselect the item nor fold the pop-up.
-    /// </summary>
-    public void HideDoc()
-    {
-        if (docPanel == null) return;
-
-        docPanel.Close();
-        RefreshDocButtonLabel();
-    }
-
-    /// <summary>
-    /// The one button says what it will do next, so the player never has to guess whether a
-    /// second click re-opens or closes.
-    /// </summary>
-    private void RefreshDocButtonLabel()
-    {
-        if (openDocButtonText == null) return;
-        openDocButtonText.text = IsDocOpen ? closeDocLabel : openDocLabel;
     }
 
     // ── Pop-up ──────────────────────────────────────────────────────────────
@@ -329,20 +279,18 @@ public class ItemDetailView : MonoBehaviour
 
     private void PopulateContent(SO_InventoryItem item)
     {
-        // Hide the doc button by default
-        openDocButton?.gameObject.SetActive(false);
-
         if (enableAudioFeatures)
             audioPlayerBox?.SetActive(false);
+
+        // The doc follows the selection: anything that is not a Text item folds it.
+        if (item.ContentType != ItemContentType.Text)
+            docPanel?.Hide();
 
         switch (item.ContentType)
         {
             case ItemContentType.Text:
-                // Load the text into the panel (without opening it — the player opens it with the button)
-                docPanel?.SetContent(item.ItemName, item.TextContent);
-
-                openDocButton?.gameObject.SetActive(true);
-                RefreshDocButtonLabel();
+                // Show the note at once. If another note was showing, only its text is swapped.
+                docPanel?.Show(item.ItemName, item.TextContent);
                 break;
 
             case ItemContentType.Audio:
@@ -363,17 +311,13 @@ public class ItemDetailView : MonoBehaviour
     // ── Callbacks ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// One button, both directions. The View notifies the Controller, the Controller registers
-    /// the layer and calls back into ShowDoc()/HideDoc().
+    /// The X inside the doc panel. Clears the selection, as ESC does; ShowEmpty() then hides the
+    /// panel. Hiding only the panel would leave the item selected with no way to bring it back.
     /// </summary>
-    private void OnDocButtonClicked()
+    private void OnDocCloseRequested()
     {
-        if (IsDocOpen) InventoryManagerUI.Instance.CloseDocument();
-        else InventoryManagerUI.Instance.OpenDocument();
+        if (InventoryManagerUI.Exists) InventoryManagerUI.Instance.ClearSelection();
     }
-
-    /// <summary>The X inside the pop-up. Same path as ESC.</summary>
-    private void OnDocCloseRequested() => InventoryManagerUI.Instance.CloseDocument();
 
     // ── Audio WIP ─────────────────────────────────────────────────────────────
 

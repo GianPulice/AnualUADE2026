@@ -580,13 +580,25 @@ not change:
   one ("the same 2D confirmation every sub-puzzle plays") and dropped the field; restored on 17/10 at
   Iñaki's request.
 
-The SP2 UV lamp follows the seed too, though it is not a solution. `BoxSymbolRevealLightRunPlacement`,
+The SP2 UV lamp follows the seed too, though it is not a solution. `BoxSymbolRevealLightPositions`,
 on the root of `Reflector Symbol Reveal.prefab`, draws one SP2 box in Awake (`RunSeed.RandomFor`, key
 `sp2_contenedores.reveal_lamp`, unrelated to the basket shuffle's draw; the boxes are sorted by id
-first, so only the seed decides) and moves the lamp to that box's X and Z. Its height never changes:
-it hangs from the ceiling and the beam comes down from the same place whichever box is drawn. It
-does not follow the box once pushed. If no box is found it warns and the lamp stays where the scene
-has it. In the editor and development builds it logs `this run's UV lamp hangs over …`.
+first, so only the seed decides) and moves the whole lamp, fixture included, to that box's X and Z:
+that is the lamp lit first. Then it copies the prefab's `Lamp` child (the Light with its
+`BoxSymbolRevealLight` and the fog pieces, no fixture model: nobody sees the ceiling through the fog)
+over every other box, switched off. Only one lamp is lit at a time; the levers still power the whole
+prefab. Heights never change, so the hand-fitted pool fits under every copy. The lamps do not follow
+the boxes once pushed. If no box is found it warns and the lamp stays where the scene has it. In the
+editor and development builds it logs `this run's UV lamp starts over …`.
+
+The **UV lamp tablet** (`Prefabs/UV Lamp Tablet.prefab`, a kiosk: round base, pole and a tablet tilted 35° toward the player; placed on the catwalk edge over the box room, under `---- GAMEPLAY ----`, so it does not narrow the walkway — only the pole has a collider besides the head's interaction box) moves the light:
+`RevealLampTablet` switches the lit lamp off with `sfx_uv_lamp_off` (an old fluorescent tube, played
+where that lamp hangs) and lights the next box's lamp, in id order, `travelSeconds` (1.2) later. It
+only works while the levers have the lamps on. Its screen (`RevealLampTabletScreen`, shader
+`WIRED/Puzzles/UV Lamp Tablet Screen`) is a top-down map of the lamps as seen from in front of it: a
+refresh band sweeps down, the violet light travels to its new place and pings when it lands. Where
+the tablet left the light is not stored: a reload, a checkpoint or a capture puts it back over the
+drawn box.
 
 The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
 fills the text's placeholders with the run's values (`ClueText`). The newspaper uses `{1}`…`{4}`
@@ -842,13 +854,15 @@ panel, discard footer.
   **non-empty** category; `ItemSlotView` is the row and reports clicks back to the controller.
   Rows carry two marks, state in `InventoryManager` (`IsNew`/`IsRead`, session only, not saved):
   an amber `NEW` before the category tag from pickup until the item is selected, and a grey text and
-  icon for a `Note` already read (its doc opened; a note with no doc is read by being selected).
+  icon for a `Note` already read (a note is read by being selected; a Text note shows its doc on the spot).
   `InventoryManagerUI` sets both and calls `InventoryView.RefreshMarks`. The grey text is a theme
   role (`ItemSlotView.readTextRole`, `TextMuted`) set through the row text's `UIThemeApplier`, not a
   color written to the text: the applier repaints on every `OnEnable` and the rows are pooled, so a
   direct color was lost the next time the inventory opened.
-- `ItemDetailView` fills header, description and metadata, and owns the **doc panel** for
-  `ContentType.Text` items (its own layer, reset to the top of the scroll on each open).
+- `ItemDetailView` fills header, description and metadata, and drives the **doc panel**
+  (`DocPanelView`) for `ContentType.Text` items. There is no open-doc button: selecting a Text item
+  shows its text in the panel at once (selecting another Text item swaps it, scroll back to the top),
+  and anything else, no selection or a closed inventory hides it. Its X clears the selection.
 - `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`
   is the only thing that removes anything, and it is called on confirm alone.
 - `ModuleHUDView` + `ModuleRowView` + `ActiveModuleTimerView` + `FailuresPipsView` are the device
@@ -859,9 +873,10 @@ panel, discard footer.
   called it and the circle sat full.
 
 **ESC is a layer stack, not a close button.** `InventoryManagerUI.HandleCancelInput` unwinds
-discard dialog → doc panel → selection → inventory, one press per layer, and `RequestClose()` (the
+discard dialog → selection → inventory, one press per layer (the doc panel is not a layer: it follows
+the selection), and `RequestClose()` (the
 `IModalUI` hook the `UI/Exit` action calls) *is* that method. `Tab` is handled separately, closes
-the doc panel first if it is open, and only acts while the inventory is the top of the
+the inventory outright, and only acts while the inventory is the top of the
 `UIStateManager` stack. It also refuses to open while the player `IsDisabled`: opening a menu sets
 `timeScale = 0`, which used to freeze the Nemesis mid-capture for as long as the player kept the
 inventory up.
@@ -2485,7 +2500,7 @@ fade where the space behind is past the fog's clear radius; the reliable read is
 eating the lit floor and walls. `FogBeacon`s (the Nemesis's eyes) are composited in that same pass
 and show through it. Later transparents (`ItemGlint` at Transparent+50, particles) are hidden, because
 it writes the depth buffer. Culling uses the flat Plane's bounds, so a reach still out while the Plane
-itself leaves the frustum can pop. Not placed in any scene yet.
+itself leaves the frustum can pop. Not placed in any scene: the one that closed Zona 2's way back (`Pared Zona 2`) was replaced on 22/10/2026 by `Porton Zona 2`, a shut `V_Puzzle1Gate` (empty `puzzleId`, never opens) with its `Door` on `Wall`.
 
 ### Footsteps and breathing (`FootstepEmitter`, `HiddenBreathing`)
 

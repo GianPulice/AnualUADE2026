@@ -14,9 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
   id: sfx_empujando_caja
   category: 0
-  clip: {fileID: 8300000, guid: 316efd5f1f22cbf46bf46059572be90d, type: 3}
+  clip: {fileID: 8300000, guid: f8dc2202fbf84c909c16b2507d2c06ed, type: 3}
   loop: 1
+  volume: 0.8
   ignoreListenerPause: 0
-  minDistance: 1
-  maxDistance: 500
-  rolloff: 0
+  minDistance: 2
+  maxDistance: 18
+  rolloff: 1

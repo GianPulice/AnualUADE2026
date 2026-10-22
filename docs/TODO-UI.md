@@ -38,7 +38,7 @@ están resueltos: el loop de juego (timers, victoria, reset de run) ya corre.
       (`[TAB] CLOSE`) encima de su extremo derecho. El encabezado de la lista pasó de
       `// INVENTORY ...00 OBJ` a `// ITEMS ...00 OBJ` (`InventoryView.RefreshList`) para no repetir el título.
 - [x] **Bottom hint** — descartado (Iñaki, 2026-10-05): la E no hace nada dentro del inventario y ESC
-      no lo cierra de una (primero cierra la nota y suelta la selección), así que no hay fila de hints.
+      no lo cierra de una (primero suelta la selección, y con ella la nota), así que no hay fila de hints.
 - [x] **Estado vacío del panel de detalle** — `Empty State Panel/EmptyStateText`, texto centrado
       "SELECT AN ITEM / TO SEE THE DETAIL" en `#8A8A8A`. El panel de fondo quedó con alpha 0.
 - [ ] **Borde izquierdo rojo** (`#cc1a1a`, 2px) en item seleccionado de la lista + fondo `#110808`. Spec inventory §4.3.
@@ -52,13 +52,19 @@ están resueltos: el loop de juego (timers, victoria, reset de run) ya corre.
 Realineado contra la referencia visual `inventory_list_hud_wired.html` (misma paleta que el spec
 de inventario, que vive en Drive y no en este repo):
 
-- **Pop-up de nota, no overlay pelado.** `Doc Box` mide 820x560 centrado, borde `#1E1E1E`, fondo
-  `#070707`, con barra de título (`DocTitle` + `CloseDocButton`, la cruz). Abre y cierra con
-  `InventoryTabPanelAnimator` (escala + fade, y la inversa al cerrar).
-- **Toggle en un solo botón.** `OpenDocButton` alterna su label entre `[ OPEN DOC ]` y
-  `[ CLOSE DOC ]` según el estado del panel. Solo aparece con ítems `ContentType.Text`.
-- **Tres formas de cerrar, una sola ruta.** La cruz, el botón y ESC pasan todos por
-  `InventoryManagerUI.CloseDocument()`, así el stack de capas y el label no se desincronizan.
+- **Panel de nota, no overlay pelado.** `Doc Box` (nació 820x560 centrado; hoy se reubica en la zona
+  superior, ver abajo), borde `#1E1E1E`, fondo
+  `#070707`, con barra de título (`DocTitle` + `CloseDocButton`, la cruz). Aparece y se pliega con
+  `InventoryTabPanelAnimator` (escala + fade, y la inversa al ocultar).
+- **Sin botón: la nota se muestra sola.** Playtest: el botón `[ OPEN DOC ]` sobraba. `OpenDocButton`
+  se eliminó; al seleccionar un ítem `ContentType.Text`, `ItemDetailView` llama a
+  `DocPanelView.Show(...)` y el `Doc Box` (zona superior del inventario, sin tapar el timer del
+  módulo) aparece con el texto, sobre la descripción. Pasar a otra nota solo cambia el texto (sin
+  cerrar/abrir); un ítem no-Text, deseleccionar o cerrar el inventario lo pliegan (`Hide()`).
+  Seleccionar una nota ya la marca como leída (antes lo hacía abrir el doc).
+- **El doc no es una capa del ESC.** Sigue a la selección: ESC suelta la selección (y con ella el doc) y
+  después cierra el inventario; Tab cierra el inventario. La cruz de `CloseDocButton` hace lo mismo que
+  ESC: `InventoryManagerUI.ClearSelection()`. `OpenDocument`/`CloseDocument`/`IsDocOpen` ya no existen.
 - **El scroll de notas largas ahora funciona.** `Content` no tenía `ContentSizeFitter`, así que
   `sizeDelta.y` nunca crecía y `docScrollRect.vertical` jamás se habilitaba. Ahora tiene
   `VerticalLayoutGroup` + `ContentSizeFitter` (vertical = PreferredSize) y `DocText` dejó de
@@ -68,17 +74,17 @@ de inventario, que vive en Drive y no en este repo):
   autorear un segundo color por categoría y el asset **no se tocó** — la lista sigue igual.
 - **`Parameter Layout`** tenía `ChildForceExpandHeight` en una caja de 360px para 3 filas de 44:
   los parámetros salían desparramados. Ahora 150px con spacing 6.
-- **Los dos botones del footer son chicos, del mismo tamaño y anclados a un punto.**
-  `Discard Item Button` a la izquierda y `OpenDocButton` a su derecha, ambos 260x44 anclados a
-  `(0,0)` con pivot `(0,0)` — o sea esquina inferior izquierda del panel, offsets fijos (24 y 300).
+- **Los botones del footer son chicos y anclados a un punto.** (`OpenDocButton` ya no existe; ver
+  arriba.) `Discard Item Button` 260x44 anclado a
+  `(0,0)` con pivot `(0,0)` — o sea esquina inferior izquierda del panel, offset fijo (24).
   Anclar a un punto con tamaño fijo es estable en cualquier aspect; lo que no servía era el
   `sizeDelta.x` fijo **con anclaje al centro**, que hacía que el botón ocupara una fracción
   distinta del panel según la relación de aspecto. Ver `UI-System.md` §7.5.
 - **`[ DISCARD ]` dejó de interpolar el nombre del ítem.** En un botón de 260px,
   `$"[ DISCARD {item.ItemName.ToUpper()} ]"` desbordaba con cualquier nombre largo, y el nombre ya
   está en el header dos filas más arriba.
-- **Botones que invierten color en hover.** `OpenDocButton` va blanco `#E6E6E6` con label
-  `#262626`; al pasar el mouse la `SweepBar` entra en rojo sólido `#CC1A1A` y el label pasa a
+- **Botones que invierten color en hover.** Un botón claro (blanco `#E6E6E6`, label `#262626`)
+  recibe en hover la `SweepBar` en rojo sólido `#CC1A1A` y el label pasa a
   blanco. `Discard Item Button` hace lo mismo desde su rojo oscuro. Lo hace
   `ButtonHoverColorSwap`, un componente nuevo aparte de `ButtonHoverSweepEffect`: uno desliza la
   barra y el otro recolorea un Graphic, y un botón puede querer cualquiera de los dos. Juntos son
@@ -87,11 +93,11 @@ de inventario, que vive en Drive y no en este repo):
   `BackButton` y los 4 tabs), que tenían el label en `#888888` y se leían mal cuando la barra roja
   pasaba por debajo. Ahora van a blanco en hover. **No** se puso en Pausa / Result / Win: esos
   labels ya son `#FFFFFF` y el swap sería un no-op.
-- **El pop-up sale del botón que lo abre.** `InventoryTabPanelAnimator` acepta ahora un
-  `originRect` opcional: si está asignado, el panel además *viaja* desde el centro de ese rect
-  hasta su posición autoral mientras crece, como una ventana que se restaura desde la barra de
-  tareas. En `Doc Box` apunta a `OpenDocButton`, con `collapsedScale 0.08`. El origen se resuelve
-  en cada `Open()`, no se cachea, porque el botón se mueve con el aspect.
+- **`originRect` del animator.** `InventoryTabPanelAnimator` acepta un `originRect` opcional: si está
+  asignado, el panel además *viaja* desde el centro de ese rect hasta su posición autoral mientras
+  crece. Se resuelve en cada `Open()`, no se cachea, porque el widget se mueve con el aspect. Antes
+  `Doc Box` salía de `OpenDocButton`; sin botón queda vacío (crece en su lugar desde el pivot,
+  `collapsedScale 0.08`) o apunta a otro rect, p. ej. `Item Selection`.
 - **El inventario entero abre igual.** `LAYOUT` pasó a `growAxis Both` con `collapsedScale 0.05` y
   pivot `(0.5, 0)`, así que crece desde el borde inferior. Cambiar el pivot de un rect full-stretch
   con `sizeDelta (0,0)` no mueve el layout, solo el origen del escalado.
@@ -116,7 +122,7 @@ Pendiente en esta zona:
 
 - [x] **Bordes de 1px** en chips y botones. Obsoleto: el look pasó a Win95 y el borde lo pone un
       `UIBevelFrame` (nodo `BevelFrame`, puesto por el perfil de estilo del inventario): lo tienen
-      `OpenDocButton`, `CloseInventoryButton`, `CloseDocButton` y el chip de categoría
+      `CloseInventoryButton`, `CloseDocButton` y el chip de categoría
       (`Item Type Color Box`). Ya no se resuelve solo con fondo.
 - [x] **Sweep del `CloseDocButton`** — hecho el 2026-10-05: `SweepBar` rojo propio (stretch,
       `hiddenOffsetX -44`), `RectMask2D` y `ButtonHoverSweepEffect`, además del `ButtonHoverColorSwap`

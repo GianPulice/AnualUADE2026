@@ -116,6 +116,27 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
         new Keyframe(0.95f, 1f, 1.5f, 0f),
         new Keyframe(1f, 1f, 0f, 0f));
 
+    [Header("Boot log (one line under the boot bar, the wake-up's boot only)")]
+    [Tooltip("System entries that type in one after another on a single line under the boot bar, " +
+             "each replacing the last, while the wake-up's camera boots (not on the reboot after a " +
+             "capture): what the picture is and what the feed will show, said by the camera and not by " +
+             "the Architect. Up to 6 entries of 32 characters; the camera's font has A-Z, 0-9 and " +
+             ": - / . # > % _ ! + [ ] = |. Empty = no log.")]
+    [SerializeField] private string[] bootLog =
+    {
+        "> BODY CAM ......... LINKED",
+        "> DEVICE ........... 3 MODULES",
+        "> MODULE TIMER ..... ON FEED",
+        "> RECORDING ........ READY",
+    };
+
+    [Tooltip("Seconds after the picture comes in that the first entry starts typing.")]
+    [SerializeField, Min(0f)] private float bootLogStart = 1.5f;
+
+    [Tooltip("Seconds from one entry starting to type to the next one replacing it. Entries type at " +
+             "Type Chars Per Second. The wake-up's boot lasts about 12 s: keep the last one inside it.")]
+    [SerializeField, Min(0.1f)] private float bootLogInterval = 2f;
+
     [Header("Picture coming in (seconds since it came in, at the start of the boot)")]
     [Tooltip("Static over the picture, 0..1. Starts full, clears, and hiccups once.")]
     [SerializeField] private AnimationCurve revealStatic = new AnimationCurve(
@@ -362,6 +383,9 @@ public class SO_PlayerCameraFeedConfig : ScriptableObject
     public float PictureLeadSeconds => pictureLeadSeconds;
     public string BootTitle => bootTitle;
     public float BootBar(float t) => Mathf.Clamp01(bootBar.Evaluate(Mathf.Clamp01(t)));
+    public string[] BootLog => bootLog;
+    public float BootLogStart => bootLogStart;
+    public float BootLogInterval => bootLogInterval;
 
     public float RevealStatic(float seconds) => Mathf.Clamp01(revealStatic.Evaluate(seconds));
     public float RevealPower(float seconds) => Mathf.Clamp01(revealPower.Evaluate(seconds));

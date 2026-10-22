@@ -124,7 +124,7 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
     ///
     /// Content Type is the gate, not the category: it is the field that says "this item carries a
     /// document", and it is the same one <see cref="ItemDetailView"/> reads to decide whether the
-    /// inventory gets an OPEN DOC button. A key filed under Note with no text stays silent.
+    /// inventory shows the item's doc panel. A key filed under Note with no text stays silent.
     ///
     /// Called before Destroy(gameObject) — which is only queued until the end of the frame anyway.
     /// The reader lives on the LevelUI canvas and does not care that this object is going away.

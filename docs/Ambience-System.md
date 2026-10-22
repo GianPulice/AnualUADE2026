@@ -43,7 +43,7 @@ Ya generados en `Assets/_Project/Audio/Ambience/Generated/`:
 
 Son PCM (ver import settings más abajo). La herramienta que los generó (`AmbienceToneBaker`, `Tools/Audio/Bake Ambience Texture Clips`) se borró el 2026-09-17 junto con `AudioMixerSetup` (`Tools/Audio/Create or Update Master Mixer`); si hiciera falta re-bakear, está en el historial de git (`git show 190b9026^:Assets/_Project/Scripts/Editor/AmbienceToneBaker.cs`) y es determinista (`Seed = 1337`). Los `PLACEHOLDER_OneShot_*` que también generaba ya no están en el proyecto.
 
-**Las capas 3 y 4 no necesitan ningún audio conseguido.** Las one-shots de la capa 2 ya son reales: `SO_AmbienceEventBank` (el único banco, compartido por todos los profiles) tiene 26 entradas — 15 COMMON, 8 UNCOMMON, 3 RARE — con los mp3 de `Audio/Ambience/` más moscas (`Audio/SFX/Animals/FlyBuzzing/`) y ratas (`Audio/SFX/Animals/Rats/`). Todas con `tags = None`. Lo que falta salir a buscar es el bed real.
+**Las capas 3 y 4 no necesitan ningún audio conseguido.** Las one-shots de la capa 2 ya son reales: `SO_AmbienceEventBank` (el único banco, compartido por todos los profiles) tiene 22 entradas — 11 COMMON, 8 UNCOMMON, 3 RARE — con los mp3 de `Audio/Ambience/` más moscas (`Audio/SFX/Animals/FlyBuzzing/`) y ratas (`Audio/SFX/Animals/Rats/`). Todas con `tags = None`. Las cuatro ráfagas de viento (`Wind Passing 1–3` y `Cold`) se sacaron el 22/10/2026: en el playtest sonaban a aullido de lobo. El viento queda en el ruido marrón de fondo; los mp3 siguen en `Audio/Ambience/` sin referencias. Lo que falta salir a buscar es el bed real.
 
 ### 3. Escena de gameplay
 

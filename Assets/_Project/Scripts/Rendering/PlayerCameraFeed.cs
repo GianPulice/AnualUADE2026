@@ -22,7 +22,10 @@ using UnityEngine;
 /// overexposed, hunting for focus, an extreme fisheye — under a boot screen that stays up the whole
 /// cinematic, ARC_01a's subtitles under it, its bar hanging a while at 75%. The lens calibrates in
 /// motor jumps while the player gets up; on their feet the boot ends and the camera starts
-/// recording (its overlay comes on). The fisheye is real: the Cinemachine lens opens up by
+/// recording (its overlay comes on). Under the boot bar a short system log types in on a single
+/// line, each entry replacing the last (<see cref="SO_PlayerCameraFeedConfig.BootLog"/>): what the
+/// picture is and what the feed will show, so the overlay is explained by the camera itself and not
+/// by the Architect. The fisheye is real: the Cinemachine lens opens up by
 /// <see cref="LensFovOffset"/> (<see cref="CameraSprintEffect"/> adds it) and the shader folds the
 /// wider frame into a fisheye.
 ///
@@ -65,7 +68,9 @@ public class PlayerCameraFeed : MonoBehaviour
     private const int BootTitleLine = 3;
     private const int BootPercentLine = 4;
     private const int BannerLine = 5;
-    private const int LineCount = 6;
+    private const int BootLogFirstLine = 6;     // the boot log's lines follow the banner
+    private const int BootLogLines = 6;
+    private const int LineCount = BootLogFirstLine + BootLogLines;
 
     // For the preview only: seconds from the picture coming in to the player on their feet — the
     // wake-up's stand-up clip.
@@ -91,7 +96,9 @@ public class PlayerCameraFeed : MonoBehaviour
     private static PlayerCameraFeed current;
     private static readonly float[] Text = new float[LineCapacity * LineCount];
 
-    private static readonly int TextId = Shader.PropertyToID("_PlayerFeedText");
+    // Not "_PlayerFeedText": a global float array keeps the length it was first set with for the
+    // whole editor session, and that name went out at 6 lines; the boot log made it 12.
+    private static readonly int TextId = Shader.PropertyToID("_PlayerFeedLines");
     private static readonly int InfoId = Shader.PropertyToID("_PlayerFeedInfo");
     private static readonly int BootId = Shader.PropertyToID("_PlayerFeedBoot");
     private static readonly int LensId = Shader.PropertyToID("_PlayerFeedLens");
@@ -101,6 +108,7 @@ public class PlayerCameraFeed : MonoBehaviour
     private static readonly int ReadoutTimeId = Shader.PropertyToID("_PlayerFeedReadoutTime");
     private static readonly int BannerId = Shader.PropertyToID("_PlayerFeedBanner");
     private static readonly int RecBlinkId = Shader.PropertyToID("_PlayerFeedRecBlink");
+    private static readonly int BootLogId = Shader.PropertyToID("_PlayerFeedBootLog");
 
     // Cameras that are the player's own view without being the player's rig: a LookDownTrigger's
     // shot. They keep the feed on the air; any other camera takes it off (see FindLive).
@@ -174,6 +182,15 @@ public class PlayerCameraFeed : MonoBehaviour
     private int statusLength;
     private int bootTitleLength;
     private int bootPercentLength;
+
+    // The boot log: the entries as written to the buffer, the one on screen, how many of its
+    // characters have typed in, and the widest entry (the line is laid out for it). No log this
+    // boot = bootLogOn false.
+    private string[] writtenBootLog;
+    private bool bootLogOn;
+    private int bootLogEntry;
+    private int bootLogShown;
+    private int bootLogWidth;
 
     // The two lines that retype themselves when they change: the label (top left) and the readout
     // (bottom left). Typed in again whenever the recording overlay comes back on screen.
@@ -379,6 +396,7 @@ public class PlayerCameraFeed : MonoBehaviour
                                                       config.BannerBlinkHz));
         Shader.SetGlobalFloat(RecBlinkId, config.RecBlinkHz);
         Shader.SetGlobalVector(BootId, new Vector4(boot, bar, bootTitleLength, bootPercentLength));
+        Shader.SetGlobalVector(BootLogId, new Vector4(bootLogEntry, bootLogShown, bootLogOn ? 1f : 0f, bootLogWidth));
         Shader.SetGlobalVector(LensId, LensGlobals(camera, playing));
         Shader.SetGlobalVector(SignalId, new Vector4(power, noise, blur, exposure));
         Shader.SetGlobalVector(ThreatId, new Vector4(threat * config.ThreatBlocks,
@@ -395,6 +413,7 @@ public class PlayerCameraFeed : MonoBehaviour
         status = Status.None;
         boot = 0f;
         bar = 0f;
+        TickBootLog(-1f);
 
         switch (PlayerCameraBoot.Current)
         {
@@ -421,6 +440,8 @@ public class PlayerCameraFeed : MonoBehaviour
                 boot = 1f;
                 bar = config.BootBar(PlayerCameraBoot.BootProgress);
                 overlay = 0f;
+                // The wake-up's boot only: the reboot after a capture is a second long and says so.
+                if (!PlayerCameraBoot.IsReboot) TickBootLog(now - PlayerCameraBoot.PictureSince);
                 break;
 
             case PlayerCameraBoot.Phase.Live:
@@ -454,6 +475,7 @@ public class PlayerCameraFeed : MonoBehaviour
         status = Status.None;
         boot = 0f;
         bar = 0f;
+        TickBootLog(-1f);
 
         // The readout docked and steady, the banner down: only the Banner stage shows it.
         readoutTravel = 1f;
@@ -469,6 +491,7 @@ public class PlayerCameraFeed : MonoBehaviour
                 boot = 1f;
                 bar = config.BootBar(previewAmount);
                 overlay = 0f;
+                TickBootLog(previewAmount * PreviewWakeSeconds);
                 break;
 
             case PreviewStage.Calibrating:
@@ -777,6 +800,18 @@ public class PlayerCameraFeed : MonoBehaviour
             textDirty = true;
         }
 
+        string[] bootLog = config.BootLog;
+        if (textDirty || writtenBootLog != bootLog)
+        {
+            writtenBootLog = bootLog;
+            for (int i = 0; i < BootLogLines; i++)
+            {
+                string line = bootLog != null && i < bootLog.Length ? bootLog[i] : null;
+                CameraFeedFont.WriteLine(Text, (BootLogFirstLine + i) * LineCapacity, LineCapacity, line);
+            }
+            textDirty = true;
+        }
+
         int bootPercent = boot > 0f ? Mathf.FloorToInt(bar * 100f) : -1;
         if (textDirty || bootPercent != writtenBootPercent)
         {
@@ -789,6 +824,38 @@ public class PlayerCameraFeed : MonoBehaviour
         if (!textDirty) return;
         textDirty = false;
         Shader.SetGlobalFloatArray(TextId, Text);
+    }
+
+    /// <summary>
+    /// The boot log <paramref name="seconds"/> after the picture came in; negative = no log. One line:
+    /// each entry starts <see cref="SO_PlayerCameraFeedConfig.BootLogInterval"/> after the one before
+    /// and replaces it, typing in from nothing at the overlay's typing speed; the last one stays. The
+    /// line is laid out for the widest entry from the start, so nothing moves as entries change.
+    /// </summary>
+    private void TickBootLog(float seconds)
+    {
+        bootLogOn = false;
+        bootLogEntry = 0;
+        bootLogShown = 0;
+        bootLogWidth = 0;
+
+        string[] lines = config.BootLog;
+        int count = lines != null ? Mathf.Min(lines.Length, BootLogLines) : 0;
+        if (seconds < 0f || count == 0) return;
+
+        bootLogOn = true;
+        for (int i = 0; i < count; i++)
+        {
+            int length = lines[i] != null ? Mathf.Min(lines[i].Length, LineCapacity) : 0;
+            bootLogWidth = Mathf.Max(bootLogWidth, length);
+
+            float typing = seconds - (config.BootLogStart + i * config.BootLogInterval);
+            if (typing <= 0f) continue;
+
+            // A later entry that has started takes the line over.
+            bootLogEntry = i;
+            bootLogShown = Mathf.Min(length, Mathf.FloorToInt(typing * config.TypeCharsPerSecond) + 1);
+        }
     }
 
     /// <summary>The calibrating line. Runs inside the render: a format typed wrong in the config

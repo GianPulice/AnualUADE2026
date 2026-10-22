@@ -34,7 +34,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     // (PauseManager.IsGameplayInputBlocked), not from timeScale, so nothing here has to change for
     // it. Module timers and the Nemesis carry on, which is the point.
     public bool PausesGame    => false;
-    // RequestClose handles ALL inventory layers (doc -> selection -> inventory).
+    // RequestClose handles ALL inventory layers (selection -> inventory). The doc panel is not a
+    // layer of its own: it follows the selection, so clearing the selection folds it.
     public void RequestClose() => HandleCancelInput();
 
     [Header("Views")]
@@ -109,11 +110,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
             // We only close with the toggle if the inventory is the top of the stack.
             if (UIStateManager.Exists && !ReferenceEquals(UIStateManager.Instance.Peek(), this)) return;
 
-            if (itemDetailView != null && itemDetailView.IsDocOpen)
-            {
-                itemDetailView.HideDoc();
-                return;
-            }
             CloseInventory();
         }
         else
@@ -179,12 +175,8 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     {
         if (!isInventoryOpen) return;
 
-        // Tab and ESC peel one layer per press, so by the time they get here nothing is stacked on
-        // top. The title-bar X closes from any depth. The doc pop-up lives inside LAYOUT, so it
-        // vanishes with it — but its own state would still say open, and it would reappear on the
-        // next open.
-        if (itemDetailView != null && itemDetailView.IsDocOpen) itemDetailView.HideDoc();
-
+        // The doc panel lives inside LAYOUT, so it vanishes with it; ShowEmpty() below also folds
+        // it, so its own state does not say "showing" and bring it back on the next open.
         isInventoryOpen = false;
         selectedItem = null;
 
@@ -202,14 +194,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
         InventoryEvents.InventoryToggled(false);
     }
-    public void OpenDocument()
-    {
-        itemDetailView?.ShowDoc();
 
-        // Opening the doc is reading the note.
-        if (currentSelectedItem != null) MarkRead(currentSelectedItem);
-    }
-    public void CloseDocument() => itemDetailView?.HideDoc();
     // ── Item selection ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -222,13 +207,13 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         selectedItem = item;
         currentSelectedItem = item;
 
-        // Selecting it is looking at it: no longer NEW. A note with nothing to open (no doc) is
-        // read by being looked at; one with a doc is read when the doc is opened.
+        // Selecting it is looking at it: no longer NEW, and a note is read the moment it is
+        // selected — a Text note shows its doc on the spot, there is nothing further to open.
+        // InventoryManager.MarkRead ignores anything that is not a Note.
         if (InventoryManager.Exists)
         {
             InventoryManager.Instance.MarkSeen(item);
-            if (item.Category == ItemCategory.Note && item.ContentType != ItemContentType.Text)
-                InventoryManager.Instance.MarkRead(item);
+            InventoryManager.Instance.MarkRead(item);
         }
         inventoryView?.RefreshMarks(item);
 
@@ -260,12 +245,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     private void HandleCancelInput()
     {
-        if (itemDetailView != null && itemDetailView.IsDocOpen)
-        {
-            itemDetailView.HideDoc();
-            return;
-        }
-
         if (currentSelectedItem != null)
         {
             ClearSelection();
@@ -276,13 +255,12 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     }
 
     /// <summary>
-    /// Drops the selection: no highlighted row, pop-up folded. Called by ESC and by clicking the
-    /// selected row again. An open doc belongs to the item, so it goes with it.
+    /// Drops the selection: no highlighted row, pop-up folded. Called by ESC, by clicking the
+    /// selected row again and by the doc panel's X. The doc panel belongs to the selected item,
+    /// so the null selection folds it too (ItemDetailView.ShowEmpty).
     /// </summary>
     public void ClearSelection()
     {
-        if (itemDetailView != null && itemDetailView.IsDocOpen) itemDetailView.HideDoc();
-
         selectedItem = null;
         currentSelectedItem = null;
 
@@ -292,13 +270,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     }
 
     // -- Helpers --------------------
-
-    private void MarkRead(SO_InventoryItem item)
-    {
-        if (!InventoryManager.Exists) return;
-        InventoryManager.Instance.MarkRead(item);
-        inventoryView?.RefreshMarks(item);
-    }
 
     private void RefreshItemList()
     {
