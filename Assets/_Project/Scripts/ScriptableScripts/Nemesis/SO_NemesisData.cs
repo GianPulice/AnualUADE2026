@@ -601,6 +601,32 @@ public class SO_NemesisData : ScriptableObject
              "trampa. 0 la deja volver apenas termina la caza.")]
     [SerializeField, Min(0f)] private float huntGraceSeconds = 45f;
 
+    [Tooltip("Escondites por el mapa (plan §19.5, E2, D38): con cuánto del valor total del mapa dentro de " +
+             "un escondite que usaste se abre con toda la chance de su medidor de hábito. Con menos, la " +
+             "chance baja en proporción; con el mapa ya limpio ahí, no se abre.")]
+    [SerializeField, Range(0.005f, 1f)] private float spotMapHabitFullShare = 0.05f;
+
+    [Tooltip("Escondites que NUNCA usaste (D41): el mapa solo puede abrirlos, y sólo con al menos esta " +
+             "parte del valor total adentro. Alto a propósito: tiene que estar cerrando el cerco.")]
+    [SerializeField, Range(0.01f, 1f)] private float spotMapNeverUsedMinShare = 0.25f;
+
+    [Tooltip("Chance de sospechar un escondite nunca usado que pasó el umbral de arriba, una vez por búsqueda.")]
+    [SerializeField, Range(0f, 1f)] private float spotMapNeverUsedChance = 0.3f;
+
+    [Tooltip("Patrulla después de la caza (plan §19.5, etapa E3): cuántas veces más probable es un " +
+             "cúmulo donde el mapa de búsqueda todavía guarda valor, o sea donde quedó algo sin " +
+             "revisar. Sólo actúa durante la caza y su gracia (Hunt Grace Seconds), y nunca mientras " +
+             "el Director presiona una zona. 1 lo apaga.")]
+    [SerializeField, Min(1f)] private float patrolMapValueStrength = 3f;
+
+    [Tooltip("Metros alrededor del centro de un cúmulo en los que se suma el valor del mapa.")]
+    [SerializeField, Min(1f)] private float patrolMapValueRadius = 8f;
+
+    [Tooltip("Parte del valor total del mapa dentro de ese radio con la que el cúmulo recibe el " +
+             "multiplicador completo. Con menos, recibe una parte proporcional. El mapa se dispersa " +
+             "rápido, así que es un número chico.")]
+    [SerializeField, Range(0.01f, 1f)] private float patrolMapValueFullShare = 0.1f;
+
     [Header("Patrol routes — cross-route transfer")]
     [Tooltip("Chance, on each waypoint arrival, of jumping to a waypoint on ANOTHER unlocked " +
              "route instead of following the current route in order.\n\n" +
@@ -1214,6 +1240,12 @@ public class SO_NemesisData : ScriptableObject
     public float HearingErrorDriftTime { get => hearingErrorDriftTime; set => hearingErrorDriftTime = value; }
     public float SearchPreciseNoiseRadius { get => searchPreciseNoiseRadius; set => searchPreciseNoiseRadius = value; }
     public float HuntGraceSeconds { get => huntGraceSeconds; set => huntGraceSeconds = value; }
+    public float SpotMapHabitFullShare { get => spotMapHabitFullShare; set => spotMapHabitFullShare = value; }
+    public float SpotMapNeverUsedMinShare { get => spotMapNeverUsedMinShare; set => spotMapNeverUsedMinShare = value; }
+    public float SpotMapNeverUsedChance { get => spotMapNeverUsedChance; set => spotMapNeverUsedChance = value; }
+    public float PatrolMapValueStrength { get => patrolMapValueStrength; set => patrolMapValueStrength = value; }
+    public float PatrolMapValueRadius { get => patrolMapValueRadius; set => patrolMapValueRadius = value; }
+    public float PatrolMapValueFullShare { get => patrolMapValueFullShare; set => patrolMapValueFullShare = value; }
     public float SearchMapNodeSpacing { get => searchMapNodeSpacing; set => searchMapNodeSpacing = value; }
     public float SearchMapTickInterval { get => searchMapTickInterval; set => searchMapTickInterval = value; }
     public float SearchMapSpreadSpeed { get => searchMapSpreadSpeed; set => searchMapSpreadSpeed = value; }

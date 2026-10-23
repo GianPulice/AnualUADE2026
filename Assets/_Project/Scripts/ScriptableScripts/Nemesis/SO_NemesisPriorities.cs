@@ -307,7 +307,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // still stood around for the full fifteen.
             //
             // ABOVE "hears a noise" is load-bearing, not cosmetic. Searching absorbs fresh evidence
-            // itself (NemesisSearchingState.TrackEvidence moves or re-centres the sweep). With the
+            // itself (NemesisSearchingState.TrackEvidence re-picks the place off the possibility map). With the
             // noise rung sitting above this one, hearing anything while searching voted the ladder
             // into Investigating before Searching.UpdateState ever executed a frame — StateManager
             // runs a transition OR UpdateState, never both — and every noise cut the search short.
@@ -343,7 +343,11 @@ public class SO_NemesisPriorities : ScriptableObject
                  "venía hacia el montacargas y todavía cree algo",
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
-                 NemesisCondition.Is(ENemesisPredicate.HasBelief)),
+                 NemesisCondition.Is(ENemesisPredicate.HasBelief),
+                 // HasBelief never expires, so on its own a patrol that took the lift with no reason
+                 // arrived and searched around a belief from minutes ago (plan §19.3 M1, D1). Only a
+                 // belief as young as the trip's own commitment is worth a search on arrival.
+                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
 
             // A SUSPECTED SPOT IS SOMEWHERE CONCRETE TO WALK TO AND LOOK AT — EXACTLY WHAT
             // INVESTIGATING IS FOR.

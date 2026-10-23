@@ -133,6 +133,95 @@ public class SO_DirectorPacing : ScriptableObject
              "esto es un encuentro. Una pista (señuelo, ruido del Director) no cuenta: no es el jugador.")]
     [SerializeField, Min(0f)] private float encounterBeliefFreshness = 10f;
 
+    [Header("Presencia: desaparece y aparece cerca (Zona 2)")]
+    //
+    // Dos jugadas del Director que mueven al cuerpo, no sus decisiones. Las dos respetan lo mismo que
+    // la entrada en escena: nada pasa a la vista del jugador ni a menos de la distancia mínima.
+
+    [Tooltip("Probabilidad de que, cuando una búsqueda termina sin encontrarte, el Nemesis desaparezca: " +
+             "pasa a un punto de aparición lejos de vos, fuera de tu cono y detrás de geometría. Sólo " +
+             "si en ese momento no lo tenés cerca ni a la vista. 0 la apaga.")]
+    [SerializeField, Range(0f, 1f)] private float vanishChance = 0.35f;
+
+    [Tooltip("Segundos (se sortea entre x e y) entre el fin de la búsqueda y el momento de desaparecer. " +
+             "Es lo que tarda en 'irse'; no se hace en el mismo instante.")]
+    [SerializeField] private Vector2 vanishDelay = new Vector2(2f, 6f);
+
+    [Tooltip("Segundos que reintenta desaparecer si al vencer lo tenés cerca o a la vista. Pasado eso " +
+             "se descarta: no hay una cita pendiente para siempre.")]
+    [SerializeField, Min(1f)] private float vanishRetrySeconds = 12f;
+
+    [Tooltip("Distancia mínima por NavMesh al jugador para poder desaparecer. Es la garantía de que " +
+             "nunca se lo ve irse.")]
+    [SerializeField, Min(4f)] private float vanishMinPlayerDistance = 14f;
+
+    [Tooltip("Segundos (se sortea entre x e y) entre una aparición cerca tuyo y la siguiente tirada. " +
+             "Cuenta desde que el Director arranca y desde cada tirada. 0 en x e y la apaga.")]
+    [SerializeField] private Vector2 ambientEntranceInterval = new Vector2(80f, 160f);
+
+    [Tooltip("Probabilidad de que cada tirada se haga: teletransportarse a 10-22 m del jugador, fuera de " +
+             "su vista, quedarse mirándolo (con la animación E_First_Contact) y recién ahí moverse. Sólo " +
+             "con el Nemesis patrullando, en BuildUp y con el jugador fuera del Hub.")]
+    [SerializeField, Range(0f, 1f)] private float ambientEntranceChance = 0.5f;
+
+    [Tooltip("Probabilidad de que, después de desaparecer, vuelva a aparecer en el umbral de tu " +
+             "habitación (con la mano en la pared y la otra estirada hacia vos): el susto de cuando " +
+             "creías que ya lo habías perdido. 0 = desaparece y sigue patrullando.")]
+    [SerializeField, Range(0f, 1f)] private float vanishReturnChance = 0.6f;
+
+    [Tooltip("Segundos (se sortea entre x e y) entre desaparecer y volver a asomarse. Lo bastante " +
+             "largo como para que el jugador baje la guardia.")]
+    [SerializeField] private Vector2 vanishReturnDelay = new Vector2(10f, 25f);
+
+    [Tooltip("Segundos que reintenta asomarse si al vencer el Nemesis está cazando, el jugador está en " +
+             "el Hub o no hay un umbral válido. Pasado eso se descarta.")]
+    [SerializeField, Min(1f)] private float vanishReturnRetrySeconds = 20f;
+
+    [Header("Asomarse si hace rato que no lo ves (Zona 2)")]
+    [Tooltip("Segundos sin que el jugador vea al Nemesis (con él despierto y patrullando, en BuildUp y con el " +
+             "jugador fuera del Hub) a partir de los cuales empieza a crecer la chance de que se asome " +
+             "delante tuyo: saliendo de otra habitación a un pasillo, o entrando a una. 0 lo apaga.")]
+    [SerializeField, Min(0f)] private float unseenPeekAfterSeconds = 30f;
+
+    [Tooltip("Segundos, pasados los de arriba, hasta que la chance de cada tirada llega al máximo.")]
+    [SerializeField, Min(1f)] private float unseenPeekRampSeconds = 60f;
+
+    [Tooltip("Chance máxima de cada tirada (una por evaluación del Director, ~3 s). Crece linealmente desde 0 " +
+             "a los Unseen Peek After Seconds hasta acá.")]
+    [SerializeField, Range(0f, 1f)] private float unseenPeekMaxChance = 0.35f;
+
+    [Tooltip("Medio cono delante de la cámara del jugador, en grados, donde busca el lugar.")]
+    [SerializeField, Range(10f, 90f)] private float unseenPeekConeDegrees = 55f;
+
+    [Tooltip("Distancia mínima y máxima por NavMesh al jugador del lugar elegido, en metros. Tiene que haber " +
+             "espacio factible a esa distancia (un umbral pegado a una pared, fuera de tu vista): si no hay " +
+             "ninguno, no se asoma y reintenta en la próxima tirada.")]
+    [SerializeField] private Vector2 unseenPeekDistance = new Vector2(7f, 16f);
+
+    public float UnseenPeekAfterSeconds => unseenPeekAfterSeconds;
+    public float UnseenPeekConeDegrees => unseenPeekConeDegrees;
+    public Vector2 UnseenPeekDistance => unseenPeekDistance;
+
+    /// <summary>The chance of one roll after <paramref name="unseenSeconds"/> without seeing it: 0 until
+    /// the threshold, then a straight line up to the maximum.</summary>
+    public float UnseenPeekChance(float unseenSeconds)
+    {
+        if (unseenPeekAfterSeconds <= 0f || unseenSeconds <= unseenPeekAfterSeconds) return 0f;
+
+        return unseenPeekMaxChance * Mathf.Clamp01((unseenSeconds - unseenPeekAfterSeconds) / unseenPeekRampSeconds);
+    }
+
+    public float VanishReturnChance => vanishReturnChance;
+    public float VanishReturnRetrySeconds => vanishReturnRetrySeconds;
+    public float RollVanishReturnDelay() => Roll(vanishReturnDelay);
+    public float VanishChance => vanishChance;
+    public float VanishRetrySeconds => vanishRetrySeconds;
+    public float VanishMinPlayerDistance => vanishMinPlayerDistance;
+    public float AmbientEntranceChance => ambientEntranceChance;
+    public bool AmbientEntranceEnabled => ambientEntranceInterval.x > 0f || ambientEntranceInterval.y > 0f;
+    public float RollVanishDelay() => Roll(vanishDelay);
+    public float RollAmbientEntranceInterval() => Roll(ambientEntranceInterval);
+
     public float ProximityGain => proximityGain;
     public float ChaseGain => chaseGain;
     public float PlayerSeesNemesisGain => playerSeesNemesisGain;

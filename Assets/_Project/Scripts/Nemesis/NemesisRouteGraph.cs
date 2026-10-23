@@ -135,7 +135,7 @@ public sealed class NemesisRouteGraph
     /// somewhere to walk; it is not a place the Nemesis reasons ABOUT. Promoting them to entries
     /// in <see cref="nodes"/> would have pulled them into the cluster centroid and weight (moving
     /// the zone the director bias aims at), the per-waypoint patrol roll, the pursuit's detour
-    /// candidates, the search sweep's waypoint candidates, and the sensed trail — and would have
+    /// candidates and the sensed trail — and would have
     /// multiplied the cost of <see cref="AssignComponents"/> (a path query per node) and
     /// <see cref="FindDensestUnassigned"/> (N squared) by however many satellites each waypoint
     /// got. One authored waypoint still means one node everywhere; it just means a small area when

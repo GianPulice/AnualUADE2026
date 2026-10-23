@@ -136,6 +136,15 @@ public class NemesisDirector : Singleton<NemesisDirector>
              "la entrada, así que no la bajes a cero.")]
     [SerializeField] private bool arriveOutOfSightOnly = true;
 
+    [Tooltip("La entrada se hace pegado a una pared, con una mano apoyada en ella y la otra estirada " +
+             "hacia el jugador (NemesisPeekRig). Con esto prendido busca primero un umbral: un paso " +
+             "angosto de hasta ~2.8 m, el lugar donde está por entrar a la habitación. Si no hay " +
+             "ninguno acepta cualquier pared.")]
+    [SerializeField] private bool entranceAtDoorway = true;
+
+    [Tooltip("Hasta dónde busca una pared desde el punto sorteado, en metros. Más allá se descarta.")]
+    [SerializeField, Min(0.5f)] private float entranceWallSearchRadius = 2.5f;
+
     [Header("Ritmo (Fase 5)")]
     [Tooltip("Tensión y ritmo: retirada en Relax y sensibilidad creciente tras mucho silencio. " +
              "Vacío = el Director sólo responde a puzzles y a la API, como antes de la Fase 5.\n\n" +
@@ -222,6 +231,18 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
     private bool isStagingEntrance;
 
+    // Presence (SO_DirectorPacing "Presencia"): one pending vanish, and the clock of the ambient
+    // entrance. Both are moves of the body that wait for the player not to be looking.
+    private bool vanishPending;
+    private float vanishDueAt;
+    private float vanishGiveUpAt;
+    private float nextAmbientEntranceAt = -1f;
+    private float lastSawNemesisAt = -1f;
+    private float nextUnseenRollAt;
+    private bool returnPending;
+    private float returnDueAt;
+    private float returnGiveUpAt;
+
     /// <summary>The routes whose weight this Director has touched, so exactly those get put back.
     /// A route the designer weighted for their own reasons must not be "restored" to 1 by us.
     /// </summary>
@@ -306,6 +327,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         EndPressure();
         ReturnLoan();
         CancelRevisit();
+        CancelVanish();
     }
 
     // ── API ─────────────────────────────────────────────────────────────────
@@ -837,7 +859,8 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
         NemesisPressureZone zone = NemesisPressureZone.Find(zoneId);
 
-        if (!TryFindEntrancePoint(player.position, zone, out Vector3 spot))
+        if (!TryFindEntrancePoint(player.position, zone, out Vector3 spot, out Vector3 wallPoint,
+                                  out Vector3 wallNormal))
         {
             Debug.LogWarning($"[{nameof(NemesisDirector)}] No spot to make an entrance at: " +
                              $"nothing on the NavMesh between {entranceMinDistance}m and " +
@@ -849,6 +872,52 @@ public class NemesisDirector : Singleton<NemesisDirector>
             return;
         }
 
+        await HoldPeekAsync(spot, wallPoint, wallNormal, player, entranceStareSeconds, token);
+    }
+
+    /// <summary>
+    /// Stages the peek at a FIXED place instead of a sampled one: the Nemesis is put at
+    /// <paramref name="position"/> (snapped to the NavMesh and to the nearest wall), facing the player,
+    /// holds the peek for <paramref name="stareSeconds"/> and is let go. For
+    /// <see cref="NemesisPeekTrigger"/>, which exists so the pose can be SEEN on demand and tuned,
+    /// where the entrance of the rhythm is random and only happens when the player is not looking.
+    /// Skips every fairness rule on purpose: whoever places it decides where.
+    /// </summary>
+    /// <returns>false when it could not be staged: no Director, no Nemesis, nothing under the point.
+    /// </returns>
+    public static async UniTask<bool> PeekAtAsync(Vector3 position, float stareSeconds)
+    {
+        if (!Exists || !Instance.TryResolveNemesis()) return false;
+
+        NemesisDirector director = Instance;
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null || director.isStagingEntrance || !director.nemesis.IsActive) return false;
+
+        if (!NemesisNav.TrySnapToNavMesh(position, out Vector3 snapped)) return false;
+
+        // The wall it leans on: the nearest one. Without one the hand has nothing to touch, and the
+        // peek would be the clip alone, so it is reported rather than staged half.
+        if (!director.TryFindWallEdge(snapped, director.nemesis.FieldOfListening, false, out Vector3 spot,
+                                      out Vector3 wallPoint, out Vector3 wallNormal))
+        {
+            Debug.LogWarning($"[{nameof(NemesisDirector)}] PeekAt: no wall within " +
+                             $"{director.entranceWallSearchRadius}m of {position}. Move the spot against one.",
+                             director);
+            return false;
+        }
+
+        await director.HoldPeekAsync(spot, wallPoint, wallNormal, player, stareSeconds,
+                                     director.GetCancellationTokenOnDestroy());
+        return true;
+    }
+
+    /// <summary>
+    /// Puts the Nemesis at the spot, held, and plays the peek for the length of the stare. Shared by
+    /// the Director's own entrance and <see cref="PeekAtAsync"/>.
+    /// </summary>
+    private async UniTask HoldPeekAsync(Vector3 spot, Vector3 wallPoint, Vector3 wallNormal, Transform player,
+                                        float stareSeconds, CancellationToken token)
+    {
         isStagingEntrance = true;
 
         // The watchdog reads a body that is deliberately standing still while it has a path as
@@ -865,8 +934,12 @@ public class NemesisDirector : Singleton<NemesisDirector>
             // the beat is that it has ALREADY seen you. It stands there knowing.
             nemesis.SetExternalHold(true);
 
+            // The peek: the model's unused E_First_Contact clip, one hand on the wall it is standing
+            // against and the other stretched at the player. Handed back in the finally.
+            nemesis.PlayPeek(wallPoint, wallNormal, player);
+
             float waited = 0f;
-            while (waited < entranceStareSeconds)
+            while (waited < stareSeconds)
             {
                 waited += Time.deltaTime;
 
@@ -880,11 +953,13 @@ public class NemesisDirector : Singleton<NemesisDirector>
         }
         finally
         {
+            nemesis.EndPeek();
             nemesis.SetExternalHold(false);
             nemesis.PopStuckSuppression();
             isStagingEntrance = false;
         }
     }
+
 
     private void FacePlayer(Transform player)
     {
@@ -906,36 +981,96 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// floor to reach, and an entrance made there never arrives.
     /// </summary>
     private bool TryFindEntrancePoint(Vector3 playerPosition, NemesisPressureZone zone,
-                                      out Vector3 spot)
+                                      out Vector3 spot, out Vector3 wallPoint, out Vector3 wallNormal)
     {
-        spot = Vector3.zero;
+        spot = wallPoint = wallNormal = Vector3.zero;
 
         FieldOfListening senses = nemesis.FieldOfListening;
 
-        for (int attempt = 0; attempt < entranceSampleAttempts; attempt++)
+        // First only doorways (where it is about to walk into the room), then any wall.
+        int passes = entranceAtDoorway ? 2 : 1;
+
+        for (int pass = 0; pass < passes; pass++)
         {
-            Vector3 candidate = zone != null
-                ? zone.Center + RandomFlatOffset(zone.Radius)
-                : playerPosition + RandomFlatOffset(entranceMaxDistance);
+            bool doorwayOnly = entranceAtDoorway && pass == 0;
 
-            if (!NemesisNav.TrySnapToNavMesh(candidate, out Vector3 snapped)) continue;
+            for (int attempt = 0; attempt < entranceSampleAttempts; attempt++)
+            {
+                Vector3 candidate = zone != null
+                    ? zone.Center + RandomFlatOffset(zone.Radius)
+                    : playerPosition + RandomFlatOffset(entranceMaxDistance);
 
-            // Never on the Hub's doormat: arriving there is C5 staged by the Director.
-            if (!NemesisSafeZones.IsClear(snapped)) continue;
+                if (!NemesisNav.TrySnapToNavMesh(candidate, out Vector3 snapped)) continue;
 
-            // Out of sight FIRST: it is the property that makes the whole thing fair, and it is
-            // also the cheapest test of the two.
-            if (arriveOutOfSightOnly && senses != null &&
-                !senses.IsOccludedByWall(playerPosition, snapped)) continue;
+                // Against a wall, always: the hand on it is part of the entrance. The spot moves to
+                // the wall.
+                if (!TryFindWallEdge(snapped, senses, doorwayOnly, out Vector3 edgeSpot,
+                                     out Vector3 hitPoint, out Vector3 hitNormal)) continue;
 
-            if (!NemesisNav.TryGetPathDistance(playerPosition, snapped, out float distance)) continue;
-            if (distance < entranceMinDistance || distance > entranceMaxDistance) continue;
+                // Never on the Hub's doormat: arriving there is C5 staged by the Director.
+                if (!NemesisSafeZones.IsClear(edgeSpot)) continue;
 
-            spot = snapped;
-            return true;
+                // Out of sight FIRST: it is the property that makes the whole thing fair, and it is
+                // also the cheapest test of the two.
+                if (arriveOutOfSightOnly && senses != null &&
+                    !senses.IsOccludedByWall(playerPosition, edgeSpot)) continue;
+
+                if (!NemesisNav.TryGetPathDistance(playerPosition, edgeSpot, out float distance)) continue;
+                if (distance < entranceMinDistance || distance > entranceMaxDistance) continue;
+
+                // A wall straight between it and the player is not a wall to lean on, it is the one
+                // the arm would have to reach through.
+                Vector3 toPlayer = playerPosition - edgeSpot;
+                toPlayer.y = 0f;
+                Vector3 intoWall = -hitNormal;
+                intoWall.y = 0f;
+                if (toPlayer.sqrMagnitude > 0.01f && intoWall.sqrMagnitude > 0.01f &&
+                    Vector3.Dot(toPlayer.normalized, intoWall.normalized) > 0.85f) continue;
+
+                spot = edgeSpot;
+                wallPoint = hitPoint;
+                wallNormal = hitNormal;
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The closest edge of the NavMesh to a point, which is where a wall is (the mesh is inset from it
+    /// by the agent's radius), and the wall itself under a chest-high ray. With
+    /// <paramref name="doorwayOnly"/> the opening across from that edge has to be under 2.8 m: a
+    /// doorway, or a corridor, and not the side of an open hall.
+    /// </summary>
+    private bool TryFindWallEdge(Vector3 from, FieldOfListening senses, bool doorwayOnly, out Vector3 spot,
+                                 out Vector3 wallPoint, out Vector3 wallNormal)
+    {
+        spot = wallPoint = wallNormal = Vector3.zero;
+        if (senses == null) return false;
+
+        if (!NavMesh.FindClosestEdge(from, out NavMeshHit edge, NemesisNav.AreaMask)) return false;
+        if (edge.distance > entranceWallSearchRadius) return false;
+
+        Vector3 inward = edge.normal;
+        inward.y = 0f;
+        if (inward.sqrMagnitude < 0.01f) return false;
+        inward.Normalize();
+
+        if (!NavMesh.SamplePosition(edge.position + inward * 0.02f, out NavMeshHit onMesh, 0.5f,
+                                    NemesisNav.AreaMask)) return false;
+        spot = onMesh.position;
+
+        // The wall, not a ledge: a ray into it at chest height, and a short one.
+        if (!senses.TryRaycastWall(spot + Vector3.up * 1.3f, -inward, 1.2f, out RaycastHit wall)) return false;
+        wallPoint = wall.point;
+        wallNormal = wall.normal;
+
+        if (!doorwayOnly) return true;
+
+        // Across from the wall: the other edge has to be close.
+        return NavMesh.Raycast(spot, spot + inward * 3f, out NavMeshHit across, NemesisNav.AreaMask) &&
+               across.distance <= 2.8f;
     }
 
     private static Vector3 RandomFlatOffset(float radius)
@@ -1104,6 +1239,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // Before the scripted early-out: a revisit falling due under a puzzle's pressure is dropped,
         // not held back until that pressure lapses.
         TickRevisit();
+        TickPresence();
 
         bool ownsPressure = activeZone != null && activeSource != EPressureSource.Scripted;
 
@@ -1211,10 +1347,13 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (found)
         {
             CancelRevisit();
+            CancelVanish();
             return;
         }
 
         if (pacing == null || tension == null || !tension.IsRunning || tension.IsSuspended) return;
+
+        RollVanish();
 
         // In Relax it does not come back (plan §18.5 C2): that is the retreat, and coming back would
         // undo it. SustainPeak and PeakFade are an encounter still resolving.
@@ -1226,9 +1365,254 @@ public class NemesisDirector : Singleton<NemesisDirector>
     }
 
     /// <summary>A capture is the encounter, not a search it gave up on: nothing to come back to.</summary>
-    private void HandlePlayerCaptured(PlayerStateManager player) => CancelRevisit();
+    private void HandlePlayerCaptured(PlayerStateManager player)
+    {
+        CancelRevisit();
+        CancelVanish();
+    }
 
     private void CancelRevisit() => revisitPending = false;
+
+    // ── Presencia: desaparece y aparece cerca ───────────────────────────────
+
+    private void CancelVanish()
+    {
+        vanishPending = false;
+        returnPending = false;
+    }
+
+    /// <summary>
+    /// A search ended empty: roll whether the Nemesis goes away instead of patrolling on from where it
+    /// gave up. Not in SustainPeak or PeakFade, which are an encounter still resolving. The move itself
+    /// waits in <see cref="TickPresence"/> until the player cannot see it go.
+    /// </summary>
+    private void RollVanish()
+    {
+        if (pacing.VanishChance <= 0f) return;
+
+        NemesisTension.EPacingState state = tension.State;
+        if (state != NemesisTension.EPacingState.BuildUp && state != NemesisTension.EPacingState.Relax) return;
+
+        if (UnityEngine.Random.value >= pacing.VanishChance) return;
+
+        vanishPending = true;
+        vanishDueAt = Time.time + pacing.RollVanishDelay();
+        vanishGiveUpAt = vanishDueAt + pacing.VanishRetrySeconds;
+    }
+
+    /// <summary>
+    /// The two presence moves, from <see cref="TickPacing"/>. Never over a puzzle's scripted pressure,
+    /// and never with the Nemesis doing anything but patrolling: a hunt in flight is not ours to cut.
+    /// </summary>
+    private void TickPresence()
+    {
+        // The clock of "how long since the player saw it" only runs while there is something to see:
+        // asleep, away in a hunt or with the player in the Hub it is held at zero.
+        if (!TryResolveNemesis() || !nemesis.IsActive || isStagingEntrance ||
+            nemesis.CurrentStateKey != NemesisStateManager.ENemesisState.Patrolling ||
+            tension.IsPlayerInSafeZone || tension.PlayerSeesNemesis)
+        {
+            lastSawNemesisAt = Time.time;
+        }
+
+        if (!TryResolveNemesis() || !nemesis.IsActive || isStagingEntrance) return;
+        if (activeZone != null && activeSource == EPressureSource.Scripted) return;
+        if (nemesis.CurrentStateKey != NemesisStateManager.ENemesisState.Patrolling) return;
+
+        TickVanish();
+        TickReturn();
+        TickAmbientEntrance();
+        TickUnseenPeek();
+    }
+
+    /// <summary>
+    /// Goes through NemesisController.ChooseSpawnPoint, which is already the fairness rule: far enough
+    /// over the NavMesh, outside the player's cone and behind geometry, or it returns null and nothing
+    /// moves. On top of that the Nemesis has to be out of the player's sight where it stands NOW, and
+    /// at least <see cref="SO_DirectorPacing.VanishMinPlayerDistance"/> away, so nobody watches it go.
+    /// </summary>
+    private void TickVanish()
+    {
+        if (!vanishPending || Time.time < vanishDueAt) return;
+
+        if (Time.time > vanishGiveUpAt || tension.State == NemesisTension.EPacingState.SustainPeak ||
+            tension.State == NemesisTension.EPacingState.PeakFade)
+        {
+            CancelVanish();
+            return;
+        }
+
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null || nemesis.NemesisController == null) return;
+
+        if (tension.PlayerSeesNemesis) return;
+
+        FieldOfListening senses = nemesis.FieldOfListening;
+        if (senses != null && !senses.IsOccludedByWall(player.position, nemesis.transform.position)) return;
+
+        if (NemesisNav.TryGetPathDistance(player.position, nemesis.transform.position, out float distance) &&
+            distance < pacing.VanishMinPlayerDistance)
+        {
+            return;
+        }
+
+        // Retried on the next tick if nothing is safe yet: the player walking on usually fixes it.
+        if (nemesis.NemesisController.ChooseSpawnPoint() == null) return;
+
+        CancelVanish();
+
+        // It is gone. A while later it may be back at the door of the room the player is in, when
+        // they have stopped looking over their shoulder (TickReturn).
+        if (UnityEngine.Random.value < pacing.VanishReturnChance)
+        {
+            returnPending = true;
+            returnDueAt = Time.time + pacing.RollVanishReturnDelay();
+            returnGiveUpAt = returnDueAt + pacing.VanishReturnRetrySeconds;
+        }
+    }
+
+    /// <summary>
+    /// The scare the vanish sets up: standing at a doorway, one hand on the wall and the other
+    /// reaching round it, after the player thought it had gone. It is the Mr. X entrance, so it keeps
+    /// every guarantee of that one (out of sight, never closer than its minimum, never in the Hub);
+    /// what this adds is only the WHEN.
+    /// </summary>
+    private void TickReturn()
+    {
+        if (!returnPending || Time.time < returnDueAt) return;
+
+        if (Time.time > returnGiveUpAt || tension.State != NemesisTension.EPacingState.BuildUp)
+        {
+            returnPending = false;
+            return;
+        }
+
+        if (tension.IsPlayerInSafeZone) return;
+
+        returnPending = false;
+        StageEntranceAsync(null, this.GetCancellationTokenOnDestroy()).Forget();
+    }
+
+    /// <summary>
+    /// The longer the player goes without seeing the Nemesis, the likelier it is to lean out of a doorway
+    /// ahead of them: coming out of another room into a corridor, or about to walk into one. Nothing
+    /// before <c>UnseenPeekAfterSeconds</c>, then a chance per roll that climbs to its maximum. The clock
+    /// starts over whenever the player sees it, and after every peek this makes.
+    /// </summary>
+    private void TickUnseenPeek()
+    {
+        if (pacing.UnseenPeekAfterSeconds <= 0f || tension.State != NemesisTension.EPacingState.BuildUp) return;
+        if (Time.time < nextUnseenRollAt) return;
+        nextUnseenRollAt = Time.time + Mathf.Max(0.5f, evaluationInterval);
+
+        float chance = pacing.UnseenPeekChance(Time.time - lastSawNemesisAt);
+        if (chance <= 0f || UnityEngine.Random.value >= chance) return;
+
+        if (!TryStagePeekAhead()) return;
+
+        // Counts as seen: the next one is a whole wait away.
+        lastSawNemesisAt = Time.time;
+    }
+
+    private bool TryStagePeekAhead()
+    {
+        Transform player = PlayerRegistry.CurrentTransform;
+        if (player == null || nemesis.IsUsingElevator) return false;
+
+        // Where the player is LOOKING, not where the body faces: the camera is what the doorway has to be
+        // in front of.
+        Camera view = Camera.main;
+        Vector3 forward = view != null ? view.transform.forward : player.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.01f) return false;
+        forward.Normalize();
+
+        if (!TryFindPeekAhead(player.position, forward, out Vector3 spot, out Vector3 wallPoint,
+                              out Vector3 wallNormal)) return false;
+
+        HoldPeekAsync(spot, wallPoint, wallNormal, player, entranceStareSeconds,
+                      this.GetCancellationTokenOnDestroy()).Forget();
+        return true;
+    }
+
+    /// <summary>
+    /// A doorway or corridor mouth in the cone ahead of the player: against a wall, on their floor, out of
+    /// sight (the body is behind the frame; it is the arm that shows), and between the pacing's minimum and
+    /// maximum distance over the NavMesh. Doorways first, any wall second, as for the entrance. Returns
+    /// false when the level has no such room ahead, which is the normal answer in a dead end.
+    /// </summary>
+    private bool TryFindPeekAhead(Vector3 playerPosition, Vector3 forward, out Vector3 spot,
+                                  out Vector3 wallPoint, out Vector3 wallNormal)
+    {
+        spot = wallPoint = wallNormal = Vector3.zero;
+
+        FieldOfListening senses = nemesis.FieldOfListening;
+        Vector2 range = pacing.UnseenPeekDistance;
+        float half = pacing.UnseenPeekConeDegrees;
+        float floor = nemesis.NemesisData != null ? nemesis.NemesisData.FloorHeightThreshold : 2.5f;
+
+        for (int pass = 0; pass < 2; pass++)
+        {
+            bool doorwayOnly = pass == 0;
+
+            for (int attempt = 0; attempt < entranceSampleAttempts; attempt++)
+            {
+                float angle = UnityEngine.Random.Range(-half, half);
+                float distance = UnityEngine.Random.Range(range.x, range.y);
+                Vector3 candidate = playerPosition + Quaternion.AngleAxis(angle, Vector3.up) * forward * distance;
+
+                if (!NemesisNav.TrySnapToNavMesh(candidate, out Vector3 snapped)) continue;
+                if (!TryFindWallEdge(snapped, senses, doorwayOnly, out Vector3 edgeSpot, out Vector3 hitPoint,
+                                     out Vector3 hitNormal)) continue;
+
+                if (Mathf.Abs(edgeSpot.y - playerPosition.y) > floor) continue;
+                if (!NemesisSafeZones.IsClear(edgeSpot)) continue;
+
+                // Still ahead after the snap to the wall, not just at the sampled point.
+                Vector3 offset = edgeSpot - playerPosition;
+                offset.y = 0f;
+                if (Vector3.Angle(forward, offset) > half + 15f) continue;
+
+                if (senses != null && !senses.IsOccludedByWall(playerPosition + Vector3.up * 1.5f,
+                                                              edgeSpot + Vector3.up * 1.2f)) continue;
+
+                if (!NemesisNav.TryGetPathDistance(playerPosition, edgeSpot, out float path)) continue;
+                if (path < range.x || path > range.y * 1.5f) continue;
+
+                spot = edgeSpot;
+                wallPoint = hitPoint;
+                wallNormal = hitNormal;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Every so often, the Mr. X entrance with no puzzle behind it. The roll is made on a clock rather
+    /// than on an event so it does not need anyone to have lost the player. Not in the Hub, and the
+    /// entrance itself still refuses anything in sight or closer than its minimum.
+    /// </summary>
+    private void TickAmbientEntrance()
+    {
+        if (!pacing.AmbientEntranceEnabled) return;
+
+        if (nextAmbientEntranceAt < 0f)
+        {
+            nextAmbientEntranceAt = Time.time + pacing.RollAmbientEntranceInterval();
+            return;
+        }
+
+        if (Time.time < nextAmbientEntranceAt) return;
+        nextAmbientEntranceAt = Time.time + pacing.RollAmbientEntranceInterval();
+
+        if (tension.State != NemesisTension.EPacingState.BuildUp) return;
+        if (tension.IsPlayerInSafeZone) return;
+        if (UnityEngine.Random.value >= pacing.AmbientEntranceChance) return;
+
+        StageEntranceAsync(null, this.GetCancellationTokenOnDestroy()).Forget();
+    }
 
     /// <summary>
     /// Applies the pending revisit once it falls due: anchor and route weights on the zone of that

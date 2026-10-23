@@ -1060,8 +1060,8 @@ public class NemesisDebugHUD : MonoBehaviour
                $"Hub {habits.GetExploitCount(EExploitKind.SafeZoneEscape):0.#}";
     }
 
-    /// <summary>What those counts WOULD unlock, and at what chance. Nothing acts on it yet: in
-    /// Fase 3 this is the answer to "how soon would it have started ambushing me".</summary>
+    /// <summary>What those counts unlock, and at what chance. Of the six only the flank (22/10) acts
+    /// on it so far; the rest are still the answer to "how soon would it have started ambushing me".</summary>
     private static string DescribeUnlocks()
     {
         if (!PlayerHabitTracker.Exists) return "—";

@@ -75,12 +75,6 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
     /// </summary>
     private const float ReactPause = 0.4f;
 
-    /// <summary>The area around the noise whose used hiding spots are candidates (Fase 2D): the room
-    /// it is standing in, give or take.</summary>
-    private const float UsedSpotsRadius = 6f;
-
-    private readonly System.Collections.Generic.HashSet<HidingSpot> usedSpotsRolled =
-        new System.Collections.Generic.HashSet<HidingSpot>();
     private float reactUntil = float.NegativeInfinity;
     private bool reacting;
 
@@ -203,9 +197,6 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
         reportedChecked = false;
         reacting = false;
 
-        // One roll per used hiding spot per investigation (Fase 2D), not per arrival.
-        usedSpotsRolled.Clear();
-
         nemesisStateManager.SetGait(NemesisStateManager.EGait.Walking,
                                     nemesisStateManager.NemesisMovement.InvestigationSpeed);
 
@@ -280,13 +271,8 @@ public class NemesisInvestigatingState : BaseState<NemesisStateManager.ENemesisS
             {
                 if (hiding != null) hiding.Open(spotTarget);
             }
-            else if (hiding != null)
-            {
-                // At the noise: the hiding spots the player has used around here are candidates
-                // (plan §17.6, D23, Fase 2D; case 39). One that comes up is suspected, and the next
-                // frame walks to it and opens it. Only this area: never one across the level (case 40).
-                hiding.ConsiderUsedSpots(destination, UsedSpotsRadius, usedSpotsRolled);
-            }
+            // At a plain noise it does not roll hiding spots any more (D41): that is the search's
+            // job, off the map.
         }
 
         // Looked at the suspected spot for the whole dwell and nothing came of it: nobody is in

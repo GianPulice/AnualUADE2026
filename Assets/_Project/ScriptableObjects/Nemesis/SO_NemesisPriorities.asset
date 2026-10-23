@@ -253,6 +253,11 @@ MonoBehaviour:
       state: 0
       threshold: 0
       customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 3
+      customSeconds: 0
   - enabled: 1
     target: 1
     interrupts: 0

@@ -758,6 +758,19 @@ public class FieldOfListening : MonoBehaviour
     }
 
     /// <summary>
+    /// The first wall a ray meets, against the same obstacle mask the sight and the grab use. For the
+    /// Director's peek, which has to know WHERE the wall is to put a hand on it. Triggers are ignored,
+    /// like everywhere else here, and so is anything that is not upright (a floor edge is no wall).
+    /// </summary>
+    public bool TryRaycastWall(Vector3 origin, Vector3 direction, float distance, out RaycastHit hit)
+    {
+        if (Physics.Raycast(origin, direction, out hit, distance, obstacleMask, QueryTriggerInteraction.Ignore))
+            return Mathf.Abs(hit.normal.y) < 0.6f;
+
+        return false;
+    }
+
+    /// <summary>
     /// The same test, blind to ONE hiding spot's own shell: the grab reaching the player inside
     /// the locker they are hiding in (plan §3.3). The locker still counts as a wall for anything
     /// else between the two points. Null behaves exactly like the overload above.

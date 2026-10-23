@@ -222,22 +222,17 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         new System.Collections.Generic.HashSet<HidingSpot>();
 
     /// <summary>
-    /// The spots the player has used around where the search is going are candidates (plan §17.6,
-    /// D23, Fase 2D): NemesisHidingAwareness rolls them by how used they are and suspects the one that
-    /// comes up, and the spot check below walks over and opens it (case 39). Asked every time it
-    /// chooses a place, around that place — never across the level (case 40). The radius is what is
-    /// left of the old sweep's widest disc (RoomSweepRadius): how far around a search something
-    /// counts as inside it.
-    ///
-    /// Fase 2e replaces this roll with the value the map holds inside each spot × the habit (D38).
+    /// The spots the map holds value in are candidates (plan §19.5, E2; D38, D41): NemesisHidingAwareness
+    /// rolls them by value × habit and suspects the one that comes up, and the spot check below walks
+    /// over and opens it (case 39). Asked every time it chooses a place; the map is what keeps it from
+    /// going to one across the level (case 40), since there is no value there.
     /// </summary>
-    private void ConsiderUsedSpots(Vector3 centre)
+    private void ConsiderSpots()
     {
         NemesisHidingAwareness awareness = nemesisStateManager.HidingAwareness;
         if (awareness == null) return;
 
-        float radius = Data != null ? Data.RoomSweepRadius : 8f;
-        awareness.ConsiderUsedSpots(centre, radius, usedSpotsRolled);
+        awareness.ConsiderSpotsByMap(usedSpotsRolled);
     }
 
     /// <summary>Entered with the agent switched off (the lift ride): the first place is chosen on the
@@ -614,7 +609,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
             if (fromEvidence) headingToEvidence = true;
 
             SetOff(StandingPointIn(targetZone, belief));
-            ConsiderUsedSpots(SearchTarget);
+            ConsiderSpots();
             return;
         }
 
@@ -636,7 +631,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
             // Out of places is exactly when the spots around it matter: what is left of the value is
             // most likely inside them.
-            ConsiderUsedSpots(targetZone);
+            ConsiderSpots();
             return;
         }
 
@@ -647,7 +642,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
 
         SetOff(ScatterPoint());
         targetZone = SearchTarget;
-        ConsiderUsedSpots(scatterCentre);
+        ConsiderSpots();
     }
 
     /// <summary>

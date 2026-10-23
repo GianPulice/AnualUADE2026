@@ -235,54 +235,79 @@ public class NemesisHidingAwareness : MonoBehaviour
     private const float WitnessDistance = 12f;
 
     /// <summary>
-    /// While it investigates or sweeps an area, the spots the player has USED inside it (the Fase 3
-    /// meter, PlayerHabitTracker) are candidates: most used first, each rolled once against its open
-    /// chance (meter × 0.25, capped at 0.85). The first that comes up becomes SUSPECTED, which sends the
-    /// state to open it (case 39). Never outside the area: a spot across the level does not exist for
-    /// this (case 40, R4). Returns true when it picked one.
+    /// While it searches, the spots the map holds value in are candidates (plan §19.5, E2; D38, D41),
+    /// replacing the old roll over the spots the player had used around the place it was going to.
+    /// Most valuable first, each rolled once per search against <see cref="SpotOpenRules.Chance"/>:
+    /// value × habit for a spot the player has used, and only a high share of the map for one they
+    /// never did. The first that comes up becomes SUSPECTED, which sends the state to open it (case
+    /// 39). Nothing is asked about where the player really is, and a spot the map has cleared does not
+    /// come up, however used. Returns true when it picked one.
     ///
-    /// R3: until the first opening by habit has happened, the player has to be near enough to see or
-    /// hear a spot in this AREA being opened — the first time is the lesson, and a lesson nobody
-    /// witnessed teaches nothing. Near enough means within WitnessDistance of the area, on the same
-    /// floor. The lesson counts as given when the spot is OPENED (<see cref="Open"/>), not when it is
-    /// picked.
-    ///
-    /// A GATE, NOT A FILTER (Plan-Busqueda-Nemesis Fase 1, WIR-057). It used to be asked per spot,
-    /// against the player's real position: spots far from the player were skipped, and the one they
-    /// were hiding in, with them inside, always passed. With several used spots in the area that
-    /// tilted the roll towards theirs — the real position leaking into which locker it opened. Now it
-    /// is one question about the area, and every used spot in it gets the same treatment.
+    /// R3, kept: until the first opening by habit has happened, the player has to be near enough to
+    /// see or hear the search for a used spot (the first time is the lesson, and one nobody witnessed
+    /// teaches nothing). A GATE, NOT A FILTER (WIR-057): one question about where the map is
+    /// densest, the same for every used spot, so the real position never decides which locker. While it
+    /// is closed the used spots are not rolled (they may qualify later in the same search); a spot
+    /// never used is not part of the lesson and is not held back.
     ///
     /// <paramref name="rolled"/> is the caller's memory of what it already rolled this search: a
-    /// spot gets one roll per search, not one per re-centre. Spots passed over only because the
-    /// player was too far to witness are not rolled: they may qualify later in the same search.
+    /// spot gets one roll per search, not one per re-centre.
     /// </summary>
-    public bool ConsiderUsedSpots(Vector3 centre, float radius, System.Collections.Generic.HashSet<HidingSpot> rolled)
+    public bool ConsiderSpotsByMap(System.Collections.Generic.HashSet<HidingSpot> rolled)
     {
         if (stateManager == null || KnownSpot != null || SuspectedSpot != null) return false;
-        if (!PlayerHabitTracker.Exists) return false;
 
-        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
-        if (habits.CollectUsedSpots(centre, radius, usedSpots) == 0) return false;
+        NemesisPossibilityMap map = stateManager.PossibilityMap;
+        SO_NemesisData data = stateManager.NemesisData;
+        if (map == null || data == null) return false;
 
-        bool firstTime = !habits.HasRun(ECounterplay.CheckHidingSpots);
-        if (firstTime && !CouldWitnessArea(stateManager.PlayerTransform, centre, radius)) return false;
+        PlayerHabitTracker habits = PlayerHabitTracker.Exists ? PlayerHabitTracker.Instance : null;
+        bool lessonUnwitnessed = false;
+        if (habits != null && !habits.HasRun(ECounterplay.CheckHidingSpots) && map.TryGetBest(out _, out Vector3 densest))
+            lessonUnwitnessed = !CouldWitnessArea(stateManager.PlayerTransform, densest, data.RoomSweepRadius);
 
-        for (int i = 0; i < usedSpots.Count; i++)
+        // The spots with value in them, most valuable first: the roll goes to the likeliest.
+        mapSpots.Clear();
+        System.Collections.Generic.IReadOnlyList<HidingSpot> all = HidingSpot.Active;
+        for (int i = 0; i < all.Count; i++)
         {
-            HidingSpot spot = usedSpots[i];
+            HidingSpot spot = all[i];
+            if (spot == null || spot.IsBurned) continue;
             if (rolled != null && rolled.Contains(spot)) continue;
+            if (map.ShareInSpot(spot) > 0f) mapSpots.Add(spot);
+        }
 
+        if (mapSpots.Count == 0) return false;
+        mapSpots.Sort((x, y) => map.ShareInSpot(y).CompareTo(map.ShareInSpot(x)));
+
+        for (int i = 0; i < mapSpots.Count; i++)
+        {
+            HidingSpot spot = mapSpots[i];
+            float habitChance = habits != null ? habits.OpenChance(spot) : 0f;
+
+            if (habitChance > 0f && lessonUnwitnessed) continue;
+
+            float chance = SpotOpenRules.Chance(map.ShareInSpot(spot), habitChance, data.SpotMapHabitFullShare,
+                                                data.SpotMapNeverUsedMinShare, data.SpotMapNeverUsedChance);
+
+            // One roll per spot per search. A spot with no chance yet is not rolled: the map may
+            // close in on it later in the same search.
+            if (chance <= 0f) continue;
             rolled?.Add(spot);
-            if (Random.value >= habits.OpenChance(spot)) continue;
+            if (Random.value >= chance) continue;
 
-            habitSpot = spot;
-            Suspect(spot, $"lo usaste antes ({habits.GetSpotUsage(spot):0.#})");
+            // A spot never used is not a habit: only the map sent it there, so it teaches nothing.
+            if (habitChance > 0f) habitSpot = spot;
+            Suspect(spot, habitChance > 0f
+                ? $"lo usaste antes ({habits.GetSpotUsage(spot):0.#}) y el mapa lo marca"
+                : "el mapa lo marca");
             return true;
         }
 
         return false;
     }
+
+    private readonly System.Collections.Generic.List<HidingSpot> mapSpots = new System.Collections.Generic.List<HidingSpot>();
 
     /// <summary>Whether the player is where they could see or hear a spot inside the area being
     /// opened: within WitnessDistance of its edge, and on the same floor as its centre. Staging
@@ -305,7 +330,6 @@ public class NemesisHidingAwareness : MonoBehaviour
     /// time of CheckHidingSpots (R3).</summary>
     private HidingSpot habitSpot;
 
-    private readonly System.Collections.Generic.List<HidingSpot> usedSpots = new System.Collections.Generic.List<HidingSpot>();
 
     // ── A second noise from the same spot (plan §17.6, D22) ──────────────────
 

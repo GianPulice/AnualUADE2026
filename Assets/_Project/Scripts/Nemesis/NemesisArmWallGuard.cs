@@ -221,6 +221,52 @@ public class NemesisArmWallGuard : MonoBehaviour
     public float LoweredOf(int armIndex) =>
         arms != null && armIndex >= 0 && armIndex < arms.Length && arms[armIndex] != null ? arms[armIndex].lower : 0f;
 
+    /// <summary>How many arms the guard watches.</summary>
+    public int ArmCount => arms != null ? arms.Length : 0;
+
+    /// <summary>The bones of one arm, for whoever poses the arms itself (<see cref="NemesisPeekRig"/>):
+    /// the guard already knows where they are, so they are not authored a second time.</summary>
+    public bool TryGetArmBones(int armIndex, out Transform shoulder, out Transform elbow, out Transform tip)
+    {
+        shoulder = elbow = tip = null;
+        if (arms == null || armIndex < 0 || armIndex >= arms.Length || !IsUsable(arms[armIndex])) return false;
+
+        shoulder = arms[armIndex].shoulder;
+        elbow = arms[armIndex].elbow;
+        tip = arms[armIndex].tip;
+        return true;
+    }
+
+    private bool externallySuppressed;
+
+    /// <summary>
+    /// Stands the guard down while something else poses the arms on purpose, with the arm aimed AT a
+    /// wall (the Director's peek). Like <c>suppressWhileState</c> it gives the arms back to the
+    /// Animator first, and unlike it needs no Animator state to say so.
+    /// </summary>
+    public void SetExternalSuppression(bool suppressed)
+    {
+        if (suppressed && !externallySuppressed && arms != null)
+        {
+            // Snapped, not eased: an arm the guard was holding lowered beside a wall would otherwise
+            // spend a sixth of a second climbing back while the other component starts posing the
+            // same bones, and the hand would visibly lurch between the two (the peek's "movimiento
+            // raro", 22/10). The Animator's pose is what the new owner starts from.
+            foreach (Arm arm in arms)
+            {
+                if (!IsUsable(arm)) continue;
+
+                RestoreAnimated(arm);
+                arm.lower = arm.retract = arm.tuck = 0f;
+                arm.held = Vector3.zero;
+                arm.spare = 0f;
+                arm.hasWritten = false;
+            }
+        }
+
+        externallySuppressed = suppressed;
+    }
+
     private void OnDisable()
     {
         // Give the arms back as the Animator posed them: with the guard off, nothing else would
@@ -345,6 +391,7 @@ public class NemesisArmWallGuard : MonoBehaviour
 
     private bool IsSuppressed()
     {
+        if (externallySuppressed) return true;
         if (animator == null || animator.runtimeAnimatorController == null) return false;
 
         // The state it is in, or the one it is blending into: the arm is let go as the clip comes in.

@@ -129,6 +129,35 @@ public sealed class NemesisPursuit
         hasPredictedPoint = false;
         hasReplanned = false;
         PenalizedLastReplan = 0;
+        flankFromStart = RollChaseFlank();
+    }
+
+    /// <summary>
+    /// The player has made a habit of the loop round an obstacle, so this chase starts already
+    /// coming round the other side instead of waiting a whole window to find out it is going in
+    /// circles (counterplay <see cref="ECounterplay.ChaseFlank"/>, plan §19.7, C4). Rolled once per
+    /// chase, on the chance the habit ledger gives it. For F9 and the gizmos.
+    /// </summary>
+    public bool IsFlankingFromStart => flankFromStart;
+
+    private bool flankFromStart;
+
+    /// <summary>
+    /// Whether this chase flanks from the first replan. The player is in the chase by definition, so
+    /// the first time is seen (R3) with no further condition. It changes nothing on a straight run,
+    /// which the replan lets through whatever this says: it only brings forward what a stall would
+    /// have done after <c>ChaseProgressWindow</c> seconds.
+    /// </summary>
+    private static bool RollChaseFlank()
+    {
+        if (!PlayerHabitTracker.Exists) return false;
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+        if (!habits.IsUnlocked(ECounterplay.ChaseFlank)) return false;
+        if (Random.value >= habits.CounterplayChance(ECounterplay.ChaseFlank)) return false;
+
+        habits.MarkRun(ECounterplay.ChaseFlank);
+        return true;
     }
 
     /// <summary>
@@ -388,7 +417,7 @@ public sealed class NemesisPursuit
         hasRoutePoint = false;
         PenalizedLastReplan = 0;
 
-        bool stagnant = stateManager.IsChaseStagnant;
+        bool stagnant = stateManager.IsChaseStagnant || flankFromStart;
         bool seesPlayer = stateManager.HasVisualTarget;
 
         if (seesPlayer && !stagnant) return;

@@ -231,6 +231,27 @@ public sealed class NemesisDecision
     }
 
     /// <summary>
+    /// Whether the oracle HAS an answer for the belief and it is a complete path that changes no
+    /// floor: the player can be reached on foot, with certainty (plan §19.3 M2, D3).
+    ///
+    /// Not the negation of <see cref="RouteToBeliefCrossesFloors"/>, which is also false when the
+    /// query could not run (the player on a moving cabin, or more than 2 m off the NavMesh) and
+    /// when the path is only partial. Abandoning a trip on those answers is how a verdict that
+    /// flips sent the Nemesis away from a lift it was right to take.
+    /// </summary>
+    public bool RouteToBeliefIsCompleteOnFoot
+    {
+        get
+        {
+            if (!stateManager.TryGetBelief(out Vector3 belief)) return false;
+
+            return stateManager.TryGetThrottledRoute(belief, out NemesisNav.NavRoute route) &&
+                   route.IsComplete &&
+                   !stateManager.IsRouteAcrossFloors(route);
+        }
+    }
+
+    /// <summary>
     /// Whether the route to the belief does not get there (WIR-018): a PARTIAL path, or no path
     /// query possible at all. Through the same throttled oracle as
     /// <see cref="RouteToBeliefCrossesFloors"/> and for the same reason: both questions are about

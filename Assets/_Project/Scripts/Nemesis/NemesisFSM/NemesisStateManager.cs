@@ -673,6 +673,62 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         animController.CrossFadeInFixedTime(IdleStateHash, fade, 0);
     }
 
+    // ── The peek (E_First_Contact) ──────────────────────────────────────────
+
+    private const string PeekStateName = "E_First_Contact";
+    private const float PeekFadeIn = 0.45f;
+    private const float PeekFadeOut = 0.3f;
+    private static readonly int PeekStateHash = Animator.StringToHash(PeekStateName);
+
+    /// <summary>The peek clip is playing and <see cref="EndPeek"/> has not handed the body back.</summary>
+    private bool peekPlaying;
+
+    /// <summary>
+    /// Plays the model's E_First_Contact clip, the one the new model came with and nothing used: the
+    /// Nemesis standing in front of the player after the Director's entrance. Played the way the
+    /// drops' states are, by CrossFade on the state's name with no parameter, because that state has
+    /// no transitions out and the gait bools do not pull it away; <see cref="EndPeek"/> hands it back.
+    /// </summary>
+    /// <param name="wallPoint">Where the wall is under the gripping hand.</param>
+    /// <param name="wallNormal">The wall's normal, pointing out of it towards the Nemesis.</param>
+    /// <param name="reachToward">What the long arm is stretched at (followed, not sampled once).</param>
+    /// <returns>Whether the clip started. False when the Animator has no such state, and the entrance
+    /// is the same without it.</returns>
+    public bool PlayPeek(Vector3 wallPoint, Vector3 wallNormal, Transform reachToward)
+    {
+        if (animController == null || animController.runtimeAnimatorController == null) return false;
+
+        // The two hands, over the clip: one on the wall, one stretched at the player. Added to the
+        // model on first use; without arm bones on it the peek is the clip alone.
+        peekRig = animController.GetComponent<NemesisPeekRig>();
+        if (peekRig == null) peekRig = animController.gameObject.AddComponent<NemesisPeekRig>();
+        peekRig.Begin(wallPoint, wallNormal, reachToward);
+
+        if (!animController.HasState(0, PeekStateHash)) return false;
+
+        // A long fade, not the drops' 0.12 s: the arms come from the walking pose (one stretched three
+        // metres ahead, the other trailing), and swinging them into the peek's in a tenth of a second
+        // was the whip of the front hand (22/10: its wrist crossed ~3 m at 30 m/s).
+        animController.CrossFadeInFixedTime(PeekStateHash, PeekFadeIn, 0);
+        peekPlaying = true;
+        return true;
+    }
+
+    private NemesisPeekRig peekRig;
+
+    /// <summary>Back to Idle after <see cref="PlayPeek"/>; a no-op when no peek is playing.</summary>
+    public void EndPeek()
+    {
+        if (peekRig != null) peekRig.End();
+
+        if (!peekPlaying) return;
+        peekPlaying = false;
+
+        if (animController == null || !animController.HasState(0, IdleStateHash)) return;
+
+        animController.CrossFadeInFixedTime(IdleStateHash, PeekFadeOut, 0);
+    }
+
     private void WarnMissingTraversalState(string stateName)
     {
         if (warnedMissingTraversalState) return;

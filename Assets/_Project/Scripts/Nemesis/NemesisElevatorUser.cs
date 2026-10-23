@@ -479,6 +479,12 @@ public class NemesisElevatorUser : MonoBehaviour
     /// — <see cref="NemesisDecision.RouteToBeliefCrossesFloors"/> — so the two cannot give
     /// different answers on the same frame and start trading the Nemesis back and forth.
     ///
+    /// ONLY ON A COMPLETE ROUTE (plan §19.3 M2, D3). "Does not cross floors" is also what the
+    /// verdict says when the query could not run at all — the player on a cabin in motion, whose
+    /// NavMesh is off, or standing more than 2 m from the mesh — and each of those used to shelve
+    /// the shaft for its cooldown. <see cref="NemesisDecision.RouteToBeliefIsCompleteOnFoot"/> is
+    /// true only for an answer the oracle really has.
+    ///
     /// Only ever consulted BEFORE boarding. Once the body is on the cabin there is nothing to
     /// abandon into: stepping off mid-shaft is a fall, and the grab rung sits above the crossing in
     /// the ladder anyway, so a player who rides up with it can still be caught.
@@ -488,7 +494,7 @@ public class NemesisElevatorUser : MonoBehaviour
         if (stateManager == null || !stateManager.HasVisualTarget) return false;
 
         NemesisDecision decision = stateManager.Decision;
-        return decision != null && !decision.RouteToBeliefCrossesFloors;
+        return decision != null && decision.RouteToBeliefIsCompleteOnFoot;
     }
 
     private bool IsOnCooldown(NemesisElevatorLink elevator) =>

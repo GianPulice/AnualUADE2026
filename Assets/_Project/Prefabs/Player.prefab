@@ -429,6 +429,11 @@ MonoBehaviour:
   idleLoop: {fileID: 8300000, guid: 79e1035ec962c6c45a263b417e9e26ce, type: 3}
   dangerLoop: {fileID: 8300000, guid: 7f3e2acd077214347a91c533ba18550b, type: 3}
   criticalLoop: {fileID: 8300000, guid: 7ee9a711160e18e4aab277aba7393ff6, type: 3}
+  alertProximity: 0.05
+  dangerProximity: 0.35
+  criticalProximity: 0.7
+  tierHysteresis: 0.05
+  calmDownSeconds: 3
   source: {fileID: 5563071216055759055}
   volume: 0.8
   fadeDuration: 0.45

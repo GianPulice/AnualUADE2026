@@ -14,7 +14,7 @@ using Object = UnityEngine.Object;
 /// Builds the "Hiding Lab" inside NemesisTestbed: the Hiding Test Area of TestIñaki (a locker in
 /// sight, a locker round the corner, a table, a container), spread over corridors and closed rooms
 /// so the Fase 2 hiding cases (checklist H-1..H-10) can be played next to the rest of the testbed,
-/// and so NemesisRooms has real rooms to tell apart (§3.4: "seen entering a room").
+/// and so the lab has real rooms to tell apart (§3.4: "seen entering a room"), named by the <ROOM>_Floor_<n> convention.
 ///
 /// LAYOUT (world metres, north = +z). East of PASILLO, whose east wall gets two 4 m openings:
 ///
@@ -45,7 +45,7 @@ using Object = UnityEngine.Object;
 ///   Route_HidingLab walks all of it and is added to the testbed Nemesis's routes.
 ///
 /// ROOMS. Each room and corridor has its own floor named "HL_&lt;ROOM&gt;_Floor", which is how
-/// NemesisRooms keys rooms (the part before "_Floor").
+/// rooms are keyed by the part before "_Floor".
 ///
 /// THE SPOTS' OWN COLLIDERS. The testbed bakes Ground | Wall | Props, not Default, and a locker's
 /// and the container's solid collider stay on Default by design (plan §14.4). So each spot gets a
@@ -523,7 +523,7 @@ public static class NemesisTestbedHidingLabBuilder
 
         // ── Floors ──────────────────────────────────────────────────────────
 
-        /// <summary>One floor per room, named so NemesisRooms keys each one apart.</summary>
+        /// <summary>One floor per room, named so each one is keyed apart (the part before "_Floor").</summary>
         private void BuildFloors(Transform root)
         {
             Transform group = Group("Floors (one per room)", root);

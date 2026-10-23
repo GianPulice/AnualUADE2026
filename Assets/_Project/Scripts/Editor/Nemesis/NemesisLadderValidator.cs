@@ -568,7 +568,6 @@ public static class NemesisLadderValidator
             Check = run => run.Entered(State.Searching)
                 ? "it searches the landing on a 31-second-old belief."
                 : null,
-            KnownIssue = "montacargas M1, etapa D1",
         };
     }
 

@@ -289,9 +289,12 @@ public class NemesisController : MonoBehaviour
     /// which is the older behaviour — see SO_NemesisData.ClusterPatrolEnabled for why that reads
     /// as the monster teleporting around the level.
     ///
-    /// Either way this is a fresh decision and deliberately NOT biased towards staying nearby:
-    /// arriving here means it just gave up a chase or a search, and pinning it to the zone it
-    /// lost you in is the opposite of what should happen next.
+    /// A fresh decision, and NOT biased towards staying nearby by default: arriving here means it
+    /// just gave up a chase or a search, and pinning it to the zone it lost you in is the opposite
+    /// of what should happen next. Two exceptions, both asked for explicitly: a cycle entered
+    /// straight out of Searching prowls the neighbouring zones (<see cref="RequestNearbyPatrol"/>,
+    /// below), and during a hunt and its grace the roll leans towards the zones where the search
+    /// left value on the possibility map (plan §19.5, E3, <see cref="UsesSearchMapValue"/>).
     /// </summary>
     public void BeginPatrolCycle()
     {
@@ -607,8 +610,30 @@ public class NemesisController : MonoBehaviour
         bool hasBelief = TryGetPlayerBeliefPosition(out Vector3 belief);
         bool hasZoneAnchor = TryGetZoneAnchor(out Vector3 zoneAnchor);
 
-        return NemesisClusterPatrol.Settings.From(Data, hasBelief, belief, BeliefFreshness(),
-                                                  applyNeighbourBias, hasZoneAnchor, zoneAnchor);
+        NemesisClusterPatrol.Settings settings = NemesisClusterPatrol.Settings.From(
+            Data, hasBelief, belief, BeliefFreshness(), applyNeighbourBias, hasZoneAnchor, zoneAnchor);
+
+        return UsesSearchMapValue() ? settings.WithMapValue(stateManager.PossibilityMap,
+                                                            Data.PatrolMapValueStrength,
+                                                            Data.PatrolMapValueRadius,
+                                                            Data.PatrolMapValueFullShare)
+                                    : settings;
+    }
+
+    /// <summary>
+    /// Whether the cluster roll leans towards the value the search left behind (plan §19.5, E3).
+    /// Only during a hunt and its grace, which is when the map still means something (it spreads
+    /// out and is nearly flat after ~30 s), and never while the Director is pressing a zone: its
+    /// Relax retreat and its pressure have to keep winning the roll.
+    /// </summary>
+    private bool UsesSearchMapValue()
+    {
+        SO_NemesisData data = Data;
+        if (data == null || data.PatrolMapValueStrength <= 1f) return false;
+        if (stateManager == null || stateManager.PossibilityMap == null) return false;
+        if (!IsInHuntOrGrace) return false;
+
+        return !NemesisDirector.TryGetPressureAnchor(out _);
     }
 
     /// <summary>

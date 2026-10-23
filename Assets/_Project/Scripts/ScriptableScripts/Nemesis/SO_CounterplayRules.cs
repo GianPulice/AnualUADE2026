@@ -74,7 +74,7 @@ public class SO_CounterplayRules : ScriptableObject, IHabitRules
     [Header("What counts as near (R1)")]
     [Tooltip("NavMesh metres. 'Hunting nearby' is the Nemesis investigating, chasing or searching " +
              "within this of the hidden player's spot, and an escape while hidden is a search that " +
-             "ended within this of it. Of the order of the room sweep (Room Sweep Radius, 8): the " +
+             "ended within this of it. Of the order of the room radius (Room Sweep Radius, 8 in the asset): the " +
              "12 m of the proximity vignette covers almost the whole of a dense level.")]
     [SerializeField, Min(1f)] private float nearbyRadius = 8f;
 

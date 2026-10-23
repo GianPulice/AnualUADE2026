@@ -82,6 +82,10 @@ Los tres corren simultáneos y se tunean desde `SO_NemesisData.asset`. Los núme
 
 La detección **no es todo o nada**. Adentro de `focusAngle` te vio y listo. Entre `focusAngle` y `viewAngle` hay una banda periférica que va acumulando sospecha mientras te mantengas ahí, y la pierde a `awarenessDecayRate` cuando salís. Agacharse **no rompe la línea de visión**, sólo acorta el alcance: una silueta más baja es más difícil de distinguir, no invisible.
 
+**El alcance se adapta a la persecución (04/10, `Logic/AdaptiveViewRange`).** Los 7 m son el alcance para *notarte*; una vez que te vio, el alcance para *seguir viéndote* crece: sostenerte vale ×`viewHoldScale` (2, hasta 14 m) y, si te pierde cazándote, el rango para volver a verte crece de 7 a 14 m en `viewHuntGrowTime` (2 s) y vuelve a bajar en `viewHuntSettleTime` (2 s). Un ruido solo no lo agranda. Se apila con la escalada y el Director sin tope, así que puede pasar los 20 m; con `viewHoldScale` y `viewHuntScale` en 1 se apaga. F9 (`view_range`, `view_why` en el trace) dice con qué rango está mirando. A menos de 2,3 m de frente te ve al instante: antes medía desde los pies y te tomaba "de reojo".
+
+**La mirada en las esquinas (03/10, `Logic/ChaseGaze`).** Mientras te ve, los ojos siguen puestos en vos aunque el cuerpo gire por el camino. Al perderte, apuntan 6 m más allá del último punto en el rumbo que te vio llevar, así que llega mirando el pasillo y no la pared. Sólo usa lo que observó, nunca tu posición real. Gira a `gazeTurnSpeed`.
+
 Estar `Hidden` (escondido) **ya no** salta la vista por completo: según el escondite, el Nemesis todavía te distingue a una fracción de `viewRange`, y eso nunca arranca una persecución directa. Ver *Escondites*.
 
 **De dónde sale el cono.** De `ViewPoint`, un hijo de la **raíz** del prefab a 2 m de altura y 0,3 m adelante — no de un hueso. Colgado de la cabeza se movía con la animación (60 cm de lado a lado y entre 9° y 30° de giro al caminar, 40° hacia abajo en el agarre), así que lo que veía dependía del cuadro del clip. Hacia dónde mira lo decide `LookDirection`, no la cabeza del modelo. El costo: el ojo queda entre 0,4 y 0,8 m detrás de donde se dibuja la cabeza.
@@ -179,7 +183,7 @@ Cuando cambia de idea se frena ~0.4 s girando hacia lo nuevo antes de caminar. F
 
 **Sospecha compartida.** Un ruido **suave** tuyo (agachado) sube el mismo medidor que un vistazo: juntos lo ponen en sospecha más rápido. Un ruido solo nunca llega a ser un avistamiento.
 
-**Escondites que usaste.** Cuando busca o investiga una zona, sortea los escondites que usaste **ahí**: el más usado primero, con la chance del medidor de la Fase 3 (×0.25, tope 0.85). Si sale uno, lo sospecha y va a abrirlo. Nunca cruza el nivel por uno. La primera vez sólo pasa si estás a ≤ 12 m, para que lo veas u oigas. Y un segundo ruido desde el mismo escondite (una exhalación, un suspiro) lo vuelve sospechoso: va y lo abre.
+**Escondites por el mapa (plan §19.5, E2; D38 y D41, 22/10).** Cuando busca, sortea los escondites donde el mapa de búsqueda guarda valor, el que más tiene primero y una vez por búsqueda (`SpotOpenRules`, en `Logic/`). Uno que **usaste** se abre por valor × hábito: la chance del medidor de la Fase 3 (×0.25, tope 0.85) completa cuando el escondite tiene `Spot Map Habit Full Share` (5 %) del valor total, y proporcional por debajo; con el mapa ya limpio ahí, no se abre aunque lo hayas usado mucho. Uno que **nunca usaste** sólo se abre si tiene al menos `Spot Map Never Used Min Share` (25 %) del valor, con `Spot Map Never Used Chance` (30 %): el mapa solo puede abrirlo y sólo cuando está cerrando el cerco. `Investigating` ya no sortea escondites. La primera vez por hábito sólo pasa si estás a ≤ 12 m de donde el mapa está más denso, para que lo veas u oigas. Y un segundo ruido desde el mismo escondite (una exhalación, un suspiro) lo vuelve sospechoso: va y lo abre.
 
 ---
 
@@ -198,6 +202,8 @@ Cada ruta tiene:
 **La patrulla es por ZONA, no por waypoint.** `NemesisClusterPatrol` agarra un cúmulo de waypoints cercanos (`clusterRadius` 12, hasta `maxClusterSize` 5), lo barre entero, y después se muda a un cúmulo vecino. Sin esto el monstruo salta de una punta del nivel a la otra y se lee como teletransporte. Los cúmulos recién barridos bajan de peso, que es lo que evita que haga ping-pong entre dos vecinos.
 
 El Nemesis **no está encerrado en la ruta que le tocó**: `NemesisRouteGraph` fusiona todas las rutas desbloqueadas y resuelve qué waypoints están en la misma isla de NavMesh, así que puede tomar prestado un waypoint de otra ruta y adoptarla. Así cambia de piso.
+
+**Después de la caza se inclina hacia lo que quedó sin revisar** (plan §19.5, E3). Mientras dura la caza y su gracia (`Hunt Grace Seconds`, 45 s), el sorteo de cúmulo multiplica cada zona hasta ×`Patrol Map Value Strength` (3) según cuánto del valor del mapa de búsqueda queda a `Patrol Map Value Radius` (8 m); lo recibe completo con `Patrol Map Value Full Share` (10 %) del total. Nunca mientras el Director presiona una zona, así que la retirada de `Relax` sigue ganando. Strength en 1 lo apaga.
 
 **Variación semialeatoria**: cada vez que vuelve a `Patrolling` hay 15 % de invertir el sentido y 15 % de saltear el próximo waypoint (`routeReverseChance` / `routeSkipWaypointChance`). Es lo que impide memorizar la ronda.
 
@@ -224,15 +230,14 @@ Ojo con la capa del volumen: `NavMeshSurface` filtra los modifier volumes por su
 
 **Te pierde de vista → va a donde te vio.** Sin la vista no predice ni flanquea: corre al último punto donde te **vio** —no al último ruido: el que corta la línea de visión y sigue corriendo se oye hasta el locker— y recién al llegar pasa a `Searching`. Tope de 10 s (peldaño "va a donde lo vio por última vez"). La búsqueda arranca ahí mismo, parado `searchPauseTime` (1.2 s) mirando alrededor, salvo que después te haya oído más allá: entonces va directo ahí.
 
-**Cómo busca (desde el 27/09, plan §18, Fase 2B parte 2).** Barre puntos del NavMesh alrededor de la creencia, no waypoints:
-- **Primero el punto.** Va al punto de la evidencia —donde te vio o te oyó por última vez— y recién después barre alrededor. También cuando te oye en un lugar del disco donde todavía no miró. No con un ruido desde un escondite (D22): ese punto es la puerta del locker. F9: "yendo al último punto".
-- **El disco.** El radio sale de la precisión de la última evidencia: `searchSweepMinRadius` (3 m) para un avistamiento; más ancho para un paso a través de una pared; ×2 (`beliefNoiseHidingSpotFactor`) para una respiración que sale de un escondite. Se le suma `searchSweepEvidenceMargin` (1 m) y el tope es `roomSweepRadius` (8).
-- **Cuando lo cubre**, se abre de a 2.5 m hasta el tope.
-- **Te oye adentro del disco:** corre el centro sin cortar lo que está haciendo.
-- **Te oye afuera:** re-centra el disco ahí, sin olvidar lo que ya barrió.
-- **Los señuelos y el ruido del Director no mueven el barrido.**
-- **Sin creencia** barre `searchSweepRadius` (5 m) alrededor de donde está.
-- **La habitación.** Si te vio entrar a un cuarto, lo barre primero mientras le queden puntos sin mirar. Qué es "el cuarto" lo decide `NemesisRooms` por el collider del piso: en Zona1, el nombre `<CUARTO>_Floor_<n>`.
+**Cómo busca (mapa de búsqueda, desde el 04/10; reemplazó al disco del 27/09).** Decide *dónde* a partir del **mapa de posibilidades** (`NemesisPossibilityMap`): "qué tan posible es que el jugador esté acá", sobre un grafo del NavMesh. Lo que ve o oye siembra valor; el valor se dispersa a la velocidad del jugador corriendo, más rápido hacia donde iba; y lo que mira lo limpia.
+- **Elige por valor ÷ (1 + segundos de caminata)**, sorteado y nunca el máximo. Lo que ya limpió o no alcanza no vale nada.
+- **Primero el punto**, si la evidencia es precisa: donde te vio o te oyó por última vez. No con un ruido desde un escondite (D22): ese punto es la puerta del locker.
+- **Lo que oyó, lo va a ver aunque quede lejos** (WIR-058): la primera elección al salir de una persecución o de un montacargas o bajada, y la que responde a evidencia nueva, sólo piden una parte del valor; la caminata pesa en el sorteo pero no lo cancela.
+- **Mientras cruza un montacargas o una bajada el mapa no se dispersa** (22/10, D7): aterriza con lo que sabía al salir.
+- **Los señuelos y el ruido del Director no mueven la búsqueda.**
+- **Sin mapa ni creencia** reparte puntos a `searchSweepRadius` (5 m) alrededor de donde está.
+- **Los escondites son lugares del mapa** (22/10, D38/D41): ver *Escondites por el mapa*, más arriba.
 
 La intercepción (cortarte el paso en un waypoint) se sacó (D24).
 
@@ -240,7 +245,7 @@ La intercepción (cortarte el paso en un waypoint) se sacó (D24).
 - **Mínimo:** lleva menos de `searchMinTime` (6 s). Siempre mira un poco, y queda por debajo del aire que aguantás (8 s).
 - **Silencio:** o, si no, mientras el silencio es menor que `searchQuietWindow` (8 s) × la calidad de esa evidencia: ×1.25 si te vio (`searchQualitySight`) y ×0.75 si te oyó a través de una pared, un piso o un escondite (`searchQualityMuffled`). El silencio cuenta desde tu última evidencia o desde que llegó a ese punto, lo que sea más tarde, y no corre mientras camina hasta ahí (F9: "tibia (sin contar)").
 - **Tope:** nunca más de `searchHardCap` (30 s), aunque te siga oyendo. Al tope, si te oye, va a investigar.
-- **Revisó todo:** termina antes si ya barrió todo lo que alcanza con el disco en su tamaño máximo.
+- **Revisó todo:** termina antes si lo que queda en el mapa ya no vale la caminata.
 - **Qué lo renueva:** cada paso o exhalación tuya pone el silencio en cero. Los señuelos y lo que oye desde adentro del Hub, no (C5).
 - **Búsqueda corta (D26):** si investigó un ruido tuyo y no te encontró, pero el silencio (contado desde que llegó al ruido) es menor que la ventana, pasa a una búsqueda corta alrededor de la creencia, con el tope ×0.5 (`searchEscalatedCapScale`). Si lo que investigó era sólo un señuelo, no escala.
 - **El Director** estira o acorta la ventana y el tope según el ritmo (persistencia).
@@ -375,6 +380,15 @@ En Zona1 el Nemesis sólo existe acá. La secuencia vive en `Scripts/Escape/` y 
 
 Aparte, la **entrada tipo Mr. X**: aparece a 10–22 m por NavMesh, fuera de tu vista, y se queda `entranceStareSeconds` (2.5 s) mirándote antes de moverse. Sale sin hacer nada si el Nemesis no está activo.
 
+**Presencia: desaparece y se asoma (Zona 2).** Dos jugadas más del Director que mueven el cuerpo y no las decisiones; los números están en `SO_DirectorPacing` › *Presencia*. Las dos esperan a que el jugador no lo esté viendo.
+
+- **Desaparece.** Cuando una búsqueda termina sin encontrarte (en `BuildUp` o `Relax`), con 35 % de chance lo manda, a los 2–6 s, a un spawn point lejos tuyo (`NemesisController.ChooseSpawnPoint`: lejos por NavMesh, fuera de tu cono y detrás de geometría). Sólo si en ese momento está patrullando, a más de 14 m por NavMesh, tapado por una pared y sin que lo veas (`PlayerSeesNemesis`). Si no se da, reintenta 12 s y se descarta.
+- **Se asoma.** Después de desaparecer, con 60 % de chance vuelve a aparecer 10–25 s más tarde en el umbral de tu habitación, cuando creías que ya lo habías perdido. Es la entrada tipo Mr. X (fuera de tu vista, a 10–22 m), con dos agregados: nace **pegado a una pared** (busca primero un paso angosto, de hasta ~2.8 m, y si no hay ninguno acepta cualquier pared), y mientras se queda mirándote hace el **peek**.
+- **Aparece cerca, sin haberte perdido.** Cada 80–160 s tira una moneda (50 %) para hacer esa misma entrada, con el Nemesis patrullando, en `BuildUp` y fuera del Hub.
+- **Se asoma si hace rato que no lo ves** (22/10, `SO_DirectorPacing` › *Asomarse si hace rato que no lo ves*). Un reloj cuenta los segundos desde que el jugador vio al Nemesis por última vez (sólo corre con el Nemesis despierto y patrullando, en `BuildUp` y con vos fuera del Hub). Pasados `Unseen Peek After Seconds` (30 s) cada evaluación del Director (~3 s) tira una chance que sube en línea recta hasta `Unseen Peek Max Chance` (35 %) a los 60 s siguientes. Si sale, busca delante de la **cámara** del jugador (medio cono `Unseen Peek Cone Degrees`, 55°) un lugar a 7–16 m por NavMesh: un umbral o pasillo angosto pegado a una pared (como saliendo de otra habitación a un pasillo, o por entrar a una), en tu piso y con el cuerpo fuera de tu vista, para que lo que se vea sea el brazo. Si no hay ninguno adelante, no se asoma y reintenta en la próxima tirada. Después de cada peek el reloj vuelve a cero.
+- **Para verlo a demanda**: `NemesisPeekTrigger` (*WIRED/Nemesis/Peek Trigger*) en un volumen del pasillo, con un `Peek Spot` contra una pared. Al cruzarlo, el Nemesis se asoma 4 s en ese punto y se vuelve a dormir; se rearma a los 6 s. En la testbed: `Testbed/PeekDemo`.
+- **El peek** (`NemesisPeekRig`, se agrega solo al modelo si tiene `NemesisArmWallGuard`): sobre la animación `E_First_Contact` —la del modelo nuevo que nadie usaba— una IK de dos huesos pone una mano apoyada en la pared y estira la otra hacia vos. Baja `NemesisArmWallGuard` mientras dura, porque ese brazo apunta a una pared a propósito. Sin clip o sin huesos, la entrada es igual.
+
 Las zonas son `NemesisPressureZone` (un id y un radio, 12 por defecto). Piden presión los `Puzzle Triggers` del Director, la API estática (`RequestPressure`, `ReleasePressure`, `RequestEntrance`), el ritmo y F10. Un pedido nuevo reemplaza al anterior, y los disparadores por puzzle siempre le ganan al ritmo.
 
 **Ritmo** (`SO_DirectorPacing`, asignado en el Director): `NemesisTension` (se agrega solo junto al Director) lleva un medidor de 0 a 1 que sube con la proximidad del Nemesis, la persecución, que vos lo veas a él y estar escondido con el Nemesis buscando cerca; baja 0.03/s después de 4 s sin estímulos, y nunca en `Chasing` ni `Catch`. En 0.85 pasa a `SustainPeak` (3–5 s), después a `PeakFade` (suelta la presión que había puesto el propio ritmo y espera a que el encuentro termine solo) y después a `Relax` (30–45 s: la patrulla se inclina hacia la zona más lejana a vos, sólo con ancla y pesos). En `BuildUp`, tras `quietTimeout` (90 s) sin contacto —sin contar el tiempo en el Hub—, presiona la zona donde estás: 0.3, +0.15 cada 20 s, hasta 1.
@@ -385,7 +399,7 @@ Las zonas son `NemesisPressureZone` (un id y un radio, 12 por defecto). Piden pr
 
 ## Hábitos del jugador (Fase 3 del plan)
 
-`PlayerHabitTracker`, en la escena `Data`, cuenta lo que el jugador repite para escaparse y recuerda qué escondites usa. **Por ahora sólo cuenta: nada del juego reacciona todavía** (las contra-jugadas son la Fase 6). Esta etapa se juega con F9 abierto, para calibrar los umbrales con datos y no a ojo.
+`PlayerHabitTracker`, en la escena `Data`, cuenta lo que el jugador repite para escaparse y recuerda qué escondites usa. **Casi todo sólo cuenta**: de las contra-jugadas de la Fase 6 reacciona el flanqueo (ver abajo) y los escondites por el mapa (el medidor de cada uno). La emboscada a la salida, la defensa de salidas y romper escondites siguen sin existir. Esta etapa se juega con F9 abierto, para calibrar los umbrales con datos y no a ojo.
 
 Es del lado del Director: sabe dónde está el jugador de verdad, pero sólo decide *qué* comportamientos existen, nunca *adónde* va el Nemesis. Sobrevive a la captura y al checkpoint, y se borra con New Game.
 
@@ -532,7 +546,7 @@ Los `LayerMask` **no** están en los SO: viven en los componentes, porque son ca
 
 **Registro**: `NemesisTraceRecorder` (se agrega solo; editor y development build) escribe un CSV por sesión en `Logs/NemesisTrace/` (en un development build, en `persistentDataPath/NemesisTrace`): regla ganadora, sentidos, estado del camino y velocidad real, cada 0.25 s, en cada cambio de estado y cada vez que gana o pierde la vista (fila `sight`). Desde el 05/10 cada fila trae además hasta dónde llegó el último barrido de vista con el agachado ya aplicado (`view_range`), por qué el rango es ese (`view_scale`, `view_why`), si estás agachado, escondido o aguantando la respiración (`crouch`, `hidden`, `breath`), por qué no te está viendo (`sight_miss`: `range`, `cone`, `occluded`, `periphery`, `hidden`), por qué te perdió la última vez (`lost_sight_why`) y hace cuánto (`since_lost_sight`). La ruta sale una vez por consola. Se apaga con `record` en el componente.
 
-**Gizmos** (`NemesisGizmos`): se dibujan siempre, no sólo con el Nemesis seleccionado, con un toggle por bloque y un interruptor maestro `drawGizmos` que también apaga las rutas. Conos de visión a escala (normal, agachado, bajo mesa, foco), proximidad, oído, los tres radios de ruido del jugador por paso, alcance de captura, el barrido de la búsqueda (disco, centro, punto al que va y puntos ya barridos), lo que sabe de escondites, el rastro de la persecución, el punto predicho y el de flanqueo. En Zona1, el `GizmoManager` de la escena (`Scripts/Managers/GizmoManager.cs`) oculta gizmos por familia; un script nuevo que dibuje gizmos va en su `Families()`, no con un bool propio.
+**Gizmos** (`NemesisGizmos`): se dibujan siempre, no sólo con el Nemesis seleccionado, con un toggle por bloque y un interruptor maestro `drawGizmos` que también apaga las rutas. Conos de visión a escala (normal, agachado, bajo mesa, foco), proximidad, oído, los tres radios de ruido del jugador por paso, alcance de captura, el mapa de la búsqueda y el lugar que eligió, el radio de la creencia (`drawBelief`) y el valor del mapa sobre cada escondite, lo que sabe de escondites, el rastro de la persecución, el punto predicho y el de flanqueo. En Zona1, el `GizmoManager` de la escena (`Scripts/Managers/GizmoManager.cs`) oculta gizmos por familia; un script nuevo que dibuje gizmos va en su `Families()`, no con un bool propio.
 
 **Validación de nivel**:
 

@@ -367,7 +367,7 @@ documents, and none of it should be deleted for failing to match one.
 
 Ambience (four layers, event scheduler, placement resolver, tone baker, comfort toggle) · the vision
 fog and its Timeline track · the whole Nemesis director layer (`NemesisDirector`,
-`NemesisRouteGraph`, `NemesisPathOracle`, `NemesisFreeRoam`, `NemesisPressureZone`, zone gravitation,
+`NemesisRouteGraph`, `NemesisPathOracle`, `NemesisPressureZone`, zone gravitation,
 stuck escalation, telemetry, the test console and the editor validators) · the freight elevator and
 its own NavMesh · `MovingPlatform` and the carrier hookup · the additive-scene MVC UI framework,
 `UIStateManager` and `PauseManager` · the checkpoint system · the PS1 effect and every settings
@@ -1512,17 +1512,20 @@ together cross the threshold sooner (case 26). A noise alone raises the meter on
 used to drop it the moment a glimpse ended and the steps went on.
 
 **Hiding spots in the choice (§17.6, and the Nemesis half of Fase 2D).**
-`NemesisHidingAwareness.ConsiderUsedSpots(centre, radius, rolled)`: while Searching sweeps an area
-(on entry, re-centre and widen) and when Investigating arrives at a noise, the spots the player USED
-inside that area (`PlayerHabitTracker.CollectUsedSpots`) are rolled once each, most used first,
-against `OpenChance`; the first that comes up becomes SUSPECTED ("lo usaste antes") and the state
-walks over and opens it (case 39). Never outside the area (case 40, R4). R3: until the first such
-opening has happened (`CheckHidingSpots`, `HasRun`), nothing is rolled unless the player is within
-12 m of the AREA's edge and on its floor — a **gate**, asked once about the area (Plan-Busqueda Fase
-1). It used to be a per-spot filter against the player's real position, which always let their own
-spot through and tilted the roll towards it. `MarkRun` is called when that spot is OPENED (`Open`),
-not when it is picked — a suspicion dropped on the way does not spend the lesson. Spots gated out are
-not rolled. The rolled set lives for a search, or for an investigation (cleared on `EnterState`). And
+`NemesisHidingAwareness.ConsiderSpotsByMap(rolled)` (22/10, plan §19.5 E2; D38/D41): whenever Searching
+chooses a place, the spots the possibility map holds value in are rolled once each per search, most
+valuable first, against `SpotOpenRules.Chance` (pure, `WIRED.Nemesis.Logic`): a spot the player USED
+by value × habit (`PlayerHabitTracker.OpenChance`, scaled by the spot's share up to
+`SpotMapHabitFullShare`), a spot never used only from `SpotMapNeverUsedMinShare` of the map, with
+`SpotMapNeverUsedChance`. The first that comes up becomes SUSPECTED ("lo usaste antes … y el mapa lo
+marca") and the state walks over and opens it (case 39). A spot the map has cleared is not opened,
+however used (case 40). Investigating no longer rolls spots (D41). R3, kept: until the first opening
+by habit has happened (`CheckHidingSpots`, `HasRun`), used spots are not rolled unless the player is
+within 12 m of the map's densest node and on its floor — one **gate** about the map, never a per-spot
+filter against the player's real position (Plan-Busqueda Fase 1); a spot never used is not part of
+the lesson and is not held back. `MarkRun` is called when a habit spot is OPENED (`Open`), not when it
+is picked. A spot with no chance yet is not rolled: the map may close in on it later in the search.
+The rolled set lives for a search (cleared on `EnterState`). And
 D22's second half: a second noise from inside the same spot (a new burst after more than 1 s of quiet,
 within 1.5 m + the ear's `LocalizationError` of the first, inside 60 s) makes the spot nearest to
 where it was HEARD suspected ("volvió a sonar ahí") — possibly the next locker along.
@@ -1656,7 +1659,7 @@ straight line the Nemesis holds station instead of closing.
   `ChaseTimePrediction` along the observed velocity, and **keeps the dot guard**: if the lead point
   lands on the far side of the Nemesis — which is what happens when the player runs *at* it — it
   aims at the target instead of turning around and sprinting away. Only the chase predicts: since
-  plan Fase 2B part 2 the search sweeps around the belief and extrapolates nothing.
+  plan Fase 2B the search works off the possibility map and extrapolates nothing.
 - **The velocity is OBSERVED** (`FieldOfView.LastKnownVelocity`, measured between sightings) and
   never read off the player's movement code. That is the difference between predicting and
   cheating, and it is what keeps changing direction the instant you break line of sight a real
@@ -1678,33 +1681,30 @@ straight line the Nemesis holds station instead of closing.
   `TargetMatchRadius` (2.5 m) reuses the answer, which keeps a moving belief at one query per
   interval.
 
-**Searching sweeps NavMesh points around the belief** (plan §18.5 A, Fase 2B part 2, 27/09). It
-used to pick among patrol waypoints — a cut-off at "the waypoint ahead of you it reaches first"
-(`TryGetInterceptPoint`), a weighted roll over waypoints (`PickSearchTarget`) and a room sweep that
-offered the waypoints inside it first — and any noise at all re-aimed it every frame. In play that
-read as "it went to some node nearby instead of where it lost me, sometimes". All of that is gone
-(decision D24); now:
+**Searching decides WHERE off the possibility map** (Plan-Busqueda Fase 2b, 03–07/10; it replaced the
+disc sweep of plan §18.5 A, 27/09, which replaced the patrol-waypoint roll before it — decision D24).
+`NemesisSearchPicker` asks the map for its zones (`CollectZones`) and rolls one by
+`SearchPickRules.Worth` = share ÷ (1 + seconds to walk there): never an argmax, and what the map has
+cleared or cannot reach is worth nothing. `NemesisSearchingState` walks to it and looks around
+(`SearchPauseTime`); evidence that moves the value re-picks, and the place it is heading to is kept
+while it keeps a fraction of the value it had (`SearchPickRules`, pure, EditMode-tested).
 
-- **The disc** is centred on `NemesisBelief.Position` (snapped to the NavMesh) and sized off the
-  precision of the LAST EVIDENCE, `NemesisBelief.EvidenceRadius` + `SearchSweepEvidenceMargin`,
-  clamped to `SearchSweepMinRadius`..`RoomSweepRadius`. Not off the belief's current `Radius`: that
-  grows at the player's top speed and is already at the maximum by the time the Nemesis gets there.
-- **It moves only with new evidence about the PLAYER**, and only as much as it has to
-  (`SearchSweepRules`, pure, in `WIRED.Nemesis.Logic`, EditMode-tested): evidence inside the disc
-  slides the centre and changes nothing else; evidence outside it re-centres the disc and keeps the
-  swept memory. `NemesisBelief.Sequence` alone is not enough to decide — it goes up ~10 times a
-  second while the player is seen or heard. Leads (decoys, Director pulses) never move the sweep.
-- **It goes to the evidence point itself first** (`NemesisFreeRoam.IsAnchorPending`), then sweeps
-  around it: on entry, on a re-centre, and when evidence lands somewhere in the disc it has not
-  stood at yet. Not for the player's noise from inside a hiding spot
-  (`NemesisBelief.LastEvidenceFromHidingSpot`, D22): that point is the locker door. Rolling over the
-  disc from the start (weighted mostly towards "sooner") left it at the near edge, metres short of
-  where it lost the player — worst over long distances (playtest 27/09, plan §18.9). Entered at the
-  lost spot but having heard the player further on since, it skips the look-around there and goes.
-- **Once covered it widens** a step (`NemesisFreeRoam.WidenStep`) up to `RoomSweepRadius`; with
-  nowhere reachable at all it widens before falling back to a scatter.
-- **Without a belief** (entered from Catch, or on a known hiding spot alone) it sweeps
-  `SearchSweepRadius` around itself.
+- **The first pick out of a chase or a lift ride, and the one fresh evidence moves, is a visit OWED**
+  (`SearchPickRules.TakesPart`, WIR-058): a far place needs only its share of the value, and the walk
+  weighs in the roll instead of vetoing it. Heard from a catwalk, the area below is a long way round
+  by the stairs and used to fall under the worth threshold ("revisó todo" on the spot).
+- **The first pick out of a chase leans towards where the player was going**
+  (`SearchMapChaseHeadingBoost`, `SearchPickRules.HeadingWeight`).
+- **It goes to the evidence point itself first** when the evidence is precise, and not for the player's
+  noise from inside a hiding spot (`NemesisBelief.LastEvidenceFromHidingSpot`, D22): that point is the
+  locker door.
+- **Its own trail is covered** and what it hears or sees is measured walking (see the possibility
+  map): it does not turn back on the way it came.
+- **A crossing does not spread the map** (D7, 22/10): while the body is on a lift or a drop the value is
+  held, so it lands with what it knew when it set off and the first pick is a visit owed to the noise.
+- **Without a map or a belief** it scatters `SearchSweepRadius` around itself.
+- **Hiding spots are zones of the map too** (plan §19.5, E2, D38/D41): see *the focus*, hiding spots in
+  the choice.
 
 `SearchPauseTime` makes it stop at each point and look around before choosing the next, and it is
 armed on ARRIVAL (it used to be armed when setting off, which left the first point without a pause
@@ -1725,7 +1725,8 @@ predicate `IsSearchWarm` (20, appended), which reads `NemesisSearchingState.IsWa
    however much it still hears, and a player it hears sends it to investigate. It used to be 30 s,
    which cut a search short while the player was still audible and bounced it Searching ↔
    Investigating.
-3. **Looked everywhere.** Cold once the sweep is fully swept at its widest.
+3. **Looked everywhere.** Cold once nothing the map still holds is worth the walk
+   (`SearchPickRules.TakesPart`, `SearchMapWorthThreshold`).
 4. **Silence.** Otherwise warm while the silence is under `SearchQuietWindow` (8 s) × the quality of
    the last evidence: ×1.25 for a sighting, ×0.75 for a noise through a wall, a floor or a hiding spot
    (`NemesisBelief.LastEvidenceMuffled`). The silence (`NemesisSearchingState.Silence`) counts from
@@ -1778,53 +1779,27 @@ deciding that: `PickSearchTarget` rolls over graph nodes and reaches the free Na
 error path, so **a room with no waypoint inside it was a room the Nemesis could not look in**,
 however plainly it had just watched you walk into it.
 
-**`NemesisFreeRoam`** is the free-roam mover — plain class, same shape as `NemesisPursuit`, owned by
-the state that uses it — and since 27/09 it is the whole search. It samples points on the NavMesh
-around the anchor FIRST and adds two waypoints inside the area as extra candidates (a waypoint the
-designer put in a room is a considered opinion about it, but offering them first made the sweep a
-waypoint tour whenever enough of them fell inside the disc). Candidates more than 1.5 m above or
-below the anchor are dropped (another floor). Dropping the graph drops two guarantees that were
-free, and both are paid for explicitly:
+**Where the search goes is the possibility map's call** (see *Nemesis: the possibility map* and *chase and
+search*). `NemesisFreeRoam`, the disc sweep that was the whole search from 27/09 to 03/10, is gone, and
+so are its "entered room" priority and its swept-memory list: what it looked at is cleared on the map
+itself, and "looked everywhere" is "nothing left is worth the walk". Two of its rules survived:
 
-- **Reachability** — `NavMesh.SamplePosition` returns the nearest surface, including one on another
-  island. Every candidate is path-tested; an unreachable destination is how the agent ends up
-  pressed against a wall with `remainingDistance` at zero.
-- **Confinement** — a room is not a circle. The disc is clipped by
-  `FieldOfListening.IsOccludedByWall` from the anchor, so a doorway stays open and the corridor
-  behind the wall does not. There are no authored room volumes in the project; this is the derived
-  stand-in for one, and it will treat an L-shaped room as two.
+- **A noise from inside a hiding spot marks the area, not the door** (plan D22):
+  `FieldOfListening.HeardNoise.FromHidingSpot` widens the belief radius by
+  `BeliefNoiseHidingSpotFactor` (×2), so the area it seeds covers the room instead of the door.
+- **It walks to the evidence point only when the point means something** (Plan-Busqueda Fase 1,
+  WIR-057): a sighting, or a noise whose evidence radius is at most `SearchPreciseNoiseRadius`. Any
+  vaguer noise is searched around without visiting the point, which for a run that ends in a locker is
+  the locker door. `NemesisSearchingState.MayVisit` is the rule; F9's `creencia` row prints it as
+  `ancla: vista / ruido preciso / zona`.
 
-Swept memory here is **spatial** (a list of positions, `SweptRadius` apart), not node indices, since
-most destinations are not nodes. A point is marked when the Nemesis gets THERE (`MarkSwept`), not
-when it is picked; `Recenter`, `MoveAnchor` and `Widen` move or grow the area without forgetting it.
-`IsFullySwept` ("every reachable candidate of the last pick was already swept") is distinct from
-`HasCoverage` false ("nothing reachable at all"): only the first is "I have looked everywhere here".
+`SearchPauseTime` and the map tunables (`SearchMap*`) are the knobs; `NemesisGizmos` draws the map
+(`drawPossibilityMap`), the pick (`drawSearchPick`), the belief's radius (`drawBelief`) and, over each
+hiding spot, the share of the map inside it. F9's "búsqueda" and "mapa" rows show the same numbers.
 
-**The entered room.** When the evidence is precise enough to say which side of a doorway the player
-is on (a sighting, or a noise pinned to ~2 m), the sweep favours that room — for a sighting, the room
-a step and a half ahead along the OBSERVED velocity, since the last sighting is usually the doorway.
-The priority holds only while that room still has unswept candidates.
-
-**A noise from inside a hiding spot marks the area, not the door** (plan D22):
-`FieldOfListening.HeardNoise.FromHidingSpot` widens the belief radius by
-`BeliefNoiseHidingSpotFactor` (×2), so a search sized off a breath heard from a locker sweeps the
-room instead of pacing in front of the door for longer than the player can hold their breath.
-
-**It walks to the evidence point only when the point means something** (Plan-Busqueda Fase 1,
-WIR-057): a sighting, or a noise whose evidence radius is at most `SearchPreciseNoiseRadius` (heard
-right beside it). Any vaguer noise is swept around without visiting the point, which for a run that
-ends in a locker is the locker door. `NemesisSearchingState.MayVisitEvidence` is the rule; F9's
-`creencia` row prints it as `ancla: vista / ruido preciso / zona`.
-
-Tunables: `RoomSweepRadius` (the maximum), `SearchSweepMinRadius`, `SearchSweepEvidenceMargin`,
-`SearchSweepRadius` (no belief), `SearchSweptPenalty`, `SearchPauseTime`. Drawn by `NemesisGizmos`
-(`drawRoomSweep`) as the anchor, its radius, a line to the current point and the swept trail in
-visit order — a trail that keeps crossing itself means `SearchSweptPenalty` is too weak. F9's
-"búsqueda" row shows the same numbers.
-
-**Level-design consequence worth knowing:** before this, a room with no waypoints was one the
-Nemesis could not search. That was an accidental difficulty valve, and it is now gone — rooms that
-played as safe need re-testing.
+**Level-design consequence worth knowing:** a room with no waypoints used to be one the Nemesis could
+not search, an accidental difficulty valve. The map has no such limit, so rooms that played as safe need
+re-testing.
 
 ### Nemesis: generated sweep points
 
@@ -1906,7 +1881,7 @@ the locker the player was in. F9's `presión` row says which of the two switched
 **`NemesisPossibilityMap`** (a facade sibling, added by `ResolveSibling`, ticked after the belief and
 the hiding awareness) keeps "how possible is it that the player is here" over a graph of the level —
 Damián Isla's occupancy maps. The belief knows where it sensed the player; this says where they can be
-now. **Fase 2a: it only watches** — nothing decides off it yet; the gizmo and F9 are how it is judged.
+now. The search, the hiding spots and the post-hunt patrol decide off it; the gizmo and F9 are how it is judged.
 
 - **The graph** (`NemesisPossibilityGraphBuilder`, once per level load): the Nemesis agent's NavMesh
   triangles rasterised every `SearchMapNodeSpacing` m, one node per floor per column, linked to
@@ -1942,9 +1917,11 @@ now. **Fase 2a: it only watches** — nothing decides off it yet; the gizmo and 
   its live range, the trail and its blocked nodes as grey squares, a line to the likeliest place) and
   F9's `mapa` row (share on its floor, likeliest place and its share within 4 m, spread as m², Hub and
   hiding-spot shares, nodes cleared last tick and the clear range, nodes the trail blocks).
-- **Next** (the plan's 2b–2e): the search picks by value ÷ (1 + time to get there) instead of a disc,
-  cooling becomes "the value is too spread to be worth it", the noise-led short search and the
-  post-hunt patrol read it, and hiding spots open on value × habit (D38).
+- **Read by** the search (value ÷ (1 + time to get there), cooling as "nothing left is worth the
+  walk"), the hiding spots (value × habit, D38/D41) and, after a hunt, the cluster patrol
+  (`PatrolMapValue`, plan §19.5 E3: a zone holding value is up to `PatrolMapValueStrength` times likelier,
+  only while hunting or in its grace and never over a Director pressure). It is held still while the body
+  is on a lift or a drop (D7).
 
 ### Editor tools
 

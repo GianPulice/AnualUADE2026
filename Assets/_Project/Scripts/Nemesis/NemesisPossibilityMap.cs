@@ -33,7 +33,7 @@ using UnityEngine.AI;
 /// time go to the Console.
 /// </summary>
 [DisallowMultipleComponent]
-public class NemesisPossibilityMap : MonoBehaviour
+public class NemesisPossibilityMap : MonoBehaviour, IClusterValueSource
 {
     /// <summary>
     /// Metres of height a node may sit above or below a point and still be on its floor: "same
@@ -199,7 +199,14 @@ public class NemesisPossibilityMap : MonoBehaviour
         if (!TakeEvidence(data, now)) BlockTrail(data);
         if (!map.HasValue) return;
 
-        map.Spread(dt, data.SearchMapSpreadSpeed, now, data.SearchMapHeadingBias, data.SearchMapHeadingDuration);
+        // Held still while its body is on a lift or a drop (plan §19.3 WIR-058, D7). The crossing takes
+        // seconds in which it is not looking anywhere, and the value was spreading at the player's
+        // running speed the whole time: it landed on a map that had gone flat, and the place it
+        // had been sent to by a noise was no longer owed a visit. What it knew when it set off is
+        // what it lands with; the next tick that sees it spread again.
+        if (!stateManager.IsUsingElevator)
+            map.Spread(dt, data.SearchMapSpreadSpeed, now, data.SearchMapHeadingBias, data.SearchMapHeadingDuration);
+
         ClearWhatItSees(data);
         map.Drain();
         map.Normalize();
@@ -504,6 +511,13 @@ public class NemesisPossibilityMap : MonoBehaviour
         position = node >= 0 ? map.Graph.Position(node) : Vector3.zero;
         return node >= 0;
     }
+
+    /// <summary>The share (0..1) of the map's value inside a hiding spot's own node (plan §19.5, E2).
+    /// 0 for a spot the map does not know, or with no map.</summary>
+    public float ShareInSpot(HidingSpot spot) =>
+        map != null && map.HasValue && spot != null && nodeOfSpot.TryGetValue(spot, out int node)
+            ? map.Value(node)
+            : 0f;
 
     /// <summary>The value within <paramref name="radius"/> of a point, on its floor.</summary>
     public float ShareNear(Vector3 point, float radius) =>

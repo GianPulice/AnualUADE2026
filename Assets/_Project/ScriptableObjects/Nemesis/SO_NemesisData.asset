@@ -86,6 +86,12 @@ MonoBehaviour:
   zonePlayerBiasStrength: 4
   zonePlayerBiasFalloff: 40
   huntGraceSeconds: 45
+  spotMapHabitFullShare: 0.05
+  spotMapNeverUsedMinShare: 0.25
+  spotMapNeverUsedChance: 0.3
+  patrolMapValueStrength: 3
+  patrolMapValueRadius: 8
+  patrolMapValueFullShare: 0.1
   crossRouteTransferChance: 0.3
   waypointBiasSampleCount: 8
   catchMaxReach: 1

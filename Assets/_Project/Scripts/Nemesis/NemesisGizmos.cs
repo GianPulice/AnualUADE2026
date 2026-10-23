@@ -165,6 +165,13 @@ public class NemesisGizmos : MonoBehaviour
              "outside it.")]
     [SerializeField] private bool drawHidingKnowledge = true;
 
+    [Header("Belief")]
+    [Tooltip("Where it believes the player is and how sure it is: a disc of the belief's radius " +
+             "around its position (plan §17.3, 2B part 5). Small and solid while it has a sighting " +
+             "(0.5 m), wider and fainter as the evidence gets older or came through a wall or a " +
+             "hiding spot. The label says what the evidence was and how old it is. Play mode only.")]
+    [SerializeField] private bool drawBelief = true;
+
     [Header("Chase")]
     [Tooltip("While chasing: a ring of Chase Trail Penalty Radius around every waypoint on the " +
              "sensed trail (where the player was sensed passing). Those are the detour waypoints " +
@@ -243,6 +250,7 @@ public class NemesisGizmos : MonoBehaviour
         if (drawPossibilityMap) DrawPossibilityMap(data, manager, eye);
         if (drawSearchPick || drawPossibilityMap) DrawSearchPick(data, manager);
         if (drawHidingKnowledge) DrawHidingKnowledge(manager);
+        if (drawBelief) DrawBelief(manager);
         DrawPursuit();
         if (drawChaseTrail) DrawChaseTrail(data);
     }
@@ -530,9 +538,63 @@ public class NemesisGizmos : MonoBehaviour
     /// passive blue for a suspicion, which is also the colour of the state that goes to look at
     /// one (Investigating) in NemesisDebugHUD. Play mode only: there is nothing to know outside it.
     /// </summary>
+    /// <summary>
+    /// The fused belief as a disc: its position and its radius right now. The radius is the number
+    /// "todavía sabe dónde está" (Chase Hold Radius) and the search's disc are read from, so drawing
+    /// it is what lets a tuning of either be checked against a real chase. Fainter the wider it is.
+    /// </summary>
+    private void DrawBelief(NemesisStateManager manager)
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisBelief belief = manager.Belief;
+        if (belief == null || !belief.HasBelief) return;
+
+        float radius = belief.Radius;
+        if (float.IsInfinity(radius) || float.IsNaN(radius)) return;
+
+        float certainty = Mathf.Clamp01(1f - radius / 10f);
+        Color color = Color.Lerp(new Color(SearchColor.r, SearchColor.g, SearchColor.b, 0.35f), SearchColor, certainty);
+
+        DrawDisc(belief.Position, radius, color);
+
+        Gizmos.color = color;
+        Gizmos.DrawWireSphere(belief.Position + Vector3.up * 0.1f, 0.15f);
+
+        string how = belief.IsAnchoredBySight ? "vista" : "oído";
+        DrawLabel(belief.Position + Vector3.up * 1.2f,
+                  $"cree que está acá ({how}, {belief.Age:0.#} s, r {radius:0.#} m)", color);
+    }
+
+    /// <summary>
+    /// What the possibility map holds inside each hiding spot (plan §19.5, E2): the share the search
+    /// rolls it by (<see cref="SpotOpenRules"/>). A label over every spot with something in it, so
+    /// "why did it open that locker" has an answer on screen.
+    /// </summary>
+    private void DrawSpotValues(NemesisStateManager manager)
+    {
+        NemesisPossibilityMap map = manager.PossibilityMap;
+        if (map == null) return;
+
+        System.Collections.Generic.IReadOnlyList<HidingSpot> spots = HidingSpot.Active;
+        for (int i = 0; i < spots.Count; i++)
+        {
+            HidingSpot spot = spots[i];
+            if (spot == null) continue;
+
+            float share = map.ShareInSpot(spot);
+            if (share < 0.005f) continue;
+
+            Vector3 at = spot.transform.position + Vector3.up * 2.1f;
+            DrawLabel(at, $"mapa {share:P0}", SearchColor);
+        }
+    }
+
     private void DrawHidingKnowledge(NemesisStateManager manager)
     {
         if (!Application.isPlaying) return;
+
+        DrawSpotValues(manager);
 
         HidingSpot known = manager.KnownHidingSpot;
         HidingSpot spot = known != null ? known : manager.SuspectedHidingSpot;
