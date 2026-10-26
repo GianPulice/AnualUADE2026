@@ -6,13 +6,20 @@ using UnityEngine;
 /// children are switches 0, 1, 2… in hierarchy order; the ones past the asset's switch count are
 /// hidden.
 ///
-/// Positions live in <see cref="PuzzleStateManager"/> (as 0/1 valve positions, see
-/// <see cref="SO_SwitchPuzzleData.SwitchStateKey"/>), so a checkpoint rollback puts the switches
-/// back where they were. Checked on every flip, as the spec asks: the moment the last switch lands
-/// right, the puzzle completes and the row locks.
+/// Positions live in <see cref="PuzzleStateManager"/> (as valve positions: <see cref="Middle"/>,
+/// <see cref="Down"/> or <see cref="Up"/>, see <see cref="SO_SwitchPuzzleData.SwitchStateKey"/>), so
+/// a checkpoint rollback puts the switches back where they were. A switch that starts in the middle
+/// goes up on its first flip and from then on only between up and down; the middle never matches
+/// an arrow, so every switch has to be flipped at least once. Checked on every flip, as the spec
+/// asks: the moment the last switch lands right, the puzzle completes and the row locks.
 /// </summary>
 public class SwitchPanelController : MonoBehaviour
 {
+    /// <summary>Never flipped yet: the handle stands straight out, neither up nor down.</summary>
+    public const int Middle = -1;
+    public const int Down = 0;
+    public const int Up = 1;
+
     [SerializeField] private SO_SwitchPuzzleData puzzleData;
 
     private SwitchInteractable[] switches = new SwitchInteractable[0];
@@ -56,25 +63,31 @@ public class SwitchPanelController : MonoBehaviour
 
         for (int i = 0; i < switches.Length && i < puzzleData.SwitchCount; i++)
         {
-            PuzzleStateManager.Instance.SetValvePosition(puzzleData.SwitchStateKey(i), IsUp(i) ? 1 : 0);
+            PuzzleStateManager.Instance.SetValvePosition(puzzleData.SwitchStateKey(i), Position(i));
             switches[i].SnapToState();
         }
     }
 
-    public bool IsUp(int index)
+    /// <summary><see cref="Middle"/>, <see cref="Down"/> or <see cref="Up"/>.</summary>
+    public int Position(int index)
     {
-        if (puzzleData == null) return false;
-        int fallback = puzzleData.StartUp ? 1 : 0;
-        if (!PuzzleStateManager.Exists) return fallback == 1;
-        return PuzzleStateManager.Instance.GetValvePosition(puzzleData.SwitchStateKey(index), fallback) == 1;
+        if (puzzleData == null) return Middle;
+        int start = StartPosition();
+        if (!PuzzleStateManager.Exists) return start;
+        return PuzzleStateManager.Instance.GetValvePosition(puzzleData.SwitchStateKey(index), start);
     }
 
-    /// <summary>Flips one switch and checks the whole row.</summary>
+    private int StartPosition() =>
+        puzzleData.StartsAt == SO_SwitchPuzzleData.StartPosition.Up ? Up
+        : puzzleData.StartsAt == SO_SwitchPuzzleData.StartPosition.Down ? Down
+        : Middle;
+
+    /// <summary>Flips one switch (up from the middle or from down, down from up) and checks the whole row.</summary>
     public void Flip(int index)
     {
         if (puzzleData == null || IsCompleted || !PuzzleStateManager.Exists) return;
 
-        PuzzleStateManager.Instance.SetValvePosition(puzzleData.SwitchStateKey(index), IsUp(index) ? 0 : 1);
+        PuzzleStateManager.Instance.SetValvePosition(puzzleData.SwitchStateKey(index), Position(index) == Up ? Down : Up);
 
         if (AudioManager.Exists && !string.IsNullOrEmpty(puzzleData.FlipSoundId))
             AudioManager.Instance.PlaySFX(puzzleData.FlipSoundId, switches[index].transform.position);
@@ -84,8 +97,9 @@ public class SwitchPanelController : MonoBehaviour
 
     private void CheckSwitches()
     {
+        // A switch still in the middle matches neither answer.
         for (int i = 0; i < puzzleData.SwitchCount; i++)
-            if (IsUp(i) != puzzleData.IsCorrectUp(i)) return;
+            if (Position(i) != (puzzleData.IsCorrectUp(i) ? Up : Down)) return;
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(puzzleData.PuzzleId);
 

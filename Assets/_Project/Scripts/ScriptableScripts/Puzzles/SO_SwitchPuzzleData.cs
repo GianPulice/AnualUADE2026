@@ -18,6 +18,13 @@ public class SO_SwitchPuzzleData : ScriptableObject
         TriggerZone
     }
 
+    public enum StartPosition
+    {
+        Middle,
+        Down,
+        Up
+    }
+
     [System.Serializable]
     public struct ModuleLightDegradation
     {
@@ -36,8 +43,10 @@ public class SO_SwitchPuzzleData : ScriptableObject
              "number of switches (the prefabs carry 5).")]
     [SerializeField] private bool[] correctUp = { true, false, true, true, false };
 
-    [Tooltip("Where every switch starts. Ticked = up.")]
-    [SerializeField] private bool startUp;
+    [Tooltip("Where every switch starts. Middle = handle straight out, neither up nor down: the " +
+             "first flip takes it up, after that it only goes between up and down, and the puzzle " +
+             "cannot be solved while any switch is still in the middle.")]
+    [SerializeField] private StartPosition startPosition = StartPosition.Middle;
 
     [Header("Arrow wall")]
     [Tooltip("What reveals the arrows.\n" +
@@ -80,7 +89,7 @@ public class SO_SwitchPuzzleData : ScriptableObject
 
     public string PuzzleId => puzzleId;
     public int SwitchCount => correctUp != null ? correctUp.Length : 0;
-    public bool StartUp => startUp;
+    public StartPosition StartsAt => startPosition;
     public RevealMode Reveal => revealMode;
     public float RevealFadeSeconds => revealFadeSeconds;
     public float LightReachFraction => lightReachFraction;
@@ -115,7 +124,8 @@ public class SO_SwitchPuzzleData : ScriptableObject
     public bool IsCorrectUp(int index) => correctUp != null && index >= 0 && index < correctUp.Length && correctUp[index];
 
     /// <summary>
-    /// Key the switch position is stored under in PuzzleStateManager (as a 0/1 "valve position"),
+    /// Key the switch position is stored under in PuzzleStateManager (as a "valve position":
+    /// SwitchPanelController.Middle, Down or Up),
     /// so checkpoints snapshot and restore it like every other puzzle state.
     /// </summary>
     public string SwitchStateKey(int index) => $"{puzzleId}/switch_{index}";
