@@ -9,12 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6a0736ce6f57a364f87a6a911a23e672, type: 3}
-  m_Name: SO_Activator_SP3_Mechanism
-  m_EditorClassIdentifier: Assembly-CSharp::SO_PuzzleActivatorData
+  m_Script: {fileID: 11500000, guid: e30f89dde1e74cd49bbcc5d2ea998836, type: 3}
+  m_Name: SO_Hub_SP3_PumpStation
+  m_EditorClassIdentifier: Assembly-CSharp::SO_HubPuzzleData
   puzzleId: p2_sp3_mechanism
-  requiredPuzzleId: p2_sp3_access_code
-  promptText: Activate the stabilization mechanism
-  lockedInfoText: The access room is locked
-  useSoundId: 
+  requiredSocketIds:
+  - socket_pump_sp3
   completedSoundId: sfx_subpuzzle_1_completo
