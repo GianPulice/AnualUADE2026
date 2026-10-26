@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -25,6 +28,10 @@ using UnityEngine.Audio;
 /// spot, where the player can see nothing and the audio is all they have. The track therefore holds
 /// through the committed search that follows and stops when the SEARCH ends, so silence means "it
 /// stopped looking", not "it stopped seeing you".
+///
+/// A CAPTURE ENDS IT FROM THE CAPTURE ITSELF (WIR-066). The hunted set keeps Catch until the
+/// Nemesis leaves it after the respawn, so waiting for that state change left the music playing
+/// through the whole black screen. The track fades out with the black cover instead.
 ///
 /// Structurally a simplified NemesisAudio/AmbienceBedLayer: one owned AudioSource instead of a
 /// crossfade pair, because there is only ever one clip and two states (audible / silent) rather
@@ -57,6 +64,11 @@ public class NemesisChaseMusic : MonoBehaviour
              "(SO_DirectorPacing's Rising Max Persistence, 1.5) = 45 s. Raise it with either of them.")]
     [SerializeField, Min(1f)] private float searchTailTimeout = 50f;
 
+    [Tooltip("Seconds of the fade-out when the Nemesis catches the player. It starts when the grab's " +
+             "shot ends, which is when the screen starts going black; match it to CaptureFadeView's " +
+             "Fade In Duration so the music is gone by the time the screen is.")]
+    [SerializeField, Min(0.05f)] private float captureFadeSeconds = 0.6f;
+
     [Header("Routing")]
     [Tooltip("Leave EMPTY. It then resolves to AudioManager's Music bus, which is where this " +
              "belongs: it is a score cue, not a sound the monster makes, and the Music slider is " +
@@ -85,6 +97,9 @@ public class NemesisChaseMusic : MonoBehaviour
     // Seconds of a fade-out a script asked for (FadeOutForCinematic). 0 = the usual fadeDuration.
     private float scriptedFadeSeconds;
 
+    // The wait between a capture and its fade-out (the grab's shot).
+    private CancellationTokenSource captureFadeCts;
+
     private void Awake()
     {
         source = CreateSource();
@@ -98,6 +113,7 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnStateChanged += HandleStateChanged;
         GameResultManager.OnGameResult += HandleGameResult;
         GameResultManager.OnResultCleared += HandleResultCleared;
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
     }
 
     private void OnDestroy()
@@ -107,6 +123,42 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnStateChanged -= HandleStateChanged;
         GameResultManager.OnGameResult -= HandleGameResult;
         GameResultManager.OnResultCleared -= HandleResultCleared;
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        CancelCaptureFade();
+    }
+
+    /// <summary>
+    /// The Nemesis caught the player: the music goes with the screen, not with the Catch state
+    /// (see the WIR-066 paragraph in the class doc). Waits out the grab's shot, then fades over
+    /// the black cover.
+    /// </summary>
+    private void HandlePlayerCaptured(PlayerStateManager _)
+    {
+        if (runOver || !source.isPlaying) return;
+
+        CancelCaptureFade();
+        captureFadeCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
+        FadeOutOnCaptureAsync(captureFadeCts.Token).Forget();
+    }
+
+    private async UniTaskVoid FadeOutOnCaptureAsync(CancellationToken token)
+    {
+        float shotSeconds = PlayerEvents.CaptureShotSeconds;
+        if (shotSeconds > 0f)
+        {
+            bool cancelled = await UniTask.Delay(TimeSpan.FromSeconds(shotSeconds), DelayType.UnscaledDeltaTime,
+                                                 cancellationToken: token).SuppressCancellationThrow();
+            if (cancelled) return;
+        }
+
+        FadeOutForCinematic(captureFadeSeconds);
+    }
+
+    private void CancelCaptureFade()
+    {
+        captureFadeCts?.Cancel();
+        captureFadeCts?.Dispose();
+        captureFadeCts = null;
     }
 
     /// <summary>
@@ -169,6 +221,7 @@ public class NemesisChaseMusic : MonoBehaviour
     {
         if (runOver || chaseMusicClip == null) return;
 
+        CancelCaptureFade();
         volumeTarget = maxVolume;
         isTrailingSearch = false;
         scriptedFadeSeconds = 0f;

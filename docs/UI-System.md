@@ -588,8 +588,8 @@ ventana, el tiempo avisa: ámbar con un cuarto del tiempo del módulo, rojo con 
 en los últimos 30 s (`FAILED` queda rojo). Ver `docs/Materials-System.md` §7.3.
 
 Queda en `HUDCanvas.prefab` el objeto `ModuleTimerBeeper`: bipea desde que arranca el módulo, lento al
-principio y cada vez más rápido (curva en `BeepCadence`, `Scripts/Utils`): un bip cada 30 s que baja en
-línea recta a 10 s hasta el ámbar de la lectura, de 10 s a 5 s hasta el rojo, y de 5 s a 0.5 s en forma
+principio y cada vez más rápido (curva en `BeepCadence`, `Scripts/Utils`): un bip cada 10 s fijo (hasta el 26/10 eran 30 s que bajaban en
+línea recta a 10 s) hasta el ámbar de la lectura, de 10 s a 5 s hasta el rojo, y de 5 s a 0.5 s en forma
 exponencial hasta los últimos 10 s, donde queda en 0.5 s con el clip urgente. El ámbar y el rojo salen
 de `SO_PlayerCameraFeed` (`WarningSecondsLeft` / `CriticalSecondsLeft`, los mismos umbrales que
 `ModuleTimerStage`), así el color y el bip cambian de ritmo juntos. Cada bip se agenda a partir del

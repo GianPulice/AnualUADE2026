@@ -111,7 +111,7 @@ public sealed class RewardBoxCinematic
     private void HoldNemeses()
     {
         heldNemeses.Clear();
-        foreach (NemesisStateManager nemesis in Object.FindObjectsByType<NemesisStateManager>(FindObjectsSortMode.None))
+        foreach (NemesisStateManager nemesis in Object.FindObjectsByType<NemesisStateManager>())
         {
             if (!nemesis.IsActive || !nemesis.IsAgentReady || nemesis.NavAgent.isStopped) continue;
 

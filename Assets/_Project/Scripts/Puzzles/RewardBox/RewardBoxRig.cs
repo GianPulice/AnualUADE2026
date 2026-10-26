@@ -56,7 +56,11 @@ public class RewardBoxRig : MonoBehaviour
              "however it is left in the editor.")]
     [SerializeField] private GameObject itemVisual;
     [Tooltip("Largest side, in metres, the box's inspector scales a dragged-in item model to.")]
+    // Only read by PuzzleRewardBoxEditor and RewardBoxSetup through SerializedProperty, which the
+    // compiler can't see, hence CS0414.
+#pragma warning disable CS0414
     [SerializeField, Min(0.01f)] private float itemFitSize = 0.2f;
+#pragma warning restore CS0414
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");

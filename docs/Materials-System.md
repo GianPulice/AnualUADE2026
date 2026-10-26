@@ -83,6 +83,9 @@ Assets/_Project/
 │       ├─ PS1_PostProcess.shadergraph                 ← original (referencia, no se toca)
 │       ├─ PS1_PostProcess_HLSL.shader                 ← PSX + dither/scanlines/CA
 │       └─ PS1Effect.mat                               ← apunta a PS1_PostProcess_HLSL.shader
+├─ Prefabs/VFX/
+│   ├─ ElectricSparks.prefab                           ← chispas de cables/paneles, 5 sistemas + script (§3.5)
+│   └─ ElectricSparksLight.prefab                      ← molde de la luz real de cada destello (módulo Lights)
 ├─ Prefabs/Light/
 │   ├─ Light Base.prefab                               ← lámpara estándar (§6.4)
 │   ├─ Light Base Switch.prefab                        ← variante para PoweredLightSwitch (§6.4.1)
@@ -96,7 +99,8 @@ Assets/_Project/
 └─ Scripts/
     ├─ Environment/
     │   ├─ MonitorFlicker.cs                          ← pulso 0.2 Hz
-    │   └─ FlickerLight.cs                            ← curve-driven, fluorescente
+    │   ├─ FlickerLight.cs                            ← curve-driven, fluorescente
+    │   └─ ElectricSparks.cs                          ← intensidad (3 niveles) y color de las chispas (§3.5)
     ├─ Items/
     │   ├─ ItemProximityHighlight.cs                  ← lerp tint+emission al apuntar
     │   └─ ItemGlint.cs                               ← destello de lejos, estilo Resident Evil (§5.5)
@@ -184,6 +188,51 @@ Shader **HLSL custom** `Custom/FlickerLight` (no Shader Graph). Está en `Assets
 **Properties**:
 - `_BaseColor` (HDR) — color del tubo.
 - `_Intensity` (Float) — se anima desde [`FlickerLight.cs`](../Assets/_Project/Scripts/Environment/FlickerLight.cs).
+
+### 3.5 `ElectricSparks.prefab` — Chispas de electricidad
+
+Prefab de varios Particle Systems en `Assets/_Project/Prefabs/VFX/ElectricSparks.prefab`, manejado por **un solo script**, [`ElectricSparks.cs`](../Assets/_Project/Scripts/Environment/ElectricSparks.cs) (`Scripts/Environment/`). Pensado para cables cortados y paneles en cortocircuito. No lleva shader propio: usa los materiales compartidos `mat_vfx_additive` (textura `vfx_dot`, shader `WIRED/VFX/Particle Unlit`) y `mat_vfx_smoke`. La luz de cada destello sale de `ElectricSparksLight.prefab`, el molde de luz que usa el módulo Lights.
+
+> **Estado hoy**: no está puesto en ninguna escena. Se comprobó en edición: orientación, picos de partículas por nivel, rebote contra un piso, cambio de color y un render de cada nivel. Falta verlo en el juego con la niebla y el filtro PS1 encima, y no se midió el costo en ms. Se armó siguiendo el tutorial de Epic para chispas en Niagara (humo, destello y chispas radiales alineadas a la velocidad, con drag, gravedad fuerte y rebote); las demás capas (brasas, estelas, splash por impacto, luz) se sumaron aparte.
+
+**Cómo se maneja**: en el componente `ElectricSparks`, dos controles.
+- **Intensity** (Low / Medium / High): cuánto tira cada ráfaga. Low es un chisporroteo suave; Medium (el default) es una lluvia abundante; High es un cortocircuito. Cambia cantidades, velocidad, tamaño, brillo, estelas, luz del destello, brasas y humo.
+- **Color**: el tono de las chispas y su brillo; cualquiera sirve, no hay naranja fijo (viene en naranja sólo de valor inicial). **Hotness** (0 a 1) es cuánto se quema hacia blanco la chispa rápida antes de enfriarse al color. El brillo HDR viene del nivel, no del swatch.
+
+Los dos se aplican en el editor apenas se tocan, así que el preview sigue al Inspector. Por código: `SetIntensity(SparkIntensity)`, `SetColor(Color)`, `Strike()` (una ráfaga ya, por ejemplo cuando un puzzle hace saltar un panel), `Play()` y `Stop()`. Si no se quiere que chispee solo, se destilda *Play On Awake* y se llama a `Strike()`. Evitar rojo y ámbar fuera de peligro o del dispositivo del jugador: el spec los reserva (§1).
+
+**Cómo está armado**: una ráfaga (*strike*) dispara a la vez cinco sistemas hijos, así que siempre van juntos.
+
+| Sistema | Qué hace | Funciones de Unity que usa |
+|---|---|---|
+| `Sparks` | Lluvia radial de chispas que suben, se estiran con la velocidad, caen y rebotan. | Stretched Billboard, Shape (cono), Limit Velocity (drag), Inherit Velocity, Noise, Size by Speed, Color by Speed (blanco a color), Size/Color over Lifetime, Collision (mundo), Trails (cintas), Sub Emitters |
+| `Flash` | Destello corto con luz real. | Start Size 3D (sprite no uniforme), rotación al azar, Rotation over Lifetime, Size/Color over Lifetime, Lights |
+| `Embers` | Brasas lentas que flotan y titilan. | Noise, External Forces, Inherit Velocity, Color over Lifetime con parpadeo |
+| `Smoke` | Humo oscuro que crece y sube. | Force over Lifetime, Rotation over Lifetime, External Forces, Size/Color over Lifetime |
+| `Impact` | Salpicadura mínima cuando una chispa cae. | Sub-emisor por colisión de `Sparks`, Sphere shape |
+
+**Las ráfagas**: las programa el script, no un loop de partículas. Un patrón de 8 ráfagas en 5 s (tiempos y probabilidades desiguales a propósito) que cada instancia empieza en un punto al azar del loop, así que dos cables con el mismo prefab no chispean al unísono y el patrón no se repite igual. La probabilidad de cada ráfaga se escala con el nivel (`strikeChance`). Cada ráfaga llama a `Emit()` en los cinco sistemas. Se eligió eso en lugar de sub-emisores *Birth*: probado, el sub-emisor Birth **ignoraba la rotación del objeto** (las chispas salían siempre hacia +Z del mundo), y con `Emit()` salen hacia +Z del objeto como corresponde.
+
+**Dirección**: las chispas salen hacia **+Z** del objeto del prefab. Se rota el prefab para apuntarlas hacia donde saltan.
+
+**Qué valores son del script**: pisa cantidades, rangos de velocidad y tamaño, colores, proporción de estelas, luz del destello y probabilidad de splash (los tres presets están en el componente, editables). Lo demás se afina en cada sistema hijo: forma, gravedad, drag, ruido, colisión y el resto del look. Si se toca a mano algo del primer grupo en un sistema hijo, el script lo vuelve a pisar.
+
+**Rendimiento** (pico de partículas simultáneas en el peor caso, con las 8 ráfagas del patrón disparando en un loop, medido en edición):
+
+| Nivel | Pico simultáneo |
+|---|---|
+| Low | 35 |
+| Medium | 153 |
+| High | 270 |
+
+Topes de `Max Particles`, en orden `Sparks`, `Flash`, `Embers`, `Smoke`, `Impact`: 300 / 12 / 120 / 40 / 150. Medidas para contener el costo: tope de partículas en cada sistema; estelas sólo en parte de las chispas (`trailRatio`: 0, 25 % y 40 %); splash de impacto con baja probabilidad; Noise con una octava y calidad Low; Collision con calidad Low, sin colliders dinámicos y sólo contra `Default`, `Ground`, `Wall` y `Props` (no choca con el jugador ni con el Nemesis); la luz del destello con máximo de 2 luces a la vez y apagada en Low; y **las ráfagas se cortan si la cámara principal está a más de `Active Distance` (30 m)**, así no se simula lo que no se ve.
+
+**Decisiones y lo que quedó afuera**:
+- Culling Mode es *Always Simulate* en los hijos, no *Pause*: las ráfagas siguen aunque el cable esté detrás de una pared, y un sistema culleado dejaría las chispas congeladas en el aire. El costo lo acota `Active Distance`.
+- No se usó Trigger (no hay nada que detectar), Sub Emitters en Birth (ver arriba), Texture Sheet Animation ni Custom Data (el sprite compartido es un punto suelto, sin cuadros), ni Lights en las chispas mismas (sólo en el destello).
+- Las estelas (Trails) son una cinta por chispa con el mismo material aditivo y generan geometría aparte, por eso sólo van en parte de las chispas.
+
+**Cómo ponerlo**: arrastrar el prefab donde salen las chispas y rotarlo hacia donde saltan. Para elegir nivel y color, el componente `ElectricSparks` de la raíz. Para versiones fijas de color o nivel, Prefab Variant. Escalar la raíz agranda las chispas en proporción.
 
 ---
 
@@ -649,9 +698,9 @@ Lo común está en `HidingOverlayCommon.hlsl`.
 
 | Regla del spec | Cómo lo respeta el sistema |
 |---|---|
-| Rojo solo para peligro | En el mundo 3D, `mat_luz_emergencia_emissive`, el LED de módulo explotado (`ModuleLED`) y las sirenas del escape. En la UI `#CC1A1A` es el acento único (`SO_UIThemeConfig.Accent`), decisión explícita: la regla es del mundo 3D. **Desvío sin decisión registrada**: la categoría Llave es roja (`ItemCategory.asset`, `mat_item_keys_red`, §5.2), y el preset default `SO_VisionFog_Dark` tiene in-scattering rojo (0.033). **Excepción (15/10, pedido explícito):** las cajas de recompensa (`PuzzleRewardBox`) brillan en rojo `#CC1A1A` mientras están bloqueadas y en verde cuando se destraban (17/10, pedido de Iñaki: era celeste, y a 5 de emisión en dos canales la cinemática lo blanqueaba) — LEDs de los candados, pantalla, su luz y su `FogBeacon`. Colores e intensidad de la luz en `SO_RewardBoxConfig`. |
-| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Ojo: el `emissionColor` de fallback de `SO_Highlight_Items` es ámbar, aunque con `categoryConfig` asignado no lo usa ningún pickup (§5.3). **Excepción (22/09, pedido de Iñaki):** las sirenas del pasillo del escape (`EscapeAlarmLights`) alternan rojo `#CC1A1A` (peligro, que es lo que son) y el ámbar del escape `(1, 0.72, 0.38)`, el de sus luces del camino. Colores en `SO_EscapeSequenceConfig` → *Sirenas del pasillo*. |
-| Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. Las cajas de recompensa destrabadas ya no son celestes (eran el `(0.34, 0.91, 0.86)` del material `Brillo`): ahora brillan en verde, ver la fila del rojo. |
+| Rojo solo para peligro | En el mundo 3D, `mat_luz_emergencia_emissive`, el LED de módulo explotado (`ModuleLED`) y las sirenas del escape. En la UI `#CC1A1A` es el acento único (`SO_UIThemeConfig.Accent`), decisión explícita: la regla es del mundo 3D. **Desvío sin decisión registrada**: la categoría Llave es roja (`ItemCategory.asset`, `mat_item_keys_red`, §5.2), y el preset default `SO_VisionFog_Dark` tiene in-scattering rojo (0.033). Las cajas de recompensa bloqueadas ya no son rojas (26/10): el jugador leía la caja como peligro. Ver la fila del ámbar. |
+| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Ojo: el `emissionColor` de fallback de `SO_Highlight_Items` es ámbar, aunque con `categoryConfig` asignado no lo usa ningún pickup (§5.3). **Excepción (22/09, pedido de Iñaki):** las sirenas del pasillo del escape (`EscapeAlarmLights`) alternan rojo `#CC1A1A` (peligro, que es lo que son) y el ámbar del escape `(1, 0.72, 0.38)`, el de sus luces del camino. Colores en `SO_EscapeSequenceConfig` → *Sirenas del pasillo*. **Excepción (26/10, pedido de Iñaki; antes rojo `#CC1A1A` desde el 15/10):** las cajas de recompensa (`PuzzleRewardBox`) brillan en ámbar mientras están bloqueadas (color `(1, 0.6, 0)`, el ámbar del timer del HUD; emisión `(2.4, 1.1, 0.15)`, la de `EscapeSocketAlarmLight`) y en verde cuando se destraban (17/10: era celeste, y a 5 de emisión en dos canales la cinemática lo blanqueaba) — LEDs de los candados, pantalla, su luz y su `FogBeacon`. Colores e intensidad de la luz en `SO_RewardBoxConfig`. |
+| Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. Las cajas de recompensa destrabadas ya no son celestes (eran el `(0.34, 0.91, 0.86)` del material `Brillo`): ahora brillan en verde, ver la fila del ámbar. |
 | Verde solo para "módulo alimentado / núcleo colocado" | `SocketEmissionShift` (zona emisiva de las estaciones de núcleo al insertar la pieza, HDR `(0.25, 2.4, 0.55)`) y el LED de módulo resuelto (`ModuleLED`). **Excepción (17/10, pedido explícito):** las cajas de recompensa destrabadas brillan en verde (`SO_RewardBoxConfig`, emisión `(0.02, 2, 0.06)`: un canal alto y los otros casi en cero, en lineal; con `(0.25, 2.4, 0.55)` como `SocketEmissionShift` la pantalla salía menta). **Desvío sin decisión registrada**: la categoría Componente es verde (`ItemCategory.asset`, `mat_item_components_green`, §5.2). |
 | Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0` en el shader y en los `mat_item_*`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. `ItemPsx.mat`, el del Father de los pickups, estuvo en 0.12 hasta el 22/09 y volvió a 0 (§5.4). |
 | Sin waypoints, mapa, partículas sobre items | No hay waypoints ni mapa. **Excepción pedida**: el destello estilo Resident Evil de §5.5 — una estrella que parpadea sobre el pickup cada ~2 s, solo de lejos (se apaga a menos de `hideWithin` o al apuntarle). No es un sistema de partículas ni un marcador permanente; si GD lo objeta, se saca quitando `ItemGlint` de los Father. |
@@ -769,3 +818,7 @@ Lo común está en `HidingOverlayCommon.hlsl`.
 | Patrón de parpadeo del tubo fluorescente | `FlickerLight.flickerCurve` en Inspector (editor visual de AnimationCurve). |
 | Threshold del guard del fog (cuándo se desactiva) | `VisionFog_HLSL.shader`, `Frag()`: `if (_VisionEnd <= _VisionStart + 0.001)`. |
 | Color de la emisión de emergencia | `mat_luz_emergencia_emissive → _EmissionColor` en YAML o Inspector. |
+| Color de las chispas | Componente `ElectricSparks` del prefab (`Scripts/Environment/`) → **Color** (y **Hotness**); por código, `SetColor` (§3.5). |
+| Cuánto tira cada ráfaga de chispas (cantidad, velocidad, tamaño, brillo, estelas, luz, brasas, humo) | `ElectricSparks` → **Intensity** (Low / Medium / High); los valores de cada nivel, en `Presets` del mismo componente (§3.5). |
+| Cada cuánto chispea y cuán parejo | `ElectricSparks` → `Strike Pattern` (tiempo y probabilidad de cada ráfaga), `Loop Seconds` y el `Strike Chance` de cada preset (§3.5). |
+| Forma de la lluvia de chispas (apertura, gravedad, rebote, drag, ruido) | El sistema hijo `Sparks` de `ElectricSparks.prefab` → Shape, Main (`Gravity Modifier`), Collision, Limit Velocity, Noise (§3.5). |

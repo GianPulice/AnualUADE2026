@@ -310,7 +310,10 @@ Two deltas in the one piece that does exist:
 
 - **Fade timings.** Spec §2 wants 0.5 s in and 2 s out with a reversible fade. `NemesisChaseMusic`
   uses a single `fadeDuration` (2 s default) in both directions. The reversal itself works — the
-  target volume is retargeted, not restarted.
+  target volume is retargeted, not restarted. A capture is the one exception: on
+  `PlayerEvents.OnPlayerCaptured` it waits out the grab's shot (`CaptureShotSeconds`) and fades over
+  `captureFadeSeconds` (0.6 s, the black cover's fade-in), because the Catch state lasts until after
+  the respawn and the music used to play through the whole black screen (WIR-066).
 - **It fades the ambience out under itself.** `FadeOutAll` / `FadeInAll` on `AmbienceController` for
   the takeover. The music spec does not ask for this; the *audio* spec §11 does, as
   `DuckAmbience(0.3, 0.5)`. What ships is a full fade rather than a duck to 30% — a stronger reading
@@ -510,8 +513,9 @@ The box is linked by its `puzzleId` dropdown (`[PuzzleId]`); its inspector finds
 that declares that id (any SO implementing `IPuzzleRewardSource`) and shows the item it will give.
 The flow:
 
-- **Locked.** Red glow (lock LEDs and screen, the model's `Brillo` material) and a red `Light` +
+- **Locked.** Amber glow (lock LEDs and screen, the model's `Brillo` material) and an amber `Light` +
   `FogBeacon` (`RewardLight` child), so it reads through the fog from the start. E says "Locked".
+  It was red until 26/10; red is kept for the Nemesis and danger, and players read the box as a threat.
   The beacon hangs 0.47 m above and 0.42 m in front of the box, which at head height next to it read as
   a stray dot (green once unlocked, seen on opening); so it fades out when the player is closer than
   4 m (`nearFadeStart` 4, `nearFadeEnd` 7, measured from the player) and is a long-range tell only.
@@ -610,6 +614,11 @@ times") names none, as it always did: the three turns are left to deduction. An 
 visible on purpose. In the editor and development builds each asset logs its run's answer the first
 time it is asked (`this run's code is …`).
 
+**SP2 box area (WIR-064).** A `LimitColliderForBoxes` (`BoxLimitArea`) under `---- PUZZLES ----`
+holds the push boxes inside the SP2 room: its floor plan is the room's inner wall faces (x −11.9 to
+21.9, z 17.1 to 38.9, measured 26/10), so a box stops at a doorway like at a wall. 3.5 m tall from
+y −0.5, which keeps it off the floor above. Resize it if the room's walls move.
+
 **SP2 box symbols.** `BoxSymbolSignalLoss`, on each push box, covers the basket symbol on the box's
 top face with a plain black disc (a runtime copy of the symbol's material, so it lights like the
 symbol and gives nothing away). The symbol is readable when **the symbol is inside a lit
@@ -701,7 +710,7 @@ tenth, and blinks red in the last 30 s (`FAILED` stays red). The old top-left Wi
 window (`ModuleTimerHUDView`) was removed on 2026-09-26 at the designer's request; see
 `docs/Materials-System.md` §7.3. `ModuleTimerBeeper` stays in `HUDCanvas.prefab` (object
 `ModuleTimerBeeper`): it beeps from the start of the module, slow at first and quicker at every stage
-(`BeepCadence`, `Scripts/Utils`, pure and tested): every 30 s shrinking to 10 s at the readout's amber,
+(`BeepCadence`, `Scripts/Utils`, pure and tested): every 10 s from the start to the readout's amber (it was 30 s → 10 s until 26/10),
 10 s → 5 s at its red, then 5 s → 0.5 s exponentially up to the last 10 s, which hold 0.5 s with
 `sfx_modulo_tick_urgente` (the rest use `sfx_modulo_tick_normal`). Amber and red come from
 `SO_PlayerCameraFeed` (`WarningSecondsLeft` / `CriticalSecondsLeft`, shared with `ModuleTimerStage`), so
@@ -863,6 +872,12 @@ panel, discard footer.
   (`DocPanelView`) for `ContentType.Text` items. There is no open-doc button: selecting a Text item
   shows its text in the panel at once (selecting another Text item swaps it, scroll back to the top),
   and anything else, no selection or a closed inventory hides it. Its X clears the selection.
+  A note is read **as a message, in the doc panel alone**: the panel fills the whole right column,
+  the bottom-right pop-up stays folded, and the panel carries what the pop-up would have said —
+  the filename-style title in its bar, the item name as subject and the description under it
+  (`Mail Header`), then the body. Any other item folds the panel and unfolds the pop-up as before.
+  The panel is painted in the pop-up's grey (`SurfacePanel` / `SurfaceTabs`), on purpose not in the
+  red of `DocumentReaderController`'s sheet: the inventory is re-reading, not the first pickup.
 - `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`
   is the only thing that removes anything, and it is called on confirm alone.
 - `ModuleHUDView` + `ModuleRowView` + `ActiveModuleTimerView` + `FailuresPipsView` are the device

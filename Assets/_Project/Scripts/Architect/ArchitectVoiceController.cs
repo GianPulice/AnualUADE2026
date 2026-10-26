@@ -19,8 +19,9 @@ using UnityEngine;
 ///     lines wait <see cref="inactivityThreshold"/> seconds; and the Captured line only speaks on
 ///     one capture out of every <see cref="capturedLineEvery"/>, starting with the first.
 ///   - Lines about the Nemesis are a separate pool (<see cref="ArchitectLineID.IdleNemesis"/>) that
-///     only plays once the Nemesis is out; before that the inactivity lines are the ones that never
-///     mention it (<see cref="ArchitectLineID.Idle"/>). See <see cref="NemesisOut"/>.
+///     only plays once the Nemesis is out and the escape is over; before that the inactivity lines
+///     are the ones that never mention it (<see cref="ArchitectLineID.Idle"/>). See
+///     <see cref="NemesisOut"/> and <see cref="IdleLineForSituation"/>.
 ///   - Nothing plays with a menu open, except lines flagged PlaysOverMenus (ARC_03, ARC_10).
 ///
 /// One deliberate deviation: a Mandatory or Context line that is blocked (by another line or by a
@@ -105,6 +106,7 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private PlayerStateManager player;
     private NemesisStateManager nemesis;
+    private EscapeSequenceDirector escapeDirector;
     private bool nemesisOut;
     private bool lockedPlayerForWakeUp;
     private bool wakeUpDone;
@@ -128,6 +130,17 @@ public class ArchitectVoiceController : MonoBehaviour
             if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
             nemesisOut = nemesis != null && nemesis.IsActive;
             return nemesisOut;
+        }
+    }
+
+    /// <summary>The escape is under way (see <see cref="IdleLineForSituation"/>). Looked up lazily: this
+    /// controller lives in LevelUI and the director in the level.</summary>
+    private bool EscapeRunning
+    {
+        get
+        {
+            if (escapeDirector == null) escapeDirector = FindAnyObjectByType<EscapeSequenceDirector>();
+            return escapeDirector != null && escapeDirector.IsRunning;
         }
     }
 
@@ -558,10 +571,13 @@ public class ArchitectVoiceController : MonoBehaviour
     /// The inactivity pool is split by situation: with the Nemesis out, the lines about it; before
     /// that, the ones that never mention it. A bank without the Nemesis pool falls back to the plain
     /// one, so the Architect does not go quiet.
+    ///
+    /// The escape counts as "before": the Nemesis is out, but the lines about it are written for
+    /// stalking ("It can hear you", "It's two rooms away", "It doesn't run") and contradict a chase.
     /// </summary>
     private ArchitectLineID IdleLineForSituation()
     {
-        if (!NemesisOut) return ArchitectLineID.Idle;
+        if (!NemesisOut || EscapeRunning) return ArchitectLineID.Idle;
 
         SO_ArchitectLineBank.Line nemesisPool = bank != null ? bank.Find(ArchitectLineID.IdleNemesis) : null;
         bool hasNemesisPool = nemesisPool != null && nemesisPool.variants != null && nemesisPool.variants.Length > 0;

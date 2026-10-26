@@ -5,7 +5,7 @@ using UnityEngine;
 /// The device's countdown beep. It beeps from the moment the active module starts, slowly at
 /// first and quicker as the module runs out (<see cref="BeepCadence"/>):
 ///
-///   start → amber   one beep every 30 s, shrinking in a straight line to one every 10 s
+///   start → amber   one beep every 10 s, steady (the start and amber intervals match)
 ///   amber → red     10 s → 5 s
 ///   red → urgent    5 s → 0.5 s, exponentially
 ///   last <see cref="urgentBelowSeconds"/>   the urgent clip, every 0.5 s
@@ -37,7 +37,7 @@ public class ModuleTimerBeeper : MonoBehaviour
 
     [Header("Cadence (seconds between beeps)")]
     [Tooltip("When the module starts. Shrinks in a straight line to the amber interval as amber nears.")]
-    [SerializeField, Min(0.05f)] private float startInterval = 30f;
+    [SerializeField, Min(0.05f)] private float startInterval = 10f;
 
     [Tooltip("When the readout turns amber. Shrinks in a straight line to the red interval.")]
     [SerializeField, Min(0.05f)] private float amberInterval = 10f;

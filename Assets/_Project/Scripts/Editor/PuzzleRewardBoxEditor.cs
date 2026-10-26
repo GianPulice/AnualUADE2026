@@ -232,7 +232,7 @@ public class PuzzleRewardBoxEditor : Editor
                                     MessageType.None);
 
         var self = (PuzzleRewardBox)target;
-        foreach (PuzzleRewardBox other in FindObjectsByType<PuzzleRewardBox>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (PuzzleRewardBox other in FindObjectsByType<PuzzleRewardBox>(FindObjectsInactive.Include))
         {
             if (other == self || other.gameObject.scene != self.gameObject.scene) continue;
             if (!string.Equals(other.PuzzleId, id, StringComparison.Ordinal)) continue;

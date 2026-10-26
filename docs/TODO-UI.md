@@ -145,8 +145,8 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
 - [x] **Ventana del timer en `HUDCanvas`** (`ModuleTimerHUDView`): MM:SS dentro de un anillo de
       bloques que se vacía, `M2 // CHEST`, un pip por módulo, popup "-5s"/"+3s". Visible sobre el
       skill check (`ModalVisibilityGate.ignoredModalIds`).
-- [x] **Bip de cuenta regresiva** (`ModuleTimerBeeper`): cada 30 s al arrancar el módulo, bajando a 10 s
-      en el ámbar, 5 s en el rojo y de ahí exponencial a 0.5 s; clip urgente desde los últimos 10 s.
+- [x] **Bip de cuenta regresiva** (`ModuleTimerBeeper`): cada 10 s desde que arranca el módulo (antes 30 s bajando a 10 s; 26/10), igual hasta
+      el ámbar, 5 s en el rojo y de ahí exponencial a 0.5 s; clip urgente desde los últimos 10 s.
       Se calla solo en pausa y durante el agarre. Falta oírlo en Play (ver `BeepCadence`).
 - [x] **El agarre no cuesta tiempo**: `SO_PlayerMovement.captureModuleTimePenalty = 0`; el timer
       sigue frenado desde el agarre hasta que el player se levanta.

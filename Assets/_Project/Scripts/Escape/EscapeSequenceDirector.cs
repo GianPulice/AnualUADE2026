@@ -245,6 +245,9 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     /// ending).</summary>
     public bool IsPlaying => phase == Phase.Reveal || phase == Phase.Ending;
 
+    /// <summary>The escape is under way: from the slam, through the chase, to the end of the ending.</summary>
+    public bool IsRunning => phase == Phase.Reveal || phase == Phase.Escape || phase == Phase.Ending;
+
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
     // Static events: subscribed in Awake and released in OnDestroy, like the rest of the project.

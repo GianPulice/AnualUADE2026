@@ -14,7 +14,8 @@ using UnityEngine.UI;
 ///   - Stay folded until something is selected
 ///   - Populate header, description, metadata and content from the item
 ///   - Keep the doc panel in step with the selection: a Text-type item shows its document at once
-///   - Unfold / fold the pop-up
+///   - Unfold / fold the pop-up. A Text item keeps it folded: the doc panel shows the note as a
+///     message, with the description in its header, so the pop-up would only repeat it
 ///
 /// Notes:
 ///   - Audio WIP: structure ready, logic disabled with enableAudioFeatures.
@@ -173,7 +174,9 @@ public class ItemDetailView : MonoBehaviour
         PopulateMetadata(item);
         PopulateContent(item);
 
-        ShowPopup();
+        // A note is read in the doc panel alone; everything else keeps the pop-up.
+        if (item.ContentType == ItemContentType.Text) HidePopup();
+        else ShowPopup();
     }
 
     // ── Pop-up ──────────────────────────────────────────────────────────────
@@ -290,7 +293,7 @@ public class ItemDetailView : MonoBehaviour
         {
             case ItemContentType.Text:
                 // Show the note at once. If another note was showing, only its text is swapped.
-                docPanel?.Show(item.ItemName, item.TextContent);
+                docPanel?.Show(DocTitle(item), item.ItemName, item.Description, item.TextContent);
                 break;
 
             case ItemContentType.Audio:
@@ -307,6 +310,10 @@ public class ItemDetailView : MonoBehaviour
                 break;
         }
     }
+
+    /// <summary>Same filename-style header as the pop-up, e.g. "> MAINTENANCE_LOG.DOC".</summary>
+    private string DocTitle(SO_InventoryItem item) =>
+        $"> {InventoryTextFormat.MachineName(item.ItemName)}.{categoryConfig.Get(item.Category).TagLabel}";
 
     // ── Callbacks ─────────────────────────────────────────────────────────────
 

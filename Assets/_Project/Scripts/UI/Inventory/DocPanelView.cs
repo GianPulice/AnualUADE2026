@@ -7,8 +7,9 @@ using UnityEngine.UI;
 /// <summary>
 /// VIEW of the note panel that shows the selected Text item's document inside the inventory.
 ///
-/// One job: show a block of read-only text and get out of the way. It owns the title, the body,
-/// the scroll and its own close (X) button, and delegates the show/hide animation to the
+/// One job: show a note laid out as a message and get out of the way. It owns the title bar, the
+/// message header (subject and summary, above the body), the body, the scroll and its own close (X)
+/// button, and delegates the show/hide animation to the
 /// <see cref="InventoryTabPanelAnimator"/> on the same GameObject — the panel grows in and
 /// collapses through the reverse animation.
 ///
@@ -24,6 +25,10 @@ public class DocPanelView : MonoBehaviour
 {
     [Header("Content")]
     [SerializeField] private TextMeshProUGUI titleText;
+    [Tooltip("Message header: the subject line, above the body.")]
+    [SerializeField] private TextMeshProUGUI subjectText;
+    [Tooltip("Message header: the item description, under the subject. Hidden when empty.")]
+    [SerializeField] private TextMeshProUGUI summaryText;
     [SerializeField] private TextMeshProUGUI bodyText;
     [SerializeField] private ScrollRect scrollRect;
     [Tooltip("The ScrollRect's viewport. Used to decide whether the text overflows.")]
@@ -77,11 +82,17 @@ public class DocPanelView : MonoBehaviour
     /// (the selection moved from one Text item to another), only the text is swapped and the
     /// scroll goes back to the top — no close/open flicker.
     /// </summary>
-    public void Show(string title, string body)
+    public void Show(string title, string subject, string summary, string body)
     {
         EnsureWired();
 
         if (titleText != null) titleText.text = title;
+        if (subjectText != null) subjectText.text = subject;
+        if (summaryText != null)
+        {
+            summaryText.text = summary;
+            summaryText.gameObject.SetActive(!string.IsNullOrEmpty(summary));
+        }
         if (bodyText != null) bodyText.text = body;
 
         if (!IsOpen)

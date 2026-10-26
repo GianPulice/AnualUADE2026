@@ -4,8 +4,9 @@ using UnityEngine;
 /// Look, timing and texts shared by every <see cref="PuzzleRewardBox"/>. One asset for the whole
 /// game, so the boxes of every level open the same way and a tweak reaches all of them.
 ///
-/// The colours are an agreed exception to the colour rules (docs/Materials-System.md): red while the
-/// box is locked, green once it is unlocked (the same green as a placed core and a resolved module).
+/// The colours are an agreed exception to the colour rules (docs/Materials-System.md): amber while the
+/// box is locked (not red: red is kept for the Nemesis and danger), green once it is unlocked (the same
+/// green as a placed core and a resolved module).
 /// </summary>
 [CreateAssetMenu(fileName = "SO_RewardBoxConfig", menuName = "Scriptable Objects/Puzzles/Reward Box Config")]
 public class SO_RewardBoxConfig : ScriptableObject
@@ -13,11 +14,11 @@ public class SO_RewardBoxConfig : ScriptableObject
     [Header("Glow and light")]
     [Tooltip("Base colour of the glow parts (the lock LEDs and the screen) while locked. Also the " +
              "colour of the box's light and fog beacon.")]
-    [SerializeField] private Color lockedColor = new Color(0.8f, 0.102f, 0.102f);
+    [SerializeField] private Color lockedColor = new Color(1f, 0.6f, 0f);
 
-    [Tooltip("Emission of the glow parts while locked. HDR values are linear, so the two weak channels " +
-             "have to be near zero: 0.4 in each reads as pale pink, not red.")]
-    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(2.4f, 0.025f, 0.025f);
+    [Tooltip("Emission of the glow parts while locked. HDR values are linear: green about half of red " +
+             "and blue near zero reads as amber; more green drifts to yellow, more blue to pale peach.")]
+    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(2.4f, 1.1f, 0.15f);
 
     [Tooltip("Base colour of the glow parts once unlocked, and of the light and beacon.")]
     [SerializeField] private Color unlockedColor = new Color(0.1f, 0.9f, 0.25f);

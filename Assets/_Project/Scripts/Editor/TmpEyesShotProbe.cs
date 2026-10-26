@@ -50,7 +50,7 @@ public class TmpEyesShotProbe : MonoBehaviour
             if (director == null || PlayerRegistry.Current == null) { L("NO director/player"); return; }
             await UniTask.Delay(1500);
 
-            EscapeShotCamera eyes = FindObjectsByType<EscapeShotCamera>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+            EscapeShotCamera eyes = FindObjectsByType<EscapeShotCamera>(FindObjectsInactive.Include)
                 .FirstOrDefault(c => c.name.StartsWith("Cam_Eyes"));
             if (eyes == null) { L("NO Cam_Eyes"); return; }
             CinemachineCamera cc = eyes.GetComponent<CinemachineCamera>();

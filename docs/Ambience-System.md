@@ -114,7 +114,7 @@ vacío que los pasillos, cuando la spec lo llama el ambiente más denso del jueg
 
 El patio exterior (`PATIO_CARGA` en la tabla; en la escena actual el objeto es `PATIO_ART`, sin `_Floor_`/`_Ceil_`) necesita su propio bed sin room tone, y sus eventos de aire quieren `requireNavMeshNearby = false`.
 
-**Zonas en la escena hoy.** La tabla de arriba es el reparto de diseño; lo que está colocado es otra cosa. Hay 6 triggers `AmbienceZone` bajo `--- Ambience Triggers ---`, y no coinciden todos con su nombre:
+**Zonas en la escena hoy.** La tabla de arriba es el reparto de diseño; lo que está colocado es otra cosa. Hay 7 triggers `AmbienceZone` bajo `--- Ambience Triggers ---`, y no coinciden todos con su nombre:
 
 | Trigger | Profile asignado |
 |---|---|
@@ -123,6 +123,9 @@ El patio exterior (`PATIO_CARGA` en la tabla; en la escena actual el objeto es `
 | `Amb_Corridor (1)`, `Amb_Corridor (2)` | `Amb_Pink` |
 | `Amb_Office` | `Amb_Office` |
 | `Amb_Exterior` | `Amb_Exterior` |
+| `Amb_Sotano` | `Amb_Sotano` |
+
+**Sótano (Zona 2, 26/10).** `Amb_Sotano` (`SO_AmbienceProfileSotano`) es el primer profile con una grabación propia como bed: `amb_zona2_sotano` en el slot 0 y `PLACEHOLDER_Bed_A_37s` en el slot 1, a la mitad (`bedTrackBalance` 0.5) sólo para que el loop no se repita igual. Más sub que el resto (1.2) y eventos más espaciados (×1.1). Su trigger cubre toda la Zona 2: la caja de los renderers de `WIRED_ZONA_02`, `WIRED_ZONA_02_PROPS` y `ZONA 2` más 1 m por lado, sin tocar ninguna zona de la Zona 1. El clip se importa `Compressed In Memory` como los otros beds. Si la Zona 2 crece, el trigger hay que agrandarlo a mano.
 
 `Amb_Vertical` no lo usa ninguna zona, y fuera de todo trigger suena el `defaultProfile` (`Amb_Hub_Open`).
 

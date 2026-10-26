@@ -2984,7 +2984,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ModuleTimerBeeper
   stageSource: {fileID: 11400000, guid: fdb6ef80225d4ed7b43579dcf0921635, type: 2}
   urgentBelowSeconds: 10
-  startInterval: 30
+  startInterval: 10
   amberInterval: 10
   redInterval: 5
   urgentInterval: 0.5

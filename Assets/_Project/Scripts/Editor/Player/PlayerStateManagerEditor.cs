@@ -18,7 +18,7 @@ public class PlayerStateManagerEditor : Editor
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Move the player to", EditorStyles.boldLabel);
 
-        PlayerSpawnPoint[] points = FindObjectsByType<PlayerSpawnPoint>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+        PlayerSpawnPoint[] points = FindObjectsByType<PlayerSpawnPoint>(FindObjectsInactive.Exclude)
                                     .OrderBy(p => p.name).ToArray();
         if (points.Length == 0)
         {

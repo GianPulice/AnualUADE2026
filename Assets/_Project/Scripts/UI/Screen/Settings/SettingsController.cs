@@ -50,7 +50,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     protected override void OnBeforeOpen()
     {
         _isOpen = true;
-        UISounds.Play(UISounds.PauseOpen);
+        UISounds.Play(UISounds.SettingsOpen);
         model.Initialize();
         view.Populate(model);
         if (UIStateManager.Exists) UIStateManager.Instance.Push(this);
@@ -59,7 +59,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
     protected override void OnBeforeClose()
     {
         _isOpen = false;
-        UISounds.Play(UISounds.PauseClose);
+        UISounds.Play(UISounds.SettingsClose);
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
     }
 
