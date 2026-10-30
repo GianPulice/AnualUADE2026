@@ -292,10 +292,16 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
 
         if (explodeAll) effectDuration = Mathf.Max(effectDuration, await PlayOtherBlasts(cause, token));
 
-        if (defeat && config != null && config.HidePlayerOnDefeat)
+        if (defeat && config != null)
         {
-            await Wait(config.HidePlayerDelay, token);
-            HidePlayer();
+            if (config.HidePlayerOnDefeat)
+            {
+                await Wait(config.HidePlayerDelay, token);
+                HidePlayer();
+            }
+
+            // Where the chest was: the frame the body goes, what is left of it goes flying.
+            MeatChunkBurst.Spawn(config, framing != null ? framing.position : FallbackFocus(), player);
         }
 
         float wait = config != null

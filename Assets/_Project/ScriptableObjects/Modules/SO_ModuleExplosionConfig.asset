@@ -43,3 +43,17 @@ MonoBehaviour:
   preExplosionHold: 0.25
   postExplosionHold: 0.6
   maxEffectWait: 4
+  explodeAllOnDefeat: 1
+  defeatBlastStagger: 0.12
+  hidePlayerOnDefeat: 1
+  hidePlayerDelay: 0.08
+  meatChunkPrefabs:
+  - {fileID: 8021180592087627718, guid: 74f51e5aec537f24895d1776f5a943a0, type: 3}
+  - {fileID: 8011654818512145376, guid: db8015333562b89458af922cb0a7678c, type: 3}
+  - {fileID: 8539455052716516352, guid: 31d4c9ad12666af45b1aa8dbcb8c1494, type: 3}
+  meatChunkCount: 14
+  meatChunkSpread: 0.25
+  meatChunkMinSpeed: 1.5
+  meatChunkMaxSpeed: 4
+  meatChunkMinScale: 0.7
+  meatChunkMaxScale: 1.4
