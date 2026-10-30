@@ -16,6 +16,11 @@ using UnityEngine;
 /// Put it on the socket's root, next to <see cref="SocketInteractable"/>. It listens to
 /// <see cref="SocketInteractable.Inserted"/> (animate) and
 /// <see cref="SocketInteractable.InsertedStateSynced"/> (snap, after a load or checkpoint).
+///
+/// With <see cref="dimOutsideSafeZone"/> on, the zones are also capped while the player is outside
+/// the safe zone (<see cref="NemesisSafeZones"/>, the Hub). An HDR emission far above 1 — the
+/// pressure regulator's gauges glow at 181, and 1367 once green — survives the vision fog and
+/// reads from across the level; the cap keeps that glow inside the Hub.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(SocketInteractable))]
@@ -50,13 +55,39 @@ public class SocketEmissionShift : MonoBehaviour
     [Tooltip("Seconds each flicker lasts (half off, half on).")]
     [SerializeField, Min(0.01f)] private float flickerDuration = 0.12f;
 
+    [Header("Outside the safe zone")]
+    [Tooltip("Cap these zones while the player is outside the safe zone (the Hub, see SafeZoneMarker). " +
+             "Turn it on when the zones glow far above 1: that glow survives the vision fog and " +
+             "reads from across the level. Off = always the full colour.")]
+    [SerializeField] private bool dimOutsideSafeZone;
+
+    [Tooltip("Brightest a zone may glow while the player is outside the safe zone: the HDR intensity " +
+             "of its strongest channel. The other sockets glow at about 2.4. 0 = dark.")]
+    [SerializeField, Min(0f)] private float outsideSafeZoneIntensity = 2.4f;
+
+    [Tooltip("Seconds of the fade when the player leaves the safe zone, and back when they enter it.")]
+    [SerializeField, Min(0f)] private float safeZoneFadeDuration = 0.8f;
+
     private static readonly int EmitColorId = Shader.PropertyToID("_EmissionColor");
+
+    // How often the player's position is tested against the safe-zone volumes.
+    private const float SafeZoneCheckInterval = 0.2f;
 
     private SocketInteractable _socket;
     private ItemProximityHighlight _highlight;
     private MaterialPropertyBlock _block;
     private Color[] _authored;
     private Coroutine _routine;
+
+    // What ApplyAll last showed: 0 = authored colour, 1 = insertedColor; unlit = a flicker dropout.
+    private float _shiftT;
+    private bool _lit = true;
+
+    // 1 = full colour (player inside the safe zone), 0 = capped. Fades between the two.
+    private float _zoneWeight = 1f;
+    private float _zoneTarget = 1f;
+    private float _nextZoneCheck;
+    private bool _zoneKnown;
 
     private void Awake()
     {
@@ -85,6 +116,45 @@ public class SocketEmissionShift : MonoBehaviour
         _socket.Inserted            -= HandleInserted;
         _socket.InsertedStateSynced -= HandleStateSynced;
     }
+
+    private void Update()
+    {
+        if (!dimOutsideSafeZone) return;
+
+        if (Time.time >= _nextZoneCheck)
+        {
+            _nextZoneCheck = Time.time + SafeZoneCheckInterval;
+
+            // No player yet (loading): nothing to measure, keep what shows.
+            Transform player = PlayerRegistry.CurrentTransform;
+            if (player == null) return;
+
+            _zoneTarget = IsInsideSafeZone(player.position) ? 1f : 0f;
+
+            // First reading snaps: a level that starts with the player outside must not open on a
+            // fade out of the full glow.
+            if (!_zoneKnown)
+            {
+                _zoneKnown = true;
+                _zoneWeight = _zoneTarget;
+                if (_routine == null && _zoneWeight < 1f) WriteAll();
+                return;
+            }
+        }
+
+        if (!_zoneKnown || _zoneWeight == _zoneTarget) return;
+
+        _zoneWeight = safeZoneFadeDuration > 0f
+            ? Mathf.MoveTowards(_zoneWeight, _zoneTarget, Time.deltaTime / safeZoneFadeDuration)
+            : _zoneTarget;
+
+        // A running shift writes every step on its own and picks up the new weight there.
+        if (_routine == null) WriteAll();
+    }
+
+    // A scene without safe-zone volumes (a test scene) counts as inside: nothing to dim against.
+    private static bool IsInsideSafeZone(Vector3 point) =>
+        float.IsPositiveInfinity(NemesisSafeZones.FlatDistance(point)) || NemesisSafeZones.Contains(point);
 
     private void HandleInserted()
     {
@@ -135,18 +205,44 @@ public class SocketEmissionShift : MonoBehaviour
     /// </summary>
     private void ApplyAll(float t, bool lit)
     {
+        _shiftT = t;
+        _lit = lit;
+        WriteAll();
+    }
+
+    private void WriteAll()
+    {
         for (int i = 0; i < targets.Length; i++)
         {
             Target target = targets[i];
             if (target.renderer == null) continue;
             if (target.materialIndex < 0 || target.materialIndex >= target.renderer.sharedMaterials.Length) continue;
 
-            Color color = lit ? Color.Lerp(_authored[i], insertedColor, t) : Color.black;
+            Color color = _lit ? CapOutsideSafeZone(Color.Lerp(_authored[i], insertedColor, _shiftT)) : Color.black;
 
             target.renderer.GetPropertyBlock(_block, target.materialIndex);
             _block.SetColor(EmitColorId, color);
             target.renderer.SetPropertyBlock(_block, target.materialIndex);
         }
+    }
+
+    /// <summary>
+    /// <paramref name="color"/> as shown for the player's position: unchanged inside the safe zone,
+    /// scaled down to <see cref="outsideSafeZoneIntensity"/> outside it (hue kept), faded between.
+    /// </summary>
+    private Color CapOutsideSafeZone(Color color)
+    {
+        if (!dimOutsideSafeZone || _zoneWeight >= 1f) return color;
+
+        float peak = Mathf.Max(color.r, Mathf.Max(color.g, color.b));
+        Color capped = color;
+        if (peak > outsideSafeZoneIntensity)
+        {
+            capped = color * (outsideSafeZoneIntensity / peak);
+            capped.a = color.a;
+        }
+
+        return Color.Lerp(capped, color, _zoneWeight);
     }
 
     private static Material GetMaterial(Target target)

@@ -670,12 +670,47 @@ public class ElevatorCabinNavMesh : MonoBehaviour
                        $"landing {landing.position} → cabin door {door.position} " +
                        $"({Vector3.Distance(landing.position, door.position):0.00} m apart, " +
                        $"{Mathf.Abs(door.position.y - landing.position.y):0.00} m of that vertical)\n" +
+                       DescribeLandingFooting(landing) +
                        "Since re-registering did not help, this is geometry rather than timing. " +
-                       "In order of likelihood: the level's NavMesh reaches INTO the shaft under " +
-                       "the cabin, so both of the link's ends snap to that same floor and the " +
-                       "link becomes a no-op (put an ElevatorLandingBarrier at this landing and " +
-                       "re-bake — the shaft footprint must not be walkable in the static mesh); " +
-                       "or the cabin's own island does not actually cover the door point.", this);
+                       "In order of likelihood: the landing sits on (or just off) the EDGE of the " +
+                       "level's NavMesh — the link's end there is a segment as wide as the link, " +
+                       "and it has to lie on the mesh to connect; move the landing transform " +
+                       "half a metre further onto the floor (NemesisTestbed's top landing, 03/10); " +
+                       "or the level's NavMesh reaches INTO the shaft under the cabin, so both of " +
+                       "the link's ends snap to that same floor and the link becomes a no-op (put " +
+                       "an ElevatorLandingBarrier at this landing and re-bake — the shaft " +
+                       "footprint must not be walkable in the static mesh); or the cabin's own " +
+                       "island does not actually cover the door point.", this);
+    }
+
+    /// <summary>Margin from the edge of the level's NavMesh under which a landing is reported as
+    /// sitting on the edge. The working landings in the project sit 0.4 m or more inside it.</summary>
+    private const float LandingEdgeMargin = 0.3f;
+
+    /// <summary>
+    /// How the landing stands on the level's NavMesh, measured: off it, on its very edge, or
+    /// comfortably inside. Said in the error because it is the one cause that cannot be seen — the
+    /// landing looks fine in the scene, samples as walkable, and still leaves the link's end hanging
+    /// half off the mesh (NemesisTestbed's top landing sat 3 cm outside the eroded edge of the floor
+    /// it stands on).
+    /// </summary>
+    private string DescribeLandingFooting(Transform landing)
+    {
+        var filter = new NavMeshQueryFilter { agentTypeID = agentTypeID, areaMask = NavMesh.AllAreas };
+        if (!NavMesh.SamplePosition(landing.position, out NavMeshHit onMesh, 1f, filter))
+            return "The landing is not on any NavMesh within 1 m.\n";
+
+        Vector3 flat = onMesh.position - landing.position;
+        flat.y = 0f;
+        if (flat.magnitude > 0.01f)
+            return $"The landing is {flat.magnitude:0.00} m OFF the level's NavMesh (nearest point " +
+                   $"{onMesh.position}).\n";
+
+        if (!NavMesh.FindClosestEdge(onMesh.position, out NavMeshHit edge, filter)) return "";
+        if (edge.distance >= LandingEdgeMargin) return "";
+
+        return $"The landing is only {edge.distance:0.00} m from the edge of the level's NavMesh " +
+               $"(edge at {edge.position}).\n";
     }
 
     private void OnDrawGizmos()

@@ -14,8 +14,8 @@ using UnityEngine;
 /// that controller asks <see cref="TryGetPivotOffset"/> and <see cref="ShoulderWeight"/> while it
 /// runs, same as for <see cref="WakeUpCameraPan"/>.
 ///
-/// SETUP: on the FreeLook Camera of the Player prefab, next to WakeUpCameraPan
-/// (Tools ▸ Architect ▸ Setup Wake-Up Cinematic adds it).
+/// SETUP: on the FreeLook Camera of the Player prefab, next to WakeUpCameraPan. Nothing adds it
+/// by itself: without it the rig stays wherever the capture left it for the whole stand-up.
 /// </summary>
 [RequireComponent(typeof(CinemachineOrbitalFollow))]
 public class CaptureStandUpCameraPan : MonoBehaviour

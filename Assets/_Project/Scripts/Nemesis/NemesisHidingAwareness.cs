@@ -8,7 +8,7 @@ using UnityEngine;
 /// LEVEL A, "I SAW YOU GET IN". On <see cref="HidingEvents.OnEntered"/> — raised at the END of the
 /// climb-in, which is the whole reason the climb-in takes any time — it asks its own eyes what they
 /// had at that moment. Seeing the player, or having seen them within SeenEnteringWindow, with the
-/// spot inside view range and its door in line of sight: KNOWN. The player in the corner of its eye on the last sweep, with the
+/// spot inside view range and its door in line of sight and inside the view cone: KNOWN. The player in the corner of its eye on the last sweep, with the
 /// meter past the threshold: SUSPECTED, worth walking over to, not certain. A meter that is only
 /// still DRAINING from a chase that already lost them does not count — that is a memory, not a
 /// glimpse, and a player who broke line of sight and then hid has done everything right (§13
@@ -18,7 +18,9 @@ using UnityEngine;
 /// table at a reduced range, into the suspicion meter only. Past the threshold the spot becomes
 /// suspected — which sends Investigating to it rather than off after some old noise, and the meter
 /// keeps filling on the way — and once full, <see cref="FieldOfView.HiddenPlayerSpotted"/> makes it
-/// known. Standing right next to a spot is the same event from the proximity rule (§3.3).
+/// known. Standing right next to a spot is the same event from the proximity rule (§3.3) — unless
+/// the player is holding their breath (plan §17.6, D21): then only OPENING a spot it already
+/// suspects or knows finds them (<see cref="Open"/>).
 ///
 /// NOTHING HERE ASKS WHERE THE PLAYER REALLY IS. The event says which spot was entered; whether the
 /// Nemesis gets to know it is decided entirely by what its own sensors had at the time. Leaving the
@@ -68,6 +70,11 @@ public class NemesisHidingAwareness : MonoBehaviour
     /// <summary>Why the current knowledge exists, for the debug HUD. Null when there is none.</summary>
     public string Reason { get; private set; }
 
+    /// <summary>It opened a spot to look inside (<see cref="Open"/>), whoever was in it. The one way a
+    /// hiding spot's node on the possibility map is cleared: looking at a closed locker says nothing.
+    /// An instance event, not a static one: it is this Nemesis's eyes.</summary>
+    public event System.Action<HidingSpot> SpotOpened;
+
     private void Awake()
     {
         // Static events: subscribed in Awake and released in OnDestroy, per docs/CLAUDE.md. The
@@ -105,6 +112,7 @@ public class NemesisHidingAwareness : MonoBehaviour
     public void Tick()
     {
         SuspectWhatItIsMakingOut();
+        TrackHidingSpotNoises();
 
         if (KnownSpot == null && SuspectedSpot == null) return;
 
@@ -149,9 +157,9 @@ public class NemesisHidingAwareness : MonoBehaviour
     }
 
     /// <summary>
-    /// The Nemesis stood at <paramref name="spot"/> for the whole check and nothing came of it — had
-    /// the player been inside, the proximity rule would have found them. Nobody is there: forget it.
-    /// Called by the state that did the checking.
+    /// The Nemesis stood at <paramref name="spot"/> for the whole check and nothing came of it — it
+    /// opened it on arrival (<see cref="Open"/>) and nobody was inside. Forget it. Called by the
+    /// state that did the checking.
     /// </summary>
     public void MarkChecked(HidingSpot spot)
     {
@@ -166,6 +174,43 @@ public class NemesisHidingAwareness : MonoBehaviour
         if (ReferenceEquals(KnownSpot, spot)) KnownSpot = null;
         if (ReferenceEquals(SuspectedSpot, spot)) SuspectedSpot = null;
         if (KnownSpot == null && SuspectedSpot == null) Reason = null;
+
+        // Checked and empty: a noise from around it starts from scratch (D22).
+        hasFirstHidingNoise = false;
+        if (ReferenceEquals(habitSpot, spot)) habitSpot = null;
+    }
+
+    /// <summary>
+    /// The Nemesis opens the spot it walked up to check — the locker door, a look under the table —
+    /// and sees whether anyone is in it (plan §17.6: suspecting a spot makes the player prey).
+    /// Returns true, and makes the spot known, when the player is inside.
+    ///
+    /// This used to be the proximity rule's job: standing at the door found whoever was in there.
+    /// Holding your breath now takes a player out of that rule (D21), so without an explicit open a
+    /// checked spot would come back "empty" with the player in it. Opening is a sense like any
+    /// other — it looks inside the one spot it is standing at — and the states only call it at a
+    /// spot the Nemesis already suspects or knows, never at one it merely walked past.
+    /// </summary>
+    public bool Open(HidingSpot spot)
+    {
+        if (spot == null) return false;
+
+        SpotOpened?.Invoke(spot);
+
+        // The first opening by habit happens HERE, in front of the player, not when the spot was
+        // picked: a suspicion dropped on the way (seen elsewhere, a capture) would otherwise spend the
+        // lesson where nobody saw it (R3, review 28/09).
+        if (ReferenceEquals(habitSpot, spot))
+        {
+            habitSpot = null;
+            if (PlayerHabitTracker.Exists) PlayerHabitTracker.Instance.MarkRun(ECounterplay.CheckHidingSpots);
+        }
+
+        PlayerStateManager player = PlayerRegistry.Current;
+        if (player == null || !ReferenceEquals(player.CurrentHidingSpot, spot)) return false;
+
+        Know(spot, "lo abrió");
+        return true;
     }
 
     /// <summary>Forgets everything. The capture and the respawn use it, and so does being seen out
@@ -175,6 +220,201 @@ public class NemesisHidingAwareness : MonoBehaviour
         KnownSpot = null;
         SuspectedSpot = null;
         Reason = null;
+        habitSpot = null;
+
+        // A breath heard before the capture, the respawn or seeing the player out in the open is not
+        // half of "it sounded twice from there" afterwards.
+        hasFirstHidingNoise = false;
+    }
+
+    // ── Spots the player has used (plan §17.6, D23; Fase 2D, the Nemesis half) ───────────────────
+
+    /// <summary>How close to a used spot's door the player has to be for its FIRST opening by habit
+    /// to count as seen or heard (R3): about the reach of the ear. Director-side knowledge, used only
+    /// to stage the lesson, never to find anyone.</summary>
+    private const float WitnessDistance = 12f;
+
+    /// <summary>
+    /// While it searches, the spots the map holds value in are candidates (plan §19.5, E2; D38, D41),
+    /// replacing the old roll over the spots the player had used around the place it was going to.
+    /// Most valuable first, each rolled once per search against <see cref="SpotOpenRules.Chance"/>:
+    /// value × habit for a spot the player has used, and only a high share of the map for one they
+    /// never did. The first that comes up becomes SUSPECTED, which sends the state to open it (case
+    /// 39). Nothing is asked about where the player really is, and a spot the map has cleared does not
+    /// come up, however used. Returns true when it picked one.
+    ///
+    /// R3, kept: until the first opening by habit has happened, the player has to be near enough to
+    /// see or hear the search for a used spot (the first time is the lesson, and one nobody witnessed
+    /// teaches nothing). A GATE, NOT A FILTER (WIR-057): one question about where the map is
+    /// densest, the same for every used spot, so the real position never decides which locker. While it
+    /// is closed the used spots are not rolled (they may qualify later in the same search); a spot
+    /// never used is not part of the lesson and is not held back.
+    ///
+    /// <paramref name="rolled"/> is the caller's memory of what it already rolled this search: a
+    /// spot gets one roll per search, not one per re-centre.
+    /// </summary>
+    public bool ConsiderSpotsByMap(System.Collections.Generic.HashSet<HidingSpot> rolled)
+    {
+        if (stateManager == null || KnownSpot != null || SuspectedSpot != null) return false;
+
+        NemesisPossibilityMap map = stateManager.PossibilityMap;
+        SO_NemesisData data = stateManager.NemesisData;
+        if (map == null || data == null) return false;
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Exists ? PlayerHabitTracker.Instance : null;
+        bool lessonUnwitnessed = false;
+        if (habits != null && !habits.HasRun(ECounterplay.CheckHidingSpots) && map.TryGetBest(out _, out Vector3 densest))
+            lessonUnwitnessed = !CouldWitnessArea(stateManager.PlayerTransform, densest, data.RoomSweepRadius);
+
+        // The spots with value in them, most valuable first: the roll goes to the likeliest.
+        mapSpots.Clear();
+        System.Collections.Generic.IReadOnlyList<HidingSpot> all = HidingSpot.Active;
+        for (int i = 0; i < all.Count; i++)
+        {
+            HidingSpot spot = all[i];
+            if (spot == null || spot.IsBurned) continue;
+            if (rolled != null && rolled.Contains(spot)) continue;
+            if (map.ShareInSpot(spot) > 0f) mapSpots.Add(spot);
+        }
+
+        if (mapSpots.Count == 0) return false;
+        mapSpots.Sort((x, y) => map.ShareInSpot(y).CompareTo(map.ShareInSpot(x)));
+
+        for (int i = 0; i < mapSpots.Count; i++)
+        {
+            HidingSpot spot = mapSpots[i];
+            float habitChance = habits != null ? habits.OpenChance(spot) : 0f;
+
+            if (habitChance > 0f && lessonUnwitnessed) continue;
+
+            float chance = SpotOpenRules.Chance(map.ShareInSpot(spot), habitChance, data.SpotMapHabitFullShare,
+                                                data.SpotMapNeverUsedMinShare, data.SpotMapNeverUsedChance);
+
+            // One roll per spot per search. A spot with no chance yet is not rolled: the map may
+            // close in on it later in the same search.
+            if (chance <= 0f) continue;
+            rolled?.Add(spot);
+            if (Random.value >= chance) continue;
+
+            // A spot never used is not a habit: only the map sent it there, so it teaches nothing.
+            if (habitChance > 0f) habitSpot = spot;
+            Suspect(spot, habitChance > 0f
+                ? $"lo usaste antes ({habits.GetSpotUsage(spot):0.#}) y el mapa lo marca"
+                : "el mapa lo marca");
+            return true;
+        }
+
+        return false;
+    }
+
+    private readonly System.Collections.Generic.List<HidingSpot> mapSpots = new System.Collections.Generic.List<HidingSpot>();
+
+    /// <summary>Whether the player is where they could see or hear a spot inside the area being
+    /// opened: within WitnessDistance of its edge, and on the same floor as its centre. Staging
+    /// knowledge only (R3): it decides whether the lesson may happen now, never which spot.</summary>
+    private bool CouldWitnessArea(Transform player, Vector3 centre, float radius)
+    {
+        if (player == null) return false;
+
+        Vector3 offset = centre - player.position;
+        SO_NemesisData data = stateManager.NemesisData;
+        float floor = data != null ? data.FloorHeightThreshold : 2.5f;
+        if (Mathf.Abs(offset.y) > floor) return false;
+
+        offset.y = 0f;
+        float reach = WitnessDistance + Mathf.Max(0f, radius);
+        return offset.sqrMagnitude <= reach * reach;
+    }
+
+    /// <summary>The spot suspected by habit whose opening is still to come: opening it is the first
+    /// time of CheckHidingSpots (R3).</summary>
+    private HidingSpot habitSpot;
+
+
+    // ── A second noise from the same spot (plan §17.6, D22) ──────────────────
+
+    /// <summary>A noise from inside a hiding spot that comes after this much quiet is a new one, not
+    /// the same breath heard on the next sweep.</summary>
+    private const float HidingNoiseGap = 1f;
+
+    /// <summary>Two noises this close together are "from the same spot".</summary>
+    private const float SameSpotNoiseDistance = 1.5f;
+
+    /// <summary>How long the first one is remembered.</summary>
+    private const float HidingNoiseMemory = 60f;
+
+    /// <summary>How far from the noise a spot may be and still be where it came from.</summary>
+    private const float NoiseToSpotDistance = 2f;
+
+    private bool hasFirstHidingNoise;
+    private Vector3 firstHidingNoiseAt;
+    private float firstHidingNoiseTime;
+    private float lastHidingNoiseHeardAt = float.NegativeInfinity;
+
+    /// <summary>
+    /// D22, the second half. The FIRST noise from inside a hiding spot marks the area (the belief's
+    /// radius ×2, and the search sweeps it without walking to the door). A SECOND one from the same
+    /// place makes the spot SUSPECTED: it was not a coincidence, and now it goes to open it. Which spot
+    /// is the one the noise came out of — the nearest to where it sounded — which is what hearing it
+    /// twice from the same place tells anyone.
+    /// </summary>
+    private void TrackHidingSpotNoises()
+    {
+        if (KnownSpot != null) return;
+
+        FieldOfListening ears = stateManager.FieldOfListening;
+        if (ears == null || !ears.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise)) return;
+        if (!noise.FromHidingSpot || noise.HeardAt <= lastHidingNoiseHeardAt) return;
+
+        bool newEpisode = noise.HeardAt - lastHidingNoiseHeardAt > HidingNoiseGap;
+        lastHidingNoiseHeardAt = noise.HeardAt;
+        if (!newEpisode) return;
+
+        // Both distances allow for how far off the ear may place each noise (Fase 1): two breaths
+        // from one locker are heard a little apart, and neither need land on the locker itself. The
+        // spot it settles on is the nearest to where it HEARD them, which may be the next locker
+        // along — "it sounded from around there" is all hearing can say.
+        float slack = Mathf.Max(0f, noise.LocalizationError);
+        float sameSpot = SameSpotNoiseDistance + slack;
+
+        bool sameAsFirst = hasFirstHidingNoise &&
+                           noise.HeardAt - firstHidingNoiseTime < HidingNoiseMemory &&
+                           (noise.Position - firstHidingNoiseAt).sqrMagnitude < sameSpot * sameSpot;
+
+        if (!sameAsFirst)
+        {
+            hasFirstHidingNoise = true;
+            firstHidingNoiseAt = noise.Position;
+            firstHidingNoiseTime = noise.HeardAt;
+            return;
+        }
+
+        HidingSpot spot = NearestSpot(noise.Position, NoiseToSpotDistance + slack);
+        if (spot == null) return;
+
+        hasFirstHidingNoise = false;
+        Suspect(spot, "volvió a sonar ahí");
+    }
+
+    private static HidingSpot NearestSpot(Vector3 point, float maxDistance)
+    {
+        HidingSpot best = null;
+        float bestSqr = maxDistance * maxDistance;
+        System.Collections.Generic.IReadOnlyList<HidingSpot> active = HidingSpot.Active;
+
+        for (int i = 0; i < active.Count; i++)
+        {
+            HidingSpot spot = active[i];
+            if (IsGone(spot)) continue;
+
+            float sqr = (spot.InteriorPose.position - point).sqrMagnitude;
+            if (sqr >= bestSqr) continue;
+
+            bestSqr = sqr;
+            best = spot;
+        }
+
+        return best;
     }
 
     // ── Level A ──────────────────────────────────────────────────────────────
@@ -184,7 +424,9 @@ public class NemesisHidingAwareness : MonoBehaviour
         if (spot == null || stateManager == null || !stateManager.IsActive || eyes == null) return;
 
         SO_NemesisData data = stateManager.NemesisData;
-        float viewRange = data != null ? data.ViewRange : FallbackViewRange;
+        // The range its eyes are really working at (FieldOfView.EffectiveViewRange), not the base one:
+        // a player it is holding in sight at twelve metres was SEEN climbing into that locker.
+        float viewRange = data != null ? eyes.EffectiveViewRange : FallbackViewRange;
 
         // Too far to have told this spot from the next one, whatever it saw.
         if ((spot.InteriorPose.position - eyes.ViewTransform.position).sqrMagnitude > viewRange * viewRange)
@@ -194,8 +436,14 @@ public class NemesisHidingAwareness : MonoBehaviour
         // moment ago round the corner" count as "saw you get in"; this is what makes it a sighting
         // of the climb. Aimed where the climbing player stands, at body height, looking through the
         // spot's own shell only.
-        if (!eyes.HasLineOfSightTo(spot.ApproachPoint.position + Vector3.up * DoorProbeHeight, spot))
-            return;
+        Vector3 door = spot.ApproachPoint.position + Vector3.up * DoorProbeHeight;
+        if (!eyes.HasLineOfSightTo(door, spot)) return;
+
+        // Inside its view cone, too (07/10, WIR-057). A line to the door is not a look at it: with
+        // the door beside or behind it, a player it had seen half a second earlier further up the
+        // corridor counted as seen climbing in — and the search walked straight to the locker.
+        float viewAngle = data != null ? data.ViewAngle : 170f;
+        if (!LineOfSight.CheckAngle(eyes.ViewTransform.position, door, eyes.LookDirection, viewAngle)) return;
 
         float window = data != null ? data.SeenEnteringWindow : FallbackSeenWindow;
         if (eyes.HasVisualTarget || eyes.TimeSinceLastSighting < window)

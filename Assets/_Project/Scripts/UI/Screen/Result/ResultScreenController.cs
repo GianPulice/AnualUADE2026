@@ -132,6 +132,15 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     /// </summary>
     private void HandleRetry()
     {
+        // The level may take the defeat back itself (the escape replays its cinematic from the
+        // eyes): close the screen and leave the run where it is. Close pops the modal and
+        // unfreezes time, like the paths below.
+        if (GameResultManager.TryRetryInPlace())
+        {
+            Close().Forget();
+            return;
+        }
+
         if (UIStateManager.Exists) UIStateManager.Instance.Pop(this);
         Time.timeScale = 1f;
 

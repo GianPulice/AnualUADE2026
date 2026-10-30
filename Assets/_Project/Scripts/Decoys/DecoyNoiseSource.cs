@@ -28,6 +28,43 @@ public class DecoyNoiseSource : MonoBehaviour
     /// <summary>Every decoy currently sounding, in no particular order.</summary>
     public static IReadOnlyList<DecoyNoiseSource> Active => active;
 
+    /// <summary>Which decoy this is, for the value the Nemesis gives it (plan §17.5): a radio, the
+    /// fire alarm and the chains are worth different things.</summary>
+    public enum EKind
+    {
+        Other,
+        Radio,
+        FireAlarm,
+        Chains,
+    }
+
+    private EKind? kind;
+
+    private static int nextId;
+    private int id;
+
+    /// <summary>A small number that tells this decoy apart from the others for the session: how the
+    /// Nemesis's choice recognises "the same decoy" (plan §17.4, question 4). Never 0.</summary>
+    public int Id => id != 0 ? id : (id = ++nextId);
+
+    /// <summary>
+    /// Read off the decoy that owns this source rather than authored, so no prefab has to carry a
+    /// second field that could disagree with the component next to it.
+    /// </summary>
+    public EKind Kind
+    {
+        get
+        {
+            if (kind.HasValue) return kind.Value;
+
+            kind = GetComponent<RadioDecoy>() != null ? EKind.Radio
+                 : GetComponent<FireAlarmDecoy>() != null ? EKind.FireAlarm
+                 : GetComponent<ChainDecoy>() != null ? EKind.Chains
+                 : EKind.Other;
+            return kind.Value;
+        }
+    }
+
     public bool IsEmitting { get; private set; }
 
     /// <summary>Metres at which the Nemesis hears it with nothing in the way. Walls and floors

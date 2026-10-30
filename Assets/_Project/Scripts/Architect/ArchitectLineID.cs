@@ -22,7 +22,12 @@ public enum ArchitectLineID
     ResolvedInTime,     // ARC_08 — 2 variants
     Captured,           // ARC_09 — 15 variants
     GameOver,           // ARC_10 — absolute priority
-    Idle,               // ARC_R01..R23 — inactivity pool
+    Idle,               // ARC_R — inactivity pool, the lines that never mention the Nemesis
+
+    // Added after spec v1.2: not in its §6 table.
+    ContextBoxRoom,     // ARC_CTX_06 — first time in the SP2 box room
+    ContextBoxLights,   // ARC_CTX_07 — SP1 solved: the box room's lights have power
+    IdleNemesis,        // ARC_R — inactivity pool about the Nemesis: only once it is out (Zona 2)
 }
 
 /// <summary>Spec §1.2. Decides what happens to a trigger that cannot play right now.</summary>

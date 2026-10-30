@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "SO_PuzzleData", menuName = "Scriptable Objects/Puzzles/Puzzle Data")]
-public class SO_PuzzleData : ScriptableObject
+public class SO_PuzzleData : ScriptableObject, IPuzzleRewardSource
 {
     [SerializeField] private string puzzleId;
     [SerializeField] private PuzzleState initialState = PuzzleState.NotStarted;

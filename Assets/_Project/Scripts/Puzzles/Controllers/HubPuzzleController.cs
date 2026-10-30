@@ -25,6 +25,9 @@ public class HubPuzzleController : MonoBehaviour
 
         PuzzleStateManager.Instance.SetPuzzleCompleted(hubData.PuzzleId);
 
+        if (AudioManager.Exists && !string.IsNullOrEmpty(hubData.CompletedSoundId))
+            AudioManager.Instance.PlaySFX(hubData.CompletedSoundId);   // 2D: heard alike from anywhere
+
         Debug.Log($"Hub completed: {hubData.PuzzleId}");
 
         // TO DO HERE:

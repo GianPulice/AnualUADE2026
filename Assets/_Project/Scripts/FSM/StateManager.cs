@@ -29,6 +29,20 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
     public float TimeInCurrentState => Time.time - StateEnteredAt;
 
     /// <summary>
+    /// The state the machine was in before the current one — already set when the current state's
+    /// EnterState runs, so a state can tell how it was reached. <see cref="HasPreviousState"/> is
+    /// false until the first transition.
+    ///
+    /// For states whose behaviour legitimately depends on where they came from without the decision
+    /// layer having to pass it along: Searching entered from Investigating is the short search that
+    /// follows an empty investigation of the player's own noise (Nemesis plan D26), not a full one.
+    /// </summary>
+    public EState PreviousStateKey { get; private set; }
+
+    /// <summary>Whether <see cref="PreviousStateKey"/> means anything yet.</summary>
+    public bool HasPreviousState { get; private set; }
+
+    /// <summary>
     /// Stamps the clock <see cref="TimeInCurrentState"/> measures against.
     ///
     /// Public-to-subclasses because entering the first state is not always Start's job: a
@@ -78,6 +92,8 @@ public abstract class StateManager<EState> : MonoBehaviour where EState : Enum
 
         IsTransitioningState = true;
         CurrentState.ExitState();
+        PreviousStateKey = CurrentState.StateKey;
+        HasPreviousState = true;
         CurrentState = nextState;
         MarkStateEntered();
         CurrentState.EnterState();

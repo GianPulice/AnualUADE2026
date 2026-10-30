@@ -68,16 +68,19 @@ public class ValveInteractable : BaseRangeInteractable, IPuzzleInteractable
         StartCoroutine(InitializeValveState());
     }
 
-private IEnumerator InitializeValveState()
+    /// <summary>
+    /// Puts the starting position on record: <see cref="ValvePuzzleController"/> reads positions
+    /// with a default of 0, not this valve's InitialPosition.
+    ///
+    /// The manager lives in the Data scene, which can finish loading after the level, so this waits
+    /// until it exists — no fixed delay, and no wait at all when it is already there. The session
+    /// reset runs before the level loads (MainMenuController, ResultScreenController), so nothing
+    /// wipes the position afterwards.
+    /// </summary>
+    private IEnumerator InitializeValveState()
     {
-        yield return new WaitForSeconds(3);
-
         if (!PuzzleStateManager.Exists)
-        {
-            Debug.LogWarning($"[{nameof(ValveInteractable)}] No PuzzleStateManager — the starting " +
-                             $"position of valve '{valveData.ValveId}' was not published.", this);
-            yield break;
-        }
+            yield return new WaitUntil(() => PuzzleStateManager.Exists);
 
         PuzzleStateManager.Instance.SetValvePosition(
             valveData.ValveId,
@@ -90,7 +93,7 @@ private IEnumerator InitializeValveState()
             SnapRotatorToPosition(CurrentPosition);
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (valveData == null) return "Unconfigured valve";
         return valveData.PromptText;

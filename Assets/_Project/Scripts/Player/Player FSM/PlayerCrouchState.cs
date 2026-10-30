@@ -51,7 +51,12 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 
     public override void UpdateState()
     {
-        if (playerStateManager.IsImmobilized)
+        // A lock that asked to keep the crouch (the module explosion shot) and found no room to
+        // stand: the player stays HERE, frozen. Going to Disabled would stand the capsule back up
+        // into the ceiling on the way out (ExitState).
+        bool holdPose = playerStateManager.HoldsCrouchPose;
+
+        if (playerStateManager.IsImmobilized && !holdPose)
         {
             NextState = PlayerStateManager.EPlayerState.Disabled;
         }
@@ -69,7 +74,8 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         }
         else
         {
-            if (playerStateManager.InputDir != Vector3.zero)
+            // Held: no input reaches the body, so it takes the standing-still branch below.
+            if (!holdPose && playerStateManager.InputDir != Vector3.zero)
             {
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);

@@ -255,6 +255,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 612f31d3684e4baa9850fb2b943bd143, type: 2}
   - {fileID: 11400000, guid: 74045e3b110b4651b92aa40ea3eeacb2, type: 2}
   - {fileID: 11400000, guid: 417cdce2b15c4dabbe5d465876046234, type: 2}
+  - {fileID: 11400000, guid: aaf4115b369f4677b419954e6ff24dd3, type: 2}
   - {fileID: 11400000, guid: d97817c548004262869ef70ff79c6557, type: 2}
   - {fileID: 11400000, guid: 670fe610cafa498bace4fd1e8ae91441, type: 2}
   - {fileID: 11400000, guid: 77ddc23dcd8e417d8f5b109b70a7958e, type: 2}
@@ -267,6 +268,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 11abce670a76425fac78124efb67f9ba, type: 2}
   - {fileID: 11400000, guid: 4eedab164fbe48f5b0f4989a7f6f4f4a, type: 2}
   - {fileID: 11400000, guid: e36fbc88f5c54730b52c04da05abcce9, type: 2}
+  - {fileID: 11400000, guid: ad5028a8cbd3417f89a910c485b275f1, type: 2}
+  - {fileID: 11400000, guid: 156c2348e8d744128ecd2793fc6b3ff1, type: 2}
+  - {fileID: 11400000, guid: 887917ec14b04b5c80f31e1e70a84490, type: 2}
+  - {fileID: 11400000, guid: 1a0c5d81a13d4b228432805720a5aef8, type: 2}
+  - {fileID: 11400000, guid: e9a92d26811e417fb383ff59f4cd1514, type: 2}
+  - {fileID: 11400000, guid: 8738989bf32c47768a6239146d17c741, type: 2}
 --- !u!4 &201702926
 Transform:
   m_ObjectHideFlags: 0
@@ -770,6 +777,96 @@ Transform:
   - {fileID: 678623239}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1502000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1502000003}
+  - component: {fileID: 1502000002}
+  m_Layer: 0
+  m_Name: PlayerHabitTracker
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1502000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1502000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 076103b6271a410ea48be027a8ccdb41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHabitTracker
+  rules: {fileID: 11400000, guid: 05a6da4b34f0468f98de3fdeafd5ee1c, type: 2}
+--- !u!4 &1502000003
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1502000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1503000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1503000003}
+  - component: {fileID: 1503000002}
+  m_Layer: 0
+  m_Name: NemesisEscalation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1503000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1503000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e62232b0785e4ea898042d63a65f85af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisEscalation
+  escalation: {fileID: 11400000, guid: d5074b1a95af4a4d8e2ad7a529329542, type: 2}
+--- !u!4 &1503000003
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1503000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -785,3 +882,5 @@ SceneRoots:
   - {fileID: 1362949093}
   - {fileID: 1454750780}
   - {fileID: 1416866361}
+  - {fileID: 1502000003}
+  - {fileID: 1503000003}

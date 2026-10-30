@@ -45,7 +45,8 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool nemesisPressureZones = true;
 
     [Tooltip("Debug que aparece al seleccionar: NemesisDirector, NemesisController, " +
-             "NemesisElevatorLink, NemesisDoorUser.")]
+             "NemesisElevatorLink, NemesisDoorUser. También NemesisDropLink, cuyo arco se ve " +
+             "siempre (verde: salto corto; ámbar: se descuelga; gris: en enfriamiento).")]
     [SerializeField] private bool nemesisDebug = true;
 
     [Header("Nivel y gameplay")]
@@ -79,7 +80,7 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool footsteps = true;
 
     [Tooltip("Luz y niebla: LightZone, FogBeacon, FogLightBypass, FogLightBypassPlayerFade, " +
-             "VisionRangeController.")]
+             "VisionRangeController, BoxSymbolRevealLight.")]
     [SerializeField] private bool lightAndFog = true;
 
     [Header("Unity")]
@@ -87,7 +88,8 @@ public class GizmoManager : MonoBehaviour
              "hay unos 300 en esta escena.")]
     [SerializeField] private bool colliders = true;
 
-    [Tooltip("Camera y CinemachineCamera: los frustums (las líneas blancas largas) y sus íconos.")]
+    [Tooltip("Camera y CinemachineCamera: los frustums (las líneas blancas largas) y sus íconos. " +
+             "También los volúmenes celestes de la cámara: CameraAreaZone y LookDownTrigger.")]
     [SerializeField] private bool cameras = true;
 
     [Tooltip("Light, ReflectionProbe y LightProbeGroup, con sus íconos.")]
@@ -113,7 +115,7 @@ public class GizmoManager : MonoBehaviour
         yield return (nemesisDebug, new[]
         {
             typeof(NemesisDirector), typeof(NemesisController), typeof(NemesisElevatorLink),
-            typeof(NemesisDoorUser),
+            typeof(NemesisDoorUser), typeof(NemesisDropLink), typeof(NemesisZoneWake),
         });
 
         yield return (inputHints, new[] { typeof(InputHintTrigger) });
@@ -137,6 +139,7 @@ public class GizmoManager : MonoBehaviour
         {
             typeof(LightZone), typeof(FogBeacon), typeof(FogLightBypass),
             typeof(FogLightBypassPlayerFade), typeof(VisionRangeController),
+            typeof(BoxSymbolRevealLight),
         });
 
         yield return (colliders, new[]
@@ -144,7 +147,7 @@ public class GizmoManager : MonoBehaviour
             typeof(BoxCollider), typeof(SphereCollider), typeof(CapsuleCollider), typeof(MeshCollider),
             typeof(CharacterController),
         });
-        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera) });
+        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone), typeof(LookDownTrigger) });
         yield return (lights, new[] { typeof(Light), typeof(ReflectionProbe), typeof(LightProbeGroup) });
         yield return (audioSources, new[] { typeof(AudioSource), typeof(AudioReverbZone), typeof(AudioListener) });
         yield return (navMesh, new[]
@@ -184,6 +187,7 @@ public class GizmoManager : MonoBehaviour
         // Destroyed or switched off between the scheduling and now: OnDisable already restored.
         if (this == null || !isActiveAndEnabled) return;
 
+        LoadGizmoList();
         HashSet<string> hidden = LoadHidden();
 
         foreach ((bool show, Type[] types) in Families())
@@ -197,12 +201,22 @@ public class GizmoManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Asks for the whole gizmo list, which is what loads it. Until something does — the Gizmos
+    /// dropdown being opened, or this call — TryGetGizmoInfo answers false for EVERY type, even
+    /// BoxCollider, after a domain reload (seen in 6000.4). Apply and the restore both run right
+    /// after one, took that false for "this type has no gizmo", skipped it and so hid nothing at
+    /// all, with no error anywhere.
+    /// </summary>
+    private static void LoadGizmoList() => UnityEditor.GizmoUtility.GetGizmoInfo();
+
+    /// <summary>
     /// Hides only what is currently showing, and records it; shows only what this manager recorded.
     /// That pair is what keeps a gizmo someone switched off by hand in the dropdown switched off.
     /// </summary>
     private static void SetShown(Type type, bool show, HashSet<string> hidden)
     {
-        // Not registered: the type has never had a gizmo or an icon to draw.
+        // Not registered: the type has never had a gizmo or an icon to draw. (Only once the list is
+        // loaded: see LoadGizmoList.)
         if (!UnityEditor.GizmoUtility.TryGetGizmoInfo(type, out UnityEditor.GizmoInfo info)) return;
 
         string gizmoKey = GizmoChannel + KeySeparator + type.AssemblyQualifiedName;
@@ -235,6 +249,7 @@ public class GizmoManager : MonoBehaviour
     /// </summary>
     public static void RestoreHiddenGizmos()
     {
+        LoadGizmoList();
         HashSet<string> hidden = LoadHidden();
         if (hidden.Count == 0) return;
 

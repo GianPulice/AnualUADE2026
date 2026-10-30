@@ -24,7 +24,7 @@ using UnityEngine;
 ///
 /// Purely reactive by necessity — it lives in the additively loaded LevelUI scene and could not
 /// hold an inspector reference to the Nemesis, the player or the CheckpointManager even if it
-/// wanted to. Same shape as its two siblings under this HUD canvas (VignetteChaseView /
+/// wanted to. Same shape as its sibling under this HUD canvas, the proximity vignette (
 /// VignetteProximityView): subscribe in Awake, unsubscribe in OnDestroy.
 /// </summary>
 [RequireComponent(typeof(CanvasGroup))]
@@ -62,8 +62,19 @@ public class CaptureFadeView : MonoBehaviour
     /// </summary>
     public static event Action OnCaptureRevealed;
 
+    /// <summary>
+    /// The black cover starts lifting at the respawn point, <see cref="fadeOutDuration"/> before
+    /// <see cref="OnCaptureRevealed"/>. The player's camera reboots from here
+    /// (<see cref="PlayerCameraFeed"/>), so its boot is already on screen as the black clears.
+    /// </summary>
+    public static event Action OnCaptureRevealStarted;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => OnCaptureRevealed = null;
+    private static void ResetStatics()
+    {
+        OnCaptureRevealed = null;
+        OnCaptureRevealStarted = null;
+    }
 
     private CancellationTokenSource fadeCts;
 
@@ -74,7 +85,7 @@ public class CaptureFadeView : MonoBehaviour
     }
 
     /// <summary>
-    /// Picks up the sibling overlays under this HUD canvas (VignetteChaseView,
+    /// Picks up the sibling overlays under this HUD canvas (today only
     /// VignetteProximityView). They all derive from BaseScreenView and this component does not,
     /// so there is no need to filter this object out of the result.
     /// </summary>
@@ -145,9 +156,23 @@ public class CaptureFadeView : MonoBehaviour
     /// reaches the player. Cover the screen before the respawn runs, and drop the other overlays
     /// once it is fully black — cutting them at the start instead would make the red chase
     /// vignette vanish in plain sight, on a screen that is still mostly see-through.
+    ///
+    /// The grab's shot plays first when there is one (<see cref="PlayerEvents.CaptureShotSeconds"/>,
+    /// 0 without it). CheckpointManager waits the same seconds before its own delay, so the cover
+    /// is still closed by the time the player is moved.
+    ///
+    /// With a shot the overlays go at the grab instead. The view cuts to another camera on that
+    /// frame, so they leave with the cut rather than in plain sight — and left up, the chase
+    /// vignette at the strength it has with the Nemesis on top of the player is a red wash over
+    /// the whole shot.
     /// </summary>
-    private void HandlePlayerCaptured(PlayerStateManager player) =>
-        FadeTo(1f, fadeInDuration, 0f, afterFade: () => SetOverlaysActive(false)).Forget();
+    private void HandlePlayerCaptured(PlayerStateManager player)
+    {
+        float shotSeconds = PlayerEvents.CaptureShotSeconds;
+        if (shotSeconds > 0f) SetOverlaysActive(false);
+
+        FadeTo(1f, fadeInDuration, shotSeconds, afterFade: () => SetOverlaysActive(false)).Forget();
+    }
 
     /// <summary>
     /// The Nemesis has finished repositioning after the capture — the player already landed at
@@ -159,7 +184,11 @@ public class CaptureFadeView : MonoBehaviour
     /// </summary>
     private void HandleCaptureResolved() =>
         FadeTo(0f, fadeOutDuration, blackHoldDuration,
-               beforeFade: () => SetOverlaysActive(true),
+               beforeFade: () =>
+               {
+                   SetOverlaysActive(true);
+                   OnCaptureRevealStarted?.Invoke();
+               },
                afterFade: () => OnCaptureRevealed?.Invoke()).Forget();
 
     /// <summary>

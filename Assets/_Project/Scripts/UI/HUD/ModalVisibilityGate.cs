@@ -9,16 +9,15 @@ using UnityEngine;
 /// Generic and reusable: any GameObject with a CanvasGroup can use it, it does not hardcode
 /// which HUD element it is. Same pattern InteractionPromptView already uses.
 ///
-/// <see cref="ignoredModalIds"/> lets an element stay up over specific modals: the module timer
-/// keeps showing during the skill check, which is exactly when its penalties land. Empty = hide
-/// under every modal, as before.
+/// <see cref="ignoredModalIds"/> lets an element stay up over specific modals (the module timer
+/// over a check whose penalties land on it, for one). Empty = hide under every modal, as before.
 /// </summary>
 [RequireComponent(typeof(CanvasGroup))]
 public class ModalVisibilityGate : MonoBehaviour
 {
     [SerializeField] private CanvasGroup canvasGroup;
 
-    [Tooltip("IModalUI.ModalId values this element stays visible over (e.g. \"SkillCheck\"). " +
+    [Tooltip("IModalUI.ModalId values this element stays visible over (e.g. \"StabilizationCheck\"). " +
              "It still hides as soon as any other modal is open.")]
     [SerializeField] private string[] ignoredModalIds = new string[0];
 

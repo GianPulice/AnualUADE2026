@@ -96,10 +96,31 @@ public class NemesisGizmos : MonoBehaviour
              "eye.")]
     [SerializeField] private bool drawProximityDetection = true;
 
+    [Tooltip("The third zone: behind it, outside the vision cone, out to RearSenseRange (and, faint, " +
+             "the crouched reach). 'Siento que hay alguien atrás': it only fills the suspicion meter, " +
+             "slowly, and never makes a sighting on its own. Drawn at the feet, facing away from where " +
+             "it is looking.")]
+    [SerializeField] private bool drawRearSense = true;
+
+    [Tooltip("How far the eyes REALLY reach, next to the base cone (AdaptiveViewRange). Faint: the two " +
+             "ceilings — how far it holds a player it is already seeing (View Hold Scale) and how far " +
+             "a hunt lets it see again one it lost (View Hunt Scale). In Play mode, brighter: the " +
+             "range it is using right now, with why (sostiene / caza / vuelve a la base) — nothing " +
+             "extra is drawn while it is on the base range. Also, while it looks the way a lost " +
+             "player went: a line from the spot where it lost them to the point its eyes are aimed " +
+             "at (Lost Sight Look Ahead). The cones themselves already turn with the gaze.")]
+    [SerializeField] private bool drawAdaptiveVision = true;
+
     [Header("Hearing")]
     [Tooltip("Hearing radius at full strength. The wall and floor multipliers are drawn as inner " +
              "rings, since those are the ranges that actually apply most of the time.")]
     [SerializeField] private bool drawHearing = true;
+
+    [Tooltip("For a couple of seconds after each noise of the player's: a line from where they really " +
+             "were to where the ear placed them, and round that the longest error it could have put " +
+             "on it (Plan-Busqueda-Nemesis Fase 1, HearingLocalizationError). Editor and Play mode " +
+             "only: the real position never leaves the sensor in a build. Needs Hearing on.")]
+    [SerializeField] private bool drawHearingError = true;
 
     [Header("Capture")]
     [Tooltip("Where the grab can happen: CatchMaxReach horizontally by CatchMaxVerticalOffset " +
@@ -107,12 +128,31 @@ public class NemesisGizmos : MonoBehaviour
     [SerializeField] private bool drawCatchReach = true;
 
     [Header("Search & feedback")]
-    [Tooltip("Radius of the Searching state's fallback scatter (SearchSweepRadius).")]
+    [Tooltip("Radius of the last-resort scatter the Searching state runs around where it started " +
+             "when the possibility map holds no value at all — no belief to seed it " +
+             "(SearchSweepRadius).")]
     [SerializeField] private bool drawSearchSweep = true;
 
-    [Tooltip("The room the search has committed to sweeping, its centre, and the points it has " +
-             "already looked at. Play mode only — nothing to draw until a search commits.")]
-    [SerializeField] private bool drawRoomSweep = true;
+    [Tooltip("Where the search is going and why (Plan-Busqueda-Nemesis Fase 2b): a line to the place " +
+             "it chose off the possibility map, the zone around it (Search Map Zone Radius) with the " +
+             "share of the value it was picked for and what it holds now, and — fainter — the other " +
+             "places the last roll weighed, each with its share and the seconds to walk there. A " +
+             "place marked 'no vale' was under the worth threshold and took no part in the roll. " +
+             "Cheap, so it stays on with the heat map off. Play mode only, while it searches.\n\n" +
+             "It took the place of the old sweep disc, which is why the field keeps its saved value.")]
+    [UnityEngine.Serialization.FormerlySerializedAs("drawRoomSweep")]
+    [SerializeField] private bool drawSearchPick = true;
+
+    [Tooltip("The possibility map (Plan-Busqueda-Nemesis Fase 2): how possible it thinks it is that " +
+             "you are on each patch of NavMesh, as heat — faint purple is 'could be', warm orange is " +
+             "'most likely' — with a line to the likeliest place and its share. Hiding spots holding " +
+             "value get a box. Also the cone it clears ('acá no está': SearchMapClearRange × its view " +
+             "angle), and, while it searches, the place it chose (the same drawing as Draw Search " +
+             "Pick). Play mode only. Off by default: it is a few thousand cubes per repaint on a " +
+             "big level.\n\n" +
+             "What to look for in a corridor with one exit: the heat must never appear BEHIND the " +
+             "Nemesis, and the line to the chosen place must run ahead of it.")]
+    [SerializeField] private bool drawPossibilityMap = false;
 
     [Tooltip("ProximityRadius — the HUD vignette only. Detects nothing.")]
     [SerializeField] private bool drawProximityVignette = false;
@@ -124,6 +164,13 @@ public class NemesisGizmos : MonoBehaviour
              "table (all round). No ring means sealed. Play mode only: there is nothing to know " +
              "outside it.")]
     [SerializeField] private bool drawHidingKnowledge = true;
+
+    [Header("Belief")]
+    [Tooltip("Where it believes the player is and how sure it is: a disc of the belief's radius " +
+             "around its position (plan §17.3, 2B part 5). Small and solid while it has a sighting " +
+             "(0.5 m), wider and fainter as the evidence gets older or came through a wall or a " +
+             "hiding spot. The label says what the evidence was and how old it is. Play mode only.")]
+    [SerializeField] private bool drawBelief = true;
 
     [Header("Chase")]
     [Tooltip("While chasing: a ring of Chase Trail Penalty Radius around every waypoint on the " +
@@ -152,6 +199,14 @@ public class NemesisGizmos : MonoBehaviour
     private static readonly Color CatchColor     = new Color(0.8f, 0.10f, 0.10f);
     private static readonly Color SearchColor    = new Color(0.65f, 0.55f, 0.85f);
     private static readonly Color VignetteColor  = new Color(0.45f, 0.45f, 0.50f);
+    // Passive and faint: behind it is the weakest of the three zones, and must not read as a cone.
+    private static readonly Color RearColor      = new Color(0.62f, 0.58f, 0.78f);
+    // The vision amber, lighter: the range it is really seeing with sits outside the base cone and
+    // has to read as the same sense reaching further, not as a new one.
+    private static readonly Color AdaptiveVisionColor = new Color(1f, 0.92f, 0.62f);
+    // The search's purple, paler: the cone the possibility map clears sits on top of the vision cone
+    // and has to read as a different thing.
+    private static readonly Color MapClearColor  = new Color(0.80f, 0.75f, 0.95f, 0.6f);
 
     private NemesisStateManager StateManager => GetComponent<NemesisStateManager>();
 
@@ -192,9 +247,10 @@ public class NemesisGizmos : MonoBehaviour
         DrawHearing(data, manager);
         DrawCatch(data);
         DrawSearchAndVignette(data);
-        DrawIntercept();
-        if (drawRoomSweep) DrawRoomSweep();
+        if (drawPossibilityMap) DrawPossibilityMap(data, manager, eye);
+        if (drawSearchPick || drawPossibilityMap) DrawSearchPick(data, manager);
         if (drawHidingKnowledge) DrawHidingKnowledge(manager);
+        if (drawBelief) DrawBelief(manager);
         DrawPursuit();
         if (drawChaseTrail) DrawChaseTrail(data);
     }
@@ -257,7 +313,7 @@ public class NemesisGizmos : MonoBehaviour
     /// Where the chase is aiming: the predicted point, and the waypoint it decided to route
     /// through when it took one.
     ///
-    /// Same argument as DrawIntercept below. A Nemesis that swung round a corner to open the angle
+    /// An invisible decision is an untunable one. A Nemesis that swung round a corner to open the angle
     /// on you and a Nemesis that wandered into you from the side are indistinguishable from the
     /// outside, so without this "did the flanking work" is not a question anyone can answer - and
     /// ChaseDetourTolerance is a number nobody can tune. The ABSENCE of the detour line is
@@ -292,72 +348,175 @@ public class NemesisGizmos : MonoBehaviour
     }
 
     /// <summary>
-    /// A line to wherever the Searching state is aiming its cut-off.
+    /// The search's choice (Plan-Busqueda-Nemesis Fase 2b, §3.5): a line to the place it is heading
+    /// to, the zone it was chosen for with its share of the value — when picked, and now — and the
+    /// other places the last roll weighed.
     ///
-    /// It is drawn because the interception is the one decision in the system with no visible
-    /// tell: a Nemesis heading somewhere clever and a Nemesis heading somewhere by accident look
-    /// identical from outside. Without this, "did it cut me off or did it wander into me" is not
-    /// answerable, and neither is the tuning that depends on it.
+    /// WITHOUT THIS THE SEARCH IS UNTUNABLE. "It went the wrong way" has four different causes that
+    /// look the same from watching it walk: the map had the value in the wrong place (the heat map
+    /// answers that), the right place was not worth the walk (the candidates marked "no vale" answer
+    /// it: lower Search Map Worth Threshold), the roll simply came up the other way (the faint
+    /// candidates show what it was choosing between, and by how much), or it was never the map's
+    /// choice at all — a hiding spot, the scatter of a search with nothing to go on, standing with
+    /// nowhere to go. The label says which. And "ahora" dropping under Search Map Repick Share of the
+    /// share it was picked with is the moment it turns away before arriving.
     ///
-    /// Nothing is drawn when it fell back to the sweep, so the ABSENCE of the line is information
-    /// too: it means the belief, the heading or the waypoints were not good enough to commit to.
+    /// It took the place of the sweep disc (the anchor, its radius, the swept trail), which stopped
+    /// existing when the search stopped sweeping one. Play mode only, and only while it searches:
+    /// there is nothing to draw until then.
     /// </summary>
-    private void DrawIntercept()
+    private void DrawSearchPick(SO_NemesisData data, NemesisStateManager manager)
     {
-        // Fetched rather than cached, like the state manager above it: the Scene view draws
-        // outside Play mode where Awake has not run.
-        NemesisTelemetry telemetry = GetComponent<NemesisTelemetry>();
-        if (telemetry == null) return;
+        if (!Application.isPlaying) return;
+        if (manager.CurrentStateKey != NemesisStateManager.ENemesisState.Searching) return;
 
-        Vector3? intercept = telemetry.SearchInterceptPoint;
-        if (!intercept.HasValue) return;
+        NemesisSearchingState searching = manager.SearchingState;
+        if (searching == null) return;
+
+        Vector3 target = searching.SearchTarget;
 
         Gizmos.color = SearchColor;
-        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, intercept.Value);
-        Gizmos.DrawWireCube(intercept.Value, Vector3.one * 0.5f);
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, target + Vector3.up * 0.3f);
+        Gizmos.DrawWireCube(target, Vector3.one * 0.5f);
 
-        DrawLabel(intercept.Value + Vector3.up * 0.8f, "intercepción", SearchColor);
+        // On its way to a hiding spot: DrawHidingKnowledge already says which and why.
+        if (searching.SpotTarget != null) return;
+
+        Vector3 labelAt = target + Vector3.up * 1.2f;
+
+        switch (searching.Target)
+        {
+            case NemesisSearchingState.ETarget.Scatter:
+                DrawLabel(labelAt, "al azar: el mapa no tiene valor", SearchColor);
+                return;
+
+            case NemesisSearchingState.ETarget.Standing:
+                DrawLabel(labelAt, "se queda: nada vale la caminata", SearchColor);
+                break;
+
+            default:
+                // The zone the value is measured around. Usually where it is heading; with precise
+                // evidence inside the zone it stands on the evidence point instead, and the two part.
+                DrawDisc(searching.TargetZone, data.SearchMapZoneRadius, SearchColor);
+                DrawLabel(labelAt, $"busca acá: {searching.TargetShare:P0} del valor " +
+                                   $"(ahora {searching.TargetShareNow:P0})", SearchColor);
+                break;
+        }
+
+        // What the last roll was choosing between.
+        NemesisSearchPicker picker = searching.Picker;
+        IReadOnlyList<NemesisSearchPicker.Candidate> candidates = picker.Candidates;
+        Color faint = new Color(SearchColor.r, SearchColor.g, SearchColor.b, 0.45f);
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (i == picker.ChosenIndex) continue;
+
+            NemesisSearchPicker.Candidate candidate = candidates[i];
+
+            Gizmos.color = faint;
+            Gizmos.DrawWireSphere(candidate.Position + Vector3.up * 0.2f, 0.3f);
+
+            // NaN: it held too little for the walk to be worth asking about.
+            string walk = float.IsNaN(candidate.Seconds) ? "poco valor"
+                        : float.IsPositiveInfinity(candidate.Seconds) ? "sin camino a pie"
+                        : $"{candidate.Seconds:0.0} s";
+            string roll = candidate.InRoll ? "" : " · no vale";
+            DrawLabel(candidate.Position + Vector3.up * 0.7f, $"{candidate.Share:P0} · {walk}{roll}", faint);
+        }
     }
 
+    /// <summary>Below this share of the likeliest node, a node is not drawn: the tail of the spread
+    /// is everywhere, and drawing it hides the shape.</summary>
+    private const float MapDrawFloor = 0.02f;
+
     /// <summary>
-    /// The committed room sweep: the area, its centre, and every point already looked at.
+    /// The possibility map as heat over the NavMesh (Plan-Busqueda-Nemesis Fase 2), the cone it is
+    /// clearing, and a line to the likeliest place with how much of the value sits within 4 m of it.
     ///
-    /// WITHOUT THIS THE FEATURE IS UNTUNABLE. RoomSweepRadius decides how much of a room counts as
-    /// the room, and the wall test that clips it is invisible by nature — the difference between
-    /// "the radius is too small" and "a wall is cutting the room in half" is not something anyone
-    /// can tell from watching the Nemesis walk. Drawing the anchor with its radius and the swept
-    /// trail alongside it makes both readable at a glance.
+    /// THIS IS WHAT THE SEARCH GOES BY (Fase 2b), so it is the first thing to look at when a search
+    /// goes somewhere odd: lose the Nemesis in a corridor with one exit and the heat has to run ahead
+    /// of it towards the exit, never behind it; at a T it has to lean the way you were going without
+    /// leaving the other arm empty. A map that does not look right here does not search right, and
+    /// the spread speed, the heading bias and the clear range are three numbers nobody can tune
+    /// without seeing them. The place the search actually CHOSE off it is DrawSearchPick's — the
+    /// likeliest place drawn here is the map's own argmax, which the search rolls around and does
+    /// not simply walk to.
     ///
-    /// Play mode only, and deliberately: unlike the ranges below, there is nothing to draw until a
-    /// search has actually committed to somewhere.
+    /// Drawn from the component's own map, never a copy. Play mode only.
     /// </summary>
-    private void DrawRoomSweep()
+    private void DrawPossibilityMap(SO_NemesisData data, NemesisStateManager manager, Transform eye)
     {
         if (!Application.isPlaying) return;
 
-        NemesisStateManager manager = GetComponent<NemesisStateManager>();
-        NemesisSearchingState searching = manager != null ? manager.SearchingState : null;
-        if (searching == null || !searching.IsSweepingRoom) return;
+        NemesisPossibilityMap possibility = manager.PossibilityMap;
+        if (possibility == null || !possibility.IsBuilt) return;
 
-        NemesisFreeRoam roam = searching.FreeRoam;
+        // "Acá no está": the reach of the clearing — the range its eyes are really using, not the
+        // base one — at the real view angle.
+        DrawCone(eye, possibility.ClearRange, data.ViewAngle, MapClearColor, "acá no está");
 
-        DrawDisc(roam.Anchor, roam.Radius, SearchColor);
+        PossibilityMap map = possibility.Map;
+        PossibilityGraph graph = map.Graph;
 
-        Gizmos.color = SearchColor;
-        Gizmos.DrawWireSphere(roam.Anchor, 0.4f);
-
-        IReadOnlyList<Vector3> swept = roam.SweptPoints;
-        for (int i = 0; i < swept.Count; i++)
+        // Its trail (WIR-062): the line it walked during the hunt, and the floor it blocks — grey
+        // squares nothing can flow into. In a corridor they have to span its width, or the value
+        // slips back past it along the side.
+        IReadOnlyList<NemesisPossibilityMap.TrailPoint> trail = possibility.Trail;
+        if (trail.Count > 0)
         {
-            Gizmos.DrawWireCube(swept[i], Vector3.one * 0.35f);
+            Gizmos.color = VignetteColor;
+            for (int i = 1; i < trail.Count; i++)
+                Gizmos.DrawLine(trail[i - 1].Position + Vector3.up * 0.1f, trail[i].Position + Vector3.up * 0.1f);
 
-            // Chained in visit order, so the shape of the sweep is readable: a trail that keeps
-            // crossing itself means the swept-point penalty is too weak to spread it out.
-            if (i > 0) Gizmos.DrawLine(swept[i - 1], swept[i]);
+            float blockedSize = graph.Spacing * 0.5f;
+            Vector3 blockedTile = new Vector3(blockedSize, 0.02f, blockedSize);
+            for (int i = 0; i < graph.NodeCount; i++)
+                if (map.IsBlocked(i)) Gizmos.DrawWireCube(graph.Position(i) + Vector3.up * 0.05f, blockedTile);
+
+            DrawLabel(trail[0].Position + Vector3.up * 0.6f, $"rastro ({map.BlockedCount} tapados)", VignetteColor);
         }
 
-        DrawLabel(roam.Anchor + Vector3.up * 1.2f,
-                  $"barrido de habitación {roam.Radius:0.#} m", SearchColor);
+        // The Hub's doorway nodes, always: if these are not at its doors, value drains through walls.
+        Gizmos.color = MapClearColor;
+        for (int i = 0; i < graph.NodeCount; i++)
+        {
+            if (!graph.IsDrain(i)) continue;
+            Vector3 p = graph.Position(i);
+            Gizmos.DrawWireCube(p + Vector3.up * 0.5f, new Vector3(0.6f, 1f, 0.6f));
+            DrawLabel(p + Vector3.up * 1.3f, "puerta del Hub", MapClearColor);
+        }
+
+        if (!possibility.TryGetBest(out int best, out Vector3 bestAt)) return;
+
+        float max = map.Value(best);
+        float size = graph.Spacing * 0.8f;
+        Vector3 tile = new Vector3(size, 0.04f, size);
+
+        for (int i = 0; i < graph.NodeCount; i++)
+        {
+            float v = map.Value(i);
+            if (v <= max * MapDrawFloor) continue;
+
+            float t = v / max;
+            Color color = Color.Lerp(SearchColor, HardDetectColor, t);
+            color.a = 0.2f + 0.6f * t;
+            Gizmos.color = color;
+
+            Vector3 p = graph.Position(i);
+            if (graph.Kind(i) == PossibilityGraph.ENodeKind.HidingSpot)
+            {
+                Gizmos.DrawWireCube(p, Vector3.one * 0.7f);
+                Gizmos.DrawCube(p, Vector3.one * 0.35f);
+            }
+            else Gizmos.DrawCube(p + Vector3.up * 0.05f, tile);
+        }
+
+        Gizmos.color = HardDetectColor;
+        Gizmos.DrawLine(transform.position + Vector3.up * 0.5f, bestAt + Vector3.up * 0.3f);
+        Gizmos.DrawWireSphere(bestAt, 0.4f);
+        DrawLabel(bestAt + Vector3.up * 1f, $"más probable ({possibility.ShareNear(bestAt, 4f):P0} en 4 m)",
+                  HardDetectColor);
     }
 
     /// <summary>
@@ -379,9 +538,63 @@ public class NemesisGizmos : MonoBehaviour
     /// passive blue for a suspicion, which is also the colour of the state that goes to look at
     /// one (Investigating) in NemesisDebugHUD. Play mode only: there is nothing to know outside it.
     /// </summary>
+    /// <summary>
+    /// The fused belief as a disc: its position and its radius right now. The radius is the number
+    /// "todavía sabe dónde está" (Chase Hold Radius) and the search's disc are read from, so drawing
+    /// it is what lets a tuning of either be checked against a real chase. Fainter the wider it is.
+    /// </summary>
+    private void DrawBelief(NemesisStateManager manager)
+    {
+        if (!Application.isPlaying) return;
+
+        NemesisBelief belief = manager.Belief;
+        if (belief == null || !belief.HasBelief) return;
+
+        float radius = belief.Radius;
+        if (float.IsInfinity(radius) || float.IsNaN(radius)) return;
+
+        float certainty = Mathf.Clamp01(1f - radius / 10f);
+        Color color = Color.Lerp(new Color(SearchColor.r, SearchColor.g, SearchColor.b, 0.35f), SearchColor, certainty);
+
+        DrawDisc(belief.Position, radius, color);
+
+        Gizmos.color = color;
+        Gizmos.DrawWireSphere(belief.Position + Vector3.up * 0.1f, 0.15f);
+
+        string how = belief.IsAnchoredBySight ? "vista" : "oído";
+        DrawLabel(belief.Position + Vector3.up * 1.2f,
+                  $"cree que está acá ({how}, {belief.Age:0.#} s, r {radius:0.#} m)", color);
+    }
+
+    /// <summary>
+    /// What the possibility map holds inside each hiding spot (plan §19.5, E2): the share the search
+    /// rolls it by (<see cref="SpotOpenRules"/>). A label over every spot with something in it, so
+    /// "why did it open that locker" has an answer on screen.
+    /// </summary>
+    private void DrawSpotValues(NemesisStateManager manager)
+    {
+        NemesisPossibilityMap map = manager.PossibilityMap;
+        if (map == null) return;
+
+        System.Collections.Generic.IReadOnlyList<HidingSpot> spots = HidingSpot.Active;
+        for (int i = 0; i < spots.Count; i++)
+        {
+            HidingSpot spot = spots[i];
+            if (spot == null) continue;
+
+            float share = map.ShareInSpot(spot);
+            if (share < 0.005f) continue;
+
+            Vector3 at = spot.transform.position + Vector3.up * 2.1f;
+            DrawLabel(at, $"mapa {share:P0}", SearchColor);
+        }
+    }
+
     private void DrawHidingKnowledge(NemesisStateManager manager)
     {
         if (!Application.isPlaying) return;
+
+        DrawSpotValues(manager);
 
         HidingSpot known = manager.KnownHidingSpot;
         HidingSpot spot = known != null ? known : manager.SuspectedHidingSpot;
@@ -440,6 +653,8 @@ public class NemesisGizmos : MonoBehaviour
         if (drawVisionCone)
             DrawCone(eye, data.ViewRange, data.ViewAngle, VisionColor, $"view {data.ViewRange:0.#} m");
 
+        if (drawAdaptiveVision) DrawAdaptiveVision(data, eye);
+
         // Nested inside the outer cone, so what the eye reads off the picture is the GAP: that
         // wedge is the band where the Nemesis has to look at you for a moment before it reacts.
         // Drawn in the hard-detection orange rather than a fourth colour, because "inside this you
@@ -469,12 +684,109 @@ public class NemesisGizmos : MonoBehaviour
                      $"bajo mesa {underTable:0.#} m");
         }
 
+        if (drawRearSense && data.RearSenseRange > 0f && data.RearSenseStrength > 0f)
+        {
+            // The third zone (VisionZones.EZone.Rear): everything OUTSIDE the vision cone, out to
+            // RearSenseRange, measured flat from the body — so drawn at the feet, facing away from
+            // where it is looking. The crouched reach inside it, faint: crouching shortens it the way
+            // it shortens the view, and below the proximity ring it adds nothing.
+            Vector3 back = -LookDirectionOf(eye);
+            float span = 360f - data.ViewAngle;
+            DrawCone(transform.position, back, data.RearSenseRange, span, RearColor,
+                     $"siente atrás {data.RearSenseRange:0.#} m");
+
+            float crouchedRear = data.RearSenseRange * data.CrouchVisionMultiplier;
+            Color faint = new Color(RearColor.r, RearColor.g, RearColor.b, 0.35f);
+            DrawCone(transform.position, back, crouchedRear, span, faint, string.Empty);
+        }
+
         if (!drawProximityDetection || data.ProximityDetectionRange <= 0f) return;
 
         // At the feet, not the eye: the test is flat from the body and gated on the Nemesis's own
         // floor (FieldOfView.IsStandingOnMe). Drawn at the eye it floated 1.8 m above where it
         // applies — the same picture that hid the old sphere never reaching the floor at all.
         DrawDisc(transform.position, data.ProximityDetectionRange, HardDetectColor);
+    }
+
+    /// <summary>
+    /// How far the eyes really reach, against the base cone (AdaptiveViewRange).
+    ///
+    /// "View range 7" stopped being the whole answer on 04/10: a player it is already seeing stays
+    /// seen out to ViewRange x the hold scale, and one it lost can be seen again from further the
+    /// longer the hunt goes on. Without this a sighting from twelve metres looks like the cone
+    /// lying. The two ceilings are drawn faint — with their distance outside Play mode, where they
+    /// are the only thing there is to tune against the level — and, in Play, the range the sweep is
+    /// using right now is drawn over them with the reason, from the sensor's own numbers and never a
+    /// copy of the rule. Nothing but the faint ceilings while it is on the base range: an unaware
+    /// Nemesis sees to the base cone, and the picture has to say so.
+    ///
+    /// And where the eyes are AIMED while it looks the way a lost player went (ChaseGaze): the lost
+    /// spot, the point past it, and the line from the eye. The cones already turn with the gaze;
+    /// this is what shows WHY they turned, against the corner it is about.
+    /// </summary>
+    private void DrawAdaptiveVision(SO_NemesisData data, Transform eye)
+    {
+        const float Visible = 0.05f;
+
+        float baseRange = data.ViewRange;
+        float hold = data.ViewHoldRange;
+        float hunt = data.ViewHuntRange;
+
+        bool playing = Application.isPlaying;
+        Color ceiling = new Color(VisionColor.r, VisionColor.g, VisionColor.b, 0.3f);
+
+        // One cone when the two ceilings coincide (as shipped: both x2), or the labels stack.
+        if (Mathf.Abs(hold - hunt) <= Visible)
+        {
+            if (hold > baseRange + Visible)
+                DrawCone(eye, hold, data.ViewAngle, ceiling, playing ? string.Empty : $"sostiene / caza {hold:0.#} m");
+        }
+        else
+        {
+            if (hold > baseRange + Visible)
+                DrawCone(eye, hold, data.ViewAngle, ceiling, playing ? string.Empty : $"sostiene {hold:0.#} m");
+
+            if (hunt > baseRange + Visible)
+                DrawCone(eye, hunt, data.ViewAngle, ceiling, playing ? string.Empty : $"caza {hunt:0.#} m");
+        }
+
+        if (!playing) return;
+
+        NemesisStateManager manager = StateManager;
+        FieldOfView view = manager != null ? manager.FieldOfView : null;
+        if (view == null) return;
+
+        float effective = view.EffectiveViewRange;
+        if (effective > baseRange + Visible)
+        {
+            DrawCone(eye, effective, data.ViewAngle, AdaptiveVisionColor,
+                     $"{DescribeRangeReason(view.ViewRangeReason)} ×{view.ViewRangeScale:0.0#} · {effective:0.#} m");
+        }
+
+        NemesisLookAround look = GetComponent<NemesisLookAround>();
+        if (look == null || !look.TryGetLostTrail(out Vector3 lostAt, out Vector3 aimPoint)) return;
+
+        Vector3 lift = Vector3.up * 0.1f;
+
+        Gizmos.color = AdaptiveVisionColor;
+        Gizmos.DrawLine(lostAt + lift, aimPoint + lift);
+        Gizmos.DrawLine(eye.position, aimPoint + lift);
+        Gizmos.DrawWireSphere(lostAt, 0.25f);
+        Gizmos.DrawWireSphere(aimPoint, 0.35f);
+        DrawLabel(aimPoint + Vector3.up * 0.8f, "mira por donde se fue", AdaptiveVisionColor);
+    }
+
+    /// <summary>The designer's word for why the range is what it is. The same words the debug HUD
+    /// uses, so the two pictures agree.</summary>
+    private static string DescribeRangeReason(AdaptiveViewRange.EReason reason)
+    {
+        switch (reason)
+        {
+            case AdaptiveViewRange.EReason.Hold: return "sostiene";
+            case AdaptiveViewRange.EReason.Hunt: return "caza";
+            case AdaptiveViewRange.EReason.Settling: return "vuelve a la base";
+            default: return "base";
+        }
     }
 
     /// <summary>
@@ -563,6 +875,42 @@ public class NemesisGizmos : MonoBehaviour
                   $"hearing cap {data.ListenRange:0.#} m", HearingColor);
 
         DrawGaitBands(data, origin);
+        if (drawHearingError) DrawHearingError(listening);
+    }
+
+    /// <summary>How long after a noise of the player's its real-versus-perceived pair stays drawn.
+    /// </summary>
+    private const float HearingErrorShowSeconds = 2f;
+
+    /// <summary>
+    /// Where the ear placed the player's last noise, against where they really were
+    /// (Plan-Busqueda-Nemesis Fase 1): a line from the real position to the perceived one, and round
+    /// the perceived one the longest offset the ear could have put on it. The pair is the whole point
+    /// — HearingLocalizationError is a fraction nobody can picture, and a circle that always swallows
+    /// the line says the error is doing nothing.
+    ///
+    /// The real position comes from the sensor's editor-only copy (the game never sees it), so this
+    /// is editor and Play mode only, for a couple of seconds after each noise.
+    /// </summary>
+    private void DrawHearingError(FieldOfListening listening)
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying || listening == null) return;
+        if (!listening.TryGetLastPlayerNoise(out FieldOfListening.HeardNoise noise)) return;
+        if (Time.time - noise.HeardAt > HearingErrorShowSeconds) return;
+        if (!listening.TryGetLastPlayerNoiseTruth(out Vector3 truth)) return;
+
+        Gizmos.color = HearingColor;
+        Gizmos.DrawLine(truth + Vector3.up * 0.1f, noise.Position + Vector3.up * 0.1f);
+        Gizmos.DrawWireSphere(truth, 0.2f);
+        Gizmos.DrawWireCube(noise.Position, Vector3.one * 0.35f);
+        if (noise.LocalizationError > 0.01f) DrawDisc(noise.Position, noise.LocalizationError, HearingColor);
+
+        Vector3 off = noise.Position - truth;
+        off.y = 0f;
+        DrawLabel(noise.Position + Vector3.up * 0.8f,
+                  $"oyó acá ({off.magnitude:0.0} / ±{noise.LocalizationError:0.0} m)", HearingColor);
+#endif
     }
 
     /// <summary>
@@ -675,9 +1023,12 @@ public class NemesisGizmos : MonoBehaviour
     {
         if (drawSearchSweep)
         {
+            // The last-resort scatter of a search with no value on the map. Around the Nemesis here
+            // because that is where such a search would start; with value, the map decides instead
+            // (DrawSearchPick).
             DrawDisc(transform.position, data.SearchSweepRadius, SearchColor);
             DrawLabel(transform.position + Vector3.forward * data.SearchSweepRadius,
-                      $"search sweep {data.SearchSweepRadius:0.#} m", SearchColor);
+                      $"búsqueda sin valor: al azar {data.SearchSweepRadius:0.#} m", SearchColor);
         }
 
         if (!drawProximityVignette) return;

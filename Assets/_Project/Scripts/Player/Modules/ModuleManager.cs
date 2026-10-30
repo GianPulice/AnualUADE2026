@@ -49,6 +49,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         CreateSingleton(true);
         BuildRuntimes();
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled += HandlePuzzleSettled;
         PauseManager.OnPauseStateChanged += HandlePauseStateChanged;
         GameSession.Register(this);
     }
@@ -56,6 +57,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCompletionAftermath.Settled -= HandlePuzzleSettled;
         PauseManager.OnPauseStateChanged -= HandlePauseStateChanged;
         GameSession.Unregister(this);
     }
@@ -83,15 +85,48 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         }
     }
 
+    /// <summary>
+    /// Start the module this puzzle starts (<see cref="ModuleData.IsStartedBy"/>): the first of its
+    /// puzzles to be solved starts the timer, so the first sub-puzzle is played off the clock. On
+    /// Settled, not OnPuzzleCompleted: with a reward box, its cinematic plays first, and the
+    /// timer's count-up on the camera feed would run under it. The other start puzzles, solved
+    /// later, find the module already activated and are ignored.
+    /// </summary>
+    private void HandlePuzzleSettled(string puzzleId)
+    {
+        for (int i = 0; i < runtimes.Count; i++)
+        {
+            if (runtimes[i].Data == null || !runtimes[i].Data.IsStartedBy(puzzleId)) continue;
+            if (runtimes[i].HasBeenActivated) return;
+
+            Log($"'{puzzleId}' solved: it starts '{runtimes[i].ModuleID}'.");
+            ActivateModule(i);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// The run's first module waits for the puzzle that starts it. The run is already under way:
+    /// that first sub-puzzle is off the module's clock, not off the session's.
+    /// </summary>
+    private bool FirstModuleWaitsOnPuzzle =>
+        runtimes.Count > 0 && runtimes[0].Data != null && runtimes[0].Data.StartsOnPuzzle;
+
     private void Update()
     {
-        // Session time starts ticking as soon as the first module goes Active. Before that we are
-        // still in menus / bootstrapping and should not count.
-        if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0)
+        // The run's clocks only move while there is a run on screen: with no player in the world
+        // (back in the main menu, between levels behind the loading screen) the active module
+        // waits instead of running out — and exploding, or ending the run — in the menu.
+        if (!PlayerRegistry.HasPlayer) return;
+
+        // Session time starts ticking as soon as the first module goes Active, or right away when it
+        // waits on a puzzle to start. Before that we are still in menus / bootstrapping and should
+        // not count.
+        if (activeRuntime != null || GetResolvedCount() > 0 || GetExplodedCount() > 0 || FirstModuleWaitsOnPuzzle)
             sessionTime += Time.unscaledDeltaTime;
 
-        // Editor only: a Development Build handed to testers must not let F8 blow up a module.
-#if UNITY_EDITOR
+        // Editor and Development Build, like every other debug key.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (debugExplodeKey != KeyCode.None && Input.GetKeyDown(debugExplodeKey)) DebugExplodeNow();
 #endif
 
@@ -133,7 +168,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
     /// <summary>
     /// Activate a module by its index in the config. Called by <see cref="ZoneTrigger"/> the first
-    /// time the player enters the zone. Silently ignored if the module is already activated, the
+    /// time the player enters the zone, or by the first of the module's start puzzles to be solved
+    /// (<see cref="HandlePuzzleSettled"/>). Silently ignored if the module is already activated, the
     /// index is out of range, or the previous module has not been resolved yet.
     /// </summary>
     public void ActivateModule(int index)
@@ -152,10 +188,14 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
             return;
         }
 
-        if (index > 0 && runtimes[index - 1].Status != ModuleStatus.Resolved)
+        // The previous module has to be over, whichever way it ended. Exploded counts: when the
+        // explosion is not a GameOver the run goes on to the next level, and demanding Resolved
+        // there would leave every later module unable to ever start.
+        ModuleStatus previous = index > 0 ? runtimes[index - 1].Status : ModuleStatus.Resolved;
+        if (previous != ModuleStatus.Resolved && previous != ModuleStatus.Exploded)
         {
             Log($"ActivateModule({index}) blocked: previous module '{runtimes[index - 1].ModuleID}' " +
-                $"is '{runtimes[index - 1].Status}', must be Resolved first.");
+                $"is '{previous}', must be Resolved or Exploded first.");
             return;
         }
 
@@ -178,10 +218,19 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         ModuleEvents.RaiseStateChanged(target);
     }
 
-    /// <summary>Convenience overload for ZoneTrigger, which holds a ModuleData reference.</summary>
+    /// <summary>
+    /// Convenience overload for ZoneTrigger, which holds a ModuleData reference. A module started
+    /// by its puzzles (<see cref="ModuleData.StartsOnPuzzle"/>) ignores the zone: walking in no
+    /// longer starts its clock.
+    /// </summary>
     public void ActivateModule(ModuleData data)
     {
         if (data == null) return;
+        if (data.StartsOnPuzzle)
+        {
+            Log($"ActivateModule('{data.ModuleID}') from a zone ignored: its puzzles start it.");
+            return;
+        }
         int index = IndexOf(data);
         if (index >= 0) ActivateModule(index);
     }
@@ -233,7 +282,40 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     }
 
     /// <summary>
-    /// Subtract seconds from the active module's timer. Used by systems like the SkillCheck to
+    /// Puts a module straight into a finished state — Resolved or Exploded — as if it had been
+    /// played earlier in the run. For a level entered without playing the ones before it
+    /// (<see cref="LevelStartState"/>, editor testing) and, later, for a save restore.
+    ///
+    /// A restore, not progress: no event is raised, no explosion is presented and no GameOver is
+    /// checked. The HUD, the LEDs and the camera feed read the manager on their own, and the
+    /// player picks the penalties up from <see cref="GetAllModules"/> when it starts.
+    /// </summary>
+    public void RestoreModuleState(string moduleId, ModuleStatus status)
+    {
+        ModuleRuntime target = GetRuntime(moduleId);
+        if (target == null)
+        {
+            Log($"RestoreModuleState('{moduleId}') ignored: no module with that id.");
+            return;
+        }
+
+        if (status != ModuleStatus.Resolved && status != ModuleStatus.Exploded)
+        {
+            Log($"RestoreModuleState('{moduleId}') ignored: only Resolved or Exploded can be restored.");
+            return;
+        }
+
+        target.HasBeenActivated = true;
+        target.IsTimerRunning = false;
+        target.Status = status;
+        target.TimeRemaining = status == ModuleStatus.Exploded ? 0f : target.TimeRemaining;
+        if (activeRuntime == target) activeRuntime = null;
+
+        Log($"Module '{moduleId}' restored as {status}.");
+    }
+
+    /// <summary>
+    /// Subtract seconds from the active module's timer. Used by systems like the stabilization checks to
     /// apply a time penalty on failure without touching runtime fields directly.
     /// </summary>
     public void ApplyTimePenalty(float seconds)
@@ -249,7 +331,7 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
     /// <summary>
     /// Give seconds back to the active module's timer, capped at its full duration. The reward side
-    /// of <see cref="ApplyTimePenalty"/> — a perfect skill check hit uses it. Ignored with no module
+    /// of <see cref="ApplyTimePenalty"/>. Ignored with no module
     /// running, so it can never revive an exploded one.
     /// </summary>
     public void ApplyTimeBonus(float seconds)

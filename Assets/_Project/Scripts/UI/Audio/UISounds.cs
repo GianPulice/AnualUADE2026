@@ -11,12 +11,17 @@ using UnityEngine;
 ///   ItemSelect             — the player clicks an item in the inventory list (not the auto-select
 ///                            on open).
 ///   ItemDiscard            — the player confirms discarding an item.
-///   PauseOpen / PauseClose — the pause menu opens / closes.
+///   PauseOpen / PauseClose — the pause menu opens / closes. Its opening has a clip of its own,
+///                            so pausing does not sound like opening Settings.
+///   SettingsOpen / SettingsClose — the settings screen opens / closes.
 ///   SaveSlotHover          — hovering a save slot card's action button.
 ///   SaveConfirm            — clicking a save slot (new game / load), one of three variants.
+///   SignalGlitch           — the static burst over a menu (<see cref="UISignalStaticBurst"/>), the
+///                            moment the screen fills with pixelated noise. Kept quiet on purpose:
+///                            nothing the player did triggers it, so it must register without startling.
 ///
 /// Clips are reused on purpose so the whole UI sounds the same. Settings: sliders tick with Hover,
-/// open / close reuse PauseOpen / PauseClose, Apply reuses SaveConfirm and Reset reuses ItemDiscard.
+/// Apply reuses SaveConfirm and Reset reuses ItemDiscard.
 /// </summary>
 public static class UISounds
 {
@@ -26,10 +31,15 @@ public static class UISounds
     public const string ItemSelect = "sfx_ui_item_select";
     public const string ItemDiscard = "sfx_ui_item_discard";
 
-    public const string PauseOpen = "sfx_ui_pause_01";
+    public const string PauseOpen = "sfx_ui_pause_03";
     public const string PauseClose = "sfx_ui_pause_02";
 
+    public const string SettingsOpen = "sfx_ui_pause_01";
+    public const string SettingsClose = "sfx_ui_pause_02";
+
     public const string SaveSlotHover = "sfx_save_slot_hover";
+
+    public const string SignalGlitch = "sfx_ui_signal_glitch";
 
     public static readonly string[] SaveConfirm =
     {

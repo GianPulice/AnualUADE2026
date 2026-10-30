@@ -713,3 +713,6 @@ MonoBehaviour:
   fadeDuration: 1.2
   flickerCount: 2
   flickerDuration: 0.25
+  dimOutsideSafeZone: 1
+  outsideSafeZoneIntensity: 2.4
+  safeZoneFadeDuration: 0.8

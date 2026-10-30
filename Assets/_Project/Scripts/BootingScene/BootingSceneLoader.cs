@@ -13,6 +13,10 @@ public class BootingSceneLoader : MonoBehaviour
     [SerializeField] private ScreenEventChannel screenChannel;
     [SerializeField] private SO_SceneList sceneDatabase;
 
+    [Header("Intro")]
+    [Tooltip("Company intro video, played after Data loads and only when booting into the default group. Optional.")]
+    [SerializeField] private IntroVideoSequence introVideo;
+
     [Header("Settings")]
     [Tooltip("The group loaded by default in a Build, or when no previous scene is detected.")]
     [SerializeField] private string defaultStartGroup = "Menu";
@@ -42,6 +46,12 @@ public class BootingSceneLoader : MonoBehaviour
 
         // 2. Work out which screen we have to go to
         string nextGroupToLoad = GetNextGroupToLoad();
+
+        if (introVideo != null && nextGroupToLoad == defaultStartGroup)
+        {
+            Debug.Log("<color=orange>[Bootstrapper] Playing the intro video...</color>");
+            await introVideo.PlayAsync();
+        }
 
         Debug.Log($"<color=orange>[Bootstrapper] 3. Delegating the load to the ScreenManager. Group: {nextGroupToLoad}</color>");
         screenChannel.RaisePushScreen(nextGroupToLoad);

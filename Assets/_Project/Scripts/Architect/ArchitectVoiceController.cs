@@ -12,6 +12,16 @@ using UnityEngine;
 ///   - Context lines play once per run (<see cref="TriggerContext"/>).
 ///   - Variants never repeat until all of them have played (shuffle bag per line).
 ///   - Random lines after N seconds without touching a puzzle.
+///   - Optional lines (Conditional and Random) are rationed so the Architect does not talk over the
+///     whole run: at least <see cref="minGapBetweenOptionalLines"/> seconds must pass since the last
+///     line of ANY category ended, or the trigger is dropped (GameOver and any line with an alert
+///     are exempt); the inactivity
+///     lines wait <see cref="inactivityThreshold"/> seconds; and the Captured line only speaks on
+///     one capture out of every <see cref="capturedLineEvery"/>, starting with the first.
+///   - Lines about the Nemesis are a separate pool (<see cref="ArchitectLineID.IdleNemesis"/>) that
+///     only plays once the Nemesis is out and the escape is over; before that the inactivity lines
+///     are the ones that never mention it (<see cref="ArchitectLineID.Idle"/>). See
+///     <see cref="NemesisOut"/> and <see cref="IdleLineForSituation"/>.
 ///   - Nothing plays with a menu open, except lines flagged PlaysOverMenus (ARC_03, ARC_10).
 ///
 /// One deliberate deviation: a Mandatory or Context line that is blocked (by another line or by a
@@ -39,8 +49,20 @@ public class ArchitectVoiceController : MonoBehaviour
     [SerializeField, Min(0f)] private float wakeUpDelay = 1.5f;
 
     [Header("Triggers")]
-    [Tooltip("Seconds without touching a puzzle before a random line plays. Spec suggests 90; calibrate in QA.")]
-    [SerializeField, Min(5f)] private float inactivityThreshold = 90f;
+    [Tooltip("Seconds without touching a puzzle before a random line plays. The spec suggested 90; " +
+             "240 keeps the Architect quieter. The HUDCanvas prefab value overrides this default.")]
+    [SerializeField, Min(5f)] private float inactivityThreshold = 240f;
+
+    [Header("Frequency")]
+    [Tooltip("Least seconds between the end of any line and an OPTIONAL line (Conditional or Random: " +
+             "timer warnings, explosions, 'in time', captures, inactivity). A trigger inside the gap " +
+             "is dropped. Mandatory and Context lines and lines with an alert ignore it, and GameOver " +
+             "still cuts in. 0 = off.")]
+    [SerializeField, Min(0f)] private float minGapBetweenOptionalLines = 30f;
+
+    [Tooltip("The Captured line speaks on one capture out of every N, counting from the first " +
+             "(N = 3: the 1st, 4th, 7th...). Counted per level load. 1 = every capture.")]
+    [SerializeField, Min(1)] private int capturedLineEvery = 3;
 
     [Tooltip("Fraction of a module's timer left when ARC_04 fires. 0.2 = 20%.")]
     [SerializeField, Range(0.01f, 0.99f)] private float timerCriticalFraction = 0.2f;
@@ -69,6 +91,8 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private SO_ArchitectLineBank.Line currentLine;
     private float lineEndTime;
+    private float lastLineEndTime = float.NegativeInfinity;
+    private int capturesSeen;
     private Request? chained;
     private bool chainedIsInternal;
     private readonly List<Request> deferred = new List<Request>();
@@ -81,12 +105,44 @@ public class ArchitectVoiceController : MonoBehaviour
     private readonly HashSet<ArchitectLineID> warnedMissing = new HashSet<ArchitectLineID>();
 
     private PlayerStateManager player;
+    private NemesisStateManager nemesis;
+    private EscapeSequenceDirector escapeDirector;
+    private bool nemesisOut;
     private bool lockedPlayerForWakeUp;
     private bool wakeUpDone;
     private float wakeUpCountdown = -1f;
     private float inactivityTimer;
 
     public bool IsSpeaking => currentLine != null;
+
+    /// <summary>
+    /// The Nemesis has come out this run: the escape wakes it (it sleeps all of Zona 1 before that),
+    /// and in a dev scene it is awake from Play. Latched: once out it stays out for this level load,
+    /// parked against the gate or not. Until then the Architect has nothing to say about it.
+    /// </summary>
+    private bool NemesisOut
+    {
+        get
+        {
+            if (nemesisOut) return true;
+
+            // Catch-up: OnActivated has no replay, and the Nemesis can wake before this exists.
+            if (nemesis == null) nemesis = FindAnyObjectByType<NemesisStateManager>();
+            nemesisOut = nemesis != null && nemesis.IsActive;
+            return nemesisOut;
+        }
+    }
+
+    /// <summary>The escape is under way (see <see cref="IdleLineForSituation"/>). Looked up lazily: this
+    /// controller lives in LevelUI and the director in the level.</summary>
+    private bool EscapeRunning
+    {
+        get
+        {
+            if (escapeDirector == null) escapeDirector = FindAnyObjectByType<EscapeSequenceDirector>();
+            return escapeDirector != null && escapeDirector.IsRunning;
+        }
+    }
 
     /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts.</summary>
     public bool PlaysWakeUpOnStart =>
@@ -125,7 +181,11 @@ public class ArchitectVoiceController : MonoBehaviour
         }
         Instance = this;
 
-        voiceSource = gameObject.AddComponent<AudioSource>();
+        // The prefab carries the AudioSource when it also carries ArchitectVoiceDisguise: the voice
+        // filter only works on a source that sits BEFORE it in the component list. Reuse that one.
+        voiceSource = GetComponent<AudioSource>();
+        if (voiceSource == null) voiceSource = gameObject.AddComponent<AudioSource>();
+
         voiceSource.playOnAwake = false;
         voiceSource.loop = false;
         voiceSource.spatialBlend = 0f;           // Spec: the voice comes from everywhere.
@@ -140,6 +200,7 @@ public class ArchitectVoiceController : MonoBehaviour
         InteractionEvents.OnInteracted += HandleInteracted;
         InventoryEvents.OnItemAdded += HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        NemesisEvents.OnActivated += HandleNemesisActivated;
         PlayerRegistry.SubscribeAndCatchUp(HandlePlayerRegistered);
     }
 
@@ -155,6 +216,7 @@ public class ArchitectVoiceController : MonoBehaviour
         InteractionEvents.OnInteracted -= HandleInteracted;
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        NemesisEvents.OnActivated -= HandleNemesisActivated;
         PlayerRegistry.Unsubscribe(HandlePlayerRegistered);
 
         ReleaseWakeUpLock();
@@ -212,6 +274,8 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private void HandlePlayerRegistered(PlayerStateManager registered) => player = registered;
 
+    private void HandleNemesisActivated() => nemesisOut = true;
+
     // ── Public API ───────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -226,6 +290,15 @@ public class ArchitectVoiceController : MonoBehaviour
         if (line == null) return false;
 
         Request request = new Request { Id = id, ModuleLabel = moduleLabel };
+
+        // Rationing: an optional line too soon after the last line, of any category, is dropped.
+        // GameOver is Conditional in the bank but is the one line that must always get through.
+        if (id != ArchitectLineID.GameOver && IsOptional(line) && IsInsideOptionalGap)
+        {
+            Log($"{id} dropped: {Time.unscaledTime - lastLineEndTime:F0}s since the last line, " +
+                $"{minGapBetweenOptionalLines:F0}s needed.");
+            return false;
+        }
 
         if (IsSpeaking)
         {
@@ -262,15 +335,15 @@ public class ArchitectVoiceController : MonoBehaviour
         if (wakeUpDone) return;
 
         wakeUpCountdown = -1f;
-        deferred.RemoveAll(r => r.Id == ArchitectLineID.WakeUpMoment1 || r.Id == ArchitectLineID.WakeUpMoment2);
+        deferred.RemoveAll(r => IsWakeUpLine(r.Id));
 
-        if (IsSpeaking && (currentLine.id == ArchitectLineID.WakeUpMoment1 || currentLine.id == ArchitectLineID.WakeUpMoment2))
+        if (IsSpeaking && IsWakeUpLine(currentLine.id))
         {
             StopCurrent(interrupted: true);   // Releases the lock and marks the wake-up done.
         }
         else
         {
-            if (chained.HasValue && chained.Value.Id == ArchitectLineID.WakeUpMoment2) chained = null;
+            if (chained.HasValue && IsWakeUpLine(chained.Value.Id)) chained = null;
             ReleaseWakeUpLock();
             wakeUpDone = true;
         }
@@ -350,7 +423,7 @@ public class ArchitectVoiceController : MonoBehaviour
         EndLine(interrupted);
         chained = null;
 
-        if (stopped == ArchitectLineID.WakeUpMoment1 || stopped == ArchitectLineID.WakeUpMoment2)
+        if (IsWakeUpLine(stopped))
         {
             ReleaseWakeUpLock();
             wakeUpDone = true;
@@ -362,6 +435,7 @@ public class ArchitectVoiceController : MonoBehaviour
         if (voiceSource.isPlaying) voiceSource.Stop();
         currentLine = null;
         inactivityTimer = 0f;
+        lastLineEndTime = Time.unscaledTime;
         ArchitectEvents.LineEnded(interrupted);
     }
 
@@ -401,6 +475,21 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private static bool IsQueueable(SO_ArchitectLineBank.Line line) =>
         line.category == ArchitectLineCategory.Mandatory || line.category == ArchitectLineCategory.Context;
+
+    /// <summary>
+    /// Conditional and Random lines: the ones the Architect can do without, and that get rationed. A
+    /// line with an alert is not one of them, whatever its category: the alert ("&gt; M1 DETONATED",
+    /// "&gt; M1 CRITICAL") is the player's only HUD news of that event, and it would be lost with the line.
+    /// </summary>
+    private static bool IsOptional(SO_ArchitectLineBank.Line line) =>
+        (line.category == ArchitectLineCategory.Conditional || line.category == ArchitectLineCategory.Random) &&
+        string.IsNullOrEmpty(line.alert);
+
+    /// <summary>The last line, of any category, ended less than <see cref="minGapBetweenOptionalLines"/> ago.</summary>
+    private bool IsInsideOptionalGap => Time.unscaledTime - lastLineEndTime < minGapBetweenOptionalLines;
+
+    private static bool IsWakeUpLine(ArchitectLineID id) =>
+        id == ArchitectLineID.WakeUpMoment1 || id == ArchitectLineID.WakeUpMoment2;
 
     private void Defer(Request request)
     {
@@ -475,7 +564,24 @@ public class ArchitectVoiceController : MonoBehaviour
         if (inactivityTimer < inactivityThreshold) return;
 
         inactivityTimer = 0f;
-        TriggerLine(ArchitectLineID.Idle);
+        TriggerLine(IdleLineForSituation());
+    }
+
+    /// <summary>
+    /// The inactivity pool is split by situation: with the Nemesis out, the lines about it; before
+    /// that, the ones that never mention it. A bank without the Nemesis pool falls back to the plain
+    /// one, so the Architect does not go quiet.
+    ///
+    /// The escape counts as "before": the Nemesis is out, but the lines about it are written for
+    /// stalking ("It can hear you", "It's two rooms away", "It doesn't run") and contradict a chase.
+    /// </summary>
+    private ArchitectLineID IdleLineForSituation()
+    {
+        if (!NemesisOut || EscapeRunning) return ArchitectLineID.Idle;
+
+        SO_ArchitectLineBank.Line nemesisPool = bank != null ? bank.Find(ArchitectLineID.IdleNemesis) : null;
+        bool hasNemesisPool = nemesisPool != null && nemesisPool.variants != null && nemesisPool.variants.Length > 0;
+        return hasNemesisPool ? ArchitectLineID.IdleNemesis : ArchitectLineID.Idle;
     }
 
     private static bool IsInMenus =>
@@ -552,7 +658,16 @@ public class ArchitectVoiceController : MonoBehaviour
         if (context.HasValue) TriggerContext(context.Value);
     }
 
-    private void HandlePlayerCaptured(PlayerStateManager _) => TriggerLine(ArchitectLineID.Captured);
+    private void HandlePlayerCaptured(PlayerStateManager _)
+    {
+        // Every capture counts, whether or not its line ends up playing: the 1st, 4th, 7th... speak.
+        int every = Mathf.Max(1, capturedLineEvery);
+        bool speaks = capturesSeen % every == 0;
+        capturesSeen++;
+
+        if (speaks) TriggerLine(ArchitectLineID.Captured);
+        else Log($"{ArchitectLineID.Captured} skipped: capture {capturesSeen}, speaks every {every}.");
+    }
 
     private void HandleInteracted(IInteractable interactable)
     {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Game audio singleton. Routes each sound to the correct AudioMixerGroup based on the
@@ -89,6 +90,13 @@ public class AudioManager : Singleton<AudioManager>
         InitSfxPool();
         IndexSounds();
         ApplyAllVolumesToMixer();
+        InitFallbackListener();
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneUnloaded -= OnSceneUnloaded;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -119,6 +127,58 @@ public class AudioManager : Singleton<AudioManager>
     {
         for (int i = 0; i < initialPoolSize; i++)
             sfxPool.Add(CreateSfxSource(i));
+    }
+
+    /// <summary>
+    /// The AudioListener rides the camera of the menu or of the level, and nothing in
+    /// Bootstrap/Data has a camera. So during a scene swap — the loading screen, with the menu
+    /// already unloaded and the level not loaded yet — there was no listener at all and every
+    /// source played into nothing: the loading screen's static burst and its glitch sound, or any
+    /// other UI sound heard there. The AudioManager holds a listener of its own while, and only
+    /// while, no other one exists. Re-checked on every scene load and unload, which is when
+    /// listeners come and go (no script toggles one at runtime).
+    ///
+    /// Destroyed rather than disabled when a camera's listener shows up: FootstepEmitter and
+    /// AudioOcclusion cache the first listener they find and only look again once it is gone.
+    /// </summary>
+    private AudioListener fallbackListener;
+
+    private void InitFallbackListener()
+    {
+        if (instance != this) return; // a duplicate on its way out
+
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        SceneManager.sceneUnloaded += OnSceneUnloaded;
+        RefreshFallbackListener();
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode) => RefreshFallbackListener();
+
+    private void OnSceneUnloaded(Scene scene) => RefreshFallbackListener();
+
+    private void RefreshFallbackListener()
+    {
+        bool another = false;
+        foreach (AudioListener listener in FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude))
+        {
+            if (listener != fallbackListener && listener.isActiveAndEnabled) { another = true; break; }
+        }
+
+        if (another)
+        {
+            if (fallbackListener == null) return;
+
+            // Off now, gone at the end of the frame: two listeners at once make Unity warn.
+            fallbackListener.enabled = false;
+            Destroy(fallbackListener.gameObject);
+            fallbackListener = null;
+        }
+        else if (fallbackListener == null)
+        {
+            var go = new GameObject("FallbackAudioListener");
+            go.transform.SetParent(transform, false);
+            fallbackListener = go.AddComponent<AudioListener>();
+        }
     }
 
     private AudioSource CreateSfxSource(int idx)
@@ -366,6 +426,14 @@ public class AudioManager : Singleton<AudioManager>
         return data.Clip.length;
     }
 
+    /// <summary>
+    /// The SO_SoundData registered under <paramref name="id"/>, or null (with no warning, unlike
+    /// the Play* calls: the caller decides whether a miss matters). For code that runs its own
+    /// AudioSources and so needs the clip and its trim, not a pooled one-shot.
+    /// </summary>
+    public SO_SoundData GetSound(string id)
+        => !string.IsNullOrEmpty(id) && byId.TryGetValue(id, out var data) ? data : null;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — getters
     // ──────────────────────────────────────────────────────────────────────────
@@ -602,7 +670,9 @@ public class AudioManager : Singleton<AudioManager>
     /// the result depends on script execution order.
     ///
     /// UI is excluded: menu clicks have to stay audible while paused, which is the whole reason
-    /// PlayUI forces ignoreListenerPause.
+    /// PlayUI forces ignoreListenerPause. So is Master, because the UI bus is one of its children:
+    /// ducking Master took the pause menu (and Settings opened from it) down to -80 dB with
+    /// everything else. The world fades on its own buses instead — every other child of Master.
     /// </summary>
     public float PauseDuck
     {
@@ -619,8 +689,8 @@ public class AudioManager : Singleton<AudioManager>
 
     private float pauseDuck = 1f;
 
-    /// <summary>Buses the pause duck does NOT touch.</summary>
-    private static bool IsDuckExempt(string exposedParam) => exposedParam == EXP_UI;
+    /// <summary>Buses the pause duck does NOT touch. See <see cref="PauseDuck"/> for Master.</summary>
+    private static bool IsDuckExempt(string exposedParam) => exposedParam == EXP_UI || exposedParam == EXP_MASTER;
 
     private void ApplyVolume(string exposedParam, float linear01)
     {

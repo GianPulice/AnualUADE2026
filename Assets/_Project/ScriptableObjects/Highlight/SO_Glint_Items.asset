@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SO_Glint_Items
   m_EditorClassIdentifier: Assembly-CSharp::SO_GlintProfile
   material: {fileID: 2100000, guid: bd3290805f938594284a53373d408dcd, type: 2}
-  color: {r: 3.4415908, g: 3.4415908, b: 3.4415908, a: 1}
+  color: {r: 8, g: 8, b: 8, a: 1}
   categoryConfig: {fileID: 11400000, guid: e9874eae4b34654418270751b4e6f305, type: 2}
   categoryTint: 0.75
   size: 0.25

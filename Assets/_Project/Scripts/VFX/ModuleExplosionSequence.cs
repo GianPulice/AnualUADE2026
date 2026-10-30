@@ -112,13 +112,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Checked here and not there because the two arrive in either order depending on which
         // path reported the GameOver.
         //
-        // Its penalty lands straight away: the run is over, nobody will see the limp, and
-        // holding it back would only leave it unapplied if the result screen tore this down.
-        if (GameResultManager.ExplosionEndsRun(runtime))
-        {
-            ModuleEvents.RaisePenaltyApplied(runtime);
-            return;
-        }
+        // Its penalty is NOT raised here: that would start the limp (or the blindness) while the
+        // camera is still travelling, before the blast. The injured animation starts with the VFX
+        // (PlayExplosion) and RunDefeatSequence raises the penalty right before the commit.
+        if (GameResultManager.ExplosionEndsRun(runtime)) return;
 
         // Same camera shot as the defeat, then back to gameplay. Skipped (plain effect in place)
         // when turned off in the config, or when another cinematic is already on screen.
@@ -244,6 +241,10 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         {
             isPlaying = false;
 
+            // After the blast, before the result screen. In the finally so a cancelled shot still
+            // leaves the penalty applied.
+            if (cause != null) ModuleEvents.RaisePenaltyApplied(cause);
+
             if (!committed)
             {
                 committed = true;
@@ -305,7 +306,11 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Only taken when it was free, and only then given back (UnlockPlayer): a player already
         // disabled by something else (a capture, the wake-up) must not be freed by this shot.
         if (player == null || player.IsDisabled) return;
-        player.IsDisabled = true;
+
+        // Keeping the crouch when there is no room to stand: under a container or a duct the
+        // standing capsule that Disabled restores would end up inside the ceiling, and the shot
+        // would play with the player pushed through the level. With room, this is IsDisabled = true.
+        player.DisableKeepingCrouch();
         lockedPlayer = true;
     }
 

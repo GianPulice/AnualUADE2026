@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb2a06972863f4b458fdac4eacfa343f, type: 3}
+  m_Name: SO_SecurityCamera_Default
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SecurityCameraData
+  sweepAngle: 90
+  sweepSpeed: 20
+  sweepEndPause: 1
+  viewRange: 12
+  viewAngle: 30
+  trackingSpeed: 90
+  panLimit: 80
+  maxTiltDown: 70
+  maxTiltUp: 20
+  loseSightDelay: 1.5
+  scanOverlayMaterial: {fileID: 2100000, guid: 9809d7624fbd17d46b078686cde2dc95, type: 2}
+  scanBeamMaterial: {fileID: 2100000, guid: e1c4caa0353d86d4db63a38b849eac24, type: 2}
+  scanFillDuration: 2.5
+  scanDrainDuration: 1.5
+  scanPassDuration: 1.2
+  scanFadeTime: 0.25

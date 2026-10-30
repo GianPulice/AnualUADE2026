@@ -19,6 +19,18 @@ using UnityEngine;
 /// whole cinematic without touching this component. The page break goes in the bank text:
 /// "There's a device on your body. | Three modules. ...".
 ///
+/// With <see cref="OpeningStyle.CameraBoot"/> (the default) the eyes are the player's camera
+/// (<see cref="PlayerCameraFeed"/>) and steps 1–3 change:
+///   1. The camera is off (black) until a moment before ARC_01a, when it boots
+///      (<see cref="PlayerCameraBoot"/>): the picture comes in through static — uncalibrated, an
+///      extreme fisheye — under a boot screen with a bar, and the player starts getting up and the
+///      camera pan starts with it.
+///   2. The boot screen stays up the whole cinematic, ARC_01a's subtitles under it, while the lens
+///      calibrates back to normal in jumps as the player gets up.
+///   3. On the stand-up's last frame the boot ends and the camera starts recording (its overlay),
+///      where control comes back as before.
+/// Without a feed on the player's camera it falls back to the eyes.
+///
 /// Must sit in the HUD above the gameplay overlays but BELOW ArchitectSubtitle, so the first
 /// sentence is readable on the black screen.
 ///
@@ -31,6 +43,20 @@ public class WakeUpCinematicView : MonoBehaviour
         AfterWakeUp1,   // When ARC_01a ends, the moment control comes back.
         AfterWakeUp2,   // When ARC_01b ends, the whole wake-up dialogue said.
     }
+
+    public enum OpeningStyle
+    {
+        EyeLids,        // The eyes open over the black on ARC_01a's second page.
+        CameraBoot,     // The player's camera boots through the whole cinematic, ARC_01a under it.
+    }
+
+    [Header("Opening")]
+    [Tooltip("CameraBoot: the picture comes in a moment before ARC_01a, an extreme fisheye under a " +
+             "boot screen that stays up the whole cinematic, and the lens calibrates as the player " +
+             "gets up (PlayerCameraFeed; timing and look on SO_PlayerCameraFeed). EyeLids: the eyes " +
+             "open on ARC_01a's second page. CameraBoot falls back to EyeLids when the player's " +
+             "camera has no feed.")]
+    [SerializeField] private OpeningStyle opening = OpeningStyle.CameraBoot;
 
     [Header("References")]
     [SerializeField] private CanvasGroup overlayGroup;
@@ -55,10 +81,12 @@ public class WakeUpCinematicView : MonoBehaviour
     [SerializeField, Min(0f)] private float fallbackBlackHold = 2.5f;
 
     [Header("Stand-up")]
-    [Tooltip("Seconds BEFORE ARC_01a starts that the stand-up clip starts, at normal speed, still on " +
-             "black. The clip (11.4s) then outlasts the line by a couple of seconds, and the whole " +
-             "cinematic — camera pan, control, input hint — stretches to its end. Capped by the " +
-             "controller's Wake Up Delay: the clip cannot start before the countdown does.")]
+    [Tooltip("EyeLids only. Seconds BEFORE ARC_01a starts that the stand-up clip starts, at normal " +
+             "speed, still on black. The clip (11.4s) then outlasts the line by a couple of seconds, " +
+             "and the whole cinematic — camera pan, control, input hint — stretches to its end. " +
+             "Capped by the controller's Wake Up Delay: the clip cannot start before the countdown " +
+             "does. With the camera boot the player starts getting up when the picture comes in, at " +
+             "the start of the boot.")]
     [SerializeField, Min(0f)] private float standUpLeadSeconds = 2f;
 
     [Header("Input hint")]
@@ -78,6 +106,24 @@ public class WakeUpCinematicView : MonoBehaviour
     private bool eyesOpening;
     private bool standUpFired;
 
+    // Camera boot: latched when the picture comes in, so the opening never changes style halfway.
+    private bool cameraBooted;
+    private bool panPending;
+    private bool lensFollowsTime;
+    private float lensStartProgress;
+    private float pictureStartTime;
+
+    // Seconds the pan waits for the Animator to report the stand-up's length (a frame or two after
+    // the clip starts) before settling for a guess.
+    private const float PanLengthWait = 0.3f;
+
+    // Without a stand-up to follow, the lens calibrates and the pan lands over this long, or over the
+    // boot plus ARC_01a once the line has started.
+    private const float LensFallbackSeconds = 10f;
+
+    /// <summary>The camera boots this time: asked for, and the player's camera has a feed.</summary>
+    private bool UsesCameraBoot => opening == OpeningStyle.CameraBoot && PlayerCameraFeed.IsAvailable;
+
     private void Awake()
     {
         ArchitectEvents.OnLineStarted += HandleLineStarted;
@@ -90,9 +136,12 @@ public class WakeUpCinematicView : MonoBehaviour
         ArchitectEvents.OnLineStarted -= HandleLineStarted;
         ArchitectEvents.OnLineEnded -= HandleLineEnded;
 
-        // Never leave the camera locked behind a HUD that went away.
+        // Never leave the camera locked — or switched off — behind a HUD that went away.
         if (state == State.Covering || state == State.Playing || state == State.WaitingForStandUp)
+        {
             WakeUpCinematicEvents.Finish();
+            PlayerCameraBoot.End(cut: true);
+        }
     }
 
     // Start, not Awake: the controller registers its Instance in its own Awake.
@@ -105,6 +154,10 @@ public class WakeUpCinematicView : MonoBehaviour
         SetVisible(true);
         SetOpen(0f, 1f);
         WakeUpCinematicEvents.LockCamera();
+
+        // The camera starts off. The lids stay up until a frame confirms the feed is there to draw
+        // the black — the player's scene may load after this one.
+        if (opening == OpeningStyle.CameraBoot) PlayerCameraBoot.SetOff();
     }
 
     private void Update()
@@ -121,6 +174,7 @@ public class WakeUpCinematicView : MonoBehaviour
             SkipPressed())
         {
             PlayerRegistry.Current.SkipStandUp();
+            PlayerCameraBoot.End(cut: true);
             return;
         }
 
@@ -131,21 +185,28 @@ public class WakeUpCinematicView : MonoBehaviour
                 ArchitectVoiceController voice = ArchitectVoiceController.Instance;
                 if (voice == null || voice.IsWakeUpDone)
                 {
-                    EndCinematic(showHint: false);
+                    EndCinematic(showHint: false, cut: true);
                     break;
                 }
 
-                // The clip starts standUpLeadSeconds before ARC_01a, while the countdown runs.
+                // The clip starts standUpLeadSeconds before ARC_01a, while the countdown runs. With
+                // the camera boot it starts with the picture instead (TickBoot).
                 float untilLine = voice.WakeUpSecondsUntilLine;
-                if (!standUpFired && !LoadingScreen.IsLoading && untilLine >= 0f && untilLine <= standUpLeadSeconds)
+                if (!standUpFired && !UsesCameraBoot && !LoadingScreen.IsLoading &&
+                    untilLine >= 0f && untilLine <= standUpLeadSeconds)
                     FireStandUp();
+
+                if (opening == OpeningStyle.CameraBoot) TickBoot(untilLine);
                 break;
 
             case State.Playing:
-                TickEyes();
+                if (cameraBooted) TickLens();
+                else TickEyes();
                 break;
 
             case State.WaitingForStandUp:
+                if (cameraBooted) TickLens();
+
                 // On its feet: the pan has landed on the nape with it, control comes back.
                 if (!IsPlayerWakingUp()) EndCinematic(showHint: true);
                 break;
@@ -160,11 +221,27 @@ public class WakeUpCinematicView : MonoBehaviour
     {
         if (state != State.Covering || playback.Id != ArchitectLineID.WakeUpMoment1) return;
 
-        string[] pages = ArchitectLinePages.Split(playback.Text);
-        float[] starts = ArchitectLinePages.StartTimes(playback, pages);
-
         lineStartTime = Time.unscaledTime;
         lineDuration = playback.Duration;
+        state = State.Playing;
+
+        // The boot goes on under the line (its subtitles sit below the boot screen) until the
+        // player is on their feet. If the countdown was too short for the picture to be in
+        // already, it comes in right now.
+        if (UsesCameraBoot)
+        {
+            if (!cameraBooted) ComeOnAir();
+            return;
+        }
+
+        // The countdown was shorter than the lead (or skipped past it): get up now at the latest.
+        if (!standUpFired) FireStandUp();
+
+        // The eyes (also the camera boot's fallback): the camera was never going to draw.
+        PlayerCameraBoot.End(cut: false);
+
+        string[] pages = ArchitectLinePages.Split(playback.Text);
+        float[] starts = ArchitectLinePages.StartTimes(playback, pages);
 
         // The eyes open with the second page, so the first one is read on black. Capped so there is
         // always some pan left, however the bank is timed.
@@ -172,10 +249,6 @@ public class WakeUpCinematicView : MonoBehaviour
         openStart = Mathf.Min(openStart, lineDuration * 0.8f);
 
         eyesOpening = false;
-        state = State.Playing;
-
-        // The countdown was shorter than the lead (or skipped past it): get up now at the latest.
-        if (!standUpFired) FireStandUp();
     }
 
     private void HandleLineEnded(bool interrupted)
@@ -184,7 +257,7 @@ public class WakeUpCinematicView : MonoBehaviour
 
         if (interrupted)
         {
-            EndCinematic(showHint: false);
+            EndCinematic(showHint: false, cut: true);
             return;
         }
 
@@ -193,6 +266,104 @@ public class WakeUpCinematicView : MonoBehaviour
         SetVisible(false);
         if (IsPlayerWakingUp()) state = State.WaitingForStandUp;
         else EndCinematic(showHint: true);
+    }
+
+    // ── Camera boot ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// While the countdown to ARC_01a runs: the camera is off until
+    /// <see cref="PlayerCameraFeed.PictureLeadSeconds"/> before the line, when the picture comes in
+    /// — uncalibrated, under the boot screen — and the player starts getting up with it. The boot
+    /// then runs the whole cinematic (<see cref="TickLens"/>). The lids cover only while no feed is
+    /// there to draw any of it.
+    /// </summary>
+    private void TickBoot(float untilLine)
+    {
+        bool feed = PlayerCameraFeed.IsAvailable;
+        SetVisible(!feed && !cameraBooted);
+        if (!feed) return;
+
+        if (!cameraBooted)
+        {
+            // Past the countdown with ARC_01a held back (a menu open) counts as time to come in.
+            bool due = !LoadingScreen.IsLoading &&
+                       (untilLine < 0f || untilLine <= PlayerCameraFeed.PictureLeadSeconds);
+            if (!due)
+            {
+                PlayerCameraBoot.SetOff();
+                return;
+            }
+            ComeOnAir();
+        }
+
+        TickLens();
+    }
+
+    /// <summary>
+    /// The picture comes in: the player starts getting up and the camera pan starts, both landing
+    /// on the stand-up's last frame, where the lens is set.
+    /// </summary>
+    private void ComeOnAir()
+    {
+        cameraBooted = true;
+        pictureStartTime = Time.unscaledTime;
+        SetVisible(false);
+
+        if (!standUpFired) FireStandUp();
+
+        // The lens is set when the player is on their feet, so it follows the stand-up from here.
+        // Without one running, the clock instead.
+        PlayerStateManager player = PlayerRegistry.Current;
+        lensFollowsTime = player == null || !player.IsWakeUpStandingUp;
+        lensStartProgress = lensFollowsTime ? 0f : player.StandUpProgress;
+
+        panPending = true;
+        TryStartPan();
+    }
+
+    /// <summary>
+    /// How far the wake-up is, picture in to on their feet: the boot's bar and the lens both follow
+    /// it, so the boot ends — and the camera starts recording — with the stand-up.
+    /// </summary>
+    private void TickLens()
+    {
+        TryStartPan();
+
+        PlayerStateManager player = PlayerRegistry.Current;
+        float progress;
+        if (player != null && player.IsWakeUpStandingUp)
+            progress = Mathf.InverseLerp(lensStartProgress, 1f, player.StandUpProgress);
+        else if (lensFollowsTime)
+            progress = (Time.unscaledTime - pictureStartTime) / LensSecondsWithoutStandUp();
+        else
+            progress = 1f;   // On their feet.
+
+        PlayerCameraBoot.SetBooting(progress);
+        PlayerCameraBoot.SetWakeProgress(progress);
+    }
+
+    /// <summary>Without a stand-up: the boot plus ARC_01a once the line is known, a guess before.</summary>
+    private float LensSecondsWithoutStandUp() =>
+        lineDuration > 0f ? Mathf.Max(lineStartTime - pictureStartTime + lineDuration, 0.1f) : LensFallbackSeconds;
+
+    /// <summary>
+    /// The pan lands on the nape when the player is on their feet — the stand-up's end. Its length is
+    /// only known once the Animator reports the clip, so it waits for that a moment; without a
+    /// stand-up, it lands with the lens.
+    /// </summary>
+    private void TryStartPan()
+    {
+        if (!panPending) return;
+
+        PlayerStateManager player = PlayerRegistry.Current;
+        bool standingUp = player != null && player.IsWakeUpStandingUp;
+        float elapsed = Time.unscaledTime - pictureStartTime;
+        if (standingUp && player.StandUpSecondsLeft <= 0f && elapsed < PanLengthWait) return;
+
+        panPending = false;
+        WakeUpCinematicEvents.StartPan(standingUp && player.StandUpSecondsLeft > 0f
+            ? player.StandUpSecondsLeft
+            : LensSecondsWithoutStandUp() - elapsed);
     }
 
     private void TickEyes()
@@ -246,16 +417,20 @@ public class WakeUpCinematicView : MonoBehaviour
         if (player != null) player.SkipStandUp();
 
         // The cinematic ends first, so the LineEnded(interrupted) the skip raises finds it already Off.
-        EndCinematic(showHint: true);
+        EndCinematic(showHint: true, cut: true);
 
         ArchitectVoiceController voice = ArchitectVoiceController.Instance;
         if (voice != null) voice.SkipWakeUp();
     }
 
-    private void EndCinematic(bool showHint)
+    /// <param name="cut">The cinematic did not play out: the camera jumps to its normal picture
+    /// (under a burst of static) instead of having calibrated.</param>
+    private void EndCinematic(bool showHint, bool cut = false)
     {
         SetVisible(false);
         WakeUpCinematicEvents.Finish();
+        PlayerCameraBoot.End(cut);
+        panPending = false;
 
         if (!showHint)
         {

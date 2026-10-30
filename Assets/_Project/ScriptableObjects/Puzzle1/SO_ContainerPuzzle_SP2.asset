@@ -21,3 +21,4 @@ MonoBehaviour:
     requiredSlotId: slot_2
   - containerId: container_c
     requiredSlotId: slot_3
+  shuffleEachRun: 1

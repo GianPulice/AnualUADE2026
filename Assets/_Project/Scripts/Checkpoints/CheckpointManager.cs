@@ -36,10 +36,11 @@ public class CheckpointManager : Singleton<CheckpointManager>
     [SerializeField] private bool applyModuleTimePenalty = true;
 
     [Header("Capture")]
-    [Tooltip("Seconds between the Nemesis grabbing the player and the checkpoint actually " +
-             "loading. Stands in for the capture animation, audio stinger and brief cinematic " +
-             "the spec calls for (none of which exist yet) — deliberately owned here and not by " +
-             "the Nemesis, which per spec only calls Player.OnCaptured() and stops there.")]
+    [Tooltip("Seconds between the end of the grab's shot and the checkpoint actually loading: " +
+             "the window the black cover closes in. The shot's own length " +
+             "(PlayerEvents.CaptureShotSeconds, from SO_CaptureGrabConfig) is waited out first; " +
+             "with no shot in the scene this counts from the grab itself. Deliberately owned here " +
+             "and not by the Nemesis, which per spec only calls Player.OnCaptured() and stops there.")]
     [SerializeField] private float captureCutsceneDelay = 1.5f;
 
     private Checkpoint activeCheckpoint;
@@ -118,7 +119,9 @@ public class CheckpointManager : Singleton<CheckpointManager>
 
     private async UniTaskVoid RunCaptureSequence()
     {
-        await UniTask.Delay(TimeSpan.FromSeconds(captureCutsceneDelay),
+        // The grab's shot first, then this manager's own delay: CaptureFadeView waits the same
+        // seconds before it starts covering, so the screen is black when the player moves.
+        await UniTask.Delay(TimeSpan.FromSeconds(captureCutsceneDelay + PlayerEvents.CaptureShotSeconds),
                             DelayType.UnscaledDeltaTime,
                             cancellationToken: this.GetCancellationTokenOnDestroy());
 

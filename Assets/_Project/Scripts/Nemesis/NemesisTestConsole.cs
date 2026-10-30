@@ -27,6 +27,8 @@ using UnityEngine;
 /// What it cannot do is give a state a reason to exist: pinned Traversing with the player on your
 /// own floor stands still, because no route crosses the lift. That is the state working.
 ///
+/// <b>In the blockout it is added at runtime</b> by <c>DevLevelKeys</c> to any Nemesis without one.
+///
 /// <b>The body only compiles in the Editor and in development builds.</b> The class itself always
 /// exists so a scene that references it does not come up with a missing script; in a release build
 /// it is an empty MonoBehaviour with no Update and no OnGUI, so it costs nothing.
@@ -54,9 +56,10 @@ public class NemesisTestConsole : MonoBehaviour
     [SerializeField, Min(0f)] private float screenMargin = 10f;
 
     /// <summary>Fixed rather than auto-sized: a panel that resizes as zones come and go is harder
-    /// to click than one that is simply big enough. Grown once already, with the director
-    /// section.</summary>
-    private static readonly Vector2 PanelSize = new Vector2(360f, 640f);
+    /// to click than one that is simply big enough. Grown three times already: with the director,
+    /// habits and escalation sections. A Game view shorter than this scrolls instead of cutting off
+    /// the sections at the bottom.</summary>
+    private static readonly Vector2 PanelSize = new Vector2(360f, 790f);
 
     /// <summary>
     /// Where the panel goes, and where the closed-state hint goes with it.
@@ -68,10 +71,11 @@ public class NemesisTestConsole : MonoBehaviour
     private Rect PanelRect => new Rect(
         dockRight ? Screen.width - PanelSize.x - screenMargin : screenMargin,
         screenMargin,
-        PanelSize.x, PanelSize.y);
+        PanelSize.x, Mathf.Min(PanelSize.y, Screen.height - 2f * screenMargin));
 
     private NemesisStateManager nemesis;
     private bool isOpen;
+    private Vector2 scroll;
 
     private void Awake() => nemesis = GetComponent<NemesisStateManager>();
 
@@ -92,13 +96,10 @@ public class NemesisTestConsole : MonoBehaviour
 
     private void Update()
     {
-        // Editor only, like F8: a Development Build handed to testers must not let F10 or the
-        // number keys pin the Nemesis into a state.
-#if UNITY_EDITOR
+        // Editor and Development Build, like every other debug key.
         if (Input.GetKeyDown(toggleKey)) isOpen = !isOpen;
 
         HandlePinKeys();
-#endif
     }
 
     /// <summary>
@@ -157,6 +158,7 @@ public class NemesisTestConsole : MonoBehaviour
         }
 
         GUILayout.BeginArea(PanelRect, GUI.skin.box);
+        scroll = GUILayout.BeginScrollView(scroll);
         GUILayout.Label("NEMESIS TEST CONSOLE", GUI.skin.box);
 
         DrawStatus();
@@ -166,7 +168,12 @@ public class NemesisTestConsole : MonoBehaviour
         DrawSituations();
         GUILayout.Space(6f);
         DrawDirector();
+        GUILayout.Space(6f);
+        DrawHabits();
+        GUILayout.Space(6f);
+        DrawEscalation();
 
+        GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
 
@@ -258,6 +265,14 @@ public class NemesisTestConsole : MonoBehaviour
         // entry points that snap onto the NavMesh, drop the cached route verdict, reset the stuck
         // watchdog and kill leftover momentum. Setting a transform directly leaves both sides
         // reasoning from where they used to be.
+        //
+        // Greyed out mid-crossing. WarpTo does not end a crossing, and the platform carries its
+        // passengers by position: warped during a ride, the body landed 40 m away with the cabin
+        // still moving it, and stepping off glided it back across the level (playtest 28/09).
+        bool crossing = nemesis.IsUsingElevator;
+        if (crossing) GUILayout.Label("Crossing a lift or a drop: the warps wait until it is over.");
+        GUI.enabled = !crossing;
+
         if (GUILayout.Button("Nemesis behind the player"))
             nemesis.WarpTo(player.transform.position - player.transform.forward * warpOffset);
 
@@ -268,6 +283,7 @@ public class NemesisTestConsole : MonoBehaviour
             player.TeleportTo(transform.position - transform.forward * warpOffset,
                               player.transform.rotation);
 
+        GUI.enabled = true;
         GUILayout.Space(4f);
 
         // "Hidden with no spot": exercises the monster's vision in a scene with no HidingSpot built
@@ -358,6 +374,61 @@ public class NemesisTestConsole : MonoBehaviour
 
         if (GUILayout.Button("Pico de tensión")) tension.DebugSpike();
         if (GUILayout.Button("Saltar silencio")) tension.DebugSkipQuiet();
+
+        GUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// The habit tracker (plan Fase 3). No button adds a count: counts have to come from play, or
+    /// the calibration they exist for is measuring the console. Clearing does not need a New Game,
+    /// and the full ledger goes to the Console, where there is room for it.
+    /// </summary>
+    private static void DrawHabits()
+    {
+        GUILayout.Label("HABITS", GUI.skin.box);
+
+        if (!PlayerHabitTracker.Exists)
+        {
+            GUILayout.Label("No PlayerHabitTracker: it lives in the Data scene (start from Bootstrap).");
+            return;
+        }
+
+        PlayerHabitTracker habits = PlayerHabitTracker.Instance;
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Log ledger")) habits.DebugLogLedger();
+        if (GUILayout.Button("Clear habits")) habits.DebugReset();
+
+        GUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// The escalation by completed puzzles (plan Fase 7). The testbeds have no puzzles to complete,
+    /// so a tier is previewed from here; Auto hands it back to the count.
+    /// </summary>
+    private static void DrawEscalation()
+    {
+        GUILayout.Label("ESCALATION", GUI.skin.box);
+
+        if (!NemesisEscalation.Exists)
+        {
+            GUILayout.Label("No NemesisEscalation: it lives in the Data scene (start from Bootstrap).");
+            return;
+        }
+
+        NemesisEscalation escalation = NemesisEscalation.Instance;
+        int tier = escalation.CurrentTierIndex;
+
+        GUILayout.Label($"Tier {(tier >= 0 ? tier.ToString() : "none")}  ·  " +
+                        $"{(escalation.DebugTierOverride >= 0 ? "set from F10" : $"{escalation.CompletedPuzzles} puzzles")}");
+
+        GUILayout.BeginHorizontal();
+
+        // Nothing below the lowest tier to go to: Auto is the way back to the count.
+        if (GUILayout.Button("Tier -") && tier > 0) escalation.DebugSetTierOverride(tier - 1);
+        if (GUILayout.Button("Tier +")) escalation.DebugSetTierOverride(tier + 1);
+        if (GUILayout.Button("Auto")) escalation.DebugSetTierOverride(-1);
 
         GUILayout.EndHorizontal();
     }

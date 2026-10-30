@@ -54,7 +54,7 @@ MonoBehaviour:
       three are up, you can move on.
     clips:
     - {fileID: 8300000, guid: a8ff40e58a1b0e941bce32c5bb55cce9, type: 3}
-    alert: '|| Safe Zone || '
+    alert: 
     playsOverMenus: 0
   - id: 5
     category: 1
@@ -152,17 +152,75 @@ MonoBehaviour:
     - Did you see it coming?
     - This is part of the process.
     - Interesting. Almost.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 72e33000f9472c74888ccfb0aee07ddc, type: 3}
+    - {fileID: 8300000, guid: 3fd512961e5118f459776179adbb4e8d, type: 3}
+    - {fileID: 8300000, guid: 3804898107f0fcd409f0079991e8d590, type: 3}
+    - {fileID: 8300000, guid: 2b0f729d29ace87468b96877ba912f03, type: 3}
+    - {fileID: 8300000, guid: d2d67a0c329236945b678f5baf2dd301, type: 3}
+    - {fileID: 8300000, guid: 6b0abc1665a42d24a8fe2c86c0541c48, type: 3}
+    - {fileID: 8300000, guid: c94ba0150a9a987419a1c5656fc50cb1, type: 3}
+    - {fileID: 8300000, guid: 736d1dc396b76f346b7338def813cf9f, type: 3}
+    - {fileID: 8300000, guid: ff2c3404ec748504d8b750004a3422a5, type: 3}
+    - {fileID: 8300000, guid: 40299d7418830cc4190900e3d0f08f7c, type: 3}
+    - {fileID: 8300000, guid: bf30ed7283b696143aacae4469982ef5, type: 3}
+    - {fileID: 8300000, guid: 6002baa4bf81387428f17883d4973812, type: 3}
+    - {fileID: 8300000, guid: 7acc16636ca43c14793a0802fb3c417f, type: 3}
+    - {fileID: 8300000, guid: d789c7fe58d27964db709a664b198da8, type: 3}
+    - {fileID: 8300000, guid: eb30a80edb5426a4bb950de7cc14eb09, type: 3}
     alert: 
     playsOverMenus: 0
   - id: 15
     category: 2
     variants:
     - You got this far. That's already more than most.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: e774961ec240e3b4e90be0776454553d, type: 3}
     alert: 
     playsOverMenus: 1
   - id: 16
+    category: 3
+    variants:
+    - You're not the first to stand there.
+    - Others got this far. None of them made it past that point.
+    - This place has a memory.
+    - You're taking longer than expected.
+    - Interesting. That wasn't the obvious route.
+    - I'm watching you.
+    - Notice you're breathing differently? That's normal.
+    - The device is working perfectly.
+    - That sound you hear is the timer. You'll get used to it.
+    - When it goes off, it doesn't hurt right away.
+    clips:
+    - {fileID: 8300000, guid: 194ca6ebbdd2b1744af37f675cbf70e7, type: 3}
+    - {fileID: 8300000, guid: 8471c7e8afa2dfc469fd46c0c830dd93, type: 3}
+    - {fileID: 8300000, guid: 3304f8cf3f3dd0346b8c24888599bf30, type: 3}
+    - {fileID: 8300000, guid: 2140a73b6141d854aac249bd2e5d715f, type: 3}
+    - {fileID: 8300000, guid: e1d1364aea8aeed4c95d4508b466b1be, type: 3}
+    - {fileID: 8300000, guid: 4c6b7bfa1c73f254494dccd2f8d84911, type: 3}
+    - {fileID: 8300000, guid: fa5ae97156c37bd46bb6cabee1b9101d, type: 3}
+    - {fileID: 8300000, guid: b42a9db74190ec94c932f830115638dc, type: 3}
+    - {fileID: 8300000, guid: 5c01fdecf19275b458b7eac5a288f20a, type: 3}
+    - {fileID: 8300000, guid: 7da2161c7c5fa604d86b95ac3e12c2f1, type: 3}
+    alert: 
+    playsOverMenus: 0
+  - id: 17
+    category: 1
+    variants:
+    - To solve this, you need another perspective.
+    clips:
+    - {fileID: 8300000, guid: 163c0d35913d3624eb2811ee5717af48, type: 3}
+    alert: 
+    playsOverMenus: 0
+  - id: 18
+    category: 1
+    variants:
+    - Power is back. The dark up there is a choice now.
+    clips:
+    - {fileID: 8300000, guid: 232263102f9bd2248b0102c3bf6a63e2, type: 3}
+    alert: 
+    playsOverMenus: 0
+  - id: 19
     category: 3
     variants:
     - It's close. Very close.
@@ -178,17 +236,20 @@ MonoBehaviour:
     - It doesn't tolerate being ignored.
     - If you lose sight of it, it doesn't lose sight of you.
     - It doesn't run. It doesn't need to.
-    - You're not the first to stand there.
-    - Others got this far. None of them made it past that point.
-    - This place has a memory.
-    - You're taking longer than expected.
-    - Interesting. That wasn't the obvious route.
-    - I'm watching you.
-    - Notice you're breathing differently? That's normal.
-    - The device is working perfectly.
-    - That sound you hear is the timer. You'll get used to it.
-    - When it goes off, it doesn't hurt right away.
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 983993a8a234982479df6acf05afc91c, type: 3}
+    - {fileID: 8300000, guid: 96805a4cda4e2b5409b141e71b388937, type: 3}
+    - {fileID: 8300000, guid: 2188c159cf204d240941384a733eaef1, type: 3}
+    - {fileID: 8300000, guid: 39e7cc6fae3275d4ebd37a48c2d33d48, type: 3}
+    - {fileID: 8300000, guid: cb05d70b5cbd25d458ff7dde26f450c8, type: 3}
+    - {fileID: 8300000, guid: 2fd41c30f30ee56419e1dc84137ce2c4, type: 3}
+    - {fileID: 8300000, guid: 7618880c6dcf26b41a388f2c53b56e38, type: 3}
+    - {fileID: 8300000, guid: 6b46a4de1f4c97f4c91911d44a044bd2, type: 3}
+    - {fileID: 8300000, guid: 15893bdc0e55c1c4d86acb6fdfcc892b, type: 3}
+    - {fileID: 8300000, guid: b36e36790db388049981ddf5036b45c4, type: 3}
+    - {fileID: 8300000, guid: ed22a8ef67a7f5245ae42f06fc42d4dc, type: 3}
+    - {fileID: 8300000, guid: 665aa8c427c9ee64dab9536d4389c8e1, type: 3}
+    - {fileID: 8300000, guid: 6323c8463da74e44e872b5d05fac3c10, type: 3}
     alert: 
     playsOverMenus: 0
   readingCharsPerSecond: 14

@@ -9,7 +9,7 @@ public abstract class BaseRangeInteractable : MonoBehaviour, IInteractable
 {
     protected virtual void Awake() { }
 
-    public abstract string GetInteractText();
+    public abstract string GetPromptText();
 
     public virtual string GetInfoText() => string.Empty;
 

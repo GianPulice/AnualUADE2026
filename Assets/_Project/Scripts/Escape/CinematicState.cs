@@ -16,7 +16,18 @@ public static class CinematicState
         IsPlaying = false;
         IsSkippable = false;
         PromptText = string.Empty;
+        HudHidden = false;
     }
+
+    /// <summary>
+    /// The shot on screen wants no gameplay HUD over it (the escape's security-camera shots: they
+    /// are the facility watching, not the player's view). The module timer takes itself off at once
+    /// while it is set and slides back when it clears. Separate from <see cref="IsPlaying"/>: other
+    /// shots of the same cinematic keep the HUD.
+    /// </summary>
+    public static bool HudHidden { get; private set; }
+
+    public static void SetHudHidden(bool hidden) => HudHidden = hidden;
 
     /// <summary>A cinematic owns the screen: look input is off, and the skip prompt may show.</summary>
     public static bool IsPlaying { get; private set; }

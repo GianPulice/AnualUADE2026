@@ -15,6 +15,13 @@ using UnityEngine.AI;
 /// the path was pending or partial, and how fast the body was really going — so those are logged
 /// together, one row every <see cref="SampleInterval"/> and one extra row on every state change.
 ///
+/// THE EYES GET THE SAME TREATMENT (05/10, plan §19.8). "It lost me in the open" and the flicker
+/// between Chasing and Searching are both made of sightings that come and go faster than the sample
+/// rate, so a sighting gained or lost writes a row of its own too (kind "sight"), and every row says
+/// how far the last sweep reached with the crouch counted in, why the range is what it is, why it is
+/// not seeing the player (<see cref="SightMiss"/>), why it last lost them and how long ago, and
+/// whether the player is crouched, hidden or holding their breath.
+///
 /// ONLY OBSERVES. It reads the facade's public surface and nothing it reads has a side effect: no
 /// path queries of its own (the oracle's cache must not be warmed by a logger), no writes to the
 /// agent, the FSM or the senses. Editor and development builds only; in a release build it switches
@@ -46,6 +53,7 @@ public class NemesisTraceRecorder : MonoBehaviour
     private int rowsSinceFlush;
     private NemesisStateManager.ENemesisState? lastState;
     private bool wasActive;
+    private bool lastSees;
 
     private void Awake()
     {
@@ -67,6 +75,7 @@ public class NemesisTraceRecorder : MonoBehaviour
         {
             if (wasActive) WriteRow("dormant");
             wasActive = false;
+            lastSees = false;
             return;
         }
 
@@ -75,13 +84,24 @@ public class NemesisTraceRecorder : MonoBehaviour
         NemesisStateManager.ENemesisState? state = stateManager.CurrentStateKey;
         bool changed = !wasActive || state != lastState;
 
+        bool sees = stateManager.HasVisualTarget;
+        bool sightChanged = sees != lastSees;
+
         wasActive = true;
         lastState = state;
+        lastSees = sees;
 
         if (changed)
         {
             WriteRow("state");
             Flush();
+            return;
+        }
+
+        // Between two samples, and with no state change to mark it: a flicker is made of these.
+        if (sightChanged)
+        {
+            WriteRow("sight");
             return;
         }
 
@@ -99,6 +119,8 @@ public class NemesisTraceRecorder : MonoBehaviour
         NavMeshAgent agent = stateManager.NavAgent;
         Transform player = stateManager.PlayerTransform;
         Vector3 position = transform.position;
+        FieldOfView eyes = stateManager.FieldOfView;
+        PlayerStateManager who = PlayerRegistry.Current;
 
         bool hasBelief = stateManager.TryGetBelief(out Vector3 belief, out bool fromSight);
         bool agentReady = stateManager.IsAgentReady;
@@ -134,7 +156,16 @@ public class NemesisTraceRecorder : MonoBehaviour
         Append(stateManager.StuckWarpCount);
         Append(position.x);
         Append(position.y);
-        Append(position.z, last: true);
+        Append(position.z);
+        Append(eyes != null ? eyes.SweepViewRange : 0f);
+        Append(eyes != null ? eyes.ViewRangeScale : 1f);
+        Append(eyes != null ? eyes.ViewRangeReason.ToString() : "-");
+        Append(who != null && who.IsCrouch);
+        Append(who != null && who.IsHidden);
+        Append(who != null && who.IsHoldingBreath);
+        Append(eyes != null ? SightMiss.Token(eyes.MissReason) : "-");
+        Append(eyes != null ? SightMiss.Token(eyes.LostSightReason) : "-");
+        Append(eyes != null ? Time.time - eyes.LostSightTime : float.PositiveInfinity, last: true);
 
         writer.WriteLine(line.ToString());
 
@@ -160,7 +191,8 @@ public class NemesisTraceRecorder : MonoBehaviour
                              "awareness,belief_age,belief_from,dist_belief,dist_player,player_dy," +
                              "agent_ready,path_pending,has_path,path_status,remaining,agent_speed_now," +
                              "net_flat_speed,agent_speed_cmd,using_lift,chase_stagnant,repaths,warps," +
-                             "x,y,z");
+                             "x,y,z,view_range,view_scale,view_why,crouch,hidden,breath,sight_miss," +
+                             "lost_sight_why,since_lost_sight");
 
             Debug.Log($"[{nameof(NemesisTraceRecorder)}] Recording the Nemesis to {file}", this);
             return true;

@@ -52,6 +52,9 @@ public static class InteractableHighlightSetup
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_A.prefab",
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_B.prefab",
         "Assets/_Project/Prefabs/Puzzle1/Containers/Box_C.prefab",
+        // Reward boxes (PuzzleRewardBox). Tools > Puzzles > Set Up Reward Boxes wires the rest.
+        "Assets/_Project/Prefabs/Box/Caja Panel.prefab",
+        "Assets/_Project/Prefabs/Box/Caja Teclado.prefab",
         // Every door (DoorMetalRed, DoorWhite, DoorWood, Puerta_SP3) is a variant of this one. Its
         // highlight points at SO_Highlight_Doors, not the shared props profile: the big flat door
         // leaves read far brighter than a socket at the same values and washed out to white. The

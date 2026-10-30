@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: UI_HidingContainer
+  m_Shader: {fileID: 4800000, guid: 70810b65d98179547942fdf7b39f628b, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Ambient: 0.3
+    - _ColorLevels: 32
+    - _ColorMask: 15
+    - _DitherAlpha: 1
+    - _DitherFade: 1
+    - _Dust: 0.35
+    - _EnableDither: 1
+    - _FadeSteps: 5
+    - _Gasket: 0.022
+    - _GasketLight: 0.35
+    - _GlowReach: 0.5
+    - _Grain: 0.008
+    - _GrainFps: 12
+    - _GridRows: 256
+    - _Grime: 0.3
+    - _GrimeScale: 5
+    - _Header: 0.07
+    - _Opacity: 1
+    - _RibFlank: 0.2
+    - _RibPitch: 0.11
+    - _SeamGlow: 0.3
+    - _SeamSoftness: 2.5
+    - _SeamWander: 0.12
+    - _SeamWidth: 0.18
+    - _SeamX: 0
+    - _Sill: 0.09
+    - _SillLeak: 0.3
+    - _Stencil: 0
+    - _StencilComp: 8
+    - _StencilOp: 0
+    - _StencilReadMask: 255
+    - _StencilWriteMask: 255
+    - _UseUIAlphaClip: 0
+    - _Vignette: 0
+    - _VignetteStart: 0.45
+    m_Colors:
+    - _LightColor: {r: 0.54999995, g: 0.6, b: 0.6399999, a: 1}
+    - _ShadeColor: {r: 0.012, g: 0.012, b: 0.017, a: 1}
+    - _WallColor: {r: 0.075, g: 0.08, b: 0.095, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

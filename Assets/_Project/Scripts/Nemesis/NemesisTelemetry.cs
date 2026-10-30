@@ -29,35 +29,13 @@ public class NemesisTelemetry : MonoBehaviour
     private bool wasBeingChased;
     private NemesisStateManager.ENemesisState? lastReportedState;
 
+    /// <summary>A search has started and not been reported over yet — see <see cref="TrackSearch"/>.
+    /// </summary>
+    private bool searchOpen;
+
     /// <summary>Called by NemesisStateManager during its Awake, so this is wired before any tick.
     /// </summary>
     public void Initialize(NemesisStateManager manager) => stateManager = manager;
-
-    /// <summary>
-    /// Where the Searching state is currently aiming its cut-off, or null when it is not searching
-    /// or fell back to the sweep.
-    ///
-    /// It lives here and not on the state manager because reporting is this class's whole job, and
-    /// because the facade should not be reaching into a specific state's internals to answer a
-    /// question about it. Nothing in the FSM reads this — the debug HUD and the gizmos do.
-    ///
-    /// It is worth surfacing at all because the interception is the one decision in the system
-    /// with no visible tell: a Nemesis heading somewhere clever and a Nemesis heading somewhere by
-    /// accident look identical from outside, and the absence of a point is information too — it
-    /// means the belief, the heading or the waypoints were not good enough to commit to.
-    /// </summary>
-    public Vector3? SearchInterceptPoint
-    {
-        get
-        {
-            if (stateManager == null) return null;
-
-            NemesisSearchingState searching = stateManager.SearchingState;
-            return searching != null && searching.HasIntercept
-                ? searching.InterceptPoint
-                : (Vector3?)null;
-        }
-    }
 
     // ── Proximity ───────────────────────────────────────────────────────────
 
@@ -145,8 +123,8 @@ public class NemesisTelemetry : MonoBehaviour
     // ── State transitions ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Announces the two FSM-derived events. Ticked after the FSM, so it reports the state the
-    /// Nemesis is actually in this frame.
+    /// Announces the FSM-derived events: the chase pair, the state change and the end of a search.
+    /// Ticked after the FSM, so it reports the state the Nemesis is actually in this frame.
     /// </summary>
     public void TickStateEvents(bool isCaptureResolved)
     {
@@ -199,6 +177,42 @@ public class NemesisTelemetry : MonoBehaviour
 
         lastReportedState = key.Value;
         NemesisEvents.StateChanged(key.Value);
+
+        TrackSearch(key.Value);
+    }
+
+    /// <summary>
+    /// Raises <see cref="NemesisEvents.SearchEnded"/> when a search is over.
+    ///
+    /// "Over" is leaving Searching for anything but Traversing. A search that needs the lift has not
+    /// been given up, it is being carried to another storey — reporting it there would have the habit
+    /// tracker count an escape from a Nemesis that is on its way up to the player. It stays open and
+    /// is reported when the Nemesis settles into something else, found if that is Chasing or Catch.
+    ///
+    /// The area is the belief at that moment, not the player: this is about where the Nemesis was
+    /// looking, which is what an "it gave up here" listener can honestly use.
+    ///
+    /// A Nemesis switched off mid-search (the escape cinematic disables the state manager) keeps the
+    /// search open: nothing is reported while it is off, and the end is reported when it next leaves
+    /// Searching — whatever state it comes back in. Destroyed with the level, it reports nothing.
+    /// </summary>
+    private void TrackSearch(NemesisStateManager.ENemesisState entered)
+    {
+        if (entered == NemesisStateManager.ENemesisState.Searching)
+        {
+            searchOpen = true;
+            return;
+        }
+
+        if (!searchOpen || entered == NemesisStateManager.ENemesisState.Traversing) return;
+
+        searchOpen = false;
+
+        bool found = entered == NemesisStateManager.ENemesisState.Chasing ||
+                     entered == NemesisStateManager.ENemesisState.Catch;
+        Vector3 area = stateManager.TryGetBelief(out Vector3 belief) ? belief : transform.position;
+
+        NemesisEvents.SearchEnded(area, found);
     }
 
     /// <summary>

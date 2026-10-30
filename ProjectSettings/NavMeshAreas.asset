@@ -15,7 +15,7 @@ NavMeshProjectSettings:
     cost: 99
   - name: Forklift
     cost: 3
-  - name: 
+  - name: NemesisDrop
     cost: 1
   - name: 
     cost: 1

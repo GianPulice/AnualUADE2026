@@ -52,7 +52,7 @@ public class PuzzleController : MonoBehaviour
                              $"'{puzzleData.PuzzleId}' was not recorded, so nothing gated behind " +
                              $"it will open.", this);
 
-        PuzzleRewardDelivery.Deliver(puzzleData.RewardItem, rewardDropPoint, this);
+        PuzzleRewardDelivery.Deliver(puzzleData.PuzzleId, puzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"Puzzle completed: {puzzleData.PuzzleId}");
     }

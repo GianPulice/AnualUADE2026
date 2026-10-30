@@ -10,6 +10,7 @@ using UnityEngine.UI;
 /// Responsibilities:
 ///   - Show the icon, name and color dot for the category
 ///   - Show the red left border when selected
+///   - Mark the row NEW until the player has looked at the item, and grey out a note already read
 ///   - Notify the Controller of the click through a callback
 ///
 /// <b>The selection visual is the animated Filled Horizontal sweep, on purpose.</b> A later pass
@@ -42,6 +43,16 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     [Header("Colors")]
     [SerializeField] private Color idleFillColor = Color.clear;
     [SerializeField] private Color selectedFillColor = Color.white;
+
+    [Header("Marks")]
+    [Tooltip("The NEW tag on an item picked up and not yet looked at.")]
+    [SerializeField] private Color newTagColor = new Color(1f, 0.6f, 0f);
+    [Tooltip("Text of a note already read: greyed, so it reads as done at a glance. A theme role " +
+             "and not a color, because the text carries a UIThemeApplier that repaints it every " +
+             "time the row is enabled; the unread look is the role that applier was authored with.")]
+    [SerializeField] private UIThemeRole readTextRole = UIThemeRole.TextMuted;
+    [Tooltip("Icon of a note already read.")]
+    [SerializeField] private Color readIconColor = new Color(0.45f, 0.45f, 0.45f);
     // ── State ─────────────────────────────────────────────────────────────────
 
     private Action<SO_InventoryItem> onClicked;
@@ -54,6 +65,14 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
 
     private float currentAlpha;
     private float targetAlpha;
+
+    // What the row label is built from, so a mark can change without a full Setup.
+    private int rowIndex;
+    private string tagLabel;
+
+    // The name text's theme applier, and the role the prefab gave it: the unread look.
+    private UIThemeApplier nameTheme;
+    private UIThemeRole unreadTextRole;
 
     public SO_InventoryItem Item { get; private set; }
 
@@ -95,14 +114,17 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     /// Configures the slot with an item, its row number and the click callback.
     /// Called by InventoryView when refreshing the list.
     /// </summary>
-    public void Setup(SO_InventoryItem item, int index, Action<SO_InventoryItem> clickCallback)
+    public void Setup(SO_InventoryItem item, int index, Action<SO_InventoryItem> clickCallback,
+                      bool isNew, bool isRead)
     {
         Item = item;
         onClicked = clickCallback;
 
         var visuals = categoryConfig.Get(item.Category);
 
-        itemNameText.text = BuildRowLabel(item, index, visuals.TagLabel);
+        rowIndex = index;
+        tagLabel = visuals.TagLabel;
+        SetMarks(isNew, isRead);
         iconImage.sprite = item.ItemIcon;
         iconBackground.color = visuals.BackgroundColor;
 
@@ -111,6 +133,37 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
 
         ResetVisualState();
     }
+
+    /// <summary>
+    /// Redraws the row for its NEW / read state: a NEW tag before the category tag, and the text
+    /// and icon grey once the note has been read. Pooled rows come back with whatever the last item
+    /// left, so every state is set explicitly.
+    /// </summary>
+    public void SetMarks(bool isNew, bool isRead)
+    {
+        itemNameText.text = BuildRowLabel(Item, rowIndex, tagLabel, isNew);
+        SetTextRead(isRead);
+        iconImage.color = isRead ? readIconColor : Color.white;
+    }
+
+    /// <summary>
+    /// Greys the text through its <see cref="UIThemeApplier"/>, never by writing its color. The
+    /// applier repaints the text on every OnEnable and a pooled row is re-enabled on every refresh,
+    /// so a color written directly lasted until the list was rebuilt: the note went grey when it
+    /// was read and came back white the next time the inventory opened.
+    /// </summary>
+    private void SetTextRead(bool isRead)
+    {
+        // Resolved on first use, so it does not depend on this row's Awake having run.
+        if (nameTheme == null)
+        {
+            if (!itemNameText.TryGetComponent(out nameTheme)) return;
+            unreadTextRole = nameTheme.Role;
+        }
+
+        nameTheme.SetRole(isRead ? readTextRole : unreadTextRole);
+    }
+
     private void ResetVisualState()
     {
         isHovering = false;
@@ -240,13 +293,24 @@ public class ItemSlotView : MonoBehaviour,IPointerEnterHandler, IPointerExitHand
     /// Builds the directory-listing row: "03 MECHANICAL_CORE ......[CMP]".
     /// Depends on the monospaced font — see InventoryTextFormat.
     /// </summary>
-    private string BuildRowLabel(SO_InventoryItem item, int index, string tag)
+    private string BuildRowLabel(SO_InventoryItem item, int index, string tag, bool isNew)
     {
         string left  = index.ToString("00") + " " + InventoryTextFormat.MachineName(item.ItemName);
         string right = "[" + tag + "]";
+        if (!isNew) return InventoryTextFormat.DotLeader(left, right, rowCharWidth);
 
-        return InventoryTextFormat.DotLeader(left, right, rowCharWidth);
+        // "NEW [CMP]": padded as plain text so the columns line up, then the tag is colored. The
+        // item name can contain "NEW", so only the one right before the category tag is touched.
+        string row = InventoryTextFormat.DotLeader(left, NewTag + " " + right, rowCharWidth);
+        int at = row.LastIndexOf(NewTag + " " + right, StringComparison.Ordinal);
+        if (at < 0) return row;
+
+        return row.Substring(0, at) +
+               "<color=#" + ColorUtility.ToHtmlStringRGB(newTagColor) + ">" + NewTag + "</color>" +
+               row.Substring(at + NewTag.Length);
     }
+
+    private const string NewTag = "NEW";
 
     private void ApplyButtonColor(Color color)
     {

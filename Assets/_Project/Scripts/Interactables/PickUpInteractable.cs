@@ -61,7 +61,7 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
         }
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         return itemToPick != null
             ? $"Pick up {itemToPick.ItemName}"
@@ -106,8 +106,11 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
 
         PlayPickupSound();
 
-        InventoryManager.Instance.AddItem(itemToPick);
+        // The reader goes up first: AddItem fires OnItemAdded, and the Architect's first-note line
+        // only holds back while a modal is open. With the order the other way round it would start
+        // talking over a note the player has not read yet instead of waiting for them to close it.
         TryOpenReader();
+        InventoryManager.Instance.AddItem(itemToPick);
         Destroy(gameObject);
     }
 
@@ -117,11 +120,11 @@ public class PickupInteractable : BaseRangeInteractable, IPromptPresentation
     }
 
     /// <summary>
-    /// Puts the note the player has just taken in front of them, on a frozen game.
+    /// Puts the note the player is taking in front of them, on a frozen game.
     ///
     /// Content Type is the gate, not the category: it is the field that says "this item carries a
     /// document", and it is the same one <see cref="ItemDetailView"/> reads to decide whether the
-    /// inventory gets an OPEN DOC button. A key filed under Note with no text stays silent.
+    /// inventory shows the item's doc panel. A key filed under Note with no text stays silent.
     ///
     /// Called before Destroy(gameObject) — which is only queued until the end of the frame anyway.
     /// The reader lives on the LevelUI canvas and does not care that this object is going away.

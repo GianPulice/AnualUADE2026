@@ -9,7 +9,7 @@ public class SequenceButtonInteractable : MonoBehaviour, IInteractable, IPuzzleI
 
     public string GetInfoText() => string.Empty;
 
-    public string GetInteractText()
+    public string GetPromptText()
     {
         return $"{promptText} {buttonId}";
     }

@@ -38,6 +38,11 @@ MonoBehaviour:
       state: 0
       threshold: 5
       customSeconds: 0.5
+    - predicate: 0
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
   - enabled: 1
     target: 4
     interrupts: 1
@@ -98,6 +103,11 @@ MonoBehaviour:
       state: 0
       threshold: 3
       customSeconds: 0
+    - predicate: 22
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
   - enabled: 1
     target: 2
     interrupts: 1
@@ -149,6 +159,31 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
   - enabled: 1
+    target: 2
+    interrupts: 0
+    note: "todav\xEDa sabe d\xF3nde est\xE1"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 2
+      threshold: 0
+      customSeconds: 0
+    - predicate: 24
+      negate: 0
+      state: 0
+      threshold: 7
+      customSeconds: 0
+    - predicate: 23
+      negate: 0
+      state: 0
+      threshold: 8
+      customSeconds: 0
+    - predicate: 13
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
     target: 3
     interrupts: 0
     note: "est\xE1 revisando un escondite"
@@ -164,19 +199,29 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
   - enabled: 1
+    target: 1
+    interrupts: 0
+    note: "su atenci\xF3n est\xE1 en una pista"
+    conditions:
+    - predicate: 22
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
     target: 3
     interrupts: 0
-    note: "le queda presupuesto de b\xFAsqueda"
+    note: "la b\xFAsqueda sigue tibia (evidencia reciente)"
     conditions:
     - predicate: 6
       negate: 0
       state: 3
       threshold: 0
       customSeconds: 0
-    - predicate: 8
+    - predicate: 20
       negate: 0
       state: 0
-      threshold: 2
+      threshold: 0
       customSeconds: 0
   - enabled: 1
     target: 3
@@ -207,6 +252,11 @@ MonoBehaviour:
       negate: 0
       state: 0
       threshold: 0
+      customSeconds: 0
+    - predicate: 7
+      negate: 0
+      state: 0
+      threshold: 3
       customSeconds: 0
   - enabled: 1
     target: 1
@@ -241,7 +291,7 @@ MonoBehaviour:
   - enabled: 1
     target: 1
     interrupts: 0
-    note: "sigue yendo hacia el \xFAltimo ruido"
+    note: "sigue yendo hacia lo que sinti\xF3"
     conditions:
     - predicate: 6
       negate: 0
@@ -253,10 +303,30 @@ MonoBehaviour:
       state: 0
       threshold: 0
       customSeconds: 0
-    - predicate: 7
+    - predicate: 21
       negate: 0
       state: 0
-      threshold: 1
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 1
+    interrupts: 0
+    note: sigue yendo hacia la pista
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 1
+      threshold: 0
+      customSeconds: 0
+    - predicate: 5
+      negate: 1
+      state: 0
+      threshold: 0
+      customSeconds: 0
+    - predicate: 19
+      negate: 0
+      state: 0
+      threshold: 0
       customSeconds: 0
   - enabled: 1
     target: 1
@@ -269,6 +339,21 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
     - predicate: 14
+      negate: 0
+      state: 0
+      threshold: 0
+      customSeconds: 0
+  - enabled: 1
+    target: 3
+    interrupts: 0
+    note: "investig\xF3 lo que sinti\xF3 y sigue tibio"
+    conditions:
+    - predicate: 6
+      negate: 0
+      state: 1
+      threshold: 0
+      customSeconds: 0
+    - predicate: 21
       negate: 0
       state: 0
       threshold: 0

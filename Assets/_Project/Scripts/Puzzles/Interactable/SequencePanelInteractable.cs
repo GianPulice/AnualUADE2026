@@ -57,7 +57,7 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
         }
     }
 
-    public override string GetInteractText()
+    public override string GetPromptText()
     {
         if (sequenceData == null) return "Unconfigured panel";
         if (isCompleted) return string.Empty;
@@ -177,10 +177,10 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
                              $"completing '{sequenceData.PuzzleId}' was not recorded, so nothing " +
                              $"gated behind it will open.", this);
 
-        PuzzleRewardDelivery.Deliver(sequenceData.RewardItem, rewardDropPoint, this);
+        PuzzleRewardDelivery.Deliver(sequenceData.PuzzleId, sequenceData.RewardItem, rewardDropPoint, this);
 
-        if (AudioManager.Exists)
-            AudioManager.Instance.PlaySFX("sfx_subpuzzle_1_completo");
+        if (AudioManager.Exists && !string.IsNullOrEmpty(sequenceData.CompletedSoundId))
+            AudioManager.Instance.PlaySFX(sequenceData.CompletedSoundId);
 
         OnSequenceCompleted?.Invoke();
 

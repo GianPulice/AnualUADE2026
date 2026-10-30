@@ -5,7 +5,8 @@ using UnityEngine;
 /// A shot of the escape: the doors slamming behind the player and the pan down the corridor, the
 /// Nemesis's eyes, its charge, the gate falling and the Nemesis left in the dust. One job: be the
 /// live camera while <see cref="EscapeSequenceDirector"/> says so, optionally keeping an eye on a
-/// target (the Nemesis), panning to a point (<see cref="BeginPan"/>) and taking a hit (the gate).
+/// target (the Nemesis), locking on a point (<see cref="LockOn"/>), panning to one
+/// (<see cref="BeginPan"/>) and taking a hit (the gate).
 /// WHEN it is live is the director's; where it stands is the scene's — move it in the Scene view.
 ///
 /// A <see cref="CinemachineCamera"/> with no position or rotation behaviours, so its own transform
@@ -36,6 +37,7 @@ public class EscapeShotCamera : MonoBehaviour
     private bool live;
 
     private Transform target;
+    private Transform lockedOn;
     private Quaternion restRotation;
     private Vector3 basePosition;
 
@@ -72,6 +74,7 @@ public class EscapeShotCamera : MonoBehaviour
         if (cam == null) cam = GetComponent<CinemachineCamera>();
 
         target = lookTarget;
+        lockedOn = null;
         restRotation = transform.rotation;
         basePosition = transform.position;
         shakeLeft = 0f;
@@ -79,6 +82,23 @@ public class EscapeShotCamera : MonoBehaviour
 
         cam.Priority = livePriority;
         live = true;
+    }
+
+    /// <summary>
+    /// Trains the live shot on <paramref name="point"/> from where it stands — this frame and every
+    /// one after, exactly, until it steps down. Where <see cref="follow"/> is a soft lean towards a
+    /// body, this is a lock: for a telephoto detail (the Nemesis's eyes) that has to land dead
+    /// centre whatever the model's height, which a framing authored in the scene cannot promise.
+    /// Null leaves the framing the scene gave it.
+    /// </summary>
+    public void LockOn(Transform point)
+    {
+        if (!live || point == null) return;
+
+        target = null;
+        lockedOn = point;
+        panning = false;
+        ApplyLock();
     }
 
     /// <summary>
@@ -98,6 +118,7 @@ public class EscapeShotCamera : MonoBehaviour
         if (aim.sqrMagnitude < 0.0001f) return;
 
         target = null;
+        lockedOn = null;
 
         Vector3 from = transform.rotation.eulerAngles;
         Vector3 to = Quaternion.LookRotation(aim).eulerAngles;
@@ -130,6 +151,7 @@ public class EscapeShotCamera : MonoBehaviour
         if (!live) return;
         live = false;
         target = null;
+        lockedOn = null;
         shakeLeft = 0f;
         panning = false;
 
@@ -159,6 +181,10 @@ public class EscapeShotCamera : MonoBehaviour
             panElapsed += dt;
             ApplyPan();
         }
+        else if (lockedOn != null)
+        {
+            ApplyLock();
+        }
         else if (target != null && follow > 0f)
         {
             Vector3 aim = target.position + Vector3.up * targetHeight - basePosition;
@@ -183,6 +209,12 @@ public class EscapeShotCamera : MonoBehaviour
         }
 
         transform.position = basePosition + offset;
+    }
+
+    private void ApplyLock()
+    {
+        Vector3 aim = lockedOn.position - basePosition;
+        if (aim.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(aim);
     }
 
     private void ApplyPan()

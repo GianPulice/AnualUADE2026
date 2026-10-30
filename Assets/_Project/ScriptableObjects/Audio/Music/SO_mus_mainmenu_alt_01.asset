@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1715b284d5177948a2b226d813abf7a, type: 3}
+  m_Name: SO_mus_mainmenu_alt_01
+  m_EditorClassIdentifier: Assembly-CSharp::SO_SoundData
+  id: mus_mainmenu_alt_01
+  category: 1
+  clip: {fileID: 8300000, guid: 00666df9e26bbb043b1b0e7c4d903bfe, type: 3}
+  loop: 1
+  ignoreListenerPause: 0
+  minDistance: 1
+  maxDistance: 500
+  rolloff: 0

@@ -18,7 +18,10 @@ MonoBehaviour:
     m_Bits: 64
   blockingLayers:
     serializedVersion: 2
-    m_Bits: 2057
+    m_Bits: 6153
+  supportLayers:
+    serializedVersion: 2
+    m_Bits: 4096
   crosshairViewportPoint: {x: 0.5, y: 0.5}
   castRadius: 0.125
   fallbackOriginHeight: 1.2

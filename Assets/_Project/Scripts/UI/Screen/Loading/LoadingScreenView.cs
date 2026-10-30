@@ -16,7 +16,8 @@ using UnityEngine.UI;
 ///              full-screen black image. Shown through the CRT tube (CanvasCRTPresenter) like every
 ///              other screen.
 ///   content  — the loading visuals: the Mystify screensaver (MystifyScreensaver), a Win95 status
-///              window with the progress bar, and the signal static the other screens have. Hidden
+///              window with the connection step and the progress bar, and the signal static the
+///              other screens have. Hidden
 ///              while fading to black, shown while loading, and faded out together with the black on
 ///              the way back. Nothing here depends on what it contains.
 /// </summary>
@@ -35,13 +36,34 @@ public class LoadingScreenView : MonoBehaviour
     [Tooltip("Optional. Shows the same progress as a percentage.")]
     [SerializeField] private TMP_Text progressLabel;
 
+    [Header("Connection steps")]
+    [Tooltip("Optional. Shows the step the connection to the player's camera is on.")]
+    [SerializeField] private TMP_Text stepLabel;
+
+    [Tooltip("The steps of the connection, in order. Each one ends at its fraction of the loading " +
+             "time; the last one always ends at 1. Empty = a plain linear bar.")]
+    [SerializeField] private ConnectionStep[] connectionSteps =
+    {
+        new ConnectionStep { text = "Locating bodycam...",    endsAt = 0.2f  },
+        new ConnectionStep { text = "Handshake...",           endsAt = 0.45f },
+        new ConnectionStep { text = "Authenticating...",      endsAt = 0.7f  },
+        new ConnectionStep { text = "Syncing video feed...",  endsAt = 1f    },
+    };
+
+    [Tooltip("Share of each step's time the bar spends filling it; the rest it holds, as if " +
+             "waiting for the other end to answer.")]
+    [SerializeField, Range(0.1f, 1f)] private float stepFillShare = 0.6f;
+
+    [Tooltip("Step text once the load is done.")]
+    [SerializeField] private string connectedText = "Link established.";
+
     [Tooltip("Seconds to fade to black, and to fade back out of it.")]
     [SerializeField, Min(0f)] private float fadeDuration = 0.5f;
 
     [Header("Exit mode (quitting the game)")]
     [Tooltip("Title of the status window. Reads loadingTitle on scene changes, exitingTitle on quit.")]
     [SerializeField] private TMP_Text titleLabel;
-    [SerializeField] private string loadingTitle = "LOADING...";
+    [SerializeField] private string loadingTitle = "CONNECTING...";
     [SerializeField] private string exitingTitle = "EXITING...";
 
     [Tooltip("Shown on scene changes only — the Mystify screensaver.")]
@@ -67,7 +89,24 @@ public class LoadingScreenView : MonoBehaviour
     /// <summary>Most a single frame may advance a fade, in seconds (a 30 fps frame).</summary>
     private const float MaxFadeStep = 1f / 30f;
 
+    /// <summary>
+    /// Most the bar shows before the load is done. A connection hanging at 99 % is believable; a
+    /// full bar that does not go away is not.
+    /// </summary>
+    private const float AlmostFull = 0.99f;
+
+    /// <summary><see cref="shownStep"/> once the load is done: <see cref="connectedText"/>.</summary>
+    private const int ConnectedStep = -1;
+
+    [System.Serializable]
+    private struct ConnectionStep
+    {
+        public string text;
+        [Range(0f, 1f)] public float endsAt;
+    }
+
     private int shownPercent = -1;
+    private int shownStep = int.MinValue;
 
     private void Reset()
     {
@@ -91,7 +130,7 @@ public class LoadingScreenView : MonoBehaviour
     }
 
     /// <summary>
-    /// Switches between the scene-change look (LOADING, Mystify) and the quit look (EXITING,
+    /// Switches between the scene-change look (CONNECTING, Mystify) and the quit look (EXITING,
     /// Starfield). Call before the content is shown: the screensavers roll their pattern on enable.
     /// </summary>
     public void SetExitMode(bool exiting)
@@ -191,18 +230,69 @@ public class LoadingScreenView : MonoBehaviour
         if (content != null) content.SetActive(visible);
     }
 
-    /// <param name="progress">0 to 1.</param>
+    /// <param name="progress">
+    /// 0 to 1, linear in time. Shown through the connection steps; only exactly 1 reads as done.
+    /// </param>
     public void SetProgress(float progress)
     {
         progress = Mathf.Clamp01(progress);
-        if (progressSlider != null) progressSlider.value = progress;
+        bool done = progress >= 1f;
+
+        int step = ConnectedStep;
+        float bar = done ? 1f : Mathf.Min(StepBar(progress, out step), AlmostFull);
+        SetStep(step);
+
+        if (progressSlider != null) progressSlider.value = bar;
         if (progressLabel == null) return;
 
         // Rewritten only when the number changes: this runs every frame of the load.
-        int percent = Mathf.FloorToInt(progress * 100f);
+        int percent = Mathf.FloorToInt(bar * 100f);
         if (percent == shownPercent) return;
         shownPercent = percent;
         progressLabel.text = percent + "%";
+    }
+
+    /// <summary>
+    /// The bar for <paramref name="t"/>: each step fills its stretch of the bar quickly, eased out,
+    /// over the first <see cref="stepFillShare"/> of its time, then holds until the next one starts.
+    /// A bar that moves in spurts and waits reads as a connection; a perfectly even one makes any
+    /// real stall stand out.
+    /// </summary>
+    private float StepBar(float t, out int step)
+    {
+        step = 0;
+        if (connectionSteps == null || connectionSteps.Length == 0) return t;
+
+        float start = 0f;
+        for (int i = 0; i < connectionSteps.Length; i++)
+        {
+            bool last = i == connectionSteps.Length - 1;
+            float end = last ? 1f : Mathf.Clamp(connectionSteps[i].endsAt, start, 1f);
+            if (!last && t >= end)
+            {
+                start = end;
+                continue;
+            }
+
+            step = i;
+            float span = end - start;
+            if (span <= 0f) return end;
+
+            float fill = Mathf.Clamp01((t - start) / (span * stepFillShare));
+            return Mathf.Lerp(start, end, 1f - (1f - fill) * (1f - fill));
+        }
+
+        return t;
+    }
+
+    private void SetStep(int step)
+    {
+        if (stepLabel == null || step == shownStep) return;
+        shownStep = step;
+
+        if (step == ConnectedStep) stepLabel.text = connectedText;
+        else if (connectionSteps != null && step < connectionSteps.Length) stepLabel.text = connectionSteps[step].text;
+        else stepLabel.text = string.Empty;
     }
 
     private async UniTask FadeAsync(float target, CancellationToken token)

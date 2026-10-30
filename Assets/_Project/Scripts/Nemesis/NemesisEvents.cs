@@ -15,12 +15,16 @@ public static class NemesisEvents
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
+        IsChasing = false;
         OnChaseStarted = null;
         OnChaseEnded = null;
         OnProximityChanged = null;
         OnStateChanged = null;
         OnCaptureResolved = null;
         OnActivated = null;
+        OnSearchEnded = null;
+        OnChaseStalled = null;
+        OnBaselineChanged = null;
     }
 
     // A single global channel, which is correct ONLY because the design has exactly one Nemesis:
@@ -30,6 +34,18 @@ public static class NemesisEvents
 
     public static event Action OnChaseStarted;
     public static event Action OnChaseEnded;
+
+    /// <summary>
+    /// The player is being hunted right now: between <see cref="OnChaseStarted"/> and
+    /// <see cref="OnChaseEnded"/>, the same "being chased" set the red vignette and the chase music
+    /// use (Chasing, plus Catch while the capture is unresolved). The pair has no catch-up, so
+    /// something that only needs to ASK — whether looking down is allowed — reads this instead of
+    /// tracking the events itself and missing the half that fired before it existed.
+    ///
+    /// Set by the same two raisers below, so it cannot disagree with the events; and closed by
+    /// <c>NemesisTelemetry.CloseChase</c> when the Nemesis is disabled mid-chase, like the vignette.
+    /// </summary>
+    public static bool IsChasing { get; private set; }
 
     // Normalized value [0,1]: 0 = far away / out of range, 1 = minimum distance.
     // The Nemesis is responsible for computing and raising this event every frame.
@@ -61,10 +77,59 @@ public static class NemesisEvents
     /// </summary>
     public static event Action OnActivated;
 
-    public static void ChaseStarted()                    => OnChaseStarted?.Invoke();
-    public static void ChaseEnded()                      => OnChaseEnded?.Invoke();
+    /// <summary>
+    /// A search is over: the Nemesis left Searching for anything but another storey. The area is
+    /// where it believed the player was as it left — the belief, not the player — and found says
+    /// whether it left for Chasing or Catch.
+    ///
+    /// A search carried to another floor has not ended: Searching → Traversing keeps it open, and it
+    /// is reported once the Nemesis settles into something else. A Nemesis switched off mid-search
+    /// keeps it open too, and reports it when it next leaves Searching (see NemesisTelemetry).
+    ///
+    /// Leaving for Investigating is an end, even when what it goes to investigate is the player's own
+    /// breath: a listener that wants "it gave up" rather than "it stopped searching" has to tell the
+    /// two apart itself — PlayerHabitTracker counts one per hunt, a hunt lasting until Patrolling.
+    ///
+    /// PlayerHabitTracker counts EscapedWhileHidden off it (plan §5.3); the Director's "comes back
+    /// past an empty search" (plan §18) is the other listener it is meant for.
+    /// </summary>
+    public static event Action<Vector3, bool> OnSearchEnded;
+
+    /// <summary>
+    /// A chase went a whole window without the Nemesis closing the distance (plan C4). Raised by
+    /// NemesisChaseProgress ONCE PER CHASE, on its first stalled window: a loop that goes on for a
+    /// minute is one stall, not a dozen, because the habit ledger takes each raise for a separate
+    /// time the player pulled the trick (see ChaseStallCounter). The stagnation itself, which lasts
+    /// every window, is NemesisStateManager.IsChaseStagnant, not this event.
+    /// Never during the escape: the chase floor clears the measurement.
+    /// </summary>
+    public static event Action OnChaseStalled;
+
+    /// <summary>
+    /// The Nemesis's permanent tuning changed: <see cref="NemesisStateManager.BaselineData"/> now
+    /// points at a different asset (an escalation tier, plan Fase 7). NemesisDirector listens to
+    /// rebuild a loan that was cloned from the old baseline; otherwise the new tier would wait until
+    /// the loan ended.
+    /// </summary>
+    public static event Action OnBaselineChanged;
+
+    public static void ChaseStarted()
+    {
+        IsChasing = true;
+        OnChaseStarted?.Invoke();
+    }
+
+    public static void ChaseEnded()
+    {
+        IsChasing = false;
+        OnChaseEnded?.Invoke();
+    }
+
     public static void ProximityChanged(float t)         => OnProximityChanged?.Invoke(t);
     public static void StateChanged(NemesisStateManager.ENemesisState state) => OnStateChanged?.Invoke(state);
     public static void CaptureResolved()                 => OnCaptureResolved?.Invoke();
     public static void Activated()                       => OnActivated?.Invoke();
+    public static void SearchEnded(Vector3 area, bool found) => OnSearchEnded?.Invoke(area, found);
+    public static void ChaseStalled()                    => OnChaseStalled?.Invoke();
+    public static void BaselineChanged()                 => OnBaselineChanged?.Invoke();
 }

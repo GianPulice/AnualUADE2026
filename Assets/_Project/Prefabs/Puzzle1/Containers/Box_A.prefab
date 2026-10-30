@@ -604,8 +604,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BoxSymbolSignalLoss
   symbolRenderer: {fileID: 5960225152767099931}
-  noiseResolution: 24
-  emissionStrength: 0.35
   heightHysteresis: 0.05
 --- !u!1 &8671121699634703305
 GameObject:

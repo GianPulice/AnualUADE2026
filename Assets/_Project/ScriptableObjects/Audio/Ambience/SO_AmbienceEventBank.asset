@@ -49,18 +49,6 @@ MonoBehaviour:
     allowOccluderSnap: 0
     requireNavMeshNearby: 0
     cooldown: 8
-  - label: Cold
-    clip: {fileID: 8300000, guid: 3c11e98839b3a1b41ba33396aa7b2660, type: 3}
-    tags: 0
-    volume: 0.8
-    spread: 0
-    minDistance: 6
-    maxDistance: 45
-    distanceRange: {x: 8, y: 30}
-    verticalRange: {x: -1, y: 3}
-    allowOccluderSnap: 0
-    requireNavMeshNearby: 0
-    cooldown: 8
   - label: Large Water
     clip: {fileID: 8300000, guid: 274bf447280193644800e84994ff7887, type: 3}
     tags: 0
@@ -111,42 +99,6 @@ MonoBehaviour:
     cooldown: 8
   - label: Irregular drops
     clip: {fileID: 8300000, guid: 3764e3d138ef7d5428689b0940cfc5cd, type: 3}
-    tags: 0
-    volume: 0.8
-    spread: 0
-    minDistance: 6
-    maxDistance: 45
-    distanceRange: {x: 8, y: 30}
-    verticalRange: {x: -1, y: 3}
-    allowOccluderSnap: 0
-    requireNavMeshNearby: 0
-    cooldown: 8
-  - label: Wind Passing 1
-    clip: {fileID: 8300000, guid: 73b03d77aa5497c49802f223ddfe49a0, type: 3}
-    tags: 0
-    volume: 0.8
-    spread: 0
-    minDistance: 6
-    maxDistance: 45
-    distanceRange: {x: 8, y: 30}
-    verticalRange: {x: -1, y: 3}
-    allowOccluderSnap: 0
-    requireNavMeshNearby: 0
-    cooldown: 8
-  - label: Wind Passing 2
-    clip: {fileID: 8300000, guid: 067bdd48272a1d14caabf66c5a3fcdd4, type: 3}
-    tags: 0
-    volume: 0.8
-    spread: 0
-    minDistance: 6
-    maxDistance: 45
-    distanceRange: {x: 8, y: 30}
-    verticalRange: {x: -1, y: 3}
-    allowOccluderSnap: 0
-    requireNavMeshNearby: 0
-    cooldown: 8
-  - label: Wind Passing 3
-    clip: {fileID: 8300000, guid: b07d621e7e410424a8f4ed5ada391c24, type: 3}
     tags: 0
     volume: 0.8
     spread: 0

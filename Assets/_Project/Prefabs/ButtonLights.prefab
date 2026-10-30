@@ -538,5 +538,18 @@ MonoBehaviour:
   turnOffPrompt: Turn off
   noPowerInfo: You need to turn on the energy first
   clickSoundId: sfx_elevator_button_01
+  turnOnSoundId: sfx_warehouse_lights_on
+  turnOffSoundId: sfx_big_switch_lights_off
+  turnOnTimes:
+  - 0.692
+  - 1.108
+  - 1.804
+  - 1.876
+  - 2.476
+  - 3.176
+  - 3.248
+  extraLightSpacing: 0.15
+  nearestFirst: 1
+  turnOffDelay: 0
   switchAnimator: {fileID: -8001290643936244}
   pressTriggerName: Pressed

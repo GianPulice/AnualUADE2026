@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -26,6 +29,10 @@ using UnityEngine.Audio;
 /// through the committed search that follows and stops when the SEARCH ends, so silence means "it
 /// stopped looking", not "it stopped seeing you".
 ///
+/// A CAPTURE ENDS IT FROM THE CAPTURE ITSELF (WIR-066). The hunted set keeps Catch until the
+/// Nemesis leaves it after the respawn, so waiting for that state change left the music playing
+/// through the whole black screen. The track fades out with the black cover instead.
+///
 /// Structurally a simplified NemesisAudio/AmbienceBedLayer: one owned AudioSource instead of a
 /// crossfade pair, because there is only ever one clip and two states (audible / silent) rather
 /// than a swap between several.
@@ -51,9 +58,16 @@ public class NemesisChaseMusic : MonoBehaviour
 
     [Tooltip("Safety net for the search tail: seconds the music may keep playing after a chase " +
              "ends if no state change ever arrives to close it, which is what a Nemesis switched " +
-             "off mid-search leaves behind. Longer than SearchTimeOut, so in a normal run the " +
-             "state change always gets there first.")]
-    [SerializeField, Min(1f)] private float searchTailTimeout = 25f;
+             "off mid-search leaves behind.\n\n" +
+             "It MUST stay above the longest search, or it cuts the music in the middle of one: " +
+             "SO_NemesisData's Search Hard Cap (30 s) times the Director's highest persistence " +
+             "(SO_DirectorPacing's Rising Max Persistence, 1.5) = 45 s. Raise it with either of them.")]
+    [SerializeField, Min(1f)] private float searchTailTimeout = 50f;
+
+    [Tooltip("Seconds of the fade-out when the Nemesis catches the player. It starts when the grab's " +
+             "shot ends, which is when the screen starts going black; match it to CaptureFadeView's " +
+             "Fade In Duration so the music is gone by the time the screen is.")]
+    [SerializeField, Min(0.05f)] private float captureFadeSeconds = 0.6f;
 
     [Header("Routing")]
     [Tooltip("Leave EMPTY. It then resolves to AudioManager's Music bus, which is where this " +
@@ -80,6 +94,12 @@ public class NemesisChaseMusic : MonoBehaviour
     // Set once the run has a result: nothing may start the track again after that.
     private bool runOver;
 
+    // Seconds of a fade-out a script asked for (FadeOutForCinematic). 0 = the usual fadeDuration.
+    private float scriptedFadeSeconds;
+
+    // The wait between a capture and its fade-out (the grab's shot).
+    private CancellationTokenSource captureFadeCts;
+
     private void Awake()
     {
         source = CreateSource();
@@ -92,6 +112,8 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded += HandleChaseEnded;
         NemesisEvents.OnStateChanged += HandleStateChanged;
         GameResultManager.OnGameResult += HandleGameResult;
+        GameResultManager.OnResultCleared += HandleResultCleared;
+        PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
     }
 
     private void OnDestroy()
@@ -100,6 +122,43 @@ public class NemesisChaseMusic : MonoBehaviour
         NemesisEvents.OnChaseEnded -= HandleChaseEnded;
         NemesisEvents.OnStateChanged -= HandleStateChanged;
         GameResultManager.OnGameResult -= HandleGameResult;
+        GameResultManager.OnResultCleared -= HandleResultCleared;
+        PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        CancelCaptureFade();
+    }
+
+    /// <summary>
+    /// The Nemesis caught the player: the music goes with the screen, not with the Catch state
+    /// (see the WIR-066 paragraph in the class doc). Waits out the grab's shot, then fades over
+    /// the black cover.
+    /// </summary>
+    private void HandlePlayerCaptured(PlayerStateManager _)
+    {
+        if (runOver || !source.isPlaying) return;
+
+        CancelCaptureFade();
+        captureFadeCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
+        FadeOutOnCaptureAsync(captureFadeCts.Token).Forget();
+    }
+
+    private async UniTaskVoid FadeOutOnCaptureAsync(CancellationToken token)
+    {
+        float shotSeconds = PlayerEvents.CaptureShotSeconds;
+        if (shotSeconds > 0f)
+        {
+            bool cancelled = await UniTask.Delay(TimeSpan.FromSeconds(shotSeconds), DelayType.UnscaledDeltaTime,
+                                                 cancellationToken: token).SuppressCancellationThrow();
+            if (cancelled) return;
+        }
+
+        FadeOutForCinematic(captureFadeSeconds);
+    }
+
+    private void CancelCaptureFade()
+    {
+        captureFadeCts?.Cancel();
+        captureFadeCts?.Dispose();
+        captureFadeCts = null;
     }
 
     /// <summary>
@@ -114,6 +173,9 @@ public class NemesisChaseMusic : MonoBehaviour
         isTrailingSearch = false;
         volumeTarget = 0f;
     }
+
+    // A defeat the level took back (the escape replays its cinematic): the music can play again.
+    private void HandleResultCleared() => runOver = false;
 
     private void Start()
     {
@@ -159,8 +221,10 @@ public class NemesisChaseMusic : MonoBehaviour
     {
         if (runOver || chaseMusicClip == null) return;
 
+        CancelCaptureFade();
         volumeTarget = maxVolume;
         isTrailingSearch = false;
+        scriptedFadeSeconds = 0f;
 
         if (source.clip != chaseMusicClip) source.clip = chaseMusicClip;
         if (!source.isPlaying) source.Play();
@@ -207,6 +271,22 @@ public class NemesisChaseMusic : MonoBehaviour
         if (ambienceController != null) ambienceController.FadeInAll(fadeDuration);
     }
 
+    /// <summary>
+    /// The chase is over because a script says so (the escape's ending): fades the track out over
+    /// <paramref name="seconds"/> and brings the ambience back, without waiting for the state change
+    /// that ends it by itself. A cinematic puppets the Nemesis with its FSM switched off, so that
+    /// change never arrives and the track would play on through the whole ending. Not a result:
+    /// the music can start again with the next chase.
+    /// </summary>
+    public void FadeOutForCinematic(float seconds)
+    {
+        isTrailingSearch = false;
+        volumeTarget = 0f;
+        scriptedFadeSeconds = Mathf.Max(0.05f, seconds);
+
+        if (ambienceController != null) ambienceController.FadeInAll(scriptedFadeSeconds);
+    }
+
     private void Update()
     {
         // The tail cannot outlive its timeout. A Nemesis switched off mid-search — dormant, a
@@ -221,7 +301,8 @@ public class NemesisChaseMusic : MonoBehaviour
         // Unscaled, not scaled: this fade is paired with AmbienceController's own (also unscaled)
         // takeover fade, and a pause mid-transition must not leave one of the two frozen while the
         // other keeps moving — that is what would turn a paused chase into dead silence.
-        float rate = fadeDuration > 0f ? maxVolume / fadeDuration : maxVolume;
+        float seconds = scriptedFadeSeconds > 0f ? scriptedFadeSeconds : fadeDuration;
+        float rate = seconds > 0f ? maxVolume / seconds : maxVolume;
         currentVolume = Mathf.MoveTowards(currentVolume, volumeTarget, rate * Time.unscaledDeltaTime);
         source.volume = currentVolume;
 

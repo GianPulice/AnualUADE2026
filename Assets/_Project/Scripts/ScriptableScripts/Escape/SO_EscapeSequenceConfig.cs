@@ -104,6 +104,40 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos del plano detalle de los ojos.")]
     [SerializeField, Min(0f)] private float eyesHoldSeconds = 1.6f;
 
+    // El destello es el "bloom" propio de los ojos. La cámara del juego NO renderiza el
+    // post-proceso de URP (Main Camera: Post Processing apagado), así que un Volume con Bloom no
+    // hace nada: el resplandor sale del pase de niebla, que dibuja cada ojo como una gaussiana.
+    // Un núcleo más grande y brillante + un halo ancho y tenue por ojo lo imitan.
+    [Tooltip("Destello de los ojos en ese plano: cuántas veces se multiplica el brillo del " +
+             "NÚCLEO en el pico (1 = sin esa parte). Sube al cortar al plano, se sostiene y vuelve " +
+             "a lo normal antes de la carga. El valor normal de los ojos (NemesisEyes.intensity) no " +
+             "se toca.")]
+    [SerializeField, Min(1f)] private float eyesFlarePower = 4f;
+
+    [Tooltip("Radio en pantalla del núcleo de cada ojo en el pico, en píxeles a 1080p (se escala " +
+             "a la resolución real). De lejos manda el mínimo de NemesisEyes; en este teleobjetivo " +
+             "el radio ya está en el tope global (beaconMaxPixels, 26), así que para que crezca " +
+             "tiene que pasar de ese número. 0 = no lo agranda.")]
+    [SerializeField, Min(0f)] private float eyesFlareCoreRadius = 40f;
+
+    [Tooltip("Brillo en el centro del halo de cada ojo en el pico: el resplandor que se desparrama " +
+             "alrededor del núcleo, que es lo que hace de bloom. Ojo con subirlo mucho: el borde " +
+             "del halo se corta en seco y arriba de ~2 el círculo se nota. 0 = sin halo.")]
+    [SerializeField, Min(0f)] private float eyesFlareHaloIntensity = 1.5f;
+
+    [Tooltip("Radio en pantalla del halo en el pico, en píxeles a 1080p. Cada ojo tiene el suyo; " +
+             "con los ojos cerca se pisan y forman un resplandor común.")]
+    [SerializeField, Min(0f)] private float eyesFlareHaloRadius = 160f;
+
+    [Tooltip("Segundos que tardan los ojos en subir de lo normal al pico, contados desde el corte " +
+             "al plano. Si no entra en 'Eyes Hold Seconds' se recorta.")]
+    [SerializeField, Min(0f)] private float eyesFlareRiseSeconds = 0.25f;
+
+    [Tooltip("Segundos que tardan en volver a lo normal, justo al final del plano: el pico se " +
+             "sostiene en lo que sobra entre la subida y la bajada. Si no entra en 'Eyes Hold " +
+             "Seconds' se recorta.")]
+    [SerializeField, Min(0f)] private float eyesFlareFallSeconds = 0.7f;
+
     [Tooltip("Metros que corre el Nemesis hacia el jugador en el plano general antes de que vuelva " +
              "el control.")]
     [SerializeField, Min(0.5f)] private float chargeDistance = 6f;
@@ -202,11 +236,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [SerializeField, Min(0f)] private float alarmBeaconIntensity = 3f;
 
     [Tooltip("Tamaño real (m) del punto de la sirena. Más grande que un ojo del Nemesis.")]
-    [SerializeField, Min(0.001f)] private float alarmBeaconRadius = 0.18f;
+    [SerializeField, Min(0.001f)] private float alarmBeaconRadius = 0.3f;
 
     [Tooltip("Radio mínimo (px) del punto. Más grande que el de los ojos (5.5) para no " +
              "confundirlos.")]
-    [SerializeField, Min(0f)] private float alarmBeaconMinPixels = 6f;
+    [SerializeField, Min(0f)] private float alarmBeaconMinPixels = 10f;
 
     [Tooltip("Distancia (m) por debajo de la cual el punto de la sirena se apaga: de cerca no " +
              "encandila.")]
@@ -217,7 +251,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
 
     [Tooltip("Cuánta niebla aclara el charco de cada sirena. Sólo aclara: no mete luz, así no " +
              "quema al jugador que pasa por abajo. 0 = sin charco.")]
-    [SerializeField, Range(0f, 1f)] private float alarmPoolClear = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float alarmPoolClear = 0f;
 
     [Tooltip("Brillo del haz de cada sirena en el aire (FogLightVolume): el cono rojo / ámbar que " +
              "se ve bajar del techo a través de la niebla. 0.3 = sutil, 1 = exagerado. 0 = sin haz.")]
@@ -239,6 +273,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "normal) = la niebla cerrada del escape: del Nemesis se ven sólo los ojos y el cuerpo " +
              "aparece recién cerca de la cámara.")]
     [SerializeField] private SO_VisionFogConfig revealShotFog;
+
+    [Tooltip("Niebla del plano de la cámara de seguridad del portazo (Cam_Slam), sólo mientras está " +
+             "al aire: con más alcance que la cerrada, así el feed muestra el pasillo. Al salir del " +
+             "plano vuelve la de arriba, para los ojos y la carga. Vacío = la de arriba también acá.")]
+    [SerializeField] private SO_VisionFogConfig slamShotFog;
 
     [Tooltip("Cuánto (grados) se corre la cámara del jugador de la línea hacia el Nemesis al " +
              "volver el control, para que la cabeza del jugador no le tape los ojos.")]
@@ -264,14 +303,37 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "Nemesis vuelve a correr.")]
     [SerializeField, Min(0f)] private float restartNemesisDelay = 1f;
 
+    [Tooltip("Sólo con Game Over: el Try Again de la pantalla de derrota NO recarga el juego, repite " +
+             "la cinemática desde acá. Tildado = desde que se abren los ojos del Nemesis (ojos, " +
+             "carga, persecución). Destildado = desde el giro para mirarlo, con el Nemesis todavía " +
+             "con los ojos cerrados. Las puertas quedan cerradas y los núcleos puestos.")]
+    [SerializeField] private bool retryFromEyes = true;
+
     // ── Ending: the gate slams shut ─────────────────────────────────────────
     [Header("Final: el portón se cae — A DEFINIR EN TESTEO")]
-    // Al cruzar el WinTrigger: plano del portón (sin el jugador), el Nemesis corre hacia él, el
-    // portón cae en su cara con polvo y queda trabado del otro lado. Después, la victoria.
-    [Tooltip("Segundos desde el corte al plano del portón hasta que empieza a caer. Va de la mano " +
-             "con dónde arranca el Nemesis (Nemesis_GateStart): el portón tiene que tocar el piso " +
-             "un instante antes de que él llegue.")]
-    [SerializeField, Min(0f)] private float gateDropDelay = 1f;
+    // Al cruzar el WinTrigger la cámara de seguridad del portón muestra lo que pasó unos segundos
+    // ANTES: el jugador corriendo hacia el portón con el Nemesis pisándole los talones, cruzándolo,
+    // y el portón cayendo justo detrás suyo en la cara del Nemesis, que queda trabado del otro
+    // lado. Después, la victoria. Es un "rebobinado": el director lleva al jugador unos metros
+    // atrás del portón y lo hace correr de nuevo (PlayerCinematicRunner).
+    [Tooltip("Metros antes del portón desde donde el jugador arranca a correr en el plano final: " +
+             "cuánto está 'atrasada' la cámara. A su velocidad de sprint son ~0.2 s por metro. La " +
+             "cámara del portón está a unos 5-6 m, así que más que eso arranca detrás de ella.")]
+    [SerializeField, Min(1f)] private float endingRunUpDistance = 8f;
+
+    [Tooltip("Metros pasado el portón que sigue corriendo el jugador antes de frenar.")]
+    [SerializeField, Min(0.5f)] private float endingRunPastGate = 4f;
+
+    [Tooltip("Cuánto (m) tiene que haber pasado el jugador la línea del portón para que empiece a " +
+             "caer. Menos = cae casi sobre sus talones; más = le deja aire. La caída dura 'Gate " +
+             "Slam Seconds' y el jugador sigue corriendo mientras cae.")]
+    [SerializeField, Min(0f)] private float endingSlamClearance = 0.8f;
+
+    [Tooltip("Segundos después de que el portón toca el piso hasta que el Nemesis llega a " +
+             "Nemesis_GateStop. 0 = llega justo con el golpe; positivo = el portón le gana por " +
+             "un pelo (lo normal); negativo = el Nemesis llega antes y el portón le cae encima. " +
+             "El arranque del Nemesis se calcula con esto: no hay marcador de salida.")]
+    [SerializeField] private float endingNemesisArrivalDelay = 0.1f;
 
     [Tooltip("Segundos que tarda en caer. Acelera como algo pesado: arranca lento y llega a fondo.")]
     [SerializeField, Min(0.05f)] private float gateSlamSeconds = 0.35f;
@@ -286,14 +348,24 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Cuánto dura la sacudida (s).")]
     [SerializeField, Min(0.05f)] private float gateShakeSeconds = 0.45f;
 
-    [Tooltip("Niebla del plano del portón. Tiene que cerrarse justo pasando el portón, así del otro " +
-             "lado no se ve nada (ni el jugador). Vacío = la niebla cerrada del escape.")]
+    [Tooltip("Niebla del plano del portón. En esta sección el CENTRO de la niebla es el Nemesis, " +
+             "no la cámara: él queda en una burbuja clara y todo lo demás en niebla, así se lo ve " +
+             "aunque sea Unlit. Tiene que cerrarse poco después del portón, así del otro lado no se " +
+             "ve nada (ni el jugador). Vacío = la niebla cerrada del escape.")]
     [SerializeField] private SO_VisionFogConfig gateShotFog;
+
+    [Tooltip("Después del golpe, corta al plano medio del Nemesis entre el polvo (Cam_Dust). " +
+             "Apagado = todo el final queda en la cámara de seguridad del portón.")]
+    [SerializeField] private bool cutToDustShot = false;
 
     [Tooltip("Segundos después del golpe hasta el corte al plano medio del Nemesis entre el polvo.")]
     [SerializeField, Min(0f)] private float dustShotDelay = 0.35f;
 
-    [Tooltip("Segundos con el Nemesis trabado atrás del portón antes de la pantalla de victoria.")]
+    [Tooltip("Segundos que el Nemesis se queda parado frente al portón recién caído antes de " +
+             "pegarle. 0 = le pega apenas llega.")]
+    [SerializeField, Min(0f)] private float endingAttackDelay = 1f;
+
+    [Tooltip("Segundos desde que el Nemesis le pega al portón hasta la pantalla de victoria.")]
     [SerializeField, Min(0f)] private float endingHoldSeconds = 2.5f;
 
     // ── Nemesis (Paso 6) ────────────────────────────────────────────────────
@@ -357,6 +429,12 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Segundos que tarda la capa de tensión en seguir a la cercanía del Nemesis.")]
     [SerializeField, Min(0.05f)] private float tensionSmoothing = 1.5f;
 
+    [Tooltip("Segundos en los que se apaga de a poco todo el sonido de la persecución (alarma, " +
+             "capa de tensión y música de persecución) al cruzar el trigger del final. 0 = corte " +
+             "directo. El final dura unos 7 s: con 4 s queda en silencio antes de la pantalla de " +
+             "victoria.")]
+    [SerializeField, Min(0f)] private float chaseAudioFadeOutSeconds = 4f;
+
     [Tooltip("Sonido de traba de cada puerta (id de AudioManager): las otras salidas del hub al " +
              "poner el último núcleo.")]
     [SerializeField, SoundId] private string doorLockSoundId = "sfx_interaction_puerta_bloqueada";
@@ -382,6 +460,12 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public AnimationCurve PanCurve => panCurve;
     public int PanTurnSign => panTurnSign;
     public float EyesHoldSeconds => eyesHoldSeconds;
+    public float EyesFlarePower => eyesFlarePower;
+    public float EyesFlareCoreRadius => eyesFlareCoreRadius;
+    public float EyesFlareHaloIntensity => eyesFlareHaloIntensity;
+    public float EyesFlareHaloRadius => eyesFlareHaloRadius;
+    public float EyesFlareRiseSeconds => eyesFlareRiseSeconds;
+    public float EyesFlareFallSeconds => eyesFlareFallSeconds;
     public float ChargeDistance => chargeDistance;
     public float ChargeMaxSeconds => chargeMaxSeconds;
 
@@ -417,20 +501,27 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float AlarmBeamIntensity => alarmBeamIntensity;
 
     public SO_VisionFogConfig RevealShotFog => revealShotFog;
+    public SO_VisionFogConfig SlamShotFog => slamShotFog;
     public float RevealCameraSideAngle => revealCameraSideAngle;
     public float RevealCameraVertical => revealCameraVertical;
     public string RevealSoundId => revealSoundId;
 
     public EscapeCaptureOutcome CaptureOutcome => captureOutcome;
     public float RestartNemesisDelay => restartNemesisDelay;
+    public bool RetryFromEyes => retryFromEyes;
 
     public SO_VisionFogConfig GateShotFog => gateShotFog;
+    public bool CutToDustShot => cutToDustShot;
     public float DustShotDelay => dustShotDelay;
-    public float GateDropDelay => gateDropDelay;
+    public float EndingRunUpDistance => endingRunUpDistance;
+    public float EndingRunPastGate => endingRunPastGate;
+    public float EndingSlamClearance => endingSlamClearance;
+    public float EndingNemesisArrivalDelay => endingNemesisArrivalDelay;
     public float GateSlamSeconds => gateSlamSeconds;
     public string GateSlamSoundId => gateSlamSoundId;
     public float GateShakeAmplitude => gateShakeAmplitude;
     public float GateShakeSeconds => gateShakeSeconds;
+    public float EndingAttackDelay => endingAttackDelay;
     public float EndingHoldSeconds => endingHoldSeconds;
 
     public float PaceNear => paceNear;
@@ -449,6 +540,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float TensionMinVolume => tensionMinVolume;
     public float TensionMaxVolume => tensionMaxVolume;
     public float TensionSmoothing => tensionSmoothing;
+    public float ChaseAudioFadeOutSeconds => chaseAudioFadeOutSeconds;
     public string DoorLockSoundId => doorLockSoundId;
     public float DoorLockInterval => doorLockInterval;
 

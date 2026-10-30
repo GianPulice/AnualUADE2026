@@ -2,6 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
+/// What the cluster patrol needs to know about the search map: how much of its value sits near a
+/// point. The map implements it; the patrol sees only this, so it stays free of sensors and scenes.
+/// </summary>
+public interface IClusterValueSource
+{
+    /// <summary>The share (0..1) of the map's value within <paramref name="radius"/> of a point, on
+    /// its floor. 0 when the map believes nothing.</summary>
+    float ShareNear(Vector3 point, float radius);
+}
+
+/// <summary>
 /// Patrols by ZONE: picks a cúmulo of nearby waypoints out of a <see cref="NemesisRouteGraph"/>,
 /// lays out the order it will sweep them in, and hands them back one at a time.
 ///
@@ -99,6 +110,49 @@ public sealed class NemesisClusterPatrol
         /// <summary>How many recently swept zones the penalty applies to.</summary>
         public readonly int RecencyMemory;
 
+        /// <summary>Where the search map's leftover value is read from (plan §19.5, E3), or null for
+        /// no bias. An interface so this class still knows nothing about sensors or the map.</summary>
+        public readonly IClusterValueSource MapValue;
+
+        /// <summary>Multiplier a zone gets for holding all of the leftover value. 1 disables it.</summary>
+        public readonly float MapValueStrength;
+
+        public readonly float MapValueRadius;
+
+        /// <summary>Share of the map's total value inside the radius that earns the full multiplier.</summary>
+        public readonly float MapValueFullShare;
+
+        private Settings(in Settings from, IClusterValueSource mapValue, float mapStrength,
+                         float mapRadius, float mapFullShare)
+        {
+            HasBelief = from.HasBelief;
+            Belief = from.Belief;
+            PlayerBiasStrength = from.PlayerBiasStrength;
+            PlayerBiasFalloff = from.PlayerBiasFalloff;
+            HasZoneAnchor = from.HasZoneAnchor;
+            ZoneAnchor = from.ZoneAnchor;
+            ZoneBiasStrength = from.ZoneBiasStrength;
+            ZoneBiasFalloff = from.ZoneBiasFalloff;
+            NeighbourBiasStrength = from.NeighbourBiasStrength;
+            NeighbourBiasFalloff = from.NeighbourBiasFalloff;
+            SampleCount = from.SampleCount;
+            MinWaypoints = from.MinWaypoints;
+            MaxWaypoints = from.MaxWaypoints;
+            RecencyPenalty = from.RecencyPenalty;
+            RecencyMemory = from.RecencyMemory;
+
+            MapValue = mapValue;
+            MapValueStrength = Mathf.Max(1f, mapStrength);
+            MapValueRadius = Mathf.Max(1f, mapRadius);
+            MapValueFullShare = Mathf.Clamp(mapFullShare, 0.01f, 1f);
+        }
+
+        /// <summary>A copy that also leans towards zones where the search left value behind. Fed in
+        /// only after a hunt (the controller decides when), so a patrol that was never hunting rolls
+        /// exactly as before.</summary>
+        public Settings WithMapValue(IClusterValueSource source, float strength, float radius, float fullShare) =>
+            new Settings(this, source, strength, radius, fullShare);
+
         public Settings(bool hasBelief, Vector3 belief,
                         float playerBiasStrength, float playerBiasFalloff,
                         bool hasZoneAnchor, Vector3 zoneAnchor,
@@ -122,6 +176,11 @@ public sealed class NemesisClusterPatrol
             MaxWaypoints = Mathf.Max(1, maxWaypoints);
             RecencyPenalty = Mathf.Clamp01(recencyPenalty);
             RecencyMemory = Mathf.Max(0, recencyMemory);
+
+            MapValue = null;
+            MapValueStrength = 1f;
+            MapValueRadius = 8f;
+            MapValueFullShare = 0.1f;
         }
 
         /// <summary>
@@ -518,8 +577,9 @@ public sealed class NemesisClusterPatrol
     }
 
     /// <summary>
-    /// Weighted roll among candidate cúmulos: route weight, times the player bias, times the
-    /// "next door" bonus when one applies.
+    /// Weighted roll among candidate cúmulos: their routes' weight as it stands right now — the
+    /// Director's pressure included — times the player bias, times the "next door" bonus when one
+    /// applies.
     ///
     /// It stays a roll and not an argmax for the same reason the per-waypoint pick does: "the zone
     /// you are in gets more tickets" reads as the Nemesis prowling around you, "it always goes
@@ -556,8 +616,14 @@ public sealed class NemesisClusterPatrol
 
         for (int i = 0; i < sampledBuffer.Count; i++)
         {
-            NemesisRouteGraph.Cluster cluster = graph.GetCluster(sampledBuffer[i]);
-            float weight = Mathf.Max(0f, cluster.Weight);
+            int clusterIndex = sampledBuffer[i];
+            NemesisRouteGraph.Cluster cluster = graph.GetCluster(clusterIndex);
+
+            // Read off the routes NOW, never off a copy taken when the graph was built: the
+            // Director's route-weight lever rescales NemesisRoute.Weight while the game runs, and
+            // the frozen copy this replaced left that lever doing nothing to this roll. Already
+            // clamped at 0 per member. See NemesisRouteGraph.ClusterWeight.
+            float weight = graph.ClusterWeight(clusterIndex);
 
             if (weight > 0f && settings.HasBelief && settings.PlayerBiasStrength > 1f)
             {
@@ -580,10 +646,17 @@ public sealed class NemesisClusterPatrol
                                           settings.NeighbourBiasStrength, settings.NeighbourBiasFalloff);
             }
 
+            // After a hunt: where the search left value behind pulls the patrol (plan §19.5, E3).
+            if (weight > 0f && settings.MapValue != null && settings.MapValueStrength > 1f)
+            {
+                float share = settings.MapValue.ShareNear(cluster.Centroid, settings.MapValueRadius);
+                weight *= PatrolMapValue.Weight(share, settings.MapValueStrength, settings.MapValueFullShare);
+            }
+
             // Applied LAST, so it cuts whatever the two biases built up rather than being
             // swamped by them. The neighbour bias in particular pulls hard towards the zone next
             // door — which, right after leaving it, is the zone it just swept.
-            if (weight > 0f && recentClusters.Contains(sampledBuffer[i]))
+            if (weight > 0f && recentClusters.Contains(clusterIndex))
             {
                 weight *= settings.RecencyPenalty;
             }

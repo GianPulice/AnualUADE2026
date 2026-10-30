@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 452a2f682dde4301a69f612a17024d9f, type: 3}
+  m_Name: SO_VoiceDisguise_Scrambler
+  m_EditorClassIdentifier: Assembly-CSharp::SO_VoiceDisguiseSettings
+  enabled: 1
+  pitchRatio: 0.8
+  pitchWindowMs: 50
+  ringFrequencyHz: 45
+  ringMix: 0.35
+  highPassHz: 320
+  lowPassHz: 3200
+  bitDepth: 10
+  holdFactor: 2
+  outputGainDb: 4

@@ -11,7 +11,7 @@ Stack: **URP 17.4.0**, Unity 6, Compatibility mode (Renderer Feature API tradici
 
 ## 1. Visión general
 
-El sistema visual tiene cuatro capas que se ejecutan en este orden por frame:
+El sistema visual tiene estas capas, que se ejecutan en este orden por frame:
 
 ```
 [ Escena 3D (opaques + transparents) ]
@@ -20,10 +20,13 @@ El sistema visual tiene cuatro capas que se ejecutan en este orden por frame:
 [ SSAO ]                                          ← existente, no se tocó
          │
          ▼
-[ Vision Fog (Fullscreen Shader Graph + HLSL) ]   ← EXTENDIDO (linterna, bypass, densidad)
+[ Vision Fog (VisionFog_HLSL.shader, fullscreen) ] ← BeforeRenderingPostProcessing (550)
          │
          ▼
-[ PS1 PostProcess: PSX + dither + scanlines + CA ] ← REEMPLAZADO por shader HLSL
+[ Post-process de URP (Volumes) ]
+         │
+         ▼
+[ PS1 PostProcess: PSX + dither + scanlines + CA ] ← AfterRenderingPostProcessing (600)
          │
          ▼
 [ UI Overlay (Canvas Screen Space Overlay) ]      ← se dibuja después del pipeline
@@ -41,8 +44,8 @@ Cada capa tiene una responsabilidad clara y se puede prender/apagar independient
 ## 2. Mapa de archivos
 
 ```
-Assets/
-├─ Materials/
+Assets/_Project/
+├─ Art/Materials/
 │   ├─ Environment/
 │   │   ├─ Emergency/
 │   │   │   └─ mat_luz_emergencia_emissive.mat       ← #CC1A1A baked
@@ -50,44 +53,81 @@ Assets/
 │   │   │   └─ mat_monitor_pantalla.mat              ← #8AB4D4 realtime + flicker
 │   │   ├─ Device/
 │   │   │   └─ mat_device_luz_ambar_jugador.mat      ← #FFC850 realtime
-│   │   └─ Fluorescent/
-│   │       └─ shader_flicker_light.shader            ← HLSL custom URP unlit
+│   │   ├─ Fluorescent/
+│   │   │   └─ shader_flicker_light.shader            ← HLSL custom URP unlit
+│   │   └─ New FBXs/
+│   │       └─ PSXIndustrial.shader                   ← props PSX; declara tint/emisión (el highlight lo maneja)
 │   ├─ Items/
-│   │   ├─ mat_item_keys.mat                          ← Llaves        (#37474F)
-│   │   ├─ mat_item_components.mat                    ← Componentes   (#4E342E)
-│   │   ├─ mat_item_clues.mat                         ← Pistas        (#263238)
-│   │   ├─ mat_item_special.mat                       ← Especiales    (#1A237E)
-│   │   ├─ ItemPSX.shadergraph                        ← original (referencia, no se toca)
-│   │   ├─ ItemPSX_Outline.shader                     ← NUEVO: HLSL Lit + outline opt-in
+│   │   ├─ mat_item_keys_red.mat                      ← Llaves        (§5.2)
+│   │   ├─ mat_item_components_green.mat              ← Componentes
+│   │   ├─ mat_item_clues_blue.mat                    ← Pistas
+│   │   ├─ mat_item_special.mat                       ← Especiales
+│   │   ├─ mat_item_nota.mat                          ← Notas (PSXIndustrial)
+│   │   ├─ ItemPSX_Outline.shader                     ← HLSL Lit + outline opt-in
 │   │   ├─ ItemPsx.mat                                ← apunta a ItemPSX_Outline.shader
+│   │   ├─ HighlightOverlay.shader                    ← capa aditiva del highlight (§5.3)
+│   │   ├─ mat_highlight_overlay.mat                  ← la usa SO_Highlight_Cores
 │   │   ├─ ItemGlint.shader                           ← estrella del destello (§5.5), unlit aditivo
 │   │   └─ mat_item_glint.mat                         ← forma de la estrella (lo crea Set Up Item Glints)
-│   ├─ VisionFog.hlsl                                  ← Custom function HLSL (EXTENDIDO)
+│   ├─ UI/
+│   │   ├─ HidingOverlayCommon.hlsl                   ← grilla PSX, dither, grano y fundido del overlay del escondite (§7.4)
+│   │   ├─ HidingOverlay_Locker.shader                ← un look por tipo de escondite
+│   │   ├─ HidingOverlay_UnderTable.shader
+│   │   ├─ HidingOverlay_Container.shader
+│   │   └─ UI_HidingLocker / UnderTable / Container.mat ← donde se tunea cada look
 │   └─ Post Process/
-│       ├─ Fullscreen_VisionFog.shadergraph           ← grafo fullscreen del fog
-│       ├─ VisionFog.mat                               ← material del fog fullscreen
+│       ├─ VisionFog_HLSL.shader                      ← shader del fog (el que corre, §6.1)
+│       ├─ VisionFog.mat                               ← material del fog fullscreen (PC_Renderer)
+│       ├─ VisionFog_SilentHill.mat                    ← variante con noise prendido
+│       ├─ Fullscreen_VisionFog.shadergraph + VisionFog.hlsl ← LEGACY: rollback, no se compilan
 │       ├─ PS1_PostProcess.shadergraph                 ← original (referencia, no se toca)
-│       ├─ PS1_PostProcess_HLSL.shader                 ← NUEVO: PSX + dither/scanlines/CA
+│       ├─ PS1_PostProcess_HLSL.shader                 ← PSX + dither/scanlines/CA
 │       └─ PS1Effect.mat                               ← apunta a PS1_PostProcess_HLSL.shader
-└─ _Project/Scripts/
+├─ Prefabs/VFX/
+│   ├─ ElectricSparks.prefab                           ← chispas de cables/paneles, 5 sistemas + script (§3.5)
+│   └─ ElectricSparksLight.prefab                      ← molde de la luz real de cada destello (módulo Lights)
+├─ Prefabs/Light/
+│   ├─ Light Base.prefab                               ← lámpara estándar (§6.4)
+│   ├─ Light Base Switch.prefab                        ← variante para PoweredLightSwitch (§6.4.1)
+│   └─ Reflector Symbol Reveal.prefab                  ← luz negra que revela el símbolo de las cajas (§6.4.1)
+├─ ScriptableObjects/
+│   ├─ Highlight/                                      ← SO_Highlight_*.asset (§5.3), SO_Glint_Items.asset (§5.5)
+│   ├─ Rendering/Fog/                                  ← SO_VisionFog_Dark / Darkness / Light / UVPool / SilentHill
+│   ├─ Escape/SO_VisionFog_Escape*.asset               ← presets del escape
+│   └─ SO_PostProcessToggle.asset                      ← prende/apaga PS1 + fog de un botón (§6.5)
+├─ Settings/PC_Renderer.asset                          ← renderer features (§6.6)
+└─ Scripts/
     ├─ Environment/
     │   ├─ MonitorFlicker.cs                          ← pulso 0.2 Hz
-    │   └─ FlickerLight.cs                            ← curve-driven, fluorescente
+    │   ├─ FlickerLight.cs                            ← curve-driven, fluorescente
+    │   └─ ElectricSparks.cs                          ← intensidad (3 niveles) y color de las chispas (§3.5)
     ├─ Items/
-    │   ├─ ItemProximityHighlight.cs                  ← lerp tint+emission por proximidad
+    │   ├─ ItemProximityHighlight.cs                  ← lerp tint+emission al apuntar
     │   └─ ItemGlint.cs                               ← destello de lejos, estilo Resident Evil (§5.5)
     ├─ ScriptableScripts/Interactables/
     │   ├─ SO_HighlightProfile.cs                     ← valores del highlight (§5.3)
     │   └─ SO_GlintProfile.cs                         ← timing/tamaño/color/rango del destello (§5.5)
     ├─ ScriptableScripts/Rendering/
-    │   └─ SO_VisionFogConfig.cs                       ← preset de niebla por zona
-    └─ Rendering/
-        ├─ VisionRangeController.cs                    ← setea globals del fog
-        ├─ LightZone.cs                                ← trigger que pushea un config
-        ├─ FogLightSource.cs                           ← NUEVO: linterna del player
-        ├─ FogLightBypass.cs                           ← NUEVO: zonas que perforan niebla
-        ├─ PS1EffectApplier.cs                         ← toggles dither/scanlines (PlayerPrefs)
-        └─ GlitchController.cs                          ← NUEVO: glitch VHS aleatorio (CA)
+    │   ├─ SO_VisionFogConfig.cs                       ← preset de niebla por zona
+    │   └─ SO_PostProcessToggle.cs
+    ├─ Rendering/
+    │   ├─ VisionRangeController.cs                    ← setea globals del fog
+    │   ├─ VisionFogState.cs                           ← el set de valores + el único que escribe los globals
+    │   ├─ LightZone.cs                                ← trigger que pushea un config
+    │   ├─ VisionFogOverride.cs                        ← pushea un config mientras está activo (cinemáticas)
+    │   ├─ VisionFogTrack.cs / VisionFogClip.cs        ← track de Timeline para previsualizar
+    │   ├─ FogLightSource.cs                           ← luz del módulo del player
+    │   ├─ FogLightBypass.cs                           ← zonas que perforan niebla
+    │   ├─ FogLightBypassPlayerFade.cs                 ← baja el halo del bypass con el player adentro
+    │   ├─ FogBeacon.cs                                ← punto visible a través de la niebla (§6.4.1)
+    │   ├─ FogLightVolume.cs                           ← haz de una Light en la niebla (§6.4.1)
+    │   ├─ PS1EffectApplier.cs                         ← toggles dither/scanlines (PlayerPrefs)
+    │   └─ GlitchController.cs                         ← glitch VHS aleatorio (CA)
+    └─ Editor/
+        ├─ InteractableHighlightSetup.cs               ← Tools ▸ Interactables ▸ Set Up Highlights / Set Up Item Glints
+        ├─ ItemHighlightValidator.cs                   ← Tools ▸ Items ▸ Validate Interactable Highlights
+        ├─ SO_VisionFogConfigEditor.cs                 ← botones Aplicar como Default / Previsualizar
+        └─ VisionFogPreviewDrawer.cs                   ← preview del preset en el inspector
 ```
 
 ---
@@ -95,6 +135,8 @@ Assets/
 ## 3. Materiales del entorno
 
 Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shader fluorescente custom).
+
+> **Estado hoy**: ninguno de los tres `.mat` de esta sección, ni `MonitorFlicker` / `FlickerLight` (§4), está puesto en una escena o prefab de `_Project` (búsqueda por GUID). Son la receta lista para cuando se coloquen.
 
 ### 3.1 `mat_luz_emergencia_emissive` — Luces rojas de pasillo
 
@@ -127,13 +169,15 @@ Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shade
 | Emission Color (HDR) | `(2.5, 1.5, 0.5)` = `#FFC850` intensity ~1.5 | Spec: ámbar cálido `#FFC850`. |
 | Lightmap Flags | `1` (Realtime) | El device se mueve con el player → no bakeable. |
 
-**Por qué realtime y no baked**: el player se mueve por el mundo, su luz tiene que recalcular shadows/lighting en cada frame. Una Point Light separada va con shadows = Soft, range = 3, intensity = 1 (configurable a futuro si meten degradación por módulos explotados — feature postergada).
+**Por qué realtime y no baked**: el player se mueve por el mundo, su luz tiene que recalcular shadows/lighting en cada frame.
 
-> **Enganche con el fog**: esta misma Point Light es la que alimenta el "hueco" de niebla vía [`FogLightSource`](../Assets/_Project/Scripts/Rendering/FogLightSource.cs) (ver §6.4). Un solo sistema de luz del player, dos lecturas: iluminación real + campo de visión en la niebla.
+**Lo que lleva el player hoy**: no este material sino los LEDs de los módulos. `Player.prefab` tiene tres Point Lights (una por módulo: piernas, pecho, cabeza), color `(1, 0.5, 0.04)`, intensity 3.5, range 1.6, sin sombras. Las maneja `ModuleLED` (`Scripts/Player/Modules/`): apagado en Inactive, parpadeo naranja en Active, verde fijo en Resolved, rojo fijo en Exploded (desde que se ve la explosión). `ModuleLightLayers` pone cada módulo en su propio Rendering Layer (1 = Legs, 2 = Chest, 3 = Head) para que la luz de uno no ilumine a los otros.
+
+> **Enganche con el fog**: la idea es que la luz del módulo alimente el "hueco" de niebla vía [`FogLightSource`](../Assets/_Project/Scripts/Rendering/FogLightSource.cs) (ver §6.4): un solo sistema de luz del player, dos lecturas. **Hoy `FogLightSource` no está en `Player.prefab` ni en ninguna escena**, así que el hueco sale de los valores `playerLight*` del preset activo y se centra en el pivot del player.
 
 ### 3.4 `shader_flicker_light.shader` — Tubos fluorescentes
 
-Único shader **HLSL custom** de entorno (no Shader Graph). Está en `Assets/_Project/Art/Materials/Environment/Fluorescent/shader_flicker_light.shader`.
+Shader **HLSL custom** `Custom/FlickerLight` (no Shader Graph). Está en `Assets/_Project/Art/Materials/Environment/Fluorescent/shader_flicker_light.shader`.
 
 **Por qué custom**: el tubo fluorescente necesita brillar con su propia luz (es la fuente luminosa, no un objeto iluminado). URP/Lit sería overkill — el tubo no recibe luz importante, solo emite. Un shader unlit con `BaseColor * Intensity` alcanza.
 
@@ -144,6 +188,51 @@ Cada uno respeta exactamente el hex del spec y usa **URP/Lit** (excepto el shade
 **Properties**:
 - `_BaseColor` (HDR) — color del tubo.
 - `_Intensity` (Float) — se anima desde [`FlickerLight.cs`](../Assets/_Project/Scripts/Environment/FlickerLight.cs).
+
+### 3.5 `ElectricSparks.prefab` — Chispas de electricidad
+
+Prefab de varios Particle Systems en `Assets/_Project/Prefabs/VFX/ElectricSparks.prefab`, manejado por **un solo script**, [`ElectricSparks.cs`](../Assets/_Project/Scripts/Environment/ElectricSparks.cs) (`Scripts/Environment/`). Pensado para cables cortados y paneles en cortocircuito. No lleva shader propio: usa los materiales compartidos `mat_vfx_additive` (textura `vfx_dot`, shader `WIRED/VFX/Particle Unlit`) y `mat_vfx_smoke`. La luz de cada destello sale de `ElectricSparksLight.prefab`, el molde de luz que usa el módulo Lights.
+
+> **Estado hoy**: no está puesto en ninguna escena. Se comprobó en edición: orientación, picos de partículas por nivel, rebote contra un piso, cambio de color y un render de cada nivel. Falta verlo en el juego con la niebla y el filtro PS1 encima, y no se midió el costo en ms. Se armó siguiendo el tutorial de Epic para chispas en Niagara (humo, destello y chispas radiales alineadas a la velocidad, con drag, gravedad fuerte y rebote); las demás capas (brasas, estelas, splash por impacto, luz) se sumaron aparte.
+
+**Cómo se maneja**: en el componente `ElectricSparks`, dos controles.
+- **Intensity** (Low / Medium / High): cuánto tira cada ráfaga. Low es un chisporroteo suave; Medium (el default) es una lluvia abundante; High es un cortocircuito. Cambia cantidades, velocidad, tamaño, brillo, estelas, luz del destello, brasas y humo.
+- **Color**: el tono de las chispas y su brillo; cualquiera sirve, no hay naranja fijo (viene en naranja sólo de valor inicial). **Hotness** (0 a 1) es cuánto se quema hacia blanco la chispa rápida antes de enfriarse al color. El brillo HDR viene del nivel, no del swatch.
+
+Los dos se aplican en el editor apenas se tocan, así que el preview sigue al Inspector. Por código: `SetIntensity(SparkIntensity)`, `SetColor(Color)`, `Strike()` (una ráfaga ya, por ejemplo cuando un puzzle hace saltar un panel), `Play()` y `Stop()`. Si no se quiere que chispee solo, se destilda *Play On Awake* y se llama a `Strike()`. Evitar rojo y ámbar fuera de peligro o del dispositivo del jugador: el spec los reserva (§1).
+
+**Cómo está armado**: una ráfaga (*strike*) dispara a la vez cinco sistemas hijos, así que siempre van juntos.
+
+| Sistema | Qué hace | Funciones de Unity que usa |
+|---|---|---|
+| `Sparks` | Lluvia radial de chispas que suben, se estiran con la velocidad, caen y rebotan. | Stretched Billboard, Shape (cono), Limit Velocity (drag), Inherit Velocity, Noise, Size by Speed, Color by Speed (blanco a color), Size/Color over Lifetime, Collision (mundo), Trails (cintas), Sub Emitters |
+| `Flash` | Destello corto con luz real. | Start Size 3D (sprite no uniforme), rotación al azar, Rotation over Lifetime, Size/Color over Lifetime, Lights |
+| `Embers` | Brasas lentas que flotan y titilan. | Noise, External Forces, Inherit Velocity, Color over Lifetime con parpadeo |
+| `Smoke` | Humo oscuro que crece y sube. | Force over Lifetime, Rotation over Lifetime, External Forces, Size/Color over Lifetime |
+| `Impact` | Salpicadura mínima cuando una chispa cae. | Sub-emisor por colisión de `Sparks`, Sphere shape |
+
+**Las ráfagas**: las programa el script, no un loop de partículas. Un patrón de 8 ráfagas en 5 s (tiempos y probabilidades desiguales a propósito) que cada instancia empieza en un punto al azar del loop, así que dos cables con el mismo prefab no chispean al unísono y el patrón no se repite igual. La probabilidad de cada ráfaga se escala con el nivel (`strikeChance`). Cada ráfaga llama a `Emit()` en los cinco sistemas. Se eligió eso en lugar de sub-emisores *Birth*: probado, el sub-emisor Birth **ignoraba la rotación del objeto** (las chispas salían siempre hacia +Z del mundo), y con `Emit()` salen hacia +Z del objeto como corresponde.
+
+**Dirección**: las chispas salen hacia **+Z** del objeto del prefab. Se rota el prefab para apuntarlas hacia donde saltan.
+
+**Qué valores son del script**: pisa cantidades, rangos de velocidad y tamaño, colores, proporción de estelas, luz del destello y probabilidad de splash (los tres presets están en el componente, editables). Lo demás se afina en cada sistema hijo: forma, gravedad, drag, ruido, colisión y el resto del look. Si se toca a mano algo del primer grupo en un sistema hijo, el script lo vuelve a pisar.
+
+**Rendimiento** (pico de partículas simultáneas en el peor caso, con las 8 ráfagas del patrón disparando en un loop, medido en edición):
+
+| Nivel | Pico simultáneo |
+|---|---|
+| Low | 35 |
+| Medium | 153 |
+| High | 270 |
+
+Topes de `Max Particles`, en orden `Sparks`, `Flash`, `Embers`, `Smoke`, `Impact`: 300 / 12 / 120 / 40 / 150. Medidas para contener el costo: tope de partículas en cada sistema; estelas sólo en parte de las chispas (`trailRatio`: 0, 25 % y 40 %); splash de impacto con baja probabilidad; Noise con una octava y calidad Low; Collision con calidad Low, sin colliders dinámicos y sólo contra `Default`, `Ground`, `Wall` y `Props` (no choca con el jugador ni con el Nemesis); la luz del destello con máximo de 2 luces a la vez y apagada en Low; y **las ráfagas se cortan si la cámara principal está a más de `Active Distance` (30 m)**, así no se simula lo que no se ve.
+
+**Decisiones y lo que quedó afuera**:
+- Culling Mode es *Always Simulate* en los hijos, no *Pause*: las ráfagas siguen aunque el cable esté detrás de una pared, y un sistema culleado dejaría las chispas congeladas en el aire. El costo lo acota `Active Distance`.
+- No se usó Trigger (no hay nada que detectar), Sub Emitters en Birth (ver arriba), Texture Sheet Animation ni Custom Data (el sprite compartido es un punto suelto, sin cuadros), ni Lights en las chispas mismas (sólo en el destello).
+- Las estelas (Trails) son una cinta por chispa con el mismo material aditivo y generan geometría aparte, por eso sólo van en parte de las chispas.
+
+**Cómo ponerlo**: arrastrar el prefab donde salen las chispas y rotarlo hacia donde saltan. Para elegir nivel y color, el componente `ElectricSparks` de la raíz. Para versiones fijas de color o nivel, Prefab Variant. Escalar la raíz agranda las chispas en proporción.
 
 ---
 
@@ -190,13 +279,13 @@ material._Intensity = intensidad
 
 ## 5. Sistema de items interactuables
 
-Esto es el núcleo del lenguaje visual del juego. Spec sec 4.3: cada item tiene dos estados (lejano / próximo) que se transicionan suavemente cuando el player entra al radio de interacción.
+Esto es el núcleo del lenguaje visual del juego. Spec sec 4.3: cada item tiene dos estados (lejano / próximo) que se transicionan suavemente; en la implementación, "próximo" es "la mira lo apunta" (§5.3).
 
 ### 5.1 Shader `ItemPSX_Outline` (HLSL URP/Lit)
 
 **No es un shader fullscreen** — es un material que se aplica a los Renderers de los items.
 
-Originalmente `ItemPSX` era un Shader Graph (URP/Lit). Se reemplazó por un **shader HLSL** (`Materials/Items/ItemPSX_Outline.shader`) que preserva todas las properties del grafo original y agrega el outline opt-in del §5.4. El `.shadergraph` original queda como referencia, sin usar. `ItemPsx.mat` apunta al shader nuevo.
+Originalmente `ItemPSX` era un Shader Graph (URP/Lit). Se reemplazó por un **shader HLSL** `Custom/ItemPSXOutline` (`Art/Materials/Items/ItemPSX_Outline.shader`) que preserva todas las properties del grafo original y agrega el outline opt-in del §5.4. `ItemPsx.mat` apunta al shader nuevo.
 
 **Passes**: `ForwardLit`, `ShadowCaster`, `DepthOnly`, `DepthNormals` — el objeto sigue proyectando sombras, escribiendo depth y alimentando SSAO como cualquier URP/Lit.
 
@@ -221,24 +310,25 @@ finalEmission = _EmissionColor × _EmissionIntensity + outline (§5.4)
 
 Smoothness baja y sin metallic → look mate industrial PSX. Se aplica el filtro fullscreen PSX (§7) encima, que pixela y le da el carácter retro final.
 
-### 5.2 Los 4 materiales preset (uno por categoría del spec)
+### 5.2 Los materiales preset (uno por categoría)
 
-| Material | Tinte (sRGB) | Smoothness | Items que la usan |
-|---|---|---|---|
-| `mat_item_keys` | `#37474F` gris azulado | 0.2 | Llave armario, Llave sala control |
-| `mat_item_components` | `#4E342E` marrón cálido | 0.15 | Núcleo Energético, Núcleo Mecánico, Regulador de Presión |
-| `mat_item_clues` | `#263238` gris azulado oscuro | 0.0 | Notas, planos, diario |
-| `mat_item_special` | `#1A237E` azul intenso | 0.3 | Cortador de cadenas (item único) |
+| Material | Shader | `_TintColor` | Smoothness | Quién lo usa (prefabs) |
+|---|---|---|---|---|
+| `mat_item_keys_red` | `ItemPSX_Outline` | `(1, 0.1, 0.06)` rojo | 0.3 | `InventoryItemLlaveIngenieria` |
+| `mat_item_components_green` | `ItemPSX_Outline` | `(0, 0.39, 0.05)` verde | 0.3 | Núcleo Energético, Núcleo Mecánico, Regulador de Presión |
+| `mat_item_clues_blue` | `ItemPSX_Outline` | `(0.06, 0.3, 1)` azul | 0.3 | ninguno (sólo la escena Dev `TestIñaki`) |
+| `mat_item_special` | `ItemPSX_Outline` | `(1, 0.68, 0)` naranja | 0.3 | ninguno (sólo `TestIñaki`) |
+| `mat_item_nota` | `PSXIndustrial` | `(0.06, 0.3, 1)` azul, tint 0.25 | — | `NoteFather/Note` |
 
-Todos arrancan con `_TintIntensity = 0.15` y `_EmissionIntensity = 0` → estado lejano default.
+Los cuatro de `ItemPSX_Outline` tienen en el asset `_TintIntensity = 0.75` y `_EmissionIntensity = 0.65`, pero eso sólo se ve en el editor: en Play `ItemProximityHighlight` (§5.3) pisa por `MaterialPropertyBlock` la intensidad de tinte y emisión con las del perfil, y **sus colores con los de la categoría del ítem** (`ItemCategory.asset → shaderTintColor / shaderEmissionColor`). El color que se ve en juego se cambia ahí, no en el `.mat`.
 
-**Por qué estos hex y no otros**: están elegidos para mantener la **paleta fría y oscura** del spec (sec 4). La excepción es Componentes (cálido oscuro) que se diferencia narrativamente por tener "actividad mecánica interna".
+**Ya no son los hex del spec** (`#37474F`, `#4E342E`, `#263238`, `#1A237E`, paleta fría y oscura): siguen el lenguaje de color de categorías de la UI del inventario (llave roja, componente verde, nota azul, especial naranja). Ojo que esto choca con dos reglas del §8 —rojo sólo para peligro, verde sólo para "módulo alimentado"— y no hay una decisión registrada en el código ni en `docs/` que lo habilite: confirmarlo con GD.
 
 ### 5.3 `ItemProximityHighlight.cs`
 
 MonoBehaviour que resalta un interactuable mientras la mira apunta a él. Es la cabeza del sistema.
 
-**Dónde va**: en la **raíz del interactuable, en el prefab Father** (`InventoryItemFather`, `SocketFather`, `ValveFather`), así todas las variantes lo heredan sin tocar nada. Los interactuables sin Father (`PanelElectrico`, `Box_A/B/C`) lo llevan en su propio prefab; el botón del montacargas, en `RideButton/Visual`. `Tools ▸ Interactables ▸ Set Up Highlights` deja todo eso armado y se puede volver a correr.
+**Dónde va**: en la **raíz del interactuable, en el prefab Father** (`InventoryItemFather`, `SocketFather`, `ValveFather`, `DoorFather`), así todas las variantes lo heredan sin tocar nada. Los interactuables sin Father (`PanelElectrico`, `Box_A/B/C`) lo llevan en su propio prefab; el botón del montacargas, en `RideButton/Visual`. `Tools ▸ Interactables ▸ Set Up Highlights` deja todo eso armado y se puede volver a correr: crea `SO_Highlight_Items` / `SO_Highlight_Interactables` si faltan, y un highlight que ya tiene perfil lo conserva. También lo llevan, puestos a mano, `NoteFather/Note`, `HidingSpot`, los `Decoy_*` y `ElevatorCallSwitch`.
 
 **Qué resalta**: todos los `Renderer` debajo de él — inactivos incluidos, p. ej. el ítem insertado de un socket — cuyo `IInteractable` más cercano es el mismo que el del componente. Un interactuable anidado más abajo se resalta con su propio componente.
 
@@ -247,54 +337,34 @@ MonoBehaviour que resalta un interactuable mientras la mira apunta a él. Es la 
 | Material del slot | Qué hace |
 |---|---|
 | Declara `_EmissionColor` y `_EmissionIntensity` (`ItemPSX_Outline`, `PSXIndustrial`, el Shader Graph `SH_AW_PBR_ORM` de las cajas de madera) | Emisión y su color; tint y su color solo si además declara `_TintIntensity`. |
-| URP/Lit (tiene `_EmissionColor`) con Emission encendida | **Suma** `color × intensidad` a la emisión propia del material: un panel encendido sigue encendido. |
+| URP/Lit (tiene `_EmissionColor`) con Emission encendida | **Suma** `color × intensidad × litEmissionScale` a la emisión propia del material: un panel encendido sigue encendido. |
+| URP/Lit con Emission encendida **y** `_EmissionMap` | La emisión sumada quedaría enmascarada a los puntitos del mapa, así que aclara `_BaseColor` en la misma proporción. Si el perfil tiene `overlayMaterial` (sólo `SO_Highlight_Cores`) y el renderer tiene un solo material sobre un mesh de un submesh, en cambio le agrega mientras está encendido una capa aditiva encima (`mat_highlight_overlay`, shader `WIRED/Highlight Overlay`, color por `_OverlayColor`), sin tocar su emisión. |
 | URP/Lit con Emission apagada | Nada — URP compila la emisión afuera. `Set Up Highlights` la enciende en negro (sin cambio visual). |
 | Cualquier otro (p. ej. Shader Graphs de terceros) | Nada. El validador lo lista. |
 
 Se escribe por slot, leyendo antes el block de ese slot, porque un block por slot **reemplaza** al del renderer entero: escrito a nivel renderer quedaría ignorado donde otro script ya maneja un slot (`ElevatorCallPanel`, `FuseIndicatorLight`).
 
-**De dónde salen los valores**: de un `SO_HighlightProfile` compartido, nunca del componente — así una familia entera no se desincroniza prefab por prefab ni por overrides de escena.
+**De dónde salen los valores**: de un `SO_HighlightProfile` compartido (`ScriptableObjects/Highlight/`), nunca del componente — así una familia entera no se desincroniza prefab por prefab ni por overrides de escena. `litEmissionScale` multiplica la emisión sólo en materiales URP/Lit, que necesitan mucha más que los shaders de highlight para leerse igual en pantalla.
 
-| Perfil | Lo usan | Far → near | Color |
-|---|---|---|---|
-| `SO_Highlight_Items` | Items recogibles | tint 0.15 → 0.4, emisión 0 → 0.2 (spec §2.1) | El de la categoría del ítem (`categoryConfig` = `ItemCategory.asset`) |
-| `SO_Highlight_Interactables` | Sockets, válvulas, panel eléctrico, cajas-pelota, botón del montacargas | tint 0 → 0, emisión 0 → 0.15 (spec §6) | Uno solo para todos, `#E0E0E0` (el "seleccionado" de la UI) |
+| Perfil | Lo usan | Far → near | `litEmissionScale` | Color |
+|---|---|---|---|---|
+| `SO_Highlight_Items` | `InventoryItem` (Father), `Note` | tint 0.195 → 1, emisión 0.127 → 1.502 | 1 | El de la categoría del ítem (`categoryConfig` = `ItemCategory.asset`) |
+| `SO_Highlight_Interactables` | `Socket`, `Valve`, `Box_A/B/C`, `MontacargasRoot`, `HidingSpot`, `Decoy_*` | tint 0 → 0, emisión 0 → 0.15 (spec §6) | 6 | `#E0E0E0` (el "seleccionado" de la UI) |
+| `SO_Highlight_Cores` | Sockets de núcleo (`SocketNucleoEnergetico/Mecanico`, `SocketReguladorPresion`) | igual que Interactables | 6 | `#E0E0E0` + `overlayMaterial` |
+| `SO_Highlight_Doors` | `Door` (Father de todas las puertas) | igual que Interactables | 2 | `#E0E0E0` |
+| `SO_Highlight_ElectricPanel` | `PanelElectrico`, `ElevatorCallSwitch` | tint 0 → 0.125, emisión 0 → 0.3 | 1 | `#E0E0E0` |
+
+Los valores de `SO_Highlight_Items` se subieron a mano el 16/09 por encima de los del spec §2.1 (tint 0.15 → 0.4, emisión 0 → 0.2), que son los que `Set Up Highlights` escribe sólo al crear el asset. Su `emissionColor` propio es ámbar `(1, 0.784, 0.314)`, pero sólo se usa si el dueño no es un pickup con ítem: con `categoryConfig` asignado, los pickups toman el color de su categoría.
 
 **Cómo está implementado**:
 - Coroutine con `SmoothStep` para que la transición sea sigmoide, no lineal. Hace que el "respirar" se sienta orgánico, no mecánico.
 - `SnapToFar()` opcional para forzar estado lejano sin animación (útil al ocultar el objeto o resetear estado).
 
-**Cómo se acopla al sistema de interactuables**:
+**Cómo se acopla al sistema de interactuables**: solo, sin triggers ni cableado. En `Awake` resuelve su dueño con `GetComponentInParent<IInteractable>(true)`; en `OnEnable` se suscribe a `InteractionEvents.OnTargetChanged`. Pasa a *near* mientras el target del `InteractionManager` es su dueño **y** el dueño no terminó (`IInteractable.IsFinished()`): un socket lleno o un panel resuelto ya no se encienden aunque el player lo siga mirando. Mientras está apuntado re-evalúa en `Update`, así que si el socket se llena con la mira encima se apaga en ese momento. `OnPlayerEnteredRange()` / `OnPlayerExitedRange()` siguen siendo públicos por si algún sistema necesita forzar el estado a mano.
 
-> ⚠️ **Desactualizado**: esta sección describía un wiring manual por triggers. **Ya no hace
-> falta.** El componente se engancha solo: en `OnEnable` se suscribe a
-> `InteractionEvents.OnTargetChanged` y compara el target contra su propio `IInteractable`
-> (resuelto en `Awake` con `GetComponent<IInteractable>() ?? GetComponentInParent<IInteractable>()`).
-> Cuando el SphereCast del `InteractionManager` apunta a este ítem pasa a estado *near*; cuando
-> deja de apuntarlo vuelve a *far*. No hay que cablear triggers ni tocar `BaseRangeInteractable`.
+**Para puzzles e interactuables sin tinte de categoría** (palancas, paneles — spec sec 4.7): mismo script, perfil sin tinte (`farTint = nearTint = 0`, como `SO_Highlight_Interactables`). Solo brilla la emisión al apuntarlos, sin color de categoría. El prompt `[E]` lo diferencia visualmente del entorno, no el color.
 
-```csharp
-// ItemProximityHighlight.cs — el enganche real:
-private void OnEnable()  => InteractionEvents.OnTargetChanged += HandleTargetChanged;
-private void OnDisable() => InteractionEvents.OnTargetChanged -= HandleTargetChanged;
-
-private void HandleTargetChanged(IInteractable target)
-{
-    bool isTargeted = _selfInteractable != null && ReferenceEquals(target, _selfInteractable);
-    if (isTargeted == _isNear) return;   // el evento es global: evita relanzar el lerp en todos los ítems
-
-    _isNear = isTargeted;
-    if (isTargeted) OnPlayerEnteredRange();
-    else            OnPlayerExitedRange();
-}
-```
-
-`OnPlayerEnteredRange()` / `OnPlayerExitedRange()` siguen siendo públicos por si algún sistema
-necesita forzar el estado a mano.
-
-**Para puzzles e interactuables sin tinte de categoría** (palancas, paneles — spec sec 4.7): mismo shader, mismo script, pero `farTint = 0` y `nearTint = 0`. Solo brilla la emisión al acercarse, sin color de categoría. El prompt `[E]` lo diferencia visualmente del entorno, no el color.
-
-**Categoría automática (sin duplicar el dropdown)**: si el GameObject tiene un `PickupInteractable` con `itemToPick` asignado, `ItemProximityHighlight.ResolveCategory()` toma la categoría directamente de `itemToPick.Category` — no hace falta volver a elegirla en el dropdown de `ItemProximityHighlight`. El dropdown manual (`category`) solo se usa si se tilda `overrideCategory`, o en interactuables sin `SO_InventoryItem` (puzzles/decorativos). `categoryConfig` (la paleta compartida) se sigue asignando a mano una vez, igual que en el resto de las UI views que la consumen (`ItemDetailView`, `GroupLabelView`, `ItemSlotView`).
+**Categoría automática**: el componente ya no tiene dropdown de categoría. `SO_HighlightProfile.ResolveColors()` decide: si el perfil tiene `categoryConfig` y el dueño es un `PickupInteractable` con ítem, usa `shaderTintColor` / `shaderEmissionColor` de la categoría de ese ítem; si no, los `tintColor` / `emissionColor` del perfil.
 
 ### 5.4 Outline genérico opt-in (fresnel)
 
@@ -316,30 +386,36 @@ Al usar la normal mundial + view direction, el borde se ilumina en la silueta de
 
 > ⚠️ **Regla del spec (§4.3 / §4.6.1 del handoff)**: WIRED **no usa outlines de items** — el feedback de proximidad es tint+emisión sutil, no un rim. Por eso `_OutlineIntensity` viene en **0**: el material lo instala pero apagado. Solo se debe subir manualmente en el subset donde el color language lo justifica (puzzles / decorativos interactuables del §4.7), y con visto bueno de GD. Subir el outline sobre un item recogible de las 4 categorías (§5.2) **rompe el spec**.
 
+> **Corregido (22/09)**: `ItemPsx.mat`, el material del renderer de `InventoryItemFather/InventoryItem.prefab` (el Father de los pickups), tuvo `_OutlineIntensity = 0.12` desde el commit `deeb0df2` (11/09), así que toda variante con ese material mostraba el rim. Volvió a 0, como el default del shader y los `mat_item_*`. Los únicos materiales de `ItemPSX_Outline` con outline encendido son los de prueba (`Materials/Dev/PSXTestbed/mat_tb_*` y `SaveOutline.mat`, sólo en la escena Dev `TestIñaki`).
+
 ### 5.5 `ItemGlint.cs` — Destello de lejos (estilo Resident Evil)
 
-Una estrella de 4 puntas que parpadea sobre cada item recogible cada ~3 s, para que un objeto tirado en un rincón oscuro se vea desde el otro lado de la habitación. Es el complemento **de lejos** del highlight de §5.3, que actúa **de cerca**: los dos nunca se ven a la vez.
+Una estrella de 4 puntas que parpadea sobre cada item recogible cada ~2 s, para que un objeto tirado en un rincón oscuro se vea desde el otro lado de la habitación. Es el complemento **de lejos** del highlight de §5.3, que actúa **de cerca**: los dos nunca se ven a la vez.
 
 **Dónde va**: en la raíz del pickup, en los Father (`InventoryItemFather/InventoryItem`, `NoteFather/Note`), así las variantes lo heredan. `Tools ▸ Interactables ▸ Set Up Item Glints` crea `mat_item_glint.mat` y `ScriptableObjects/Highlight/SO_Glint_Items.asset` si faltan, agrega el componente a todo prefab de `Prefabs/` con `PickupInteractable` en la raíz que no sea variante de otro pickup, y a los pickups armados a mano en las escenas abiertas (esas escenas quedan sucias para guardar). Se puede volver a correr.
 
-**Cuándo se ve** (todo sale del perfil):
+**Cuándo se ve** (todo sale del perfil; valores de `SO_Glint_Items.asset`):
 
 | Condición | Resultado |
 |---|---|
-| Player más cerca que `hideWithin` (2.5 m = alcance de interacción) | Apagado: manda el highlight. Hace fade sobre `fadeBand`. |
+| Player más cerca que `hideWithin` (1.5 m) | Apagado: manda el highlight. Hace fade sobre `fadeBand` (0.85 m). |
 | Player más lejos que `maxDistance` (12 m) | Apagado, con el mismo fade. |
 | La mira apunta al item (`InteractionEvents.OnTargetChanged`) | Fade out en `targetFadeTime` (0.12 s). |
 | Pickup sin item (`CanInteract()` = false) | Nunca brilla: no hay nada que encontrar. |
 | Item recogido (destruido) o desactivado | Deja de dibujarse solo (se dibuja desde `Update`). |
 
-**Color**: blanco mezclado con el **tono** del color de la categoría (`ItemCategory.asset → shaderEmissionColor`, el mismo que usa el highlight): llave roja, componente verde, nota azul, especial naranja. `categoryTint` (0.45) dice cuánto; se toma solo el tono, llevado a brillo máximo, así el azul oscuro de las notas tiñe igual que el rojo puro de las llaves. "Otro" (sin color) queda blanco.
+> El tooltip de `hideWithin` pide dejarlo **en o por encima** del Interaction Distance de `SO_InteractionManager` (el asset hoy tiene 3 m; el default del script es 2.5), para que la estrella nunca se vea cuando la mira ya puede agarrar el ítem. Con 1.5 m hay una franja de 1.5–3 m donde el destello y el prompt `[E]` conviven; lo único que lo apaga ahí es apuntarle (`targetFadeTime`).
+
+Tiempos: `interval` 2 s ± `intervalJitter` 0.75 s, `flashDuration` 0.65 s, `spinDegrees` 45.
+
+**Color**: `color` del perfil (blanco HDR, ×3.44) mezclado con el **tono** del color de la categoría (`ItemCategory.asset → shaderEmissionColor`, el mismo que usa el highlight): llave roja, componente verde, nota azul, especial naranja. `categoryTint` (0.75 en el asset; 0.45 el default del script) dice cuánto; se toma solo el tono, llevado a brillo máximo, así el azul oscuro de las notas tiñe igual que el rojo puro de las llaves. "Otro" (sin color) queda blanco.
 
 **Cómo está implementado**:
 - **Sin GameObject hijo**: se dibuja con `Graphics.RenderMesh` y un `MaterialPropertyBlock` (color, alpha, rotación). Un quad hijo sería un `Renderer` más bajo el interactuable, y el highlight maneja —y su validador juzga— todos los renderers de abajo.
 - **Billboard en el shader** (`ItemGlint.shader`): el script solo pasa posición y escala; el vertex arma el quad mirando a cámara. La estrella nace en el centro de los renderers del item, así que el shader la **desliza hacia la cámara** (`_CameraPull`, 0.3 m) sobre la línea de visión: sale del mesh del propio item sin cambiar de lugar ni de tamaño en pantalla. `ZTest LEqual` sin `ZWrite`: las paredes la tapan.
 - **Estrella procedural**: sin textura. Forma en el material (`_RayThinness`, `_RayFalloff`, `_CoreSize`, `_PixelGrid`); también acepta un sprite propio (`_UseSprite` + `_MainTex`).
-- **Tamaño mínimo en pantalla** (`minScreenHeight`, 4.5 % del alto): el filtro PS1 (§7) se queda con un texel por bloque de 256 filas, y una estrella de pocas filas titila al mover la cámara. De lejos crece en mundo para no bajar de ese piso.
-- Queue `Transparent+50`: la niebla y el PS1 (ambos `BeforeRenderingPostProcessing`) le caen encima como a todo lo demás. La niebla deja pasar píxeles brillantes (`lightPreservation`), así que un destello más allá de `visionEnd` puede verse como un punto en la oscuridad — si delata items de más, bajar `maxDistance`.
+- **Tamaño mínimo en pantalla** (`minScreenHeight`, 5 % del alto en el asset; 4.5 % el default): el filtro PS1 (§7) se queda con un texel por bloque de 256 filas, y una estrella de pocas filas titila al mover la cámara. De lejos crece en mundo para no bajar de ese piso.
+- Queue `Transparent+50`: la niebla (`BeforeRenderingPostProcessing`) y el PS1 (`AfterRenderingPostProcessing`) le caen encima como a todo lo demás. La niebla deja pasar píxeles brillantes (`lightPreservation`), así que un destello más allá de `visionEnd` puede verse como un punto en la oscuridad — si delata items de más, bajar `maxDistance`.
 - Primer destello de cada item sorteado dentro de un intervalo entero, y `intervalJitter` en cada uno: items puestos juntos no parpadean al unísono.
 
 **Tunear en Play**: click derecho sobre el componente ▸ **Glint Now** dispara uno ya (igual respeta `hideWithin`: alejarse primero). Con el item seleccionado, el gizmo marca dónde nace la estrella y las esferas de `hideWithin` y `maxDistance`. Si la estrella cae en un lugar raro en un item puntual, `offset` en el componente la corre.
@@ -348,83 +424,111 @@ Una estrella de 4 puntas que parpadea sobre cada item recogible cada ~3 s, para 
 
 ## 6. Sistema de vision fog (post-process atmosférico)
 
-Niebla estilo Silent Hill, centrada en el player, con rango y look definidos por presets de zona (`SO_VisionFogConfig`), movimiento animado, y — nuevo — un "hueco" de visibilidad alrededor de la linterna del player más zonas de bypass ancladas al mundo.
+Niebla estilo Silent Hill, centrada en el player, con rango y look definidos por presets de zona (`SO_VisionFogConfig`), un "hueco" de visibilidad alrededor de las luces del módulo del player, zonas de bypass ancladas al mundo, y beacons / haces que se leen a través de la niebla (§6.4.1).
 
-### 6.1 `VisionFog.hlsl` — Custom Functions del shader
+### 6.1 `VisionFog_HLSL.shader` — el shader del fog
 
-Dos funciones que se invocan desde el Fullscreen Shader Graph, más helpers y globales nuevos.
+Shader fullscreen `Hidden/Custom/VisionFogHLSL` (`Art/Materials/Post Process/VisionFog_HLSL.shader`) para el `FullScreenPassRendererFeature` "Vision Fog". Reemplazó a `Fullscreen_VisionFog.shadergraph` + `VisionFog.hlsl`, que quedan en la carpeta como **legacy / rollback**: ningún material los usa y `VisionFog.hlsl` no tiene los arreglos de abajo, así que no se editan.
 
-**`WorldFromDepth_float(uv, depth, out worldPos)`**:
-Reconstruye la posición world de cada píxel a partir del depth buffer. Necesita `Sample Scene Depth` en modo **Raw** (no Linear01, no Eye — la matemática asume valores NDC). Arma un vector NDC `(uv*2-1, depth, 1)`, lo multiplica por `UNITY_MATRIX_I_VP`, divide por w.
+Por qué se reescribió (está en el encabezado del shader): el grafo hacía `lerp(escena, fogColor, f)`, que a `f = 1` pinta la pantalla del color plano de la niebla; la preservación de luces saturaba sobre el buffer HDR y la niebla desaparecía; y el skybox no se nublaba en PC porque comparaba el depth contra 1 y con reversed-Z el far plane es 0.
 
-**`VisionFog_float(...)`**:
-La función central. Mezcla scene color con fog color según:
+**Modelo** (Beer-Lambert, extinción e in-scattering separados):
 
 ```
-fogFactor  = saturate((distance(worldPos.xz, playerPos.xz) - visionStart) / (visionEnd - visionStart))
-fogFactor  = pow(fogFactor, _FogDensityPower)             ← curva de densidad (NUEVO)
-fogFactor *= 1 - saturate(luminance × lightPreservation)  ← zonas iluminadas perforan
-fogFactor *= 1 - bypassMask                               ← bypass zones (NUEVO §6.4)
-fogFactor *= 1 - playerLightMask                          ← linterna del player (NUEVO §6.4)
-fogFactor  = saturate(fogFactor × modulación_noise)       ← variación tipo "nubes"
-fogFactor  = lerp(fogFactor, 1, skyboxMask)               ← skybox se hunde al 100%
+t            = saturate((distance(worldPos.xz, _PlayerPos.xz) - _VisionStart) / (_VisionEnd - _VisionStart))
+t            = pow(t, _FogFalloffPower)
+opticalDepth = t × _FogDensity × noise                     ← el noise modula densidad, no color
+clear        = max(preservación de luces, bypassClear, luz del player × _PlayerLightClear)
+opticalDepth *= 1 - clear
+opticalDepth = lerp(opticalDepth, _FogDensity × 4, skyMask) ← el cielo siempre hundido
 
-result = lerp(sceneColor, fogColor, fogFactor) + _PlayerLightColor × playerLightMask
+sceneColor  += luz inyectada por los bypass + _PlayerLightColor × máscara × _PlayerLightInjection
+sceneColor   = lerp(sceneColor, sceneColor × _PlayerLightColor, máscara × _PlayerLightTint)
+transmittance = exp(-opticalDepth × _FogExtinctionTint × _FogDarkness)   ← se come la escena hacia NEGRO
+inscatter     = (1 - exp(-opticalDepth)) × _FogInscatterStrength        ← suma el color de niebla
+result = sceneColor × transmittance + _FogColor × inscatter   (+ blur según cuánta niebla hay)
+result += beacons + haces de luz                               ← DESPUÉS de la extinción (§6.4.1)
 ```
 
-**Guard al inicio**: si `visionEnd <= visionStart`, devuelve `sceneColor` sin tocar nada. Pasa cuando el controller no está activo (Main Menu, LevelUI aislado) o el player no apareció todavía. Sin este guard, la pantalla quedaría negra.
+- Distancia **horizontal** (xz): niebla cilíndrica desde el player.
+- **Preservación de luces**: la luminancia se comprime con Reinhard, pasa por umbral + rodilla (`_LightThreshold`, `_LightKnee`), cae con la distancia al player (`_LightDistanceFalloff`) y tiene techo (`_MaxLightPreservation`).
+- **Bypass**: el *clear* se combina con `max` (dos focos no limpian el doble); la luz que *inyectan* se suma. `_FogBypassPlayerFade` apaga esa luz inyectada donde ya llega la luz del player.
+- **Early-out**: si `_EnableVisionFog` está en 0 o `_VisionEnd <= _VisionStart + 0.001`, devuelve la escena sin niebla **pero con los beacons**: los ojos del Nemesis no pueden depender de un toggle de arte. `VisionRangeController` pone `_VisionEnd = 0` mientras no hay player.
+- **Noise**: dos capas de FBM en world-space (queda "pegado al mundo"), modulan la densidad en torno a 1. Keyword `_ENABLEFOGNOISE_ON`, octavas con `_FogNoiseOctaves` (1–4).
+- **Blur**: 13 taps en dos anillos, radio `_VisionFogBlurStrength` escalado por cuánta niebla hay en el píxel. Keyword `_ENABLEFOGBLUR_ON`.
+- **Debug View** (`_FogDebugView` en el material): Transmittance, OpticalDepth, LightMask, Inscatter, BypassMask, Distance, Beacons, Volumes. Para tunear presets; ninguno es un look final.
 
-**Globales nuevas** (declaradas en el `.hlsl`, seteadas desde C# — no necesitan slots en el grafo):
-- `_FogDensityPower` (float) — exponente de la curva de cierre. 1 = lineal; >1 aprieta la niebla cerca del `visionEnd` (más sensación de falta de visibilidad).
-- `_PlayerLightPosition / _PlayerLightRange / _PlayerLightIntensity / _PlayerLightColor` — la linterna perfora la niebla (falloff cuadrático) y agrega tinte en la zona iluminada.
-- `_FogLightBypassData[8]` (float4: xyz=pos, w=radius) + `_FogLightBypassCount` (int) — hasta 8 zonas world donde la luz "atraviesa" la niebla. Se combinan con `max`, no se acumulan.
+**Globales** (las escribe C#, van fuera de `UnityPerMaterial` y **no** están en el bloque Properties a propósito: si existieran en el material, el valor del material le ganaría al global). Los colores llegan ya en lineal (ver §6.2).
 
-**Noise procedural animado**: dos capas de FBM en world-space scrolleando en direcciones distintas. Como las UV son world-space, el noise queda "pegado al mundo" — cuando el player camina, las nubes se quedan en su lugar. Modula el `fogFactor` en torno a 1.0 → no cambia la densidad promedio, solo agrega "respiración".
+**Espejo en C#**: `VisionFogState.OpticalDepthAt / VisibilityAt / EvaluateSurface` reimplementan esta matemática para la preview del inspector (§6.3). Si cambia el modelo del shader, hay que cambiarlo también ahí.
 
 ### 6.2 `VisionRangeController.cs` — Driver del fog
 
-Setea las globals del shader cada `LateUpdate` y maneja transiciones suaves entre presets.
+Setea las globals del shader cada `LateUpdate` y maneja transiciones suaves entre presets. Vive en la escena persistente `Data.unity` (`defaultConfig` = `SO_VisionFog_Dark`).
 
 **Modelo de configuración (config stack)**:
 1. `defaultConfig` (un `SO_VisionFogConfig`) es el preset base — la niebla cuando el player no está en ninguna zona especial (pasillos oscuros).
-2. `PushConfig(config)` / `PopConfig(config)` son la API para los `LightZone` triggers (§6.3): mantienen un **stack**, la zona más interna (última pusheada) gana. Al salir, vuelve a la anterior.
-3. Cada frame lerpea los valores actuales hacia los del config activo (`_lerpRate` derivado del `transitionDuration` del preset). Los `LightZone` anidados funcionan solos.
+2. `PushConfig(config)` / `PopConfig(config)` son la API para los `LightZone` triggers (§6.3): mantienen un **stack**, la zona más interna (última pusheada) gana. Al salir, vuelve a la anterior. También la usan `VisionFogOverride` (pushea un preset mientras su GameObject está activo; pensado para prenderlo con un Activation Track en una cinemática) y el escape (`EscapeFogCycle`, `EscapeSequenceDirector`).
+3. Cada frame relee el config activo (así los sliders del SO se ven en Play sin re-push) y lerpea los valores actuales hacia él (`_lerpRate` derivado del `transitionDuration` del preset). Los `LightZone` anidados funcionan solos.
 
-**Búsqueda del player**: por tag `"Player"` (`FindGameObjectWithTag`), reintenta cada 30 frames. Mientras no aparece, setea `_VisionEnd = 0` → guard del shader → sin fog. El player vive en otra escena (gameplay aditivo), por eso no se puede asignar una referencia serializada cross-scene.
+**Player**: sale de `PlayerRegistry` (`SubscribeAndCatchUp`; lo registra `PlayerStateManager`), no de un tag. Mientras no hay player, setea `_VisionEnd = 0` → early-out del shader → sin fog, y vacía bypass / beacons / volúmenes. El player vive en otra escena (gameplay aditivo), por eso no se puede asignar una referencia serializada cross-scene. `playerOverride` es el enganche manual para previsualizar con Timeline.
 
-**Globals que setea**: `_PlayerPos`, `_VisionStart`, `_VisionEnd`, `_FogColor`, `_LightPreservation`, `_FogDensityPower`, la linterna (`_PlayerLight*`) y el array de bypass (`_FogLightBypassData` / `_FogLightBypassCount`).
+**Centro de la niebla**: por default, el player. `SetCentreOverride(transform)` / `ClearCentreOverride(transform)` la miden desde otro punto (una toma de cinemática lejos del player, WIR-040); la luz del módulo se queda en el player.
 
-**Por qué globals y no material properties**: las globals se setean desde C# y aplican a todos los shaders simultáneamente. El `.hlsl` las lee directo del scope global — por eso agregar features nuevas (linterna, bypass, densidad) **no requirió tocar el shadergraph**, solo declarar la global en el HLSL y pushearla desde el controller.
+**Globals que setea**: todas las escalares y de color salen por `VisionFogState.PushToShader()` —el único lugar que las escribe, porque `Shader.SetGlobalColor` **no** convierte sRGB → lineal y en este proyecto (Linear) un color escrito crudo llega 2–3× más brillante—: `_PlayerPos`, `_VisionStart`, `_VisionEnd`, `_FogDensity`, `_FogFalloffPower`, `_FogDarkness`, `_FogExtinctionTint`, `_FogColor`, `_FogInscatterStrength`, `_LightPreservation`, `_LightThreshold`, `_LightKnee`, `_MaxLightPreservation`, `_LightDistanceFalloff`, `_VisionFogBlurStrength`, `_PlayerLight*` (`Position`, `Range`, `Clear`, `Falloff`, `Color`, `Tint`, `Injection`), `_FogBypassFalloff`, `_FogBypassPlayerFade`. Los arrays los arma el controller (convierten con `VisionFogState.ToLinear`): bypass (`_FogLightBypassData` / `Color` / `Axis` / `Count`), beacons (`_FogBeacon*`) y volúmenes (`_FogVolume*`).
+
+**Knobs propios del controller** (Inspector): *Beacons* (`beaconDepthBias`, `beaconMaxPixels`, `beaconFalloff`) y *Light volumes* (§6.4.1). Con el objeto seleccionado dibuja en la escena los anillos de `visionStart` / `visionEnd` y la esfera de la luz del módulo del preset activo.
+
+**Por qué globals y no material properties**: las globals se setean desde C# y aplican a todos los shaders simultáneamente, y agregar una feature es declarar la global en el shader y pushearla desde `VisionFogState`, sin tocar el material.
+
+**Timeline**: `VisionFogTrack` (bindeado a un `VisionRangeController`) con clips `VisionFogClip` que referencian un preset; los clips superpuestos hacen crossfade. Escribe por `ApplyPreviewBlend` salteando el stack: es para scrubbear en el editor, no para gameplay (pelearía con un `LightZone` activo).
 
 ### 6.3 `SO_VisionFogConfig.cs` — Preset de niebla por zona
 
 ScriptableObject con el "feeling" de una zona. Crear con: Project → click derecho → Create → Rendering → Vision Fog Config.
 
-| Campo | Rango | Descripción |
+Es la **v2** del modelo (`CurrentDataVersion = 2`). Los tooltips están en español y dan valores para probar; lo de abajo es el mapa.
+
+| Grupo | Campos (rango) | Qué hace |
 |---|---|---|
-| `visionStart` | ≥ 0 | Distancia sin niebla (metros). |
-| `visionEnd` | ≥ 0 | Distancia donde la niebla cubre 100%. Chico = opresivo. |
-| `fogColor` | Color | Negro = oscuridad; gris medio = Silent Hill. |
-| `lightPreservation` | 0–5 | Cuánto perforan la niebla las zonas brillantes del buffer. |
-| `densityPower` | 0.25–4 | **NUEVO**. 1 = lineal; 2 = cierre más agresivo sin cambiar el rango. |
-| `playerLightRange` | 0–30 | **NUEVO**. Radio del hueco de la linterna. 0 = feature apagado. Fallback si no hay `FogLightSource` con Light. |
-| `playerLightIntensity` | 0–3 | **NUEVO**. Fuerza del hueco. |
-| `playerLightColor` | Color HDR | **NUEVO**. Tinte que agrega la linterna. Default ámbar `#FFC850` (coherente con §3.3). |
-| `transitionDuration` | ≥ 0 | Segundos de lerp al activarse este config. |
-| `silhouetteMode` | enum | GD pendiente (§3.7 del handoff): None/Items/Puzzles/All. |
+| Rango de visión | `visionStart` (≥ 0, def. 2), `visionEnd` (≥ 0, def. 12) | Metros sin niebla / donde llega a densidad completa. `visionEnd <= visionStart` apaga el shader. |
+| Densidad | `fogDensity` (0.25–12, def. 4.6), `fogFalloffPower` (0.1–4, def. 1) | Profundidad óptica en `visionEnd` (4.6 = sobrevive el 1 %) y forma de la rampa (>1 = menos niebla cerca y cierre de golpe). |
+| Oscuridad (extinción) | `darkness` (0–1), `extinctionTint` | Cuánto se come la escena hacia negro, y qué canal sobrevive más (blanco = neutro). |
+| Color (in-scattering) | `fogColor`, `fogColorIntensity` (0–4), `inscatterStrength` (0–1, def. 0) | El color que la niebla **suma** y cuánto. 0 = oscuridad pura; 0.03–0.1 = oscuro con un dejo de color; 1 = Silent Hill. |
+| Preservación de luces | `lightPreservation` (0–4), `lightThreshold`, `lightKnee`, `maxLightPreservation`, `lightDistanceFalloff` | Cuánto perforan la niebla los píxeles brillantes, con umbral, rodilla, techo y caída con la distancia. |
+| Blur | `blurStrength` (0–0.05) | Radio del desenfoque a densidad plena. Necesita *Enable Blur* en el material. |
+| Luces del módulo del player | `playerLightRange` (0–30, def. 8), `playerLightClear` (0–1), `playerLightFalloff` (0.5–8), `playerLightColor`, `playerLightTint` (0–1), `playerLightInjection` (0–4) | Esfera (no cono) alrededor del player: cuánta niebla limpia, curva, color, cuánto multiplica la escena y cuánta luz suma. Un `FogLightSource` puede pisar range / clear / color (§6.4). |
+| Focos del mundo | `bypassFalloff`, `bypassDefaultColor`, `bypassDefaultIntensity`, `bypassDefaultClear`, `bypassPlayerFade` | Valores que usan los `FogLightBypass` que no traen los suyos (§6.4). |
+| Transición | `transitionDuration` (≥ 0) | Segundos de lerp al activarse este config. |
+| Siluetas | `silhouetteMode` (None/Items/Puzzles/All) | GD pendiente (§3.7 del handoff). **No implementado** en el shader. |
 
-Los `LightZone` (`_Project/Scripts/Rendering/LightZone.cs`) son trigger volumes que pushean/popean un config al entrar/salir el player — así una safe room, un boss arena o un pasillo pueden tener cada uno su niebla.
+**Migración v1 → v2**: los campos viejos `densityPower` y `playerLightIntensity` quedan ocultos sólo para leer los assets viejos. `Migrate()` corre solo en `OnEnable` / `OnValidate` si `dataVersion < 2` (también en build) y se puede forzar con el context menu *Migrate v1 values → v2*. `densityPower` pasa tal cual a `fogFalloffPower` (el tooltip viejo lo describía al revés).
 
-### 6.4 `FogLightSource.cs` y `FogLightBypass.cs` — Fuentes de luz del fog (NUEVO)
+**Inspector** (`SO_VisionFogConfigEditor` + `VisionFogPreviewDrawer`): una preview calculada con `VisionFogState` (rampas de color de una pared de referencia afuera y adentro de la luz del módulo, curva de visibilidad, y a qué distancia se pierde el 50 % / 90 %), que anda sin escena cargada; y botones **Aplicar como Default** (escribe `defaultConfig` del controller, queda en la escena) y **Previsualizar** / **Limpiar preview** (escriben los globals y nada más).
 
-Dos componentes que alimentan las globales de linterna y bypass.
+**Presets** (`ScriptableObjects/Rendering/Fog/`): `SO_VisionFog_Dark` (default: 2 → 6.8 m, densidad 5.43, in-scattering rojo 0.033), `SO_VisionFog_Darkness`, `SO_VisionFog_Light` (10 → 25 m; lo pushea el `LightZone` de `Light Base`), `SO_VisionFog_UVPool` (1 → 2.4 m; lo pushea el reflector UV de SP2, §6.4.1) y `SO_VisionFog_SilentHill`. El escape tiene los suyos en `ScriptableObjects/Escape/SO_VisionFog_Escape*.asset`.
 
-**`FogLightSource`** — se pega en el hijo del player que tiene la Point Light ámbar del dispositivo (§3.3). Reporta su posición al controller cada frame. Dos modos:
-- `useLightComponent = true` (default) — lee `Light.range`, `Light.color`, `Light.intensity` del `Light` hermano y los pushea como **override** sobre los valores del SO. Así, si a futuro se implementa la degradación de la luz por módulos explotados (§2.5.1 del handoff), el `fogClearRadius` baja solo, sin código extra.
-- `useLightComponent = false` — usa los valores del `SO_VisionFogConfig` activo.
-- `rangeMultiplier` (default 2) — el radio del fog puede ser mayor que el `Light.range` visible, para que el player vea más lejos que lo que la luz ilumina físicamente.
+Los `LightZone` (`_Project/Scripts/Rendering/LightZone.cs`) son trigger volumes que pushean/popean un config al entrar/salir el player (tag `playerTag`, default `"Player"`) — así una safe room, un boss arena o un pasillo pueden tener cada uno su niebla.
 
-**`FogLightBypass`** — se pega en objetos anclados al mundo (farolas, monitores, hogueras) donde la niebla debe disolverse localmente aunque el player no esté cerca. Property `radius` (metros); se registra/desregistra en el controller vía `RegisterBypass` / `UnregisterBypass` estáticos (patrón similar a `LightZone`). Gizmo esférico amarillo visible al seleccionar.
+### 6.4 `FogLightSource.cs` y `FogLightBypass.cs` — Fuentes de luz del fog
+
+Dos componentes que alimentan las globales de la luz del módulo y del bypass.
+
+**`FogLightSource`** — va en el objeto del player que tiene la Light del módulo (§3.3). El controller lee su posición cada frame (sin él, la luz se centra en el pivot del player). **Hoy no está puesto en ningún prefab ni escena.** Se empareja con el controller en cualquier orden de carga (se busca desde los dos lados). Dos modos:
+- `useLightComponent = true` (default) — toma de la `Light` (`lightComponent`, o la del mismo objeto) y pisa los valores del SO: range = `Light.range × rangeMultiplier`, clear = `saturate(Light.intensity × intensityMultiplier)`, color = `Light.color`. Así, si se implementa la degradación de la luz por módulos explotados (§2.5.1 del handoff), el radio del hueco baja solo, sin código extra.
+- `useLightComponent = false` — usa los valores `playerLight*` del `SO_VisionFogConfig` activo.
+- `rangeMultiplier` (0.25–5, default 2) — el radio del fog puede ser mayor que el `Light.range` visible, para que el player vea más lejos que lo que la luz ilumina físicamente. `intensityMultiplier` (0–5, default 1).
+
+**`FogLightBypass`** — se pega en objetos anclados al mundo (lámparas, monitores, hogueras) donde la niebla debe disolverse localmente aunque el player no esté cerca. Se registra/desregistra en el controller vía `RegisterBypass` / `UnregisterBypass` estáticos; tope `MaxBypassZones` = `VISION_FOG_MAX_BYPASS` = 16.
+- Forma: `radius` (m, 0 = no hace nada), `centerOffset` (local, como el Center de un SphereCollider), `shape` = `Sphere` o `Cone` (`coneAngle`; si `Light Component` es una Spot usa su forward y su Spot Angle).
+- Aspecto, con **aclarar** y **brillar** separados: `clearAmount` (cuánta niebla disuelve; entre zonas se combina con `max`) e `intensity` + `color` (cuánta luz inyecta; se suma). Una lámpara vista a través de niebla espesa quiere intensity alto y clear bajo.
+- De dónde salen: si tiene `Light Component` asignada y activa, color e intensidad salen de la Light (`× lightIntensityScale`) y el clear del componente; si no, con `overrideAppearance` usa sus propios campos; si no, los `bypassDefault*` del preset activo.
+- **Ojo (bug conocido, sin arreglar)**: el tooltip dice que con la Light apagada la zona deja de aportar, pero `Resolve()` sólo lee la Light si está `isActiveAndEnabled`; con la Light asignada y apagada cae a `overrideAppearance` o a los defaults del preset y sigue brillando/limpiando. Apagar la lámpara desactivando el GameObject entero (como hace `PoweredLightSwitch`) no tiene el problema.
+- Gizmo al seleccionar: esfera o cono en el color de la zona (el de la Light, el override, o amarillo). Se oculta con el `GizmoManager` → *Luz y niebla*.
+
+**`FogLightBypassPlayerFade`** — al lado de un `FogLightBypass` con `Light Component` y un `SphereCollider` trigger: baja `LightIntensityScale` del bypass de `outsideScale` (1) a `insideScale` (0.3) a medida que el player entra a la esfera del collider (no al `radius` del bypass), con curva `falloff` y `responseSpeed`. Para que un halo pensado para leerse de lejos no encandile parado debajo.
+
+**`Light Base.prefab`** (`Prefabs/Light/`) es la lámpara estándar que junta todo eso: una Spot (range 5, intensity 15), un `FogLightBypass` cono que lee esa Light, `FogLightBypassPlayerFade`, un `SphereCollider` trigger de 2.5 m y un `LightZone` que pushea `SO_VisionFog_Light`.
 
 > **Alternativa más fiel al spec §3.4**: en vez del componente estático, disparar `VisionRangeController.RegisterBypass(...)` desde `ZoneLightController.OnActivate()` (evento del generador) y `UnregisterBypass(...)` en `OnDeactivate()`. Migrable cuando exista ese sistema.
 
@@ -432,50 +536,69 @@ Dos componentes que alimentan las globales de linterna y bypass.
 
 El brillo de un `FogLightBypass` se suma **antes** de la extinción, así que pasado `visionEnd` llega multiplicado por ~0.004 (preset Dark). No hay intensidad que lo haga leer de lejos sin quemar lo que esté debajo, y el player y el Nemesis son **Unlit**: ninguna Light real los ilumina, lo único que los aclara es este shader. Por eso lo que tiene que verse de lejos se compone **después** de la extinción:
 
-- **`FogBeacon`** — un punto en pantalla, con piso en píxeles y tapado por la geometría. No ilumina nada. Lo usan los ojos del Nemesis (`NemesisEyes`), las luces guía del escape (`EscapeGuideDoor`) y las lámparas del switch. Tope: `MaxBeacons` = `VISION_FOG_MAX_BEACONS` = 16. Entran por orden de registro y los ojos se re-registran al despertar el Nemesis, así que un array lleno tira los ojos primero.
-- **`FogLightVolume`** — el aire que ilumina una Light: el cono de una Spot (o la esfera de una Point) integrado a lo largo del rayo de vista (`vfLightVolumes`). Es el look de "se ve por dónde pasa la luz", sólo en las lámparas que lo llevan. Forma, alcance, color y dirección salen de la Light; si la Light o el objeto se apagan, el haz también. Los knobs globales están en `VisionRangeController` → *Light volumes*: cuánto los apaga la niebla (`volumeFogExtinction`), el fundido cerca del player (`volumeNearFade*`, para que el haz entre la cámara y el personaje no le deje una pátina) y el polvo (`volumeDust*`). Tope: `MaxLightVolumes` = `VISION_FOG_MAX_VOLUMES` = 8.
+- **`FogBeacon`** — un punto en pantalla, con piso en píxeles y tapado por la geometría. No ilumina nada. Lo usan los ojos del Nemesis (`NemesisEyes`), las luces guía del escape (`EscapeGuideDoor`), las sirenas del escape (`EscapeAlarmLights`) y las lámparas del switch. `IntensityScale` es el multiplicador de runtime para que un driver lo module sin tocar `intensity`. Tope: `MaxBeacons` = `VISION_FOG_MAX_BEACONS` = 16. Entran por orden de registro y los ojos se re-registran al despertar el Nemesis, así que un array lleno tira los ojos primero.
+- **`FogLightVolume`** — el aire que ilumina una Light: el cono de una Spot (o la esfera de una Point) integrado a lo largo del rayo de vista (`vfLightVolumes`). Es el look de "se ve por dónde pasa la luz", sólo en las lámparas que lo llevan. Forma, alcance, color y dirección salen de la Light; si la Light o el objeto se apagan (o la Light queda en intensity 0), el haz también, y una Light atenuada por debajo de su primera intensidad encendida (un flicker) atenúa el haz en proporción. Por componente: `intensity` (brillo absoluto del haz, def. 0.8) y `rangeScale`. Los knobs globales están en `VisionRangeController` → *Light volumes*: cuánto los apaga la niebla (`volumeFogExtinction`), el fundido cerca del player (`volumeNearFade*`, para que el haz entre la cámara y el personaje no le deje una pátina) y el polvo (`volumeDust*`). Tope: `MaxLightVolumes` = `VISION_FOG_MAX_VOLUMES` = 16.
 
 Cambiar cualquiera de los topes pide reiniciar el editor: un array global conserva el largo de su primer upload durante toda la sesión.
 
-**`Light Base Switch.prefab`** (variante de `Light Base`, para las lámparas que prende un `PoweredLightSwitch`) junta las piezas: FogBeacon en el artefacto, FogLightVolume, un `FogLightBypass` esfera que sólo limpia niebla (intensity 0, clear 0.8, centrado en la pasarela) para que se vea el charco que pinta la Spot, y la Spot con range ≈ 1.6× la altura. No lleva `FogLightBypassPlayerFade`.
+**`Light Base Switch.prefab`** (variante de `Light Base`, para las lámparas que prende un `PoweredLightSwitch`) junta las piezas: FogBeacon en el artefacto, FogLightVolume, un `FogLightBypass` esfera que sólo limpia niebla (intensity 0, clear 0.8, centrado en la pasarela) para que se vea el charco que pinta la Spot, y la Spot con range ≈ 1.6× la altura. No lleva `FogLightBypassPlayerFade`. Como el bypass no lee la Light (`overrideAppearance`, sin `Light Component`), no lo afecta el bug de `Resolve()`; el switch apaga la lámpara desactivando el GameObject entero, que se lleva las tres piezas.
+
+**`Reflector Symbol Reveal.prefab`** (`Prefabs/Light/`) es la lámpara de SP2 que ilumina el piso de abajo: una luz negra (ultravioleta). La raíz lleva `BoxSymbolRevealLight` (`Scripts/Puzzles/`); adentro tiene un `Light Base Switch` anidado (hijo `Lamp`) y el artefacto `CeilingLamp_Baked` (hijo `Fixture`). La prende el mismo `PoweredLightSwitch` que a las seis de la pasarela: está en `objects` de las dos palancas. Suma un bypass, un beacon y un volumen a los topes de arriba.
+
+- **Revela símbolos.** Mientras está prendida, el símbolo de una caja (`BoxSymbolSignalLoss`) se lee si **el símbolo está adentro de su luz**, mirando desde donde sea (también desde arriba). El área sale de la Light real (posición, dirección, Spot Angle, Range) y tres campos dicen cuánto de esa luz cuenta: `edgeReach` (0 = Inner Spot Angle, 1 = Spot Angle), `rangeReach` (fracción del Range) y `edgeHysteresis` (metros, para que una caja en el borde no parpadee). El gizmo se ve siempre: el cono y, donde el haz toca la primera superficie sólida, el charco con la banda de histéresis; se oculta con el `GizmoManager` → *Luz y niebla*. Bajo esta lámpara el símbolo además brilla con sus propios colores (`revealGlow` en la caja, sobre una copia de runtime del material): con violeta saturado, la insignia roja y la amarilla quedarían casi negras. Sin lámpara la caja muestra un disco negro liso (ya no estática); al entrar en la luz el símbolo aparece desde ese negro con un lerp lineal de `revealSeconds` (1.5 s) y vuelve a negro en el mismo tiempo al salir o al apagarse la lámpara. Verlo desde arriba sin lámpara (la regla vieja, instantánea) sólo vale con `revealSymbolFromAbove` prendido en `SO_PushableBoxConfig_Default`; está apagado desde el 2026-10-19.
+- **Look UV.** Todo en overrides del hijo `Lamp`: la Spot (28° / inner 20°, range 14) en violeta (0.5, 0.08, 1) con intensity 120 —el violeta tiene ~12 % de la luminancia del blanco—; el `FogBeacon` en (0.62, 0.3, 1) con intensity 2.5; y el `FogLightVolume` en 1.8 (el color del haz sale de la Light).
+- **Achica la visión.** Es la única lámpara cuyo `LightZone` cierra en vez de abrir: pushea `SO_VisionFog_UVPool` (copia de Dark con visión 1 → 2.4 m, `bypassFalloff` 0.5, in-scattering violeta, tinte del player violeta y transición de 1.5 s). El `FogLightBypass` (esfera de radio 3.5 centrada a 0.3 m del piso, clear 1, sin inyección) mantiene despejado el charco, así que parado adentro se ve el charco y oscuridad alrededor. El `bypassFalloff` es del preset activo: con 0.5 el bypass limpia parejo todo el charco desde adentro, y desde afuera (Dark, 2) limpia sólo el centro. El trigger es una esfera de radio 1.7 a 0.9 m del piso: el player entra con el cuerpo a ~2 m del centro. Al salir, o si la palanca apaga la lámpara con el player adentro (`LightZone.OnDisable`), vuelve al preset anterior con la transición de ese preset.
+- **Preset, bypass y trigger están ajustados a mano al charco** (radio ~2.2 m en el piso, lámpara a 8.9 m). Si la lámpara cambia de altura hay que correr `Center Offset Z` del bypass y `Center Z` del collider; si cambia el Spot Angle, los radios y `visionEnd`.
+
+Las **sirenas del escape** (`EscapeAlarmLights`, `Scripts/Escape/`) arman la misma receta en runtime sobre las lámparas `Light Base` del pasillo: FogBeacon en la lámpara, bajado para que no lo tape el techo; el bypass convertido en pool sólo-clear; FogLightVolume; y la Spot en intensity 0 (no desactivada) en la mitad apagada del ciclo. Al terminar deja todo como estaba.
 
 ### 6.5 `VisionFog.mat` — Material instancia del shader fullscreen
 
-Es la instancia del `Fullscreen_VisionFog.shadergraph`. Asignado al **Full Screen Pass Renderer Feature** en `PC_Renderer.asset`.
+Es la instancia de `VisionFog_HLSL.shader`. Asignado al **Full Screen Pass Renderer Feature** "Vision Fog" en `PC_Renderer.asset`.
 
 **Properties tunables** (estos sí son material-local, no global):
-- `_FogNoiseScale` — frecuencia del noise (0.05 = nubes grandes orgánicas).
-- `_FogNoiseIntensity` — qué tanto modula el fog (0.5 = movimiento visible).
-- `_FogScrollSpeed` — velocidad del scroll (0.08 = atmosférico lento).
+- `_EnableVisionFog` — master (lo lee `SO_PostProcessToggle`). En 0 la escena pasa limpia, con beacons.
+- `_EnableFogNoise` + `_FogNoiseScale` / `_FogNoiseIntensity` / `_FogScrollSpeed` / `_FogNoiseOctaves` — el noise (defaults del shader: 0.05 / 0.4 / 0.1 / 3).
+- `_EnableFogBlur` — prende el blur (el radio sale del preset, `blurStrength`).
+- `_FogDebugView` — vistas de debug (§6.1).
+
+Hoy `VisionFog.mat` tiene el **noise apagado** (`_EnableFogNoise` 0, escala/intensidad/velocidad en 0) y el blur prendido. `VisionFog_SilentHill.mat` es la misma con el noise prendido (0.05 / 0.4 / 0.1); no está en el renderer, sólo en `SO_PostProcessToggle`.
+
+**`SO_PostProcessToggle.asset`** (`ScriptableObjects/`): su inspector prende/apaga de un botón el PS1 (`_EnableEffect`), el fog (`_EnableVisionFog` en los dos `.mat`) y las dos renderer features, leyendo el estado real y con Undo. Apagar la feature ahorra el pass; apagar sólo el material deja el blit corriendo.
 
 ### 6.6 Orden en el Renderer Feature stack
 
 ```
-PC_Renderer.asset:
-  1. ScreenSpaceAmbientOcclusion           (existente)
-  2. Full Screen Pass: Vision Fog          (BeforeRenderingPostProcessing)
-  3. Full Screen Pass: PS1Effect           (BeforeRenderingPostProcessing)
+PC_Renderer.asset (en orden de ejecución):
+  1. ScreenSpaceAmbientOcclusion                      (existente)
+  2. Full Screen Pass "Vision Fog"  → VisionFog.mat   (BeforeRenderingPostProcessing, 550)
+     … post-process de URP (Volumes) …
+  3. "SecurityCameraFeed" → SecurityCamera.mat        (AfterRenderingPostProcessing, 600; sólo con un plano de seguridad al aire)
+  4. "PlayerCameraFeed"   → PlayerCamera.mat          (AfterRenderingPostProcessing, 600; sólo con la cámara del jugador al aire)
+  5. Full Screen Pass "PSXEffect"   → PS1Effect.mat   (AfterRenderingPostProcessing, 600)
 ```
 
-Vision Fog va antes del PSX porque el fog se calcula con world-space coherente (depth + matrices reales); el PSX pixela y warpea la imagen final. Si se invirtiera el orden, la niebla quedaría deformada siguiendo el warp en vez de tener forma natural.
+Los dos feeds (§7.3) nunca están al aire juntos; lo que importa es que vayan antes del PSXEffect, que tiene su mismo injection point: entre features del mismo injection point manda el orden de la lista. En la lista del asset están como SSAO, SecurityCameraFeed, PlayerCameraFeed, PSXEffect, Vision Fog; entre injection points distintos manda el injection point. Vision Fog corre antes del post-process de URP, así que lo que suma después de la extinción (beacons, haces) todavía pasa por lo que tengan los Volumes (el Global Volume de `Data.unity` trae Color Adjustments y Lift Gamma Gain). El PS1, en cambio, corre después. Vision Fog va antes del PSX porque el fog se calcula con world-space coherente (depth + matrices reales); el PSX pixela y warpea la imagen final. Si se invirtiera el orden, la niebla quedaría deformada siguiendo el warp en vez de tener forma natural.
 
 ---
 
 ## 7. Filtro PS1 (post-process PSX)
 
-Filtro fullscreen que le da el carácter retro final a toda la imagen. Originalmente un Shader Graph (`PS1_PostProcess.shadergraph`, hacía pixelation + warp + jitter); reemplazado por un **shader HLSL** (`Materials/Post Process/PS1_PostProcess_HLSL.shader`) que preserva esas features y agrega dither, scanlines y chromatic aberration, todas toggle-ables desde el inspector. El `.shadergraph` original queda como referencia; `PS1Effect.mat` apunta al shader HLSL, y el `FullScreenPassRendererFeature` (`PSXEffect` en `PC_Renderer.asset`) sigue apuntando al mismo `.mat` — el pipeline agarra el shader nuevo sin tocar el renderer.
+Filtro fullscreen que le da el carácter retro final a toda la imagen. Originalmente un Shader Graph (`PS1_PostProcess.shadergraph`, hacía pixelation + warp + jitter); reemplazado por un **shader HLSL** `Hidden/Custom/PS1PostProcessHLSL` (`Art/Materials/Post Process/PS1_PostProcess_HLSL.shader`) que preserva esas features y agrega dither, scanlines y chromatic aberration, todas toggle-ables desde el inspector. El `.shadergraph` original queda como referencia; `PS1Effect.mat` apunta al shader HLSL, y el `FullScreenPassRendererFeature` (`PSXEffect` en `PC_Renderer.asset`) sigue apuntando al mismo `.mat` — el pipeline agarra el shader nuevo sin tocar el renderer.
 
 ### 7.1 Properties (todas en `PS1Effect.mat`)
 
-| Grupo | Property | Default | Descripción |
+| Grupo | Property | Default (shader) | Descripción |
 |---|---|---|---|
 | Master | `_EnableEffect` | 1 | Toggle global. En 0 devuelve la escena limpia. |
-| Pixelation/Warp | `_PixelSize` / `_WarpStrength` / `_WarpIntensity` / `_JitterResolution` | 256 / 1.2 / 0.0018 / 50 | Pixelado + ondulación CRT + jitter vertex-snap PSX. |
+| Pixelation/Warp | `_PixelSize` / `_WarpStrength` / `_WarpIntensity` / `_JitterResolution` / `_ClampWarpEdges` | 256 / 0.1 / 0.0018 / 0 / 1 | `_PixelSize` es la **cantidad de filas** de la grilla (más alto = menos pixelado). Warp = ondulación CRT; `_ClampWarpEdges` evita que las esquinas estiren el último píxel. `_JitterResolution` **no es un jitter**: es una segunda grilla de pixelado, estática, que corre antes; si es menor que `_PixelSize` es la que manda. 0 = apagada. |
 | Dither | `_EnableDither` / `_DitherStrength` / `_DitherLevels` | 1 / 0.5 / 4 | Bayer 4×4 con posterización (spec §6.10). |
 | Scanlines | `_EnableScanlines` / `_ScanlineIntensity` / `_ScanlineCount` | 1 / **0.06** / 240 | Bandas CRT. Default 0.06 = casi imperceptible (spec §6.10). |
 | Chromatic Aberration | `_EnableChromaticAberration` / `_ChromaticAberrationOffset` | 1 / **0** | RGB split. Offset 0 por default — lo pulsa el `GlitchController` (§7.2). |
 
-**Pipeline del fragment**: warp CRT → jitter → pixelation → sample (con CA opcional) → dither posterization → scanline modulation.
+Los valores de `PS1Effect.mat` no son los defaults: hoy tiene, entre otros, `_JitterResolution` 256, `_WarpStrength` 0.025, `_DitherStrength` 0.05 con 8 niveles, `_ScanlineIntensity` 0.125 con 150 líneas, y **`_ChromaticAberrationOffset` = 0.00249** (con la property bloqueada en `m_LockedProperties`): la CA está siempre prendida, no sólo durante el glitch.
+
+**Pipeline del fragment**: warp CRT → segunda grilla (`_JitterResolution`) → pixelation → sample (con CA opcional) → dither posterization → scanline modulation.
 
 **Compatibilidad con el applier**: [`PS1EffectApplier.cs`](../Assets/_Project/Scripts/Rendering/PS1EffectApplier.cs) sigue funcionando sin cambios — escribe `_EnableScanlines` y `_EnableDither` como floats desde PlayerPrefs (`Settings_CRTScanlines` / `Settings_PSXDithering`), que ahora existen en el shader. Es el enganche con el toggle de accesibilidad de Options.
 
@@ -488,7 +611,86 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 - Accesibilidad: lee `PlayerPrefs "Settings_VHSGlitch"` (1=on) y se suscribe a `SettingsModel.OnSettingsApplied`. Cuando Options exponga el toggle, basta escribir esa key + `RaiseSettingsApplied()`.
 - Gate por modales: setear `GlitchController.SuspendTriggering = true` al abrir Inventory/SkillCheck/Examine y `false` al cerrar (spec §6.10: no dispara ahí).
 
-**Setup**: componente en un GameObject persistente (o el mismo del `PS1EffectApplier`), arrastrar `PS1Effect.mat` al campo `Ps1 Material`.
+**Setup**: componente en un GameObject persistente (o el mismo del `PS1EffectApplier`, que está en `Data.unity`), arrastrar `PS1Effect.mat` al campo `Ps1 Material`. **Hoy no está puesto en ninguna escena ni prefab**, así que el glitch no dispara en juego. `UISignalStaticBurst` (UI) lee `GlitchController.SuspendTriggering` y la misma key `Settings_VHSGlitch`.
+
+### 7.3 Feeds de cámara — seguridad y jugador
+
+Dos looks de "esto lo está grabando una cámara", armados igual: un componente en la cámara de Cinemachine que publica globals, una renderer feature (subclase de Full Screen Pass) que **sólo se encola mientras esa cámara está al aire en el brain**, y un shader HLSL. El resto del tiempo no cuestan nada, y el look entra y sale en el mismo frame del corte, lo haga quien lo haga.
+
+| | Feed de seguridad | Feed del jugador |
+|---|---|---|
+| Componente | `SecurityCameraFeed` (Cam_Slam, Cam_4_Gate) | `PlayerCameraFeed` (FreeLook Camera de `Player.prefab`) |
+| Feature en `PC_Renderer` | `SecurityCameraFeed` → `SecurityFeedRendererFeature` | `PlayerCameraFeed` → `PlayerFeedRendererFeature` |
+| Material / shader | `SecurityCamera.mat` / `SecurityCamera_HLSL.shader` | `PlayerCamera.mat` / `PlayerCameraFeed_HLSL.shader` |
+| Imagen | Casi blanco y negro, tinte azul de monitor (#8AB4D4) | Los colores del juego, intactos: barril suave, grano, viñeta |
+| Ajustes | El material + los campos del componente | El material + `SO_PlayerCameraFeed` (`ScriptableObjects/Rendering/`) |
+
+Los dos queman su overlay con la misma tipografía bitmap 5×7 (`CameraFeedFont.hlsl` + `CameraFeedFont.cs`) y esquineros de visor. El de seguridad: etiqueta arriba a la izquierda, el mismo punto rojo que titila arriba a la derecha (sin la palabra REC, `_RecColor` / `_RecDotRadius` en `SecurityCamera.mat`) y la hora abajo a la izquierda (`clockStart` + tiempo desde que cargó el nivel), **sin fecha por ahora** (pedido del 26/09; `showDate` en el componente la vuelve a poner). Glifos: letras, números y `: - / . # > % _ ! + [ ] =  |`. **Un glifo nuevo va siempre al final de la tabla** (los textos viajan como índices). `_OverlayGridRows` = `_PixelSize` del PS1 (256) en los dos materiales, o las letras salen mordidas.
+
+**El feed del jugador** está al aire siempre que la cámara del jugador lo esté; cualquier otro plano (cinemática, cámara de seguridad, derrota) sale sin él, y al volver entra con un tirón de estática (`cutStatic`). Con `overlayDuringGameplay` apagado, en gameplay el pase ni se encola. Su overlay (pedidos del 26/09):
+
+- **Arriba a la izquierda, el área**: `CameraAreaZone` (un BoxCollider trigger + el nombre del área, **sin "CAM"**: `HUB`, `CORRIDOR`) puesto en el nivel. Adentro de una zona se ve su nombre; afuera, `label` del SO (vacío = nada). Zonas anidadas: gana la más interna. En Zona1 están las 13 bajo `----- ZONE CHANGES -----` (algunas áreas son varias cajas con el mismo nombre, pegadas o solapadas, así que pasar de una a otra no re-escribe la etiqueta). Su caja celeste se ve sólo con la zona o su padre seleccionados, y además está en la familia "cámaras" del `GizmoManager`.
+- **Arriba a la derecha, un punto rojo** (#CC1A1A, pedido explícito aunque la regla del rojo lo reserva para peligro) que titila a 1 Hz, sin la palabra REC. `_RecColor` / `_RecDotRadius` en `PlayerCamera.mat`.
+- **Abajo a la izquierda, la lectura** (5×7 como el resto; el 26/09 se probó una 3×5 más chica y se volvió a esta): **vacía hasta que arranca un módulo** (ya no hay `00:00` fijo). **La activación del módulo se ve una sola vez** y tiene tres tiempos: (1) `BOMB ACTIVATED` (`bannerText`) en rojo, escala 3, en el medio de la pantalla: barrido de izquierda a derecha, queda titilando (`bannerBlinkHz` 3) y se va con otro barrido de izquierda a derecha (`bannerSweepSeconds` 0.5 + `bannerHoldSeconds` 1.4 + `bannerWipeSeconds` 0.4); (2) en el mismo lugar, escala 2, se tipea `M1: IN PROGRESS 00:00` y el tiempo sube al del `ModuleData` (15:00 para M1) en `activationCountUpSeconds` (1.2); (3) la línea viaja a la esquina achicándose a escala 1 (`travelSeconds` 0.9) y sigue la cuenta regresiva (`M1: IN PROGRESS 14:35`). Con M2 y M3 pasa lo mismo cuando arrancan. Formato `{0}: {1} {2}` sin relleno (antes `{1,-11}` dejaba un hueco enorme con `DISARMED`). Sin módulo corriendo queda el último que corrió: `DISARMED` (con el tiempo que le quedaba) o `FAILED` (explotó), fijos. **En la esquina, con el módulo corriendo, toda la línea titila** (la mitad apagada el texto no desaparece: queda en negro puro, `ReadoutLit()` en el shader; la lectura no lleva sombra/contorno: con letras de 1 celda salía hecho una mancha) y la velocidad sigue el tiempo que le queda: la mitad que el punto REC con todo el tiempo (`startBlinkMultiplier` 0.5), REC + 20 bpm (`amberExtraBpm`) cuando se pone ámbar, y el doble que REC (`redBlinkMultiplier` 2) cuando se pone roja; rectas entre esos tres puntos. La fase del titileo se acumula en C# (`readoutBlinkPhase`) porque la velocidad cambia todo el tiempo. **Toda la línea cambia de color** a medida que se acaba (26/09, como hacía el HUD viejo; antes sólo los dígitos): ámbar con un cuarto del tiempo del módulo (`moduleWarningFraction` 0.25), rojo con un décimo (`moduleCriticalFraction` 0.1) y rojo en los últimos `moduleWarningSeconds` (30), sea la fracción que sea (en un módulo de 3:00 el ámbar va de 0:45 a 0:30). `FAILED` queda en rojo fijo; `DISARMED` vuelve al color normal. Colores en `PlayerCamera.mat`: `_TimerWarningColor` (el ámbar del HUD viejo, `(1, 0.6, 0)`) y `_TimerCriticalColor` (#CC1A1A); el banner usa `_RecColor`. Escalas del banner y del readout en el medio: `_BannerScale` y `_ReadoutCentreScale` (también en el material). Globals del shader: `_PlayerFeedReadout`, `_PlayerFeedBanner`, `_PlayerFeedRecBlink`. El preview de edición tiene la etapa `Banner` para afinar el barrido. Formato y textos en el SO (`moduleReadoutFormat`, `inProgressText`…). El trigger de M1 está adentro del Hub, así que en la práctica aparece al entrar a la zona segura.
+- Etiqueta y lectura cambian **tipo máquina de escribir** (borran con cursor y escriben: `eraseCharsPerSecond` / `typeCharsPerSecond`), y se escriben de cero cada vez que el overlay vuelve a aparecer (fin del booteo, fin del reboot).
+
+**El booteo del despertar** (`WakeUpCinematicView`, `opening = CameraBoot`, el default; `EyeLids` vuelve a los párpados):
+
+1. Nivel en negro: la cámara está apagada.
+2. `pictureLeadSeconds` (1.5) antes de ARC_01a (dentro de la cuenta regresiva de `ArchitectVoiceController.wakeUpDelay`, 2 s; tiene que ser ≥ ese valor) entra la imagen: estática (`revealStatic`), sobreexpuesta (`revealExposure`), buscando foco (`revealFocus`), en **ojo de pez extremo tipo 360** (círculo con negro alrededor), con la pantalla de booteo encima (sobre una placa oscura, centrada en la pantalla: `_BootBlockY` 0.5). Debajo del porcentaje, en **una sola línea**, se escribe el **registro de arranque**: cada entrada reemplaza a la anterior (`SO_PlayerCameraFeed` › *Boot Log*: `> BODY CAM ... LINKED`, `> DEVICE ... 3 MODULES`, `> MODULE TIMER ... ON FEED`, `> RECORDING ... READY`; la primera a `bootLogStart` 1.5 s de que entra la imagen y la siguiente cada `bootLogInterval` 2 s, a `typeCharsPerSecond`; la última queda). Explica qué es la imagen y el overlay desde la cámara, no desde el Arquitecto; el bloque entero (título, barra, % y registro) queda centrado. Solo en el booteo del despertar, no en el reboot después de una captura. Hasta 6 entradas de 32 caracteres con la fuente del feed (A-Z, 0-9 y `: - / . # > % _ ! + [ ] = |`). El buffer de texto global pasó a llamarse `_PlayerFeedLines` (12 líneas): un array global conserva el largo con que se cargó por primera vez en la sesión del editor. Con la imagen arrancan el stand-up y el paneo de cámara.
+3. **El booteo dura toda la cinemática**: la barra sigue el avance del stand-up (`bootBar`: sube despareja, **se frena un rato en 75%** y termina justo antes del final). ARC_01a ("There's a device on your body…") suena con el booteo en pantalla y sus subtítulos debajo de la placa.
+4. La lente se calibra en **saltos de motor** (`lensJumps`: momentos del despertar, 0 = entra la imagen, 1 = parado; cada salto es un paso igual, rápido, con un pequeño rebote `lensJumpOvershoot` y desenfoque `lensJumpBlur`). Con `lensJumps` vacío la lente sigue la curva `calibration` de forma continua.
+5. Al quedar parado termina el booteo, la cámara empieza a grabar (se escribe el marco: área, punto rojo, `00:00`, esquineros), se ve `LENS OK` un momento y vuelve el control. El paneo termina cerca, casi a la altura de la cabeza (`WakeUpCameraPan.endVertical` −28 en `Player.prefab`: ~1.4 m atrás; con 10 quedaba 1.9 m atrás y 1.3 m arriba).
+6. Skip (F): salta a la imagen normal con un tirón de estática.
+
+**Subtítulos del Arquitecto**: `ArchitectSubtitle` subió a y=130 (estaba en 90) y su texto usa su propio material, `ShareTechMono-Regular SDF - Subtitle` (outline 0.4; el `- Outline` compartido por el resto de la UI sigue en 0.2). Desde el 26/09 el texto es blanco puro (antes gris `#AAAAAA`), para que se lea sobre la imagen.
+
+**Reboot después de una captura** (`rebootOnCapture`): cuando el Nemesis agarra al player, la señal se cae a negro con estática (`signalLostSeconds`) mientras `CaptureFadeView` tapa la pantalla. Cuando el negro empieza a levantarse en el checkpoint (`CaptureFadeView.OnCaptureRevealStarted`), corre un booteo corto (`rebootSeconds` 1, título `REBOOTING`) sobre el ojo de pez 360, después REC, y la lente se calibra con los mismos saltos siguiendo el stand-up del checkpoint (`CaptureStandUpCameraPan` no cambia: el ojo de pez viaja con el lente). Lo maneja el propio `PlayerCameraFeed`, atado a `PlayerStateManager.IsRecoveringFromCapture`.
+
+**El Nemesis persiguiendo** (06/10; antes era la estática de señal perdida, con su tear por filas, y deformaba las siluetas): mientras dura la persecución (`threatOnlyWhileChasing`, prendido; `NemesisEvents.OnChaseStarted/Ended`), la cercanía (`OnProximityChanged`, 0..1, con `threatCurve`) le hace dos cosas al feed, las dos más fuertes cuanto más cerca (en vez de la estática con tear de antes):
+
+- **Bloques corruptos**, como una señal digital que pierde datos: tandas de `_ThreatBlockRun` (3) bloques seguidos de `_ThreatBlockCells` (16) celdas de la grilla, sorteados de nuevo `_ThreatBlockFps` (8) veces por segundo. Un bloque corrupto es una de tres cosas: un mosaico (todo el bloque toma el color de su centro), un bloque corrido (muestra la imagen de hasta un bloque al costado) o un bloque en negro y gris (sin color: una fila de celdas por medio en el gris de `_ThreatBlockTint`, siguiendo el brillo de la imagen, y las otras en negro). Todo lo que queda fuera de un bloque corrupto es la imagen sin tocar. `threatBlocks` (0.42) es qué parte de los bloques está corrupta con el Nemesis encima. La primera versión de ese tercer bloque era verdosa (el clásico del video roto); se pasó a negro y gris el mismo 06/10, que además no pisa la regla del §8 (verde sólo para "módulo alimentado"). No hay bloques "congelados" con la imagen vieja: eso pide guardar el frame anterior en un pase de render aparte.
+- **Overlay corrupto**: parte de las letras del overlay sale como otro glifo, sorteado de nuevo `_ThreatScrambleFps` veces por segundo (`threatOverlayScramble` = qué parte con el Nemesis encima). Los espacios quedan y **los dígitos del tiempo del módulo no se tocan nunca**: la cuenta regresiva se tiene que poder leer corriendo.
+
+Entra y se va en `threatFadeSeconds`. Los sorteos de bloques y letras, y la nieve de señal perdida / cortes, usan `HashCell`, un hash entero: con `Hash21` y el contador de frames en los miles, la nieve salía en rayas verticales la mayor parte del tiempo. Global del shader: `_PlayerFeedThreat`. (El 06/10 se probó primero nieve en ráfagas en vez de bloques; no gustó.)
+
+El estado compartido (apagada / booteando / grabando / nada) vive en `PlayerCameraBoot` (estático): lo escriben `WakeUpCinematicView` y el reboot de captura, lo lee el feed. Cada `PlayerCameraFeed` nuevo (nivel nuevo) lo limpia, así un booteo que quedó a medias (una captura que terminó la partida) no deja la pantalla en negro.
+
+El ojo de pez es de verdad: `PlayerCameraFeed.LensFovOffset` abre el lente de Cinemachine `lensWidening` grados (85 → renderiza a 160°; lo suma `CameraSprintEffect`, el único que escribe el FOV) y el shader repliega ese cuadro más ancho a una proyección fisheye equidistante (`fisheyeProjection` 0), con el centro a la escala normal por `fisheyeZoom` (0.55: la imagen queda en un círculo del alto de la pantalla). Donde el render no tiene imagen queda negro con borde suave. Cada salto de motor interpola lente, proyección y zoom hacia lo normal. `PlayerStateManager.GroundClearance` resta ese offset para medir el bloque PSX. En modo `CameraBoot`, `standUpLeadSeconds` no se usa (es de `EyeLids`).
+
+**Preview sin Play**: en `PlayerCameraFeed`, `Preview In Edit Mode` + `Preview Stage` (Boot / Calibrating / Gameplay / Banner / Threat) + `Preview Amount`. Fuera de Play el lente no se abre, así que el fisheye muestra más negro que en el juego. `Threat` es el Nemesis persiguiendo, con `Preview Amount` = la cercanía (1 = encima): sirve para afinar los bloques y el overlay corrupto sin hacerse perseguir.
+
+**HUD**: el HUD de módulos (la ventana `M1 // LEGS` con el anillo, `ModuleTimerHUDView`) **se eliminó** el 26/09: lo reemplaza la lectura de abajo a la izquierda. En `HUDCanvas.prefab` quedó el objeto `ModuleTimerBeeper`, sólo con el pitido de los últimos segundos. Las ventanas de las esquinas que quedan están adentro del visor (margen 50 a los costados, 96 arriba/abajo): `InteractionFeed` y `BreathMeter`. El overlay ocupa la franja de ~25–80 unidades de canvas desde cada borde.
+
+### 7.4 Overlay del escondite — shaders de UI con look PSX propio
+
+Lo que el player ve desde adentro de un escondite (`HidingOverlayView`, en `HUDCanvas.prefab`; ver `docs/UI-System.md` › *HUD del escondite*). Un shader y un material por tipo, todos en `Art/Materials/UI/`:
+
+| Tipo | Shader | Material | Qué dibuja |
+|---|---|---|---|
+| Locker | `HidingOverlay_Locker.shader` | `UI_HidingLocker.mat` | Puerta de chapa con un bloque de rejillas estampadas (filas × columnas). En cada ranura: la aleta de arriba (banda oscura con su borde iluminado), una banda plana de sombra y el cuarto limpio. Alrededor, la chapa en facetas: canto iluminado abajo y oscuro arriba, cara iluminada debajo de la ranura y cara en sombra arriba (donde se juntan dos queda el pliegue). Mugre en manchas planas y bordes gastados |
+| Bajo mesa | `HidingOverlay_UnderTable.shader` | `UI_HidingUnderTable.mat` | Tapa con faldón y canto iluminado, su cara de abajo oscureciéndose en escalones, una banda plana de sombra bajo el canto, patas lejanas con dos caras y arista, patas cercanas como masas oscuras de borde duro con una línea de luz |
+| Contenedor | `HidingOverlay_Container.shader` | `UI_HidingContainer.mat` | Dos puertas corrugadas iluminadas sólo desde la abertura que queda entre ellas (cada onda en tonos planos, apagándose hacia los costados), burlete negro con una línea de luz, marco arriba y abajo con luz filtrándose por el umbral. La abertura mide un décimo del ancho de pantalla (`_SeamWidth` 0.18) |
+
+Lo común está en `HidingOverlayCommon.hlsl`.
+
+**Por qué traen su propio pixelado.** `HUDCanvas` es Screen Space - Overlay: se dibuja después del pase `PSXEffect`, así que nada lo pixela. Cada look se evalúa una vez por celda de la misma grilla del PS1 (`_GridRows` = `_PixelSize` de `PS1Effect.mat`, hoy 256: **si cambia uno, cambiar los tres materiales**) y se pinta en tonos planos (`_ColorLevels` cuantiza el brillo conservando el tono; cuantizar canal por canal teñía los casi-negros de verde y violeta).
+
+**Sin dither, en ningún lado** (desde el 04/10; la primera versión sacaba cada transición suave como dither ordenado y sobre un cuarto claro se leía como una trama de puntos impresa en la imagen). La regla:
+
+- Lo que tapa es opaco y lo abierto se ve limpio. Una celda es el escondite, el cuarto, o **una** banda plana de sombra con una sola opacidad; nunca un patrón de las dos cosas.
+- El volumen sale de bandas planas con borde duro; un gradiente se corta en pocos escalones (`HidingBands`).
+- La viñeta oscurece sólo las partes sólidas: nunca tapa una abertura.
+- El fundido es el alfa de toda la capa, en `_FadeSteps` escalones (5; en 1 es suave). No hay dissolve por celdas.
+- El grano (`_Grain`, 0.008) va después de cuantizar y sólo sobre las partes sólidas; usa `_UnscaledTime`, así que sigue en pausa. En 0 se apaga.
+
+**Unidades.** Las medidas de los looks están en **alturas de pantalla** desde el centro (16:9 mide 1.78 de ancho) o en celdas de la grilla; lo dice el nombre de cada propiedad.
+
+**Colores.** Sombras casi negras apenas frías y luz gris fría. Ni rojo (peligro) ni ámbar (dispositivo del player). `Solid Opacity` en 1: por las partes sólidas no se ve nada; en el contenedor eso deja la abertura como única vista.
+
+**Lo que viene de C#**, nunca de propiedades del material: `_HidingOverlayLook` (xy = dónde cae el centro del look en pantalla, en alturas de pantalla; lo publica `HidingOverlayView` con el giro de la cámara y la deriva) y el alfa de vértice (el fundido). Los tres `.mat` no se escriben nunca en runtime.
+
+**Para tunear**: `HidingOverlayView` › `Preview In Edit Mode`, elegir el tipo y mover los sliders del material mirando la Game view. Destildar el preview al terminar.
 
 ---
 
@@ -496,16 +698,16 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 
 | Regla del spec | Cómo lo respeta el sistema |
 |---|---|
-| Rojo solo para peligro | Solo `mat_luz_emergencia_emissive` tiene rojo. Ningún material de item ni de UI lo usa. |
-| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Componentes usa marrón oscuro (`#4E342E`), no ámbar puro. **Excepción (22/09, pedido de Iñaki):** las sirenas del pasillo del escape (`EscapeAlarmLights`) alternan rojo `#CC1A1A` (peligro, que es lo que son) y el ámbar del escape `(1, 0.72, 0.38)`, el de sus luces del camino. Colores en `SO_EscapeSequenceConfig` → *Sirenas del pasillo*. |
-| Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. |
-| Verde solo para "módulo alimentado / núcleo colocado" | Solo `SocketEmissionShift` (zona emisiva de las estaciones de núcleo al insertar la pieza, HDR `(0.25, 2.4, 0.55)`). No usar en otro lado. |
-| Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. |
-| Sin waypoints, mapa, partículas sobre items | No hay waypoints ni mapa. **Excepción pedida**: el destello estilo Resident Evil de §5.5 — una estrella que parpadea sobre el pickup cada ~3 s, solo de lejos (se apaga al entrar al alcance de interacción). No es un sistema de partículas ni un marcador permanente; si GD lo objeta, se saca quitando `ItemGlint` de los Father. |
-| Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Valores de `SO_Highlight_Items` (items). Los puzzles y dispositivos usan `SO_Highlight_Interactables` (solo emisión, §5.3). Se afinan en el asset, no por item. |
-| Cuatro categorías con hex específicos | 4 materiales preset, cada uno con el hex exacto del spec sec 4.4. |
+| Rojo solo para peligro | En el mundo 3D, `mat_luz_emergencia_emissive`, el LED de módulo explotado (`ModuleLED`) y las sirenas del escape. En la UI `#CC1A1A` es el acento único (`SO_UIThemeConfig.Accent`), decisión explícita: la regla es del mundo 3D. **Desvío sin decisión registrada**: la categoría Llave es roja (`ItemCategory.asset`, `mat_item_keys_red`, §5.2), y el preset default `SO_VisionFog_Dark` tiene in-scattering rojo (0.033). Las cajas de recompensa bloqueadas ya no son rojas (26/10): el jugador leía la caja como peligro. Ver la fila del ámbar. |
+| Ámbar #FFC850 solo para módulos | Solo `mat_device_luz_ambar_jugador` (y el `playerLightColor` del fog, que es la misma luz). Ojo: el `emissionColor` de fallback de `SO_Highlight_Items` es ámbar, aunque con `categoryConfig` asignado no lo usa ningún pickup (§5.3). **Excepción (22/09, pedido de Iñaki):** las sirenas del pasillo del escape (`EscapeAlarmLights`) alternan rojo `#CC1A1A` (peligro, que es lo que son) y el ámbar del escape `(1, 0.72, 0.38)`, el de sus luces del camino. Colores en `SO_EscapeSequenceConfig` → *Sirenas del pasillo*. **Excepción (26/10, pedido de Iñaki; antes rojo `#CC1A1A` desde el 15/10):** las cajas de recompensa (`PuzzleRewardBox`) brillan en ámbar mientras están bloqueadas (color `(1, 0.6, 0)`, el ámbar del timer del HUD; emisión `(2.4, 1.1, 0.15)`, la de `EscapeSocketAlarmLight`) y en verde cuando se destraban (17/10: era celeste, y a 5 de emisión en dos canales la cinemática lo blanqueaba) — LEDs de los candados, pantalla, su luz y su `FogBeacon`. Colores e intensidad de la luz en `SO_RewardBoxConfig`. |
+| Azul/blanco frío #8AB4D4 solo para monitores | Solo `mat_monitor_pantalla`. Las cajas de recompensa destrabadas ya no son celestes (eran el `(0.34, 0.91, 0.86)` del material `Brillo`): ahora brillan en verde, ver la fila del ámbar. |
+| Verde solo para "módulo alimentado / núcleo colocado" | `SocketEmissionShift` (zona emisiva de las estaciones de núcleo al insertar la pieza, HDR `(0.25, 2.4, 0.55)`) y el LED de módulo resuelto (`ModuleLED`). **Excepción (17/10, pedido explícito):** las cajas de recompensa destrabadas brillan en verde (`SO_RewardBoxConfig`, emisión `(0.02, 2, 0.06)`: un canal alto y los otros casi en cero, en lineal; con `(0.25, 2.4, 0.55)` como `SocketEmissionShift` la pantalla salía menta). **Desvío sin decisión registrada**: la categoría Componente es verde (`ItemCategory.asset`, `mat_item_components_green`, §5.2). |
+| Sin outline detective-mode (Sec 4.6.1) | El outline fresnel de `ItemPSX_Outline` viene **apagado** (`_OutlineIntensity = 0` en el shader y en los `mat_item_*`). Solo se activa manualmente en puzzles/decorativos del §4.7, nunca en items recogibles. Items se distinguen por tinte+emisión sutil. `ItemPsx.mat`, el del Father de los pickups, estuvo en 0.12 hasta el 22/09 y volvió a 0 (§5.4). |
+| Sin waypoints, mapa, partículas sobre items | No hay waypoints ni mapa. **Excepción pedida**: el destello estilo Resident Evil de §5.5 — una estrella que parpadea sobre el pickup cada ~2 s, solo de lejos (se apaga a menos de `hideWithin` o al apuntarle). No es un sistema de partículas ni un marcador permanente; si GD lo objeta, se saca quitando `ItemGlint` de los Father. |
+| Lerp 0.15→0.4 (tint) y 0.0→0.2 (emission) en 0.3s | Es lo que `Set Up Highlights` escribe al crear `SO_Highlight_Items`, pero el asset hoy tiene 0.195→1 y 0.127→1.502 (subido el 16/09). La duración sí es 0.3 s. Los puzzles y dispositivos usan sus perfiles sin tinte (§5.3). Se afinan en el asset, no por item. |
+| Cuatro categorías con hex específicos | **Ya no**: los `mat_item_*` y `ItemCategory.asset` usan rojo / verde / azul / naranja en vez de los hex del spec sec 4.4 (§5.2). |
 | Estilo PSX (sin PBR realista) | Smoothness baja en todos los materiales. Filtro PS1 (§7) aplica encima como efecto final. |
-| Scanlines/dither/glitch con toggle de accesibilidad | `_EnableScanlines` / `_EnableDither` vía `PS1EffectApplier` + PlayerPrefs; glitch VHS vía `GlitchController` + `Settings_VHSGlitch` (spec §6.10). |
+| Scanlines/dither/glitch con toggle de accesibilidad | `_EnableScanlines` / `_EnableDither` vía `PS1EffectApplier` + PlayerPrefs; glitch VHS vía `GlitchController` + `Settings_VHSGlitch` (spec §6.10) — aunque hoy el `GlitchController` no está en ninguna escena y la CA de `PS1Effect.mat` queda fija en 0.00249 (§7). |
 
 ---
 
@@ -517,30 +719,31 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 1. Abrí `Window → Analysis → Frame Debugger` → Enable.
 2. Buscá el draw call del Vision Fog ("Draw Fullscreen").
 3. En el panel derecho, sección Globals:
-   - `_PlayerPos` = posición real del player (no `(0,0,0)`).
-   - `_VisionEnd` > 0 (sino el guard dispara y no hay fog).
-   - `_PlayerLightPosition` = pos de la Light ámbar; `_PlayerLightRange` ≈ `Light.range × rangeMultiplier`.
-   - `_FogLightBypassCount` = número de bypass zones activas.
+   - `_PlayerPos` = posición real del player (no `(0,0,0)`), o el centro de la cinemática si hay `SetCentreOverride`.
+   - `_VisionEnd` > 0 (sino el early-out dispara y no hay fog).
+   - `_PlayerLightPosition` = pos del `FogLightSource`, o del player si no hay (hoy no hay); `_PlayerLightRange` = `playerLightRange` del preset, o `Light.range × rangeMultiplier` con `FogLightSource`.
+   - `_FogLightBypassCount` / `_FogBeaconCount` / `_FogVolumeCount` = bypass, beacons y haces activos.
 4. Movéte con el player → la zona sin niebla debe seguirlo. Pasá cerca de un `FogLightBypass` → la niebla se abre local.
-5. Bajá `Light.range` en runtime → el hueco se achica (valida la degradación futura de §2.5.1).
+5. Para ver cada término por separado: `VisionFog.mat → Debug View` (§6.1). Para ver un preset sin Play: su inspector (§6.3).
+6. Con un `FogLightSource` puesto: bajá `Light.range` en runtime → el hueco se achica (valida la degradación futura de §2.5.1).
 
 **Items**:
 1. Cubo con `ItemPsx.mat` + `PickupInteractable` + `ItemProximityHighlight` con perfil `SO_Highlight_Items`.
-2. Sin apuntarlo: el cubo se ve casi negro/gris con tinte azulado apenas perceptible.
-3. Al apuntarlo con la mira (`OnPlayerEnteredRange()`): el cubo "respira" — gana tinte más visible y emisión sutil. Transición 0.3s.
+2. Sin apuntarlo: el cubo se ve con el estado *far* del perfil (tinte leve del color de su categoría).
+3. Al apuntarlo con la mira (`OnPlayerEnteredRange()`): el cubo "respira" — gana tinte y emisión. Transición 0.3s.
 4. (Outline) Subir `_OutlineIntensity` en runtime sobre un cubo y una esfera → el borde sigue la forma en ambos, confirmando que funciona en cualquier mesh.
 5. Verificar en Profiler que el SRP Batcher está activo y NO se instancia el material.
 
 **Destello de items** (§5.5):
 1. `Tools ▸ Interactables ▸ Set Up Item Glints` una vez; el log lista qué creó y a qué prefabs lo agregó.
-2. En Play, a más de 3.5 m de un item: cada ~3 s aparece la estrella, teñida con el color de su categoría.
-3. Caminar hacia él: se apaga antes de que aparezca el prompt `[E]`. Apuntarlo con la mira desde el borde del rango: se apaga en ~0.1 s.
+2. En Play, a más de ~2.4 m de un item (`hideWithin` 1.5 + `fadeBand` 0.85): cada ~2 s aparece la estrella, teñida con el color de su categoría.
+3. Caminar hacia él: se apaga a menos de 1.5 m (con los valores de hoy, después de que aparezca el prompt `[E]`, ver §5.5). Apuntarlo con la mira: se apaga en ~0.1 s.
 4. Poner una pared entre la cámara y el item: la estrella queda tapada.
 5. Recogerlo: no queda ninguna estrella flotando.
 
 **Filtro PS1**:
 1. Seleccionar `PS1Effect.mat` en Play y togglear cada `_EnableXxx` → dither / scanlines / RGB shift aparecen o desaparecen en tiempo real.
-2. Esperar 8–45 s → flash rápido de CA (glitch VHS). Si nunca aparece: `PlayerPrefs.SetInt("Settings_VHSGlitch", 1)` o activar en Options.
+2. Con un `GlitchController` en escena (hoy no hay, §7.2) y `_ChromaticAberrationOffset` del material en 0: esperar 8–45 s → flash rápido de CA (glitch VHS). Si nunca aparece: `PlayerPrefs.SetInt("Settings_VHSGlitch", 1)` o activar en Options.
 
 **Flickers**:
 1. Monitor: en Play, el emission pulsa entre 0.9× y 1.0× cada 5 segundos.
@@ -550,13 +753,15 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 
 | Síntoma | Causa probable | Fix |
 |---|---|---|
-| Pantalla negra en LevelUI aislado | `_VisionEnd` default > 0 en el Shader Graph | Cambiar default a 0 en el Blackboard. |
-| Burbuja de fog clavada en (0,0,0) | `_PlayerPos` no se setea | Verificar tag "Player" en el player, o asignar `playerOverride` manualmente. |
-| Burbuja se mueve "invertido" con la cámara | `Sample Scene Depth` en modo Linear01 o Eye | Cambiar a Raw. |
-| El hueco de la linterna no aparece | Falta `FogLightSource` en la Light del player, o `playerLightRange`/`Light.range` en 0 | Agregar el componente y verificar `useLightComponent` + range. |
+| No hay niebla en una escena abierta sola | No está cargada `Data.unity` (ahí vive el `VisionRangeController`) o no hay player registrado → `_VisionEnd = 0` → early-out | Cargar `Data` en aditivo; el player se registra solo en `PlayerRegistry` (`PlayerStateManager`). Para preview sin Play: `playerOverride` o el botón *Previsualizar* del preset. |
+| La niebla se ve plana / gris en vez de oscura | `inscatterStrength` alto con un `fogColor` claro | Bajar `inscatterStrength` (0.03–0.1) y oscurecer con `fogDensity` / `darkness` (§6.3). |
+| Un color del fog sale 2–3× más brillante | Un global de color escrito con `Shader.SetGlobalColor` fuera de `VisionFogState` (no convierte a lineal) | Escribirlo por `VisionFogState.PushToShader` o convertir con `VisionFogState.ToLinear`. |
+| El hueco de la luz del módulo no aparece | `playerLightRange` o `playerLightClear` del preset en 0, o un `FogLightSource` con `useLightComponent` sobre una Light con range/intensity 0 | Revisar el preset activo (y la Light, si hay `FogLightSource`). |
+| Una lámpara apagada sigue brillando/limpiando la niebla | Bug de `FogLightBypass.Resolve()` con la `Light Component` asignada pero deshabilitada (§6.4) | Apagar desactivando el GameObject, o usar `overrideAppearance` sin Light. |
+| Un beacon o un haz no aparece con muchas luces prendidas | Se llenó el array (16 beacons, 16 volúmenes, 16 bypass): entran por orden de registro | Liberar slots (beacon a escala 0, Light en 0) o subir el tope en C# y en el shader, y reiniciar el editor. |
 | `.mat` muestra "Hidden/InternalErrorShader" | GUID del `.meta` del shader mal formado o colisión | Revisar el GUID/fileID del YAML (para `.shader` es `fileID: 4800000`). |
-| El glitch VHS nunca dispara | `Settings_VHSGlitch` en 0 o `Ps1 Material` sin asignar en el `GlitchController` | Setear la key a 1 y arrastrar `PS1Effect.mat`. |
-| Items siempre brillan al máximo | El perfil tiene `farEmission` > 0 | Revisar el `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
+| El glitch VHS nunca dispara | No hay `GlitchController` en la escena (hoy no hay), `Settings_VHSGlitch` en 0 o `Ps1 Material` sin asignar | Ponerlo en un GameObject persistente, setear la key a 1 y arrastrar `PS1Effect.mat`. |
+| Items siempre brillan | El perfil tiene `farEmission` > 0 (`SO_Highlight_Items` tiene 0.127 a propósito: un brillo leve en reposo) | Revisar el `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
 | Un interactuable no reacciona a la mira, o solo parte de él | Sin `ItemProximityHighlight`, sin perfil, o piezas con un shader sin propiedades de highlight | `Tools ▸ Items ▸ Validate Interactable Highlights` dice cuál y por qué. |
 | Material instanciado por cada item (rompe batcher) | El script no usa `MaterialPropertyBlock` | Verificar que esté usando `GetPropertyBlock/SetPropertyBlock`. |
 
@@ -564,10 +769,12 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 
 ## 10. Lo que falta / fases futuras
 
-- **Degradación de la luz del dispositivo por módulos explotados** (§2.5.1 del handoff). Con `FogLightSource.useLightComponent = true`, el fog ya se degrada solo al bajar `Light.range`/`intensity` — falta el sistema que dispare esa degradación. El evento a escuchar es `InventoryEvents.OnModuleExploded` / `OnModuleStateChanged` (no existe ningún `ModuleManager`: los módulos viven en `InventoryManagerUI`). ⚠️ **Bloqueado**: hoy los timers de módulos nunca arrancan (`StartModuleTimer()` no lo llama nadie), así que `OnModuleExploded` no dispara nunca. Ver `docs/TODO-UI.md` § Bloqueantes del loop principal.
+- **Degradación de la luz del dispositivo por módulos explotados** (§2.5.1 del handoff). Con `FogLightSource.useLightComponent = true`, el fog ya se degrada solo al bajar `Light.range`/`intensity` — falta el sistema que dispare esa degradación, y antes poner un `FogLightSource` en el player (hoy no hay ninguno, §6.4). Los eventos a escuchar son los de `ModuleEvents` (`Scripts/Player/Modules/`, los publica `ModuleManager`): `OnExploded`, o `OnPenaltyApplied` si tiene que esperar a que termine la cinemática de la explosión. Los módulos se activan con un `ZoneTrigger` en la entrada de cada zona de puzzle.
+- **`GlitchController` no está en ninguna escena**, y `PS1Effect.mat` tiene la CA fija en 0.00249 (§7). Decidir si el glitch va (poner el componente y dejar el offset del material en 0) o si la CA constante es el look buscado.
 - **`GlitchController.SuspendTriggering` no lo setea nadie.** El spec §6.10 pide que el glitch VHS no dispare con inventario / skill check / examine abiertos. La property existe pero ningún controller la sube a `true`. Lo más limpio sería suscribirse a `UIStateManager.OnModalPushed/Popped`.
 - **VHS vertical shift** (`_VHSShift`) del §6.10 — el `GlitchController` pulsa la CA pero no el desplazamiento vertical de líneas. Agregar la property al shader PS1 y al controller.
-- **Ojos del Nemesis a través de la niebla** (§3.6) — billboards emisivos rojos en un layer que el fog excluye. Feature separada.
+- ~~**Ojos del Nemesis a través de la niebla** (§3.6)~~ — hecho: `NemesisEyes` pone un `FogBeacon` en cada ojo (§6.4.1).
+- **Borrar el fog legacy** (`Fullscreen_VisionFog.shadergraph` + `VisionFog.hlsl`) cuando se dé por bueno `VisionFog_HLSL.shader`; hoy quedan sólo como rollback.
 - **Siluetas de interactuables a través de la niebla** (§3.7 / `silhouetteMode` del SO) — pendiente de GD. Nota: la técnica correcta es un mask en el fog pass, no el outline fresnel del material (que es rim always-visible, no silhouette-through-fog).
 - **Save points** con shader propio + LED verde (§4.7). Aparte del sistema actual de items.
 - **Vertex snapping PSX** en `ItemPSX_Outline` para look PSX más fiel (opcional).
@@ -589,20 +796,29 @@ El spec §6.10 pide que la chromatic aberration sea parte de un **glitch VHS ale
 
 | Quiero cambiar... | Editar... |
 |---|---|
-| Color de un item de categoría | El `.mat` correspondiente (`mat_item_keys` etc.). |
+| Color de un item de categoría | `ItemCategory.asset` (`ScriptableObjects/CategoryConfig/`) → `shaderTintColor` / `shaderEmissionColor`: en Play el highlight pisa el color del `.mat` (§5.2). |
 | Velocidad de la transición lejano↔próximo | `lerpDuration` del `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
-| Color / intensidad del resaltado de puzzles y dispositivos | `SO_Highlight_Interactables.asset` — uno solo para todos. |
+| Color / intensidad del resaltado de puzzles y dispositivos | El `SO_Highlight_*` de esa familia (§5.3): `Interactables`, `Cores`, `Doors` o `ElectricPanel`. |
 | Frecuencia / tamaño / rango / cuánto color de categoría tiene el destello de items | `SO_Glint_Items.asset` (`ScriptableObjects/Highlight/`), ver §5.5. |
 | Forma de la estrella del destello (rayos, núcleo, pixelado) | `mat_item_glint.mat` (`Art/Materials/Items/`). |
 | Activar/afinar el outline de un puzzle | `_OutlineColor` / `_OutlineIntensity` / `_OutlinePower` en el `.mat` del interactuable (solo puzzles §4.7, ver §5.4). |
-| Color / rango de la niebla de una zona | El `SO_VisionFogConfig` de esa zona (`fogColor`, `visionStart`, `visionEnd`). |
-| Sensación de opresión de la niebla sin tocar el rango | `SO_VisionFogConfig.densityPower` (1 = base, >1 = más cerrado). |
-| Radio del hueco de la linterna | `FogLightSource.rangeMultiplier` + `Light.range`, o `SO_VisionFogConfig.playerLightRange` si `useLightComponent = false`. |
-| Zona donde la niebla se abra sin la linterna | Agregar `FogLightBypass` con `radius` al objeto. |
-| Velocidad del scroll del noise de la niebla | `VisionFog.mat → _FogScrollSpeed` en Inspector. |
+| Color / rango de la niebla de una zona | El `SO_VisionFogConfig` de esa zona (`visionStart`, `visionEnd`, `fogColor` + `inscatterStrength`). |
+| Sensación de opresión de la niebla sin tocar el rango | `SO_VisionFogConfig.fogDensity` / `darkness`, y la forma de la rampa con `fogFalloffPower` (§6.3). |
+| Radio del hueco de la luz del módulo | `SO_VisionFogConfig.playerLightRange` (hoy, sin `FogLightSource`); con `FogLightSource` + `useLightComponent`, `rangeMultiplier` + `Light.range`. |
+| Zona donde la niebla se abra sin la luz del player | Agregar `FogLightBypass` con `radius` al objeto (o usar `Light Base.prefab`). |
+| Que una lámpara se lea de lejos a través de la niebla | `FogBeacon` (el punto) y/o `FogLightVolume` (el haz) — §6.4.1. Receta armada: `Light Base Switch.prefab`. |
+| Velocidad del scroll del noise de la niebla | `VisionFog.mat → Enable Noise` + `_FogScrollSpeed` en Inspector. |
 | Intensidad de scanlines / dither / pixelado | `PS1Effect.mat` → `_ScanlineIntensity` / `_DitherStrength` / `_PixelSize`. |
+| Feed con el Nemesis persiguiendo (reemplaza a la viñeta roja de chase, 2026-10-05; bloques corruptos y overlay corrupto desde el 06/10): cuántos bloques se corrompen, curva, cuántas letras se mezclan, si sólo corre en persecución, cuánto tarda en entrar | `SO_PlayerCameraFeed.asset` § *Nemesis closing in* (`threatBlocks`, `threatCurve`, `threatOverlayScramble`, `threatOnlyWhileChasing`, `threatFadeSeconds`). Tamaño, tandas, ritmo y tinte de los bloques en `PlayerCamera.mat` § *Nemesis closing in*. §7.3. El gradiente oscuro de `VignetteProximityView` sigue aparte. |
+| Booteo de la cámara del despertar (duración, barra, textos), cuánto ojo de pez y cómo se calibra, overlay en gameplay | `SO_PlayerCameraFeed.asset` (`ScriptableObjects/Rendering/`), §7.3. |
+| Look del feed del jugador (barril, grano, viñeta, color del overlay, estática) | `PlayerCamera.mat` (`Art/Materials/Post Process/`), §7.3. |
+| Volver a los párpados en el despertar | `WakeUpCinematicView` → `Opening = EyeLids` (en `HUDCanvas.prefab`). |
 | Frecuencia/intensidad del glitch VHS | `GlitchController` → `Interval Range` / `Duration Range` / `Max CA Offset` en Inspector. |
 | Frecuencia del flicker del monitor | `MonitorFlicker.flickerSpeed` en Inspector. |
 | Patrón de parpadeo del tubo fluorescente | `FlickerLight.flickerCurve` en Inspector (editor visual de AnimationCurve). |
-| Threshold del guard del fog (cuándo se desactiva) | `VisionFog.hlsl` línea con `if (visionEnd <= visionStart + 0.001)`. |
+| Threshold del guard del fog (cuándo se desactiva) | `VisionFog_HLSL.shader`, `Frag()`: `if (_VisionEnd <= _VisionStart + 0.001)`. |
 | Color de la emisión de emergencia | `mat_luz_emergencia_emissive → _EmissionColor` en YAML o Inspector. |
+| Color de las chispas | Componente `ElectricSparks` del prefab (`Scripts/Environment/`) → **Color** (y **Hotness**); por código, `SetColor` (§3.5). |
+| Cuánto tira cada ráfaga de chispas (cantidad, velocidad, tamaño, brillo, estelas, luz, brasas, humo) | `ElectricSparks` → **Intensity** (Low / Medium / High); los valores de cada nivel, en `Presets` del mismo componente (§3.5). |
+| Cada cuánto chispea y cuán parejo | `ElectricSparks` → `Strike Pattern` (tiempo y probabilidad de cada ráfaga), `Loop Seconds` y el `Strike Chance` de cada preset (§3.5). |
+| Forma de la lluvia de chispas (apertura, gravedad, rebote, drag, ruido) | El sistema hijo `Sparks` de `ElectricSparks.prefab` → Shape, Main (`Gravity Modifier`), Collision, Limit Velocity, Noise (§3.5). |

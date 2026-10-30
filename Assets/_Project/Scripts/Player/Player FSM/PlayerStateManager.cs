@@ -59,16 +59,44 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public Vector3 NextPosition { get => nextPosition; set => nextPosition = value; }
     public Vector3 NextDirection { get => nextDirection; set => nextDirection = value; }
 
+    /// <summary>
+    /// Where the camera actually looks: the rig's forward as Cinemachine last posed it, pitch
+    /// included. Not the same as orientation.forward, the camera-to-player line the move keys walk
+    /// along: the rig frames the player over the shoulder (the RotationComposer aims 0.8 m to the
+    /// player's right), so the view points further right than that line, by an amount that shifts
+    /// with the orbit. Anything that has to match what the screen shows, like which way is "up"
+    /// on it, reads this one.
+    /// </summary>
+    public Vector3 ViewForward => cameraTransform != null ? cameraTransform.forward : Vector3.zero;
+
     // State booleans
     [SerializeField] private bool isInteracting = false;
     private bool isCrouch = false;
     // crouch->stand was requested but a low ceiling was in the way; honoured the frame it clears.
     private bool wantsToStand = false;
     private bool isDisabled = false;
+    // Latched by DisableKeepingCrouch for the length of that one lock; see HoldsCrouchPose.
+    private bool holdsCrouchPose = false;
 
     public bool IsInteracting { get => isInteracting; set => isInteracting = value; }
     public bool IsCrouch { get => isCrouch; set => isCrouch = value; }
-    public bool IsDisabled { get => isDisabled; set => isDisabled = value; }
+    public bool IsDisabled
+    {
+        get => isDisabled;
+        set
+        {
+            isDisabled = value;
+            // The hold belongs to the lock that asked for it: the next lock (a capture) starts without.
+            if (!value) holdsCrouchPose = false;
+        }
+    }
+
+    /// <summary>
+    /// The player is locked and staying crouched on purpose, because <see cref="DisableKeepingCrouch"/>
+    /// found no room to stand. <see cref="PlayerCrouchState"/> reads it to freeze in place instead of
+    /// handing over to Disabled. False for every other lock.
+    /// </summary>
+    public bool HoldsCrouchPose => isDisabled && holdsCrouchPose;
 
     // ── Hiding ──────────────────────────────────────────────────────────────────
     //
@@ -110,6 +138,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
     /// <summary>Called by <see cref="HidingSpot"/> only, at both ends of the transition.</summary>
     public void SetHidingTransition(bool active) => hidingTransition = active;
+
+    // ── Frozen by a scene shot ──────────────────────────────────────────────────
+
+    private bool inputFrozen;
+
+    /// <summary>
+    /// True while a scripted shot of the level holds the player still (<see cref="LookDownTrigger"/>):
+    /// no walking, and <see cref="PlayerCameraController"/> stops reading look input so control comes
+    /// back facing the way it was left. Unlike <see cref="IsHidingTransition"/> the Nemesis reads
+    /// nothing from it, and unlike <see cref="IsImmobilized"/> it does not send the FSM to Disabled.
+    /// </summary>
+    public bool IsInputFrozen => inputFrozen;
+
+    /// <summary>Called by <see cref="LookDownTrigger"/> only, at both ends of the shot.</summary>
+    public void SetInputFrozen(bool frozen) => inputFrozen = frozen;
 
     /// <summary>
     /// Called by <see cref="HidingSpot"/> only: once when the player is in, once with null on
@@ -168,6 +211,21 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
     private enum EStandUpPhase { None, Lying, Playing }
 
+    [Header("Ground clearance")]
+    [Tooltip("PSX blocks the model always sits above the floor. Every clip rests the soles on the " +
+             "floor (within 1 mm), and at zero clearance the PSX filter eats the bottom of the " +
+             "shoe: it reads as the feet sinking into the floor. A block is about 2 cm at the " +
+             "gameplay camera distance and under 1 cm in close shots, so the lift follows the " +
+             "camera's distance and field of view. Read every frame: tune it in Play. 0 = off.")]
+    [SerializeField, Range(0f, 2f)] private float groundClearanceBlocks = 1f;
+
+    [Tooltip("Rows of the PSX filter's pixel grid. Must match _PixelSize on PS1Effect.mat.")]
+    [SerializeField, Min(1)] private int psxRows = 256;
+
+    // Cap on that lift, for far cameras (a security shot across the level), where a block is big
+    // enough that one of them would read as the player floating.
+    private const float MaxGroundClearance = 0.05f;
+
     [Header("Stand-up animations")]
     [Tooltip("Animator state played when the player gets up at the start of the level, during the " +
              "wake-up cinematic's camera pan.")]
@@ -189,6 +247,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
              "anyway. Safety net only: normally control comes back on the clip's last frame.")]
     [SerializeField, Min(1f)] private float standUpTimeout = 3f;
 
+    [Tooltip("Metres the model is raised AT LEAST while the player lies on the floor and gets up. " +
+             "The ground clearance above covers it at gameplay distance; this keeps the close, low " +
+             "stand-up shots as they were tuned. It comes back down with the blend into Idle. 0 = off.")]
+    [SerializeField, Range(0f, 0.05f)] private float standUpGroundClearance = 0.012f;
+
     private EStandUpPhase standUpPhase = EStandUpPhase.None;
     private EStandUp standUpKind;
     private int standUpStateHash;
@@ -196,6 +259,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     private float standUpClipSeconds;
     private float captureFallbackAt = -1f;
     private bool initStandUpHandled;
+
+    // The model root's authored height, and how much of standUpGroundClearance is applied right
+    // now (1 = fully raised). See UpdateModelHeight.
+    private float modelRestHeight;
+    private float standUpClearanceWeight;
 
     // True while this player holds a ModuleManager.PauseTicking from a capture: from the grab,
     // through the black screen and the respawn, until the stand-up ends and control is back.
@@ -436,6 +504,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // to widen it — see RefreshCapsuleRadius.
         baseCapsuleRadius = capsuleColl.radius;
 
+        // Same idea: before the ground clearance raises it — see UpdateModelHeight.
+        modelRestHeight = playerBody.localPosition.y;
+
         SetupClipOverrides();
         hasLocomotionSpeedParam = HasAnimatorParameter(LOCOMOTION_SPEED_PARAM, AnimatorControllerParameterType.Float);
 
@@ -571,6 +642,24 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public override void Start()
     {
         base.Start();
+        CatchUpModulePenalties();
+    }
+
+    /// <summary>
+    /// Applies the penalty of every module that had already exploded before this player existed.
+    /// ModuleManager outlives the level, the player does not: arriving at the next level (or at a
+    /// level entered with a <see cref="LevelStartState"/>) would otherwise drop a limp the run
+    /// earned. ApplyPenalty is idempotent, so a penalty that also arrives by event is harmless.
+    /// </summary>
+    private void CatchUpModulePenalties()
+    {
+        if (!ModuleManager.Exists) return;
+
+        foreach (ModuleRuntime runtime in ModuleManager.Instance.GetAllModules())
+        {
+            if (runtime != null && runtime.Status == ModuleStatus.Exploded && runtime.Data != null)
+                ApplyPenalty(runtime.Data.Penalty, runtime.Data);
+        }
     }
     public override void Update()
     {
@@ -584,13 +673,17 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         // During a scene change the level is already running behind the loading screen: keys
         // pressed there must not walk the player off before it is revealed. Same while lying on
-        // the floor or getting up, and while climbing into or out of a hiding spot.
-        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition) inputDir = Vector3.zero;
+        // the floor or getting up, while climbing into or out of a hiding spot, and while a scene
+        // shot holds the player still.
+        if (ScreenManager.IsInputLocked || IsStandingUp || hidingTransition || inputFrozen) inputDir = Vector3.zero;
         else InputUpdate();
         CheckGround();
         base.Update();
         UpdateLocomotionAnimSpeed();
     }
+
+    // After the Animator: the stand-up clearance follows the blend it has just evaluated.
+    private void LateUpdate() => UpdateModelHeight();
 
     /// <summary>
     /// Plays Walking / Running / Crouched Walking (and the injured clips standing in for them)
@@ -698,19 +791,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             wantsToStand = false;
         }
 
-        // Debug key, Editor only: in a build Y froze the player.
-        //
         // R is gone. It was the stand-in for a hiding spot while the system did not exist, and
         // HidingSpot has replaced it. The F10 console keeps a Hide toggle (DebugHidden) for
         // exercising the Nemesis's vision in a scene with no spot built into it.
-#if UNITY_EDITOR
-        // Disabled state testing
-        if (Input.GetKeyDown(KeyCode.Y))
-        {
-            if (isDisabled) isDisabled = false;
-            else isDisabled = true;
-        }
-#endif
     }
     /// <summary>How far above the pivot the ground probe starts. High enough to clear a step the
     /// player is already standing on, low enough to stay inside the capsule.</summary>
@@ -825,6 +908,29 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     }
 
     /// <summary>
+    /// Locks the player like <c>IsDisabled = true</c>, except that a player crouched under a ceiling
+    /// too low to stand under stays crouched for the length of the lock.
+    ///
+    /// A plain lock sends the FSM through Disabled, and the way out of Crouch stands the capsule back
+    /// up (PlayerCrouchState.ExitState). With a slab right above the head that puts the capsule inside
+    /// it, and the solver pushes the player through the level — which is what a module exploding in a
+    /// crawl space did. Here the FSM stays in Crouch, frozen (it reads <see cref="HoldsCrouchPose"/>),
+    /// and control comes back still crouched when the lock is released.
+    ///
+    /// Decided once, as the lock starts. With room to stand there is nothing to hold and this is
+    /// exactly <c>IsDisabled = true</c>. A player somebody else already locked is left alone, so the
+    /// hold can never ride on a capture's lock. Released the usual way, <c>IsDisabled = false</c>,
+    /// which drops the hold with it.
+    /// </summary>
+    public void DisableKeepingCrouch()
+    {
+        if (isDisabled) return;
+
+        holdsCrouchPose = isCrouch && !HasHeadroomToStand();
+        isDisabled = true;
+    }
+
+    /// <summary>
     /// Writes the movement velocity onto the Rigidbody, deflected along anything solid it is about
     /// to run into.
     ///
@@ -904,6 +1010,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// The horizontal normal of the first obstacle a capsule cast along <paramref name="direction"/>
     /// meets. False when nothing is in the way, and also when all it meets is floor or ceiling:
     /// deflecting along a vertical normal would cancel the movement instead of redirecting it.
+    ///
+    /// A walkable ramp is floor too. obstacleMask includes Ground, and on any slope steeper than
+    /// about 20 degrees the cast meets the ramp itself a few centimetres ahead: its tilted normal
+    /// still has a horizontal part, and deflecting along it cancelled the uphill movement, so the
+    /// player stood at the foot of every stair ramp unable to climb it.
     /// </summary>
     private bool TryGetObstacleNormal(Vector3 bottom, Vector3 top, float radius, Vector3 direction,
                                       float distance, out Vector3 normal)
@@ -914,12 +1025,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                                  obstacleMask, QueryTriggerInteraction.Ignore))
             return false;
 
+        if (IsWalkableGround(hit)) return false;
+
         normal = new Vector3(hit.normal.x, 0f, hit.normal.z);
         if (normal.sqrMagnitude <= 0.0001f) return false;
 
         normal.Normalize();
         return true;
     }
+
+    /// <summary>Ground the player could stand on: a surface the ground probe sees, no steeper than
+    /// CheckGround accepts. Props and walls are not on the ground mask, so they still deflect.</summary>
+    private bool IsWalkableGround(RaycastHit hit) =>
+        (groundLeyerMask.value & (1 << hit.collider.gameObject.layer)) != 0 &&
+        Vector3.Angle(hit.normal, Vector3.up) < groundAngleLimit;
 
     /// <summary>Margin the obstacle cast is shrunk by, so a capsule already resting against a wall
     /// does not report a zero-distance hit every frame and jitter.</summary>
@@ -1011,6 +1130,20 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         if (!captureTimerPaused) return;
         captureTimerPaused = false;
         if (ModuleManager.Exists) ModuleManager.Instance.ResumeTicking();
+    }
+
+    /// <summary>
+    /// Takes back a capture that ended the run (the defeat screen) without a respawn: the player
+    /// is free and out of the capture span, as if the grab had not happened. The caller places them.
+    /// A respawn does this through <see cref="CheckpointManager"/>; a capture with no respawn never
+    /// gets there, and the player is left disabled for good.
+    /// </summary>
+    public void RecoverFromDefeat()
+    {
+        EndStandUp();
+        recoveringFromCapture = false;
+        IsDisabled = false;
+        ReleaseCaptureTimerPause();
     }
 
     // ── Stand-up ────────────────────────────────────────────────────────────────
@@ -1189,6 +1322,88 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Keeps the model <see cref="groundClearanceBlocks"/> PSX blocks above the floor at all times,
+    /// and at least <see cref="standUpGroundClearance"/> from the moment the player lies down until
+    /// the stand-up has blended into Idle — that part lowered in step with the blend (the Animator's
+    /// own transition), so it is gone exactly when Idle's pose has taken over.
+    ///
+    /// Nothing actually goes through the floor: measured on the rig with the real Animator, the
+    /// lowest point of the mesh stays within 1 mm of it in every clip (Idle, walk, run, crouch,
+    /// push, the injured overrides and both stand-ups). What reads as a sunken sole is that zero
+    /// clearance through the PSX filter, which takes each block's colour from one edge of it and so
+    /// can drop up to a whole block of the shoe. Hence a lift of one block, measured from where the
+    /// camera actually is: about 2 cm in gameplay, under 1 cm in the close stand-up shots.
+    ///
+    /// Only the model root moves; the capsule, the camera pivot and the colliders stay where
+    /// physics put them. No clip in PlayerController animates the model root and the scripts only
+    /// ever turn it (PlayerBody.forward), so the height written here is the only one it gets.
+    /// </summary>
+    private void UpdateModelHeight()
+    {
+        if (playerBody == null) return;
+
+        float lift = Mathf.Max(GroundClearance(), standUpGroundClearance * StandUpClearanceWeight());
+
+        Vector3 local = playerBody.localPosition;
+        local.y = modelRestHeight + lift;
+        playerBody.localPosition = local;
+    }
+
+    /// <summary>
+    /// <see cref="groundClearanceBlocks"/> in metres at the feet: one PSX block is the height the
+    /// camera sees at that distance divided by the grid's rows.
+    /// </summary>
+    private float GroundClearance()
+    {
+        if (groundClearanceBlocks <= 0f) return 0f;
+
+        Camera cam = Camera.main;
+        if (cam == null) return 0f;
+
+        // Without the wake-up fisheye's lens opening: the feed shows the centre, where the player
+        // is, at the normal FOV's scale.
+        float fov = Mathf.Max(cam.fieldOfView - PlayerCameraFeed.LensFovOffset, 1f);
+        float distance = Vector3.Distance(cam.transform.position, transform.position);
+        float block = 2f * distance * Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) / psxRows;
+        return Mathf.Min(groundClearanceBlocks * block, MaxGroundClearance);
+    }
+
+    /// <summary>
+    /// How much of <see cref="standUpGroundClearance"/> applies now: 1 while lying down and getting
+    /// up, then falling with the blend into Idle, and 0 at rest.
+    /// </summary>
+    private float StandUpClearanceWeight()
+    {
+        float weight;
+        if (IsStandingUp)
+        {
+            weight = 1f;
+        }
+        else if (standUpClearanceWeight <= 0f)
+        {
+            weight = 0f;
+        }
+        else
+        {
+            // While a state blends out it is still the current one. Past the clip's last frame
+            // but before the blend has started, hold.
+            weight = 0f;
+            if (animController.GetCurrentAnimatorStateInfo(0).shortNameHash == standUpStateHash)
+            {
+                weight = animController.IsInTransition(0)
+                    ? 1f - Mathf.Clamp01(animController.GetAnimatorTransitionInfo(0).normalizedTime)
+                    : standUpClearanceWeight;
+            }
+
+            // Once the stand-up is over it only ever comes down.
+            weight = Mathf.Min(weight, standUpClearanceWeight);
+        }
+
+        standUpClearanceWeight = weight;
+        return weight;
     }
 
     /// <summary>The capture fade finished clearing at the checkpoint: get up.</summary>

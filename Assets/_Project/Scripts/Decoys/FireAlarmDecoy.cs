@@ -45,7 +45,7 @@ public class FireAlarmDecoy : BaseRangeInteractable
             Debug.LogError($"[{nameof(FireAlarmDecoy)}] '{name}' has no SO_FireAlarmDecoy assigned.", this);
     }
 
-    public override string GetInteractText() => data != null ? data.InteractText : "Activar alarma";
+    public override string GetPromptText() => data != null ? data.InteractText : "Activar alarma";
 
     protected override bool CanInteractInCloseRange() => data != null && state == EAlarmState.Idle;
 
