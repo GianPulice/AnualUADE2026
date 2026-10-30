@@ -98,6 +98,22 @@ public class SO_ModuleExplosionConfig : ScriptableObject
              "never keep the GameOver screen from appearing.")]
     [SerializeField, Min(0.1f)] private float maxEffectWait = 4f;
 
+    [Header("Run-ending explosion")]
+    [Tooltip("On = the explosion that ends the run blows up every module on the body, one right after " +
+             "the other, starting with the one that ran out. Only what is seen and heard: the other " +
+             "modules keep their real status.")]
+    [SerializeField] private bool explodeAllOnDefeat = true;
+
+    [Tooltip("Seconds between one module's blast and the next.")]
+    [SerializeField, Min(0f)] private float defeatBlastStagger = 0.12f;
+
+    [Tooltip("On = the player's body disappears in the last blast. The result screen comes up over " +
+             "the empty shot.")]
+    [SerializeField] private bool hidePlayerOnDefeat = true;
+
+    [Tooltip("Seconds after the last blast until the body disappears, so the flash covers the cut.")]
+    [SerializeField, Min(0f)] private float hidePlayerDelay = 0.08f;
+
     public ExplosionVFX VfxPrefab => vfxPrefab;
 
     /// <summary>
@@ -142,4 +158,9 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     public float PreExplosionHold => preExplosionHold;
     public float PostExplosionHold => postExplosionHold;
     public float MaxEffectWait => maxEffectWait;
+
+    public bool ExplodeAllOnDefeat => explodeAllOnDefeat;
+    public float DefeatBlastStagger => defeatBlastStagger;
+    public bool HidePlayerOnDefeat => hidePlayerOnDefeat;
+    public float HidePlayerDelay => hidePlayerDelay;
 }

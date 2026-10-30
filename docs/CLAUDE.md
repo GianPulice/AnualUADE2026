@@ -639,6 +639,14 @@ slot 0, the disc in slot 1 and, under the lamp, the symbol in slot 2: `ItemProxi
 the box is targeted or pushed), which would turn the disc white in the player's hands and overwrite
 the glow. The decoy takes that block where it shows nothing.
 
+The fuse box (`Prefabs/Puzzle1/Sockets/CajaFusible.prefab`, a `Socket.prefab` variant) shuts itself when
+the fuse goes in: `FuseBoxCloseSequence` (`Scripts/Puzzles/`, UniTask, one job) listens to
+`SocketInteractable.Inserted`, lifts the lever (`Cube.004`, -45 degrees around the box's Z, 0.45 s) and then
+swings the door (`Puerta`, -127.15 degrees around its Y hinge, 0.8 s) closed, 1.8 s in all;
+`InsertedStateSynced` snaps to the same pose after a load. Both parts stay authored in the prefab in their
+BEFORE pose (door open, lever down) and the component stores only the turn, so moving either part in the
+prefab moves the animation with it.
+
 The SP2 lamps are not lit by the fuse. The fuse unlocks the SP1 panel, SP1 (`sp1_panel_electrico`)
 powers the two `PoweredLightSwitch` levers (`ButtonLights.prefab`; each press plays the click plus `turnOnSoundId` = `sfx_warehouse_lights_on` when the lights come on and `turnOffSoundId` = `sfx_big_switch_lights_off` when they go off; the off clip, `Big switch sound effect.wav`, was trimmed on 17/10 to 0.5 s of silence before the sound, so the clunk lands half a second after the press. **On is a sequence**: with UniTask the lights come on one by one, nearest to the pressed lever first, each at one of the seven clicks of the warehouse sound (`turnOnTimes`: 0.69, 1.11, 1.80, 1.88, 2.48, 3.18, 3.25 s after the press, measured on the wav; both levers hold the same lights, so they share the run and the prompt hides until it ends). **Off is instant**: every light in the press; `turnOffDelay` (0) can push it to the clunk, 0.5 s), and a lever activates the
 GameObjects in its `objects` list: the six catwalk lamps plus
@@ -818,6 +826,11 @@ player released, module clock resumed, sirens / alarm / escape fog ended, presen
 proximity zeroed, `GameResultManager.ResetSession()` (the win was flagged and never raised, so
 without it a later loss or game over would be swallowed) — and then calls it. Empty slot = the Win
 screen exactly as before.
+
+**Which of the two happens is decided in `ScriptableObjects/Escape/SO_EscapeEndingConfig`**, read by
+the director when the last shot ends: `Outcome` = To Be Continued (the shipping setting since
+2026-10-30: the Win screen, whatever the slot says) or Continue To Zone 2 (the handover above).
+`WinView` takes the screen's title from the same asset. F6 still teleports in either case.
 
 `TeleportNow()` is the one path, shared with the **F6** key of `DevLevelKeys`: `PlayerStateManager.TeleportTo`
 (the checkpoint respawn's own call) to the target, yaw only, then the look camera behind the player
@@ -2700,7 +2713,10 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 **Still not wired:**
 
-- **Zona 1's win is a "to be continued".** `WinTrigger` (past the gate) is `ReportWin`'s only caller; with a `Zone2EntryTeleport` enabled the escape's ending hands over to Zona 2 instead (see *Zona 1 → Zona 2*), and nothing in Zona 2 reports a win yet.
+- **Zona 1's win is a "to be continued".** `WinTrigger` (past the gate) is `ReportWin`'s only caller; `SO_EscapeEndingConfig` can make the escape's ending hand over to Zona 2 instead (see *Zona 1 → Zona 2*), and nothing in Zona 2 reports a win yet.
+- **M1 is the fatal module and it ends on Lose.** `SO_GameOverRules`: `fatalModule` = `M1_Legs`, `explosionResult` = Lose (Retry, the save is kept; only GameOver deletes it). `SO_ModuleExplosionConfig` § Run-ending explosion: every module's blast goes off on its own LED, one after the other, and the body disappears. Only what is seen: the other modules keep their real status. Nothing brings the body back, because Retry reloads the level.
+- **In `WIRED_Zona1_Blockout` only pure decoration is unpacked (2026-10-30), and the scene is saved flat.** A prefab instance was unpacked only if it sits under `PROPS SUELTOS LV1/LV2`, `NIVEL` or the tutorial's `PROPS` / `PIPES` / `STRUCTURE` **and** has no script on it or under it. Puzzles, doors, the player, the Nemesis and anything with a script are still prefabs, so editing the prefab reaches the scene. The hierarchy has two layouts, switched from the inspector of `ScriptableObjects/Levels/SO_SceneHierarchyLayout_Zona1`: **Flatten** empties the organiser folders into the root, **Restore** puts the organised tree back, exact. `---- PUZZLES ----` is not in the asset's folder list, so the puzzles stay under it in both layouts. To edit the level comfortably: Restore, work, Flatten. Flatten records the tree as it finds it and saves the scene first. A new folder is added by hand to the asset's list.
+- **`WIRED_Zona1_Blockout` has baked occlusion culling (2026-10-30).** The data is `WIRED_Zona1_Blockout/OcclusionCullingData.asset`, baked with a smallest occluder of 2 m. View cells exist only inside `Occlusion Area Zona 1`, under `---- SISTEMA ----`: a camera in Zona 2 (F6) gets no occlusion until that zone has an area of its own. Static level geometry that moves, or a new wall, needs a re-bake (Window > Rendering > Occlusion Culling > Bake). Objects without the static flags are never occluders, so doors do not hide what is behind them.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a

@@ -227,7 +227,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
             if (isPlaying) await UniTask.WaitWhile(() => isPlaying, PlayerLoopTiming.Update, token);
 
             isPlaying = true;
-            await PlayShot(cause, token);
+            await PlayShot(cause, token, defeat: true);
         }
         catch (OperationCanceledException)
         {
@@ -263,27 +263,40 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     /// <summary>
     /// The shot both cases share: lock the player, take the camera to the body part, explode, and
     /// wait for the effect. What happens afterwards is the caller's: the penalty hands control
-    /// back, the defeat commits the result.
+    /// back, the defeat commits the result. In the defeat every module can go off and the body
+    /// disappear (SO_ModuleExplosionConfig § Run-ending explosion); the shot then frames the chest,
+    /// so the head and the legs both fit.
     /// </summary>
-    private async UniTask PlayShot(ModuleRuntime cause, CancellationToken token)
+    private async UniTask PlayShot(ModuleRuntime cause, CancellationToken token, bool defeat = false)
     {
         // Again here: PresentGameOver can arrive before OnExploded.
         CloseGameplayUI();
         LockPlayer();
         PushModal();
 
+        bool explodeAll = defeat && config != null && config.ExplodeAllOnDefeat;
+
         Transform focus = FindFocus(cause);
+        Transform framing = explodeAll ? FindFocusBone(null) ?? focus : focus;
         CinemachineBrain brain = FindBrain();
 
         if (brain != null && config != null)
         {
             BeginDefeatCamera(brain);
-            await MoveCameraToShot(brain, focus, token);
+            await MoveCameraToShot(brain, framing, token);
             await Wait(config.PreExplosionHold, token);
         }
 
         Vector3 at = focus != null ? focus.position : FallbackFocus();
         float effectDuration = PlayExplosion(at, cause);
+
+        if (explodeAll) effectDuration = Mathf.Max(effectDuration, await PlayOtherBlasts(cause, token));
+
+        if (defeat && config != null && config.HidePlayerOnDefeat)
+        {
+            await Wait(config.HidePlayerDelay, token);
+            HidePlayer();
+        }
 
         float wait = config != null
             ? Mathf.Min(effectDuration, config.MaxEffectWait) + config.PostExplosionHold
@@ -324,8 +337,6 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     /// <returns>Seconds the effect lasts (0 when there is none).</returns>
     private float PlayExplosion(Vector3 at, ModuleRuntime cause)
     {
-        float duration = 0f;
-
         // Same frame as the VFX: the body reads as hurt the moment the hit is seen, not only once
         // the cinematic is over and the gameplay penalty lands.
         if (player != null && cause != null && cause.Data != null)
@@ -334,11 +345,52 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         // Same frame too: the module's LED turns red with the blast, not when the state changed.
         if (cause != null) ModuleEvents.RaiseExplosionShown(cause);
 
+        return PlayBlast(at, cause);
+    }
+
+    /// <summary>
+    /// The run-ending blast of every module other than the one that ran out, each on its own LED and
+    /// with its own intensity. Purely visual: their status does not change.
+    /// </summary>
+    /// <returns>Seconds the longest of these effects lasts.</returns>
+    private async UniTask<float> PlayOtherBlasts(ModuleRuntime cause, CancellationToken token)
+    {
+        float longest = 0f;
+        if (!ModuleManager.Exists) return longest;
+
+        foreach (ModuleRuntime other in ModuleManager.Instance.GetAllModules())
+        {
+            if (other == cause) continue;
+
+            await Wait(config.DefeatBlastStagger, token);
+
+            Transform point = FindFocus(other);
+            longest = Mathf.Max(longest, PlayBlast(point != null ? point.position : FallbackFocus(), other));
+        }
+
+        return longest;
+    }
+
+    /// <summary>The body goes, every renderer under the player. Nothing brings it back: Retry reloads
+    /// the level.</summary>
+    private void HidePlayer()
+    {
+        if (player == null) return;
+
+        foreach (Renderer part in player.GetComponentsInChildren<Renderer>(true))
+            part.enabled = false;
+    }
+
+    /// <returns>Seconds the effect lasts (0 when there is none).</returns>
+    private float PlayBlast(Vector3 at, ModuleRuntime module)
+    {
+        float duration = 0f;
+
         ExplosionVFX prefab = null;
         float explosionPunch = 1f;
         float gore = 1f;
         if (config != null)
-            config.ResolveExplosion(cause != null ? cause.Data : null, out prefab, out explosionPunch, out gore);
+            config.ResolveExplosion(module != null ? module.Data : null, out prefab, out explosionPunch, out gore);
 
         if (prefab != null)
         {
