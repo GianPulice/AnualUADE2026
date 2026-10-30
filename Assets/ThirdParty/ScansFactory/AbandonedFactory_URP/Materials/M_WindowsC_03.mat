@@ -361,6 +361,6 @@ Material:
     - _UVDetailsMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMaskEmissive: {r: 1, g: 0, b: 0, a: 0}
-    - emissiveColor: {r: 675.5879, g: 425.08914, b: 245.3786, a: 1}
+    - emissiveColor: {r: 2.2706, g: 1.4287, b: 0.8247, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
