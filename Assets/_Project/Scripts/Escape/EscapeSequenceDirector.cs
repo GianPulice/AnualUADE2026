@@ -424,7 +424,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
-    /// The F4 key (<see cref="EscapeSequenceTestKey"/>), release builds included: wins the module
+    /// The F4 key (<see cref="EscapeSequenceTestKey"/>, editor and Development builds only): wins the module
     /// the escape closes (M1) the way a run does when the last core goes in. Its timer starts if it
     /// never had, the player is put inside the hub, and the trigger puzzle is completed: the module
     /// resolves and the escape arms by its usual path. The cores do not show in the sockets. Once

@@ -358,13 +358,19 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
             return;
         }
 
-        PlayPickupSound(stockedItem);
-        InventoryManager.Instance.AddItem(stockedItem);
-
+        // Emptied BEFORE the item reaches the inventory: AddItem refreshes the prompt, and a box still
+        // Stocked at that point redraws "Take ..." over a box that is already empty. The box was
+        // repeatable when E was pressed, so the InteractionManager does not clear the target either:
+        // the explicit refresh below is what takes the prompt down.
+        SO_InventoryItem taken = stockedItem;
         stockedItem = null;
         state = BoxState.Empty;
         rig.HideItem();
         rig.SetLightOn(false);
+
+        PlayPickupSound(taken);
+        InventoryManager.Instance.AddItem(taken);
+        InteractionEvents.RequestPromptRefresh();
     }
 
     public override void OnInteractAttemptBlocked()
