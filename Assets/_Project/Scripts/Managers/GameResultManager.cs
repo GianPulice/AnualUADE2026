@@ -93,7 +93,12 @@ public static class GameResultManager
     /// The module whose explosion ended the run, so the presenter knows what to frame. Null when
     /// the defeat does not come from a single module.
     /// </param>
-    public static void ReportGameOver(float time, int resolvedModules, ModuleRuntime cause = null)
+    /// <param name="result">
+    /// The screen the run ends on. Only <see cref="GameState.GameOver"/> deletes the save: a Lose
+    /// offers a Retry, so it has to leave a run to go back to.
+    /// </param>
+    public static void ReportGameOver(float time, int resolvedModules, ModuleRuntime cause = null,
+                                      GameState result = GameState.GameOver)
     {
         if (_resultReported) return;
 
@@ -103,18 +108,18 @@ public static class GameResultManager
 
         if (GameOverPresenter != null)
         {
-            GameOverPresenter.PresentGameOver(cause, () => CommitGameOver(time, resolvedModules));
+            GameOverPresenter.PresentGameOver(cause, () => CommitGameOver(time, resolvedModules, result));
             return;
         }
 
-        CommitGameOver(time, resolvedModules);
+        CommitGameOver(time, resolvedModules, result);
     }
 
-    private static void CommitGameOver(float time, int resolvedModules)
+    private static void CommitGameOver(float time, int resolvedModules, GameState result)
     {
-        OnSaveDeleteRequested?.Invoke();
+        if (result == GameState.GameOver) OnSaveDeleteRequested?.Invoke();
 
-        _model.SetResult(GameState.GameOver, time, resolvedModules);
+        _model.SetResult(result, time, resolvedModules);
         OnGameResult?.Invoke(_model);
     }
 

@@ -98,6 +98,41 @@ public class SO_ModuleExplosionConfig : ScriptableObject
              "never keep the GameOver screen from appearing.")]
     [SerializeField, Min(0.1f)] private float maxEffectWait = 4f;
 
+    [Header("Run-ending explosion")]
+    [Tooltip("On = the explosion that ends the run blows up every module on the body, one right after " +
+             "the other, starting with the one that ran out. Only what is seen and heard: the other " +
+             "modules keep their real status.")]
+    [SerializeField] private bool explodeAllOnDefeat = true;
+
+    [Tooltip("Seconds between one module's blast and the next.")]
+    [SerializeField, Min(0f)] private float defeatBlastStagger = 0.12f;
+
+    [Tooltip("On = the player's body disappears in the last blast. The result screen comes up over " +
+             "the empty shot.")]
+    [SerializeField] private bool hidePlayerOnDefeat = true;
+
+    [Tooltip("Seconds after the last blast until the body disappears, so the flash covers the cut.")]
+    [SerializeField, Min(0f)] private float hidePlayerDelay = 0.08f;
+
+    [Tooltip("Pieces of meat thrown when the run ends, and left on the floor: prefabs with a Rigidbody " +
+             "and a Collider. They are used in turn. Empty = none.")]
+    [SerializeField] private GameObject[] meatChunkPrefabs = System.Array.Empty<GameObject>();
+
+    [Tooltip("How many pieces.")]
+    [SerializeField, Min(0)] private int meatChunkCount = 14;
+
+    [Tooltip("Metres around the chest they start from.")]
+    [SerializeField, Min(0f)] private float meatChunkSpread = 0.25f;
+
+    [Tooltip("Speed they are thrown at, in m/s: a random one between these two. Too high and they " +
+             "are still in the air when the result screen freezes the game.")]
+    [SerializeField, Min(0f)] private float meatChunkMinSpeed = 1.5f;
+    [SerializeField, Min(0f)] private float meatChunkMaxSpeed = 4f;
+
+    [Tooltip("Size of each piece against its prefab: a random one between these two.")]
+    [SerializeField, Min(0.01f)] private float meatChunkMinScale = 0.7f;
+    [SerializeField, Min(0.01f)] private float meatChunkMaxScale = 1.4f;
+
     public ExplosionVFX VfxPrefab => vfxPrefab;
 
     /// <summary>
@@ -142,4 +177,16 @@ public class SO_ModuleExplosionConfig : ScriptableObject
     public float PreExplosionHold => preExplosionHold;
     public float PostExplosionHold => postExplosionHold;
     public float MaxEffectWait => maxEffectWait;
+
+    public bool ExplodeAllOnDefeat => explodeAllOnDefeat;
+    public float DefeatBlastStagger => defeatBlastStagger;
+    public bool HidePlayerOnDefeat => hidePlayerOnDefeat;
+    public float HidePlayerDelay => hidePlayerDelay;
+    public GameObject[] MeatChunkPrefabs => meatChunkPrefabs;
+    public int MeatChunkCount => meatChunkCount;
+    public float MeatChunkSpread => meatChunkSpread;
+    public float MeatChunkMinSpeed => meatChunkMinSpeed;
+    public float MeatChunkMaxSpeed => meatChunkMaxSpeed;
+    public float MeatChunkMinScale => meatChunkMinScale;
+    public float MeatChunkMaxScale => meatChunkMaxScale;
 }

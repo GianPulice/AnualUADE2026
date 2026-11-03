@@ -113,6 +113,10 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
     [SerializeField] private SO_EscapeSequenceConfig config;
 
+    [Tooltip("What follows the last shot: the To Be Continued screen or Zona 2. Empty = whatever " +
+             "ContinuePastEnding says (Zona 2 with a Zone2EntryTeleport enabled, else the win).")]
+    [SerializeField] private SO_EscapeEndingConfig endingConfig;
+
     [Header("Cinematic cameras")]
     [Tooltip("El plano general del portazo, en el pasillo: el jugador y la puerta del centro " +
              "cerrándose detrás. Después gira (paneo) hacia el fondo del pasillo. Se ubica a mano " +
@@ -420,7 +424,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
     }
 
     /// <summary>
-    /// The F4 key (<see cref="EscapeSequenceTestKey"/>), release builds included: wins the module
+    /// The F4 key (<see cref="EscapeSequenceTestKey"/>, editor and Development builds only): wins the module
     /// the escape closes (M1) the way a run does when the last core goes in. Its timer starts if it
     /// never had, the player is put inside the hub, and the trigger puzzle is completed: the module
     /// resolves and the escape arms by its usual path. The cores do not show in the sockets. Once
@@ -1322,7 +1326,7 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         CinematicState.End();
 
         // The run goes on past the gate (Zona 2): no win screen, so nothing of the ending stays up.
-        Action continuation = ContinuePastEnding;
+        Action continuation = endingConfig == null || endingConfig.ContinuesPastEnding ? ContinuePastEnding : null;
         if (continuation != null)
         {
             HandOverPastEnding();

@@ -1202,6 +1202,7 @@ MonoBehaviour:
   _btnExit: {fileID: 4341359398883929596}
   _titleText: {fileID: 2803530870595234126}
   _title: TO BE CONTINUED
+  _endingConfig: {fileID: 11400000, guid: 99f68ca043584bd498deb22e0a473c8d, type: 2}
 --- !u!114 &6018445596683342706
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1234,6 +1235,7 @@ MonoBehaviour:
   screenMaterial: {fileID: 2100000, guid: b83e5d0a6c1f47e29d4a7b3c15f0e8d2, type: 2}
   rendererIndex: 1
   filterMode: 1
+  opaqueBackdrop: 0
 --- !u!114 &3635056588708138586
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1251,6 +1253,19 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &829819055433962200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4709029339952726109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 213bfc36dec040c6bafd30ad703ec04f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UICanvasSounds
+  noClick: []
 --- !u!1 &5803964667834862241
 GameObject:
   m_ObjectHideFlags: 0
@@ -1734,16 +1749,3 @@ MonoBehaviour:
   theme: {fileID: 11400000, guid: 9c1d7e3b5a2f4068d3c7b1e5a9f2064c, type: 2}
   role: 9
   preserveAlpha: 0
---- !u!114 &829819055433962200
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4709029339952726109}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 213bfc36dec040c6bafd30ad703ec04f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UICanvasSounds
-  noClick: []

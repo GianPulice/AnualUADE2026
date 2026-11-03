@@ -34,7 +34,7 @@ public class NemesisCinematicActor : MonoBehaviour
 
     [Header("Attack")]
     [Tooltip("Estado del Animator del Nemesis con el golpe. No tiene transiciones: se llega por " +
-             "CrossFade y se queda en su último frame hasta que algo lo mueva.")]
+             "CrossFade, y al terminar el clip este componente lo devuelve a Idle.")]
     [SerializeField] private string attackState = "E_Attack";
 
     [Tooltip("Segundos de crossfade hacia el golpe, y de vuelta a Idle cuando termina.")]
@@ -201,10 +201,11 @@ public class NemesisCinematicActor : MonoBehaviour
 
     /// <summary>
     /// Stops where it is and strikes at whatever it is facing (<see cref="FaceTowards"/> keeps
-    /// turning it towards the marker meanwhile): plays the attack clip once, and stays on its last
-    /// frame. The clip has no way out of its own, so anything that moves the Nemesis again
+    /// turning it towards the marker meanwhile): plays the attack clip once, then goes back to Idle
+    /// (<see cref="ReturnToIdleWhenAttackEnds"/>): frozen on the last frame it read as stuck. The
+    /// clip has no way out of its own, so anything that moves the Nemesis again before then
     /// (<see cref="WarpTo(Vector3, float)"/>, a walk or run, <see cref="Release"/>) takes it back to
-    /// Idle first — left in the pose, the gait bools would never pull it out.
+    /// Idle first too — left in the pose, the gait bools would never pull it out.
     ///
     /// By CrossFade on the state's name, with HasState and a warning: the same pattern as
     /// <see cref="NemesisStateManager.PlayTraversal"/>, for a controller that has no such state.
@@ -295,9 +296,27 @@ public class NemesisCinematicActor : MonoBehaviour
         nemesis.SetGait(NemesisStateManager.EGait.Idle, 0f);
     }
 
+    /// <summary>
+    /// Once the attack clip has played through, blends back to Idle. Read off the Animator rather than
+    /// timed, so it follows the clip's real length and any speed the state has.
+    /// </summary>
+    private void ReturnToIdleWhenAttackEnds()
+    {
+        Animator animator = nemesis.AnimController;
+        if (animator == null || animator.IsInTransition(0)) return;
+
+        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+        if (current.shortNameHash != Animator.StringToHash(attackState)) return;
+        if (current.normalizedTime < 1f) return;
+
+        EndAttack();
+    }
+
     private void Update()
     {
         if (!hasControl || !nemesis.IsAgentReady) return;
+
+        if (attacking) ReturnToIdleWhenAttackEnds();
 
         if (moving)
         {

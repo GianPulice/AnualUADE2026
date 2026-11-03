@@ -29,4 +29,4 @@ MonoBehaviour:
     clueSide: on the right
   completedSoundId: sfx_subpuzzle_3_completo
   completionSoundValveId: valve_sp3_2
-  shuffleEachRun: 1
+  shuffleEachRun: 0

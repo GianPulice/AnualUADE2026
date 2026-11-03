@@ -29,9 +29,14 @@ public class SO_GameOverRules : ScriptableObject
              "every module ends up exploded the run ends anyway.")]
     [SerializeField] private ModuleData fatalModule;
 
+    [Tooltip("Which screen a run-ending explosion leads to. Lose = the retry screen, the save is kept. " +
+             "GameOver = no retry, the save is deleted.")]
+    [SerializeField] private GameState explosionResult = GameState.Lose;
+
     public bool ExplosionsEndRun => explosionsEndRun;
     public bool UseFatalModule => useFatalModule;
     public ModuleData FatalModule => fatalModule;
+    public GameState ExplosionResult => explosionResult;
 
     /// <param name="exploded">The module that just exploded.</param>
     /// <param name="explodedCount">Exploded modules, including this one.</param>

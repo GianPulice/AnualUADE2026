@@ -482,7 +482,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
         gameOverReported = true;
         bool allExploded = GetExplodedCount() >= runtimes.Count;
         if (allExploded) ModuleEvents.RaiseAllModulesExploded();
-        GameResultManager.ReportGameOver(sessionTime, GetResolvedCount(), lastExploded);
+        GameState result = gameOverRules != null ? gameOverRules.ExplosionResult : GameState.GameOver;
+        GameResultManager.ReportGameOver(sessionTime, GetResolvedCount(), lastExploded, result);
         Log(allExploded
             ? "All modules exploded — GameOver reported."
             : $"Fatal module '{lastExploded.ModuleID}' exploded — GameOver reported.");

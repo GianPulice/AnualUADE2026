@@ -183,7 +183,7 @@ Material:
     - Boolean_57A5114E: 1
     - BumpMulti: 0.057
     - Emissive: 1
-    - EmissiveBrightness: 5
+    - EmissiveBrightness: 1.5
     - EmissiveContrast: 40
     - EmissiveInvert: 0
     - Emissivecontrast: 40

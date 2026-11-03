@@ -6,7 +6,8 @@ using UnityEngine;
 /// escape sequence plays from the top. F4 by default: F8, F9 and F10 are taken by the module
 /// explosion, the Nemesis debug HUD and the Nemesis test console.
 ///
-/// Active in release builds too (Iñaki asked for it, 2026-10-20), unlike the other debug keys.
+/// Editor and Development builds only, like the other debug keys: a standard build ignores it.
+/// The body is compiled out, not the class, so the component stays valid in the scene.
 /// Once the puzzle is solved it does nothing, and like every gameplay key it is ignored under a
 /// menu — the win / result screens included: use their own buttons.
 /// </summary>
@@ -20,9 +21,11 @@ public class EscapeSequenceTestKey : MonoBehaviour
     // Legacy input, like the other debug keys: the project runs both input backends.
     private void Update()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (director == null || !Input.GetKeyDown(key)) return;
         if (PauseManager.IsGameplayInputBlocked) return;
 
         director.WinModuleForTest();
+#endif
     }
 }
