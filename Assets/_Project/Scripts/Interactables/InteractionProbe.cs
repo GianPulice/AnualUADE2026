@@ -587,10 +587,22 @@ public static class InteractionProbe
     /// The component behind a collider. GetComponentInParent and not GetComponent because the
     /// collider is routinely a child of the prefab that owns the behaviour — a door's box hangs
     /// off the leaf, not off the root that carries DoorInteractable.
+    ///
+    /// A DISABLED component is not an interactable. GetComponentInParent skips inactive
+    /// GameObjects but happily returns a component whose own checkbox is off, and every caller
+    /// here would then treat the prop as live: the prompt shows and E runs Interact() on a script
+    /// someone switched off on purpose (a door blocked by a pallet, left unusable). The collider
+    /// still counts as solid geometry — it just has no one behind it, so it blocks line of sight
+    /// like any wall. The nearest owner decides: a disabled one does not hand its colliders to an
+    /// interactable further up the hierarchy.
     /// </summary>
     private static IInteractable Resolve(Collider collider)
     {
         if (collider == null) return null;
-        return collider.GetComponentInParent<IInteractable>();
+
+        IInteractable owner = collider.GetComponentInParent<IInteractable>();
+        if (owner is Behaviour behaviour && !behaviour.isActiveAndEnabled) return null;
+
+        return owner;
     }
 }
