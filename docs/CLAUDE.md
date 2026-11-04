@@ -594,10 +594,17 @@ over every other box, switched off. Only one lamp is lit at a time; the levers s
 prefab. Heights never change, so the hand-fitted pool fits under every copy. The lamps do not follow
 the boxes once pushed. If no box is found it warns and the lamp stays where the scene has it. In the
 editor and development builds it logs `this run's UV lamp starts over …`.
+*Extra Spots* adds places that are not over a box, copied the same way after the boxes (so a box keeps
+its index and the seed its draw; a spot is never the first lamp lit): a fixed pool the player can
+push a box into instead of bringing the light to it. Zona1 has one, `UV Lamp Spot - Frente Caja SP2`
+under `PROPS SUELTOS LV1/LIGHTS`, in front of the SP2 reward box (Iñaki, 03/11: "una cuarta luz justo
+en frente a la caja de SP2"). Only its X and Z count, and it must not be a child of the lamp root,
+which moves over the drawn box on load.
 
 The **UV lamp tablet** (`Prefabs/UV Lamp Tablet.prefab`, a kiosk: round base, pole and a tablet tilted 35° toward the player; placed on the catwalk edge over the box room, under `---- GAMEPLAY ----`, so it does not narrow the walkway — only the pole has a collider besides the head's interaction box) moves the light:
 `RevealLampTablet` switches the lit lamp off with `sfx_uv_lamp_off` (an old fluorescent tube, played
-where that lamp hangs) and lights the next box's lamp, in id order, `travelSeconds` (1.2) later. It
+where that lamp hangs) and lights the next place (the boxes in id order, then the extra spots),
+`travelSeconds` (1.2) later. It
 only works while the levers have the lamps on. Its screen (`RevealLampTabletScreen`, shader
 `WIRED/Puzzles/UV Lamp Tablet Screen`) is a top-down map of the lamps as seen from in front of it: a
 refresh band sweeps down, the violet light travels to its new place and pings when it lands. Where

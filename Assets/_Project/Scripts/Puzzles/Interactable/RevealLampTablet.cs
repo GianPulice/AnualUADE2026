@@ -6,8 +6,8 @@ using UnityEngine;
 /// The tablet that moves the SP2 UV light. Each press switches the lit lamp off, with the sound of
 /// an old fluorescent tube dying where that lamp hangs, and lights the next box's lamp once
 /// <see cref="travelSeconds"/> have passed: the time the screen takes to show the light moving
-/// across its map (<see cref="RevealLampTabletScreen"/>). The order is the boxes' id order, round
-/// and round.
+/// across its map (<see cref="RevealLampTabletScreen"/>). The order is the boxes' id order, then the
+/// lamps' extra spots (the fixed pools the player can push a box into), round and round.
 ///
 /// It only works while the levers have the lamps on (<see cref="BoxSymbolRevealLightPositions.IsPowered"/>);
 /// otherwise it says so in the prompt's grey info style. It is out of reach while a move lasts.

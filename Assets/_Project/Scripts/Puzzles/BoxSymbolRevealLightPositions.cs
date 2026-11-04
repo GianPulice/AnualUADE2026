@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Where the SP2 UV reveal lamp shines: one lamp over each of the puzzle's boxes, and only one of
-/// them lit at a time. <see cref="RevealLampTablet"/> moves the light from one to the next.
+/// Where the SP2 UV reveal lamp shines: one lamp over each of the puzzle's boxes, plus one over each
+/// of the <see cref="extraSpots"/>, and only one of them lit at a time. <see cref="RevealLampTablet"/>
+/// moves the light from one to the next: the boxes in id order, then the extra spots in list order.
 ///
 /// The prefab is built with one lamp (<see cref="lamp"/>: the Light, its <see cref="BoxSymbolRevealLight"/>,
 /// the fog pieces) and the ceiling fixture. When the level loads this, once:
@@ -11,7 +12,9 @@ using UnityEngine;
 ///      and moves the whole lamp, fixture included, straight above where that box starts. That box
 ///      is the one lit first, so the first lamp is still a different one every run;
 ///   2. copies the lamp, without the fixture, over every other box. Through the fog nobody sees the
-///      ceiling at that height, so the copies are only the light and what goes with it. They start off.
+///      ceiling at that height, so the copies are only the light and what goes with it. They start off;
+///   3. copies it the same way over each extra spot: a fixed pool the player can push a box into
+///      instead of bringing the light to the box. A spot is never drawn as the first lamp.
 ///
 /// ONLY X AND Z MOVE. Every lamp keeps the height the prefab has in the scene, so the hand-fitted
 /// fog pool (the preset, the bypass and the trigger, all local to the lamp) fits under each of them
@@ -44,12 +47,18 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
              "fog pieces, without the fixture model. It becomes the lamp of the drawn box.")]
     [SerializeField] private GameObject lamp;
 
+    [Tooltip("Places the light can also be moved to that are not over a box: the tablet stops on " +
+             "each of them after the boxes, in this order. Only their X and Z are used (the lamp " +
+             "keeps its height). Keep them OUT of this object's children: this object moves over " +
+             "the drawn box on load and would carry them along.")]
+    [SerializeField] private Transform[] extraSpots = System.Array.Empty<Transform>();
+
     private readonly List<GameObject> lamps = new List<GameObject>();
     private bool built;
     private int selected;
     private bool lit;
 
-    /// <summary>How many places the light can be in: one per box.</summary>
+    /// <summary>How many places the light can be in: one per box, plus the extra spots.</summary>
     public int Count
     {
         get
@@ -131,6 +140,7 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
             Debug.LogWarning($"[{nameof(BoxSymbolRevealLightPositions)}] '{name}' found no box linked " +
                              $"to puzzle '{puzzleId}'. The lamp stays where the scene has it.", this);
             lamps.Add(lamp);
+            AddExtraSpots(lamp.transform.position.y);
             TurnOn(0);
             return;
         }
@@ -154,12 +164,30 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
             lamps.Add(boxLamp);
         }
 
+        AddExtraSpots(lampHeight);
         TurnOn(drawn);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[{nameof(BoxSymbolRevealLightPositions)}] {puzzleId}: this run's UV lamp starts " +
-                  $"over '{boxes[drawn].BallId}' ({boxes[drawn].name}); {boxes.Count} positions in all.");
+                  $"over '{boxes[drawn].BallId}' ({boxes[drawn].name}); {lamps.Count} positions in all.");
 #endif
+    }
+
+    // After the boxes, so a box keeps its index (and the seed its draw) whatever spots are added.
+    private void AddExtraSpots(float lampHeight)
+    {
+        if (extraSpots == null) return;
+
+        foreach (Transform spot in extraSpots)
+        {
+            if (spot == null) continue;
+
+            GameObject spotLamp = Instantiate(lamp, lamp.transform.parent);
+            Vector3 at = spot.position;
+            spotLamp.transform.position = new Vector3(at.x, lampHeight, at.z);
+            spotLamp.name = $"{lamp.name} ({spot.name})";
+            lamps.Add(spotLamp);
+        }
     }
 
     private void ApplyLit()

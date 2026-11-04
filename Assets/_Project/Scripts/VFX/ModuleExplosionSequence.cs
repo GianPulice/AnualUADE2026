@@ -377,14 +377,24 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
         return longest;
     }
 
-    /// <summary>The body goes, every renderer under the player. Nothing brings it back: Retry reloads
-    /// the level.</summary>
+    /// <summary>The body goes, every renderer under the player, and with it the glow of its module
+    /// LEDs. Nothing brings it back: Retry reloads the level.</summary>
     private void HidePlayer()
     {
         if (player == null) return;
 
         foreach (Renderer part in player.GetComponentsInChildren<Renderer>(true))
             part.enabled = false;
+
+        // The LEDs' Lights are not renderers: without this the red pool of the module that blew
+        // stayed on the floor where the body had been, all the way to the result screen. Each
+        // ModuleLED goes off first, because its Update switches its Light back on when a status
+        // changes. The blink clip only animates the intensity, so a disabled Light stays dark.
+        foreach (ModuleLED led in player.GetComponentsInChildren<ModuleLED>(true))
+            led.enabled = false;
+
+        foreach (Light glow in player.GetComponentsInChildren<Light>(true))
+            glow.enabled = false;
     }
 
     /// <returns>Seconds the effect lasts (0 when there is none).</returns>
