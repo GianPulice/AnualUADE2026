@@ -2240,7 +2240,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '[ ESC ]  CLOSE'
+  m_text: '[ TAB ]  CLOSE'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 91f3d2401e2c9dd49ad3cc1d2ed6fca9, type: 2}
   m_sharedMaterial: {fileID: 2100000, guid: 6b1854f4f0f85ab4598922608cfacd44, type: 2}
@@ -2559,5 +2559,5 @@ MonoBehaviour:
   closeButton: {fileID: 6200000000000000845}
   dimButton: {fileID: 7100000000000000106}
   hintText: {fileID: 7100000000000000304}
-  hintLabel: '[ ESC ]  CLOSE'
+  hintLabel: '[ TAB ]  CLOSE'
   hintButton: {fileID: 5635246037451585985}

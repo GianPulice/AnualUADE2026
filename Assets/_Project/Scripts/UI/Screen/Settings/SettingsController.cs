@@ -16,7 +16,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
 
     // -- IModalUI --
     public string ModalId => "Settings";
-    public bool ConsumesEscape => true;   // ESC closes Settings (back to pause or menu).
+    public ModalCloseKey CloseKey => ModalCloseKey.Escape;   // Part of the pause menu: ESC goes back to pause or menu.
     public bool BlocksPause   => true;    // While in Settings no other pause should open.
     public bool PausesGame    => true;
     public void RequestClose() => HandleBack();
@@ -135,10 +135,12 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         // All of these DO affect the game via appliers listening to SettingsModel.OnSettingsApplied
         // (each applier must be placed on its GameObject in the scene):
         //   InvertY                     -> CameraSensitivityApplier (camera rig)
+        //   SprintToggle                -> GameInput (static, no applier to place)
         //   Brightness/Contrast/Gamma   -> PostProcessSettingsApplier (Global Volume)
         //   CRT / Dither                -> PS1EffectApplier (persistent, holds PS1Effect.mat)
         //   Resolution/Window/FPS/VSync -> ScreenSettingsApplier (persistent)
         view.OnInvertYChanged    += model.SetInvertYAxis;
+        view.OnSprintToggleChanged += model.SetSprintToggle;
         view.OnBrightnessChanged += model.SetBrightness;
         view.OnContrastChanged   += model.SetContrast;
         view.OnGammaChanged      += model.SetGamma;
@@ -162,6 +164,7 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         view.OnSensitivityChanged -= model.SetSensitivity;
 
         view.OnInvertYChanged    -= model.SetInvertYAxis;
+        view.OnSprintToggleChanged -= model.SetSprintToggle;
         view.OnBrightnessChanged -= model.SetBrightness;
         view.OnContrastChanged   -= model.SetContrast;
         view.OnGammaChanged      -= model.SetGamma;

@@ -59,7 +59,7 @@ public class ModuleExplosionSequence : MonoBehaviour, IGameOverPresenter, IModal
     // Pushed only while the cinematic plays: it blocks pause, the inventory and the gameplay
     // camera input, and the HUD hides itself (ModalVisibilityGate). The game keeps running.
     public string ModalId => "ModuleExplosionSequence";
-    public bool ConsumesEscape => true;
+    public ModalCloseKey CloseKey => ModalCloseKey.None;   // A cinematic: nothing closes it.
     public bool BlocksPause => true;
     public bool PausesGame => false;
     public void RequestClose() { }

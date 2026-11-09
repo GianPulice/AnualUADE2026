@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 ///   - Time.timeScale (0 when there is >= 1 modal) and the cursor (free + visible with a modal).
 ///
 /// How to add a new modal UI without breaking anything:
-///   1) Implement IModalUI on your controller (declare ConsumesEscape and BlocksPause).
+///   1) Implement IModalUI on your controller (declare CloseKey and BlocksPause).
 ///   2) Call UIStateManager.Instance.Push(this) on open and Pop(this) on close.
 ///   3) Remove any Time.timeScale and Cursor manipulation from your controller:
 ///      this manager governs them.
@@ -20,7 +20,12 @@ using UnityEngine.InputSystem;
 /// The rest of the game queries:
 ///   - UIStateManager.IsAnyModalOpen  -> block interaction, movement, camera.
 ///   - UIStateManager.IsBlockingPause -> the PauseManager asks before pausing.
-///   - UIStateManager.TopConsumesEscape -> ESC is eaten by the modal or goes up to the PauseManager.
+///   - UIStateManager.ClosedByKeyThisFrame -> a close key was spent this frame (do not reuse it).
+///
+/// The close keys: every gameplay UI closes with UI/Close (TAB), only the pause menu and Settings
+/// with UI/Exit (ESC). Each modal says which in IModalUI.CloseKey, and the top modal is the only
+/// one a key reaches. ESC over a TAB modal reaches nobody here, so the PauseManager opens the
+/// pause menu on top.
 /// </summary>
 public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
 {
@@ -28,10 +33,22 @@ public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
     public static event Action<IModalUI> OnModalPopped;
 
     [Header("Input")]
-    [Tooltip("UI/Exit action of InputSystem_Actions. Fires RequestClose() on the top modal that ConsumesEscape.")]
+    [Tooltip("UI/Exit action of InputSystem_Actions (ESC). Fires RequestClose() on the top modal " +
+             "whose CloseKey is Escape: the pause menu and Settings.")]
     [SerializeField] private InputActionReference exitAction;
 
+    [Tooltip("Path of the action that closes every other UI (TAB), looked up in the project-wide " +
+             "Input Actions. It is not a reference so no scene needs re-wiring.")]
+    [SerializeField] private string closeActionPath = "UI/Close";
+
     private Action<InputAction.CallbackContext> exitHandler;
+    private Action<InputAction.CallbackContext> closeHandler;
+    private InputAction closeAction;
+    private bool warnedNoCloseAction;
+
+    // Frame in which a close key last closed something. Gamepad B is bound to both actions, and
+    // the inventory reads the same TAB to open: one press closes one screen, never two.
+    private int lastKeyCloseFrame = -1;
 
     private readonly Stack<IModalUI> stack = new Stack<IModalUI>();
     private int topPushedFrame = -1;   // frame in which the current top was pushed
@@ -74,8 +91,22 @@ public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
         if (exitAction != null)
         {
             exitAction.action.Enable();
-            exitHandler = _ => OnExitPressed();
+            exitHandler = _ => OnCloseKeyPressed(ModalCloseKey.Escape);
             exitAction.action.performed += exitHandler;
+        }
+
+        closeAction = InputSystem.actions != null ? InputSystem.actions.FindAction(closeActionPath) : null;
+        if (closeAction != null)
+        {
+            closeAction.Enable();
+            closeHandler = _ => OnCloseKeyPressed(ModalCloseKey.Tab);
+            closeAction.performed += closeHandler;
+        }
+        else if (!warnedNoCloseAction)
+        {
+            warnedNoCloseAction = true;
+            Debug.LogWarning($"[UIStateManager] No '{closeActionPath}' action in the project-wide Input " +
+                             "Actions: the UIs that close with TAB cannot be closed by key.");
         }
     }
 
@@ -86,25 +117,34 @@ public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
             exitAction.action.performed -= exitHandler;
             exitHandler = null;
         }
+
+        if (closeAction != null && closeHandler != null)
+        {
+            closeAction.performed -= closeHandler;
+            closeHandler = null;
+        }
     }
 
     /// <summary>
-    /// The user pressed UI/Exit (ESC by default). If the top modal declares that it consumes
-    /// ESC, we ask it to close. If not, we do nothing (the PauseManager listens to the same
-    /// key with Player/Pause and will open the pause menu on top).
+    /// The user pressed a close key: UI/Exit (ESC) or UI/Close (TAB). The top modal closes only
+    /// if that is its <see cref="IModalUI.CloseKey"/>. Otherwise nothing happens here: an ESC over
+    /// a TAB modal is the PauseManager's (Player/Pause, same key), which opens the pause on top.
     ///
-    /// Important: if the top modal was pushed in this SAME frame, we ignore the event. This
-    /// avoids the race condition when Player/Pause and UI/Exit share the same key and both
-    /// fire in the same frame when opening the pause menu.
+    /// Ignored when the top modal was pushed in this SAME frame: Player/Pause and UI/Exit share
+    /// ESC, and Player/Inventory and UI/Close share TAB, so the press that opened a modal would
+    /// otherwise close it at once. Ignored too after a key already closed something this frame
+    /// (gamepad B sits on both actions).
     /// </summary>
-    private void OnExitPressed()
+    private void OnCloseKeyPressed(ModalCloseKey key)
     {
         if (stack.Count == 0) return;
         if (ScreenManager.IsInputLocked) return;
         if (topPushedFrame == Time.frameCount) return;
+        if (lastKeyCloseFrame == Time.frameCount) return;
         IModalUI top = stack.Peek();
         if (top == null) return;
-        if (!top.ConsumesEscape) return;
+        if (top.CloseKey != key) return;
+        lastKeyCloseFrame = Time.frameCount;
         top.RequestClose();
     }
 
@@ -127,16 +167,11 @@ public class UIStateManager : Singleton<UIStateManager>, ISessionResettable
         }
     }
 
-    /// <summary>True if the top modal wants to eat the ESC. False -> the ESC goes to the PauseManager.</summary>
-    public bool TopConsumesEscape
-    {
-        get
-        {
-            if (stack.Count == 0) return false;
-            IModalUI top = stack.Peek();
-            return top != null && top.ConsumesEscape;
-        }
-    }
+    /// <summary>
+    /// True during the frame a close key closed a modal. Anything that opens a UI on one of those
+    /// keys (the inventory on TAB) checks it, so the press is spent once.
+    /// </summary>
+    public bool ClosedByKeyThisFrame => lastKeyCloseFrame == Time.frameCount;
 
     public IModalUI Peek() => stack.Count > 0 ? stack.Peek() : null;
 

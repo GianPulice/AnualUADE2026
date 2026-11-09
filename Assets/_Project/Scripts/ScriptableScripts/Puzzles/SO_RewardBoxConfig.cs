@@ -4,9 +4,10 @@ using UnityEngine;
 /// Look, timing and texts shared by every <see cref="PuzzleRewardBox"/>. One asset for the whole
 /// game, so the boxes of every level open the same way and a tweak reaches all of them.
 ///
-/// The colours are an agreed exception to the colour rules (docs/Materials-System.md): amber while the
-/// box is locked (not red: red is kept for the Nemesis and danger), green once it is unlocked (the same
-/// green as a placed core and a resolved module).
+/// The colours are an agreed exception to the colour rules (docs/Materials-System.md): red while the
+/// box is locked, green once it is unlocked (the same green as a placed core and a resolved module).
+/// It was amber from 26/10 to 08/11; the playday showed amber reads as a clue (it is the colour of the
+/// player's own light), so the locked box went back to red.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_RewardBoxConfig", menuName = "Scriptable Objects/Puzzles/Reward Box Config")]
 public class SO_RewardBoxConfig : ScriptableObject
@@ -14,11 +15,11 @@ public class SO_RewardBoxConfig : ScriptableObject
     [Header("Glow and light")]
     [Tooltip("Base colour of the glow parts (the lock LEDs and the screen) while locked. Also the " +
              "colour of the box's light and fog beacon.")]
-    [SerializeField] private Color lockedColor = new Color(1f, 0.6f, 0f);
+    [SerializeField] private Color lockedColor = new Color(1f, 0.06f, 0.03f);
 
-    [Tooltip("Emission of the glow parts while locked. HDR values are linear: green about half of red " +
-             "and blue near zero reads as amber; more green drifts to yellow, more blue to pale peach.")]
-    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(2.4f, 1.1f, 0.15f);
+    [Tooltip("Emission of the glow parts while locked. HDR values are linear: keep green and blue near " +
+             "zero. A red with about 0.4 in both reads as pale pink on the shot.")]
+    [SerializeField, ColorUsage(false, true)] private Color lockedEmission = new Color(2.4f, 0.03f, 0.02f);
 
     [Tooltip("Base colour of the glow parts once unlocked, and of the light and beacon.")]
     [SerializeField] private Color unlockedColor = new Color(0.1f, 0.9f, 0.25f);

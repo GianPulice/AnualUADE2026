@@ -11,7 +11,7 @@ public class PauseManagerUI : BaseScreenController<PauseView, EmptyScreenModel>,
 
     // -- IModalUI --
     public string ModalId => "Pause";
-    public bool ConsumesEscape => true;   // ESC closes the pause menu.
+    public ModalCloseKey CloseKey => ModalCloseKey.Escape;   // ESC opens and closes the pause menu.
     public bool BlocksPause   => false;   // It IS the pause menu: it does not block itself.
     public bool PausesGame    => true;
     public void RequestClose() => PauseManager.RequestUnpause();

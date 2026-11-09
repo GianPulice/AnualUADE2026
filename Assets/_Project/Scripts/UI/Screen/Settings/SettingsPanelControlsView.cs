@@ -4,8 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Controls panel of the Settings screen: sensitivity + invert Y (both functional,
-/// applied by CameraSensitivityApplier on Apply).
+/// Controls panel of the Settings screen: sensitivity + invert Y (applied by
+/// CameraSensitivityApplier on Apply) and the sprint mode, hold or toggle (read by GameInput on Apply).
 /// The wireframe's keybinds are static labels for now — rebinding will be done when it is
 /// implemented with the InputSystem.
 /// </summary>
@@ -18,8 +18,13 @@ public class SettingsPanelControlsView : MonoBehaviour
     [Header("Invert Y")]
     [SerializeField] private Toggle _toggleInvertY;
 
+    [Header("Sprint")]
+    [Tooltip("On = Shift toggles sprint. Off = hold Shift to sprint.")]
+    [SerializeField] private Toggle _toggleSprintToggle;
+
     public event Action<float> OnSensitivityChanged;
     public event Action<bool>  OnInvertYChanged;
+    public event Action<bool>  OnSprintToggleChanged;
 
     private void Awake()
     {
@@ -32,12 +37,16 @@ public class SettingsPanelControlsView : MonoBehaviour
 
         if (_toggleInvertY != null)
             _toggleInvertY.onValueChanged.AddListener(v => OnInvertYChanged?.Invoke(v));
+
+        if (_toggleSprintToggle != null)
+            _toggleSprintToggle.onValueChanged.AddListener(v => OnSprintToggleChanged?.Invoke(v));
     }
 
     private void OnDestroy()
     {
         if (_sliderSensitivity != null) _sliderSensitivity.onValueChanged.RemoveAllListeners();
         if (_toggleInvertY != null)     _toggleInvertY.onValueChanged.RemoveAllListeners();
+        if (_toggleSprintToggle != null) _toggleSprintToggle.onValueChanged.RemoveAllListeners();
     }
 
     public void Populate(SettingsModel model)
@@ -46,6 +55,7 @@ public class SettingsPanelControlsView : MonoBehaviour
 
         if (_sliderSensitivity != null) _sliderSensitivity.SetValueWithoutNotify(model.Sensitivity);
         if (_toggleInvertY != null)     _toggleInvertY.SetIsOnWithoutNotify(model.InvertYAxis);
+        if (_toggleSprintToggle != null) _toggleSprintToggle.SetIsOnWithoutNotify(model.SprintToggle);
 
         SetLabel(_labelSensitivity, model.Sensitivity);
     }

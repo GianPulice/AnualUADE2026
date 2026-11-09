@@ -21,6 +21,8 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
     {
         //Debug.Log("Exit Moving State");
         playerStateManager.SpeedMultiplier = 1;
+        // A toggled sprint ends with the movement: stopping, crouching or hiding all leave here.
+        GameInput.ReleaseSprint();
         if (NextState != PlayerStateManager.EPlayerState.Crouch)
         {
             playerStateManager.CurrentVelocity = 0;
@@ -55,7 +57,7 @@ public class PlayerMovingState : BaseState<PlayerStateManager.EPlayerState>
             if (playerStateManager.InputDir != Vector3.zero)
             {
                 // Sprint mechanic (chest penalty reduces the sprint multiplier — 1 while healthy)
-                if (GameInput.SprintHeld)
+                if (GameInput.SprintActive)
                 {
                     playerStateManager.SpeedMultiplier = playerStateManager.Movement.SprintSpeedMultiplier * playerStateManager.SprintPenaltyFactor;
                     playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;

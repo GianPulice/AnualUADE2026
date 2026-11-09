@@ -1,10 +1,27 @@
 /// <summary>
+/// The key that closes a modal. One per modal, so two keys never fight over the same screen:
+/// every gameplay UI closes with TAB, and ESC belongs to the pause menu (and to Settings, which
+/// is part of it). Stored nowhere: each modal returns its own value.
+/// </summary>
+public enum ModalCloseKey
+{
+    /// <summary>No key closes it (result screens, cinematics). It closes through its own buttons or code.</summary>
+    None = 0,
+
+    /// <summary>UI/Exit (ESC, gamepad Start / B). Only the pause menu and Settings.</summary>
+    Escape = 1,
+
+    /// <summary>UI/Close (TAB, gamepad Select / B). Every other UI. ESC over it opens the pause menu.</summary>
+    Tab = 2,
+}
+
+/// <summary>
 /// Any modal UI that must block gameplay (inventory, sequence panel, document reader,
 /// settings, pause menu...) implements this interface and registers itself in the
 /// UIStateManager when it opens.
 ///
-/// The UIStateManager takes care of Time.timeScale, the cursor, and deciding who receives
-/// the cancel input (ESC).
+/// The UIStateManager takes care of Time.timeScale, the cursor, and deciding which modal the
+/// close keys reach (see <see cref="CloseKey"/>).
 /// </summary>
 public interface IModalUI
 {
@@ -12,10 +29,12 @@ public interface IModalUI
     string ModalId { get; }
 
     /// <summary>
-    /// true  -> this modal absorbs ESC and uses it to close inner layers or itself.
-    /// false -> ESC passes through and opens the pause menu on top (e.g. the sequence panel).
+    /// Which key closes this modal while it is on top. The UIStateManager calls
+    /// <see cref="RequestClose"/> when that key is pressed and ignores the other one: ESC over a
+    /// <see cref="ModalCloseKey.Tab"/> modal opens the pause menu on top instead (unless
+    /// <see cref="BlocksPause"/>).
     /// </summary>
-    bool ConsumesEscape { get; }
+    ModalCloseKey CloseKey { get; }
 
     /// <summary>
     /// true  -> while this modal is open, the PauseManager CANNOT open on top of it.

@@ -63,7 +63,7 @@ public class ItemDetailView : MonoBehaviour
 
     [Header("Doc Panel (Text-type items)")]
     [Tooltip("Shows the selected Text item's document, above the description, as soon as the item " +
-             "is selected. It hides with the selection (ESC, deselect, another item type, inventory " +
+             "is selected. It hides with the selection (deselect, another item type, inventory " +
              "closed). Its X clears the selection.")]
     [SerializeField] private DocPanelView docPanel;
 
@@ -105,7 +105,7 @@ public class ItemDetailView : MonoBehaviour
     void Awake()
     {
         // The X inside the doc panel routes back through the Controller and clears the selection,
-        // exactly like ESC does, so the panel can never outlive the selection it belongs to.
+        // like clicking the row again, so the panel can never outlive the selection it belongs to.
         if (docPanel != null) docPanel.OnCloseRequested += OnDocCloseRequested;
 
         if (enableAudioFeatures)
@@ -318,7 +318,7 @@ public class ItemDetailView : MonoBehaviour
     // ── Callbacks ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The X inside the doc panel. Clears the selection, as ESC does; ShowEmpty() then hides the
+    /// The X inside the doc panel. Clears the selection, as clicking the row again does; ShowEmpty() then hides the
     /// panel. Hiding only the panel would leave the item selected with no way to bring it back.
     /// </summary>
     private void OnDocCloseRequested()

@@ -8,7 +8,7 @@ public class WinController : BaseScreenController<WinView, GameResultModel>, IMo
     // re-locks the cursor every frame, so the win screen came up with no mouse to click its
     // buttons, and ESC opened the pause menu over it. Time.timeScale stays hand-managed here.
     public string ModalId => "Win";
-    public bool ConsumesEscape => false;
+    public ModalCloseKey CloseKey => ModalCloseKey.None;
     public bool BlocksPause   => true;
     public bool PausesGame    => false;
     public void RequestClose() { }

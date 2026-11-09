@@ -32,6 +32,9 @@ public class SettingsModel : BaseScreenModel
     private const string KEY_VSYNC        = "Settings_VSync";
     private const string KEY_AUDIO_BG     = "Settings_AudioInBackground";
     private const string KEY_LOWFREQ      = "Settings_LowFreqAmbience";
+    // Read by GameInput (SprintActive) when OnSettingsApplied fires. GameInput.SprintToggleKey is
+    // the same string: keep them together.
+    private const string KEY_SPRINT_TOGGLE = GameInput.SprintToggleKey;
 
     // ── Defaults ─────────────────────────────────────────────────────────────
     private const float  DEFAULT_SENSITIVITY = 1f;
@@ -46,6 +49,7 @@ public class SettingsModel : BaseScreenModel
     private const int    DEFAULT_FPS_LIMIT   = 0;
     private const bool   DEFAULT_VSYNC       = true;
     private const bool   DEFAULT_AUDIO_BG    = false;
+    private const bool   DEFAULT_SPRINT_TOGGLE = false;   // hold, as it always was
 
     // Ships ON: the low-frequency ambient layers are part of the intended experience, and a player
     // who needs them off opts out. Sustained very-low-frequency content is a documented nausea and
@@ -72,10 +76,12 @@ public class SettingsModel : BaseScreenModel
     public bool  VSync            { get; private set; }
     public bool  AudioInBackground { get; private set; }
     public bool  LowFreqAmbience  { get; private set; }
+    /// <summary>true = Shift toggles sprint; false = hold Shift to sprint.</summary>
+    public bool  SprintToggle     { get; private set; }
 
     // ── Snapshot for revert ──────────────────────────────────────────────────
     private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity;
-    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg, _snapLowFreq;
+    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg, _snapLowFreq, _snapSprintToggle;
     private float _snapBrightness, _snapContrast, _snapGamma;
     private int   _snapResolution, _snapWindowMode, _snapFPSLimit;
 
@@ -102,6 +108,7 @@ public class SettingsModel : BaseScreenModel
         VSync             = GetPrefBool(KEY_VSYNC,                DEFAULT_VSYNC);
         AudioInBackground = GetPrefBool(KEY_AUDIO_BG,             DEFAULT_AUDIO_BG);
         LowFreqAmbience   = GetPrefBool(KEY_LOWFREQ,              DEFAULT_LOWFREQ);
+        SprintToggle      = GetPrefBool(KEY_SPRINT_TOGGLE,        DEFAULT_SPRINT_TOGGLE);
 
         IsInitialized = true;
         TakeSnapshot();
@@ -156,6 +163,7 @@ public class SettingsModel : BaseScreenModel
     public void SetVSync(bool v)            { VSync = v;                      NotifyDataChanged(); }
     public void SetAudioInBackground(bool v){ AudioInBackground = v;          NotifyDataChanged(); }
     public void SetLowFreqAmbience(bool v)  { LowFreqAmbience = v;            NotifyDataChanged(); }
+    public void SetSprintToggle(bool v)     { SprintToggle = v;               NotifyDataChanged(); }
 
     // ── Persistence ──────────────────────────────────────────────────────────
 
@@ -178,6 +186,7 @@ public class SettingsModel : BaseScreenModel
         SetPrefBool(KEY_VSYNC,               VSync);
         SetPrefBool(KEY_AUDIO_BG,            AudioInBackground);
         SetPrefBool(KEY_LOWFREQ,             LowFreqAmbience);
+        SetPrefBool(KEY_SPRINT_TOGGLE,       SprintToggle);
 
         PlayerPrefs.Save();
 
@@ -209,6 +218,7 @@ public class SettingsModel : BaseScreenModel
         VSync             = DEFAULT_VSYNC;
         AudioInBackground = DEFAULT_AUDIO_BG;
         LowFreqAmbience   = DEFAULT_LOWFREQ;
+        SprintToggle      = DEFAULT_SPRINT_TOGGLE;
 
         PushVolumesToAudioManager();
         NotifyDataChanged();
@@ -233,6 +243,7 @@ public class SettingsModel : BaseScreenModel
         VSync             = _snapVSync;
         AudioInBackground = _snapAudioBg;
         LowFreqAmbience   = _snapLowFreq;
+        SprintToggle      = _snapSprintToggle;
 
         // The mixer was changing live while the user moved the sliders;
         // on revert we have to push the snapshot values back to the mixer.
@@ -258,6 +269,7 @@ public class SettingsModel : BaseScreenModel
         _snapVSync       = VSync;
         _snapAudioBg     = AudioInBackground;
         _snapLowFreq     = LowFreqAmbience;
+        _snapSprintToggle = SprintToggle;
     }
 
     private void PushVolumesToAudioManager()

@@ -8,7 +8,7 @@ using UnityEngine;
 ///
 /// It lives in the <c>LevelUI</c> scene. The puzzle logic lives in the Interactable;
 /// this controller only orchestrates the open/close flow. Time.timeScale, the cursor and
-/// ESC handling are governed by the <see cref="UIStateManager"/>.
+/// the close key (TAB) are governed by the <see cref="UIStateManager"/>.
 /// </summary>
 public class SequencePanelUIController
     : BaseScreenController<SequencePanelView, SequencePanelModel>, IModalUI
@@ -22,7 +22,7 @@ public class SequencePanelUIController
 
     // ── IModalUI ────────────────────────────────────────────────────────────
     public string ModalId       => "SequencePanel";
-    public bool   ConsumesEscape => false;   // ESC goes to the pause menu (the panel stays underneath).
+    public ModalCloseKey CloseKey => ModalCloseKey.Tab;   // ESC opens the pause menu on top (the panel stays underneath).
     public bool   BlocksPause   => false;   // Allows pausing on top.
     public bool   PausesGame    => true;
     public void RequestClose() => CloseSafe().Forget();

@@ -12,7 +12,7 @@ using UnityEngine;
 /// relative to its own values (wider zone, slower needle); [E] outside — or no press within the asset's lap limit — fails: the running
 /// module loses the check's penalty seconds and, by default, the SAME check is played again (the
 /// asset can make it restart from the first one instead). The sequence only ends when every check
-/// is passed, or when it is interrupted with ESC (if the asset allows it), which loses its progress.
+/// is passed, or when it is interrupted with TAB (if the asset allows it), which loses its progress.
 ///
 /// Between checks the system calms down, as the spec asks: the camera shake and the ambience
 /// agitation drop step by step (provisional, through <see cref="CameraShake"/> and
@@ -35,17 +35,16 @@ public class StabilizationCheckController
 
     // ── IModalUI ────────────────────────────────────────────────────────────
     public string ModalId => "StabilizationCheck";
-    // ESC interrupts the stabilization (spec: leaving the checks) when the asset allows it;
-    // otherwise it passes through to the pause menu and the needle waits under it.
-    public bool ConsumesEscape => ActiveData == null || ActiveData.AllowAbort;
-    // ESC both opens the pause menu (a global overlay) and reaches the top modal. While aborting is
-    // allowed the stabilization keeps ESC for itself, so the key leaves the checks instead of pausing
-    // over them; with aborting off it lets the pause menu open and the needle waits underneath.
-    public bool BlocksPause => IsOpen && ActiveData != null && ActiveData.AllowAbort;
+    // TAB interrupts the stabilization (spec: leaving the checks) when the asset allows it, like
+    // every other gameplay UI; with aborting off no key closes it.
+    public ModalCloseKey CloseKey => ActiveData == null || ActiveData.AllowAbort ? ModalCloseKey.Tab : ModalCloseKey.None;
+    // ESC is the pause menu's key and only that: it opens the pause over the checks and the needle
+    // waits underneath, whether aborting is allowed or not.
+    public bool BlocksPause => false;
     public bool PausesGame => false;      // the world keeps running
-    // Always honoured: with aborting off, ESC never reaches here (ConsumesEscape is false), so the
-    // only callers left are the ones that must close it — UIStateManager.CloseAll on the way back
-    // to the main menu, for one.
+    // Always honoured: with aborting off, TAB never reaches here (CloseKey is None), so the only
+    // callers left are the ones that must close it — UIStateManager.CloseAll on the way back to
+    // the main menu, for one.
     public void RequestClose() => Cancel();
 
     /// <summary>From <see cref="Open"/> until the overlay has closed again.</summary>

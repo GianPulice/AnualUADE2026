@@ -12,7 +12,7 @@ using UnityEngine.UI;
 /// from the inventory look like the same object. <see cref="DocPanelView"/> stays exactly as it
 /// was; this is a second, larger instance of the look, not a replacement.
 ///
-/// It owns no policy: the X, the dim, the ESC hint and ESC itself all end up raising <see cref="OnCloseRequested"/>,
+/// It owns no policy: the X, the dim, the TAB hint and TAB itself all end up raising <see cref="OnCloseRequested"/>,
 /// and <see cref="DocumentReaderController"/> decides what closing means. One close path is what
 /// keeps the UIStateManager stack honest.
 /// </summary>
@@ -39,8 +39,8 @@ public class DocumentReaderView : BaseScreenView
 
     [Header("Footer")]
     [SerializeField] private TextMeshProUGUI hintText;
-    [SerializeField] private string hintLabel = "[ ESC ]  CLOSE";
-    [Tooltip("Button on the hint itself: plenty of players click \"[ ESC ] CLOSE\" instead of pressing ESC.")]
+    [SerializeField] private string hintLabel = "[ TAB ]  CLOSE";
+    [Tooltip("Button on the hint itself: plenty of players click \"[ TAB ] CLOSE\" instead of pressing TAB.")]
     [SerializeField] private Button hintButton;
 
     /// <summary>Raised by the X, by a click on the dim or on the hint, and by anything else that means "close".</summary>

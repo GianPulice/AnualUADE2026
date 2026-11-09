@@ -17,7 +17,7 @@ using UnityEngine.UI;
 /// selection: a Text item calls <see cref="Show"/>, anything else (or no selection) calls
 /// <see cref="Hide"/>. There is no open/close state of its own to unwind — the X only raises
 /// <see cref="OnCloseRequested"/>, and the owner turns that into "clear the selection", exactly
-/// what ESC does, so the panel can never disagree with what is selected.
+/// what clicking the selected row again does, so the panel can never disagree with what is selected.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 [AddComponentMenu("WIRED/UI/Doc Panel View")]

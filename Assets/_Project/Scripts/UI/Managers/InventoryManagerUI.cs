@@ -5,10 +5,9 @@ using UnityEngine;
 /// Main controller of the inventory UI system.
 ///
 /// Responsibilities:
-///   - Handle input (Tab opens, ESC/Tab closes, layer stack)
+///   - Handle input (Tab opens; UIStateManager closes it with Tab, see CloseKey)
 ///   - Enable/disable the mouse cursor
 ///   - Orchestrate communication between Model and Views through InventoryEvents
-///   - Keep the stack of active layers (inventory -> dialog -> ESC)
 ///
 /// Modules are NOT handled here. This class used to own a parallel copy of the module system
 /// (its own list, timers, explosion and session time) that ModuleManager has since replaced;
@@ -24,7 +23,7 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 {
     // -- IModalUI -------------------
     public string ModalId => "Inventory";
-    public bool ConsumesEscape => true;   // ESC closes inventory layers if pause is NOT on top
+    public ModalCloseKey CloseKey => ModalCloseKey.Tab;   // ESC over it opens the pause menu instead
     public bool BlocksPause   => false;   // Pause is a global overlay: it can open on top of the inventory
 
     // The world keeps running while you read your inventory. Checking your bag is not a time-out:
@@ -34,9 +33,9 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     // (PauseManager.IsGameplayInputBlocked), not from timeScale, so nothing here has to change for
     // it. Module timers and the Nemesis carry on, which is the point.
     public bool PausesGame    => false;
-    // RequestClose handles ALL inventory layers (selection -> inventory). The doc panel is not a
-    // layer of its own: it follows the selection, so clearing the selection folds it.
-    public void RequestClose() => HandleCancelInput();
+    // TAB closes the whole inventory in one press, selection included (CloseInventory folds the
+    // detail and the doc panel). Also what UIStateManager.CloseAll calls, which needs it shut.
+    public void RequestClose() => CloseInventory();
 
     [Header("Views")]
     [SerializeField] private InventoryView inventoryView;
@@ -48,7 +47,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     private bool isInventoryOpen = false;
 
     private SO_InventoryItem selectedItem = null;
-    private SO_InventoryItem currentSelectedItem;
 
     // -- Unity -------------------
 
@@ -99,41 +97,37 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
 
     private void HandleInput()
     {
-        // Closing with ESC is governed by UIStateManager (UI/Exit action -> RequestClose).
-        // Here we only handle Player/Inventory (Tab / Select) to open/close it.
+        // Only OPENING lives here (Player/Inventory: Tab / Select). Closing is UIStateManager's
+        // (UI/Close -> RequestClose), the same key and the same path as every other UI, so one TAB
+        // can never close one screen and toggle another.
 
         if (!GameInput.InventoryPressed) return;
         if (ScreenManager.IsInputLocked) return;
+        if (isInventoryOpen) return;
 
-        if (isInventoryOpen)
-        {
-            // We only close with the toggle if the inventory is the top of the stack.
-            if (UIStateManager.Exists && !ReferenceEquals(UIStateManager.Instance.Peek(), this)) return;
+        // The TAB that just closed a note or a panel is the same TAB read here: without this the
+        // inventory would open the frame the other UI closed.
+        if (UIStateManager.Exists && UIStateManager.Instance.ClosedByKeyThisFrame) return;
 
-            CloseInventory();
-        }
-        else
-        {
-            // Not while captured. The original reason was that opening a menu froze the Nemesis
-            // mid-capture — it could not finish its grace period and get back to Patrolling — for
-            // as long as the inventory stayed open; that one is gone now that the inventory does
-            // not touch timeScale. The guard stays for the plainer reason: being grabbed is not a
-            // moment the player gets to go rummaging through their bag.
-            // Nor while lying on the floor or getting up.
-            if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsImmobilized) return;
+        // Not while captured. The original reason was that opening a menu froze the Nemesis
+        // mid-capture — it could not finish its grace period and get back to Patrolling — for
+        // as long as the inventory stayed open; that one is gone now that the inventory does
+        // not touch timeScale. The guard stays for the plainer reason: being grabbed is not a
+        // moment the player gets to go rummaging through their bag.
+        // Nor while lying on the floor or getting up.
+        if (PlayerRegistry.Current != null && PlayerRegistry.Current.IsImmobilized) return;
 
-            // Nor from inside a hiding spot, nor half way into one (hiding spec §6). Two reasons,
-            // and the second is the one that matters: the inventory is a full-screen modal that
-            // takes the camera away, and the whole point of being in the locker is watching the
-            // gap for the monster walking past. A menu there is a blindfold the player asked for
-            // by accident.
-            if (PlayerRegistry.Current != null &&
-                (PlayerRegistry.Current.IsHidden || PlayerRegistry.Current.IsHidingTransition)) return;
+        // Nor from inside a hiding spot, nor half way into one (hiding spec §6). Two reasons,
+        // and the second is the one that matters: the inventory is a full-screen modal that
+        // takes the camera away, and the whole point of being in the locker is watching the
+        // gap for the monster walking past. A menu there is a blindfold the player asked for
+        // by accident.
+        if (PlayerRegistry.Current != null &&
+            (PlayerRegistry.Current.IsHidden || PlayerRegistry.Current.IsHidingTransition)) return;
 
-            // Only opens if there is no other modal on top (pause, panel, doc...).
-            if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
-            OpenInventory();
-        }
+        // Only opens if there is no other modal on top (pause, panel, doc...).
+        if (UIStateManager.Exists && UIStateManager.Instance.IsAnyModalOpen) return;
+        OpenInventory();
     }
 
     // -- Open / Close --------------------
@@ -205,7 +199,6 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
     {
         if (item == null) return;
         selectedItem = item;
-        currentSelectedItem = item;
 
         // Selecting it is looking at it: no longer NEW, and a note is read the moment it is
         // selected — a Text note shows its doc on the spot, there is nothing further to open.
@@ -243,26 +236,14 @@ public class InventoryManagerUI : Singleton<InventoryManagerUI>, IModalUI
         itemDetailView?.ShowDetail(item);
     }
 
-    private void HandleCancelInput()
-    {
-        if (currentSelectedItem != null)
-        {
-            ClearSelection();
-            return;
-        }
-
-        CloseInventory();
-    }
-
     /// <summary>
-    /// Drops the selection: no highlighted row, pop-up folded. Called by ESC, by clicking the
+    /// Drops the selection: no highlighted row, pop-up folded. Called by clicking the
     /// selected row again and by the doc panel's X. The doc panel belongs to the selected item,
     /// so the null selection folds it too (ItemDetailView.ShowEmpty).
     /// </summary>
     public void ClearSelection()
     {
         selectedItem = null;
-        currentSelectedItem = null;
 
         InventoryEvents.ItemSelected(null);
 

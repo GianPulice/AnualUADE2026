@@ -14,7 +14,7 @@ using UnityEngine;
 /// own values (a wider zone and a slower needle by the Perfect section's fractions). A failure takes
 /// <see cref="StabilizationCheck.timerPenaltyOnFail"/> seconds off the running module and, by
 /// default, repeats the SAME check (the Rules section can change that, and whether timeouts cost
-/// time, and whether ESC may interrupt). An interrupted sequence loses its progress: the panel
+/// time, and whether TAB may interrupt). An interrupted sequence loses its progress: the panel
 /// starts from the first check next time.
 ///
 /// Completing every check completes <see cref="PuzzleId"/>, which resolves M2 (its
@@ -95,8 +95,8 @@ public class SO_StabilizationPuzzleData : ScriptableObject
     [Tooltip("Whether a retried check puts its success zone somewhere new. Off = same place.")]
     [SerializeField] private bool newZoneOnRetry = true;
 
-    [Tooltip("Whether ESC interrupts the stabilization (its progress is lost). Off = ESC opens the " +
-             "pause menu over it and the checks wait.")]
+    [Tooltip("Whether TAB interrupts the stabilization (its progress is lost). Off = no key closes it. " +
+             "ESC always opens the pause menu over it and the checks wait.")]
     [SerializeField] private bool allowAbort = true;
 
     [Tooltip("Where the success zone may start, in degrees (0 = twelve o'clock, clockwise). " +

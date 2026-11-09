@@ -38,7 +38,7 @@ public class ResultScreenController : BaseScreenController<ResultView, GameResul
     // Only for the cursor/camera-input handling UIStateManager already does for every modal —
     // see the class doc comment. Time.timeScale stays hand-managed, so PausesGame is false.
     public string ModalId => "Result";
-    public bool ConsumesEscape => false;
+    public ModalCloseKey CloseKey => ModalCloseKey.None;
     public bool BlocksPause   => true;
     public bool PausesGame    => false;
     public void RequestClose() { }

@@ -2934,7 +2934,7 @@ MonoBehaviour:
   statusPrefix: '> '
   standbyString: STAND BY
   readyString: 'PRESS [E]'
-  abortHintString: '   ([ESC] ABORT)'
+  abortHintString: '   ([TAB] ABORT)'
   successString: STABLE
   failString: FAILURE  -{0:0}s
   failNoPenaltyString: FAILURE

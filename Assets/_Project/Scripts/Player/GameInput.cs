@@ -28,6 +28,50 @@ public static class GameInput
 
     public static bool SprintHeld        => Sprint != null && sprint.IsPressed();
     public static bool CrouchPressed     => Crouch != null && crouch.WasPressedThisFrame();
+
+    // ── Sprint mode (Settings > Controls) ────────────────────────────────────
+    /// <summary>PlayerPrefs key of the sprint mode, written by <see cref="SettingsModel"/>. 1 = toggle.</summary>
+    public const string SprintToggleKey = "Settings_SprintToggle";
+
+    private static bool sprintModeLoaded, sprintToggleMode, sprintLatched;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetSprintStatics()
+    {
+        // Domain reload may be off: without this the last session's mode and latch carry over.
+        SettingsModel.OnSettingsApplied -= ReloadSprintMode;
+        sprintModeLoaded = false;
+        sprintLatched = false;
+    }
+
+    /// <summary>
+    /// Whether the player wants to sprint this frame. Hold mode: the key is down. Toggle mode: a
+    /// press starts the sprint and the next one stops it; leaving the moving state stops it too
+    /// (<see cref="ReleaseSprint"/>), so a player who stops never starts running again by surprise.
+    /// Read every frame the player moves, and only then (<see cref="PlayerMovingState"/>).
+    /// </summary>
+    public static bool SprintActive
+    {
+        get
+        {
+            if (Sprint == null) return false;
+            if (!sprintModeLoaded) ReloadSprintMode();
+            if (!sprintToggleMode) return sprint.IsPressed();
+            if (sprint.WasPressedThisFrame()) sprintLatched = !sprintLatched;
+            return sprintLatched;
+        }
+    }
+
+    /// <summary>Ends a toggled sprint. Called when the player stops moving or changes stance.</summary>
+    public static void ReleaseSprint() => sprintLatched = false;
+
+    private static void ReloadSprintMode()
+    {
+        if (!sprintModeLoaded) SettingsModel.OnSettingsApplied += ReloadSprintMode;
+        sprintModeLoaded = true;
+        sprintToggleMode = PlayerPrefs.GetInt(SprintToggleKey, 0) != 0;
+        sprintLatched = false;
+    }
     public static bool InteractPressed   => Interact != null && interact.WasPressedThisFrame();
     public static bool InventoryPressed  => Inventory != null && inventory.WasPressedThisFrame();
 

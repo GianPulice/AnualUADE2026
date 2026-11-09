@@ -13,7 +13,7 @@ using UnityEngine;
 ///     <see cref="NoteInteractable"/>: the world keeps running behind the sheet and it closes by
 ///     itself as soon as the crosshair leaves the thing that opened it.
 ///
-/// Both close through <see cref="RequestClose"/>, which is also what the X, the dim and ESC end up
+/// Both close through <see cref="RequestClose"/>, which is also what the X, the dim and TAB end up
 /// calling — see <see cref="DocumentReaderView.OnCloseRequested"/>.
 /// </summary>
 public class DocumentReaderController : BaseScreenController<DocumentReaderView, DocumentReaderModel>, IModalUI
@@ -40,7 +40,7 @@ public class DocumentReaderController : BaseScreenController<DocumentReaderView,
 
     // ── IModalUI ─────────────────────────────────────────────────────────────
     public string ModalId        => "DocumentReader";
-    public bool   ConsumesEscape => true;
+    public ModalCloseKey CloseKey => ModalCloseKey.Tab;
 
     /// <summary>
     /// Only in reading mode. The pause canvas sorts at 1 and this one at 60, so a pause menu

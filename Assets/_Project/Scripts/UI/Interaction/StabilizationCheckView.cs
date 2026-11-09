@@ -32,7 +32,7 @@ public class StabilizationCheckView : BaseScreenView
     [SerializeField] private Graphic needle;
 
     [Header("Window")]
-    [Tooltip("The title bar's [X]: interrupts the stabilization, like ESC. Hidden when the asset " +
+    [Tooltip("The title bar's [X]: interrupts the stabilization, like TAB. Hidden when the asset " +
              "does not allow aborting.")]
     [SerializeField] private Button closeButton;
 
@@ -48,8 +48,8 @@ public class StabilizationCheckView : BaseScreenView
     [SerializeField] private string statusPrefix = "> ";
     [SerializeField] private string standbyString = "STAND BY";
     [SerializeField] private string readyString = "PRESS [E]";
-    [Tooltip("Added after the ready line when the asset lets ESC interrupt the stabilization.")]
-    [SerializeField] private string abortHintString = "   ([ESC] ABORT)";
+    [Tooltip("Added after the ready line when the asset lets TAB interrupt the stabilization.")]
+    [SerializeField] private string abortHintString = "   ([TAB] ABORT)";
     [SerializeField] private string successString = "STABLE";
     [SerializeField] private string perfectString = "PERFECT";
     [Tooltip("{0} = seconds taken off the module.")]

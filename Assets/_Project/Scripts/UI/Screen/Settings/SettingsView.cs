@@ -35,6 +35,7 @@ public class SettingsView : BaseScreenView
 
     // Applied to the game by their appliers (see *Applier.cs) on Apply:
     public event Action<bool>  OnInvertYChanged;
+    public event Action<bool>  OnSprintToggleChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;
     public event Action<float> OnGammaChanged;
@@ -102,15 +103,18 @@ public class SettingsView : BaseScreenView
         if (_controlsPanel == null) return;
         _controlsPanel.OnSensitivityChanged += ForwardSensitivity;
         _controlsPanel.OnInvertYChanged     += ForwardInvertY;
+        _controlsPanel.OnSprintToggleChanged += ForwardSprintToggle;
     }
     private void UnwireControlsPanel()
     {
         if (_controlsPanel == null) return;
         _controlsPanel.OnSensitivityChanged -= ForwardSensitivity;
         _controlsPanel.OnInvertYChanged     -= ForwardInvertY;
+        _controlsPanel.OnSprintToggleChanged -= ForwardSprintToggle;
     }
     private void ForwardSensitivity(float v) => OnSensitivityChanged?.Invoke(v);
     private void ForwardInvertY(bool v)      => OnInvertYChanged?.Invoke(v);
+    private void ForwardSprintToggle(bool v) => OnSprintToggleChanged?.Invoke(v);
 
     private void WireBrightnessPanel()
     {
