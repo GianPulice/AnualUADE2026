@@ -763,7 +763,23 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         // remembered instead and honoured automatically as soon as the space above clears.
         // Not under a menu: on a gamepad B is both Crouch and UI/Exit, and closing the inventory
         // must not crouch the player too.
-        if (GameInput.CrouchPressed && !PauseManager.IsGameplayInputBlocked)
+        // Hold mode (Settings > Controls): the press crouches and the release asks to stand, through
+        // the same headroom latch as the toggle. Edges only, never the held state, so a crouch some
+        // other system set (a box released, a capture) is not undone by a key that is not down.
+        if (!GameInput.CrouchToggleMode && !PauseManager.IsGameplayInputBlocked)
+        {
+            if (GameInput.CrouchPressed)
+            {
+                isCrouch = true;
+                wantsToStand = false;
+            }
+            else if (GameInput.CrouchReleased && isCrouch)
+            {
+                if (HasHeadroomToStand()) isCrouch = false;
+                else wantsToStand = true;
+            }
+        }
+        else if (GameInput.CrouchPressed && !PauseManager.IsGameplayInputBlocked)
         {
             if (!isCrouch)
             {

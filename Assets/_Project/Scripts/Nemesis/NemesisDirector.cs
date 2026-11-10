@@ -1319,7 +1319,8 @@ public class NemesisDirector : Singleton<NemesisDirector>
         Transform player = PlayerRegistry.CurrentTransform;
         if (player == null) return;
 
-        NemesisPressureZone zone = FindFarthestZone(player.position);
+        Vector3? nemesisPosition = nemesis != null && nemesis.IsActive ? nemesis.transform.position : (Vector3?)null;
+        NemesisPressureZone zone = FindFarthestZone(player.position, nemesisPosition);
         if (zone == null) return;
 
         float duration = Mathf.Max(1f, tension.StateTimeRemaining);
@@ -1703,10 +1704,25 @@ public class NemesisDirector : Singleton<NemesisDirector>
         return best;
     }
 
-    /// <summary>Farthest by NavMesh; farthest in a straight line when nothing is reachable.</summary>
-    private static NemesisPressureZone FindFarthestZone(Vector3 playerPosition)
+    /// <summary>
+    /// Farthest from the player by NavMesh; farthest in a straight line when the player has no path to
+    /// any of them. Only among the zones the Nemesis can walk to, when it can walk to any.
+    ///
+    /// That last rule is Zona 2's (09/11/2026). The player is often where no path starts — the hub is
+    /// Not Walkable, and a capture in Zona 2 respawns them there — and the straight-line fallback then
+    /// picked the farthest zone in the scene: one of Zona 1's (or of the testbed's, in the Zona 2 Lab),
+    /// on a NavMesh island the Nemesis cannot reach, so the retreat anchored the patrol at nothing.
+    /// </summary>
+    private static NemesisPressureZone FindFarthestZone(Vector3 playerPosition, Vector3? nemesisPosition)
     {
         IReadOnlyList<NemesisPressureZone> zones = NemesisPressureZone.Active;
+
+        bool anyReachable = false;
+        if (nemesisPosition.HasValue)
+        {
+            for (int i = 0; i < zones.Count && !anyReachable; i++)
+                anyReachable = IsUsable(zones[i]) && IsReachableFrom(nemesisPosition.Value, zones[i]);
+        }
 
         NemesisPressureZone byPath = null;
         NemesisPressureZone byLine = null;
@@ -1717,6 +1733,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         {
             NemesisPressureZone zone = zones[i];
             if (!IsUsable(zone)) continue;
+            if (anyReachable && !IsReachableFrom(nemesisPosition.Value, zone)) continue;
 
             float line = Vector3.Distance(playerPosition, zone.Center);
             if (line > bestLine)
@@ -1735,6 +1752,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
         return byPath != null ? byPath : byLine;
     }
+
+    private static bool IsReachableFrom(Vector3 from, NemesisPressureZone zone) =>
+        !float.IsPositiveInfinity(NemesisNav.PathDistanceOrInfinity(from, zone.Center));
 
     private static bool IsUsable(NemesisPressureZone zone) =>
         zone != null && NemesisSafeZones.IsCentreClear(zone.Center);

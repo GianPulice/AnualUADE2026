@@ -105,8 +105,9 @@ public class Zone2EntryTeleport : MonoBehaviour
     }
 
     /// <summary>The look camera behind the player, along <paramref name="yaw"/>, at the height the rig
-    /// rests at, and told to forget where it was: a cut, not a swing across the level.</summary>
-    private static void PlaceCameraBehind(float yaw)
+    /// rests at, and told to forget where it was: a cut, not a swing across the level. Public for the
+    /// other teleport that needs the same cut (<see cref="NemesisTestArea"/>).</summary>
+    public static void PlaceCameraBehind(float yaw)
     {
         PlayerCameraController look = FindAnyObjectByType<PlayerCameraController>();
         if (look == null) return;

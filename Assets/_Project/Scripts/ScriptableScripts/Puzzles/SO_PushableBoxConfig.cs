@@ -34,7 +34,27 @@ public class SO_PushableBoxConfig : ScriptableObject
              "Read every frame by BoxSymbolSignalLoss, so it can be flipped in Play mode.")]
     [SerializeField] private bool revealSymbolFromAbove = false;
 
+    [Header("In the dark")]
+    [Tooltip("On: a box cannot be grabbed while the level's lights are off " +
+             "(PoweredLightSwitch.LevelLightsOn — in Zona 1, until SP1 powers the levers and they are " +
+             "turned on). Pressing E then makes the player think Dark Thought instead. Releasing a " +
+             "box already held is never blocked.")]
+    [SerializeField] private bool requireLightsOn = true;
+
+    [Tooltip("Info text under the prompt while the box is too dark to grab.")]
+    [SerializeField] private string darkPrompt = "Too dark to see it";
+
+    [Tooltip("What the player thinks (PlayerThoughtEvents) when they press E on a box in the dark.")]
+    [SerializeField] private string darkThought = "I can't see a thing. I need light before moving this.";
+
+    [Tooltip("Seconds the thought stays on screen.")]
+    [SerializeField, Min(0.5f)] private float darkThoughtSeconds = 3.5f;
+
     public float MaxGrabDistance => maxGrabDistance;
     public string OutOfRangePrompt => outOfRangePrompt;
     public bool RevealSymbolFromAbove => revealSymbolFromAbove;
+    public bool RequireLightsOn => requireLightsOn;
+    public string DarkPrompt => darkPrompt;
+    public string DarkThought => darkThought;
+    public float DarkThoughtSeconds => darkThoughtSeconds;
 }

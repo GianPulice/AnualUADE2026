@@ -22,9 +22,14 @@ public class SettingsPanelControlsView : MonoBehaviour
     [Tooltip("On = Shift toggles sprint. Off = hold Shift to sprint.")]
     [SerializeField] private Toggle _toggleSprintToggle;
 
+    [Header("Crouch")]
+    [Tooltip("On = Ctrl toggles crouch. Off = hold Ctrl to crouch.")]
+    [SerializeField] private Toggle _toggleCrouchToggle;
+
     public event Action<float> OnSensitivityChanged;
     public event Action<bool>  OnInvertYChanged;
     public event Action<bool>  OnSprintToggleChanged;
+    public event Action<bool>  OnCrouchToggleChanged;
 
     private void Awake()
     {
@@ -40,6 +45,9 @@ public class SettingsPanelControlsView : MonoBehaviour
 
         if (_toggleSprintToggle != null)
             _toggleSprintToggle.onValueChanged.AddListener(v => OnSprintToggleChanged?.Invoke(v));
+
+        if (_toggleCrouchToggle != null)
+            _toggleCrouchToggle.onValueChanged.AddListener(v => OnCrouchToggleChanged?.Invoke(v));
     }
 
     private void OnDestroy()
@@ -47,6 +55,7 @@ public class SettingsPanelControlsView : MonoBehaviour
         if (_sliderSensitivity != null) _sliderSensitivity.onValueChanged.RemoveAllListeners();
         if (_toggleInvertY != null)     _toggleInvertY.onValueChanged.RemoveAllListeners();
         if (_toggleSprintToggle != null) _toggleSprintToggle.onValueChanged.RemoveAllListeners();
+        if (_toggleCrouchToggle != null) _toggleCrouchToggle.onValueChanged.RemoveAllListeners();
     }
 
     public void Populate(SettingsModel model)
@@ -56,6 +65,7 @@ public class SettingsPanelControlsView : MonoBehaviour
         if (_sliderSensitivity != null) _sliderSensitivity.SetValueWithoutNotify(model.Sensitivity);
         if (_toggleInvertY != null)     _toggleInvertY.SetIsOnWithoutNotify(model.InvertYAxis);
         if (_toggleSprintToggle != null) _toggleSprintToggle.SetIsOnWithoutNotify(model.SprintToggle);
+        if (_toggleCrouchToggle != null) _toggleCrouchToggle.SetIsOnWithoutNotify(model.CrouchToggle);
 
         SetLabel(_labelSensitivity, model.Sensitivity);
     }

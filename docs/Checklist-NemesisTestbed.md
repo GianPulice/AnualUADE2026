@@ -55,6 +55,16 @@ Id* vacío, en negrita). A1 lo verifica.
 
   `PASILLO/Wall_E` quedó desactivada (la reemplazan tres tramos del lab). Lo arma *Tools/Nemesis/Build
   Hiding Lab (NemesisTestbed)*, que se puede volver a correr.
+- **Zona 2 Lab** (desde el 09/11; x 180..235, y −27..−9, z 20..60, lejos de todo lo anterior): copia
+  de la Zona 2 del nivel en las mismas coordenadas — geometría, props, puertas, la bajada
+  `Drop_Hueco02`, el link sobre el distribuidor, el hub con su `Safe Area`, las 4 rutas, los 4 spawn
+  points y las 3 zonas de presión. Tiene su propio NavMeshSurface (con la configuración de Zona 1, que
+  hornea Default). **Se elige desde F10 → ESPACIO DE PRUEBA**: *Testbed* o *Zona 2*. Un botón mueve
+  al jugador (en Zona 2, al hub, mirando al suroeste), el respawn de la captura y al Nemesis: le
+  cambia rutas y spawn points y lo vuelve a despertar fuera de tu vista. Se niega mientras estás
+  escondido o te están agarrando, o mientras él agarra o cruza un link. Si la Zona 2 cambia en el
+  nivel, *Tools/Nemesis/Build Zona 2 Lab (NemesisTestbed)* la vuelve a copiar (pide la Zona 1
+  guardada; no la modifica). No trae los puzzles del hub ni los triggers del nivel.
 - **Señuelos** (desde el 28/09, ya en la escena): radio en
   SALA_LATERAL, sobre una mesa contra la pared norte (x −19); alarma en la pared oeste de PASILLO_CARGA
   (z 38), audible en todo el nivel; cadenas en la pared oeste de PASILLO_OESTE (z 30). Se prenden con E.

@@ -28,20 +28,38 @@ public static class GameInput
 
     public static bool SprintHeld        => Sprint != null && sprint.IsPressed();
     public static bool CrouchPressed     => Crouch != null && crouch.WasPressedThisFrame();
+    public static bool CrouchReleased    => Crouch != null && crouch.WasReleasedThisFrame();
 
-    // ── Sprint mode (Settings > Controls) ────────────────────────────────────
+    // ── Sprint and crouch modes (Settings > Controls) ────────────────────────
     /// <summary>PlayerPrefs key of the sprint mode, written by <see cref="SettingsModel"/>. 1 = toggle.</summary>
     public const string SprintToggleKey = "Settings_SprintToggle";
 
-    private static bool sprintModeLoaded, sprintToggleMode, sprintLatched;
+    /// <summary>PlayerPrefs key of the crouch mode, written by <see cref="SettingsModel"/>. 1 = toggle (default).</summary>
+    public const string CrouchToggleKey = "Settings_CrouchToggle";
+
+    private static bool sprintModeLoaded, sprintToggleMode, sprintLatched, crouchToggleMode = true;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetSprintStatics()
     {
-        // Domain reload may be off: without this the last session's mode and latch carry over.
+        // Domain reload may be off: without this the last session's modes and latch carry over.
         SettingsModel.OnSettingsApplied -= ReloadSprintMode;
         sprintModeLoaded = false;
         sprintLatched = false;
+        crouchToggleMode = true;
+    }
+
+    /// <summary>
+    /// True: a press crouches and the next one stands (the original behaviour). False: crouched only
+    /// while the key is held. Read by <see cref="PlayerStateManager"/>'s crouch input.
+    /// </summary>
+    public static bool CrouchToggleMode
+    {
+        get
+        {
+            if (!sprintModeLoaded) ReloadSprintMode();
+            return crouchToggleMode;
+        }
     }
 
     /// <summary>
@@ -70,6 +88,7 @@ public static class GameInput
         if (!sprintModeLoaded) SettingsModel.OnSettingsApplied += ReloadSprintMode;
         sprintModeLoaded = true;
         sprintToggleMode = PlayerPrefs.GetInt(SprintToggleKey, 0) != 0;
+        crouchToggleMode = PlayerPrefs.GetInt(CrouchToggleKey, 1) != 0;
         sprintLatched = false;
     }
     public static bool InteractPressed   => Interact != null && interact.WasPressedThisFrame();

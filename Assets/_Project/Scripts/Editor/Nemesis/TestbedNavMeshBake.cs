@@ -30,7 +30,32 @@ internal static class TestbedNavMeshBake
     /// Same settings, same markups, same agent/obstacle filtering, same modifier volumes and the same
     /// bounds rule as the package — the one difference is that other loaded scenes are not part of it.
     /// </summary>
+    ///
+    /// A root that carries a NavMeshSurface of its own (the Zona 2 Lab) is left out: it bakes itself,
+    /// with <see cref="BakeRoots"/>, and baking it into the testbed's surface too would lay a second
+    /// NavMesh over the same floor.
     public static NavMeshData BakeSceneOnly(Scene scene, NavMeshSurface surface, StringBuilder log)
+    {
+        var roots = new List<Transform>();
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            NavMeshSurface own = rootObject.GetComponentInChildren<NavMeshSurface>(true);
+            bool bakesItself = own != null && own != surface && !surface.transform.IsChildOf(rootObject.transform);
+            if (bakesItself)
+            {
+                log.AppendLine($"Left out of {surface.name}: '{rootObject.name}' has its own NavMeshSurface.");
+                continue;
+            }
+
+            roots.Add(rootObject.transform);
+        }
+
+        return BakeRoots(scene, surface, roots, log);
+    }
+
+    /// <summary>The same bake, collected from <paramref name="roots"/> only (and the modifier volumes
+    /// under them).</summary>
+    public static NavMeshData BakeRoots(Scene scene, NavMeshSurface surface, IReadOnlyList<Transform> roots, StringBuilder log)
     {
         int mask = surface.layerMask.value;
         int agentType = surface.agentTypeID;
@@ -59,13 +84,13 @@ internal static class TestbedNavMeshBake
 
         var sources = new List<NavMeshBuildSource>();
         var fromRoot = new List<NavMeshBuildSource>();
-        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        foreach (Transform root in roots)
         {
-            if (!rootObject.activeInHierarchy) continue;
+            if (root == null || !root.gameObject.activeInHierarchy) continue;
 
             // Clears its results list on every call, hence one list per root.
             UnityEditor.AI.NavMeshEditorHelpers.CollectSourcesInStage(
-                rootObject.transform, mask, surface.useGeometry, surface.defaultArea, generateLinks,
+                root, mask, surface.useGeometry, surface.defaultArea, generateLinks,
                 markups, false, scene, fromRoot);
             sources.AddRange(fromRoot);
         }
@@ -80,7 +105,7 @@ internal static class TestbedNavMeshBake
         int volumes = 0;
         foreach (NavMeshModifierVolume volume in NavMeshModifierVolume.activeModifiers)
         {
-            if (volume == null || volume.gameObject.scene != scene) continue;
+            if (volume == null || volume.gameObject.scene != scene || !IsUnder(volume.transform, roots)) continue;
             if ((mask & (1 << volume.gameObject.layer)) == 0 || !volume.AffectsAgentType(agentType)) continue;
 
             Vector3 scale = volume.transform.lossyScale;
@@ -99,9 +124,19 @@ internal static class TestbedNavMeshBake
         NavMeshData data = UnityEngine.AI.NavMeshBuilder.BuildNavMeshData(
             surface.GetBuildSettings(), sources, bounds, surface.transform.position, surface.transform.rotation);
 
-        log.AppendLine($"Baked {surface.name} from {scene.name} alone: {sources.Count} sources " +
+        log.AppendLine($"Baked {surface.name} from {scene.name} alone ({roots.Count} roots): {sources.Count} sources " +
                        $"({volumes} modifier volumes), layers {mask}.");
         return data;
+    }
+
+    private static bool IsUnder(Transform t, IReadOnlyList<Transform> roots)
+    {
+        for (int i = 0; i < roots.Count; i++)
+        {
+            if (roots[i] != null && t.IsChildOf(roots[i])) return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -163,6 +163,8 @@ public class NemesisTestConsole : MonoBehaviour
 
         DrawStatus();
         GUILayout.Space(6f);
+        DrawTestAreas();
+        GUILayout.Space(6f);
         DrawPinnedState();
         GUILayout.Space(6f);
         DrawSituations();
@@ -206,6 +208,30 @@ public class NemesisTestConsole : MonoBehaviour
             GUILayout.Label("Dormant. If a puzzle already activated it, it is waiting for a " +
                             "spawn point that is far, out of view and behind cover.");
         }
+    }
+
+    /// <summary>
+    /// Which space of the scene the session is in (<see cref="NemesisTestArea"/>): one button per area,
+    /// the current one bracketed. Hidden in a scene with fewer than two, where there is nothing to pick.
+    /// </summary>
+    private static void DrawTestAreas()
+    {
+        IReadOnlyList<NemesisTestArea> areas = NemesisTestArea.Active;
+        if (areas.Count < 2) return;
+
+        GUILayout.Label("ESPACIO DE PRUEBA", GUI.skin.box);
+        GUILayout.BeginHorizontal();
+
+        for (int i = 0; i < areas.Count; i++)
+        {
+            NemesisTestArea area = areas[i];
+            if (area == null) continue;
+
+            bool isCurrent = NemesisTestArea.Current == area;
+            if (GUILayout.Button(isCurrent ? $"[{area.DisplayName}]" : area.DisplayName)) area.Enter();
+        }
+
+        GUILayout.EndHorizontal();
     }
 
     /// <summary>

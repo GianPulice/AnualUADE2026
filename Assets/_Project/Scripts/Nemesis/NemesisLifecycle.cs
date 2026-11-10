@@ -71,21 +71,24 @@ public class NemesisLifecycle : MonoBehaviour
     /// Switches off only the renderers that were actually on, and remembers exactly those.
     /// Blanket-enabling every renderer on wake-up would light up anything the prefab left
     /// disabled on purpose (spare meshes, effect emitters, debug visuals).
+    ///
+    /// Adds to what is already hidden, never replaces it: a Nemesis put to sleep while already
+    /// dormant (NemesisZoneWake and NemesisTestArea call Sleep before Activate, and after F6 or in the
+    /// testbed it is still asleep) finds every renderer already off, and a fresh list there was an
+    /// empty one — it woke up, patrolled and caught the player with no body and no eyes (09/11/2026).
     /// </summary>
     private void HideRenderers()
     {
         Renderer[] all = GetComponentsInChildren<Renderer>(true);
-        List<Renderer> hidden = new List<Renderer>(all.Length);
+        hiddenWhileDormant ??= new List<Renderer>(all.Length);
 
         for (int i = 0; i < all.Length; i++)
         {
             if (all[i] == null || !all[i].enabled) continue;
 
             all[i].enabled = false;
-            hidden.Add(all[i]);
+            hiddenWhileDormant.Add(all[i]);
         }
-
-        hiddenWhileDormant = hidden;
     }
 
     private void RestoreRenderers()

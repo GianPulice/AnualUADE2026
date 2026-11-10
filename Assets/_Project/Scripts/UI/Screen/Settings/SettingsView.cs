@@ -36,6 +36,8 @@ public class SettingsView : BaseScreenView
     // Applied to the game by their appliers (see *Applier.cs) on Apply:
     public event Action<bool>  OnInvertYChanged;
     public event Action<bool>  OnSprintToggleChanged;
+    public event Action<bool>  OnCrouchToggleChanged;
+    public event Action<int>   OnGraphicsQualityChanged;
     public event Action<float> OnBrightnessChanged;
     public event Action<float> OnContrastChanged;
     public event Action<float> OnGammaChanged;
@@ -104,6 +106,7 @@ public class SettingsView : BaseScreenView
         _controlsPanel.OnSensitivityChanged += ForwardSensitivity;
         _controlsPanel.OnInvertYChanged     += ForwardInvertY;
         _controlsPanel.OnSprintToggleChanged += ForwardSprintToggle;
+        _controlsPanel.OnCrouchToggleChanged += ForwardCrouchToggle;
     }
     private void UnwireControlsPanel()
     {
@@ -111,10 +114,13 @@ public class SettingsView : BaseScreenView
         _controlsPanel.OnSensitivityChanged -= ForwardSensitivity;
         _controlsPanel.OnInvertYChanged     -= ForwardInvertY;
         _controlsPanel.OnSprintToggleChanged -= ForwardSprintToggle;
+        _controlsPanel.OnCrouchToggleChanged -= ForwardCrouchToggle;
     }
     private void ForwardSensitivity(float v) => OnSensitivityChanged?.Invoke(v);
     private void ForwardInvertY(bool v)      => OnInvertYChanged?.Invoke(v);
     private void ForwardSprintToggle(bool v) => OnSprintToggleChanged?.Invoke(v);
+    private void ForwardCrouchToggle(bool v) => OnCrouchToggleChanged?.Invoke(v);
+    private void ForwardGraphicsQuality(int v) => OnGraphicsQualityChanged?.Invoke(v);
 
     private void WireBrightnessPanel()
     {
@@ -146,6 +152,7 @@ public class SettingsView : BaseScreenView
         _screenPanel.OnResolutionChanged += ForwardResolution;
         _screenPanel.OnWindowModeChanged += ForwardWindowMode;
         _screenPanel.OnFPSLimitChanged   += ForwardFPSLimit;
+        _screenPanel.OnGraphicsQualityChanged += ForwardGraphicsQuality;
         _screenPanel.OnVSyncChanged      += ForwardVSync;
     }
     private void UnwireScreenPanel()
@@ -154,6 +161,7 @@ public class SettingsView : BaseScreenView
         _screenPanel.OnResolutionChanged -= ForwardResolution;
         _screenPanel.OnWindowModeChanged -= ForwardWindowMode;
         _screenPanel.OnFPSLimitChanged   -= ForwardFPSLimit;
+        _screenPanel.OnGraphicsQualityChanged -= ForwardGraphicsQuality;
         _screenPanel.OnVSyncChanged      -= ForwardVSync;
     }
     private void ForwardResolution(int v) => OnResolutionChanged?.Invoke(v);

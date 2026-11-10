@@ -12,6 +12,8 @@
 
 ## Pendiente
 
+> **Estado al 09/11/2026.** Todo lo que este plan marcaba "sin commitear" está commiteado (lo del 22/10 entró en `ab31b69c`). Ningún commit posterior al 22/10 cerró ítems de este plan: del 23/10 al 09/11 el trabajo fue el playday de Zona 1. En Zona 1 el Nemesis duerme hasta el escape (D25), así que casi todo lo de acá se ve en la testbed o en Zona 2, que en la build hoy solo se alcanza al terminar el escape (o con F6).
+
 Al 05/10/2026. **Plan de ejecución a tres semanas (05/10 → 25/10)**, en orden de dependencia.
 Reemplaza la lista del 28/09: lo que seguía vigente de ella está en las etapas F a H, en
 [Falta jugar](#falta-jugar-de-las-fases-ya-construidas) y en [Más adelante](#más-adelante). El
@@ -38,7 +40,7 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
 
 ### Semana 1 (05–11/10) — Que busque bien y que no titile
 
-**Etapa A — Preparación** — ✅ hecha el 05/10 (sin commitear; el detalle está en [✅ Hecho](#-hecho))
+**Etapa A — Preparación** — ✅ hecha el 05/10 (commiteado; el detalle está en [✅ Hecho](#-hecho))
 
 - Falta sólo mirar una traza nueva después de jugar: las columnas `view_range`, `sight_miss` y
   `lost_sight_why`, y las filas `sight`.
@@ -46,7 +48,7 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
   reproducía el titileo (T1 y T2, arreglados en la etapa B) y reproduce la búsqueda con creencia
   vieja al bajar del montacargas (M1), que sigue marcada como conocida hasta la etapa D.
 
-**Etapa B — Titileo entre `Chasing` y `Searching`** — ✅ construida y jugada el 05/10 (sin commitear)
+**Etapa B — Titileo entre `Chasing` y `Searching`** — ✅ construida y jugada el 05/10 (commiteado)
 → [§19.4](#194-titileo-entre-chasing-y-searching)
 
 - **B1, hecho: "todavía sabe dónde está".** Parado en el último punto visto, sigue en `Chasing`
@@ -69,7 +71,7 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
   visto y oyéndote correr, pasa a buscar; no te sigue por el oído.
 
 **Etapa C — Búsqueda** — 🟡 C0–C2 construidas el 05/10 (commit `417ce019`); C3, C5, C6 y C7 el
-07/10 (sin commitear); falta jugarla → [§19.2](#192-búsqueda) y [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062)
+07/10 (commiteado); falta jugarla → [§19.2](#192-búsqueda) y [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062)
 
 - **C0, hecho: al pasar a buscar tira hacia donde ibas** (playtest del 05/10: "cuando doblás la
   esquina no predice que vas a seguir para adelante"). En la traza, de 7 pases de la persecución a
@@ -129,7 +131,7 @@ sólo crecen por el final ([§10](#10-reglas-del-proyecto-que-este-plan-no-puede
   usó tu rumbo, "se lo debe a lo que sintió" cuando fue una visita debida, y "rastro tapa N" en la
   fila del mapa.
 
-### Avance del 22/10 (sin commitear, sin jugar)
+### Avance del 22/10 (commiteado, sin jugar)
 
 La Zona 2 es donde el Nemesis va a estar más activo, y **no tiene montacargas**: sólo `NavMeshLink` de bajada (`Drop_Hueco02`) y escaleras. Por eso la etapa D se recorta a lo que no depende del montacargas.
 
@@ -142,7 +144,7 @@ La Zona 2 es donde el Nemesis va a estar más activo, y **no tiene montacargas**
 - **E1 y E2, hechos (D38/D41):** `Logic/SpotOpenRules.cs` con `SpotOpenRulesTests`, `NemesisPossibilityMap.ShareInSpot`, tres tunables `spotMap*` en `SO_NemesisData`, y `NemesisHidingAwareness.ConsiderSpotsByMap` en lugar de `ConsiderUsedSpots` (los tres llamados de `Searching`). `Investigating` ya no sortea. Falta F9 y el gizmo por escondite, y reescribir los casos 6, 39 y 40. E4 sigue sin hacer.
 - **Etapa F (22/10), a medias a propósito.** Hecho: el gizmo del radio de la creencia (`drawBelief`) y el valor del mapa sobre cada escondite. **No se sacaron** el parche del "punto visto" de `NemesisPursuit` ni el filtro de intervalo y distancia de `Investigating`: los dos son lo que hoy hace cumplir D46 ("perdida la vista va al último punto visto y pasa a buscar") y evitan que el destino tiemble, y sin jugar no hay cómo saber que la creencia sola los reemplaza. Se sacan cuando haya una pasada de juego con el caso para comparar. Siguen sin tests la fusión de la creencia y la escalera (`NemesisBelief` es un `MonoBehaviour`: hay que extraer su lógica).
 - **Etapa I (22/10), a medias:** hechos el §11 (D37 a D40 y D41 aplicado), el §13 (casos 41 y 42 fuera; 2, 6, 7, 33, 39, 40 y 45 corregidos), el conteo de tests, y `CLAUDE.md` y `Nemesis-System.md` sin el barrido por disco ni `NemesisFreeRoam`. Los comentarios del §19.8 que nombraban tipos borrados se limpiaron el mismo día (los que quedan son historia a propósito) y el handout se retiró.
-- **G1 `ChaseFlank`, hecho en código (22/10):** `NemesisPursuit.Reset` tira la chance del hábito (`RollChaseFlank`) y, si sale, la persecución trata el desvío como estancada desde el primer replan (`IsFlankingFromStart`). En una recta no cambia nada. Sigue faltando poner 2 o 3 waypoints alrededor de `Column_Loop` en la testbed para verlo, y jugarlo.
+- **G1 `ChaseFlank`, hecho en código (22/10):** `NemesisPursuit.Reset` tira la chance del hábito (`RollChaseFlank`) y, si sale, la persecución trata el desvío como estancada desde el primer replan (`IsFlankingFromStart`). En una recta no cambia nada. Los waypoints alrededor de `Column_Loop` ya están (`Route_Columna`, 4 WP, en `NemesisTestbed` desde `ab31b69c`); falta jugarlo.
 - **G2 `ExitAmbush`, sin hacer a propósito:** el Nemesis esperaría con línea al `ExitPose` de un escondite, y elegir cuál sin que sea saber dónde estás es una decisión de diseño que no quise tomar sin jugar (¿el más usado de la zona?, ¿el de la última búsqueda?). Ver la pregunta al final.
 - **Peek, ajustes del 22/10:** probado en Play (sin fog) con `NemesisPeekTrigger` en la testbed. La mano delantera daba un latigazo al empezar (la muñeca cruzaba ~3 m a 30 m/s): venía del fundido de 0,12 s desde la pose de caminata, y de que `NemesisArmWallGuard` soltaba el brazo en 1/6 s mientras el rig ya lo posaba. Ahora el fundido es de 0,45 s, el guardia suelta de golpe, el brazo de agarre se decide una vez (antes se recalculaba por frame y podían intercambiarse los brazos) y la mano estirada sigue al jugador suavizada. Quedó en ~4 m/s al subir las manos y quieta al sostener. Falta la palma plana contra la pared.
 - **Timer de asomarse (22/10):** si pasan 30 s sin que el jugador vea al Nemesis, sube la chance de que se asome en un umbral delante suyo (ver *Director y ritmo*). Probado sólo que el buscador encuentra lugares en la testbed (12 de 12); falta verlo correr solo y en la Zona 2.
@@ -234,7 +236,7 @@ limpieza y tests** (≈ 2 días) → [§18.6](#186-orden-dentro-de-la-2b)
 **Etapa G — [Fase 6](#fase-6--contra-jugadas-desbloqueables): contra-jugadas** (≈ 1 día de lo que
 no está bloqueado) → [§19.7](#197-fase-6-ganchos-y-bloqueos)
 
-- **G1 (S) `ChaseFlank`.** Necesita 2 o 3 waypoints alrededor de `Column_Loop` en la testbed.
+- **G1 (S) `ChaseFlank`.** Hecho en código; `Route_Columna` (4 WP alrededor de `Column_Loop`) ya está en la testbed. Falta jugarlo.
 - **G2 (M) `ExitAmbush`.** Después de la etapa E.
 - **Bloqueado por nivel:** `ZoneDefense` y el "soltar y emboscar" que quedó de la
   [Fase 4](#fase-4--persecución-estancada-independiente---construida-commit-9eba9b46-salvo-soltar-y-emboscar)
@@ -401,7 +403,7 @@ dice.
     nuevas D29 y D30 ya están aplicadas). **D12** (entrada por una bajada): más adelante, fuera de
     la Fase 8.
 - **Zona 2 con su Director** ([D25](#11-decisiones-abiertas)): el Nemesis ya se despierta ahí y
-  patrulla (20/10, ver Hecho); falta el Director: sus zonas y disparadores
+  patrulla (20/10, ver Hecho); el Director ya tiene las zonas `zona2 oeste/centro/este` (y el hub seguro y SUB01 están en la escena, ver el Avance del 22/10); faltan sus disparadores de puzzle `p2_*`, que es decisión de diseño:
   ([§14.2](#142-activar-el-director-en-zona1-fase-0-sin-código)), que hoy no cubren ningún waypoint de
   la Zona 2. Lo que queda de la Zona 2:
   - **Jugarla.** Llegar con F6 o por el escape, resolver un sub-puzzle y ver que aparece fuera de
@@ -439,12 +441,12 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   — El Nemesis sabe de escondites** (21/09, `eadbb497`), con los arreglos del consejo. Falta
   jugarla.
 - ✅ **[Fase 2C](#fase-2c--aguantar-la-respiración-tiene-que-servir-independiente-primero---construida-2709-sin-commitear-falta-jugarla)
-  — Aguantar la respiración tiene que servir** (27/09, sin commitear). Falta jugarla.
+  — Aguantar la respiración tiene que servir** (27/09, commiteado). Falta jugarla.
 - ✅ **[Fase 2B parte 1](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-  — Creencia** (27/09, sin commitear): `NemesisBelief`, pistas separadas, `HearsLead` y
+  — Creencia** (27/09, commiteado): `NemesisBelief`, pistas separadas, `HearsLead` y
   `HasFreshLead`. Falta jugarla.
 - ✅ **[Fase 2B parte 2](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-  — Dónde busca** (27/09, sin commitear): `Searching` barre puntos del NavMesh alrededor de la
+  — Dónde busca** (27/09, commiteado): `Searching` barre puntos del NavMesh alrededor de la
   creencia (`SearchSweepRules` + `NemesisFreeRoam`). Incluye:
   - la intercepción y la ruleta de waypoints, afuera (D24);
   - el D22;
@@ -454,7 +456,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 
   Compila y pasan los tests EditMode (36/36). Falta jugarla.
 - ✅ **[Fase 2B parte 3](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-  — Cuánto busca, y el Director** (27/09, sin commitear). Incluye:
+  — Cuánto busca, y el Director** (27/09, commiteado). Incluye:
   - la búsqueda que se enfría (`IsSearchWarm` + `SearchCooling`) en vez de 15 s fijos, sin renovarse
     con lo que se oye desde el Hub;
   - la búsqueda corta después de investigar un ruido tuyo (D26);
@@ -467,7 +469,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 
   Compila en Unity y pasan los tests EditMode (71/71, `SearchCoolingTests` incluidos). Falta jugarla.
 - ✅ **[Fase 2B parte 4](#fase-2b--creencia-fusionada-y-búsqueda-antes-de-la-3---partes-1-a-4-de-5-construidas)
-  — La elección completa** (28/09, sin commitear). Incluye:
+  — La elección completa** (28/09, commiteado). Incluye:
   - `FocusArbiter` (puro, en `WIRED.Nemesis.Logic`) con las preguntas del §17.4, y `NemesisChoice`,
     que guarda el **foco**: vos, una pista o un vistazo;
   - el peldaño "su atención está en una pista" (`FocusIsLead`), arriba del presupuesto de búsqueda
@@ -482,7 +484,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   que perdía una vez quedaba ignorada mientras sonara. El detalle está en el bloque de la parte 4 del
   §9. Compila (Roslyn contra los `.rsp` de Unity, Editor incluido) y pasan los tests EditMode fuera
   de Unity (100/100, `FocusArbiterTests` incluidos). Falta jugarla.
-- ✅ **[Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes)** (sin commitear). Incluye:
+- ✅ **[Arreglos del playtest del 27/09](#189-playtest-del-2709--ajustes)** (commiteado). Incluye:
   - el prefab ya no duerme al Nemesis fuera de Zona1;
   - la búsqueda va primero al último punto y cuenta el silencio desde que llega;
   - `Investigating` alcanza tu último ruido, y va a lo que lo trajo;
@@ -492,7 +494,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   - el montacargas de la testbed (ver abajo).
 
   Compila (Roslyn contra los `.rsp` de Unity). Falta jugarlo.
-- ✅ **Montacargas de la testbed** (27/09, sin commitear). Los logs y trazas del playtest mostraban
+- ✅ **Montacargas de la testbed** (27/09, commiteado). Los logs y trazas del playtest mostraban
   tres fallas:
   - **Nunca caminaba a la cabina**: se deslizaba en línea recta a través de la barrera, en los dos
     pisos. El piso de la sala seguía debajo de la cabina, así que el NavMesh estático cubría el hueco
@@ -508,7 +510,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   el cruce se deshacía y lo teletransportaba. Aplicado y horneado en batchmode: el hueco quedó sin
   NavMesh estático y las dos marcas, sobre el piso. Falta jugarlo (G22 y G23 del checklist).
 - ✅ **Montacargas: atravesaba paredes y quedaba 15–30 s en `Traversing`** (playtest del 28/09,
-  arreglado esa noche, sin commitear). No venía del trabajo del día: las trazas de Zona1 y de la
+  arreglado esa noche, commiteado). No venía del trabajo del día: las trazas de Zona1 y de la
   testbed lo muestran desde el código del 04–06/09.
   - **Causa:** para bajarse del link del hueco antes de caminar a la cabina, `LeaveCurrentLink`
     llamaba a `ResetPath`. Sobre un link, Unity lo completa: el Nemesis aparecía en el otro piso.
@@ -546,7 +548,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   `9bdd3c90`): el medidor de uso por escondite (D23) y la API que va a leer la elección
   (`GetSpotUsage`, `OpenChance`, `IsPrioritySpot`, `IsBurnable` y `CollectUsedSpots`).
 - ✅ **[Fase 2D](#fase-2d--memoria-de-escondites-después-de-la-2b), la mitad del Nemesis** (28/09,
-  sin commitear): `Investigating` y `Searching` sortean los escondites usados de la zona que revisan
+  commiteado): `Investigating` y `Searching` sortean los escondites usados de la zona que revisan
   (pregunta 7 del §17.4) y van a abrir el que sale. La primera vez sólo cuenta un escondite que el
   jugador pueda ver u oír abrir (R3). De paso, un segundo ruido desde el mismo escondite lo vuelve
   sospechoso (D22, la otra mitad). Compila (Roslyn). Falta jugarla.
@@ -555,7 +557,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 - ✅ **[Fase 5](#fase-5--tensión-y-ritmo---construida-2209-sin-commitear-falta-jugarla) — Tensión
   y ritmo** (22/09, `4a163d72`): `NemesisTension`, `SO_DirectorPacing`, la retirada y la
   sensibilidad creciente. Falta jugarla.
-- ✅ **[Fase 7](#fase-7--escalada-por-puzzles) — Escalada por puzzles** (28/09, sin commitear).
+- ✅ **[Fase 7](#fase-7--escalada-por-puzzles) — Escalada por puzzles** (28/09, commiteado).
   Incluye:
   - `NemesisEscalation`, en la escena `Data`. Instala como *baseline* del Nemesis una copia de
     `SO_NemesisData` con el nivel que corresponde a los puzzles completos.
@@ -573,7 +575,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   que mostrar `escalada: nivel 0 (0 puzzles)`, y la consola no tiene que avisar que falta
   `SO_NemesisEscalation`. Falta jugarla.
 - ✅ **[Fase 8](#fase-8--bajadas-entre-pisos-independiente) parte 2 — Bajadas entre pisos, el
-  código** (27/09, sin commitear). Incluye:
+  código** (27/09, commiteado). Incluye:
   - `NemesisDropLink`, y la bajada como tercera rama de `NemesisElevatorUser`: se asoma y gruñe,
     salta o se descuelga, aterriza y no agarra a nadie mientras se recupera;
   - `CrossedDrop` en la ruta, así `Traversing` también ve las bajadas;
@@ -583,7 +585,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   - `DropPathTests` en `WIRED.Nemesis.Logic`.
 
   Compila y pasan los tests EditMode en Unity (59/59). Faltan las partes 1 y 3 y jugarla.
-- ✅ **Drop Lab en la testbed** (27/09, sin commitear; §15.6 paso 5). Lo arma
+- ✅ **Drop Lab en la testbed** (27/09, commiteado; §15.6 paso 5). Lo arma
   *Tools/Nemesis/Build Drop Lab (NemesisTestbed)* (`NemesisTestbedDropLabBuilder`; ya corrido, el builder
   se borró el 29/09 y está en git). Incluye:
   - una sala al sur de ENTRADA con un entrepiso de 3.6 m (`Drop_Hang`) y otro de 2 m (`Drop_Hop`),
@@ -595,7 +597,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
   Se armó en batchmode. Pasan todos sus chequeos: las dos puntas sobre el NavMesh, la vuelta por la
   rampa y la ruta completa. El validador no marca nada de las bajadas; sólo avisa, como nota, que
   faltan los estados de animación (parte 3).
-- ✅ **Hiding Lab en la testbed** (29/09, sin commitear). Los escondites de la *Hiding Test Area*
+- ✅ **Hiding Lab en la testbed** (29/09, commiteado). Los escondites de la *Hiding Test Area*
   de `TestIñaki`, repartidos en pasillos y salas cerradas al este de PASILLO (x 2..28, z 6..34), para
   jugar H-1..H-10 y los casos de la Fase 2, la 2D y el 58 en la testbed. Lo arma
   *Tools/Nemesis/Build Hiding Lab (NemesisTestbed)* (`NemesisTestbedHidingLabBuilder`, se borra
@@ -609,14 +611,14 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
     distancia en el piso.
 
   Se armó en batchmode: pasan todos sus chequeos de NavMesh y *Validate Hiding Spots* (9/9).
-- ✅ **Voz y avisos del Nemesis, y la `ExitPose` en el validador** (28/09, sin commitear; §16.2 y
+- ✅ **Voz y avisos del Nemesis, y la `ExitPose` en el validador** (28/09, commiteado; §16.2 y
   principio 7). En `NemesisAudio`:
   - el aviso de que **sabe** en qué escondite estás, a más de 2 m de la puerta (D34, caso 58);
   - "te perdí" al volver a patrullar después de una búsqueda vacía (caso 59);
   - el cue de activación cuando lo despierta un puzzle.
 
   Clips provisorios en el prefab: `voice_chase` a pitch 0.8 para el aviso y `voice_lost_01/02` para
-  "te perdí"; el SO de activación sigue sin clip. *Validate Hiding Spots* revisa la `ExitPose`: a su
+  "te perdí"; el SO de activación ya tiene clip (`SO_sfx_nemesis_activacion`). *Validate Hiding Spots* revisa la `ExitPose`: a su
   alcance desde la puerta (D16), fuera de colliders sólidos y con piso abajo. Compila (Roslyn); falta
   jugarlo.
 - ✅ **Director de Zona1 rehecho** (22/09, `4a163d72`): seis zonas, dos disparadores y ninguna
@@ -645,7 +647,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 
   247 atributos de test EditMode. No entró su tanda 2 (escondites por el mapa y patrulla después de
   la caza): es la etapa E de [Pendiente](#pendiente).
-- ✅ **Etapa A — Preparación** (05/10, sin commitear). Compila en batch y pasan los 254 tests EditMode
+- ✅ **Etapa A — Preparación** (05/10, commiteado). Compila en batch y pasan los 254 tests EditMode
   (7 nuevos, `SightMissTests`). Falta ver una traza nueva después de jugar. Incluye:
   - `SO_NemesisData.asset` reserializado: 57 campos nuevos con su valor por defecto y 10 campos
     muertos menos (los del barrido y la intercepción, ya sin código). Ningún valor existente cambió;
@@ -662,7 +664,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
     cambios de estado en 4 s) y T1 (14), y la búsqueda con creencia vieja de M1; van marcados como
     conocidos hasta las etapas B y D. No hizo falta extraer `NemesisDecision`: expone
     `IsInsideDwell`, `IsHeldBack` y `ResolveThreshold`, y el replay usa esa misma histéresis.
-- ✅ **Etapa B — Titileo entre `Chasing` y `Searching`** (05/10, sin commitear). Compila en batch,
+- ✅ **Etapa B — Titileo entre `Chasing` y `Searching`** (05/10, commiteado). Compila en batch,
   pasan los 263 tests EditMode (9 nuevos, `SettledVerdictTests`) y *Validate Ladder* no reporta
   problemas. Falta jugarla. Incluye:
   - el peldaño "todavía sabe dónde está" (el 23.º, en el asset y en `BuildDefaultLadder()`), con dos
@@ -677,7 +679,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
     y tres chequeos nuevos;
   - en el replay del validador: la edad de la última vista, el radio de la creencia y el veredicto
     de ruta asentado, y cinco escenarios (dos que eran `KnownIssue` y tres de control).
-- ✅ **Etapa C — Búsqueda, primera parte** (05/10, sin commitear). Compila en batch y pasan los 272
+- ✅ **Etapa C — Búsqueda, primera parte** (05/10, commiteado). Compila en batch y pasan los 272
   tests EditMode (9 nuevos en `SearchPickRulesTests`). Falta jugarla. Incluye:
   - el primer sorteo de la búsqueda después de una persecución tira hacia donde ibas
     (`SearchPickRules.HeadingAlignment` / `HeadingWeight`, `NemesisSearchPicker.HeadingHint`,
@@ -687,7 +689,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
     se enfría mientras te ve.
 
   Commiteada en `417ce019`.
-- ✅ **Etapa C — Búsqueda, segunda parte** (07/10, sin commitear) → [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
+- ✅ **Etapa C — Búsqueda, segunda parte** (07/10, commiteado) → [§19.9](#199-análisis-de-causas-del-0710-wir-057-058-y-062).
   Compila (los cuatro ensamblados, con el Roslyn de Unity sobre los `.rsp` de Bee, con el editor
   abierto) y pasan 280 de 285 tests EditMode corridos fuera de Unity (13 nuevos: 9 en
   `PossibilityMapTests`, 4 en `SearchPickRulesTests`). Los 5 de `ChaseGazeTests` llaman a
@@ -712,7 +714,7 @@ y los bloques de las fases terminadas, al final del [§9](#-hecho-fases-terminad
 - ✅ **Chequeos en Unity** (batchmode, 27/09): el working tree con la 2C, las partes 1 a 3 de la 2B,
   la Fase 3 y la Fase 8 parte 2 compila entero, Editor incluido, y pasan los 71 tests EditMode. Se
   midió también el NavMesh de Zona1 y de la testbed ([§18.3](#183-el-director-qué-hace-de-verdad)).
-- ✅ **El Nemesis en la Zona 2** (20/10, sin commitear; falta jugarlo):
+- ✅ **El Nemesis en la Zona 2** (20/10, commiteado; falta jugarlo):
   - **Despertar.** `NemesisZoneWake` (`Scripts/Nemesis/`, en `---- GAMEPLAY ---- / Nemesis Zona 2`)
     lo despierta con el primero de los tres sub-puzzles que pide el hub (`p2_sp1_calderas`,
     `p2_sp2_switches`, `p2_sp3_mechanism`). Si la cinemática del escape lo tiene estacionado en el
@@ -1501,7 +1503,7 @@ puede ir en paralelo con la 1.
 > completa. Lo que antes era "parte 2" es ahora la 4 (con su árbitro mínimo adelantado a la 2), y la
 > vieja "parte 3" es la 5.
 
-- **Parte 1 ✅ Creencia (27/09, sin commitear), falta jugarla.** Compila en Unity (batchmode sobre el
+- **Parte 1 ✅ Creencia (27/09, commiteado), falta jugarla.** Compila en Unity (batchmode sobre el
   working tree, 27/09). Qué entró:
   - `NemesisBelief` con la creencia fusionada y las pistas separadas. `FieldOfListening` distingue
     jugador de pista.
@@ -1517,7 +1519,7 @@ puede ir en paralelo con la 1.
   - La evidencia del jugador que "no es el mismo lugar" **reemplaza** la creencia en vez de volverse
     pista (ver D20).
   - `Sequence` sube con cada evidencia plegada, unas 10 veces por segundo (§18.4).
-- **Parte 2 ✅ Dónde busca (27/09, sin commitear), falta jugarla** ([§18.5](#185-modelo-propuesto)
+- **Parte 2 ✅ Dónde busca (27/09, commiteado), falta jugarla** ([§18.5](#185-modelo-propuesto)
   A). Compila en Unity y pasan los tests EditMode (36/36, `SearchSweepRulesTests` incluidos).
   **Cómo quedó:**
   - **`SearchSweepRules`** (nuevo, en `WIRED.Nemesis.Logic`) contesta las preguntas 1 y 4 y
@@ -1565,7 +1567,7 @@ puede ir en paralelo con la 1.
     vista forzada al entrar. `TryGetInterceptPoint` y `PickSearchTarget` salen del flujo normal (D24).
   - Fila `búsqueda` en F9 y gizmo del disco de barrido.
   - **Verificación:** casos 23, 27, 36, 41 y 42.
-- **Parte 3 ✅ Cuánto busca, y el Director (27/09, sin commitear), falta jugarla** (§18.5 B y C).
+- **Parte 3 ✅ Cuánto busca, y el Director (27/09, commiteado), falta jugarla** (§18.5 B y C).
   Compila en Unity (proyecto entero, Editor incluido) y pasan los tests EditMode (71/71).
   **Cómo quedó:**
   - **Enfriamiento.**
@@ -1628,7 +1630,7 @@ puede ir en paralelo con la 1.
       armar el grafo, y la huella no incluye los pesos (§18.3).
     - F9 muestra el acecho de la patrulla y la persistencia.
   - **Verificación:** casos 2, 9, 25, 34 y 43–48.
-- **Parte 4 ✅ La elección completa (28/09, sin commitear), falta jugarla.** Compila entero (Roslyn
+- **Parte 4 ✅ La elección completa (28/09, commiteado), falta jugarla.** Compila entero (Roslyn
   contra los `.rsp` de Unity, Editor incluido) y pasan los tests EditMode fuera de Unity (100/100
   después de la revisión, `FocusArbiterTests` incluidos). **Cómo quedó:**
   - **`FocusArbiter`** (nuevo, puro, en `WIRED.Nemesis.Logic`): las preguntas del §17.4 en orden, con
@@ -1728,7 +1730,7 @@ puede ir en paralelo con la 1.
   - **Verificación:** todos los casos de la 2B.
 
 ### Fase 2D — Memoria de escondites *(después de la 2B)*
-- ✅ **Los datos, construidos con la Fase 3 (27/09, sin commitear).** El medidor de uso por escondite
+- ✅ **Los datos, construidos con la Fase 3 (27/09, commiteado).** El medidor de uso por escondite
   (D23, [§17.6](#176-los-escondites-en-la-elección)) vive en `PlayerHabitTracker`:
   - +1 al **salir** (desde el 05/10, WIR-057; antes era al entrar, y el escondite ocupado ya contaba
     como usado), y +1 más cuando esa estadía se vuelve escape (R1, D28; ver la
@@ -1753,7 +1755,7 @@ puede ir en paralelo con la 1.
 - Reemplaza `CheckHidingSpots` y `PrioritizeSuspiciousSpots` de la Fase 6: en vez de desbloquearse
   de golpe con N escapes, la revisión crece con el uso. `BurnHidingSpot` queda, al tope del medidor.
   No tienen fila en `SO_CounterplayRules`: se contestan por escondite.
-- ✅ **La mitad del Nemesis, con la 2B parte 4 (28/09, sin commitear), falta jugarla.** Compila
+- ✅ **La mitad del Nemesis, con la 2B parte 4 (28/09, commiteado), falta jugarla.** Compila
   (Roslyn). En `NemesisHidingAwareness.ConsiderUsedSpots`:
   - `Investigating`, al llegar a un punto que no es un escondite, mira los escondites usados a 6 m;
     `Searching`, los del disco de barrido, al entrar, al re-centrar y al ensanchar.
@@ -1786,7 +1788,7 @@ puede ir en paralelo con la 1.
   mergear sola:
   1. **Sin código:** apagar *Generate Links*, rebakear y medir qué links automáticos se pierden
      (§15.2). Pendiente: necesita el editor.
-  2. ✅ **Código** (27/09, sin commitear): `NemesisDropLink`, la rama de bajada en
+  2. ✅ **Código** (27/09, commiteado): `NemesisDropLink`, la rama de bajada en
      `NemesisElevatorUser`, `CrossedDrop` en `NemesisNav.NavRoute`, validador y gizmos (§15.4).
      Funciona sin animaciones.
   3. **Arte:** las animaciones del §15.5 y el setup del Animator. Pendiente.
@@ -1888,7 +1890,7 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
 - **Verificación:** los casos del spec; con F10, el Nemesis no te ve; la respiración se oye a la
   distancia de los gizmos; después de salir el emisor queda como estaba (caminar vuelve a sonar a 4).
 
-### Fase 2 — El Nemesis sabe de escondites — ✅ construida (21/09, sin commitear), falta jugarla
+### Fase 2 — El Nemesis sabe de escondites — ✅ construida (21/09, commiteado), falta jugarla
 - ✅ `NemesisHidingAwareness`: Nivel A (visto entrando, con línea de vista a la puerta; sospecha sólo
   con contacto vivo) y Nivel B (visibilidad residual por tipo; sospecha al pasar el umbral, conocido
   al llenarse).
@@ -1915,7 +1917,7 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
     del container no hace hueco en el NavMesh: pasarlo a `Props` o sumarle un
     `NavMeshModifierVolume` en una capa horneada antes de poner containers ahí.
 
-### Fase 2C — Aguantar la respiración tiene que servir *(independiente, primero)* — ✅ construida (27/09, sin commitear), falta jugarla
+### Fase 2C — Aguantar la respiración tiene que servir *(independiente, primero)* — ✅ construida (27/09, commiteado), falta jugarla
 - Del playtest del 27/09: "casi siempre me vio y me agarró aunque estuviera aguantando la
   respiración". Diagnóstico y regla en el [§17.6](#176-los-escondites-en-la-elección).
 - `FieldOfView` pasa a leer `IsHoldingBreath`: aguantando, no hay proximidad a través de la carcasa
@@ -1936,7 +1938,7 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
 - **Verificación:** casos 34–36 y 38.
 
 ### Fase 3 — Contar sin reaccionar
-- ✅ **Construida el 27/09 (sin commitear); falta jugarla.**
+- ✅ **Construida el 27/09 (commiteado); falta jugarla.**
 - ✅ `PlayerHabitTracker`, en la escena `Data` (`Singleton` + `ISessionResettable`).
   - Sobrevive a la captura y al checkpoint: queda afuera del rollback, que sólo restaura
     `PuzzleStateManager`.
@@ -2008,7 +2010,7 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
   regenera, así que lo que se agregue queda.) Rebakear el NavMesh de la testbed.
 - **Verificación:** caso 7.
 
-### Fase 5 — Tensión y ritmo — ✅ construida (22/09, sin commitear), falta jugarla
+### Fase 5 — Tensión y ritmo — ✅ construida (22/09, commiteado), falta jugarla
 - ✅ `NemesisTension` (en el GameObject del Director; el Director lo agrega si falta): medidor 0..1
   alimentado por proximidad, persecución, "el jugador lo ve" (raycast cabeza → pecho con el
   `obstacleMask` de los sentidos, sin cámara) y "escondido con el Nemesis buscando cerca"; pico con
@@ -2037,7 +2039,7 @@ Las fases construidas, en orden numérico. Lo que les falta jugar está en [Pend
   jugador aparece como `sensibilidad` y sube un escalón cada 20 s.
 
 ### Fase 7 — Escalada por puzzles
-- ✅ **Construida el 28/09 (sin commitear); falta jugarla.** Es el spec §7.2 con el mecanismo del
+- ✅ **Construida el 28/09 (commiteado); falta jugarla.** Es el spec §7.2 con el mecanismo del
   [§7](#7-escalada-por-progreso).
 - ✅ **`NemesisEscalation`** (`Scripts/Nemesis/`), en la escena `Data`, al lado de
   `PlayerHabitTracker` (`Singleton` + `ISessionResettable`).
@@ -2728,7 +2730,7 @@ locker (en par con `Pull Out`).
 La Fase 2 recién construida se revisó con un consejo local armado sobre la idea de
 [the-llm-council](https://github.com/sherifkozman/the-llm-council): borradores independientes en
 paralelo → crítica cruzada adversarial → síntesis. En vez de proveedores externos, cuatro subagentes
-de modelos distintos, cada uno con un enfoque, todos en sólo lectura sobre el código sin commitear.
+de modelos distintos, cada uno con un enfoque, todos en sólo lectura sobre el código commiteado.
 
 | Consejero | Modelo | Enfoque | Veredicto final | Confianza |
 |---|---|---|---|---|

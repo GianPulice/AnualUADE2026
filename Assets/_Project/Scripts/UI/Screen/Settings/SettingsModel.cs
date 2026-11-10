@@ -9,6 +9,14 @@ public class SettingsModel : BaseScreenModel
     /// </summary>
     public static event Action OnSettingsApplied;
 
+    /// <summary>
+    /// Raised while the player moves the Brightness / Contrast / Gamma sliders (and on Revert or
+    /// Reset), with the in-memory values, so <c>PostProcessSettingsApplier</c> previews them live
+    /// the way the volume sliders already work. Apply still persists them through
+    /// <see cref="OnSettingsApplied"/>.
+    /// </summary>
+    public static event Action<float, float, float> OnPicturePreview;
+
     // ── PlayerPrefs keys ─────────────────────────────────────────────────────
     // Connected to the AudioManager. Only 3 buses are visible to the player: the SFX slider
     // groups Ambience/Player/Nemesis/UI/Voice (see AudioManager.SetGameplaySfxBundle).
@@ -35,11 +43,15 @@ public class SettingsModel : BaseScreenModel
     // Read by GameInput (SprintActive) when OnSettingsApplied fires. GameInput.SprintToggleKey is
     // the same string: keep them together.
     private const string KEY_SPRINT_TOGGLE = GameInput.SprintToggleKey;
+    private const string KEY_CROUCH_TOGGLE = GameInput.CrouchToggleKey;
+    // Read by GraphicsQualityApplier: 0 Low, 1 Medium, 2 High.
+    private const string KEY_GRAPHICS_QUALITY = GraphicsQualityApplier.QualityKey;
 
     // ── Defaults ─────────────────────────────────────────────────────────────
     private const float  DEFAULT_SENSITIVITY = 1f;
-    private const float  DEFAULT_BRIGHTNESS  = 0.7f;
-    private const float  DEFAULT_CONTRAST    = 0.55f;
+    // 0.5 is neutral for all three (PostProcessSettingsApplier maps it to no change).
+    private const float  DEFAULT_BRIGHTNESS  = 0.5f;
+    private const float  DEFAULT_CONTRAST    = 0.5f;
     private const float  DEFAULT_GAMMA       = 0.5f;
     private const bool   DEFAULT_CRT         = true;
     private const bool   DEFAULT_DITHER      = true;
@@ -50,6 +62,8 @@ public class SettingsModel : BaseScreenModel
     private const bool   DEFAULT_VSYNC       = true;
     private const bool   DEFAULT_AUDIO_BG    = false;
     private const bool   DEFAULT_SPRINT_TOGGLE = false;   // hold, as it always was
+    private const bool   DEFAULT_CROUCH_TOGGLE = true;    // toggle, as it always was
+    private const int    DEFAULT_GRAPHICS_QUALITY = 2;    // High
 
     // Ships ON: the low-frequency ambient layers are part of the intended experience, and a player
     // who needs them off opts out. Sustained very-low-frequency content is a documented nausea and
@@ -78,10 +92,15 @@ public class SettingsModel : BaseScreenModel
     public bool  LowFreqAmbience  { get; private set; }
     /// <summary>true = Shift toggles sprint; false = hold Shift to sprint.</summary>
     public bool  SprintToggle     { get; private set; }
+    /// <summary>true = Ctrl toggles crouch; false = hold Ctrl to crouch.</summary>
+    public bool  CrouchToggle     { get; private set; }
+    /// <summary>0 Low, 1 Medium, 2 High (GraphicsQualityApplier).</summary>
+    public int   GraphicsQuality  { get; private set; }
 
     // ── Snapshot for revert ──────────────────────────────────────────────────
     private float _snapMaster, _snapMusic, _snapSFX, _snapSensitivity;
-    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg, _snapLowFreq, _snapSprintToggle;
+    private bool  _snapInvertY, _snapCRT, _snapDither, _snapVSync, _snapAudioBg, _snapLowFreq, _snapSprintToggle, _snapCrouchToggle;
+    private int   _snapGraphicsQuality;
     private float _snapBrightness, _snapContrast, _snapGamma;
     private int   _snapResolution, _snapWindowMode, _snapFPSLimit;
 
@@ -109,6 +128,8 @@ public class SettingsModel : BaseScreenModel
         AudioInBackground = GetPrefBool(KEY_AUDIO_BG,             DEFAULT_AUDIO_BG);
         LowFreqAmbience   = GetPrefBool(KEY_LOWFREQ,              DEFAULT_LOWFREQ);
         SprintToggle      = GetPrefBool(KEY_SPRINT_TOGGLE,        DEFAULT_SPRINT_TOGGLE);
+        CrouchToggle      = GetPrefBool(KEY_CROUCH_TOGGLE,        DEFAULT_CROUCH_TOGGLE);
+        GraphicsQuality   = Mathf.Clamp(PlayerPrefs.GetInt(KEY_GRAPHICS_QUALITY, DEFAULT_GRAPHICS_QUALITY), 0, 2);
 
         IsInitialized = true;
         TakeSnapshot();
@@ -152,9 +173,9 @@ public class SettingsModel : BaseScreenModel
     // ── Video/controls setters (applied by the *Applier.cs on Apply) ─────────
 
     public void SetInvertYAxis(bool v)      { InvertYAxis = v;                NotifyDataChanged(); }
-    public void SetBrightness(float v)      { Brightness = Mathf.Clamp01(v);  NotifyDataChanged(); }
-    public void SetContrast(float v)        { Contrast = Mathf.Clamp01(v);    NotifyDataChanged(); }
-    public void SetGamma(float v)           { Gamma = Mathf.Clamp01(v);       NotifyDataChanged(); }
+    public void SetBrightness(float v)      { Brightness = Mathf.Clamp01(v);  PreviewPicture(); NotifyDataChanged(); }
+    public void SetContrast(float v)        { Contrast = Mathf.Clamp01(v);    PreviewPicture(); NotifyDataChanged(); }
+    public void SetGamma(float v)           { Gamma = Mathf.Clamp01(v);       PreviewPicture(); NotifyDataChanged(); }
     public void SetCRTScanlines(bool v)     { CRTScanlines = v;               NotifyDataChanged(); }
     public void SetPSXDithering(bool v)     { PSXDithering = v;               NotifyDataChanged(); }
     public void SetResolutionIndex(int v)   { ResolutionIndex = v;            NotifyDataChanged(); }
@@ -164,6 +185,10 @@ public class SettingsModel : BaseScreenModel
     public void SetAudioInBackground(bool v){ AudioInBackground = v;          NotifyDataChanged(); }
     public void SetLowFreqAmbience(bool v)  { LowFreqAmbience = v;            NotifyDataChanged(); }
     public void SetSprintToggle(bool v)     { SprintToggle = v;               NotifyDataChanged(); }
+    public void SetCrouchToggle(bool v)     { CrouchToggle = v;               NotifyDataChanged(); }
+    public void SetGraphicsQuality(int v)   { GraphicsQuality = Mathf.Clamp(v, 0, 2); NotifyDataChanged(); }
+
+    private void PreviewPicture() => OnPicturePreview?.Invoke(Brightness, Contrast, Gamma);
 
     // ── Persistence ──────────────────────────────────────────────────────────
 
@@ -187,6 +212,8 @@ public class SettingsModel : BaseScreenModel
         SetPrefBool(KEY_AUDIO_BG,            AudioInBackground);
         SetPrefBool(KEY_LOWFREQ,             LowFreqAmbience);
         SetPrefBool(KEY_SPRINT_TOGGLE,       SprintToggle);
+        SetPrefBool(KEY_CROUCH_TOGGLE,       CrouchToggle);
+        PlayerPrefs.SetInt(KEY_GRAPHICS_QUALITY, GraphicsQuality);
 
         PlayerPrefs.Save();
 
@@ -219,8 +246,11 @@ public class SettingsModel : BaseScreenModel
         AudioInBackground = DEFAULT_AUDIO_BG;
         LowFreqAmbience   = DEFAULT_LOWFREQ;
         SprintToggle      = DEFAULT_SPRINT_TOGGLE;
+        CrouchToggle      = DEFAULT_CROUCH_TOGGLE;
+        GraphicsQuality   = DEFAULT_GRAPHICS_QUALITY;
 
         PushVolumesToAudioManager();
+        PreviewPicture();
         NotifyDataChanged();
     }
 
@@ -244,10 +274,13 @@ public class SettingsModel : BaseScreenModel
         AudioInBackground = _snapAudioBg;
         LowFreqAmbience   = _snapLowFreq;
         SprintToggle      = _snapSprintToggle;
+        CrouchToggle      = _snapCrouchToggle;
+        GraphicsQuality   = _snapGraphicsQuality;
 
-        // The mixer was changing live while the user moved the sliders;
-        // on revert we have to push the snapshot values back to the mixer.
+        // The mixer and the picture were changing live while the user moved the sliders;
+        // on revert we have to push the snapshot values back.
         PushVolumesToAudioManager();
+        PreviewPicture();
         NotifyDataChanged();
     }
 
@@ -270,6 +303,8 @@ public class SettingsModel : BaseScreenModel
         _snapAudioBg     = AudioInBackground;
         _snapLowFreq     = LowFreqAmbience;
         _snapSprintToggle = SprintToggle;
+        _snapCrouchToggle = CrouchToggle;
+        _snapGraphicsQuality = GraphicsQuality;
     }
 
     private void PushVolumesToAudioManager()

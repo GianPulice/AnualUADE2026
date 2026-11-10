@@ -149,6 +149,7 @@ GameObject:
   - component: {fileID: 4138418862034583676}
   - component: {fileID: 8908597602825739573}
   - component: {fileID: 3796978114858013185}
+  - component: {fileID: 1200833432924137404}
   m_Layer: 7
   m_Name: Player
   m_TagString: Player
@@ -481,6 +482,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CaptureGrabCamera
   config: {fileID: 11400000, guid: b8c0dcf42e77f6f40abec776ee848b5d, type: 2}
+--- !u!114 &1200833432924137404
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236206719962157421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 15e98ca5c155a834b816ada667dc6670, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerGrabGesture
+  config: {fileID: 11400000, guid: 8731a05243f652349a9dcc1d3ba0a115, type: 2}
+  player: {fileID: 6697063734817033035}
 --- !u!1 &267920378832048576
 GameObject:
   m_ObjectHideFlags: 0

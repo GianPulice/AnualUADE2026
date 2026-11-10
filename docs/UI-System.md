@@ -89,16 +89,19 @@ Cada uno de estos controllers:
 2. Expone `public static SettingsController Instance { get; private set; }` (o el nombre que sea) y lo asigna en `Awake`.
 3. Expone `public bool IsOpen` para que otros sistemas (típicamente `PauseManager`) sepan si está activo.
 4. Tiene un método público `OpenScreen()` / `Open(data)` que cualquier código puede llamar.
-5. **NO maneja su propio ESC.** El `UIStateManager` escucha la action `UI/Exit` y llama
-   `RequestClose()` sobre la modal del top que declare `ConsumesEscape = true`. Los controllers
-   no deben tener un `Update()` con `GetKeyDown(KeyCode.Escape)`.
+5. **NO maneja su propia tecla de cierre.** Cada modal declara `CloseKey` (`ModalCloseKey`):
+   **toda la UI de gameplay se cierra con TAB** (`UI/Close`: Tab, Select / B del joystick) y solo
+   la pausa y Settings con ESC (`UI/Exit`). El `UIStateManager` escucha las dos actions y llama
+   `RequestClose()` sobre la modal del top solo si la tecla es la suya; ESC sobre una modal de TAB
+   abre la pausa encima. Los controllers no deben tener un `Update()` con `GetKeyDown`. (Desde el
+   08/11; antes era `ConsumesEscape` y todo cerraba con ESC.)
 
 Ejemplos en el código:
 - `DocumentReaderController.Instance.Open(inventoryItem)` — invocado desde `PickupInteractable` al levantar una nota (modo lectura: congela el juego y detiene el timer del módulo con su propio `ModuleManager.PauseTicking`, porque ese timer corre sin escalar y `timeScale = 0` no lo frena).
 - `DocumentReaderController.Instance.Open(documentData)` — invocado desde `NoteInteractable` (lectura in situ: el mundo sigue corriendo).
 - `SequencePanelUIController.Instance.Open(panel)` — invocado desde `SequencePanelInteractable`.
 - `SettingsController.Instance.OpenScreen()` — invocado desde `PauseManagerUI.HandleSettings()` y `MainMenuController.HandleSettings()`.
-- `InventoryManagerUI.Instance.OpenInventory()` — invocado desde su propio `HandleInput()` con la action Player/Inventory (Tab). No abre con otra modal arriba, ni capturado, tirado o escondido.
+- `InventoryManagerUI.Instance.OpenInventory()` — invocado desde su propio `HandleInput()` con la action Player/Inventory (Tab). Solo abre: el cierre con TAB es del `UIStateManager`. No abre con otra modal arriba, ni capturado, tirado o escondido, ni en el frame en que un TAB cerró otra UI (`ClosedByKeyThisFrame`).
 
 ### Por qué `static Instance` y NO `Singleton<T>`
 
@@ -134,7 +137,7 @@ InputAction Player/Pause → PauseManager.TryToggleFromInput()
       │
       ▼
 ¿Hay una UI bloqueante abierta? (ver §5.1)
-      ├─ Sí  → return (la UI bloqueante consume el ESC ella misma)
+      ├─ Sí  → return (ESC no hace nada; la UI se cierra con su propia tecla)
       └─ No  → Pause() → model.Pause() → state pasa a Paused → dispara OnPauseStateChanged
                     │
                     ▼
@@ -208,8 +211,8 @@ SettingsScene (escena persistente)
             └─ ContentColumn
                 ├─ PanelsHost
                 │   ├─ Panel_Brightness (SettingsPanelBrightnessView — brillo, contraste, gamma, CRT, dither)
-                │   ├─ Panel_Controls   (SettingsPanelControlsView — sensibilidad + invertir Y)
-                │   ├─ Panel_Screen     (SettingsPanelScreenView — resolución, modo, FPS, VSync)
+                │   ├─ Panel_Controls   (SettingsPanelControlsView — leyenda de teclas en filas de 64 px, sensibilidad, y en una línea cada una: invertir Y, sprint toggle/hold y agacharse toggle/hold. Claves Settings_SprintToggle / Settings_CrouchToggle, las lee GameInput. Spacing 6: con más filas el panel se pasa del borde inferior)
+                │   ├─ Panel_Screen     (SettingsPanelScreenView — resolución, modo, FPS, Graphics Low/Medium/High (GraphicsQualityApplier), VSync)
                 │   └─ Panel_Volume     (SettingsPanelVolumeView — master, música, SFX)
                 └─ Footer (BtnApply / BtnReset)
 ```
@@ -307,7 +310,7 @@ Checklist:
 3. `public bool IsOpen` para consultas externas (guards en otros sistemas).
 4. **Implementar `IModalUI`** con las cuatro propiedades y `RequestClose()`:
    - `ModalId` — string único, para logs y deduplicación.
-   - `ConsumesEscape` — si `true`, el `UIStateManager` llama `RequestClose()` al presionar ESC. Si `false`, ESC pasa al `PauseManager`.
+   - `CloseKey` — `Tab` para cualquier UI de gameplay, `Escape` solo para la pausa y lo que cuelga de ella (Settings), `None` si ninguna tecla la cierra (pantallas de resultado, cinemáticas). El `UIStateManager` llama `RequestClose()` cuando se aprieta esa tecla con la modal arriba.
    - `BlocksPause` — si `true`, la pausa no puede abrirse encima.
    - `PausesGame` — si `true`, el `UIStateManager` pone `Time.timeScale = 0`. Si `false`, el tiempo sigue corriendo pero el input del player igual queda bloqueado (porque `IsAnyModalOpen = true`).
 5. En `OnBeforeOpen`: `UIStateManager.Instance.Push(this)`. En `OnBeforeClose`: `UIStateManager.Instance.Pop(this)`. **No tocar `Time.timeScale` ni `Cursor` directamente** — el UIStateManager los gobierna.
@@ -444,14 +447,14 @@ private void HandleStats() => StatsController.Instance?.OpenScreen();
 
 ```csharp
 public string ModalId        => "Stats";
-public bool   ConsumesEscape => true;   // ESC cierra Stats
+public ModalCloseKey CloseKey => ModalCloseKey.Tab;   // TAB cierra Stats, como toda la UI de gameplay
 public bool   BlocksPause    => true;   // pausa no se abre encima
 public bool   PausesGame     => true;   // congela tiempo al abrir
 public void   RequestClose() => CloseSafe().Forget();
 ```
 
 En `OnBeforeOpen`: `UIStateManager.Instance.Push(this)`. En `OnBeforeClose`: `UIStateManager.Instance.Pop(this)`.
-No hace falta ningún `Update()` con `GetKeyDown` — el `UIStateManager` maneja ESC vía `UI/Exit` y llama `RequestClose()` automáticamente.
+No hace falta ningún `Update()` con `GetKeyDown` — el `UIStateManager` maneja TAB vía `UI/Close` (y ESC vía `UI/Exit`) y llama `RequestClose()` automáticamente.
 
 ### Paso 5: Setup en Unity
 
@@ -459,7 +462,7 @@ No hace falta ningún `Update()` con `GetKeyDown` — el `UIStateManager` maneja
 - En esa escena, GameObject raíz con `StatsController` + Canvas hijo con `StatsView`.
 - Asignar la view en el Inspector del controller.
 
-Listo. La pantalla se abre desde Pausa, ESC la cierra (gestionado por UIStateManager), y el timeScale y cursor quedan en manos del stack modal.
+Listo. La pantalla se abre desde Pausa, TAB la cierra (gestionado por UIStateManager), y el timeScale y cursor quedan en manos del stack modal.
 
 ---
 
@@ -507,7 +510,7 @@ Assets/_Project/Scripts/
 │   ├─ Managers/
 │   │   ├─ UIStateManager.cs              ← stack de modales: timeScale, cursor, ESC (UI/Exit)
 │   │   ├─ PauseManagerUI.cs              ← controller del view de pausa
-│   │   ├─ InventoryManagerUI.cs          ← Tab abre, ESC capas (los módulos están en ModuleManager)
+│   │   ├─ InventoryManagerUI.cs          ← Tab abre; el cierre con Tab es del UIStateManager (los módulos están en ModuleManager)
 │   │   ├─ SequencePanelUIController.cs   ← puzzles de secuencia
 │   │   └─ SkillCheckController.cs        ← skill check
 │   ├─ Interaction/
@@ -546,7 +549,7 @@ Si apretás ESC dos veces muy rápido (en los 300ms del fade out), el segundo ES
 `GameResultManager.ResetSession()` corre en cada `GameSession.BeginNewSession()`, colgado de `GameSession.OnNewSessionStarting` (ver §7.1 por qué con `AfterAssembliesLoaded`). `MainMenuController.EnterGameplay()` llama `BeginNewSession()` antes de empujar el grupo de gameplay, y lo usan tanto New Game como la elección de un slot (`HandleSlotSelected`), así que el Load Game futuro ya pasa por ahí.
 
 ### 10.4 ~~DocumentReader — race condition ESC con PauseManager~~ ✅ Resuelto en modo lectura
-`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC cierra la hoja y nada más. Además el juego ya está congelado, así que la pausa no aportaría nada. (Igual, la pausa ordena en 70, por encima del reader; ver §7.7.)
+`DocumentReaderController` declara ahora `BlocksPause => isOpen && pausesWhileOpen`: en **modo lectura** (la hoja que se abre sola al agarrar una nota) la pausa queda bloqueada, así que ESC no hace nada y la hoja se cierra con TAB. Además el juego ya está congelado, así que la pausa no aportaría nada. (Igual, la pausa ordena en 70, por encima del reader; ver §7.7.)
 
 **Sigue abierto en lectura in situ** (`Open(SO_DocumentData)`, desde `NoteInteractable`): ahí el mundo sigue corriendo y la pausa tiene que poder abrirse, así que `BlocksPause` queda en `false` y la race condition original aplica igual. Hoy no hay ninguna `NoteInteractable` colocada en ninguna escena, así que no se manifiesta.
 
@@ -609,8 +612,8 @@ en `SO_SkillCheck_Ventilation` el último check tiene 28° de zona (antes 24°, 
 
 - **MVC**: `SkillCheckModel` es estado puro (paso, zona, juicio de un ángulo), `SkillCheckView` sólo
   dibuja y `SkillCheckController` corre la secuencia con UniTask.
-- **Modal que no pausa** (`PausesGame = false`, `ConsumesEscape = false`): el mundo sigue y ESC abre
-  la pausa encima. La aguja y las esperas corren en tiempo escalado y **sólo mientras es el modal de
+- **Modal que no pausa** (`PausesGame = false`, `CloseKey = Tab` si el asset permite abortar): el mundo
+  sigue, TAB interrumpe y ESC abre la pausa encima. La aguja y las esperas corren en tiempo escalado y **sólo mientras es el modal de
   arriba**, así que la pausa o la cinemática de explosión la congelan en vez de gastar una vuelta.
 - **Look**: ventana Win95 como el panel de secuencia (CRT, transición de señal sólo en la ventana,
   superficie animada). El dial usa `UIRingArc` con los fades

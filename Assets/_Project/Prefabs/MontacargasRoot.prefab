@@ -421,6 +421,7 @@ GameObject:
   - component: {fileID: 5921517776471774502}
   - component: {fileID: 9086648681587040060}
   - component: {fileID: 2413523206911728433}
+  - component: {fileID: 8152567625658022723}
   m_Layer: 6
   m_Name: RideButton
   m_TagString: Untagged
@@ -480,6 +481,20 @@ MonoBehaviour:
   platform: {fileID: 672720782343905976}
   rideAcceptedSoundId: sfx_elevator_button_02
   rideRefusedSoundId: sfx_interaction_panel_password_error
+--- !u!114 &8152567625658022723
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6442018457292803996}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ffc32281c441e4b4d2742d5d2fc96a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemGlint
+  profile: {fileID: 11400000, guid: 4ebadf721d7c419180b65da7d2093390, type: 2}
+  offset: {x: 0, y: 0, z: 0}
 --- !u!1 &6728083358861114661
 GameObject:
   m_ObjectHideFlags: 0

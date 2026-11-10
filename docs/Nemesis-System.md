@@ -28,6 +28,14 @@ En el prefab, `NemesisController > Activation > Activated By Puzzle Id` (hoy `sp
 
 **En la Zona 2 lo despierta `NemesisZoneWake`** (`---- GAMEPLAY ---- / Nemesis Zona 2`), con el primero de los puzzles de su lista que se resuelva. Hoy la lista son los tres sub-puzzles que pide el hub: `p2_sp1_calderas`, `p2_sp2_switches` y `p2_sp3_mechanism`. Al despertarlo, le **reemplaza** rutas y spawn points por los de la zona (`NemesisController.ReplaceArea`): la Zona 1 no está unida por NavMesh y sus rutas serían islas. Si lo tiene la cinemática (después del escape queda estacionado en el portón), se lo devuelve. Después lo duerme (`NemesisStateManager.Sleep`) y lo despierta con la búsqueda de spawn de siempre, así que aparece fuera de tu vista y suena el cue de activación. Sirve igual si llegaste con F6 sin pasar por el escape.
 
+**Después de una captura en la Zona 2 reaparecés en el hub** (`Respawn Hub Zona 2`): lo activa la llegada (`Checkpoint Llegada Zona 2`, alrededor de `Zona_2_Spawnpoint`), así que vale igual entrando por el escape o con F6. Antes, con F6, una captura te devolvía a la Zona 1.
+
+**Para probarlo sin el nivel**: la testbed tiene una copia de la Zona 2 (*Zona 2 Lab*) y F10 → *ESPACIO DE PRUEBA* te lleva a ella o de vuelta (`NemesisTestArea`). Ver `docs/Checklist-NemesisTestbed.md`.
+
+> **Arreglado el 09/11: el Nemesis despertaba invisible.** Si se lo dormía estando ya dormido (lo que hace `NemesisZoneWake` después de F6, y el cambio de espacio de la testbed), `NemesisLifecycle` perdía la lista de renderers que había apagado y al despertar no prendía ninguno: patrullaba y agarraba sin cuerpo. Después del escape no pasaba, porque ahí llega despierto.
+>
+> **También del 09/11: la retirada del Director sólo elige zonas a las que el Nemesis llega.** Con el jugador en el hub (Not Walkable, y ahí reaparece tras una captura) no hay camino a ninguna zona, y el "más lejos en línea recta" caía en una de la Zona 1. Sin probar en Play: en la corrida de verificación no hubo captura.
+
 Cuando el puzzle se completa, elige un spawn point. Un punto sólo sirve si cumple **las tres**:
 
 1. está a más de `SpawnMinPlayerDistance` (15 m) **medido sobre el NavMesh**, no en línea recta — este piso no se relaja nunca;
@@ -394,6 +402,19 @@ Las zonas son `NemesisPressureZone` (un id y un radio, 12 por defecto). Piden pr
 **Ritmo** (`SO_DirectorPacing`, asignado en el Director): `NemesisTension` (se agrega solo junto al Director) lleva un medidor de 0 a 1 que sube con la proximidad del Nemesis, la persecución, que vos lo veas a él y estar escondido con el Nemesis buscando cerca; baja 0.03/s después de 4 s sin estímulos, y nunca en `Chasing` ni `Catch`. En 0.85 pasa a `SustainPeak` (3–5 s), después a `PeakFade` (suelta la presión que había puesto el propio ritmo y espera a que el encuentro termine solo) y después a `Relax` (30–45 s: la patrulla se inclina hacia la zona más lejana a vos, sólo con ancla y pesos). En `BuildUp`, tras `quietTimeout` (90 s) sin contacto —sin contar el tiempo en el Hub—, presiona la zona donde estás: 0.3, +0.15 cada 20 s, hasta 1.
 
 **En Zona1 está armado pero inerte**: 6 zonas (`montacargas`, `panel electrico`, `valvulas`, `fondo norte`, `ala oeste`, `centro este`) y dos disparadores (`sp2_contenedores` → `fondo norte` 0.5 / 45 s; `sp3_valvulas` → `valvulas` 0.7 / 60 s + entrada), pero con el Nemesis dormido no hay a quién mover, y el ritmo está suspendido (ver *En el escape de Zona1*). Receta de armado, estado en la escena y errores comunes: plan §14.1–14.3.
+
+**En la Zona 2 corre de verdad** (el mismo `Nemesis Director`, con las zonas `zona2 oeste/centro/este`). Disparadores desde el 09/11, probados en Play salvo el de `p2_sp3_mechanism`:
+
+| Puzzle | Dónde | Presión | Entrada Mr. X |
+|---|---|---|---|
+| `p2_sp1_calderas` | palancas, SUB_01 este | `zona2 este` 0.5 / 45 s | no: puede ser el que lo despierta |
+| `p2_sp2_switches` | switches, SUB_01 oeste | `zona2 oeste` 0.5 / 45 s | no: ídem |
+| `p2_sp3_access_code` | keypad de SUB_03 (5-2-9-1), abre la sala de la bomba | `zona2 centro` 0.7 / 60 s | **sí**, en una segunda fila sin zona |
+| `p2_sp3_mechanism` | la bomba en el hub | `zona2 oeste` 0.7 / 60 s | no: estás en el hub |
+
+- **La entrada del keypad va sin zona a propósito.** Con zona, la entrada busca alrededor del centro de la zona, que está a la altura de SUB_02, y desde el keypad (SUB_03) el camino para subir pasa los 22 m: no encontraba lugar. Sin zona busca alrededor tuyo. Medido: apareció a 16 m por NavMesh, fuera de vista. El keypad no está en la lista que lo despierta, así que si lo hacés antes que los otros tres, la entrada no hace nada (está dormido) y queda la presión.
+- **La presión de `p2_sp3_mechanism`** lo deja rondando la zona más cercana al hub mientras hacés la estabilización. La bomba (`---- PUZZLES ---- / ZONE 2 / InventoryItemCentrifugalPump`, en la sala de la SP3 detrás de la `AccessDoor`) se instala en el hub. Este disparador es el único que no se probó en Play, pero es la misma maquinaria que los otros tres.
+- `puzzle_central_piso2` (la estabilización) no tiene disparador: depende de lo que pase después, que todavía no existe.
 
 ---
 

@@ -19,6 +19,8 @@ public class SettingsPanelScreenView : MonoBehaviour
     [SerializeField] private TMP_Dropdown _dropdownResolution;
     [SerializeField] private TMP_Dropdown _dropdownWindowMode;
     [SerializeField] private TMP_Dropdown _dropdownFPSLimit;
+    [Tooltip("Graphics quality: Low / Medium / High (GraphicsQualityApplier).")]
+    [SerializeField] private TMP_Dropdown _dropdownGraphics;
 
     [Header("Toggle")]
     [SerializeField] private Toggle _toggleVSync;
@@ -60,9 +62,19 @@ public class SettingsPanelScreenView : MonoBehaviour
         "144",
     };
 
+    [Tooltip("Graphics quality, in GraphicsQualityApplier's order: 0 Low, 1 Medium, 2 High.")]
+    [SerializeField]
+    private string[] _graphicsOptions =
+    {
+        "Low",
+        "Medium",
+        "High",
+    };
+
     public event Action<int>  OnResolutionChanged;
     public event Action<int>  OnWindowModeChanged;
     public event Action<int>  OnFPSLimitChanged;
+    public event Action<int>  OnGraphicsQualityChanged;
     public event Action<bool> OnVSyncChanged;
 
     private void Awake()
@@ -71,6 +83,7 @@ public class SettingsPanelScreenView : MonoBehaviour
         PopulateDropdown(_dropdownResolution, _resolutionOptions);
         PopulateDropdown(_dropdownWindowMode, _windowModeOptions);
         PopulateDropdown(_dropdownFPSLimit,   _fpsLimitOptions);
+        PopulateDropdown(_dropdownGraphics,   _graphicsOptions);
 
         if (_dropdownResolution != null)
             _dropdownResolution.onValueChanged.AddListener(v => OnResolutionChanged?.Invoke(v));
@@ -78,6 +91,8 @@ public class SettingsPanelScreenView : MonoBehaviour
             _dropdownWindowMode.onValueChanged.AddListener(v => OnWindowModeChanged?.Invoke(v));
         if (_dropdownFPSLimit != null)
             _dropdownFPSLimit.onValueChanged.AddListener(v => OnFPSLimitChanged?.Invoke(v));
+        if (_dropdownGraphics != null)
+            _dropdownGraphics.onValueChanged.AddListener(v => OnGraphicsQualityChanged?.Invoke(v));
         if (_toggleVSync != null)
             _toggleVSync.onValueChanged.AddListener(v => OnVSyncChanged?.Invoke(v));
     }
@@ -87,6 +102,7 @@ public class SettingsPanelScreenView : MonoBehaviour
         if (_dropdownResolution != null) _dropdownResolution.onValueChanged.RemoveAllListeners();
         if (_dropdownWindowMode != null) _dropdownWindowMode.onValueChanged.RemoveAllListeners();
         if (_dropdownFPSLimit != null)   _dropdownFPSLimit.onValueChanged.RemoveAllListeners();
+        if (_dropdownGraphics != null)   _dropdownGraphics.onValueChanged.RemoveAllListeners();
         if (_toggleVSync != null)        _toggleVSync.onValueChanged.RemoveAllListeners();
     }
 
@@ -96,6 +112,7 @@ public class SettingsPanelScreenView : MonoBehaviour
         if (_dropdownResolution != null) _dropdownResolution.SetValueWithoutNotify(model.ResolutionIndex);
         if (_dropdownWindowMode != null) _dropdownWindowMode.SetValueWithoutNotify(model.WindowMode);
         if (_dropdownFPSLimit != null)   _dropdownFPSLimit.SetValueWithoutNotify(model.FPSLimit);
+        if (_dropdownGraphics != null)   _dropdownGraphics.SetValueWithoutNotify(model.GraphicsQuality);
         if (_toggleVSync != null)        _toggleVSync.SetIsOnWithoutNotify(model.VSync);
     }
 

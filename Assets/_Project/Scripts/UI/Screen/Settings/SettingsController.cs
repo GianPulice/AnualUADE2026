@@ -135,12 +135,15 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
         // All of these DO affect the game via appliers listening to SettingsModel.OnSettingsApplied
         // (each applier must be placed on its GameObject in the scene):
         //   InvertY                     -> CameraSensitivityApplier (camera rig)
-        //   SprintToggle                -> GameInput (static, no applier to place)
+        //   SprintToggle / CrouchToggle -> GameInput (static, no applier to place)
+        //   GraphicsQuality             -> GraphicsQualityApplier (static, no applier to place)
         //   Brightness/Contrast/Gamma   -> PostProcessSettingsApplier (Global Volume)
         //   CRT / Dither                -> PS1EffectApplier (persistent, holds PS1Effect.mat)
         //   Resolution/Window/FPS/VSync -> ScreenSettingsApplier (persistent)
         view.OnInvertYChanged    += model.SetInvertYAxis;
         view.OnSprintToggleChanged += model.SetSprintToggle;
+        view.OnCrouchToggleChanged += model.SetCrouchToggle;
+        view.OnGraphicsQualityChanged += model.SetGraphicsQuality;
         view.OnBrightnessChanged += model.SetBrightness;
         view.OnContrastChanged   += model.SetContrast;
         view.OnGammaChanged      += model.SetGamma;
@@ -165,6 +168,8 @@ public class SettingsController : BaseScreenController<SettingsView, SettingsMod
 
         view.OnInvertYChanged    -= model.SetInvertYAxis;
         view.OnSprintToggleChanged -= model.SetSprintToggle;
+        view.OnCrouchToggleChanged -= model.SetCrouchToggle;
+        view.OnGraphicsQualityChanged -= model.SetGraphicsQuality;
         view.OnBrightnessChanged -= model.SetBrightness;
         view.OnContrastChanged   -= model.SetContrast;
         view.OnGammaChanged      -= model.SetGamma;

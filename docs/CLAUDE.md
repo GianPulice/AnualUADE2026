@@ -88,10 +88,10 @@ spec wins.**
 | Player System | v1.1 | Built, and **deliberately divergent** — there is a sprint the spec forbids. See *Spec deltas — Player* |
 | Interaction System | v1.0 draft | Built for Variant A. Variant B (lateral inventory) was dropped — see *Spec deltas — Interaction* |
 | Nemesis System | v1.0 draft | Built, and well past the spec. The spec is the document that is behind — see *Spec deltas — Nemesis* |
-| Audio System | v1.1 | **Routing built, content thin.** 16 of the ~90 clips on disk are reachable — see *Spec deltas — Audio* |
+| Audio System | v1.1 | **Routing built, content still thin.** 53 `SO_SoundData` for ~255 clips on disk — see *Spec deltas — Audio* |
 | Music Spec | v1.1 | 1 of 7 pieces. No `MusicManager` — see *Spec deltas — Music* |
 | Light System | v1.0 draft | Built as something else: the **vision fog**, not the spec's light model — see *Spec deltas — Light* |
-| Hiding System | v1.0 draft | **Not built.** `EPlayerState.Hidden` is an inert stub — see *Hiding spots* |
+| Hiding System | v1.0 draft | **Built** (`Scripts/Hiding/`, plan Phases 1–2), but **no spot is placed in `WIRED_Zona1_Blockout`** — only the Dev scenes have them. See *Hiding spots* |
 | Obstacle System | v1.0 draft | **Not built.** Nothing in the project climbs, vaults, pushes or clears — see *Environmental obstacles* |
 
 ### Spec vocabulary that does not exist in this codebase
@@ -128,7 +128,7 @@ real system and the two disagree. The mapping:
 | `LightManager`, `ZoneLightController`, the generator | **Do not exist.** No light in the project can be switched on by the player |
 | `AdaptationController` / `adaptationProgress` / `darkThreshold` | **Do not exist.** Standing still buys the player nothing today |
 | per-zone `lightLevel`, `playerVisibilityFactor`, `encendedorContribution` | **Do not exist.** `FieldOfView` has no light term at all — darkness does not shorten the Nemesis's sight and a lit room does not lengthen it. The per-zone knob that *does* exist is `SO_VisionFogConfig`, and it drives what the **player** sees, not what the Nemesis sees |
-| "the device's light" / "el encendedor" | `FogLightSource` on the player's amber `Light`, read by `VisionRangeController` to punch a hole in the vision fog |
+| "the device's light" / "el encendedor" | The fog's player light range, driven by `PlayerModuleLight` (`playerLightRange`) and read by `VisionRangeController` to punch a hole in the vision fog. `FogLightSource` exists but is placed nowhere |
 
 ### Noise is a sphere, not an event
 
@@ -167,10 +167,13 @@ distance checks, and detection being all-or-nothing. Its difficulty escalation (
 three deltas — by puzzles, never speed, search time untouched — see *Nemesis: escalation*. Things it
 asks for that are **still missing**:
 
-- **A capture cinematic (§5).** `NemesisCatchState` plays out phases and `CaptureFadeView` fades;
-  there is no cinematic. Everything else in the capture chain is wired. Nor is there a capture
-  **stinger** or an activation cue — §5.5 and §7.1 both ask for one and neither point makes a sound.
-- **`underTableVisionMultiplier` (hiding spec §3).** No field, no reader — see *Hiding spots*.
+- **The capture cinematic (§5) is the grab** (see *The grab*): both bodies staged on one animation and
+  a shot that picks its own angle. Anything the spec asks beyond that is not built. The capture
+  **stinger** (`NemesisAudio.captureStingerSoundId`) and the activation cue (`activationSoundId`)
+  both play now; the cue is skipped when the Nemesis is woken by script, so in Zona 1 it is heard
+  only in the escape's reveal.
+- `underTableVisionMultiplier` (hiding spec §3) **exists**: `SO_NemesisData.UnderTableVisionMultiplier`
+  (0.5), read by `FieldOfView`.
 
 **`NemesisStateManager.BaselineData` is a trap that has already been disarmed once.** The Director's
 sensory boost is a *loan*: widened senses installed for the length of a pressure request and handed
@@ -214,8 +217,38 @@ Matching the spec without drama: `moveSpeed` 3.5, `acceleration` 8, unlimited in
 checkpoint against three modules → Game Over as two different endings, ESC always live, and the
 interaction/inventory input locks.
 
-**Missing from the player spec:** everything in §10.2 that is audio (footsteps, breathing) and the
-`Hidden` half of §8.3.
+**Missing from the player spec:** nothing structural any more — footsteps and breathing are built
+(*Footsteps and breathing*) and so is `Hidden` (*Hiding spots*).
+
+**Sprint mode (09/11).** Settings > Controls has *Toggle Sprint (Shift)*: off (default) = hold Shift as
+always; on = a press starts the sprint and the next stops it. The key is `Settings_SprintToggle`, read
+by `GameInput.SprintActive` (reloaded on `SettingsModel.OnSettingsApplied`). `PlayerMovingState`
+calls `GameInput.ReleaseSprint()` on exit, so stopping, crouching or hiding ends a toggled sprint.
+
+**Crouch mode (09/11).** *Toggle Crouch (Ctrl)*, on by default (the original toggle). Off = crouched
+only while Ctrl is held: `PlayerStateManager.InputUpdate` crouches on the press and asks to stand on
+the release, through the same `wantsToStand` / `HasHeadroomToStand()` latch. It reacts to edges only,
+never to the held state, so a crouch another system set (a box released, a capture) is not undone.
+Key `Settings_CrouchToggle`, read by `GameInput.CrouchToggleMode`.
+
+**Settings, what applies each control** (all on `SettingsModel.OnSettingsApplied` unless noted):
+Brightness / Contrast / Gamma → `PostProcessSettingsApplier` (Data, on the Global Volume), **live while
+the slider moves** (`SettingsModel.OnPicturePreview`); CRT / Dither → `PS1EffectApplier`; Sensitivity /
+Invert Y → `CameraSensitivityApplier` (Player prefab); Sprint / Crouch modes → `GameInput`;
+Resolution / Window / FPS / VSync → `ScreenSettingsApplier` (Resolution does nothing in the editor);
+Graphics → `GraphicsQualityApplier`; volumes → `AudioManager`, live. Apply saves and closes; Reset and
+Back revert to the values Settings opened with.
+- **Brightness did nothing until 09/11**: the level's Main Camera has `renderPostProcessing` off, so
+  no Volume effect ever rendered. `PostProcessSettingsApplier` now turns it on for the main camera of
+  every scene that loads. Its mapping was also off-centre (the default 0.7 meant +0.8 EV, and gamma
+  wrote `w = 1` where URP's neutral is 0); now 0.5 on all three sliders is the picture as authored:
+  exposure −1.5..+1.5 EV, contrast −40..+40, gamma `w` −0.4..+0.4. A saved value from before still
+  applies as saved: Reset in Settings, or delete the `Settings_Brightness` / `Contrast` / `Gamma` keys.
+- **Graphics (Low / Medium / High)**: `GraphicsQualityApplier`, static and self-starting (no component).
+  Texture resolution full / half / quarter (`QualitySettings.globalTextureMipmapLimit` 0 / 1 / 2),
+  LOD bias 2 / 1 / 0.6, anisotropic forced / per texture / off. Only textures with mipmaps shrink. In
+  the editor it puts the original QualitySettings back when Play ends. Key `Settings_GraphicsQuality`,
+  default High.
 
 ### Spec deltas — Interaction
 
@@ -232,9 +265,8 @@ Built to spec, and in one place stricter than it:
 - **Variant A ships** (`SocketInteractable`: E plus the item in the inventory = immediate insertion).
 - **Variant B is not built and not planned.** The lateral-inventory skeleton (`LateralInventoryView`,
   `LateralInventorySlotView`) was deleted on 2026-10-05; no puzzle in the project requested it.
-- **Spec §8's specials route into systems that do not exist**: hiding, climbing, the window vault,
-  the shelf push and the sync station. Of that list only the elevator panels are real, and they are
-  not in the spec at all.
+- **Spec §8's specials**: hiding is built (*Hiding spots*); climbing, the window vault, the shelf push
+  and the sync station do not exist. The elevator panels are real and not in the spec at all.
 
 ### Spec deltas — Audio
 
@@ -245,28 +277,27 @@ Voice`), an `AudioManager` singleton with one entry point per bus, `PlayLoop(id,
 externally-owned loops, `spatialBlend` 1 for anything played at a position and 0 otherwise, and
 `ignoreListenerPause` forced on UI and Voice so menu clicks survive the pause.
 
-**The content gap is the headline.** `_Project/Audio/` holds roughly ninety clips — footsteps for
+**The content gap is the headline.** `_Project/Audio/` holds about 255 clips — footsteps for
 six surfaces, five breathing loops, the whole module set (tick normal and urgent, activation,
 explosion, damage loop, resolve, game-over, device hum, M2 chest vibe), Nemesis breathing and voice,
-generator and flicker audio, the save-point set, the UI set. **Sixteen `SO_SoundData` assets exist.**
-Everything else is a file on disk that no id resolves to and no call site asks for. Authoring the SO
-is the cheap half of the work and it is the half that is missing, not the recording.
+generator and flicker audio, the save-point set, the UI set. **53 `SO_SoundData` assets exist** (16
+until October). The rest is a file on disk that no id resolves to and no call site asks for.
+Authoring the SO is the cheap half of the work and it is the half that is missing, not the recording.
 
 Where audio actually fires today: doors (from `AnimateOpen`/`AnimateClose`, so the Nemesis opening a
 door is audible), notes, pickups (with the `SO_ItemCategoryConfig` fallback), sockets, valves, the
-sequence panel, the elevator, the sub-puzzle completion sting, and one UI click. That is the whole
-list.
+sequence panel, the elevator, the sub-puzzle completion sting, the module countdown and explosion,
+the Nemesis activation cue and capture stinger, and the UI (`UISounds` + `UICanvasSounds` on 8
+canvases).
 
 **Footsteps and hidden breathing are built** — see *Footsteps and breathing* under Architecture.
 That covers `PLY_01`–`PLY_07`, `PLY_08`/`PLY_11` and `NEM_01`/`NEM_02`.
 
-**Missing outright, in spec-table order:** `PLY_09`/`PLY_10` (the hold-breath input and its
-involuntary exhale, which belong to the unbuilt hiding system); `NEM_06`–`NEM_13` voice lines (there
-is no `PlayVoiceLine`); every `MOD_*` call site but the countdown tick — the module system runs its
-activations, explosions, penalties and resolutions **silently**, even though all nine clips exist; every `TRP_*` (the traps
-themselves do not exist); every `LUZ_*` — `FlickerLight`, `MonitorFlicker` and the generator have no
-`AudioSource` between them; every `SAV_*`; and `UI_01`–`UI_06` apart from the panel click, so the
-menus are silent.
+**Missing outright, in spec-table order:** `NEM_06`–`NEM_13` voice lines (there is no
+`PlayVoiceLine`); the module activations, penalties and resolutions (`ModuleManager` has no audio
+call; the countdown and the explosion do sound); every `TRP_*` (the traps themselves do not exist);
+every `LUZ_*` — `FlickerLight`, `MonitorFlicker` and the generator have no `AudioSource` between
+them; and every `SAV_*`. `PLY_09`/`PLY_10` (hold breath and the exhale) are built with hiding.
 
 Deltas in mechanism rather than in scope:
 
@@ -339,7 +370,7 @@ Mapping, so nobody builds the second copy:
 | Light spec | What plays that role here |
 |---|---|
 | per-zone `lightLevel` | the `SO_VisionFogConfig` preset a `LightZone` pushes |
-| the device's light (§3.1) | `FogLightSource` reading the real amber `Light` |
+| the device's light (§3.1) | `PlayerModuleLight` driving the fog's `playerLightRange` (`FogLightSource`, which reads a real `Light`, is placed nowhere) |
 | degradation by module count (§3.1.1) | **scaffolded, no caller.** `FogLightSource` reads the live `Light`, so dropping its intensity shrinks the fog hole for free — but nothing listens to `ModuleEvents.OnExploded` to drop it |
 | flickering lights (§2.3) | `FlickerLight` — and it already follows the spec's own advice: a deterministic `AnimationCurve` per instance with a per-instance offset, never `Random.Range` in `Update` |
 | monitors (§2.2) | `MonitorFlicker` (emission pulse through a `MaterialPropertyBlock`) |
@@ -402,7 +433,7 @@ Every screen follows MVC:
 
 `IModalUI` requires:
 - `ModalId` — unique string for deduplication logging.
-- `ConsumesEscape` — if `true`, the `UI/Exit` input action calls `RequestClose()` on this modal; if `false`, ESC passes through to the PauseManager.
+- `CloseKey` (`ModalCloseKey`: `None`, `Escape`, `Tab`) — which key closes it while it is on top. **Every gameplay UI closes with TAB** (`UI/Close`: Tab, gamepad Select / B); only the pause menu and Settings use ESC (`UI/Exit`). `UIStateManager` routes both keys to the top modal and ignores a key that is not its `CloseKey`, so ESC over a TAB modal opens the pause menu on top (unless `BlocksPause`). One press closes one modal: gamepad B sits on both actions, and `ClosedByKeyThisFrame` keeps the inventory from reopening on the TAB that just closed a note. `UI/Close` is looked up by path (`closeActionPath`), so no scene holds a reference to it. Replaced `ConsumesEscape` on 08/11.
 - `BlocksPause` — if `true`, the Pause menu cannot open on top of this modal.
 - `RequestClose()` — called externally to request closure.
 
@@ -419,7 +450,7 @@ Both the player and the Nemesis AI use the same generic FSM base:
 
 Adding a state to `ENemesisState` has three non-obvious consequences: `NemesisAudio.stateLoops` is a designer-authored array, so a state with no entry crossfades the monster to **silence**; `NemesisStateManager.IsNavigatingState()` decides whether the stuck watchdog runs in it; and no rung of the priority ladder will ever ask for it until you add one, so it is unreachable by default. **Append the new value at the end of the enum** — `SO_NemesisPriorities.asset` stores every rung's target as an integer, so inserting in the middle silently rewrites the designer's whole ladder into a different one.
 
-**Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`). `Hidden` is registered and reachable but **inert** — it is the hook the hiding system will hang off, not a working state; see *Hiding spots*.
+**Player states**: `Idle, Moving, Crouching, Hidden, Interacting (BoxInteracting), Disabled` (managed by `PlayerStateManager`). `Hidden` is the working hiding state (`HidingSpot` puts the player in it; breathing and holding breath live there); see *Hiding spots*.
 
 ### Singletons
 
@@ -513,9 +544,11 @@ The box is linked by its `puzzleId` dropdown (`[PuzzleId]`); its inspector finds
 that declares that id (any SO implementing `IPuzzleRewardSource`) and shows the item it will give.
 The flow:
 
-- **Locked.** Amber glow (lock LEDs and screen, the model's `Brillo` material) and an amber `Light` +
+- **Locked.** Red glow (lock LEDs and screen, the model's `Brillo` material) and a red `Light` +
   `FogBeacon` (`RewardLight` child), so it reads through the fog from the start. E says "Locked".
-  It was red until 26/10; red is kept for the Nemesis and danger, and players read the box as a threat.
+  It was amber from 26/10 to 08/11; the playday showed amber reads as a clue (it is the colour of the
+  player's own light) and testers took the SP1 box for part of the panel, so it went back to red.
+  Keep green and blue near zero in `lockedEmission`: a red with ~0.4 in both reads pale pink.
   The beacon hangs 0.47 m above and 0.42 m in front of the box, which at head height next to it read as
   a stray dot (green once unlocked, seen on opening); so it fades out when the player is closer than
   4 m (`nearFadeStart` 4, `nearFadeEnd` 7, measured from the player) and is a long-range tell only.
@@ -561,7 +594,11 @@ typo there fails silently, because nothing ever looks up a puzzle that does not 
 `PuzzleController` / `PuzzleReward` are a generic wrapper that predates the per-type controllers and
 still has no callers; see *Current state* below.
 
-**Per-run solutions (Puzzle 1).** Three solutions change every run: the SP1 code, which basket each
+**Per-run solutions (Puzzle 1).** **Switched off since 03/11** (`8cc3de83`, for the playday):
+*Randomize Each Run* / *Shuffle Each Run* are 0 on all three assets, so today the code is 3-1-4-2,
+each SP2 box goes to the basket with its own symbol and the valves are yellow 2 / red 0 / blue 3.
+Only the UV lamp's first spot still follows the seed. What follows is how it works when switched on.
+Three solutions change every run: the SP1 code, which basket each
 SP2 box goes in, and which SP3 valve gets which rule. `RunSeed` (`Scripts/Puzzles/`) holds one seed
 per run, dropped by `GameSession.BeginNewSession` (New Game, Retry) and drawn again on first use;
 each data asset derives its run's answer from it and its own puzzle id (`RunSeed.RandomFor`).
@@ -835,8 +872,10 @@ without it a later loss or game over would be swallowed) — and then calls it. 
 screen exactly as before.
 
 **Which of the two happens is decided in `ScriptableObjects/Escape/SO_EscapeEndingConfig`**, read by
-the director when the last shot ends: `Outcome` = To Be Continued (the shipping setting since
-2026-10-30: the Win screen, whatever the slot says) or Continue To Zone 2 (the handover above).
+the director when the last shot ends: `Outcome` = To Be Continued (the Win screen, whatever the slot
+says; shipped from 30/10 to 08/11) or Continue To Zone 2 (the handover above; **the shipping setting
+since 08/11**). Nothing in Zona 2 reports a win yet, so the "to be continued" screen has no trigger
+until a `WinTrigger` is placed there.
 `WinView` takes the screen's title from the same asset. F6 still teleports in either case.
 
 `TeleportNow()` is the one path, shared with the **F6** key of `DevLevelKeys`: `PlayerStateManager.TeleportTo`
@@ -847,6 +886,14 @@ with a trigger collider around the spawn and the arrival activates it, otherwise
 sends the player back to the last Zona 1 checkpoint and rolls the puzzles back to its snapshot (the
 hub's cores included) — nor wake or move the Nemesis, which the ending
 leaves parked against the gate under `NemesisCinematicActor`, its FSM off.
+
+**Zona 2's respawn is the ventilation hub (09/11/2026).** Under `---- GAMEPLAY ---- / ---- CHECKPOINTS ----`:
+`Checkpoint Llegada Zona 2` (Physical Trigger, a 4 × 2.5 × 4 m box around `Zona_2_Spawnpoint`, so both
+the escape's handover and F6 activate it on arrival) and `Checkpoint Zona 2` (its old trigger inside
+the hub) both respawn at `Respawn Hub Zona 2` — (190.3, −21.08, 28.0), on the hub's floor inside the
+Not Walkable `Safe Area Zona 2`, facing the panel. Nothing locked stands between the entry and the hub,
+so respawning there skips nothing. Measured in Play: F6, a capture in SUB_02, back on that point; the
+Nemesis is put back at a Zona 2 spawn point. Before this, a capture after F6 sent the player to Zona 1.
 
 ### Inventory
 
@@ -907,12 +954,11 @@ panel, discard footer.
   the circle around the timer (`radialFill = TimerProgress`) off the same events; before, nothing
   called it and the circle sat full.
 
-**ESC is a layer stack, not a close button.** `InventoryManagerUI.HandleCancelInput` unwinds
-discard dialog → selection → inventory, one press per layer (the doc panel is not a layer: it follows
-the selection), and `RequestClose()` (the
-`IModalUI` hook the `UI/Exit` action calls) *is* that method. `Tab` is handled separately, closes
-the inventory outright, and only acts while the inventory is the top of the
-`UIStateManager` stack. It also refuses to open while the player `IsDisabled`: opening a menu sets
+**TAB opens and closes it; ESC is the pause menu's.** `InventoryManagerUI` only *opens* on
+`Player/Inventory` (Tab / Select). Closing is `UIStateManager`'s, like every other gameplay UI
+(`CloseKey = Tab`): `RequestClose()` is `CloseInventory()`, the whole inventory in one press,
+selection and doc panel included. ESC over the inventory opens the pause menu on top (08/11; before,
+ESC unwound selection → inventory one layer per press). It also refuses to open while the player `IsDisabled`: opening a menu sets
 `timeScale = 0`, which used to freeze the Nemesis mid-capture for as long as the player kept the
 inventory up.
 
@@ -974,10 +1020,13 @@ run 6) that `FieldOfListening` picks up through the `AudioEmitingZone` sphere th
 `PlayerRegistry` is a static class (not a `Singleton<T>`) that every system uses to find the player,
 with `SubscribeAndCatchUp` for consumers that load before the gameplay scene.
 
-### Hiding spots (spec'd, not built)
+### Hiding spots (built; none placed in Zona 1)
 
-> **Stale since 21/09: this section predates the build.** Phases 1–2 of `docs/Plan-IA-Stalker.md`
-> built the hiding system (`Scripts/Hiding/`, `NemesisHidingAwareness`); the plan's §3 and §17.6
+> **Built.** What follows from "Spec:" on is the spec analysis written before the build, kept for its
+> reasoning; where it says something does not exist, the plan is right and it is wrong. Prefabs:
+> `Prefabs/HidingSpotFather/` (`HidingSpot_Locker`, `_UnderTable`, `_Container`), placed only in
+> `NemesisTestbed` and `TestIñaki`; `WIRED_Zona1_Blockout` has decorative lockers with no
+> `HidingSpot`. Phases 1–2 of `docs/Plan-IA-Stalker.md` built the hiding system (`Scripts/Hiding/`, `NemesisHidingAwareness`); the plan's §3 and §17.6
 > are the current description. One rule from 27/09 contradicts what follows: **holding breath
 > inside a spot takes the player out of extreme proximity and out of what the Nemesis makes out
 > through the slats** (`FieldOfView.CheckExtremeProximity` and `SenseThroughSpot` read
@@ -2724,6 +2773,67 @@ The systems below are **implemented but not connected to anything**. Read this b
 - **M1 is the fatal module and it ends on Lose.** `SO_GameOverRules`: `fatalModule` = `M1_Legs`, `explosionResult` = Lose (Retry, the save is kept; only GameOver deletes it). `SO_ModuleExplosionConfig` § Run-ending explosion: every module's blast goes off on its own LED, one after the other, and the body disappears. Only what is seen: the other modules keep their real status. Nothing brings the body back, because Retry reloads the level. The same frame the body goes, `MeatChunkBurst` throws the pieces of meat left on the floor (`Prefabs/VFX/MeatChunks`, rigidbodies on the Ignore Raycast layer, count and speed in the same section of the config). They only come from the explosion, not from a capture. They live in the level's scene, so its unload removes them.
 - **In `WIRED_Zona1_Blockout` only pure decoration is unpacked (2026-10-30), and the scene is saved flat.** A prefab instance was unpacked only if it sits under `PROPS SUELTOS LV1/LV2`, `NIVEL` or the tutorial's `PROPS` / `PIPES` / `STRUCTURE` **and** has no script on it or under it. Puzzles, doors, the player, the Nemesis and anything with a script are still prefabs, so editing the prefab reaches the scene. The hierarchy has two layouts, switched from the inspector of `ScriptableObjects/Levels/SO_SceneHierarchyLayout_Zona1`: **Flatten** empties the organiser folders into the root, **Restore** puts the organised tree back, exact. `---- PUZZLES ----` is not in the asset's folder list, so the puzzles stay under it in both layouts. To edit the level comfortably: Restore, work, Flatten. Flatten records the tree as it finds it and saves the scene first. A new folder is added by hand to the asset's list.
 - **`WIRED_Zona1_Blockout` has baked occlusion culling (2026-10-30).** The data is `WIRED_Zona1_Blockout/OcclusionCullingData.asset`, baked with a smallest occluder of 2 m. View cells exist only inside `Occlusion Area Zona 1`, under `---- SISTEMA ----`: a camera in Zona 2 (F6) gets no occlusion until that zone has an area of its own. Static level geometry that moves, or a new wall, needs a re-bake (Window > Rendering > Occlusion Culling > Bake). Objects without the static flags are never occluders, so doors do not hide what is behind them.
+- **Zona 1 after the 04/11 playday (08–09/11).** Re-applied by **Tools > Levels > Zona 1 > Apply
+  Playday Layout** (`Scripts/Editor/Levels/Zona1PlaydayLayout.cs`), safe to re-run: it finds each
+  object by name and puts it back, so after a merge that took the scene from the other side, run it,
+  check, save. It holds the poses Iñaki adjusted by hand on 09/11; change them there, not only in
+  the scene, or the next run puts them back.
+  - The Stairs Key and its `TrashCan` sit beside the fuse box (`CajaFusible`) in ELECTRICITY.
+  - `Note (2)` (the left valve note) is in the knocked-over toilet of the upstairs bathroom.
+  - The Valve Key hangs from `KeyHook_Bathroom` (`Prefabs/Environment/KeyHook.prefab`, unpacked:
+    decoration) on the west face of `Concrete_miniwall_short (5)`, in the bathroom's anteroom. Its
+    Rigidbody is set kinematic on that instance, or it falls off the hook.
+  - The hallway door into the box room (`DoorMetalRed (6)`, x ≈ 0 on the wall at z 17) was walled up
+    on 09/11 (Iñaki), so BOXES is entered from the sides. `UVWarningSign_Boxes`
+    (`Prefabs/Environment/UVWarningSign.prefab`: a quad with `M_Cartel_UVReveal` /
+    `T_Warning_UVReveal`, the fuse box's warning triangle with a pictogram: a box in the dark, its
+    lid a black disc; an arrow into the light; the same box under the violet UV lamp, its lid
+    showing the white skull of `wired_calavera_BLANCA`. The material is **URP Unlit** (cutout,
+    `_BaseColor` 0.85) so it reads like a painted decal: lit with `PSXIndustrial`, the player's own
+    amber light half a metre away flattened the black into the yellow. 0.85 keeps the yellow under the
+    vision fog's light-preservation threshold, so it does not glow through the fog. Texture at 1024,
+    no mipmaps, point filtered) hangs where the door was, facing the
+    hallway. `EscapeCorridorLock.doors` kept an empty slot where that door was; the lock skips nulls.
+  - Keys glint harder: `ScriptableObjects/Highlight/SO_Glint_Keys` on `InventoryItemLlaveIngenieria`
+    (bigger, every ~1.2 s, seen from 18 m). The freight elevator's `RideButton` glints white
+    (`SO_Glint_White`, no category tint; on `MontacargasRoot.prefab`); `ItemGlint` only draws while its
+    interactable `CanInteract`, so it starts with SP1's power and while the player is aboard.
+  - The box room's Architect line (ARC_CTX_06) waits until the player has been inside 6 s:
+    `ArchitectZoneTrigger.delaySeconds` (0 = on entry, as before; leaving cancels the wait and the
+    next entry restarts it).
+  - **Push boxes refuse to move in the dark.** `SO_PushableBoxConfig.requireLightsOn` (on): while
+    `PoweredLightSwitch.LevelLightsOn` is false the prompt shows *Too dark to see it* and E makes the
+    player think *"I can't see a thing. I need light before moving this."* Releasing a held box is
+    never blocked. In Zona 1 that means no box moves until SP1 powers the levers and they are on.
+- **The player's inner monologue (09/11).** `PlayerThoughtEvents.Show(text, seconds)` →
+  `PlayerThoughtView` (`HUDCanvas`, object `PlayerThought`, above the Architect's subtitles): yellow,
+  italic Share Tech Mono with the outline material, faded in and out, a new thought replaces the one
+  on screen. Its own `CanvasGroup`, so it never fights the HUD's `ModalVisibilityGate`. Only the dark
+  push box raises one today. Player-facing text stays in English.
+- **The grab gesture (09/11).** `PlayerGrabGesture` (on the Player prefab, `SO_GrabGestureConfig` in
+  `ScriptableObjects/Player/`) reaches out with the left arm on `InteractionEvents.OnInteracted` for a
+  `PickupInteractable`, a `DoorInteractable` or a `PuzzleRewardBox`; never for a push box, which has
+  its own animation. It plays on the **Grab Arm** layer of `PlayerController` (override, default
+  weight 0, **no avatar mask**) and fades that layer's weight in and out itself (smoothstep), so
+  walking carries on under it. What limits it to the arm is the clip, not a mask: it animates only
+  LeftArm, LeftForeArm and LeftHand, and both states of the layer have Write Defaults off, so every
+  other bone keeps the base layer's pose. Do not add a mask without testing it in Play: a transform
+  mask built from the prefab's hierarchy (`Armature_New/...` or with the root's name in front) matched
+  nothing on this generic rig and silently froze the gesture (09/11). The clip is
+  `Grabbing (Player Rig).anim`, built from `grab.fbx`'s *Grabbing* take with three changes, and the
+  raw take must not go into the controller:
+  - only the rotations of those three bones; every other bone in the take is a static bind pose that
+    would freeze the body;
+  - **no `LeftShoulder`**: rotating it pulls vest vertices weighted to the arm through the sleeve (a
+    white triangle on the back). That is a skin-weight problem in the model; dropping the shoulder
+    hides it, and fixing the weights in Blender would allow putting it back;
+  - retimed to 0.81 s (the first 35 % stretched for a softer start, the rest squeezed for a quicker
+    return), first and last keys flat. The take starts and ends in the bind pose, not the idle one;
+    the weight fades are what hide that. Speed is `SO_GrabGestureConfig.speed` (through the
+    `grabSpeed` parameter), shipping at 1 (1.6 was tried on 09/11 and reverted).
+    `PlayerGrabGesture` times the fades off the clip's length over the state's speed, so changing
+    the speed never leaves the arm held in the clip's last (bind) frame.
+  A refused interaction (a locked door) raises no `OnInteracted`, so it plays no gesture.
 - **`PuzzleController.CompletePuzzle()` and `PuzzleReward.GiveReward()` have zero callers.** The per-type controllers and `SequencePanelInteractable` write straight to `PuzzleStateManager` and bypass the generic wrapper entirely. Decide whether `PuzzleController` is the intended layer or dead code before building on it.
 - **`HubPuzzleController.CheckHubCompletion()` sets a flag and stops** — the cinematic / Floor 3 unlock is a TODO comment.
 - **Audio is still thin, but pickups and doors now speak.** `PickupInteractable` falls back to a
@@ -2735,13 +2845,13 @@ The systems below are **implemented but not connected to anything**. Read this b
   `minDistance` / `maxDistance` / `rolloff`, applied by `PlayInternal` for positioned sounds — pooled
   sources are created in code and otherwise inherit Unity's `maxDistance` of 500, which is audible
   across the level and makes distance useless as information. Defaults match Unity's, so no existing
-  clip changed. Still missing: UI audio, the capture stinger, the activation cue, and content for
-  `NemesisAudio.stateLoops`; the **ambience system** (`_Project/Scripts/Ambience/`) is built but
+  clip changed. Still missing: content for `NemesisAudio.stateLoops` (UI audio, the capture stinger
+  and the activation cue are in since this was written); the **ambience system** (`_Project/Scripts/Ambience/`) is built but
   ships with placeholder clips. `NemesisChaseMusic` is **done** — clip assigned, sitting in
   `WIRED_Zona1_Blockout`, correctly on the Music bus (it was on the Nemesis bus once, which made it
   ride the SFX slider) with the `AmbienceController` wired for the duck.
-- **Most of the audio that exists on disk still cannot be played.** `_Project/Audio/` holds ~90
-  clips and the project has **16 `SO_SoundData` assets**. Footsteps and hidden breathing now reach
+- **Most of the audio that exists on disk still cannot be played.** `_Project/Audio/` holds ~255
+  clips and the project has **53 `SO_SoundData` assets**. Footsteps and hidden breathing now reach
   the game through `SO_FootstepBank` and direct clip references instead — see *Footsteps and
   breathing*. Every module sound, the Nemesis voice lines, the light and generator audio, the
   save-point set and the UI set are still unreachable. For a fixed one-sound-per-event case the
@@ -2758,7 +2868,7 @@ The systems below are **implemented but not connected to anything**. Read this b
   player sees, not what the Nemesis sees. See *Spec deltas — Light*.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
 - **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
-- **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. `PlayerHiddenState` is still inert (no collider/visibility change) and the `R` (hidden) and `Y` (disabled) debug keys are still live in `PlayerStateManager.InputUpdate`; `R` goes away when `HidingSpotInteractable` lands.
+- **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. The `R` (hidden) and `Y` (disabled) debug keys are gone; `HidingSpot` is the way into `Hidden`.
 - **The two parallel grab/push implementations are resolved.** The physical-box version stayed (`GrabbableBall` + `PushBoxTriggerLogic` + `BallPuzzleItem` + `BasketTrigger`); `ContainerInteractable`, `ContainerSlot` and the dead `PushableBall` were deleted, so nothing competes for the `SetContainerSlot` keys any more. That key is a **BallId** — `SO_ContainerPuzzleData.ContainerRequirement.containerId` keeps the old field name but is authored with a ball id. `GrabbableBall` now carries its `PauseManager.IsGameplayInputBlocked` guard, and `BasketTrigger` caches the controller lookup instead of running two `FindObjectsByType` scans per trigger crossing.
 - **Three Editor tools were deleted as stale**: `Door/Setup Door Visual` (reflected on `leftPanel`/`rightPanel`, fields the hinged door no longer has — running it disabled the root MeshRenderer and added two stray cubes), `Puzzle UI/Setup Sequence Panel UI` (drove the View through `SetPrivateField`, so every View refactor broke it; the panel prefab is maintained by hand now) and `Scenes/Build Testing Blockout`. `WinLoseTest.cs` and `TestSceneBuilder.cs` went with them.
 - *(Stale since 19/09: the asset ships at 0.6, plan Phase 0.)* **`SO_NemesisData.patrolWaitVariance` ships at 0**, so the wait at every patrol waypoint is still
@@ -2766,11 +2876,8 @@ The systems below are **implemented but not connected to anything**. Read this b
   off on purpose — the variance is expressed as +/- seconds around the authored wait, and no code
   default can know what that authored value is without retuning existing assets. Set it to about
   `0.6` to switch the feature on.
-- *(Stale since 21/09: built — see* Hiding spots *and the plan's Phases 1–2.)* **The hiding system does not exist.** `EPlayerState.Hidden` is registered, `PlayerHiddenState` is
-  inert, and the only way into it is the `R` debug key. The *Nemesis* half is done — vision is
-  blinded by `IsHidden`, extreme proximity still detects — so what is missing is entirely on the
-  player and level side: the interactable, the interior cameras, the input lock and the breathing.
-  See *Hiding spots*.
+- **No hiding spot in Zona 1.** The system is built (*Hiding spots*); `WIRED_Zona1_Blockout` has
+  none placed, only decorative lockers.
 - **The obstacle system does not exist.** No `ClimbableObstacle`, no `SO_ObstacleData`, no vault
   animation, no push/clear interactable. Crouch-only passages already work through the real capsule
   and `HasHeadroomToStand()`; everything else in the spec is unbuilt. See *Environmental obstacles*.
@@ -2788,7 +2895,7 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 **Wired since this section was last written** — kept here because the old text said otherwise and people still quote it:
 
-- **Module timers do run.** `ZoneTrigger` → `ModuleManager.ActivateModule`, and `PuzzleStateManager.OnPuzzleCompleted` → `HandlePuzzleCompleted` → `ResolveModule` closes the loop. Explosion, penalty and `BlindnessOverlayView` all fire.
+- **Module timers do run.** `ZoneTrigger` → `ModuleManager.ActivateModule`, and `PuzzleStateManager.OnPuzzleCompleted` → `HandlePuzzleCompleted` → `ResolveModule` closes the loop. Explosion and penalty fire. `BlindnessOverlayView` (the M3 penalty) is placed in no scene or prefab; it matters once M3 has a trigger and a puzzle, which today it does not.
 - **Retry does reset run state**, through `GameSession.BeginNewSession()` and `ISessionResettable`.
 - **`SO_NemesisMovement` is fully consumed.** `NemesisLifecycle.ApplyMovementTuning` applies `AngularSpeed`, `Acceleration` and `StoppingDistance`; the four state speeds are all assigned. `InvestigationTimeOut` and `NoiseUpdateCooldown` are both read.
 - **Nemesis trigger overrides no longer throw** — they are empty, which is correct: the FSM is driven by the sensors, not by triggers.

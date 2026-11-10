@@ -352,7 +352,21 @@ public class PushableBox : BaseRangeInteractable
         // still moving, and the push and the tween would fight over it.
         if (locked || snapping) return false;
         if (isGrabbed) return true;
+        if (IsTooDark) return false;
         return IsWithinGrabRange();
+    }
+
+    /// <summary>
+    /// The level's lights are off and the config asks for them: nobody pushes what they cannot see.
+    /// <see cref="PoweredLightSwitch"/> refreshes the prompt when the lights change.
+    /// </summary>
+    private bool IsTooDark => config != null && config.RequireLightsOn && !PoweredLightSwitch.LevelLightsOn;
+
+    /// <summary>E on a box in the dark: the player says why nothing happens.</summary>
+    public override void OnInteractAttemptBlocked()
+    {
+        if (locked || snapping || isGrabbed || !IsTooDark) return;
+        PlayerThoughtEvents.Show(config.DarkThought, config.DarkThoughtSeconds);
     }
 
     // Info text shown by the prompt UI when CanInteract is false and the box still has something
@@ -361,6 +375,7 @@ public class PushableBox : BaseRangeInteractable
     public override string GetInfoText()
     {
         if (locked || isGrabbed || snapping) return string.Empty;
+        if (IsTooDark) return config.DarkPrompt;
         if (IsWithinGrabRange()) return string.Empty;
         return config != null ? config.OutOfRangePrompt : string.Empty;
     }

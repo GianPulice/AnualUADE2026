@@ -91,7 +91,7 @@ Assets/_Project/
 │   ├─ Light Base Switch.prefab                        ← variante para PoweredLightSwitch (§6.4.1)
 │   └─ Reflector Symbol Reveal.prefab                  ← luz negra que revela el símbolo de las cajas (§6.4.1)
 ├─ ScriptableObjects/
-│   ├─ Highlight/                                      ← SO_Highlight_*.asset (§5.3), SO_Glint_Items.asset (§5.5)
+│   ├─ Highlight/                                      ← SO_Highlight_*.asset (§5.3), SO_Glint_Items / _Keys / _White.asset (§5.5)
 │   ├─ Rendering/Fog/                                  ← SO_VisionFog_Dark / Darkness / Light / UVPool / SilentHill
 │   ├─ Escape/SO_VisionFog_Escape*.asset               ← presets del escape
 │   └─ SO_PostProcessToggle.asset                      ← prende/apaga PS1 + fog de un botón (§6.5)
@@ -799,7 +799,7 @@ Lo común está en `HidingOverlayCommon.hlsl`.
 | Color de un item de categoría | `ItemCategory.asset` (`ScriptableObjects/CategoryConfig/`) → `shaderTintColor` / `shaderEmissionColor`: en Play el highlight pisa el color del `.mat` (§5.2). |
 | Velocidad de la transición lejano↔próximo | `lerpDuration` del `SO_HighlightProfile` (`ScriptableObjects/Highlight/`). |
 | Color / intensidad del resaltado de puzzles y dispositivos | El `SO_Highlight_*` de esa familia (§5.3): `Interactables`, `Cores`, `Doors` o `ElectricPanel`. |
-| Frecuencia / tamaño / rango / cuánto color de categoría tiene el destello de items | `SO_Glint_Items.asset` (`ScriptableObjects/Highlight/`), ver §5.5. |
+| Frecuencia / tamaño / rango / cuánto color de categoría tiene el destello de items | `SO_Glint_Items.asset` (`ScriptableObjects/Highlight/`), ver §5.5. Las llaves usan `SO_Glint_Keys` (más grande, cada ~1,2 s, hasta 18 m; asignado en `InventoryItemLlaveIngenieria`) y el `RideButton` del montacargas `SO_Glint_White` (sin tinte de categoría). Desde el 08–09/11. |
 | Forma de la estrella del destello (rayos, núcleo, pixelado) | `mat_item_glint.mat` (`Art/Materials/Items/`). |
 | Activar/afinar el outline de un puzzle | `_OutlineColor` / `_OutlineIntensity` / `_OutlinePower` en el `.mat` del interactuable (solo puzzles §4.7, ver §5.4). |
 | Color / rango de la niebla de una zona | El `SO_VisionFogConfig` de esa zona (`visionStart`, `visionEnd`, `fogColor` + `inscatterStrength`). |
