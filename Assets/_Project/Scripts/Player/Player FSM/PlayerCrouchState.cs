@@ -6,6 +6,15 @@ using UnityEngine.InputSystem;
 public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
 {
     private PlayerStateManager playerStateManager;
+
+    /// <summary>The slide ends this close to crouch speed, m/s.</summary>
+    private const float SlideEndMargin = 0.15f;
+
+    /// <summary>Fraction of the normal turning a slide allows: committed, not on rails.</summary>
+    private const float SlideSteering = 0.25f;
+
+    private bool wasSliding;
+
     public PlayerCrouchState(PlayerStateManager.EPlayerState key, PlayerStateManager stateManager) : base(key)
     {
         playerStateManager = stateManager;
@@ -26,6 +35,7 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         // WIR-025: crouch-idle/walk swing an arm out for balance well past the standard radius.
         playerStateManager.RefreshCapsuleRadius();
         playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.CrouchNoiseRadius;
+        wasSliding = false;
         NextState = StateKey;
     }
 
@@ -74,8 +84,43 @@ public class PlayerCrouchState : BaseState<PlayerStateManager.EPlayerState>
         }
         else
         {
+            // THE SLIDE. Crouching out of a sprint keeps the momentum and bleeds it off, instead of
+            // dropping to crouch speed on the spot: that is what gets the player under a low pass
+            // with the Nemesis behind them (crouch-walking under one costs a second and a half they
+            // do not have). It carries on by itself, input or not, steers a little, and is as loud
+            // as the run it came from. Slide Deceleration 0 in SO_Movement turns it off.
+            float crouchSpeed = playerStateManager.EffectiveMoveSpeed * playerStateManager.SpeedMultiplier;
+            float slideDeceleration = playerStateManager.Movement.SlideDeceleration;
+            bool sliding = !holdPose && slideDeceleration > 0f &&
+                           playerStateManager.CurrentVelocity > crouchSpeed + SlideEndMargin;
+
+            if (sliding)
+            {
+                playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
+                playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.RunNoiseRadius;
+
+                if (playerStateManager.InputDir != Vector3.zero)
+                    playerStateManager.PlayerBody.forward = Vector3.Slerp(
+                        playerStateManager.PlayerBody.forward, playerStateManager.InputDir,
+                        Time.deltaTime * playerStateManager.Movement.RotationSpeed * SlideSteering);
+
+                playerStateManager.CurrentVelocity = Mathf.MoveTowards(
+                    playerStateManager.CurrentVelocity, crouchSpeed, slideDeceleration * Time.deltaTime);
+                wasSliding = true;
+            }
+            else if (wasSliding)
+            {
+                // Out of the slide: quiet again.
+                wasSliding = false;
+                playerStateManager.AudioEmitingZone.radius = playerStateManager.Movement.CrouchNoiseRadius;
+            }
+
             // Held: no input reaches the body, so it takes the standing-still branch below.
-            if (!holdPose && playerStateManager.InputDir != Vector3.zero)
+            if (sliding)
+            {
+                // Carried by the slide: the speed was set above.
+            }
+            else if (!holdPose && playerStateManager.InputDir != Vector3.zero)
             {
                 playerStateManager.AudioEmitingZone.gameObject.SetActive(true);
                 playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.InputDir, Time.deltaTime * playerStateManager.Movement.RotationSpeed);

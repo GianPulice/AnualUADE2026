@@ -420,7 +420,11 @@ public class NemesisElevatorUser : MonoBehaviour
         // link instead of blowing up on a null reference.
         if (elevator != null && elevator.IsUsable) TraverseElevatorAsync(elevator, token).Forget();
         else if (drop != null && drop.IsUsable)    TraverseDropAsync(drop, data, token).Forget();
-        else                                       TraverseSimpleLinkAsync(data, token).Forget();
+        else
+        {
+            NemesisBreakLink barrier = linkOwner != null ? linkOwner.GetComponent<NemesisBreakLink>() : null;
+            TraverseSimpleLinkAsync(data, barrier, token).Forget();
+        }
     }
 
     /// <summary>
@@ -673,7 +677,12 @@ public class NemesisElevatorUser : MonoBehaviour
     /// Crossing a plain link: interpolate end to end at constant speed and report completion.
     /// This replaces the automatic traversal switched off in Awake.
     /// </summary>
-    private async UniTaskVoid TraverseSimpleLinkAsync(OffMeshLinkData data, CancellationToken token)
+    ///
+    /// A link across a low pass (<see cref="NemesisBreakLink"/>) whose barrier still stands is crossed
+    /// the hard way first: stop, face it, strike, and only then walk through. That pause is the whole
+    /// point of the barrier: it is what the player gained by going under it.
+    private async UniTaskVoid TraverseSimpleLinkAsync(OffMeshLinkData data, NemesisBreakLink barrier,
+                                                      CancellationToken token)
     {
         isTraversing = true;
         stateManager.PushStuckSuppression();
@@ -683,12 +692,29 @@ public class NemesisElevatorUser : MonoBehaviour
             Vector3 start = transform.position;
             Vector3 end = data.endPos + Vector3.up * agent.baseOffset;
 
+            if (barrier != null && !barrier.IsBroken)
+            {
+                HoldStill(true);
+                await TurnToFaceAsync(barrier.BarrierPosition, token);
+
+                stateManager.PlayStrike();
+                await WaitSecondsAsync(barrier.StrikeSeconds, token);
+                barrier.Break();
+                await WaitSecondsAsync(barrier.RecoverSeconds, token);
+
+                stateManager.EndTraversalAnimation();
+                HoldStill(false);
+            }
+
             await MoveTransformToAsync(start, end, LinkTraversalSpeed, token);
 
             if (agent.isActiveAndEnabled && agent.isOnOffMeshLink) agent.CompleteOffMeshLink();
+            if (barrier != null) barrier.NotifyCrossed();
         }
         finally
         {
+            // A strike cut short (a capture, a respawn) must not leave it frozen in the pose.
+            if (stateManager != null) stateManager.EndTraversalAnimation();
             if (stateManager != null) stateManager.PopStuckSuppression();
             isTraversing = false;
 

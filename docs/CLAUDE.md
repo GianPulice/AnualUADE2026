@@ -1102,6 +1102,30 @@ inside the player controls only the camera and their breathing.
   from the real distance and keeps working while hidden, which is the "brief pulse of red while
   hidden" of Nemesis spec §6.2.
 
+### Hanging cloth (curtains)
+
+`HangingCloth` (`Scripts/Environment/`) makes a curtain panel behave like pinned cloth: a body walking
+into it carries it forward up to a limit, walks through, and it swings back and settles. The
+simulation is `HangingClothSolver` (`Scripts/Utils/`, pure, `HangingClothSolverTests`): a coarse
+Verlet grid laid over the panel's own plane, pinned along the top; every vertex of the mesh rides it
+with the displacement of the four particles around it, so the modelled pleats survive. Tuning is one
+shared asset, `ScriptableObjects/Environment/SO_HangingCloth_Curtain` (`SO_HangingClothConfig`).
+
+- **It cannot blow up, by construction.** After the constraints, every step: no particle farther from
+  its rest position than `maxSwing` x its depth below the pinned edge (which is also the design: the
+  body carries it up to a point), vertical links limited to `maxStretch`, speed capped, the frame time
+  capped at three fixed steps, a NaN particle put back at rest, a body that teleported ignored for
+  that step, and an exact snap onto the rest shape once settled. The mesh writer has its own NaN net.
+- **Bodies are `ClothPusher`s**, a static list, not physics queries: the Nemesis has no collider. The
+  player gets one when it registers (it follows the player's CapsuleCollider, so a crouch pushes
+  less); the Nemesis adds its own in `NemesisStateManager`.
+- **Asleep it costs nothing**: no simulation, no mesh copy. It wakes when a pusher is within reach and
+  the renderer is visible, and makes its own copy of the mesh the first time.
+- **Requirements**: the mesh readable, the object not Batching Static. `Tools/Level/Setup Hanging
+  Cloth (Cortinas)` does both for every panel of `Cortina.fbx` in the open scene (24 on 10/11/2026;
+  the six behind a solid collider were left still). A panel must not move: its rest shape is read
+  once, in world space. It blocks neither movement, sight nor the NavMesh.
+
 ### Environmental obstacles (spec'd, not built)
 
 Spec: *Obstacle System v1.0*. Nine obstacles in three categories — pass through (broken wall,
@@ -1109,6 +1133,14 @@ window, tight shelves, low pipe), act on (blocking shelf, furniture barricade, r
 (low rubble, desk). None of them needs an inventory item, all are permanent, and several exist to
 make noise the player has to decide about. Nothing of this is implemented: there is no
 `ClimbableObstacle`, no `SO_ObstacleData`, no vault animation.
+
+**One of the nine is built (10/11/2026): the low pass**, as `NemesisBreakLink` + the player's slide.
+The barrier carves the NavMesh with a NavMeshObstacle while it stands and a NavMeshLink bridges the
+cut; `NemesisElevatorUser.TraverseSimpleLinkAsync` finds the component on the link it steps onto and,
+while the barrier stands, holds, faces it, plays `E_Attack` (`NemesisStateManager.PlayStrike`), calls
+`Break()` and only then crosses. The slide is not a state: `PlayerCrouchState` bleeds the sprint's
+speed off at `SO_Movement.SlideDeceleration` instead of clamping it. See *Pasos bajos* in
+`docs/Nemesis-System.md`. `GameObject > WIRED > Nemesis > Low Pass` builds a blockout one.
 
 What the project already gives you, and where the spec's implementation notes should be ignored:
 

@@ -119,7 +119,17 @@ public class SO_GlintProfile : ScriptableObject
 
         // Brightest component to 1: keeps the hue, drops how dark the category colour is authored.
         var hue = new Color(category.r / peak, category.g / peak, category.b / peak);
-        return Color.Lerp(color, hue, categoryTint);
+
+        // Tint the HUE and keep the INTENSITY (10/11/2026). Lerping the HDR Colour (12, 12, 12)
+        // toward a hue at 1 left it nearly white, (3.75, 3.15, 3.15), and the shader could not get
+        // the colour back. The shader splits the result again: hue for the rays, intensity for the core.
+        float intensity = Mathf.Max(color.r, Mathf.Max(color.g, color.b));
+        if (intensity <= 0.0001f) return color;
+
+        var baseHue = new Color(color.r / intensity, color.g / intensity, color.b / intensity);
+        Color tinted = Color.Lerp(baseHue, hue, categoryTint) * intensity;
+        tinted.a = color.a;
+        return tinted;
     }
 
     /// <summary>Seconds until the next glint, jitter included. Never shorter than a glint.</summary>

@@ -35,6 +35,11 @@ public class ItemGlint : MonoBehaviour
     private static readonly int ColorId    = Shader.PropertyToID("_GlintColor");
     private static readonly int AlphaId    = Shader.PropertyToID("_GlintAlpha");
     private static readonly int RotationId = Shader.PropertyToID("_GlintRotation");
+    private static readonly int PullId     = Shader.PropertyToID("_GlintPull");
+
+    /// <summary>How far the shader may pull the star toward the camera to clear this item's own
+    /// mesh: its renderers' largest half-extent, and a little. See ItemGlint.shader.</summary>
+    private float _pull;
 
     private static Mesh s_quad;
 
@@ -66,6 +71,7 @@ public class ItemGlint : MonoBehaviour
 
         // Captured once, relative to the item: pickups do not change shape while they lie there.
         _localAnchor = transform.InverseTransformPoint(RendererCentre());
+        _pull = OwnHalfExtent() + PullMargin;
 
         // Spread over a whole interval: items that woke up in the same frame would glint in unison.
         _nextFlash = Time.time + Random.Range(0f, profile.Interval);
@@ -155,6 +161,7 @@ public class ItemGlint : MonoBehaviour
         _block.SetColor(ColorId, profile.ResolveColor(_owner));
         _block.SetFloat(AlphaId, alpha);
         _block.SetFloat(RotationId, spinDegrees * Mathf.Deg2Rad);
+        _block.SetFloat(PullId, _pull);
 
         var renderParams = new RenderParams(profile.Material)
         {
@@ -189,6 +196,33 @@ public class ItemGlint : MonoBehaviour
         }
 
         return found ? bounds.center : transform.position;
+    }
+
+    /// <summary>Clear of the item's own surface, by this much, on top of its half-extent.</summary>
+    private const float PullMargin = 0.03f;
+
+    /// <summary>
+    /// The item's largest half-extent: as far as its own mesh can stand between its centre and the
+    /// camera. The shader pulls the star toward the camera by this much and no more, so it clears the
+    /// item without crossing the wall the item lies against (10/11/2026: a fixed 0.4 m pull put the
+    /// bathroom key's glint through a 41 cm wall).
+    /// </summary>
+    private float OwnHalfExtent()
+    {
+        bool found = false;
+        Bounds bounds = default;
+
+        foreach (Renderer part in ItemProximityHighlight.GatherRenderers(transform))
+        {
+            if (!part.enabled || !part.gameObject.activeInHierarchy) continue;
+
+            if (found) bounds.Encapsulate(part.bounds);
+            else       { bounds = part.bounds; found = true; }
+        }
+
+        if (!found) return 0.1f;
+        Vector3 e = bounds.extents;
+        return Mathf.Max(e.x, Mathf.Max(e.y, e.z));
     }
 
     /// <summary>A unit quad in XY, shared by every glint.</summary>

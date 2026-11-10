@@ -570,6 +570,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         float k = 1f - Mathf.Exp(-deltaTime / GaitVelocitySmoothing);
         smoothedFlatVelocity = Vector3.Lerp(smoothedFlatVelocity, delta / deltaTime, k);
 
+        TickLocomotionRate(delta.magnitude / deltaTime, deltaTime);
+
         if (currentGait != EGait.Walking && currentGait != EGait.Running) return;
         if (Time.time < gaitBenefitOfDoubtUntil) { stillTimer = 0f; return; }
 
@@ -589,6 +591,69 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// locomotion animation trusts. Exposed for the F9 HUD.</summary>
     public float NetFlatSpeed => smoothedFlatVelocity.magnitude;
 
+    /// <summary>
+    /// The locomotion tick for whoever moves the Nemesis while this component is switched off
+    /// (<c>NemesisCinematicActor</c>): its Update is what normally runs it, and without it the legs
+    /// keep the last rate and the anti-skating guard stops judging. Does nothing while this
+    /// component is enabled — that tick already ran this frame.
+    /// </summary>
+    public void TickLocomotion()
+    {
+        if (enabled) return;
+        TickLocomotionAnimation();
+    }
+
+    private static readonly int LocomotionRateParam = Animator.StringToHash("locomotionSpeed");
+
+    /// <summary>Playback rate of the locomotion state, as last sent to the Animator.</summary>
+    public float LocomotionRate { get; private set; } = 1f;
+
+    private bool? animatorHasRateParam;
+
+    /// <summary>
+    /// Keeps the walk cycle in step with the body (10/11/2026). E_Walk is the only locomotion clip;
+    /// the Chase state used to play it at a fixed ×2 whatever the speed, so the feet skated at every
+    /// speed but one — ×2.1 on patrol, up to ×2.2 in the escape, where the pace follows the player's
+    /// sprint. Now one state plays it at <c>speed / WalkClipSpeed</c>, clamped, eased.
+    ///
+    /// Measured off the frame's own displacement, not the smoothed velocity the anti-skating guard
+    /// uses: that one is slow on purpose (0.3 s, to average out jitter), and legs that lag the body
+    /// by a third of a second read as skating too. The easing here is the shorter
+    /// <see cref="SO_NemesisMovement.LocomotionRateSmoothing"/>.
+    /// </summary>
+    private void TickLocomotionRate(float instantFlatSpeed, float deltaTime)
+    {
+        if (animController == null || nemesisMovement == null) return;
+
+        animatorHasRateParam ??= HasFloatParameter(animController, LocomotionRateParam);
+        if (animatorHasRateParam == false) return;
+
+        // Linear up to the clip's own speed; above it the cadence grows slower than the speed, as a
+        // real stride lengthens instead of only quickening. All-linear (exponent 1) kept the feet
+        // planted but made 4.5 m/s a frantic x3.5 speed-walk (playtest 10/11/2026: "goofy").
+        float ratio = instantFlatSpeed / nemesisMovement.WalkClipSpeed;
+        if (ratio > 1f) ratio = Mathf.Pow(ratio, nemesisMovement.CadenceExponent);
+        float target = Mathf.Clamp(ratio, nemesisMovement.MinLocomotionRate, nemesisMovement.MaxLocomotionRate);
+
+        float smoothing = nemesisMovement.LocomotionRateSmoothing;
+        float k = smoothing <= 0f ? 1f : 1f - Mathf.Exp(-deltaTime / smoothing);
+        LocomotionRate = Mathf.Lerp(LocomotionRate, target, k);
+
+        animController.SetFloat(LocomotionRateParam, LocomotionRate);
+    }
+
+    private static bool HasFloatParameter(Animator animator, int hash)
+    {
+        if (animator.runtimeAnimatorController == null) return false;
+
+        foreach (AnimatorControllerParameter parameter in animator.parameters)
+        {
+            if (parameter.nameHash == hash && parameter.type == AnimatorControllerParameterType.Float) return true;
+        }
+
+        return false;
+    }
+
     /// <summary>Forgets where the body was, so the next tick measures from here. For anything that
     /// moves the Nemesis without walking it there.</summary>
     public void ResetGaitSampling()
@@ -603,7 +668,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         if (animController == null) return;
 
-        animController.SetBool(WalkingParam, gait == EGait.Walking);
+        // Running is walking, faster: both live in the one Locomotion state, whose rate follows the
+        // body (TickLocomotionRate). isRunning stays as a flag for anything that reads it.
+        animController.SetBool(WalkingParam, gait == EGait.Walking || gait == EGait.Running);
         animController.SetBool(RunningParam, gait == EGait.Running);
         animController.SetBool(CatchingParam, gait == EGait.Grabbing);
     }
@@ -654,6 +721,24 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // Every phase but the landing leaves the Animator in a state with no way out on its own —
         // and the fall loops. The landing leaves by exit time.
         traversalClipLeftPlaying = phase != EDropPhase.Land;
+        return true;
+    }
+
+    private static readonly int StrikeStateHash = Animator.StringToHash("E_Attack");
+
+    /// <summary>
+    /// The strike, as a one-shot on the same channel as the drops: for knocking a low pass open
+    /// (<see cref="NemesisBreakLink"/>). The clip has no way out of its own, so whoever plays it
+    /// calls <see cref="EndTraversalAnimation"/> when the beat is over.
+    /// </summary>
+    /// <returns>Whether the clip started (false: the controller has no such state).</returns>
+    public bool PlayStrike()
+    {
+        if (animController == null || animController.runtimeAnimatorController == null) return false;
+        if (!animController.HasState(0, StrikeStateHash)) return false;
+
+        animController.CrossFadeInFixedTime(StrikeStateHash, 0.1f, 0, 0f);
+        traversalClipLeftPlaying = true;
         return true;
     }
 
@@ -1415,6 +1500,17 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (fieldOfView == null)      fieldOfView      = GetComponentInChildren<FieldOfView>(true);
         if (fieldOfListening == null) fieldOfListening = GetComponentInChildren<FieldOfListening>(true);
         if (animController == null)   animController   = GetComponentInChildren<Animator>(true);
+
+        // The torso leans with the body's motion (10/11/2026). On the model, beside the arm guard it
+        // has to run before; added here so the prefab needs no edit, like the peek rig.
+        // Hanging cloth gets out of its way (HangingCloth). It has no collider to read a size from:
+        // its shoulders and its walking height.
+        ClothPusher.Attach(gameObject, 0.45f, 2.3f);
+
+        // The headroom first: the lean looks for it on this object in its own Awake.
+        if (GetComponent<NemesisHeadroom>() == null) gameObject.AddComponent<NemesisHeadroom>();
+        if (animController != null && animController.GetComponent<NemesisLocomotionLean>() == null)
+            animController.gameObject.AddComponent<NemesisLocomotionLean>();
 
         // AFTER the sensors, and that ordering is load-bearing.
         //

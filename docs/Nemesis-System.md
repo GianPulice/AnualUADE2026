@@ -355,6 +355,34 @@ Dos cosas que importan para el diseño:
 
 ---
 
+## Cómo se mueve el cuerpo (10/11/2026)
+
+El modelo tiene **un solo clip de locomoción**, `E_Walk` (2,5 s, en el lugar). Tres piezas hacen que no se vea como una estatua deslizada:
+
+- **Un estado `Locomotion`, a la velocidad del cuerpo.** El controller ya no tiene `Patrol` (×1) y `Chase` (×2 fijo): es un estado cuya velocidad de reproducción sale de `locomotionSpeed`, que `NemesisStateManager` calcula cada frame con lo que el cuerpo avanzó de verdad. Tunables en `SO_NemesisMovement` › *Locomoción*:
+  - `Walk Clip Speed` (1,3 m/s): lo que cubre el clip a velocidad 1. Medido: cada pie barre ~1,78 m por paso.
+  - `Cadence Exponent` (0,6): cuánto de la velocidad extra ponen las piernas. En 1 los pies quedan clavados pero a 4,5 m/s es una caminata a ×3,5 que se ve ridícula; en 0,5 se parece al ×2 de antes. Con 0,6: patrulla ×1,6, persecución ×1,65, escape ×2,1.
+  - `Min` / `Max Locomotion Rate` y `Locomotion Rate Smoothing`.
+- **`NemesisLocomotionLean`** (se agrega solo al modelo): inclina el torso con el movimiento — hasta 6° hacia adelante con la velocidad, hasta 5° adelante o atrás al arrancar y frenar, hasta 4° hacia adentro de una curva.
+- **`NemesisHeadroom`** (se agrega solo a la raíz): mide cuánto techo tiene encima y un paso adelante, y el torso **se encorva** lo que haga falta, hasta 45° (~0,4 m). El Nemesis camina a 2,30 m y los marcos, dinteles y caños de la Zona 2 dejan 2,09–2,31 m: antes la cabeza los atravesaba. Medido en Play: 159 cuadros bajo algo bajo, ninguno atravesándolo, el más justo con 6 cm de luz. Si cambia el modelo o su escala, hay que volver a medir `Body Height`.
+
+**En las cinemáticas** (`NemesisCinematicActor`): frena en los últimos 1,2 m en vez de clavarse (medido en el final del escape: 4,5 → 0 m/s en ~0,4 s, con las piernas acompañando), gira con arranque y frenada, y le pega al portón 0,35 s después de llegar (`Ending Attack Delay`, era 1 s parado en idle).
+
+### Props sin collider
+
+`Tools/Nemesis/Block Bare Props (Zona 2)` le pone un `BoxCollider` y un `NavMeshObstacle` que recorta el NavMesh a cada prop de `---- PROPS SUELTOS LV2 ----` que tiene malla y **ningún collider**, y está parado sobre piso caminable entre las canillas y la cabeza del Nemesis. Sin eso, él (y el jugador) atraviesan lavarropas y zorras. Deja sin tocar la tela (`Cortina`, `Clothesline`), la basura del piso (menos de 0,5 m) y lo que está por encima de su cabeza; lo que queda a más de 1,9 m sólo recibe collider, para que se agache. Después mueve los waypoints que hayan quedado adentro de un prop. Se puede deshacer con Ctrl+Z, se puede volver a correr y **no guarda la escena**. La primera corrida (10/11) bloqueó 38 props y movió 2 waypoints; con eso, los 21 waypoints de la Zona 2 y los tres paneles de puzzle siguen alcanzables.
+
+### Pasos bajos: persianas que el jugador pasa por debajo (10/11/2026)
+
+Un **paso bajo** (`NemesisBreakLink`) es algo colgado a través de un pasillo con el borde de abajo a ~0,95 m: una persiana a medio cerrar, una viga caída. El jugador pasa por debajo; el Nemesis no puede, y **lo paga en tiempo**: llega, golpea (`E_Attack`), la barrera sube de un golpe y recién ahí cruza. Después el paso queda abierto para todos.
+
+- **El jugador se desliza.** Agacharse en plena carrera ya no frena en seco: conserva el impulso y lo va perdiendo (`Slide Deceleration` en `SO_PlayerMovement`, 4 m/s²; en 0 vuelve a frenar en seco). Sigue solo aunque sueltes la dirección, dobla poco y hace el ruido de la carrera. Medido: 2,1 m en 0,75 s desde 4,5 m/s, pasando por debajo. Agachado y caminando serían ~1,6 s. No tiene animación propia todavía: usa la pose de agachado.
+- **El Nemesis golpea.** `Strike Seconds` (0,55 s) hasta que conecta y `Recover Seconds` (0,45 s) hasta que pasa. Medido: cruza 2,25 s después de llegar, contra ~1 s sin barrera. Sigue persiguiendo al otro lado.
+- **Cómo queda afuera.** No por el horneado: la barrera lleva un `NavMeshObstacle` que recorta el piso mientras está puesta, y un `NavMeshLink` cruza ese corte. Si hay un rodeo más barato que `Cost While Standing`, prefiere el rodeo. Al abrirse, el piso vuelve solo y el link se apaga.
+- **Cómo se arma:** *GameObject > WIRED > Nemesis > Low Pass* crea uno de blockout donde mira la Scene view (o sobre el objeto seleccionado). Después se le cambia la malla por la persiana real, manteniendo la jerarquía (`Barrier` con su `NavBlock`, `SideA`, `SideB`). No hace falta hornear.
+- **La regla de altura:** el borde de abajo tiene que quedar por debajo de 1,9 m (si no, el Nemesis se agacha y pasa) y por encima de 0,85 m (el jugador agachado mide 0,8 m).
+- Todavía no hay ninguno puesto en el nivel: se probó con uno armado en la testbed.
+
 ## Brazos y ojos del modelo
 
 El modelo (`TLLStalker`, el hijo del prefab que tiene el Animator) está escalado de forma despareja (0,75 de ancho, 0,61 de alto y de fondo) y sus brazos miden 2,25 m. De ahí salen dos cosas del prefab:

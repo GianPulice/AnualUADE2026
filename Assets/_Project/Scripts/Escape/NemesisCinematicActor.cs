@@ -26,11 +26,23 @@ public class NemesisCinematicActor : MonoBehaviour
              "es otro número: SO_EscapeSequenceConfig.")]
     [SerializeField, Min(0.1f)] private float runSpeed = 4.5f;
 
-    [Tooltip("Grados por segundo al girar hacia un marcador (mirar a izquierda / derecha).")]
+    [Tooltip("Grados por segundo al girar hacia un marcador (mirar a izquierda / derecha). Es el " +
+             "tope: arranca y frena el giro en Turn Smooth Time.")]
     [SerializeField, Min(1f)] private float turnSpeed = 220f;
+
+    [Tooltip("Segundos en los que arranca y frena un giro en el lugar. Con 0 gira a velocidad " +
+             "constante y para en seco, que se lee como una estatua en un plato giratorio.")]
+    [SerializeField, Min(0f)] private float turnSmoothTime = 0.25f;
 
     [Tooltip("Distancia (m) a la que da por llegado un destino.")]
     [SerializeField, Min(0.05f)] private float arrivalDistance = 0.3f;
+
+    [Tooltip("Metros antes del destino en los que empieza a frenar. Con 0 llega a toda velocidad y " +
+             "se clava en un frame (10/11/2026: así terminaba la carrera contra el portón).")]
+    [SerializeField, Min(0f)] private float brakeDistance = 1.2f;
+
+    [Tooltip("Velocidad (m/s) con la que termina de frenar, justo antes de pararse.")]
+    [SerializeField, Min(0.05f)] private float brakeEndSpeed = 0.6f;
 
     [Header("Attack")]
     [Tooltip("Estado del Animator del Nemesis con el golpe. No tiene transiciones: se llega por " +
@@ -51,6 +63,8 @@ public class NemesisCinematicActor : MonoBehaviour
     private bool attacking;
     private bool warnedNoAttackState;
     private Transform facing;
+    private float moveSpeed;
+    private float turnVelocity;
 
     public bool HasControl => hasControl;
 
@@ -196,6 +210,7 @@ public class NemesisCinematicActor : MonoBehaviour
     public void FaceTowards(Transform marker)
     {
         if (!hasControl) return;
+        if (facing != marker) turnVelocity = 0f;
         facing = marker;
     }
 
@@ -278,11 +293,30 @@ public class NemesisCinematicActor : MonoBehaviour
         EndAttack();
         facing = null;
         moving = true;
+        moveSpeed = speed;
 
         NavMeshAgent agent = nemesis.NavAgent;
         agent.isStopped = false;
         nemesis.SetGait(gait, speed);
         agent.SetDestination(marker.position);
+    }
+
+    /// <summary>
+    /// Slows down over the last <see cref="brakeDistance"/> metres instead of arriving at full speed
+    /// and stopping dead. The agent's own autoBraking is no use here: at the Nemesis's acceleration
+    /// it brakes in the last third of a metre, which is a stop dead with one frame of warning. The
+    /// legs follow (NemesisStateManager.TickLocomotionRate), and the torso leans back
+    /// (NemesisLocomotionLean): together they read as weight.
+    /// </summary>
+    private void Brake(NavMeshAgent agent)
+    {
+        if (brakeDistance <= 0f || agent.pathPending) return;
+
+        float remaining = agent.remainingDistance;
+        if (float.IsInfinity(remaining) || remaining >= brakeDistance) return;
+
+        float t = Mathf.Clamp01(remaining / brakeDistance);
+        agent.speed = Mathf.Lerp(Mathf.Min(brakeEndSpeed, moveSpeed), moveSpeed, t);
     }
 
     private void Stand()
@@ -314,13 +348,19 @@ public class NemesisCinematicActor : MonoBehaviour
 
     private void Update()
     {
-        if (!hasControl || !nemesis.IsAgentReady) return;
+        if (!hasControl) return;
+
+        // Its FSM is off, and the FSM's Update is what keeps the legs in step with the body.
+        nemesis.TickLocomotion();
+
+        if (!nemesis.IsAgentReady) return;
 
         if (attacking) ReturnToIdleWhenAttackEnds();
 
         if (moving)
         {
             NavMeshAgent agent = nemesis.NavAgent;
+            Brake(agent);
             if (agent.pathPending || agent.remainingDistance > agent.stoppingDistance + 0.05f) return;
 
             Stand();
@@ -334,7 +374,12 @@ public class NemesisCinematicActor : MonoBehaviour
         to.y = 0f;
         if (to.sqrMagnitude < 0.0001f) return;
 
-        nemesis.transform.rotation = Quaternion.RotateTowards(
-            nemesis.transform.rotation, Quaternion.LookRotation(to), turnSpeed * Time.deltaTime);
+        // Eased in and out, capped at turnSpeed: a constant rate that stops dead is a turntable.
+        float yaw = nemesis.transform.eulerAngles.y;
+        float target = Quaternion.LookRotation(to).eulerAngles.y;
+        float next = turnSmoothTime > 0f
+            ? Mathf.SmoothDampAngle(yaw, target, ref turnVelocity, turnSmoothTime, turnSpeed)
+            : Mathf.MoveTowardsAngle(yaw, target, turnSpeed * Time.deltaTime);
+        nemesis.transform.rotation = Quaternion.Euler(0f, next, 0f);
     }
 }

@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7000731f4bf9b49479eb206369160ad1, type: 3}
+  m_Name: SO_HangingCloth_Curtain
+  m_EditorClassIdentifier: Assembly-CSharp::SO_HangingClothConfig
+  maxSwing: 0.8
+  maxStretch: 1.1
+  gravity: 9.81
+  damping: 0.985
+  restPull: 0.03
+  iterations: 6
+  bodyFriction: 0.35
+  thickness: 0.05
+  maxSpeed: 6
+  particleSpacing: 0.25
+  wakeDistance: 0.8
+  recalculateNormals: 1
+  swishSoundId: 

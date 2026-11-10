@@ -27,6 +27,12 @@ public class SO_Movement : ScriptableObject
     [Tooltip("Speed while crouching, as a fraction of Move Speed. 0.45 = 45% of walking speed.")]
     [SerializeField, Range(0.1f, 1f)] private float crouchSpeedMultiplier = 0.45f;
 
+    [Tooltip("Agacharse en plena carrera no frena en seco: desliza, perdiendo esta velocidad por " +
+             "segundo (m/s2) hasta la de agachado. Es lo que permite pasar por debajo de una persiana " +
+             "baja con el Nemesis atras. Con 4, desde un sprint de 4.5 m/s recorre ~2.3 m en 0.8 s. " +
+             "0 = sin deslizamiento (frena en seco, como antes).")]
+    [SerializeField, Min(0f)] private float slideDeceleration = 4f;
+
     [Header("Box push")]
     [Tooltip("Absolute top speed at which the player walks while pushing a grabbed box, in m/s. " +
              "The box mass stays low during the grab, so this is effectively the speed of the " +
@@ -76,6 +82,7 @@ public class SO_Movement : ScriptableObject
     public float RotationSpeed { get => rotationSpeed; set => rotationSpeed = value; }
     public float SprintSpeedMultiplier { get => sprintSpeedMultiplier; set => sprintSpeedMultiplier = value; }
     public float CrouchSpeedMultiplier { get => crouchSpeedMultiplier; set => crouchSpeedMultiplier = value; }
+    public float SlideDeceleration => slideDeceleration;
     public float BoxPushSpeed { get => boxPushSpeed; set => boxPushSpeed = value; }
     public float StandingHeight { get => standingHeight; set => standingHeight = value; }
     public float CrouchHeight { get => crouchHeight; set => crouchHeight = value; }

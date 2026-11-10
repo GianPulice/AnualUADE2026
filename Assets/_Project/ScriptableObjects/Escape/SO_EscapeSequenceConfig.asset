@@ -95,6 +95,7 @@ MonoBehaviour:
   gateShotFog: {fileID: 11400000, guid: e28b129b194c9aebafd223c828726d59, type: 2}
   cutToDustShot: 0
   dustShotDelay: 0.35
+  endingAttackDelay: 0.35
   endingHoldSeconds: 2.5
   paceNear: 0.92
   paceFar: 1.25
