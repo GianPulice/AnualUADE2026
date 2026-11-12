@@ -6,10 +6,11 @@
 // COLOUR (10/11/2026). There is no tonemapping and no bloom, so every channel over 1 is clipped: a red
 // glint at intensity 12 came out as plain white, (12, 4.8, 4.8) -> (1, 1, 1). The colour is split into
 // its hue and its intensity: the rays are the hue at full saturation (brightest channel at most
-// _RayPeak), and only the core carries the intensity, white-hot. Same flash, same punch, and the
-// category reads.
+// _RayPeak) and as bright as that colour can get, and a small white-hot point sits in the middle.
+// Same flash, same punch, and the category reads.
 //
-// Unlit, no shadows, depth-tested but not depth-writing: walls hide it, it hides nothing. It is drawn
+// Unlit, no shadows, depth-tested but not depth-writing: walls hide it, it hides nothing. Hidden
+// whole when the item's centre is behind something (see vert). It is drawn
 // in the transparent queue, so VisionFog and the PS1 filter (both BeforeRenderingPostProcessing) land
 // on it like on everything else.
 //
@@ -34,7 +35,8 @@ Shader "WIRED/Items/Item Glint"
 
         [Header(Colour)]
         _RayPeak ("Ray Peak (brightest channel of the rays; over 1 they whiten)", Range(0.25, 2)) = 1
-        _CoreWhite ("Core White-Hot (how much of the intensity the core keeps)", Range(0, 1)) = 1
+        _CoreWhite ("Core White-Hot (0 = no white point)", Range(0, 1)) = 1
+        _CoreStart ("Core White Size (1 = a pinpoint, 0 = the whole core)", Range(0, 1)) = 0.6
 
         [Header(Placement)]
         _CameraPull ("Pull Toward Camera, max (m)", Range(0, 1)) = 0.3
@@ -67,10 +69,12 @@ Shader "WIRED/Items/Item Glint"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma target 2.0
+            // 3.0: the vertex stage reads the depth texture (see vert).
+            #pragma target 3.0
             #pragma multi_compile_fog
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
@@ -88,6 +92,7 @@ Shader "WIRED/Items/Item Glint"
                 float  _GlintPull;
                 float  _RayPeak;
                 float  _CoreWhite;
+                float  _CoreStart;
             CBUFFER_END
 
             struct Attributes
@@ -132,6 +137,31 @@ Shader "WIRED/Items/Item Glint"
                 o.positionCS = TransformWViewToHClip(positionVS);
                 o.uv         = input.uv;
                 o.fogFactor  = ComputeFogFactor(o.positionCS.z);
+
+                // NO GLINT FOR AN ITEM YOU CANNOT SEE (10/11/2026). The depth test alone is per pixel,
+                // and the star is a flat card much wider than the item: seen at an angle, its rays
+                // stuck out past the edge of the wall the item hangs on and drew on the near face (the
+                // bathroom key). So the whole star asks one question, once, in the vertex stage: at the
+                // pixel of the item's centre, is there something opaque closer than the item's own
+                // surface? Then it is behind a wall, and the quad collapses to nothing.
+                //
+                // Off screen, the centre has no pixel to ask: the per-pixel test is all there is. Without
+                // a depth texture (Depth Texture off on the URP asset) the raw depth reads as the far
+                // plane and nothing is ever hidden: the old behaviour.
+                float4 centreCS = TransformWViewToHClip(centreVS);
+                float4 screen   = ComputeScreenPos(centreCS);
+                float2 centreUV = screen.xy / max(screen.w, 1e-5);
+                if (centreCS.w > 0.0 && all(centreUV >= 0.0) && all(centreUV <= 1.0))
+                {
+                    float raw   = SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, sampler_CameraDepthTexture,
+                                                         UnityStereoTransformScreenSpaceTex(centreUV), 0).r;
+                    float scene = LinearEyeDepth(raw, _ZBufferParams);
+
+                    // The item's own front face sits about `pull` in front of its centre: that is
+                    // itself, not a wall. A little slack on top for the PS1 depth quantisation.
+                    if (scene < distance - pull - 0.02) o.positionCS = float4(0.0, 0.0, 0.0, 1.0);
+                }
+
                 return o;
             }
 
@@ -154,9 +184,11 @@ Shader "WIRED/Items/Item Glint"
 
                 float4 sprite = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv);
                 float  shape  = lerp(star, max(sprite.r, max(sprite.g, sprite.b)) * sprite.a, _UseSprite);
-                // A hot point in the middle, not the whole core disc: at intensity 12 a plain core*core
-                // whitened a third of the star and lost its shape.
-                float  coreShape = lerp(pow(core, 4.0), pow(shape, 4.0), _UseSprite);
+                // A white-hot point in the middle, its size fixed (Core White Size), NOT scaled by the
+                // intensity. The intensity arrives LINEAR, and a linear project converts the HDR colour
+                // on SetColor: the profile's 12 reaches here as ~237, and a core scaled by it whitened
+                // nearly the whole star (measured 10/11/2026: centre ~150 where 11 was expected).
+                float  coreShape = smoothstep(_CoreStart, 1.0, lerp(core, shape, _UseSprite));
 
                 // Hue and intensity, apart (see the header): the rays in the hue, never past _RayPeak on
                 // their brightest channel, so clipping cannot whiten them; the core white-hot with the
@@ -166,7 +198,7 @@ Shader "WIRED/Items/Item Glint"
                 float  fade      = _GlintAlpha * _GlintColor.a;
 
                 float3 rays   = hue * min(shape * fade * intensity, _RayPeak);
-                float3 white  = coreShape * fade * max(intensity - _RayPeak, 0.0) * _CoreWhite;
+                float3 white  = coreShape * fade * _CoreWhite * step(_RayPeak, intensity);
                 float3 colour = rays + white;
 
                 // Additive: fog fades it toward black, not toward the fog colour.

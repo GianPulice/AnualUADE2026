@@ -471,7 +471,8 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
 
         int explodedCount = GetExplodedCount();
         if (gameOverRules == null) return explodedCount >= runtimes.Count;
-        return gameOverRules.EndsRun(exploded.Data, explodedCount, runtimes.Count);
+        return gameOverRules.EndsRun(exploded.Data, explodedCount, runtimes.Count,
+            data => runtimes.Exists(r => r.Data == data && r.Status == ModuleStatus.Exploded));
     }
 
     private void CheckGameOver(ModuleRuntime lastExploded)
