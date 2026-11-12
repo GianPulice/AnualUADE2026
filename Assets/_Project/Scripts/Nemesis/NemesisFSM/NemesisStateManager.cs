@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Owns the Nemesis finite state machine and the references its states need.
@@ -22,7 +23,7 @@ using UnityEngine.AI;
 ///
 /// A facade is not a god object: the problem was never that everything could be reached from here,
 /// it was that everything was implemented here. All eight are added automatically when missing, so
-/// no existing Nemesis prefab has to be opened and re-saved. NemesisElevatorUser is the deliberate
+/// no existing Nemesis prefab has to be opened and re-saved. NemesisLinkUser is the deliberate
 /// exception — it carries real scene wiring, so it is looked up and never grown.
 /// </summary>
 public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisState>
@@ -85,10 +86,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
              "Resolved after the sensors on purpose — see ResolveHierarchyReferences.")]
     [SerializeField] private NemesisAudio nemesisAudio;
 
-    [Tooltip("Opcional. Si el Nemesis lo tiene, la escalera se entera de cuándo está cruzando el " +
-             "montacargas y no lo saca de Traversing en el medio. Sin este componente el Nemesis " +
-             "simplemente no usa montacargas.")]
-    [SerializeField] private NemesisElevatorUser elevatorUser;
+    [Tooltip("Opcional. Cruza a mano los NavMeshLinks (saltos, links generados y los pasos bajos con " +
+             "barrera). Sin este componente Unity los cruza solo, y el Nemesis no rompe barreras.")]
+    [SerializeField, FormerlySerializedAs("elevatorUser")] private NemesisLinkUser linkUser;
 
     [Header("Decision layer")]
     [Tooltip("La escalera de prioridades: qué estado pide el Nemesis y en qué orden se leen las " +
@@ -182,42 +182,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public bool IsSuspicious { get => isSuspicious; }
 
     /// <summary>
-    /// A lift crossing is physically in progress - waiting for the cabin, boarding, riding or
-    /// stepping off. Or a drop between floors (plan §15), from the look over the edge to the end
-    /// of the recovery: the name stays, because the predicate it feeds is stored as a number in
-    /// the ladder asset and renaming it would only change the code.
-    ///
-    /// Read live off the component rather than sampled once per frame like the three sensor flags,
-    /// because it is not a sensor reading that can flicker: it is a fact about who is currently
-    /// driving the body, and it changes at most twice per trip.
+    /// A link crossing is in progress: the walk across a jump or the strike at a low pass, with the
+    /// body driven by hand. Read live off the component rather than sampled once per frame like the
+    /// sensor flags, because it is not a sensor reading that can flicker: it is a fact about who is
+    /// currently driving the body.
     /// </summary>
-    public bool IsUsingElevator => elevatorUser != null && elevatorUser.IsTraversing;
+    public bool IsCrossingLink => linkUser != null && linkUser.IsCrossing;
 
-    /// <summary>
-    /// It has just given up on a lift and shelved that shaft for its cooldown — or has just ended a
-    /// drop, landed or given up on (plan §15), or a ride, stepped off at the far landing.
-    ///
-    /// The end of a commitment, reported by the component that ended it. The ladder's "ya se
-    /// comprometió con el montacargas" rung reads it to let go — see that rung for what pinning
-    /// the Nemesis in Traversing on a trip nobody is taking any more looked like. A drop is the
-    /// same trip, only shorter: it is over well inside ElevatorCommitTime, and without this the
-    /// rung kept the Nemesis in Traversing after landing instead of chasing (see
-    /// NemesisElevatorUser.HasJustEndedDrop).
-    /// </summary>
-    public bool HasGivenUpOnElevator =>
-        elevatorUser != null &&
-        (elevatorUser.HasGivenUpOnElevator || elevatorUser.HasJustEndedDrop || elevatorUser.HasJustEndedRide);
-
-    /// <summary>In the air, landing or recovering from a drop (plan §15.3): it cannot grab
-    /// anyone. See <see cref="NemesisElevatorUser.IsDroppingOrRecovering"/>.</summary>
-    public bool IsDropping => elevatorUser != null && elevatorUser.IsDroppingOrRecovering;
-
-    /// <summary>The component that crosses the links, or null on a Nemesis without one. For the
-    /// F9 HUD, which shows the drop in progress.</summary>
-    public NemesisElevatorUser ElevatorUser => elevatorUser;
-
-    /// <summary>The per-state loops and the drop's one-shots. See <see cref="NemesisAudio"/>.
-    /// </summary>
+    /// <summary>The per-state loops. See <see cref="NemesisAudio"/>.</summary>
     public NemesisAudio Audio => nemesisAudio;
 
     /// <summary>
@@ -281,8 +253,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     ///
     /// isActiveAndEnabled goes first and short-circuits the and: querying isOnNavMesh on a
     /// disabled agent logs on its own. And disabled is a normal state here, not an anomaly —
-    /// NemesisElevatorUser switches it off for the whole freight elevator ride, because the
-    /// NavMesh does not travel with the platform.
+    /// NemesisLinkUser can take over the body while it crosses a link.
     /// </summary>
     public bool IsAgentReady => navAgent != null && navAgent.isActiveAndEnabled && navAgent.isOnNavMesh;
 
@@ -369,7 +340,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// Points the agent at a destination that moves every frame, WITHOUT re-sending it every frame.
     ///
     /// For the two states that steer continuously, Chasing (the pursuit's prediction slides with
-    /// the player) and Traversing (the belief it is heading for). Both used to assign
+    /// the player) and, once, Traversing (the belief it was heading for). Both used to assign
     /// NavAgent.destination on every frame, and every assignment restarts the path request — the
     /// cost NemesisPatrolState already documents and avoids: pathPending comes up often enough to
     /// blur the arrival test, which in Chasing flipped the gait between Idle and Running (WIR-024),
@@ -409,9 +380,8 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// How the Nemesis is moving. The CONTINUOUS channel: a gait holds until something sets
     /// another one.
     ///
-    /// The one-shot channel — play a fall, wait for it to land — is a different thing: it is
-    /// <see cref="PlayTraversal"/>, added beside this for the drops between floors (plan §15)
-    /// rather than tangled into it.
+    /// The one-shot channel — the strike at a low pass, the peek — is a different thing: it is
+    /// <see cref="PlayStrike"/> and <see cref="PlayPeek"/>, beside this rather than tangled into it.
     /// </summary>
     public enum EGait
     {
@@ -440,11 +410,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     public void SetGait(EGait gait, float speed)
     {
         if (navAgent != null) navAgent.speed = speed;
-
-        // Every state sets its gait on the way in, before it asks for its first destination — so
-        // this is the door through which the drops get priced for the new state before that path
-        // is planned. See ApplyDropAreaCost.
-        ApplyDropAreaCost();
 
         // Chasing and Patrolling re-issue their gait EVERY FRAME while moving. Treating each of
         // those as a new order is what made the running-in-place guard below dead code during a
@@ -675,61 +640,20 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         animController.SetBool(CatchingParam, gait == EGait.Grabbing);
     }
 
-    // ── Drops between floors (plan §15) ─────────────────────────────────────
+    // ── One-shot clips: the strike and the peek ─────────────────────────────
 
     private static readonly int IdleStateHash = Animator.StringToHash("Idle");
 
-    /// <summary>A drop clip was left playing that will not leave on its own. See
-    /// <see cref="EndTraversalAnimation"/>.</summary>
-    private bool traversalClipLeftPlaying;
-
-    private bool warnedMissingTraversalState;
-
-    /// <summary>
-    /// The one-shot channel the <see cref="EGait"/> doc left room for ("play a fall, wait for it to
-    /// land"): plays the clip for one phase of a drop.
-    ///
-    /// Beside the gait, not inside it. A drop is not a gait: it is a sequence NemesisElevatorUser
-    /// runs phase by phase with the body driven by hand, so it goes into the Animator here, by
-    /// CrossFade on the state's name, with no new parameters (plan §15.5: the order is set by code,
-    /// not by the graph). The gait bools do not pull it out, because the drop's states have no
-    /// transitions of their own. When the drop ends the gait takes over again: the landing leaves by
-    /// exit time to Idle, and isWalking / isRunning lead back into locomotion as they always have.
-    ///
-    /// WITH HasState AND A FALLBACK, the pattern of PlayerStateManager.TryGetStandUpState: without
-    /// the state (today's controller only has Idle, Patrol and Chase) nothing plays and the drop
-    /// happens anyway. One warning per session says so, and Validate Navigation Setup lists
-    /// exactly which states are missing.
-    /// </summary>
-    /// <returns>Whether a clip started.</returns>
-    public bool PlayTraversal(EDropPhase phase)
-    {
-        if (animController == null || animController.runtimeAnimatorController == null) return false;
-
-        string stateName = nemesisMovement != null ? nemesisMovement.AnimatorStateFor(phase) : null;
-        if (string.IsNullOrEmpty(stateName)) return false;
-
-        int hash = Animator.StringToHash(stateName);
-        if (!animController.HasState(0, hash))
-        {
-            WarnMissingTraversalState(stateName);
-            return false;
-        }
-
-        animController.CrossFadeInFixedTime(hash, nemesisMovement.DropCrossFade, 0);
-
-        // Every phase but the landing leaves the Animator in a state with no way out on its own —
-        // and the fall loops. The landing leaves by exit time.
-        traversalClipLeftPlaying = phase != EDropPhase.Land;
-        return true;
-    }
+    /// <summary>The strike clip was left playing and will not leave on its own. See
+    /// <see cref="EndStrike"/>.</summary>
+    private bool strikeLeftPlaying;
 
     private static readonly int StrikeStateHash = Animator.StringToHash("E_Attack");
 
     /// <summary>
-    /// The strike, as a one-shot on the same channel as the drops: for knocking a low pass open
+    /// The strike, as a one-shot beside the gait: for knocking a low pass open
     /// (<see cref="NemesisBreakLink"/>). The clip has no way out of its own, so whoever plays it
-    /// calls <see cref="EndTraversalAnimation"/> when the beat is over.
+    /// calls <see cref="EndStrike"/> when the beat is over.
     /// </summary>
     /// <returns>Whether the clip started (false: the controller has no such state).</returns>
     public bool PlayStrike()
@@ -738,24 +662,22 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         if (!animController.HasState(0, StrikeStateHash)) return false;
 
         animController.CrossFadeInFixedTime(StrikeStateHash, 0.1f, 0, 0f);
-        traversalClipLeftPlaying = true;
+        strikeLeftPlaying = true;
         return true;
     }
 
     /// <summary>
-    /// Hands the Animator back to the locomotion graph if a drop clip was left playing that would
-    /// never leave on its own: the controller has the fall but not the landing, or the drop was cut
-    /// short. Crossfades to Idle, from where the gait's bools take over. A no-op otherwise.
+    /// Hands the Animator back to the locomotion graph if the strike was left playing, or was cut short.
+    /// Crossfades to Idle, from where the gait's bools take over. A no-op otherwise.
     /// </summary>
-    public void EndTraversalAnimation()
+    public void EndStrike()
     {
-        if (!traversalClipLeftPlaying) return;
-        traversalClipLeftPlaying = false;
+        if (!strikeLeftPlaying) return;
+        strikeLeftPlaying = false;
 
         if (animController == null || !animController.HasState(0, IdleStateHash)) return;
 
-        float fade = nemesisMovement != null ? nemesisMovement.DropCrossFade : 0.12f;
-        animController.CrossFadeInFixedTime(IdleStateHash, fade, 0);
+        animController.CrossFadeInFixedTime(IdleStateHash, 0.12f, 0);
     }
 
     // ── The peek (E_First_Contact) ──────────────────────────────────────────
@@ -770,9 +692,9 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     /// <summary>
     /// Plays the model's E_First_Contact clip, the one the new model came with and nothing used: the
-    /// Nemesis standing in front of the player after the Director's entrance. Played the way the
-    /// drops' states are, by CrossFade on the state's name with no parameter, because that state has
-    /// no transitions out and the gait bools do not pull it away; <see cref="EndPeek"/> hands it back.
+    /// Nemesis standing in front of the player after the Director's entrance. Played by CrossFade on
+    /// the state's name with no parameter, because that state has no transitions out and the gait
+    /// bools do not pull it away; <see cref="EndPeek"/> hands it back.
     /// </summary>
     /// <param name="wallPoint">Where the wall is under the gripping hand.</param>
     /// <param name="wallNormal">The wall's normal, pointing out of it towards the Nemesis.</param>
@@ -791,7 +713,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
         if (!animController.HasState(0, PeekStateHash)) return false;
 
-        // A long fade, not the drops' 0.12 s: the arms come from the walking pose (one stretched three
+        // A long fade, not the strike's 0.12 s: the arms come from the walking pose (one stretched three
         // metres ahead, the other trailing), and swinging them into the peek's in a tenth of a second
         // was the whip of the front hand (22/10: its wrist crossed ~3 m at 30 m/s).
         animController.CrossFadeInFixedTime(PeekStateHash, PeekFadeIn, 0);
@@ -814,56 +736,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         animController.CrossFadeInFixedTime(IdleStateHash, PeekFadeOut, 0);
     }
 
-    private void WarnMissingTraversalState(string stateName)
-    {
-        if (warnedMissingTraversalState) return;
-        warnedMissingTraversalState = true;
-
-        Debug.LogWarning($"[{nameof(NemesisStateManager)}] '{name}': the Animator has no state " +
-                         $"'{stateName}', so the drop plays without that animation — and probably " +
-                         "without the rest of plan §15.5's. The drop itself works. Tools > Nemesis > " +
-                         "Validate Navigation Setup lists every missing one.", this);
-    }
-
-    /// <summary>The state the drop area's cost was last set for, or null when it has not been set
-    /// since the agent last came back on.</summary>
-    private ENemesisState? dropCostAppliedFor;
-
-    /// <summary>
-    /// Prices the drops for what the Nemesis is doing (plan §15.3, D11): cheap while it hunts, dear
-    /// on patrol, where one taken every round stops being scary by the third. The same kind of
-    /// thing as the agent's speed — a state configures the body, it decides nothing — and it goes in
-    /// through the same door (<see cref="SetGait"/>), with <see cref="Update"/> as a net.
-    ///
-    /// Set only when the state changes, and again whenever the agent comes back on after being off
-    /// (the lift ride), in case it forgot. The drop's own link carries no cost override
-    /// (NemesisDropLink leaves costModifier negative): a positive one would replace this outright.
-    ///
-    /// The route oracle does not see it: NemesisNav plans with the project's area costs. It asks
-    /// "can it get there, and through what", not "which way would it choose".
-    /// </summary>
-    private void ApplyDropAreaCost()
-    {
-        if (!IsAgentReady)
-        {
-            dropCostAppliedFor = null;
-            return;
-        }
-
-        ENemesisState? state = CurrentStateKey;
-        if (!state.HasValue || state == dropCostAppliedFor) return;
-
-        dropCostAppliedFor = state;
-
-        if (nemesisMovement == null) return;
-
-        float cost = state.Value == ENemesisState.Patrolling
-            ? nemesisMovement.DropCostWhilePatrolling
-            : nemesisMovement.DropCostWhileHunting;
-
-        navAgent.SetAreaCost(NemesisDropLink.Area, cost);
-    }
-
     public enum ENemesisState
     {
         Patrolling,
@@ -871,7 +743,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         Chasing,
         Searching,
         Catch,
-        Traversing,
     }
 
     /// <summary>
@@ -995,56 +866,14 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     private void TickDecision()
     {
-        // NOTHING IS DECIDED WHILE SOMETHING ELSE OWNS THE BODY.
-        //
-        // NemesisElevatorUser switches the agent off for the whole freight-elevator ride and moves
-        // the Transform by hand. Every state used to carry this guard at the top of its own
-        // UpdateState, which had the side effect that no transition could happen during a ride —
-        // and that side effect was load-bearing. Moving the decision up here without it meant
-        // re-deciding mid-ride: the Nemesis is in the shaft and off the NavMesh, so the route
-        // query behind the elevator rung fails, "the lift is on the way" goes false, and it drops
-        // out of Traversing into a state that cannot act either. The commitment that put it on the
-        // lift evaporates halfway up.
-        //
-        // Freezing here is also right for the other case that clears this flag — an agent knocked
-        // off the NavMesh by a Warp that did not land. Nothing decided would be actionable, and
-        // NemesisStuckEscape is what resolves that one.
-        //
-        // WITH ONE EXCEPTION: THE CAPTURE. See CanCaptureWithoutAgent — riding the lift WITH the
-        // Nemesis is a scripted test case, and this freeze is what made it fail.
+        // NOTHING IS DECIDED WHILE THE AGENT IS OFF THE NAVMESH: every rung but the capture reaches for
+        // the route oracle or a destination, and both are meaningless with no NavMesh under the body (an
+        // agent knocked off it by a Warp that did not land; NemesisStuckEscape is what resolves that).
         if (Decision == null) return;
-        if (!IsAgentReady && !CanCaptureWithoutAgent) return;
+        if (!IsAgentReady) return;
 
         RequestState(Decision.Decide());
     }
-
-    /// <summary>
-    /// Whether the ladder must be allowed to run even though the agent is off — which today means
-    /// exactly one thing: the player is within arm's reach and the Nemesis is not already holding
-    /// them.
-    ///
-    /// THIS IS "ME SUBÍ AL MONTACARGAS CON ÉL Y NO ME AGARRÓ".
-    ///
-    /// The priority ladder puts "lo tiene al alcance de la mano" ABOVE "está cruzando el
-    /// montacargas" precisely so a player who rides up with the monster can still be caught, and
-    /// <see cref="NemesisElevatorUser"/>'s own notes lean on that. It never happened: the ride
-    /// switches the agent off, the guard above returned before the ladder was ever walked, and the
-    /// rung that was supposed to win was never even asked. A player could stand in the cabin next
-    /// to it for the whole ascent.
-    ///
-    /// Narrow on purpose, and it has to stay narrow. The freeze above is load-bearing for
-    /// everything else: every OTHER rung reaches for the route oracle or a destination, and both
-    /// are meaningless in the middle of a shaft with no NavMesh under the body. A capture asks
-    /// none of that — <see cref="CanReachPlayerNow"/> is a distance, a height difference and a
-    /// raycast, all of which are as true in a moving cabin as anywhere else.
-    ///
-    /// Excluding the state it is already in matters as much as the predicate: once Catch has been
-    /// entered the ladder has nothing left to add — the capture leaves on its own terms (see the
-    /// top rung) — and re-running it every frame of a ride would only reopen the freeze this is
-    /// meant to poke a single hole in.
-    /// </summary>
-    private bool CanCaptureWithoutAgent =>
-        CurrentStateKey != ENemesisState.Catch && Decision.CanCatchPlayer;
 
     /// <summary>
     /// Whether the player is genuinely within arm's reach: close horizontally, on the same floor,
@@ -1074,12 +903,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     {
         get
         {
-            // Never in the air, never on landing, never while it gets up (plan §15.3). Landing on
-            // the player and grabbing them in the same frame is the kind of death that feels like a
-            // bug; the recovery is the player's window. First, because it holds whatever the rest
-            // would say — including with no data to filter with.
-            if (IsDropping) return false;
-
             if (nemesisData == null) return true;   // No data to filter with: do not break the flow.
             if (fieldOfView == null) return false;
 
@@ -1263,7 +1086,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     /// carries on from wherever the ladder had already got to.
     ///
     /// <c>isStopped</c> and not <c>ResetPath</c>, for the same reason
-    /// <see cref="NemesisElevatorUser"/> uses it: the path is what it resumes on, and throwing it
+    /// <see cref="NemesisLinkUser"/> uses it: the path is what it resumes on, and throwing it
     /// away would make every hold also a lost destination. The velocity is zeroed as well, because
     /// isStopped halts the steering but leaves whatever the body had built up, and a monster that
     /// keeps drifting for a few tenths of a second after freezing looks broken rather than
@@ -1292,7 +1115,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
 
     /// <summary>Opens a window with no stuck detection. Every <see cref="PushStuckSuppression"/>
     /// must have its <see cref="PopStuckSuppression"/>, even if the traversal is cancelled — use
-    /// try/finally. Called by NemesisDoorUser and NemesisElevatorUser.</summary>
+    /// try/finally. Called by NemesisDoorUser and NemesisLinkUser.</summary>
     public void PushStuckSuppression()
     {
         if (stuckEscape != null) stuckEscape.Push();
@@ -1493,7 +1316,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         // GetComponent and NOT ResolveSibling: unlike the seven above, this one is a real feature
         // with scene wiring behind it (links, landings, a platform). A Nemesis in a level with no
         // freight elevator should not silently grow one.
-        if (elevatorUser == null) elevatorUser = GetComponent<NemesisElevatorUser>();
+        if (linkUser == null) linkUser = GetComponent<NemesisLinkUser>();
 
         // includeInactive: the sensors are switched off while the Nemesis is dormant, and the
         // Animator sits on the model root, which a prefab may ship disabled.
@@ -1680,10 +1503,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         TickDecision();
 
         base.Update();
-
-        // The net under SetGait's call, for a state that entered without setting a gait. A no-op
-        // on every frame the state has not changed.
-        ApplyDropAreaCost();
 
         // After the FSM, so it reads the gait the state just asked for rather than last frame's,
         // and so a state that decided to stand still this frame is not shown walking for one.
@@ -1908,8 +1727,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         return key == ENemesisState.Patrolling ||
                key == ENemesisState.Investigating ||
                key == ENemesisState.Chasing ||
-               key == ENemesisState.Searching ||
-               key == ENemesisState.Traversing;
+               key == ENemesisState.Searching;
     }
 
     /// <summary>
@@ -1924,8 +1742,7 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
     ///
     /// NODE-BOUND is for movement where the waypoints ARE the route. Patrolling walks the polyline
     /// the designer authored, in the order they authored it, because that order is the level
-    /// design speaking. Traversing is node-bound in the same sense — its path is dictated by the
-    /// freight elevator's landings, not chosen.
+    /// design speaking.
     ///
     /// FREE ROAM is for everything about hunting the player. The waypoints stay useful as hints
     /// about where a person might be worth looking for — NemesisPursuit will detour through one
@@ -1969,7 +1786,6 @@ public class NemesisStateManager : StateManager<NemesisStateManager.ENemesisStat
         States.Add(ENemesisState.Searching, new NemesisSearchingState(ENemesisState.Searching,this));
         States.Add(ENemesisState.Investigating, new NemesisInvestigatingState(ENemesisState.Investigating,this));
         States.Add(ENemesisState.Catch, new NemesisCatchState(ENemesisState.Catch, this));
-        States.Add(ENemesisState.Traversing, new NemesisTraversingState(ENemesisState.Traversing, this));
         CurrentState = States[ENemesisState.Patrolling];
     }
 }

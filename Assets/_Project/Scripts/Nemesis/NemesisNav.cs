@@ -108,32 +108,18 @@ public static class NemesisNav
         /// to.</summary>
         public readonly NemesisElevatorLink CrossedElevator;
 
-        /// <summary>The drop this path goes down (plan §15), or null. Last in the struct, like
-        /// every addition to it.</summary>
-        public readonly NemesisDropLink CrossedDrop;
-
         public NavRoute(bool isComplete, float pathDistance, float straightDistance,
-                        float verticalDelta, NemesisElevatorLink crossedElevator,
-                        NemesisDropLink crossedDrop = null)
+                        float verticalDelta, NemesisElevatorLink crossedElevator)
         {
             IsComplete = isComplete;
             PathDistance = pathDistance;
             StraightDistance = straightDistance;
             VerticalDelta = verticalDelta;
             CrossedElevator = crossedElevator;
-            CrossedDrop = crossedDrop;
         }
 
-        /// <summary>
-        /// The path changes floor through something other than walking: the lift, or a drop.
-        ///
-        /// The drop half is what lets <see cref="NemesisPathOracle.IsAcrossFloors"/>, and with it
-        /// the ladder's RouteToBeliefCrossesFloors, see a way down as crossing floors. Without it a
-        /// route down a drop kept the Nemesis in Chasing: the floor cut its sight at the edge and,
-        /// after the grace, it went Searching on the floor it was leaving (plan §15.2). The same bug
-        /// Traversing was built for, and now the same fix.
-        /// </summary>
-        public bool CrossesLink => CrossedElevator != null || CrossedDrop != null;
+        /// <summary>The path changes floor through something other than walking: a lift.</summary>
+        public bool CrossesLink => CrossedElevator != null;
 
         /// <summary>How much longer walking is than flying. Near 1 is a straight corridor;
         /// anything past ~2.5 is a detour big enough to mean another floor or the far side of the
@@ -179,8 +165,7 @@ public static class NemesisNav
             pathDistance: GetPathLength(corners),
             straightDistance: Vector3.Distance(fromHit.position, toHit.position),
             verticalDelta: toHit.position.y - fromHit.position.y,
-            crossedElevator: FindCrossedElevator(corners),
-            crossedDrop: FindCrossedDrop(corners));
+            crossedElevator: FindCrossedElevator(corners));
 
         return true;
     }
@@ -226,42 +211,6 @@ public static class NemesisNav
                     touchesTop = true;
 
                 if (touchesBottom && touchesTop) return elevator;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Which drop this path goes down, if any. Same technique as
-    /// <see cref="FindCrossedElevator"/> (the corners Unity emits for a link ARE its two ends),
-    /// with one condition stricter: the two corners have to be CONSECUTIVE and in order, top then
-    /// bottom. A drop is one-way and its ends sit a metre or two apart in plan, so a path that walks
-    /// the upper floor near the edge and later passes under it on the stairs could touch both
-    /// without ever using the drop. A link traversal is always one leg of the path.
-    /// </summary>
-    private static NemesisDropLink FindCrossedDrop(Vector3[] corners)
-    {
-        IReadOnlyList<NemesisDropLink> drops = NemesisDropLink.Active;
-        if (drops.Count == 0 || corners.Length < 2) return null;
-
-        const float matchSqr = LandingMatchRadius * LandingMatchRadius;
-
-        for (int d = 0; d < drops.Count; d++)
-        {
-            NemesisDropLink drop = drops[d];
-            if (drop == null) continue;
-
-            Vector3 top = drop.TopEdge.position;
-            Vector3 bottom = drop.BottomLanding.position;
-
-            for (int c = 0; c + 1 < corners.Length; c++)
-            {
-                if (Vector3.SqrMagnitude(corners[c] - top) <= matchSqr &&
-                    Vector3.SqrMagnitude(corners[c + 1] - bottom) <= matchSqr)
-                {
-                    return drop;
-                }
             }
         }
 

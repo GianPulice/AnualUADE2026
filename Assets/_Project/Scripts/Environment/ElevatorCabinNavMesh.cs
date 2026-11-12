@@ -10,7 +10,7 @@ using UnityEngine.AI;
 /// WHY THIS EXISTS
 ///
 /// Before it, the cabin floor was not walkable ground — it was a hole in the world that the
-/// Nemesis crossed by hand: <see cref="NemesisElevatorUser"/> switched the agent off and
+/// Nemesis crossed by hand: NemesisElevatorUser (retired) switched the agent off and
 /// interpolated the body in a straight line from the landing to the ride point. That line runs
 /// through the <see cref="ElevatorLandingBarrier"/> and through the shaft wall, because a straight
 /// line is exactly what it is. Every symptom of the old boarding came from that one decision: the
@@ -100,7 +100,7 @@ public class ElevatorCabinNavMesh : MonoBehaviour
     /// <summary>
     /// Whether the cabin actually carries a NavMesh right now.
     ///
-    /// <see cref="NemesisElevatorUser"/> reads this to choose between walking aboard and the old
+    /// NemesisElevatorUser (retired) reads this to choose between walking aboard and the old
     /// hand-driven interpolation. False is not a crash: it is the pre-existing behaviour, which
     /// crosses the wall but does cross. Every path to false logs why.
     /// </summary>

@@ -239,6 +239,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private float nextAmbientEntranceAt = -1f;
     private float lastSawNemesisAt = -1f;
     private float nextUnseenRollAt;
+    private NemesisEyes nemesisEyes;
     private bool returnPending;
     private float returnDueAt;
     private float returnGiveUpAt;
@@ -283,6 +284,8 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // Awake/OnDestroy and not OnEnable/OnDisable (docs/CLAUDE.md): static events outlive the
         // component's enabled state. The handlers check it themselves.
         NemesisEvents.OnSearchEnded += HandleSearchEnded;
+        NemesisEvents.OnChaseStarted += HandleChaseStarted;
+        NemesisEvents.OnChaseEnded += HandleChaseEnded;
         NemesisEvents.OnBaselineChanged += HandleBaselineChanged;
         PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
     }
@@ -296,6 +299,8 @@ public class NemesisDirector : Singleton<NemesisDirector>
         }
 
         NemesisEvents.OnSearchEnded -= HandleSearchEnded;
+        NemesisEvents.OnChaseStarted -= HandleChaseStarted;
+        NemesisEvents.OnChaseEnded -= HandleChaseEnded;
         NemesisEvents.OnBaselineChanged -= HandleBaselineChanged;
         PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
     }
@@ -855,7 +860,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (player == null) return;
 
         // Dormant, mid-capture, riding the lift: all cases where the body is not ours to move.
-        if (!nemesis.IsActive || nemesis.IsUsingElevator) return;
+        if (!nemesis.IsActive || nemesis.IsCrossingLink) return;
 
         NemesisPressureZone zone = NemesisPressureZone.Find(zoneId);
 
@@ -1354,8 +1359,6 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
         if (pacing == null || tension == null || !tension.IsRunning || tension.IsSuspended) return;
 
-        RollVanish();
-
         // In Relax it does not come back (plan §18.5 C2): that is the retreat, and coming back would
         // undo it. SustainPeak and PeakFade are an encounter still resolving.
         if (tension.State != NemesisTension.EPacingState.BuildUp) return;
@@ -1372,6 +1375,30 @@ public class NemesisDirector : Singleton<NemesisDirector>
         CancelVanish();
     }
 
+    /// <summary>It is after the player again: a vanish or a peek still pending belonged to the hunt that
+    /// just ended, and doing it now would cut this one.</summary>
+    private void HandleChaseStarted()
+    {
+        if (isActiveAndEnabled) CancelVanish();
+    }
+
+    /// <summary>
+    /// It stopped chasing the player: arm the vanish. Not for a capture, which is the encounter and which
+    /// repositions the Nemesis by itself (the chase ends there with the state still Catch), and not for a
+    /// Nemesis that was switched off. The move itself waits in <see cref="TickPresence"/> for the search
+    /// to end and for the Nemesis to be out of the player's area.
+    /// </summary>
+    private void HandleChaseEnded()
+    {
+        if (!isActiveAndEnabled || pacing == null || tension == null) return;
+        if (!tension.IsRunning || tension.IsSuspended) return;
+
+        NemesisStateManager.ENemesisState? state = TryResolveNemesis() ? nemesis.CurrentStateKey : null;
+        if (!state.HasValue || state.Value == NemesisStateManager.ENemesisState.Catch) return;
+
+        ArmVanish();
+    }
+
     private void CancelRevisit() => revisitPending = false;
 
     // ── Presencia: desaparece y aparece cerca ───────────────────────────────
@@ -1383,22 +1410,18 @@ public class NemesisDirector : Singleton<NemesisDirector>
     }
 
     /// <summary>
-    /// A search ended empty: roll whether the Nemesis goes away instead of patrolling on from where it
-    /// gave up. Not in SustainPeak or PeakFade, which are an encounter still resolving. The move itself
-    /// waits in <see cref="TickPresence"/> until the player cannot see it go.
+    /// The chase ended: roll whether the Nemesis goes away instead of patrolling on from where it gave up.
+    /// The move itself waits in <see cref="TickPresence"/> until the player cannot see it go, and for as
+    /// long as <see cref="SO_DirectorPacing.VanishRetrySeconds"/>.
     /// </summary>
-    private void RollVanish()
+    private void ArmVanish()
     {
         if (pacing.VanishChance <= 0f) return;
-
-        NemesisTension.EPacingState state = tension.State;
-        if (state != NemesisTension.EPacingState.BuildUp && state != NemesisTension.EPacingState.Relax) return;
-
         if (UnityEngine.Random.value >= pacing.VanishChance) return;
 
         vanishPending = true;
         vanishDueAt = Time.time + pacing.RollVanishDelay();
-        vanishGiveUpAt = vanishDueAt + pacing.VanishRetrySeconds;
+        vanishGiveUpAt = Time.time + pacing.VanishRetrySeconds;
     }
 
     /// <summary>
@@ -1408,10 +1431,11 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private void TickPresence()
     {
         // The clock of "how long since the player saw it" only runs while there is something to see:
-        // asleep, away in a hunt or with the player in the Hub it is held at zero.
+        // asleep, away in a hunt or with the player in the Hub it is held at zero. SEEN is pure line of
+        // sight (NemesisTension.LastLineOfSightAt, sampled every 0.2 s): no distance cap, no camera cone.
         if (!TryResolveNemesis() || !nemesis.IsActive || isStagingEntrance ||
             nemesis.CurrentStateKey != NemesisStateManager.ENemesisState.Patrolling ||
-            tension.IsPlayerInSafeZone || tension.PlayerSeesNemesis)
+            tension.IsPlayerInSafeZone || tension.PlayerHasLineOfSight)
         {
             lastSawNemesisAt = Time.time;
         }
@@ -1429,15 +1453,17 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// <summary>
     /// Goes through NemesisController.ChooseSpawnPoint, which is already the fairness rule: far enough
     /// over the NavMesh, outside the player's cone and behind geometry, or it returns null and nothing
-    /// moves. On top of that the Nemesis has to be out of the player's sight where it stands NOW, and
-    /// at least <see cref="SO_DirectorPacing.VanishMinPlayerDistance"/> away, so nobody watches it go.
+    /// moves. On top of that the Nemesis has to be out of the player's SIGHT where it stands NOW: the
+    /// player must not be able to see its eyes (<see cref="PlayerCanSeeEyes"/>), and it has to be at
+    /// least <see cref="SO_DirectorPacing.VanishMinPlayerDistance"/> away over the NavMesh, so nobody
+    /// watches it go or hears its steps cut off. Until then it waits (and keeps searching, or patrolling): only a
+    /// Nemesis that is PATROLLING goes, because a hunt in flight is not ours to cut.
     /// </summary>
     private void TickVanish()
     {
         if (!vanishPending || Time.time < vanishDueAt) return;
 
-        if (Time.time > vanishGiveUpAt || tension.State == NemesisTension.EPacingState.SustainPeak ||
-            tension.State == NemesisTension.EPacingState.PeakFade)
+        if (Time.time > vanishGiveUpAt)
         {
             CancelVanish();
             return;
@@ -1446,10 +1472,12 @@ public class NemesisDirector : Singleton<NemesisDirector>
         Transform player = PlayerRegistry.CurrentTransform;
         if (player == null || nemesis.NemesisController == null) return;
 
-        if (tension.PlayerSeesNemesis) return;
+        // Safe zone (the Hub): nothing happens to the Nemesis while the player is inside it.
+        if (tension.IsPlayerInSafeZone) return;
 
-        FieldOfListening senses = nemesis.FieldOfListening;
-        if (senses != null && !senses.IsOccludedByWall(player.position, nemesis.transform.position)) return;
+        // THE PLAYER MUST NOT SEE ITS EYES GO OUT. They are the one thing of it that shows from across the
+        // level, through the fog, so what counts is whether THEY can be seen, not the body.
+        if (PlayerCanSeeEyes(player)) return;
 
         if (NemesisNav.TryGetPathDistance(player.position, nemesis.transform.position, out float distance) &&
             distance < pacing.VanishMinPlayerDistance)
@@ -1460,10 +1488,10 @@ public class NemesisDirector : Singleton<NemesisDirector>
         // Retried on the next tick if nothing is safe yet: the player walking on usually fixes it.
         if (nemesis.NemesisController.ChooseSpawnPoint() == null) return;
 
-        CancelVanish();
+        vanishPending = false;
 
-        // It is gone. A while later it may be back at the door of the room the player is in, when
-        // they have stopped looking over their shoulder (TickReturn).
+        // It is gone. A few seconds later it may be in front of the player, leaning out of a doorway
+        // (TickReturn).
         if (UnityEngine.Random.value < pacing.VanishReturnChance)
         {
             returnPending = true;
@@ -1473,32 +1501,80 @@ public class NemesisDirector : Singleton<NemesisDirector>
     }
 
     /// <summary>
-    /// The scare the vanish sets up: standing at a doorway, one hand on the wall and the other
-    /// reaching round it, after the player thought it had gone. It is the Mr. X entrance, so it keeps
-    /// every guarantee of that one (out of sight, never closer than its minimum, never in the Hub);
-    /// what this adds is only the WHEN.
+    /// Whether the player could see the Nemesis's eyes RIGHT NOW (not a sample a fraction of a second old:
+    /// the vanish happens on this same frame). The eyes are two red FogBeacons, composited after the fog,
+    /// so they show from any distance and at head height, above cover the body hides behind: the test is a
+    /// line from the camera to the point between the eyes, with no distance limit, and the point being on
+    /// screen (with a margin: the camera can turn). The player's own locker is not a wall.
+    ///
+    /// Conservative on purpose: it ignores which way the Nemesis faces (the eyes only show within a
+    /// facing angle), so a Nemesis that is visible but looking away still waits.
+    /// </summary>
+    private bool PlayerCanSeeEyes(Transform player)
+    {
+        if (nemesisEyes == null) nemesisEyes = nemesis.GetComponentInChildren<NemesisEyes>(true);
+
+        Transform center = nemesisEyes != null ? nemesisEyes.Center : null;
+        Vector3 target = center != null ? center.position : nemesis.transform.position + Vector3.up * 1.8f;
+
+        Camera view = Camera.main;
+        Vector3 from = view != null ? view.transform.position : player.position + Vector3.up * 1.5f;
+
+        FieldOfListening senses = nemesis.FieldOfListening;
+        PlayerStateManager state = PlayerRegistry.Current;
+        bool blocked = senses != null &&
+                       senses.IsOccludedByWall(from, target, state != null ? state.CurrentHidingSpot : null);
+        if (blocked) return false;
+
+        if (view == null) return true;
+
+        // On screen, with room to spare: a quick turn between this check and the next frame must not
+        // show the player an empty spot where two red lights were.
+        Vector3 viewport = view.WorldToViewportPoint(target);
+        const float margin = 0.2f;
+        return viewport.z > 0f &&
+               viewport.x > -margin && viewport.x < 1f + margin &&
+               viewport.y > -margin && viewport.y < 1f + margin;
+    }
+
+    /// <summary>
+    /// The scare the vanish sets up: a few seconds after it vanished, the Nemesis is standing in a doorway
+    /// or a corridor mouth IN FRONT of the player, one hand on the wall and the other reaching round it
+    /// (the peek). It is the same place as the "not seen for a while" peek (<see cref="TryFindPeekAhead"/>:
+    /// in the cone ahead of the camera, on the player's floor, body out of sight), so it keeps every one
+    /// of its guarantees. Never while the Nemesis is hunting again (HandleChaseStarted cancels it) or while
+    /// an encounter is still resolving: it waits, and is dropped after <see cref="returnGiveUpAt"/>.
     /// </summary>
     private void TickReturn()
     {
         if (!returnPending || Time.time < returnDueAt) return;
 
-        if (Time.time > returnGiveUpAt || tension.State != NemesisTension.EPacingState.BuildUp)
+        if (Time.time > returnGiveUpAt)
         {
             returnPending = false;
             return;
         }
 
+        NemesisTension.EPacingState state = tension.State;
+        if (state == NemesisTension.EPacingState.SustainPeak || state == NemesisTension.EPacingState.PeakFade) return;
+
         if (tension.IsPlayerInSafeZone) return;
 
+        // Retried on the next tick when there is no doorway ahead: the player walking on fixes it.
+        if (!TryStagePeekAhead()) return;
+
         returnPending = false;
-        StageEntranceAsync(null, this.GetCancellationTokenOnDestroy()).Forget();
+
+        // Counts as seen: the "not seen for a while" peek is a whole wait away.
+        lastSawNemesisAt = Time.time;
     }
 
     /// <summary>
     /// The longer the player goes without seeing the Nemesis, the likelier it is to lean out of a doorway
     /// ahead of them: coming out of another room into a corridor, or about to walk into one. Nothing
-    /// before <c>UnseenPeekAfterSeconds</c>, then a chance per roll that climbs to its maximum. The clock
-    /// starts over whenever the player sees it, and after every peek this makes.
+    /// before <c>UnseenPeekAfterSeconds</c>, then a chance per roll that climbs to its maximum. "Sees it"
+    /// is PURE line of sight (<see cref="NemesisTension.PlayerHasLineOfSight"/>). The clock starts over
+    /// whenever the player sees it, and after every peek this makes.
     /// </summary>
     private void TickUnseenPeek()
     {
@@ -1506,7 +1582,9 @@ public class NemesisDirector : Singleton<NemesisDirector>
         if (Time.time < nextUnseenRollAt) return;
         nextUnseenRollAt = Time.time + Mathf.Max(0.5f, evaluationInterval);
 
-        float chance = pacing.UnseenPeekChance(Time.time - lastSawNemesisAt);
+        // Pure line of sight, sampled at the tension's own rate so a glimpse between two rolls counts.
+        float lastSeen = Mathf.Max(lastSawNemesisAt, tension.LastLineOfSightAt);
+        float chance = pacing.UnseenPeekChance(Time.time - lastSeen);
         if (chance <= 0f || UnityEngine.Random.value >= chance) return;
 
         if (!TryStagePeekAhead()) return;
@@ -1518,7 +1596,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private bool TryStagePeekAhead()
     {
         Transform player = PlayerRegistry.CurrentTransform;
-        if (player == null || nemesis.IsUsingElevator) return false;
+        if (player == null || nemesis.IsCrossingLink) return false;
 
         // Where the player is LOOKING, not where the body faces: the camera is what the doorway has to be
         // in front of.
@@ -1626,7 +1704,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     /// replaced, since the newer one comes from a later search. Leaving BuildUp and a capture cancel it
     /// before it gets here.
     ///
-    /// Mid-hunt when it falls due (Searching, Investigating, Chasing, Catch or Traversing), it is
+    /// Mid-hunt when it falls due (Searching, Investigating, Chasing or Catch), it is
     /// RETRIED <see cref="RevisitRetrySeconds"/> later rather than dropped. Either the hunt ends a
     /// search — and that end replaces it (empty) or cancels it (found) on its own — or it does not: a
     /// lead investigated and let go, which says nothing about the search the player got away from,

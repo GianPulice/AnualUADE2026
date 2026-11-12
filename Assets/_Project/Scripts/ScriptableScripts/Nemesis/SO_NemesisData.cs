@@ -239,13 +239,6 @@ public class SO_NemesisData : ScriptableObject
              "crates.")]
     [SerializeField, Min(0.5f)] private float floorHeightThreshold = 2.5f;
 
-    [Tooltip("Seconds the Nemesis keeps walking to the freight elevator after it has stopped " +
-             "seeing or hearing the player.\n\n" +
-             "This is what makes the lift trip a decision instead of an accident. At 0 it turns " +
-             "around the instant you break line of sight — which, since a floor slab breaks it " +
-             "the moment it starts climbing, means it never gets there at all.")]
-    [SerializeField, Min(0f)] private float elevatorCommitTime = 12f;
-
     [Tooltip("Radio, en metros, del sorteo de último recurso de la búsqueda: cuando el mapa de " +
              "búsqueda no tiene ningún valor (entró directo de una captura, o solo sabe de un " +
              "escondite y no cree nada más), camina a puntos al azar a esta distancia de donde estaba " +
@@ -352,24 +345,6 @@ public class SO_NemesisData : ScriptableObject
              "Only has any effect while BiasUsesLastKnownPosition is on — with it off the bias " +
              "reads the player's live position, which is never stale.")]
     [SerializeField, Min(1f)] private float beliefMemoryTime = 45f;
-
-    [Tooltip("Maximum seconds the Nemesis waits at a landing for the freight elevator to free up " +
-             "or finish a trip.\n\n" +
-             "This is the safety net for 'the player is riding the lift right now': once it runs " +
-             "out, the Nemesis abandons the link and paths whatever other way it can, instead of " +
-             "standing at the doors forever. Keep it comfortably above one full ride, or it gives " +
-             "up on trips that were about to work.")]
-    [SerializeField, Min(1f)] private float elevatorWaitTimeout = 20f;
-
-    [Tooltip("Seconds the Nemesis ignores a freight elevator after giving up on it.\n\n" +
-             "Without it, abandoning the link and re-evaluating it are the same frame: the agent " +
-             "is still standing on the link, so the next Update starts the whole wait over, times " +
-             "out again, and the Nemesis spends the rest of the run cycling at the landing " +
-             "without ever moving. The stuck watchdog cannot save it either — a body held at a " +
-             "landing on purpose is not one it counts as stuck.\n\n" +
-             "Keep it long enough for the agent to actually walk away and commit to another " +
-             "route, or it steps off the link and immediately steps back on.")]
-    [SerializeField, Min(0f)] private float elevatorAbandonCooldown = 10f;
 
     [Header("Stuck detection")]
     [Tooltip("How long the Nemesis has to make no progress before it counts as stuck and warps " +
@@ -869,13 +844,6 @@ public class SO_NemesisData : ScriptableObject
              "(Plan Búsqueda, Fase 1).")]
     [SerializeField, Min(0f)] private float searchPreciseNoiseRadius = 1.5f;
 
-    [Header("Bajadas entre pisos (plan §15)")]
-    [Tooltip("Segundos que una bajada queda fuera de las rutas después de usarla (o de abandonarla " +
-             "porque el jugador estaba arriba). Evita el loop \"sube por la escalera, se tira, sube, " +
-             "se tira\" si el jugador da vueltas entre pisos. El tiempo, la velocidad y el costo de " +
-             "cada fase están en SO_NemesisMovement.")]
-    [SerializeField, Min(0f)] private float dropLinkCooldown = 8f;
-
     [Header("Búsqueda que se enfría (plan §18.5 B, Fase 2B parte 3)")]
     //
     // La búsqueda ya no dura Search Time Out fijo: sigue mientras el SILENCIO (segundos desde la
@@ -1136,7 +1104,6 @@ public class SO_NemesisData : ScriptableObject
     public float ChaseHoldRadius { get => chaseHoldRadius; set => chaseHoldRadius = value; }
     public float ChaseHoldMaxTime { get => chaseHoldMaxTime; set => chaseHoldMaxTime = value; }
     public float FloorHeightThreshold { get => floorHeightThreshold; set => floorHeightThreshold = value; }
-    public float ElevatorCommitTime { get => elevatorCommitTime; set => elevatorCommitTime = value; }
     public float SearchSweepRadius { get => searchSweepRadius; set => searchSweepRadius = value; }
     public float SearchPauseTime { get => searchPauseTime; set => searchPauseTime = value; }
     public float RoomSweepRadius { get => roomSweepRadius; set => roomSweepRadius = value; }
@@ -1146,8 +1113,6 @@ public class SO_NemesisData : ScriptableObject
     public float ChaseDetourTolerance { get => chaseDetourTolerance; set => chaseDetourTolerance = value; }
     public float BeliefTraceRadius { get => beliefTraceRadius; set => beliefTraceRadius = value; }
     public float BeliefMemoryTime { get => beliefMemoryTime; set => beliefMemoryTime = value; }
-    public float ElevatorWaitTimeout { get => elevatorWaitTimeout; set => elevatorWaitTimeout = value; }
-    public float ElevatorAbandonCooldown { get => elevatorAbandonCooldown; set => elevatorAbandonCooldown = value; }
     public bool HearingUsesPathDistance { get => hearingUsesPathDistance; set => hearingUsesPathDistance = value; }
     public float StuckCheckInterval { get => stuckCheckInterval; set => stuckCheckInterval = value; }
     public float StuckMinDistance { get => stuckMinDistance; set => stuckMinDistance = value; }
@@ -1212,7 +1177,6 @@ public class SO_NemesisData : ScriptableObject
     public float BeliefNoiseFloorFactor { get => beliefNoiseFloorFactor; set => beliefNoiseFloorFactor = value; }
     public float BeliefGrowthSpeed { get => beliefGrowthSpeed; set => beliefGrowthSpeed = value; }
     public float BeliefNoiseHidingSpotFactor { get => beliefNoiseHidingSpotFactor; set => beliefNoiseHidingSpotFactor = value; }
-    public float DropLinkCooldown { get => dropLinkCooldown; set => dropLinkCooldown = value; }
     public float SearchMinTime { get => searchMinTime; set => searchMinTime = value; }
     public float SearchQuietWindow { get => searchQuietWindow; set => searchQuietWindow = value; }
     public float SearchHardCap { get => searchHardCap; set => searchHardCap = value; }

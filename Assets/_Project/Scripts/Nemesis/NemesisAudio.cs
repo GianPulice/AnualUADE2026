@@ -17,10 +17,10 @@ using UnityEngine.Audio;
 /// bus rather than this class's Nemesis bus, and reacts to NemesisEvents.OnChaseStarted/OnChaseEnded
 /// instead of every per-state loop here.
 ///
-/// Beside the loops, the Nemesis's one-shots, all through AudioManager's pool on the same bus: the
-/// cues of a drop between floors (plan §15.5), and its voice — the sting when it knows which hiding
-/// spot the player is in, "te perdí" when a search gives up, and the activation cue (plan §16.2 and
-/// principle 7). Voices share a cooldown so it never talks over itself.
+/// Beside the loops, the Nemesis's one-shots, all through AudioManager's pool on the same bus: its
+/// voice — the sting when it knows which hiding spot the player is in, "te perdí" when a search gives
+/// up, and the activation cue (plan §16.2 and principle 7). Voices share a cooldown so it never talks
+/// over itself.
 /// </summary>
 public class NemesisAudio : MonoBehaviour
 {
@@ -60,25 +60,6 @@ public class NemesisAudio : MonoBehaviour
 
     [Tooltip("How fast the occlusion multiplier eases towards its target, per second.")]
     [SerializeField, Min(0.1f)] private float occlusionEaseSpeed = 3f;
-
-    [Header("Bajadas entre pisos (plan §15.5)")]
-    [Tooltip("Gruñido al asomarse al borde antes de tirarse. Es la mitad audible del aviso: desde " +
-             "abajo el jugador lo oye antes de verlo. Uno al azar por bajada. Vacío = se tira en " +
-             "silencio (la bajada anda igual).")]
-    [SerializeField] private AudioClip[] dropGrowls = Array.Empty<AudioClip>();
-
-    [Tooltip("Golpe de manos en el borde al descolgarse (sólo en las bajadas altas).")]
-    [SerializeField] private AudioClip dropHandSlam;
-
-    [Tooltip("Impacto al aterrizar. Más fuerte que un paso de persecución: se oye desde lejos, y es " +
-             "lo que le dice al jugador que ya está abajo.")]
-    [SerializeField] private AudioClip dropImpact;
-
-    [SerializeField, Range(0f, 1f)] private float dropCueVolume = 1f;
-
-    [Tooltip("Pitch del impacto. Debajo de 1 suena más pesado, y permite usar un paso como impacto " +
-             "provisorio.")]
-    [SerializeField, Range(0.5f, 1.5f)] private float dropImpactPitch = 0.85f;
 
     [Header("Voz y avisos (plan §16.2, principio 7)")]
     [Tooltip("Aviso cuando SABE en qué escondite estás y todavía no llegó a la puerta (D1, D16, D34). " +
@@ -277,19 +258,9 @@ public class NemesisAudio : MonoBehaviour
         // telemetry reports the state a frame later) and would start Catch's loop again.
         if (grabbing) return;
 
-        if (!TryGetLoop(state, out AudioClip clip, out float volume))
-        {
-            // No entry authored for this state. Silence is a legitimate authoring choice for a
-            // state a designer deliberately left blank — but it is the wrong answer for
-            // Traversing, which did not exist when these arrays were filled in. Every prefab in
-            // the project therefore has a hole exactly there, and the Nemesis would go quiet for
-            // the whole elevator ride: the one stretch of a pursuit where the player cannot see
-            // it and the loop is all they have to go on.
-            //
-            // Traversing IS the chase continuing by other means, so it borrows the chase loop.
-            if (state == NemesisStateManager.ENemesisState.Traversing)
-                TryGetLoop(NemesisStateManager.ENemesisState.Chasing, out clip, out volume);
-        }
+        // No entry authored for this state is a legitimate authoring choice (silence): the crossfade
+        // below then fades the monster out.
+        TryGetLoop(state, out AudioClip clip, out float volume);
 
         // Same clip already playing (e.g. Chasing -> Catch sharing a loop): let it run rather
         // than restarting it from sample zero, which would be audible.
@@ -300,37 +271,6 @@ public class NemesisAudio : MonoBehaviour
         }
 
         StartCrossfade(clip, volume);
-    }
-
-    /// <summary>
-    /// A one-shot of a drop between floors (plan §15.5): the growl when it looks down, the hands on
-    /// the edge, the landing. Played by NemesisElevatorUser at the start of each phase, not by
-    /// animation events: the phases are timed by code, and the placeholder drop has no clips to
-    /// carry events at all.
-    ///
-    /// On the Nemesis bus and in 3D, like the loops; never through DetectableAudio, which is what
-    /// the Nemesis HEARS, not what it does. Fire-and-forget through AudioManager's pool, so no
-    /// occlusion: at the range these carry, a floor slab between is the point.
-    /// </summary>
-    public void PlayDropCue(EDropCue cue)
-    {
-        if (silenced || !AudioManager.Exists) return;
-
-        AudioClip clip;
-        switch (cue)
-        {
-            case EDropCue.Growl:
-                clip = dropGrowls.Length > 0 ? dropGrowls[UnityEngine.Random.Range(0, dropGrowls.Length)] : null;
-                break;
-            case EDropCue.HandSlam: clip = dropHandSlam; break;
-            case EDropCue.Impact:   clip = dropImpact;   break;
-            default:                clip = null;         break;
-        }
-
-        if (clip == null) return;
-
-        float pitch = cue == EDropCue.Impact ? dropImpactPitch : 1f;
-        AudioManager.Instance.PlayNemesis(clip, transform.position, dropCueVolume, pitch, minDistance, maxDistance);
     }
 
     // ── Voice and warnings (plan §16.2, principle 7) ────────────────────────

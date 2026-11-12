@@ -94,7 +94,7 @@ public class MovingPlatform : MonoBehaviour
     /// through <see cref="AddPassenger"/>.
     ///
     /// Kept apart so a trip puts down exactly what it picked up and never a passenger somebody else
-    /// is managing: <see cref="NemesisElevatorUser"/> holds its own registration across the whole
+    /// is managing: NemesisElevatorUser (retired) holds its own registration across the whole
     /// crossing and takes it off itself, and a trip that helpfully removed it would drop the
     /// monster halfway up the shaft.
     /// </summary>

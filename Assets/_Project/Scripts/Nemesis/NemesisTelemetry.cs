@@ -139,9 +139,6 @@ public class NemesisTelemetry : MonoBehaviour
     /// would switch off on the very frame it grabs you, which is when it needs to be showing the
     /// most.
     ///
-    /// Traversing is NOT in the set, deliberately. It is a pursuit, but the player is a storey
-    /// away and cannot be reached — holding the red vignette lit through a lift ride would spend
-    /// the strongest signal the HUD has on a threat that is, right now, somewhere else.
     /// </summary>
     private void EmitChaseTransitions(bool isCaptureResolved)
     {
@@ -184,10 +181,7 @@ public class NemesisTelemetry : MonoBehaviour
     /// <summary>
     /// Raises <see cref="NemesisEvents.SearchEnded"/> when a search is over.
     ///
-    /// "Over" is leaving Searching for anything but Traversing. A search that needs the lift has not
-    /// been given up, it is being carried to another storey — reporting it there would have the habit
-    /// tracker count an escape from a Nemesis that is on its way up to the player. It stays open and
-    /// is reported when the Nemesis settles into something else, found if that is Chasing or Catch.
+    /// "Over" is leaving Searching for any other state; found if that is Chasing or Catch.
     ///
     /// The area is the belief at that moment, not the player: this is about where the Nemesis was
     /// looking, which is what an "it gave up here" listener can honestly use.
@@ -204,7 +198,7 @@ public class NemesisTelemetry : MonoBehaviour
             return;
         }
 
-        if (!searchOpen || entered == NemesisStateManager.ENemesisState.Traversing) return;
+        if (!searchOpen) return;
 
         searchOpen = false;
 

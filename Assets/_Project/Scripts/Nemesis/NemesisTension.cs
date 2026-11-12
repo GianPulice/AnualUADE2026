@@ -59,6 +59,17 @@ public class NemesisTension : MonoBehaviour
 
     public bool IsPlayerInSafeZone { get; private set; }
     public bool PlayerSeesNemesis { get; private set; }
+
+    /// <summary>
+    /// A straight line from the player's eye to the Nemesis's chest with no wall in between: PURE line of
+    /// sight, with no distance limit (<see cref="PlayerSeesNemesis"/> stops at the pacing's sight range)
+    /// and no camera cone. Feeds the "how long since the player last saw it" clock of the peek.
+    /// </summary>
+    public bool PlayerHasLineOfSight { get; private set; }
+
+    /// <summary>The last time <see cref="PlayerHasLineOfSight"/> was true (sampled every
+    /// <c>SenseInterval</c>), or negative infinity if it never was.</summary>
+    public float LastLineOfSightAt { get; private set; } = float.NegativeInfinity;
     public bool HiddenNearSearch { get; private set; }
     public bool IsChasing => isChasing;
     public float Proximity => proximity;
@@ -235,12 +246,15 @@ public class NemesisTension : MonoBehaviour
         {
             IsPlayerInSafeZone = false;
             PlayerSeesNemesis = false;
+            PlayerHasLineOfSight = false;
             HiddenNearSearch = false;
             return;
         }
 
         IsPlayerInSafeZone = NemesisSafeZones.Contains(player.transform.position);
         PlayerSeesNemesis = CheckPlayerSeesNemesis(player);
+        PlayerHasLineOfSight = CheckPlayerLineOfSight(player);
+        if (PlayerHasLineOfSight) LastLineOfSightAt = Time.time;
 
         NemesisStateManager.ENemesisState? state = NemesisState;
         bool hunting = state == NemesisStateManager.ENemesisState.Searching ||
@@ -260,6 +274,19 @@ public class NemesisTension : MonoBehaviour
         if ((chest - eye).sqrMagnitude > range * range) return false;
 
         // The player's own locker is not a wall: they are looking out through its slats.
+        return !senses.IsOccludedByWall(eye, chest, player.CurrentHidingSpot);
+    }
+
+    /// <summary>The same ray as <see cref="CheckPlayerSeesNemesis"/> with no range cap: only walls end it.
+    /// </summary>
+    private bool CheckPlayerLineOfSight(PlayerStateManager player)
+    {
+        FieldOfListening senses = nemesis.FieldOfListening;
+        if (senses == null) return false;
+
+        Vector3 eye = player.transform.position + Vector3.up * PlayerEyeHeight;
+        Vector3 chest = nemesis.transform.position + Vector3.up * NemesisChestHeight;
+
         return !senses.IsOccludedByWall(eye, chest, player.CurrentHidingSpot);
     }
 
@@ -293,7 +320,7 @@ public class NemesisTension : MonoBehaviour
     }
 
     /// <summary>
-    /// No chase, no grab, nothing crossing floors after the player, and no search on a fresh sighting.
+    /// No chase, no grab, and no search on a fresh sighting.
     ///
     /// The sighting is the one the BELIEF keeps (NemesisBelief.TryGetLastSeen), not FieldOfView read
     /// from behind (plan §10: everything downstream of the senses reads the belief). Same answer
@@ -305,7 +332,6 @@ public class NemesisTension : MonoBehaviour
         if (IsHunting()) return false;
 
         NemesisStateManager.ENemesisState? state = NemesisState;
-        if (state == NemesisStateManager.ENemesisState.Traversing) return false;
 
         if (state == NemesisStateManager.ENemesisState.Searching)
         {

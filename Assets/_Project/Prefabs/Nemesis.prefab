@@ -366,7 +366,7 @@ MonoBehaviour:
   hidingAwareness: {fileID: 3468922629937603496}
   belief: {fileID: 3430693994572452678}
   nemesisAudio: {fileID: 7739481052210330915}
-  elevatorUser: {fileID: 4677969932427935509}
+  linkUser: {fileID: 4677969932427935509}
   nemesisPriorities: {fileID: 11400000, guid: 6a3a4146ccfc47c6ad12005891c20953, type: 2}
   captureGracePeriod: 4
   catchCooldown: 2
@@ -496,7 +496,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1827478ed736b4f47aee891323657300, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NemesisElevatorUser
+  m_EditorClassIdentifier: Assembly-CSharp::NemesisLinkUser
 --- !u!114 &811812959422482655
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -709,12 +709,6 @@ MonoBehaviour:
   fieldOfListening: {fileID: 6366883338896328337}
   occludedVolumeMultiplier: 0.5
   occlusionEaseSpeed: 3
-  dropGrowls:
-  - {fileID: 8300000, guid: 8811366c2e89f6e46b36c33e23a57e28, type: 3}
-  dropHandSlam: {fileID: 0}
-  dropImpact: {fileID: 8300000, guid: 61b3513be07923c86c9c16289a7b4905, type: 3}
-  dropCueVolume: 1
-  dropImpactPitch: 0.85
   knownSpotStings:
   - {fileID: 8300000, guid: 8811366c2e89f6e46b36c33e23a57e28, type: 3}
   knownSpotStingPitch: 0.8

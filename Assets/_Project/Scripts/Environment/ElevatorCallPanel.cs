@@ -5,7 +5,7 @@ using UnityEngine;
 /// Call button for a freight elevator. One per landing.
 ///
 /// This is the piece the shaft was missing. <see cref="MovingPlatform.RequestRide"/> existed from
-/// the start, but the only caller was <see cref="NemesisElevatorUser"/> — so the platform could be
+/// the start, but the only caller was NemesisElevatorUser (retired) — so the platform could be
 /// summoned by the monster and never by the player. Ride up, step off, and the cabin's own
 /// auto-return took it back down; from then on that floor was unreachable for the rest of the run.
 /// That is the softlock, and it was a missing button rather than a broken state machine.

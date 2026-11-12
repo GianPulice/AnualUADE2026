@@ -24,8 +24,8 @@ using UnityEngine;
 /// of the single writer, so the state is entered once and then runs completely normally. See
 /// <c>NemesisDecision.Decide</c> and docs/CLAUDE.md § Nemesis: the decision layer.
 ///
-/// What it cannot do is give a state a reason to exist: pinned Traversing with the player on your
-/// own floor stands still, because no route crosses the lift. That is the state working.
+/// What it cannot do is give a state a reason to exist: a pinned Catch with nobody in reach falls
+/// straight back. That is the state working.
 ///
 /// <b>In the blockout it is added at runtime</b> by <c>DevLevelKeys</c> to any Nemesis without one.
 ///
@@ -90,7 +90,6 @@ public class NemesisTestConsole : MonoBehaviour
         NemesisStateManager.ENemesisState.Investigating,
         NemesisStateManager.ENemesisState.Chasing,
         NemesisStateManager.ENemesisState.Searching,
-        NemesisStateManager.ENemesisState.Traversing,
         NemesisStateManager.ENemesisState.Catch,
     };
 
@@ -239,9 +238,8 @@ public class NemesisTestConsole : MonoBehaviour
     ///
     /// It is worth reading the caveat here rather than only in the code: what you get is the real
     /// state, entered for a reason you chose, which is not the same as the state having a reason to
-    /// run. Pinned Traversing with the player on your own floor stands still — the route verdict
-    /// says nothing crosses the lift, so there is nowhere to traverse to. That is the state working,
-    /// not the pin failing.
+    /// run. A pinned Catch with nobody within reach falls straight back to Searching. That is the
+    /// state working, not the pin failing.
     /// </summary>
     private void DrawPinnedState()
     {
@@ -292,11 +290,9 @@ public class NemesisTestConsole : MonoBehaviour
         // watchdog and kill leftover momentum. Setting a transform directly leaves both sides
         // reasoning from where they used to be.
         //
-        // Greyed out mid-crossing. WarpTo does not end a crossing, and the platform carries its
-        // passengers by position: warped during a ride, the body landed 40 m away with the cabin
-        // still moving it, and stepping off glided it back across the level (playtest 28/09).
-        bool crossing = nemesis.IsUsingElevator;
-        if (crossing) GUILayout.Label("Crossing a lift or a drop: the warps wait until it is over.");
+        // Greyed out mid-crossing: WarpTo does not end a crossing driven by hand.
+        bool crossing = nemesis.IsCrossingLink;
+        if (crossing) GUILayout.Label("Crossing a link: the warps wait until it is over.");
         GUI.enabled = !crossing;
 
         if (GUILayout.Button("Nemesis behind the player"))

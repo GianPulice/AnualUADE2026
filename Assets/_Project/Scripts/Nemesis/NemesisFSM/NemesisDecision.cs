@@ -8,12 +8,11 @@ using UnityEngine;
 /// WHY THE DECISION LEFT THE STATES
 ///
 /// Every transition used to be written inside the state it left from, which meant each state had
-/// to know about the others. That cost is documented all over the old code: NemesisTraversingState
-/// exists in large part because Chasing and Searching each re-derived the same borderline path
-/// verdict and read it differently, and NemesisSearchingState carried a hand-placed
-/// MinimumDwellTime to stop the two of them trading the Nemesis every other frame. Both are
-/// symptoms of the same thing — a decision taken in six places cannot be made consistent, only
-/// patched.
+/// to know about the others. That cost is documented all over the old code: Chasing and Searching
+/// each re-derived the same borderline path verdict and read it differently, and
+/// NemesisSearchingState carried a hand-placed MinimumDwellTime to stop the two of them trading the
+/// Nemesis every other frame. Both are symptoms of the same thing — a decision taken in six places
+/// cannot be made consistent, only patched.
 ///
 /// Here it is one prioritised ladder, read top to bottom, and the patches become visible rules.
 ///
@@ -136,16 +135,6 @@ public sealed class NemesisDecision
     /// </summary>
     public bool IsSuspicious => stateManager.IsSuspicious;
 
-    /// <summary>Its body is on the freight elevator - waiting for it, boarding, riding or stepping
-    /// off - or on a drop between floors (plan §15). A fact about who is driving, not a sensor
-    /// reading.</summary>
-    public bool IsUsingElevator => stateManager.IsUsingElevator;
-
-    /// <summary>It has just given up on a lift and shelved it for the cooldown. Also a fact about
-    /// execution rather than about the world: the component that drives the crossing is reporting
-    /// that this one is over. Also true for a moment after a drop ends (D29).</summary>
-    public bool HasGivenUpOnElevator => stateManager.HasGivenUpOnElevator;
-
     /// <summary>
     /// Searching has not cooled down yet (plan §18.5 B). A reading of the state's own clock, the same
     /// shape as <see cref="IsCheckingSpot"/>: the state tracks the silence since the last evidence
@@ -217,7 +206,7 @@ public sealed class NemesisDecision
     /// the SAME number. Querying NemesisNav directly here would give a freshly measured verdict
     /// that can differ from the one taken a frame ago on a borderline path — which is precisely
     /// the flip that used to leave the Nemesis shuddering in place directly below the player, and
-    /// which NemesisTraversingState was built to stop. It would come back looking like a new bug.
+    /// that was once stopped for good. It would come back looking like a new bug.
     /// </summary>
     public bool RouteToBeliefCrossesFloors
     {
@@ -355,12 +344,12 @@ public sealed class NemesisDecision
 
     /// <summary>
     /// When true, the Nemesis never falls back below Chasing: whatever the ladder answers that is
-    /// not a capture or a lift crossing (Patrolling, Investigating, Searching) becomes Chasing.
+    /// not a capture (Patrolling, Investigating, Searching) becomes Chasing.
     ///
     /// For the escape sequence (<see cref="NemesisEscapePursuit"/>), where the Nemesis hunts the
     /// player until the run ends. It sits ON TOP of the ladder rather than inside it: the ladder
-    /// still decides Catch and Traversing, so a floor of "keep chasing" cannot stop the Nemesis
-    /// from grabbing the player or taking the freight lift — which a pinned state would.
+    /// still decides Catch, so a floor of "keep chasing" cannot stop the Nemesis from grabbing the
+    /// player — which a pinned state would.
     ///
     /// A player hiding during the escape is covered too, though it lifts "sabe en qué escondite
     /// está" out of Searching: Chasing runs at the belief inside the spot, the pursuit ends at the
@@ -412,15 +401,12 @@ public sealed class NemesisDecision
         //
         // Two caveats it is better to know than to discover: a state can still reject the entry
         // (Catch with nobody to grab falls straight back to Searching, by design), and a pinned
-        // state whose preconditions are absent simply has nothing to do — pinned Traversing with
-        // no route across floors stands still, which is correct and not a bug.
+        // state whose preconditions are absent simply has nothing to do.
         //
-        // EXCEPT WHILE ITS BODY IS ON THE LIFT (playtest 27/09). A pinned Searching went on steering
-        // the agent through the wait for the cabin and the walk aboard, and the crossing came apart:
-        // it hopped between the landing and the cabin door, then jumped to the far end of the shaft.
-        // In normal play nothing re-decides a crossing ("esta cruzando el montacargas" is an
-        // interrupt), so a pin does not either; it takes over again the moment the crossing ends.
-        if (PinnedState.HasValue && !stateManager.IsUsingElevator)
+        // EXCEPT WHILE ITS BODY IS CROSSING A LINK: NemesisLinkUser drives it by hand, and a pinned
+        // state steering the agent meanwhile would tear the crossing apart. A pin takes over again the
+        // moment the crossing ends.
+        if (PinnedState.HasValue && !stateManager.IsCrossingLink)
         {
             LastRungIndex = -1;
             LastReason = $"FIJADO a mano ({PinnedState.Value})";
@@ -647,11 +633,8 @@ public sealed class NemesisDecision
             ENemesisPredicate.SeesPlayer => SeesPlayer,
             ENemesisPredicate.HearsPlayer => HearsPlayer,
             ENemesisPredicate.IsSuspicious => IsSuspicious,
-            ENemesisPredicate.IsUsingElevator => IsUsingElevator,
-            ENemesisPredicate.HasGivenUpOnElevator => HasGivenUpOnElevator,
             ENemesisPredicate.HasBelief => HasBelief,
             ENemesisPredicate.CanCatchPlayer => CanCatchPlayer,
-            ENemesisPredicate.RouteToBeliefCrossesFloors => RouteToBeliefCrossesFloors,
             ENemesisPredicate.HasArrived => HasArrived,
             ENemesisPredicate.IsInState => IsIn(condition.state),
             ENemesisPredicate.BeliefAgeUnder => BeliefAge < Resolve(condition),
@@ -695,7 +678,6 @@ public sealed class NemesisDecision
             ENemesisThreshold.VisionLossGracePeriod => data != null ? data.VisionLossGracePeriod : 2f,
             ENemesisThreshold.InvestigationTimeOut => data != null ? data.InvestigationTimeOut : 8f,
             ENemesisThreshold.SearchTimeOut => data != null ? data.SearchTimeOut : 4f,
-            ENemesisThreshold.ElevatorCommitTime => data != null ? data.ElevatorCommitTime : 12f,
             ENemesisThreshold.BeliefMemoryTime => data != null ? data.BeliefMemoryTime : 45f,
             ENemesisThreshold.SearchQuietWindow => data != null ? data.SearchQuietWindow : 8f,
             ENemesisThreshold.ChaseHoldRadius => data != null ? data.ChaseHoldRadius : 3f,

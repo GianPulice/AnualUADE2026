@@ -551,24 +551,6 @@ public static class NemesisLadderValidator
                 ? null
                 : "it should stop chasing at once and stay in the search.",
         };
-
-        // Plan §19.3, M1. Off the lift on a belief that went cold on the way: half a minute old is
-        // not something to search the landing for.
-        yield return new Scenario
-        {
-            Name = "off the lift with a belief that went cold on the way",
-            Start = State.Traversing,
-            StartedAgo = 20f,
-            LastSeenAgo = float.PositiveInfinity,
-            Script = (time, world) =>
-            {
-                world[ENemesisPredicate.HasBelief] = true;
-                world.BeliefAge = 31f + time;
-            },
-            Check = run => run.Entered(State.Searching)
-                ? "it searches the landing on a 31-second-old belief."
-                : null,
-        };
     }
 
     // ── Assets ───────────────────────────────────────────

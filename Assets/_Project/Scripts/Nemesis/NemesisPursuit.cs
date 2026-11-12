@@ -434,7 +434,7 @@ public sealed class NemesisPursuit
         // the decision layer's belief, and - worse - reset its timer with a verdict computed for
         // the predicted point, which the elevator rung would then read as its own. Two callers
         // sharing an unkeyed cache also halves the effective interval, which is the frame-to-frame
-        // flip NemesisTraversingState was built to stop.
+        // flip of the verdict.
         //
         // Paying for a query of its own is affordable precisely because this is already throttled:
         // one CalculatePath per replan, next to the per-candidate ones a few lines below.

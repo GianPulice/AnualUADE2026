@@ -79,10 +79,9 @@ public class SO_NemesisPriorities : ScriptableObject
     /// separate descriptions of the same intent.
     ///
     /// Reading it top to bottom is reading the design: a capture in progress is never
-    /// re-decided; a commitment just made is honoured before anything else is even asked; the
-    /// lift outranks plain sight because a visible player one floor up is the case a flat chase
-    /// handles worst; and the bottom rung is unconditional so the ladder can never fall through
-    /// to nothing.
+    /// re-decided; a commitment just made is honoured before anything else is even asked; plain
+    /// sight outranks everything below it; and the bottom rung is unconditional so the ladder can
+    /// never fall through to nothing.
     /// </summary>
     public static List<NemesisPriorityRung> BuildDefaultLadder()
     {
@@ -125,71 +124,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  "lo tiene al alcance de la mano",
                  interrupts: true,
                  NemesisCondition.Is(ENemesisPredicate.CanCatchPlayer)),
-
-            // It believes the player is on another floor and the lift is the way there. Bounded
-            // by the commit time measured from the last SENSE: the walk plus the ride is tens of
-            // seconds with the player invisible behind a slab, so without a bound this would hold
-            // forever on a belief that has gone cold.
-            // ITS BODY IS ON THE LIFT. Nothing re-decides that.
-            //
-            // NemesisElevatorUser drives the Nemesis by hand for the whole crossing, and for the
-            // first twenty seconds of it - the wait for the cabin - the agent is still enabled, so
-            // nothing else in the system can tell that something has taken over. An interrupt
-            // because this is not a sensor that can flicker, it is a fact about who owns the body.
-            Rung(NemesisStateManager.ENemesisState.Traversing,
-                 "esta cruzando el montacargas",
-                 interrupts: true,
-                 NemesisCondition.Is(ENemesisPredicate.IsUsingElevator)),
-
-            // THE APPROACH IS A COMMITMENT, and this rung is what makes it one.
-            //
-            // The rung below can only ENTER this state; it cannot hold it, because its condition
-            // is re-asked from wherever the Nemesis is standing right now. RouteToBeliefCrossesFloors
-            // measures the path from the CURRENT position, and walking towards a landing changes
-            // that path continuously - near the doors it flips outright, because a route computed
-            // from a point already on the link no longer counts as crossing it.
-            //
-            // Each flip is a real transition, and StateManager.Update runs a transition OR
-            // UpdateState, never both. So the Nemesis bounced Traversing-Searching several times a
-            // second, never ran a frame of either, and never finished the walk - the violet/green
-            // flicker at the landing. Raising SearchTimeOut made it obvious rather than causing
-            // it: a longer search sweeps further and wanders into the flip zone more often.
-            //
-            // Same shape and same reasoning as "la búsqueda sigue tibia" further down:
-            // once a commitment is made it runs on its own clock instead of being re-justified
-            // every frame. The two bounds are what keeps it from becoming a trap - it gives up if
-            // the walk drags past ElevatorCommitTime, or if the belief it set out for goes cold.
-            // ... UNLESS THE LIFT HAS ALREADY BEEN GIVEN UP ON. The two time bounds cannot see
-            // that: they measure how long the commitment has been HELD, not whether there is
-            // anything left to hold it to. So a Nemesis that walked to the landing, saw the player
-            // on its own floor and correctly abandoned the trip stayed pinned here anyway - this
-            // rung outranks "lo esta viendo", and an interrupt only skips the hysteresis window,
-            // it does not jump the order. What that looks like is the monster giving up on the
-            // lift, walking off, and drifting back to it without ever entering a chase.
-            //
-            // NemesisElevatorUser raises this the moment it shelves a shaft, and it lasts exactly
-            // as long as that shaft's cooldown - so this is the trip ENDING, reported by the thing
-            // that ended it, rather than a second guess at the same question the two bounds are
-            // already asking badly.
-            Rung(NemesisStateManager.ENemesisState.Traversing,
-                 "ya se comprometio con el montacargas",
-                 interrupts: false,
-                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
-                 NemesisCondition.Not(ENemesisPredicate.HasGivenUpOnElevator),
-                 NemesisCondition.TimeInStateUnder(ENemesisThreshold.ElevatorCommitTime),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
-
-            // Not while its attention is on a lead (D35): the choice already weighed that belief
-            // against the lead and the lead won. Taking the lift towards the belief anyway carried
-            // the Nemesis to the other floor, and "su atención está en una pista" then sent it back
-            // down to the lead (review 28/09). A trip already under way is still finished: the rung
-            // above holds it.
-            Rung(NemesisStateManager.ENemesisState.Traversing,
-                 "para llegar hay que tomar el montacargas",
-                 interrupts: false,
-                 NemesisCondition.Is(ENemesisPredicate.RouteToBeliefCrossesFloors),
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime),
-                 NemesisCondition.Not(ENemesisPredicate.FocusIsLead)),
 
             // Plainly visible. An interrupt for the same reason as the capture: seeing the player
             // is the one piece of information that should never be held behind a dwell window.
@@ -318,9 +252,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.Is(ENemesisPredicate.IsSearchWarm)),
 
             // Coming off a pursuit still believing something: sweep rather than file it away.
-            // Two rungs and not one because a rung is an AND — splitting the old
-            // "(chasing OR traversing) AND has belief" into two lines is what keeps every rung
-            // readable as a single sentence.
             //
             // ABOVE EVERY INVESTIGATING RUNG, FOR THE SAME REASON THE SEARCH BUDGET IS (WIR-006).
             // These two used to sit at the bottom, under "escucha un ruido". A chase that lost
@@ -329,7 +260,7 @@ public class SO_NemesisPriorities : ScriptableObject
             // Nemesis dropped into Investigating instead of the search the chase was built to hand
             // over to. That skipped the SearchPauseTime look at the spot where it lost them and the
             // sweep anchored there (Plan-IA-Stalker §16.4), ended the red vignette and cut the
-            // music tail (D5 keeps it only through Searching/Traversing), and then followed the
+            // music tail (D5 keeps it only through Searching), and then followed the
             // player by ear at walking pace: a pursuit with none of its feedback. Searching already
             // absorbs fresh evidence itself (TrackEvidence) and checks known and suspected hiding
             // spots first, so nothing below needs to outrank it on the way out of a chase.
@@ -338,16 +269,6 @@ public class SO_NemesisPriorities : ScriptableObject
                  interrupts: false,
                  NemesisCondition.InState(NemesisStateManager.ENemesisState.Chasing),
                  NemesisCondition.Is(ENemesisPredicate.HasBelief)),
-
-            Rung(NemesisStateManager.ENemesisState.Searching,
-                 "venía hacia el montacargas y todavía cree algo",
-                 interrupts: false,
-                 NemesisCondition.InState(NemesisStateManager.ENemesisState.Traversing),
-                 NemesisCondition.Is(ENemesisPredicate.HasBelief),
-                 // HasBelief never expires, so on its own a patrol that took the lift with no reason
-                 // arrived and searched around a belief from minutes ago (plan §19.3 M1, D1). Only a
-                 // belief as young as the trip's own commitment is worth a search on arrival.
-                 NemesisCondition.BeliefAgeUnder(ENemesisThreshold.ElevatorCommitTime)),
 
             // A SUSPECTED SPOT IS SOMEWHERE CONCRETE TO WALK TO AND LOOK AT — EXACTLY WHAT
             // INVESTIGATING IS FOR.
@@ -365,7 +286,7 @@ public class SO_NemesisPriorities : ScriptableObject
                  NemesisCondition.Is(ENemesisPredicate.SuspectsHidingSpot)),
 
             // A noise to walk towards — reached only when the rung above did not already claim an
-            // ongoing search. Starting fresh from Patrolling or Traversing still works exactly the
+            // ongoing search. Starting fresh from Patrolling still works exactly the
             // same: IsIn(Searching) above is false, so this is the first rung that fires.
             // Caught something in the corner of its eye. Walks over to look instead of sprinting,
             // which is the entire point of splitting the cone into two bands: peeking round a
@@ -593,9 +514,8 @@ public enum ENemesisPredicate
     /// post-capture cooldown expired.</summary>
     CanCatchPlayer,
 
-    /// <summary>Getting to the belief means changing floor by a link: the freight elevator, or a drop
-    /// (plan §15). Goes through the throttled route oracle — see NemesisDecision for why that
-    /// matters.</summary>
+    /// <summary>RETIRED (no lift, no drop). Always false: no shipped rung asks it any more, and the
+    /// member stays so the numbers of the ones below keep meaning what the saved ladder says.</summary>
     RouteToBeliefCrossesFloors,
 
     /// <summary>The agent has reached the end of its current path.</summary>
@@ -628,17 +548,11 @@ public enum ENemesisPredicate
     /// as soon as SeesPlayer goes true - the two never hold together.</summary>
     IsSuspicious,
 
-    /// <summary>NemesisElevatorUser has a crossing in flight: waiting for the cabin, boarding,
-    /// riding or stepping off — or a drop, from the look over the edge to the end of the recovery
-    /// (plan §15). Nothing should re-decide the state while this holds.</summary>
+    /// <summary>RETIRED (no lift, no drop: the Nemesis lives only in Zona 2). Always false. The member
+    /// stays so the numbers of the ones below keep meaning what the saved ladder says.</summary>
     IsUsingElevator,
 
-    /// <summary>NemesisElevatorUser has just GIVEN UP on a lift and shelved it for its cooldown —
-    /// the cabin never came, or the player turned up on this floor. The opposite fact from
-    /// <see cref="IsUsingElevator"/>, and the one that ends a commitment. Also true for a moment
-    /// after a drop ends, landed or given up on (plan §15, D29): a drop is over well inside
-    /// ElevatorCommitTime, and without this the Nemesis stayed in Traversing after landing instead
-    /// of chasing.</summary>
+    /// <summary>RETIRED, like <see cref="IsUsingElevator"/>. Always false.</summary>
     HasGivenUpOnElevator,
 
     /// <summary>The chase has gone a whole window without closing the distance to the player over
@@ -764,6 +678,8 @@ public enum ENemesisThreshold
     VisionLossGracePeriod,
     InvestigationTimeOut,
     SearchTimeOut,
+    /// <summary>RETIRED (it timed the lift trip). Reads 0; kept for the numbering of the saved ladder.
+    /// </summary>
     ElevatorCommitTime,
     BeliefMemoryTime,
     Custom,
