@@ -315,6 +315,15 @@ public class ModuleManager : Singleton<ModuleManager>, ISessionResettable
     }
 
     /// <summary>
+    /// Puts the run's play time back where a save left it (<see cref="SaveGame"/>). Call after the
+    /// session reset, before the level loads.
+    /// </summary>
+    public void RestoreSessionTime(float seconds)
+    {
+        sessionTime = Mathf.Max(0f, seconds);
+    }
+
+    /// <summary>
     /// Subtract seconds from the active module's timer. Used by systems like the stabilization checks to
     /// apply a time penalty on failure without touching runtime fields directly.
     /// </summary>

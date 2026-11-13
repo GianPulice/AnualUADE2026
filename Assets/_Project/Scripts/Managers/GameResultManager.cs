@@ -73,6 +73,8 @@ public static class GameResultManager
         if (_resultReported) return;
         _resultReported = true;
 
+        RaiseRunLost();
+
         _model.SetResult(GameState.Lose, time, completedModules);
         OnGameResult?.Invoke(_model);
     }
@@ -82,6 +84,26 @@ public static class GameResultManager
     /// - OnSaveDeleteRequested so the SaveManager deletes the active slot.
     /// </summary>
     public static event Action OnSaveDeleteRequested;
+
+    /// <summary>
+    /// The run is lost (Lose or GameOver). Raised the moment the loss is reported, BEFORE any defeat
+    /// cinematic, so <see cref="SaveGame"/> deletes the run's save even if the game is closed while
+    /// the cinematic plays. Not raised for a win.
+    /// </summary>
+    public static event Action OnRunLost;
+
+    // A listener throwing must not stop the result screen from showing.
+    private static void RaiseRunLost()
+    {
+        try
+        {
+            OnRunLost?.Invoke();
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+        }
+    }
 
     /// <summary>
     /// Optional defeat presentation (the explosion cinematic). When set, ReportGameOver lets it
@@ -105,6 +127,8 @@ public static class GameResultManager
         // Flagged BEFORE the presentation, not after: while the cinematic plays, a capture or the
         // all-exploded path could report again and the run would end twice.
         _resultReported = true;
+
+        if (result == GameState.Lose || result == GameState.GameOver) RaiseRunLost();
 
         if (GameOverPresenter != null)
         {

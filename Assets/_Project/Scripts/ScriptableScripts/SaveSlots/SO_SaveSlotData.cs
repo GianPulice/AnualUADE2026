@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 
-public enum ModuleSlotStatus { Inactive, Active, Resolved }
+// Exploded goes last on purpose: the mock sub-assets store this enum by index.
+public enum ModuleSlotStatus { Inactive, Active, Resolved, Exploded }
 
 /// <summary>
 /// A module entry inside the save. Mirrors the structure of the real ModuleManager:
@@ -60,6 +61,60 @@ public class SO_SaveSlotData : ScriptableObject
     public IReadOnlyList<string> CollectedItemIds => collectedItemIds;
     public IReadOnlyList<string> CompletedPuzzleIds => completedPuzzleIds;
     public IReadOnlyList<string> InsertedSocketIds => insertedSocketIds;
+
+    /// <summary>
+    /// A card's data built at runtime from a save on disk (<see cref="SaveData"/>), or an empty slot
+    /// when <paramref name="data"/> is null. Never saved as an asset (HideFlags.DontSave): the files
+    /// are the truth, this is only what the card reads. Built by <see cref="SO_SaveSlotDatabase"/>.
+    /// </summary>
+    public static SO_SaveSlotData CreateRuntime(int slotIndex, SaveData data)
+    {
+        SO_SaveSlotData slot = CreateInstance<SO_SaveSlotData>();
+        slot.hideFlags = HideFlags.DontSave;
+        slot.name = $"SaveSlot_{slotIndex:00} (runtime)";
+        slot.slotIndex = slotIndex;
+
+        if (data == null)
+        {
+            slot.isEmpty = true;
+            slot.zoneName = string.Empty;
+            return slot;
+        }
+
+        slot.isEmpty = false;
+        slot.zoneName = data.zoneName;
+        slot.playTimeSeconds = data.playTimeSeconds;
+        slot.lastSavedIso = data.lastSavedIso;
+        slot.currentZoneId = data.levelId;
+
+        foreach (SavedModule module in data.modules)
+        {
+            if (module == null) continue;
+            slot.modules.Add(new ModuleSaveEntry
+            {
+                moduleId = module.moduleId,
+                status = ToSlotStatus(module.Status),
+                timeRemaining = module.timeRemaining,
+                timerDuration = module.timerDuration,
+            });
+        }
+
+        if (data.puzzles != null)
+        {
+            if (data.puzzles.completedPuzzles != null) slot.completedPuzzleIds.AddRange(data.puzzles.completedPuzzles);
+            if (data.puzzles.insertedSockets != null) slot.insertedSocketIds.AddRange(data.puzzles.insertedSockets);
+        }
+
+        return slot;
+    }
+
+    private static ModuleSlotStatus ToSlotStatus(ModuleStatus status) => status switch
+    {
+        ModuleStatus.Active   => ModuleSlotStatus.Active,
+        ModuleStatus.Resolved => ModuleSlotStatus.Resolved,
+        ModuleStatus.Exploded => ModuleSlotStatus.Exploded,
+        _                     => ModuleSlotStatus.Inactive,
+    };
 
     public int ResolvedModulesCount
     {

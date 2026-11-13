@@ -144,9 +144,11 @@ public class ArchitectVoiceController : MonoBehaviour
         }
     }
 
-    /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts.</summary>
+    /// <summary>The wake-up (ARC_01a + ARC_01b) is set to play when the level starts. Never in a run
+    /// loaded from a save: it starts past the opening (<see cref="SaveGame.SkipsLevelIntro"/>).</summary>
     public bool PlaysWakeUpOnStart =>
-        playWakeUpOnStart && (wakeUpConfig == null || wakeUpConfig.CinematicEnabled) && IsWakeUpLevel;
+        playWakeUpOnStart && (wakeUpConfig == null || wakeUpConfig.CinematicEnabled) && IsWakeUpLevel &&
+        !SaveGame.SkipsLevelIntro;
 
     /// <summary>
     /// The Player's scene is one the config lists (dev scenes are not). This controller lives in

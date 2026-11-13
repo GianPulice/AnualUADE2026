@@ -28,6 +28,7 @@ public class SaveSlotCardView : MonoBehaviour
     [SerializeField] private Color _pipInactive = new Color(0.11f, 0.11f, 0.11f, 1f);
     [SerializeField] private Color _pipActive   = new Color(0.53f, 0.13f, 0.13f, 1f);
     [SerializeField] private Color _pipResolved = new Color(0.10f, 0.36f, 0.10f, 1f);
+    [SerializeField] private Color _pipExploded = new Color(0.55f, 0.30f, 0.05f, 1f);
 
     [Header("Action")]
     [SerializeField] private Button _actionButton;
@@ -111,6 +112,7 @@ public class SaveSlotCardView : MonoBehaviour
         {
             ModuleSlotStatus.Resolved => _pipResolved,
             ModuleSlotStatus.Active   => _pipActive,
+            ModuleSlotStatus.Exploded => _pipExploded,
             _                         => _pipInactive,
         };
     }

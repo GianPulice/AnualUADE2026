@@ -192471,6 +192471,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Zone2EntryTeleport
   target: {fileID: 0}
   continueAfterEscape: 1
+  saveLevel: {fileID: 11400000, guid: 8ffe5b6b55660fa4391dac53207b1755, type: 2}
 --- !u!114 &3806711600893653508
 MonoBehaviour:
   m_ObjectHideFlags: 0

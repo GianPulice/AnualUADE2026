@@ -259,25 +259,55 @@ Lo que sigue pendiente:
 
 ## 💾 Save Slots
 
-Stub visual implementado. La estructura del `SO_SaveSlotData` ya está preparada para
-recibir datos del save real:
+**El save real ya existe** (`Scripts/SaveSystem/`: `SaveGame`, `SaveFileStore`, `SaveData`). Las
+cards ya muestran datos reales leídos de disco; el mock data del `SO_SaveSlotDatabase` se ignora en Play.
 
-- `modules` ← snapshot de `ModuleManager.Instance.GetAllModules()` (con moduleId, status, timeRemaining, timerDuration). Los módulos viven en `ModuleManager` (escena Data); `InventoryManagerUI` ya no los tiene.
-- `currentZoneId` ← zona/sala donde el player guardó.
-- `collectedItemIds` ← `InventoryManager.GetItemIDs()`. La restauración ya existe (`InventoryManager.RestoreFromIDs`) pero **no la llama nadie**.
-- `completedPuzzleIds` + `insertedSocketIds` ← **falta escribirlo** a disco. `PuzzleStateManager` ya tiene `Snapshot()` / `RestoreSnapshot(PuzzleSnapshot)` (los usan los checkpoints), pero es una copia en memoria con campos `internal`: no hay export serializable.
-- `playTimeSeconds` ← `ModuleManager.SessionTime` (se trackea con `unscaledDeltaTime`).
-- `lastSavedIso` ← `DateTime.UtcNow.ToString("o")` al momento del save.
+Cómo funciona (reglas de diseño):
 
-Pendiente:
+- **Se guarda por nivel, no en cualquier momento.** El slot se escribe una sola vez, cuando el
+  jugador llega al inicio de un nivel por el camino real (hoy: Zona 2, al terminar la cinemática del
+  portón → `Zone2EntryTeleport` → `SaveGame.ReachLevel`). En el nivel 1 nunca hay save. Nada de lo
+  que se hace dentro del nivel se guarda: cargar siempre empieza ese nivel desde el principio.
+- Qué guarda: nivel (`SO_SaveLevel`, en `ScriptableObjects/Levels/SO_SaveLevel_Zone2`), grupo de
+  escenas, estado de cada módulo (resuelto / explotado), progreso de puzzles, tiempo jugado y fecha.
+- **Al llegar a un nivel el inventario se vacía** (nada pasa de un nivel al siguiente, igual que
+  `LevelTransition` entre escenas). Por eso el save no guarda ítems.
+- Al cargar: no se reproduce la cinemática de despertar, el player aparece en `Zona_2_Spawnpoint`,
+  el escape no se repite y el respawn por captura queda en `Checkpoint Llegada Zona 2`.
+- **Perder borra el slot** (Lose o GameOver), en el momento en que se reporta la derrota (antes de
+  la cinemática de explosión). Reintentar arranca el nivel 1 en el mismo slot, sin save hasta volver a
+  llegar al nivel 2. La captura del Nemesis no es perder: no toca el save.
+- Un slot = una partida. New Game usa el **primer slot libre**; clic en una card vacía arranca la
+  partida en ese slot; clic en una card con datos la carga. Con los 6 llenos, New Game no arranca.
+- Archivos: `%USERPROFILE%/AppData/LocalLow/Deep Dive/Wired/Saves/slot_NN.json`. Escritura atómica
+  (`.tmp` + reemplazo). Un archivo corrupto se ve como slot vacío. Para limpiar en el editor:
+  borrar esa carpeta.
+- Cantidad de slots: `slotCount` en `SO_SaveSlotDatabase` (6).
 
-- [ ] **Conectar `OnSlotSelected(int)`** al sistema de save real cuando exista. Hoy lo escucha `MainMenuController.HandleSlotSelected`, que distingue vacío / con datos sólo en el log y entra igual al grupo `firstSceneLabel` por `EnterGameplay`. Cuando exista el save, ahí se decide:
-  - Si `slot.IsEmpty` → carga la escena de inicio nueva.
-  - Si NO `slot.IsEmpty` → carga la escena de gameplay aplicando los datos del slot.
-- [ ] **Save / Load real**: serializar `SO_SaveSlotData` a JSON en `Application.persistentDataPath` y reconstruirlos al boot. Hoy los datos viven como sub-assets del `SO_SaveSlotDatabase`.
-- [ ] **Diferenciar "cargar" vs "nueva"** en `HandleSlotClicked` según `slot.IsEmpty`. Hoy ambos disparan el mismo evento.
-- [ ] **Confirmación "¿Sobrescribir slot?"** si el slot ya tenía datos al hacer "nueva".
-- [ ] **Botón "borrar slot"** con confirmación. (El diálogo de descarte del inventario que servía de modelo ya no existe: el inventario no descarta.)
+API lista para conectar desde la UI:
+
+- `SaveSlotsController.DeleteSlot(int slotIndex)` → borra el archivo, redibuja las cards y dispara
+  `OnSlotDeleted` (el MainMenu ya refresca el botón Load Game con eso). **Pedir confirmación antes.**
+- `MainMenuController.OnNoFreeSlot` → New Game con los 6 slots llenos. Hoy además abre el panel de
+  slots solo; falta el aviso visual ("borrá un slot para empezar una partida nueva").
+- `SaveSlotsController.RefreshSlots()`, `FindFirstEmptySlot()`, `SlotCount`, `HasAnySave`.
+- `SaveGame.OnSlotSaved` / `SaveGame.OnSlotDeleted` (static, índice del slot).
+- **Indicador de guardado (hecho):** prefab `Prefabs/UI/Canvas/CanvasSaveIndicator` (una instancia
+  en la escena LevelUI, canvas propio con sort order 1500, encima del HUD). `SaveIndicatorView`
+  escucha `SaveGame.OnSlotSaved` y muestra abajo a la derecha un anillo de bloques girando +
+  "SAVING..." durante ~3 s (tiempo real), y se va solo. Colores del `UITheme`, fuente Share Tech Mono.
+  Textos, tiempos y velocidad del giro se ajustan en el Inspector; clic derecho en el componente →
+  "Show (preview)" para verlo en Play.
+- Pip de módulo explotado: nuevo `ModuleSlotStatus.Exploded` con su color (`_pipExploded` en la card).
+
+Pendiente (UI):
+
+- [x] Conectar `OnSlotSelected(int)` al save real: vacío → partida nueva en ese slot; con datos → carga.
+- [x] Save / Load real en JSON (`Application.persistentDataPath`).
+- [x] Diferenciar "cargar" vs "nueva" (lo decide `MainMenuController.HandleSlotSelected` leyendo el disco).
+- [ ] **Botón "borrar slot"** con confirmación → llamar `SaveSlotsController.DeleteSlot`.
+- [ ] **Aviso de "no hay slots libres"** → escuchar `MainMenuController.OnNoFreeSlot`.
+- [x] **Indicador de guardado** al llegar al nivel 2 → `CanvasSaveIndicator` (ver arriba).
 - [ ] **Indicador de slot recién guardado** (animación o destacado visual).
 - [ ] **Timer del módulo activo** en la card: si `modules[i].status == Active`, mostrar `timeRemaining / timerDuration` como barra debajo del pip correspondiente.
 - [ ] **Tooltip al hover** sobre cada pip con el nombre del módulo (`moduleId`).

@@ -7,31 +7,80 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Save slot database (stub). Today it holds fake data in sub-assets;
-/// once a real save system exists, this is replaced by loading from disk.
+/// The save slots the menu shows. In Play the cards are built from the save files on disk
+/// (<see cref="SaveGame"/> / <see cref="SaveFileStore"/>), <see cref="SlotCount"/> of them, refreshed
+/// with <see cref="ReloadFromDisk"/>.
 ///
-/// The <c>Generate Mock Data</c> context menu fills the list with 6 representative
-/// entries (3 with data + 3 empty), following the main_menu_wired.html wireframe.
+/// The serialized <c>slots</c> list is the old mock data (sub-assets): kept only so the cards can
+/// be looked at outside Play. It is never read in Play. The <c>Generate Mock Data</c> context menu
+/// fills it with 6 representative entries (3 with data + 3 empty), following the
+/// main_menu_wired.html wireframe.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_SaveSlotDatabase", menuName = "Scriptable Objects/SaveSlots/Save Slot Database")]
 public class SO_SaveSlotDatabase : ScriptableObject
 {
+    [Tooltip("How many save slots the game has (cards in the Load screen). Slots are numbered 1..N.")]
+    [SerializeField, Range(1, SaveFileStore.MaxSlotIndex)] private int slotCount = 6;
+
     [SerializeField] private List<SO_SaveSlotData> slots = new List<SO_SaveSlotData>();
 
-    public IReadOnlyList<SO_SaveSlotData> Slots => slots;
+    // The cards built from disk in Play. Not serialized: the files are the truth.
+    [NonSerialized] private readonly List<SO_SaveSlotData> runtimeSlots = new List<SO_SaveSlotData>();
+
+    public int SlotCount => slotCount;
+
+    /// <summary>In Play, one card per slot as on disk (loaded on first use, then on
+    /// <see cref="ReloadFromDisk"/>). Outside Play, the mock data.</summary>
+    public IReadOnlyList<SO_SaveSlotData> Slots
+    {
+        get
+        {
+            if (!Application.isPlaying) return slots;
+            if (!RuntimeSlotsValid()) ReloadFromDisk();
+            return runtimeSlots;
+        }
+    }
 
     /// <summary>
     /// True if at least one slot has a game in it. Queried by the MainMenu to disable
-    /// "Load Game" when there is nothing to load.
+    /// "Load Game" when there is nothing to load. Read from disk in Play.
     /// </summary>
     public bool HasAnySave
     {
         get
         {
+            if (Application.isPlaying) return SaveGame.HasAnySave(slotCount);
+
             foreach (SO_SaveSlotData slot in slots)
                 if (slot != null && !slot.IsEmpty) return true;
             return false;
         }
+    }
+
+    /// <summary>First slot with no save (1-based), or <see cref="SaveGame.NoSlot"/> when all are taken.</summary>
+    public int FindFirstEmptySlot() => SaveGame.FindFirstEmptySlot(slotCount);
+
+    /// <summary>Rebuilds the cards from the files. Call after anything writes or deletes a slot.</summary>
+    public void ReloadFromDisk()
+    {
+        foreach (SO_SaveSlotData old in runtimeSlots)
+            if (old != null) Destroy(old);
+        runtimeSlots.Clear();
+
+        for (int i = 1; i <= slotCount; i++)
+        {
+            SaveGame.TryReadSlot(i, out SaveData data);
+            runtimeSlots.Add(SO_SaveSlotData.CreateRuntime(i, data));
+        }
+    }
+
+    // The list outlives Play mode when domain reload is off: its instances are destroyed then.
+    private bool RuntimeSlotsValid()
+    {
+        if (runtimeSlots.Count != slotCount) return false;
+        foreach (SO_SaveSlotData slot in runtimeSlots)
+            if (slot == null) return false;
+        return true;
     }
 
     /// <summary>
