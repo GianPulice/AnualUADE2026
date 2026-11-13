@@ -26,6 +26,8 @@ public class SO_SaveSlotData : ScriptableObject
     [Header("Identity")]
     [SerializeField] private int slotIndex = 1;
     [SerializeField] private bool isEmpty = true;
+    [Tooltip("The run in this slot was won: shown as RESOLVED, cannot be loaded, a new game may take it.")]
+    [SerializeField] private bool isResolved;
 
     [Header("Display (what the card shows)")]
     [SerializeField] private string zoneName = "Restricted Area";
@@ -53,6 +55,12 @@ public class SO_SaveSlotData : ScriptableObject
 
     public int SlotIndex => slotIndex;
     public bool IsEmpty => isEmpty;
+
+    /// <summary>A won run (never empty). Not loadable.</summary>
+    public bool IsResolved => isResolved;
+
+    /// <summary>Holds a save that can be loaded: not empty, not resolved.</summary>
+    public bool IsLoadable => !isEmpty && !isResolved;
     public string ZoneName => zoneName;
     public float PlayTimeSeconds => playTimeSeconds;
     public string LastSavedIso => lastSavedIso;
@@ -82,6 +90,7 @@ public class SO_SaveSlotData : ScriptableObject
         }
 
         slot.isEmpty = false;
+        slot.isResolved = data.resolved;
         slot.zoneName = data.zoneName;
         slot.playTimeSeconds = data.playTimeSeconds;
         slot.lastSavedIso = data.lastSavedIso;
@@ -127,22 +136,54 @@ public class SO_SaveSlotData : ScriptableObject
         }
     }
 
+    /// <summary>When the slot was saved, in UTC. False for an empty slot or an unreadable date.</summary>
+    public bool TryGetSavedUtc(out DateTime savedUtc)
+    {
+        savedUtc = default;
+        if (isEmpty || string.IsNullOrEmpty(lastSavedIso)) return false;
+        // RoundtripKind cannot be combined with AdjustToUniversal (it throws), so the kind is sorted
+        // out by hand: "o" with a Z reads as Utc, with an offset as Local, and with neither as
+        // Unspecified, which the save always meant as UTC.
+        if (!DateTime.TryParse(lastSavedIso, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out DateTime parsed))
+            return false;
+
+        savedUtc = parsed.Kind == DateTimeKind.Local
+            ? parsed.ToUniversalTime()
+            : DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+        return true;
+    }
+
+    /// <summary>
+    /// "13 NOV 2026  14:32": the save's date and time in the player's local time zone, with the
+    /// month in English letters so the date reads the same on any system. "—" with no date.
+    /// </summary>
+    public string GetSavedDateTimeText()
+    {
+        if (!TryGetSavedUtc(out DateTime savedUtc)) return "—";
+
+        return savedUtc.ToLocalTime()
+            .ToString("dd MMM yyyy  HH:mm", CultureInfo.InvariantCulture)
+            .ToUpperInvariant();
+    }
+
     /// <summary>
     /// "12 min ago", "2 days ago", etc., computed from <see cref="LastSavedIso"/>.
     /// If the ISO string is invalid or empty, returns "—".
     /// </summary>
     public string GetRelativeSavedDescription()
     {
-        if (string.IsNullOrEmpty(lastSavedIso)) return "—";
-        if (!DateTime.TryParse(lastSavedIso, CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind, out DateTime savedUtc))
-            return "—";
+        if (!TryGetSavedUtc(out DateTime savedUtc)) return "—";
 
         TimeSpan elapsed = DateTime.UtcNow - savedUtc;
-        if (elapsed.TotalSeconds < 60) return "seconds ago";
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero; // a clock set back: "just now", not negative
+        // "just now", not "seconds ago": the card's "Saved" line is at its width limit.
+        if (elapsed.TotalSeconds < 60) return "just now";
         if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes} min ago";
         if (elapsed.TotalHours < 24)   return $"{(int)elapsed.TotalHours} h ago";
-        if (elapsed.TotalDays < 7)     return $"{(int)elapsed.TotalDays} days ago";
-        return $"{(int)(elapsed.TotalDays / 7)} weeks ago";
+        if (elapsed.TotalDays < 7)     return Plural((int)elapsed.TotalDays, "day");
+        return Plural((int)(elapsed.TotalDays / 7), "week");
     }
+
+    private static string Plural(int count, string unit) => count == 1 ? $"1 {unit} ago" : $"{count} {unit}s ago";
 }

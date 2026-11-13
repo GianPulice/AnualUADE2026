@@ -34,8 +34,15 @@ public class SaveData
 
     public float playTimeSeconds;
 
-    /// <summary>ISO 8601 UTC ("o" format).</summary>
+    /// <summary>ISO 8601 UTC ("o" format). For a resolved slot, when the run was won.</summary>
     public string lastSavedIso = string.Empty;
+
+    /// <summary>
+    /// The run in this slot was won (<see cref="SaveGame"/> marks it the moment the win is reported).
+    /// A resolved slot cannot be loaded: the menu shows it as RESOLVED, and a new game may take the
+    /// slot, the same as after a loss. Missing in older files = false.
+    /// </summary>
+    public bool resolved;
 
     public List<SavedModule> modules = new List<SavedModule>();
     public SavedPuzzleState puzzles = new SavedPuzzleState();

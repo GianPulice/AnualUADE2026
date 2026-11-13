@@ -277,21 +277,74 @@ Cómo funciona (reglas de diseño):
 - **Perder borra el slot** (Lose o GameOver), en el momento en que se reporta la derrota (antes de
   la cinemática de explosión). Reintentar arranca el nivel 1 en el mismo slot, sin save hasta volver a
   llegar al nivel 2. La captura del Nemesis no es perder: no toca el save.
-- Un slot = una partida. New Game usa el **primer slot libre**; clic en una card vacía arranca la
-  partida en ese slot; clic en una card con datos la carga. Con los 6 llenos, New Game no arranca.
+- **Ganar marca el slot RESOLVED** (`SaveData.resolved`), en el momento en que se reporta la victoria
+  (`GameResultManager.OnRunWon`, antes del plano del portón). Lo mismo que perder, con otra cara: el
+  slot ya no se puede cargar y cuenta como libre, pero en vez de verse vacío muestra un bloque verde
+  `RESOLVED` con la fecha de la victoria y el tiempo jugado. Nunca es LAST PLAYED ni habilita Load Game.
+- Un slot = una partida. New Game usa el **primer slot libre**: primero uno vacío, si no uno RESOLVED.
+  Clic en una card vacía o RESOLVED arranca la partida en ese slot; clic en una card con datos la carga.
+  Una partida nueva se queda con su slot entero: lo que había (RESOLVED o el save elegido para
+  sobrescribir) se borra en `SaveGame.BeginNewRun`, no antes.
+- El guardado existe para irse a mitad de la partida y volver: por eso perder (también una partida
+  cargada) borra el slot y Reintentar vuelve al nivel 1. Es a propósito, no un bug.
 - Archivos: `%USERPROFILE%/AppData/LocalLow/Deep Dive/Wired/Saves/slot_NN.json`. Escritura atómica
   (`.tmp` + reemplazo). Un archivo corrupto se ve como slot vacío. Para limpiar en el editor:
   borrar esa carpeta.
 - Cantidad de slots: `slotCount` en `SO_SaveSlotDatabase` (6).
 
-API lista para conectar desde la UI:
+UI de la pantalla de slots (cableada el 2026-11-13):
+
+- **Card clickeable.** El `ActionButton` de `SaveSlotCard` había quedado sin `_actionButton` asignado
+  desde el rediseño del 12/09, así que las cards no respondían. Ahora `[ new game ]` / `[ load game ]`
+  van a `MainMenuController.HandleSlotSelected`.
+- **Borrar slot.** Cada card con datos tiene `[ delete ]` al lado del botón de acción (fila `ActionRow`;
+  en una card vacía no aparece). Abre `ConfirmDialog` (`SaveSlotConfirmDialog`, hijo de
+  `CanvasSaveSlots`): título `// DELETE SLOT 03?`, zona, fecha y tiempo jugado, `[ cancel ]` /
+  `[ delete ]`. Sólo con `[ delete ]` se llama `SaveSlotsController.DeleteSlot` (suena `ItemDiscard`);
+  las cards se redibujan y el MainMenu refresca Load Game. El dim tapa las cards mientras el diálogo
+  está abierto, y cerrar o reabrir la pantalla lo descarta sin borrar nada.
+- **No hay slots libres → sobrescribir.** New Game con los 6 slots con un save cargable abre la
+  pantalla con `SaveSlotsController.ShowOverwrite()`: banner `NoFreeSlotNotice` ("ALL SAVE SLOTS ARE IN
+  USE // CHOOSE ONE TO OVERWRITE", texto en `SaveSlotsView._overwriteNoticeText`), cada card ofrece
+  `[ overwrite ]` y no muestra `[ delete ]`. Elegir una pregunta `// OVERWRITE SLOT 03?` con `[ YES ]` /
+  `[ NO ]`; con YES, `OnSlotOverwrite` → `MainMenuController.HandleSlotOverwrite` arranca la partida
+  nueva en ese slot. `MainMenuController.OnNoFreeSlot` se sigue disparando.
+- **ESC.** La pantalla de slots es un `IModalUI` de `UIStateManager` con `CloseKey = Escape`, como la
+  pausa y Settings: ESC contesta NO / cancela el diálogo si está abierto, y si no cierra la pantalla.
+- **RESOLVED en la card.** Nodo `ResolvedStamp` (`_resolvedNodes`): bloque verde oscuro con marco
+  biselado teñido de verde, `RESOLVED` y abajo `_resolvedDetailLabel` (fecha de la victoria // tiempo
+  jugado). La card se ve "apagada" como una vacía, sin datos alrededor del bloque, con `[ new game ]`.
+  Los verdes son colores fijos del prefab (el tema no tiene tokens verdes).
+- **Fecha y hora.** La línea "Saved" muestra `13 NOV 2026  14:32  (12 min ago)`, en hora local del
+  jugador y con el mes en letras inglesas (`SO_SaveSlotData.GetSavedDateTimeText()`). El "(… ago)" sólo
+  aparece con guardados de menos de una semana: más viejos, la fecha sola (si no, no entra en la línea).
+- **Slot vacío "apagado".** Una card sin save se ve gris en vez de roja: superficies con
+  `_emptySurfaceRole` (SurfacePanel), marcos multiplicados por `_emptyFrameTint` (0.45), todo el texto en
+  `_emptyTextRole` (TextDisabled) y `[ new game ]` en `_emptyButtonTextRole` (TextMuted), que con su
+  marco claro queda como lo único para clickear. Se ajusta en el Inspector de `SaveSlotCard`
+  (`SaveSlotCardView` → "Empty slot: powered off").
+- **Tamaños de texto.** Las cards tenían los px del wireframe de 800 px (10–14 px) y no se leían a
+  1080p. Ahora: número de slot 18, zona 28, líneas de datos 20, pips 14 px, chip 16. Para que entren,
+  la grilla pasó de 475×315 a 500×330 (`m_CellSize` en `CanvasSaveSlots`) y el banner sin slots subió
+  un poco. Si se agranda algo más, la línea "Saved" es la más larga: a 20 px usa ~421 de los 448 px
+  útiles (por eso es "just now" y no "seconds ago").
+- **Última partida jugada.** La card del slot jugado último lleva arriba a la derecha `LAST PLAYED` en
+  blanco con un punto rojo que titila como el REC de la cámara del jugador (`UIRecordingDotBlink`: 1 Hz,
+  mitad encendido, sin fundido; sprite `Knob` de Unity teñido con `Accent`), y una barra roja en el
+  borde izquierdo (`_lastPlayedNodes` en la card). Es el slot que se
+  empezó o cargó último desde el menú (`SaveGame.LastPlayedSlot`, en PlayerPrefs
+  `WIRED.Save.LastPlayedSlot`); si ese slot ya no tiene save (se perdió o nunca llegó al nivel 2), se
+  marca el save más nuevo. Lo calcula `SaveSlotsModel.LastPlayedSlot`.
+
+API:
 
 - `SaveSlotsController.DeleteSlot(int slotIndex)` → borra el archivo, redibuja las cards y dispara
-  `OnSlotDeleted` (el MainMenu ya refresca el botón Load Game con eso). **Pedir confirmación antes.**
-- `MainMenuController.OnNoFreeSlot` → New Game con los 6 slots llenos. Hoy además abre el panel de
-  slots solo; falta el aviso visual ("borrá un slot para empezar una partida nueva").
+  `OnSlotDeleted`. Desde la UI sólo se llega después de la confirmación.
+- `SaveSlotsController.Show()` / `ShowOverwrite()` / `Hide()`; eventos `OnSlotSelected`,
+  `OnSlotOverwrite`, `OnSlotDeleted`.
 - `SaveSlotsController.RefreshSlots()`, `FindFirstEmptySlot()`, `SlotCount`, `HasAnySave`.
-- `SaveGame.OnSlotSaved` / `SaveGame.OnSlotDeleted` (static, índice del slot).
+- `SaveGame.HasSave` (cargable) / `IsResolved` / `TryReadSlot` (cualquier archivo válido).
+- `SaveGame.OnSlotSaved` / `OnSlotDeleted` / `OnSlotResolved` (static, índice del slot).
 - **Indicador de guardado (hecho):** prefab `Prefabs/UI/Canvas/CanvasSaveIndicator` (una instancia
   en la escena LevelUI, canvas propio con sort order 1500, encima del HUD). `SaveIndicatorView`
   escucha `SaveGame.OnSlotSaved` y muestra abajo a la derecha un anillo de bloques girando +
@@ -305,10 +358,28 @@ Pendiente (UI):
 - [x] Conectar `OnSlotSelected(int)` al save real: vacío → partida nueva en ese slot; con datos → carga.
 - [x] Save / Load real en JSON (`Application.persistentDataPath`).
 - [x] Diferenciar "cargar" vs "nueva" (lo decide `MainMenuController.HandleSlotSelected` leyendo el disco).
-- [ ] **Botón "borrar slot"** con confirmación → llamar `SaveSlotsController.DeleteSlot`.
-- [ ] **Aviso de "no hay slots libres"** → escuchar `MainMenuController.OnNoFreeSlot`.
+- [x] **Card clickeable** (`_actionButton` reasignado en `SaveSlotCard`).
+- [x] **Botón "borrar slot"** con confirmación → `SaveSlotConfirmDialog` + `SaveSlotsController.DeleteSlot`.
+- [x] **Sin slots libres → elegir cuál sobrescribir** con confirmación YES / NO (`ShowOverwrite`).
+- [x] **Ganar → RESOLVED** (no cargable, cuenta como libre, bloque verde).
+- [x] **ESC** cierra el diálogo y la pantalla de slots (`IModalUI`).
 - [x] **Indicador de guardado** al llegar al nivel 2 → `CanvasSaveIndicator` (ver arriba).
-- [ ] **Indicador de slot recién guardado** (animación o destacado visual).
+- [x] **Fecha y hora del guardado** en la card.
+- [x] **Destacar el último slot jugado** (chip `LAST PLAYED` + barra).
+- [ ] **Probar en Play** de punta a punta: borrar, New Game con 6 llenos (sobrescribir con YES y con
+  NO / ESC), ganar y ver el slot RESOLVED, New Game que toma un RESOLVED, cargar, y que LAST PLAYED siga
+  al slot correcto después de cargar uno viejo.
+- [ ] **Navegación con teclado / gamepad** por las cards y el diálogo (ESC ya funciona).
+- [ ] **Load Game no mostraba nada (13/11, sin confirmar).** Sospecha: `CanvasSaveSlots` y
+  `CanvasMainMenu` tenían los dos sortingOrder 0 y el menú queda abierto debajo: con el tubo CRT el menú
+  podía taparla. Se subió `CanvasSaveSlots` a 10. Probar en Play; si sigue, mirar en la Hierarchy si
+  `CanvasSaveSlots` se activa al tocar Load Game.
+- [ ] **El final del escape de Zona 1 se reporta como victoria** (`ReportWin` → `Zone2EntryTeleport`
+  sigue la partida) y dispara `GameResultManager.OnRunWon`. Hoy no marca nada porque a esa altura el
+  slot no tiene archivo, pero `SaveGame.HandleRunWon` debería distinguir la victoria real del final del
+  escape antes de que cambie el flujo.
+- [ ] **Ventana de vidrio** (pedido 13/11): que el vidrio de la ventana tenga algo de desenfoque y no se
+  vea tan transparente; hoy parece que no hay vidrio.
 - [ ] **Timer del módulo activo** en la card: si `modules[i].status == Active`, mostrar `timeRemaining / timerDuration` como barra debajo del pip correspondiente.
 - [ ] **Tooltip al hover** sobre cada pip con el nombre del módulo (`moduleId`).
 

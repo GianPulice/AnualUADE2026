@@ -53,6 +53,8 @@ public static class GameResultManager
         // shot plays must not end the run a second time.
         _resultReported = true;
 
+        RaiseRunWon();
+
         if (WinPresenter != null)
         {
             WinPresenter.PresentWin(() => CommitWin(time, completedModules));
@@ -98,6 +100,25 @@ public static class GameResultManager
         try
         {
             OnRunLost?.Invoke();
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+        }
+    }
+
+    /// <summary>
+    /// The run is won. Raised the moment the win is reported, BEFORE the win presentation (the
+    /// gate shot), so <see cref="SaveGame"/> marks the slot resolved even if the game is closed while
+    /// it plays. The mirror of <see cref="OnRunLost"/>.
+    /// </summary>
+    public static event Action OnRunWon;
+
+    private static void RaiseRunWon()
+    {
+        try
+        {
+            OnRunWon?.Invoke();
         }
         catch (Exception e)
         {

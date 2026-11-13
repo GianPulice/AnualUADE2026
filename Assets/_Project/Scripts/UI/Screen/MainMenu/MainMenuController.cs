@@ -35,8 +35,9 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     private MusicCrossfadePlaylist menuMusic;
 
     /// <summary>
-    /// New Game was pressed with every save slot taken: nothing starts. For the UI to tell the player
-    /// to delete a slot first. The Save Slots panel opens on its own as well.
+    /// New Game was pressed with every save slot holding a save: nothing starts yet. The Save Slots
+    /// panel opens asking which slot to overwrite (<see cref="SaveSlotsController.ShowOverwrite"/>);
+    /// this is for anything else that wants to know.
     /// </summary>
     public event System.Action OnNoFreeSlot;
 
@@ -78,6 +79,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         if (_saveSlotsController != null)
         {
             _saveSlotsController.OnSlotSelected += HandleSlotSelected;
+            _saveSlotsController.OnSlotOverwrite += HandleSlotOverwrite;
             _saveSlotsController.OnSlotDeleted += HandleSlotDeleted;
         }
     }
@@ -92,6 +94,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         if (_saveSlotsController != null)
         {
             _saveSlotsController.OnSlotSelected -= HandleSlotSelected;
+            _saveSlotsController.OnSlotOverwrite -= HandleSlotOverwrite;
             _saveSlotsController.OnSlotDeleted -= HandleSlotDeleted;
         }
     }
@@ -155,8 +158,8 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     }
 
     /// <summary>
-    /// A new run in the first free save slot. With every slot taken nothing starts: the player has
-    /// to delete one first (<see cref="OnNoFreeSlot"/>, and the Save Slots panel opens).
+    /// A new run in the first free save slot (empty, else resolved). With every slot holding a save
+    /// the Save Slots panel opens asking which one to overwrite (<see cref="OnNoFreeSlot"/>).
     /// </summary>
     private async UniTask HandleNewGame()
     {
@@ -170,9 +173,9 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         int slot = _saveSlotsController.FindFirstEmptySlot();
         if (slot == SaveGame.NoSlot)
         {
-            Debug.LogWarning("[MainMenuController] New Game: every save slot is taken. Delete one first.");
+            Debug.Log("[MainMenuController] New Game: every save slot is taken. Asking which one to overwrite.");
             OnNoFreeSlot?.Invoke();
-            _saveSlotsController.Show();
+            _saveSlotsController.ShowOverwrite();
             return;
         }
 
@@ -211,9 +214,11 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
     {
         if (enteringGameplay) return;
 
-        if (!SaveGame.TryReadSlot(slotIndex, out SaveData data))
+        // Empty, unreadable or resolved (a won run frees its slot, as a lost one does): a new run.
+        if (!SaveGame.TryReadSlot(slotIndex, out SaveData data) || data.resolved)
         {
-            Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} is empty -> new run.</color>");
+            Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} is " +
+                      $"{(data != null && data.resolved ? "resolved" : "empty")} -> new run.</color>");
             _saveSlotsController.Hide();
             StartNewRun(slotIndex).Forget();
             return;
@@ -231,6 +236,20 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
         _saveSlotsController.Hide();
         EnterGameplay(data.sceneGroupLabel, () => SaveGame.ApplyLoadedRun(data)).Forget();
+    }
+
+    /// <summary>
+    /// New Game with every slot taken, and the player said YES to overwriting this one: a new run in
+    /// it. The old save goes when the run begins (<see cref="SaveGame.BeginNewRun"/>), not before, so a
+    /// failed start leaves it where it was.
+    /// </summary>
+    private void HandleSlotOverwrite(int slotIndex)
+    {
+        if (enteringGameplay) return;
+
+        Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} overwritten -> new run.</color>");
+        _saveSlotsController.Hide();
+        StartNewRun(slotIndex).Forget();
     }
 
     /// <summary>

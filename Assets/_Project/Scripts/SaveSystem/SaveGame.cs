@@ -19,6 +19,11 @@ using UnityEngine;
 ///     the defeat cinematic, so closing the game on it cannot keep the save. A Retry then starts the
 ///     first level again, in the same slot, with no save until the next level is reached.
 ///   • A Nemesis capture is not a loss (the checkpoint respawn), so it never touches the save.
+///   • Winning the run marks the slot resolved the moment the win is reported (<see cref="SaveData.resolved"/>):
+///     it can no longer be loaded, the menu shows it as RESOLVED, and a new game may take it, as
+///     after a loss. New Game prefers a truly empty slot, then a resolved one.
+///   • A new run takes its slot whole: whatever the slot held (a resolved run, or a save the player
+///     chose to overwrite) is deleted when the run begins (<see cref="BeginNewRun"/>).
 ///
 /// Loading restores the managers that live in the Data scene (modules, puzzles, inventory, play
 /// time) before the level scene is pushed, so every Awake and Start of the level already sees the
@@ -39,11 +44,24 @@ public static class SaveGame
     // Level id whose entry point must take the player on arrival. Consumed once.
     private static string pendingSpawnLevelId;
 
+    // PlayerPrefs, not a save file: it is only a hint for the menu, and it must outlive the slots
+    // (deleting or losing a slot does not have to touch it; the menu ignores it then).
+    private const string LastPlayedSlotKey = "WIRED.Save.LastPlayedSlot";
+
+    /// <summary>
+    /// Slot of the last run started or loaded from the menu, across sessions, or <see cref="NoSlot"/>.
+    /// The Save Slots screen marks that card; it may point at a slot that is empty by now.
+    /// </summary>
+    public static int LastPlayedSlot => PlayerPrefs.GetInt(LastPlayedSlotKey, NoSlot);
+
     /// <summary>A slot was written (its index).</summary>
     public static event Action<int> OnSlotSaved;
 
     /// <summary>A slot was deleted (its index), by a loss or by <see cref="DeleteSlot"/>.</summary>
     public static event Action<int> OnSlotDeleted;
+
+    /// <summary>The run in a slot was won and the slot marked resolved (its index).</summary>
+    public static event Action<int> OnSlotResolved;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -53,6 +71,7 @@ public static class SaveGame
         pendingSpawnLevelId = null;
         OnSlotSaved = null;
         OnSlotDeleted = null;
+        OnSlotResolved = null;
     }
 
     /// <summary>
@@ -67,14 +86,23 @@ public static class SaveGame
 
         GameResultManager.OnRunLost -= HandleRunLost;
         GameResultManager.OnRunLost += HandleRunLost;
+
+        GameResultManager.OnRunWon -= HandleRunWon;
+        GameResultManager.OnRunWon += HandleRunWon;
     }
 
     // ── Queries (menu) ──────────────────────────────────────────────────────
 
+    /// <summary>Any valid file in the slot, a resolved one included (the menu shows those too).</summary>
     public static bool TryReadSlot(int slotIndex, out SaveData data) => SaveFileStore.TryRead(slotIndex, out data);
 
-    public static bool HasSave(int slotIndex) => SaveFileStore.TryRead(slotIndex, out _);
+    /// <summary>A save that can be loaded: a valid file that is not resolved.</summary>
+    public static bool HasSave(int slotIndex) => SaveFileStore.TryRead(slotIndex, out SaveData data) && !data.resolved;
 
+    /// <summary>The slot holds a won run: shown as RESOLVED, never loaded.</summary>
+    public static bool IsResolved(int slotIndex) => SaveFileStore.TryRead(slotIndex, out SaveData data) && data.resolved;
+
+    /// <summary>At least one slot can be loaded (resolved ones do not count).</summary>
     public static bool HasAnySave(int slotCount)
     {
         for (int i = 1; i <= slotCount; i++)
@@ -82,25 +110,43 @@ public static class SaveGame
         return false;
     }
 
-    /// <summary>First slot (1..slotCount) with no save, or <see cref="NoSlot"/> when all are taken.</summary>
+    /// <summary>
+    /// The slot New Game takes (1..slotCount): the first with nothing in it, else the first resolved
+    /// one (a won run frees its slot, as a lost one does). <see cref="NoSlot"/> when every slot holds
+    /// a save that can still be loaded.
+    /// </summary>
     public static int FindFirstEmptySlot(int slotCount)
     {
+        int firstResolved = NoSlot;
         for (int i = 1; i <= slotCount; i++)
-            if (!HasSave(i)) return i;
-        return NoSlot;
+        {
+            if (!SaveFileStore.TryRead(i, out SaveData data)) return i;
+            if (data.resolved && firstResolved == NoSlot) firstResolved = i;
+        }
+        return firstResolved;
     }
 
     // ── Run lifecycle (menu) ────────────────────────────────────────────────
 
     /// <summary>
     /// A new run in this slot, from the first level. Call after <see cref="GameSession.BeginNewSession"/>.
-    /// Writes nothing: the slot stays empty until the next level is reached.
+    /// The slot is the new run's from now on: whatever it held (a resolved run, or a save the player
+    /// confirmed to overwrite) is deleted here. Nothing new is written until the next level is reached.
     /// </summary>
     public static void BeginNewRun(int slotIndex)
     {
         ActiveSlot = SaveFileStore.IsValidSlot(slotIndex) ? slotIndex : NoSlot;
         SkipsLevelIntro = false;
         pendingSpawnLevelId = null;
+
+        if (ActiveSlot != NoSlot && SaveFileStore.TryRead(ActiveSlot, out SaveData previous))
+        {
+            Debug.Log($"[{nameof(SaveGame)}] Slot {ActiveSlot} held a {(previous.resolved ? "resolved run" : "save")}: " +
+                      "replaced by the new run.");
+            DeleteSlot(ActiveSlot);
+        }
+
+        RememberLastPlayed(ActiveSlot);
         Debug.Log($"[{nameof(SaveGame)}] New run in slot {Describe(ActiveSlot)}.");
     }
 
@@ -119,6 +165,7 @@ public static class SaveGame
         ActiveSlot = data.slotIndex;
         SkipsLevelIntro = true;
         pendingSpawnLevelId = data.levelId;
+        RememberLastPlayed(ActiveSlot);
 
         RestoreModules(data);
         RestorePuzzles(data);
@@ -186,15 +233,15 @@ public static class SaveGame
 
     // ── Deletion ────────────────────────────────────────────────────────────
 
-    /// <summary>Deletes a slot (the UI's delete button). Safe on an empty slot.</summary>
+    /// <summary>Deletes a slot (the UI's delete button, a new run taking it). Safe on an empty slot.</summary>
     public static bool DeleteSlot(int slotIndex)
     {
         if (!SaveFileStore.IsValidSlot(slotIndex)) return false;
 
-        bool hadSave = HasSave(slotIndex);
+        bool hadFile = TryReadSlot(slotIndex, out _);
         if (!SaveFileStore.Delete(slotIndex)) return false;
 
-        if (hadSave)
+        if (hadFile)
         {
             Debug.Log($"[{nameof(SaveGame)}] Slot {slotIndex} deleted.");
             OnSlotDeleted?.Invoke(slotIndex);
@@ -221,6 +268,35 @@ public static class SaveGame
         DeleteSlot(ActiveSlot);
     }
 
+    /// <summary>
+    /// The run was won: its slot becomes resolved, with the play time, modules and date of the win.
+    /// The rest of the save stays (the card still says where it was), but it is never loaded again.
+    /// A run that never reached a save point has no file to mark: nothing is written then.
+    /// </summary>
+    private static void HandleRunWon()
+    {
+        if (ActiveSlot == NoSlot) return;
+
+        if (!TryReadSlot(ActiveSlot, out SaveData data))
+        {
+            Debug.Log($"[{nameof(SaveGame)}] The run was won with no save in slot {ActiveSlot}: nothing to mark.");
+            return;
+        }
+
+        data.resolved = true;
+        data.lastSavedIso = DateTime.UtcNow.ToString("o");
+        if (ModuleManager.Exists)
+        {
+            data.playTimeSeconds = ModuleManager.Instance.SessionTime;
+            data.modules = CaptureModules(warnActive: false);
+        }
+
+        if (!SaveFileStore.Write(ActiveSlot, data)) return;
+
+        Debug.Log($"[{nameof(SaveGame)}] The run was won: slot {ActiveSlot} is resolved.");
+        OnSlotResolved?.Invoke(ActiveSlot);
+    }
+
     private static SaveData Capture(SO_SaveLevel level, string group)
     {
         SaveData data = new SaveData
@@ -235,23 +311,7 @@ public static class SaveGame
         if (ModuleManager.Exists)
         {
             data.playTimeSeconds = ModuleManager.Instance.SessionTime;
-
-            foreach (ModuleRuntime runtime in ModuleManager.Instance.GetAllModules())
-            {
-                if (runtime == null || runtime.Data == null) continue;
-
-                if (runtime.Status == ModuleStatus.Active)
-                    Debug.LogWarning($"[{nameof(SaveGame)}] Module '{runtime.ModuleID}' is Active at the save " +
-                                     "point: it will load as not started (only Resolved / Exploded restore).");
-
-                data.modules.Add(new SavedModule
-                {
-                    moduleId = runtime.ModuleID,
-                    status = runtime.Status.ToString(),
-                    timeRemaining = runtime.TimeRemaining,
-                    timerDuration = runtime.Data.TimerDuration,
-                });
-            }
+            data.modules = CaptureModules(warnActive: true);
         }
 
         if (PuzzleStateManager.Exists)
@@ -303,6 +363,38 @@ public static class SaveGame
         // RestoreSnapshot raises no OnPuzzleCompleted: nothing replays (doors, the escape, the Architect).
         // Everything that depends on a completed puzzle catches up on its own Start, as after a checkpoint.
         PuzzleStateManager.Instance.RestoreSnapshot(data.puzzles.ToSnapshot());
+    }
+
+    // The modules as the manager has them now. warnActive: at a save point a running module is worth a
+    // warning (it loads as not started); at a win it is not.
+    private static List<SavedModule> CaptureModules(bool warnActive)
+    {
+        List<SavedModule> modules = new List<SavedModule>();
+        foreach (ModuleRuntime runtime in ModuleManager.Instance.GetAllModules())
+        {
+            if (runtime == null || runtime.Data == null) continue;
+
+            if (warnActive && runtime.Status == ModuleStatus.Active)
+                Debug.LogWarning($"[{nameof(SaveGame)}] Module '{runtime.ModuleID}' is Active at the save " +
+                                 "point: it will load as not started (only Resolved / Exploded restore).");
+
+            modules.Add(new SavedModule
+            {
+                moduleId = runtime.ModuleID,
+                status = runtime.Status.ToString(),
+                timeRemaining = runtime.TimeRemaining,
+                timerDuration = runtime.Data.TimerDuration,
+            });
+        }
+        return modules;
+    }
+
+    private static void RememberLastPlayed(int slotIndex)
+    {
+        if (slotIndex == NoSlot) return;
+
+        PlayerPrefs.SetInt(LastPlayedSlotKey, slotIndex);
+        PlayerPrefs.Save();
     }
 
     private static string Describe(int slotIndex) => slotIndex == NoSlot ? "(none)" : slotIndex.ToString();

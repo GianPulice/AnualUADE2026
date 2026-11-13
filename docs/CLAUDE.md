@@ -2730,7 +2730,7 @@ Data lives in `Assets/_Project/ScriptableObjects/`. Key types in `_Project/Scrip
   `ScriptableObjects/Audio/Ambience/` (moved there from `Audio/Music/`, GUIDs intact), plus
   `Amb_Pink` for debug. Only three bed loops exist in the project, so Corridor/Machine/Vertical
   share a pairing and are separated by mix rather than by material — see `docs/Ambience-System.md`.
-- `SO_SaveSlotData` / `SO_SaveSlotDatabase` — save slot stubs.
+- `SO_SaveSlotData` / `SO_SaveSlotDatabase` — what the Save Slots cards show; in Play they are built from the save files (`Scripts/SaveSystem/`, see `docs/TODO-UI.md` § Save Slots).
 - Puzzle data: `SO_SequencePuzzleData`, `SO_ContainerPuzzleData`, `SO_ValvePuzzleData`, `SO_HubPuzzleData`.
 
 ### Async
@@ -2899,7 +2899,7 @@ The systems below are **implemented but not connected to anything**. Read this b
   adaptation and no generator; `FieldOfView` has no light term. The vision fog changes what the
   player sees, not what the Nemesis sees. See *Spec deltas — Light*.
 - **Audio does not respond to pause.** `MasterMixer.mixer` has the eight buses but only the default snapshot, and `NemesisChaseMusic.Update()` runs on `Time.unscaledDeltaTime` without an `IsPaused` guard — so chase music keeps playing over the pause menu. Needs a `Paused` snapshot driven from `PauseManager.OnPauseStateChanged`.
-- **Save/load is a stub.** `SaveSlotsController` logs and raises an event; `InventoryManager.RestoreFromIDs` has no callers. `PuzzleStateManager.Snapshot()`/`RestoreSnapshot()` exist and work, but only in memory, for checkpoints — there is no disk format.
+- **Save/load is per level, not a stub any more** (2026-11-13). `SaveGame` / `SaveFileStore` write one JSON per slot when the player reaches Zona 2, losing deletes it, winning marks it RESOLVED (not loadable, free for a new game), and the Save Slots screen loads, deletes (with confirmation), asks which slot to overwrite when New Game finds them all taken, closes with ESC and marks the last played slot. Rules and UI in `docs/TODO-UI.md` § Save Slots. `InventoryManager.RestoreFromIDs` still has no callers: a save holds no items on purpose.
 - **`EPlayerState.InDanger` was removed**, along with its `isInDanger` field and the `T` debug key — it was never registered in the state dictionary, so transitioning to it only ever logged an error. The `R` (hidden) and `Y` (disabled) debug keys are gone; `HidingSpot` is the way into `Hidden`.
 - **The two parallel grab/push implementations are resolved.** The physical-box version stayed (`GrabbableBall` + `PushBoxTriggerLogic` + `BallPuzzleItem` + `BasketTrigger`); `ContainerInteractable`, `ContainerSlot` and the dead `PushableBall` were deleted, so nothing competes for the `SetContainerSlot` keys any more. That key is a **BallId** — `SO_ContainerPuzzleData.ContainerRequirement.containerId` keeps the old field name but is authored with a ball id. `GrabbableBall` now carries its `PauseManager.IsGameplayInputBlocked` guard, and `BasketTrigger` caches the controller lookup instead of running two `FindObjectsByType` scans per trigger crossing.
 - **Three Editor tools were deleted as stale**: `Door/Setup Door Visual` (reflected on `leftPanel`/`rightPanel`, fields the hinged door no longer has — running it disabled the root MeshRenderer and added two stray cubes), `Puzzle UI/Setup Sequence Panel UI` (drove the View through `SetPrivateField`, so every View refactor broke it; the panel prefab is maintained by hand now) and `Scenes/Build Testing Blockout`. `WinLoseTest.cs` and `TestSceneBuilder.cs` went with them.

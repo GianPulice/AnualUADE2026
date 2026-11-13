@@ -52,7 +52,7 @@ public class SO_SaveSlotDatabase : ScriptableObject
             if (Application.isPlaying) return SaveGame.HasAnySave(slotCount);
 
             foreach (SO_SaveSlotData slot in slots)
-                if (slot != null && !slot.IsEmpty) return true;
+                if (slot != null && slot.IsLoadable) return true;
             return false;
         }
     }
