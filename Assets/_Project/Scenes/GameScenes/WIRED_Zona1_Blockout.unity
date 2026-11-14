@@ -33126,7 +33126,7 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  CustomBlends: {fileID: 11400000, guid: 3ccaed917387faf4f863c3c1ac9b3af1, type: 2}
+  CustomBlends: {fileID: 0}
 --- !u!114 &823456786
 MonoBehaviour:
   m_ObjectHideFlags: 0
