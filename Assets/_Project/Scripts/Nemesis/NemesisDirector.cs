@@ -179,6 +179,36 @@ public class NemesisDirector : Singleton<NemesisDirector>
         public bool stageEntrance;
     }
 
+    [Tooltip("Lo mismo que los disparadores por puzzle, pero al entrar un ítem al inventario. " +
+             "Para la carnada: la bomba de la SP3 de la Zona 2 llama al Nemesis cuando la " +
+             "levantás, no cuando abrís la sala.\n\n" +
+             "Se dispara cada vez que el ítem entra (agarrarlo del piso o una recompensa), no al " +
+             "cargar una partida. Si una captura devuelve el ítem a su lugar, volver a agarrarlo " +
+             "vuelve a llamarlo.")]
+    [SerializeField] private List<ItemTrigger> itemTriggers = new List<ItemTrigger>();
+
+    [Serializable]
+    private class ItemTrigger
+    {
+        [Tooltip("Ítem que dispara esto, al entrar al inventario.")]
+        public SO_InventoryItem item;
+
+        [PressureZoneId]
+        [Tooltip("Zona donde se aplica la presión. Vacío = sólo la entrada en escena, sin zona.")]
+        public string zoneId;
+
+        [Range(0f, 1f)]
+        [Tooltip("Cuánta presión. 1 es todo lo que el Director sabe hacer sin hacer trampa.")]
+        public float intensity = 1f;
+
+        [Min(0f)]
+        [Tooltip("Cuántos segundos dura.")]
+        public float duration = 60f;
+
+        [Tooltip("Además de la presión, hacer la entrada en escena tipo Mr. X.")]
+        public bool stageEntrance;
+    }
+
     // ── Estado ──────────────────────────────────────────────────────────────
 
     /// <summary>Who asked for the pressure in flight. Pacing only ever replaces or clears its own.</summary>
@@ -315,6 +345,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private void OnEnable()
     {
         PuzzleCompletionAftermath.Settled += HandlePuzzleCompleted;
+        InventoryEvents.OnItemAdded += HandleItemAdded;
 
         // Back from a disable that returned everything: the rhythm may still want its persistence.
         RefreshLoan();
@@ -323,6 +354,7 @@ public class NemesisDirector : Singleton<NemesisDirector>
     private void OnDisable()
     {
         PuzzleCompletionAftermath.Settled -= HandlePuzzleCompleted;
+        InventoryEvents.OnItemAdded -= HandleItemAdded;
 
         // Everything this class does is a temporary edit to somebody else's state. A Director torn
         // down mid-request would otherwise leave boosted route weights and a cloned data asset
@@ -1095,13 +1127,30 @@ public class NemesisDirector : Singleton<NemesisDirector>
             if (trigger == null) continue;
             if (!string.Equals(trigger.puzzleId, puzzleId, StringComparison.OrdinalIgnoreCase)) continue;
 
-            if (!string.IsNullOrWhiteSpace(trigger.zoneId))
-                ApplyPressure(trigger.zoneId, trigger.intensity, trigger.duration,
-                              EPressureSource.Scripted, ELevers.All);
-
-            if (trigger.stageEntrance)
-                StageEntranceAsync(trigger.zoneId, this.GetCancellationTokenOnDestroy()).Forget();
+            FireTrigger(trigger.zoneId, trigger.intensity, trigger.duration, trigger.stageEntrance);
         }
+    }
+
+    private void HandleItemAdded(SO_InventoryItem item)
+    {
+        if (item == null) return;
+
+        for (int i = 0; i < itemTriggers.Count; i++)
+        {
+            ItemTrigger trigger = itemTriggers[i];
+            if (trigger == null || trigger.item != item) continue;
+
+            FireTrigger(trigger.zoneId, trigger.intensity, trigger.duration, trigger.stageEntrance);
+        }
+    }
+
+    private void FireTrigger(string zoneId, float intensity, float duration, bool stageEntrance)
+    {
+        if (!string.IsNullOrWhiteSpace(zoneId))
+            ApplyPressure(zoneId, intensity, duration, EPressureSource.Scripted, ELevers.All);
+
+        if (stageEntrance)
+            StageEntranceAsync(zoneId, this.GetCancellationTokenOnDestroy()).Forget();
     }
 
     private bool TryResolveNemesis()
@@ -1182,6 +1231,23 @@ public class NemesisDirector : Singleton<NemesisDirector>
 
             Debug.LogWarning($"[{nameof(NemesisDirector)}] The trigger for '{trigger.puzzleId}' asks for zone " +
                              $"'{trigger.zoneId}', which is not in the scene. That puzzle will apply no pressure.", this);
+        }
+
+        for (int i = 0; i < itemTriggers.Count; i++)
+        {
+            ItemTrigger trigger = itemTriggers[i];
+            if (trigger == null) continue;
+
+            if (trigger.item == null)
+            {
+                Debug.LogWarning($"[{nameof(NemesisDirector)}] Item trigger #{i} has no item, so it never fires.", this);
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(trigger.zoneId) || NemesisPressureZone.Find(trigger.zoneId) != null) continue;
+
+            Debug.LogWarning($"[{nameof(NemesisDirector)}] The trigger for item '{trigger.item.ItemName}' asks for " +
+                             $"zone '{trigger.zoneId}', which is not in the scene. That item will apply no pressure.", this);
         }
     }
 

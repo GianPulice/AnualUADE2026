@@ -88,7 +88,8 @@ public class GizmoManager : MonoBehaviour
     [SerializeField] private bool colliders = true;
 
     [Tooltip("Camera y CinemachineCamera: los frustums (las líneas blancas largas) y sus íconos. " +
-             "También los volúmenes celestes de la cámara: CameraAreaZone y LookDownTrigger.")]
+             "También los volúmenes celestes de la cámara: CameraAreaZone y LookDownTrigger, y el " +
+             "barrido y la cuña de visión de las cámaras de seguridad (SecurityCamera).")]
     [SerializeField] private bool cameras = true;
 
     [Tooltip("Light, ReflectionProbe y LightProbeGroup, con sus íconos.")]
@@ -146,7 +147,7 @@ public class GizmoManager : MonoBehaviour
             typeof(BoxCollider), typeof(SphereCollider), typeof(CapsuleCollider), typeof(MeshCollider),
             typeof(CharacterController),
         });
-        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone), typeof(LookDownTrigger) });
+        yield return (cameras, new[] { typeof(Camera), typeof(CinemachineCamera), typeof(CameraAreaZone), typeof(LookDownTrigger), typeof(SecurityCamera) });
         yield return (lights, new[] { typeof(Light), typeof(ReflectionProbe), typeof(LightProbeGroup) });
         yield return (audioSources, new[] { typeof(AudioSource), typeof(AudioReverbZone), typeof(AudioListener) });
         yield return (navMesh, new[]

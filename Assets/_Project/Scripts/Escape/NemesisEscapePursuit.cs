@@ -27,10 +27,21 @@ public class NemesisEscapePursuit : MonoBehaviour
     private NemesisStateManager nemesis;
     private bool active;
     private float refreshTimer;
+    private float speedOverride;
 
     public bool IsActive => active;
 
-    /// <summary>Starts the escape pursuit. Call it on the same frame the player gets control back.</summary>
+    /// <summary>
+    /// Runs at this many metres per second instead of the paced speed, until the next
+    /// <see cref="Begin"/> or <see cref="End"/> (or a call with 0). For the reveal's charge: the
+    /// Nemesis's own chase drives it from the first stride, at the charge's speed, and the pace
+    /// takes over when control comes back.
+    /// </summary>
+    public void OverrideSpeed(float metresPerSecond) => speedOverride = Mathf.Max(0f, metresPerSecond);
+
+    /// <summary>Starts the escape pursuit, at the paced speed (any <see cref="OverrideSpeed"/> is
+    /// cleared). The reveal starts it as the charge begins, with the charge's speed, and again on
+    /// the frame the player gets control back.</summary>
     public void Begin(SO_EscapeSequenceConfig escapeConfig)
     {
         config = escapeConfig;
@@ -45,6 +56,7 @@ public class NemesisEscapePursuit : MonoBehaviour
 
         active = true;
         refreshTimer = 0f;
+        speedOverride = 0f;
         nemesis.Decision.ChaseFloor = true;
     }
 
@@ -52,6 +64,7 @@ public class NemesisEscapePursuit : MonoBehaviour
     public void End()
     {
         active = false;
+        speedOverride = 0f;
         if (nemesis != null && nemesis.Decision != null) nemesis.Decision.ChaseFloor = false;
     }
 
@@ -85,6 +98,8 @@ public class NemesisEscapePursuit : MonoBehaviour
 
     private float ComputeSpeed()
     {
+        if (speedOverride > 0f) return speedOverride;
+
         PlayerStateManager player = PlayerRegistry.Current;
         if (player == null) return nemesis.NemesisMovement.ChaseSpeed;
 

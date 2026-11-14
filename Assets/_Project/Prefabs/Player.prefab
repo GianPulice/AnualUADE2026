@@ -202,7 +202,7 @@ MonoBehaviour:
     m_Bits: 9
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 6153
+    m_Bits: 6157
   standBlockMask:
     serializedVersion: 2
     m_Bits: 1

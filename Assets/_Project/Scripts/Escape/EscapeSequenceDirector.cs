@@ -809,7 +809,13 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         }
 
         // The charge: it runs at the player, and control comes back once it has covered the
-        // distance — mid-stride, the chase takes it from there.
+        // distance — mid-stride, the chase goes on from there.
+        //
+        // Driven by the Nemesis's own chase from the first stride, not puppeteered (14/11/2026, asked
+        // by Iñaki): its machine paths it, avoids what is in the way and gets itself unstuck the way
+        // it does in the chase. A puppeteered run that met an obstacle stood pressed against it until
+        // the time cap. Only the speed is the cinematic's (the config's charge speed); the chase's
+        // own pace takes over at the handover (BeginChase starts the pursuit again).
         Vector3 chargeFrom = hasNemesis ? actor.Body.position : farEnd;
         if (!skipRequested && hasNemesis && player != null)
         {
@@ -817,11 +823,11 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
             if (config.ChargeOnPlayerView) ReleaseShots();
             else CutTo(chargeShot);
 
-            actor.RunTo(player.transform);
+            StartChargeChase();
             PlaySound(config.RevealSoundId, actor.Body.position);
 
             float elapsed = 0f;
-            while (!skipRequested && elapsed < config.ChargeMaxSeconds && actor.IsMoving &&
+            while (!skipRequested && elapsed < config.ChargeMaxSeconds &&
                    HorizontalGap(actor.Body.position, chargeFrom) < config.ChargeDistance)
             {
                 await UniTask.Yield(PlayerLoopTiming.Update, token);
@@ -830,9 +836,11 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
         }
 
         // However it ended, it ends where the charge would have got it: cut short, it is put there
-        // now. Never nearer than that.
+        // now (taken back for the warp: the handover gives it to its chase again). Never nearer
+        // than that.
         if (hasNemesis && player != null &&
-            HorizontalGap(actor.Body.position, chargeFrom) < config.ChargeDistance)
+            HorizontalGap(actor.Body.position, chargeFrom) < config.ChargeDistance &&
+            actor.TryTakeControl())
         {
             Vector3 toPlayer = Flat(player.transform.position - chargeFrom);
             float run = Mathf.Min(config.ChargeDistance, Mathf.Max(0f, toPlayer.magnitude - 1f));
@@ -848,6 +856,28 @@ public class EscapeSequenceDirector : MonoBehaviour, IWinPresenter
 
         ReleaseShots();
         FinishReveal();
+    }
+
+    /// <summary>
+    /// The charge's start: the Nemesis goes back to its own machine, and the escape pursuit is on
+    /// (the ladder can only chase, and it always knows where the player is), at the charge's speed.
+    /// The player is still the cinematic's; the rest of the chase (sirens, audio, the gate, the
+    /// capture outcome) starts at the handover, as before. Without a pursuit on the rig there is
+    /// nothing to make it chase, so it falls back to the puppeteered run.
+    /// </summary>
+    private void StartChargeChase()
+    {
+        PlayerStateManager player = PlayerRegistry.Current;
+
+        if (pursuit == null)
+        {
+            actor.RunTo(player != null ? player.transform : null, config.ChargeSpeed);
+            return;
+        }
+
+        actor.Release();
+        pursuit.Begin(config);
+        pursuit.OverrideSpeed(config.ChargeSpeed);
     }
 
     /// <summary>

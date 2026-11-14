@@ -399,10 +399,12 @@ Las zonas son `NemesisPressureZone` (un id y un radio, 12 por defecto). Piden pr
 |---|---|---|---|
 | `p2_sp1_calderas` | palancas, SUB_01 este | `zona2 este` 0.5 / 45 s | no: puede ser el que lo despierta |
 | `p2_sp2_switches` | switches, SUB_01 oeste | `zona2 oeste` 0.5 / 45 s | no: ídem |
-| `p2_sp3_access_code` | keypad de SUB_03 (5-2-9-1), abre la sala de la bomba | `zona2 centro` 0.7 / 60 s | **sí**, en una segunda fila sin zona |
+| `p2_sp3_access_code` | keypad de SUB_03 (5-2-9-1), abre la sala de la bomba | `zona2 centro` 0.7 / 60 s | no: pasó a la bomba (14/11) |
+| ítem `centrifugal_pump` (*Item Triggers*) | agarrar la bomba en la sala de la SP3 | — | **sí**, sin zona |
 | `p2_sp3_mechanism` | la bomba en el hub | `zona2 oeste` 0.7 / 60 s | no: estás en el hub |
 
-- **La entrada del keypad va sin zona a propósito.** Con zona, la entrada busca alrededor del centro de la zona, que está a la altura de SUB_02, y desde el keypad (SUB_03) el camino para subir pasa los 22 m: no encontraba lugar. Sin zona busca alrededor tuyo. Medido: apareció a 16 m por NavMesh, fuera de vista. El keypad no está en la lista que lo despierta, así que si lo hacés antes que los otros tres, la entrada no hace nada (está dormido) y queda la presión.
+- **La entrada es al agarrar la bomba, no al abrir la sala (14/11, Iñaki; todavía a charlar con el grupo).** La bomba es la carnada: el player entra tranquilo a la sala y el Nemesis llega cuando la levanta. Va en la lista *Item Triggers* del Director (al lado de *Disparadores por puzzle*, mismos campos con un `SO_InventoryItem` en vez de un puzzle), que escucha `InventoryEvents.OnItemAdded`: se dispara cada vez que el ítem entra al inventario, no al cargar una partida (`RestoreFromIDs` no avisa). Para volver a como estaba: borrar la fila del ítem y poner `stageEntrance` en una segunda fila de `p2_sp3_access_code` sin zona. Sin jugar.
+- **La entrada va sin zona a propósito.** Con zona, la entrada busca alrededor del centro de la zona, que está a la altura de SUB_02, y desde SUB_03 el camino para subir pasa los 22 m: no encontraba lugar. Sin zona busca alrededor tuyo. Medido desde el keypad: apareció a 16 m por NavMesh, fuera de vista (desde la bomba, 6,5 m más adentro del callejón, falta medirlo). Ni el keypad ni la bomba están en la lista que lo despierta, así que si llegás antes que a los otros sub-puzzles, la entrada no hace nada (está dormido) y queda la presión del keypad.
 - **La presión de `p2_sp3_mechanism`** lo deja rondando la zona más cercana al hub mientras hacés la estabilización. La bomba (`---- PUZZLES ---- / ZONE 2 / InventoryItemCentrifugalPump`, en la sala de la SP3 detrás de la `AccessDoor`) se instala en el hub. Este disparador es el único que no se probó en Play, pero es la misma maquinaria que los otros tres.
 - `puzzle_central_piso2` (la estabilización) no tiene disparador: depende de lo que pase después, que todavía no existe.
 

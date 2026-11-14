@@ -128,6 +128,16 @@ public class HidingSpot : BaseRangeInteractable
     private int cachedCameraPriority;
 
     public string SpotId => spotId;
+
+    /// <summary>
+    /// A climb in (true) or out (false) just started, and lasts this many seconds. For visuals that
+    /// play inside the climb window — the locker door — and nothing else: the window, and what the
+    /// Nemesis can do during it, are unchanged by whoever listens.
+    /// </summary>
+    public event Action<bool, float> ClimbStarted;
+
+    /// <summary>The Nemesis pulled the player out from inside (a capture while hidden).</summary>
+    public event Action PulledOpen;
     public EHidingSpotType Type => type;
     public SO_HidingData Data => data;
     public Transform ApproachPoint => approachPoint != null ? approachPoint : transform;
@@ -281,6 +291,7 @@ public class HidingSpot : BaseRangeInteractable
         // "I saw you climb in" rule reads — see the class summary.
         transitioning = true;
         p.SetHidingTransition(true);
+        ClimbStarted?.Invoke(true, data.EnterDuration);
         try
         {
             await UniTask.Delay(TimeSpan.FromSeconds(data.EnterDuration),
@@ -323,6 +334,7 @@ public class HidingSpot : BaseRangeInteractable
         // Visible and immobilized for the climb-out, the same way as on the way in.
         transitioning = true;
         p.SetHidingTransition(true);
+        ClimbStarted?.Invoke(false, data.ExitDuration);
         try
         {
             await UniTask.Delay(TimeSpan.FromSeconds(data.ExitDuration),
@@ -389,6 +401,7 @@ public class HidingSpot : BaseRangeInteractable
         // ever hit this.
         if (IsOccupied)
         {
+            PulledOpen?.Invoke();
             ReleaseImmediate(exitPose != null ? exitPose : ApproachPoint);
             return;
         }

@@ -146,6 +146,11 @@ public class SO_EscapeSequenceConfig : ScriptableObject
              "igual.")]
     [SerializeField, Min(0.5f)] private float chargeMaxSeconds = 4f;
 
+    [Tooltip("Metres per second of the Nemesis's run in the charge, and only there: the ending and " +
+             "any other cinematic keep the actor's Run Speed, and the chase its own pace. 0 = the " +
+             "actor's Run Speed.")]
+    [SerializeField, Min(0f)] private float chargeSpeed = 5.5f;
+
     // ── Fog cycle (Paso 4) ──────────────────────────────────────────────────
     // Sólo la niebla: las luces del pasillo titilan todo el escape por su cuenta
     // (EscapeCorridorFlicker) y no se apagan con ella. Un ciclo corto y amplio se siente como
@@ -256,6 +261,16 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     [Tooltip("Brillo del haz de cada sirena en el aire (FogLightVolume): el cono rojo / ámbar que " +
              "se ve bajar del techo a través de la niebla. 0.3 = sutil, 1 = exagerado. 0 = sin haz.")]
     [SerializeField, Min(0f)] private float alarmBeamIntensity = 0.9f;
+
+    [Tooltip("How much the fog's clear range grows on each siren flash, as a fraction: 0.35 = it " +
+             "sees 35% further at the peak of the flash, then shrinks back before the next one. On " +
+             "top of the fog cycle, open or closed. Gameplay only: no pulse during a cinematic. " +
+             "0 = no pulse.")]
+    [SerializeField, Range(0f, 1.5f)] private float alarmFogPulse = 0.35f;
+
+    [Tooltip("Fraction of each flash spent widening; the rest shrinks it back. Low = a snap open " +
+             "and a slower fade, like the light hitting and then dying away.")]
+    [SerializeField, Range(0.05f, 0.9f)] private float alarmFogPulseRise = 0.2f;
 
     [Header("Preset de niebla del escape (opcionales)")]
     [Tooltip("Niebla espesa que rige durante todo el escape: entra con el portazo (del Nemesis se " +
@@ -468,6 +483,7 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float EyesFlareFallSeconds => eyesFlareFallSeconds;
     public float ChargeDistance => chargeDistance;
     public float ChargeMaxSeconds => chargeMaxSeconds;
+    public float ChargeSpeed => chargeSpeed;
 
     public float OpenSeconds => openSeconds;
     public float HoldSeconds => holdSeconds;
@@ -498,6 +514,8 @@ public class SO_EscapeSequenceConfig : ScriptableObject
     public float AlarmBeaconNearFadeStart => alarmBeaconNearFadeStart;
     public float AlarmBeaconNearFadeEnd => alarmBeaconNearFadeEnd;
     public float AlarmPoolClear => alarmPoolClear;
+    public float AlarmFogPulse => alarmFogPulse;
+    public float AlarmFogPulseRise => alarmFogPulseRise;
     public float AlarmBeamIntensity => alarmBeamIntensity;
 
     public SO_VisionFogConfig RevealShotFog => revealShotFog;

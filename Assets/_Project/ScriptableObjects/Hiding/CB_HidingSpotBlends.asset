@@ -16,8 +16,8 @@ MonoBehaviour:
   - From: '**ANY CAMERA**'
     To: Interior Camera
     Blend:
-      Style: 1
-      Time: 0.3
+      Style: 0
+      Time: 0
       CustomCurve:
         serializedVersion: 2
         m_Curve: []
@@ -28,7 +28,7 @@ MonoBehaviour:
     To: '**ANY CAMERA**'
     Blend:
       Style: 1
-      Time: 0.3
+      Time: 0.5
       CustomCurve:
         serializedVersion: 2
         m_Curve: []

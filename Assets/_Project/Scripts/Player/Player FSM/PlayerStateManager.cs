@@ -31,8 +31,9 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
              "treats them as floor.")]
     [SerializeField] private LayerMask groundLeyerMask;
 
-    [Tooltip("What the player slides along instead of stopping dead against. Ground + Wall + " +
-             "Props.\n\n" +
+    [Tooltip("What the player slides along instead of stopping dead against. Default + Ground + " +
+             "Wall + Props + Ignore Raycast (the invisible player-only rails at drops and stair " +
+             "edges).\n\n" +
              "Empty means no deflection at all, which is the pre-fix behaviour: you press into a " +
              "crate and stick to it. Tools > Nemesis > Validate Navigation Setup reports it.")]
     [SerializeField] private LayerMask obstacleMask;
@@ -873,6 +874,16 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
 
         isGrounded = true;
 
+        // The probe reaches a metre below the feet, so "it found walkable ground" is not "the feet
+        // are on it". In the air above a ramp the slope-following below would glide the player down
+        // the ramp's angle with gravity off instead of letting them drop onto it.
+        if (IsAboveGround(hitRay, groundAngle))
+        {
+            rigBody.useGravity = true;
+            moveDir = inputDir;
+            return;
+        }
+
         // Gravity off is how the player sticks to a ramp instead of bouncing down it — but only on
         // a real ramp. See FlatGroundAngle.
         rigBody.useGravity = groundAngle <= FlatGroundAngle;
@@ -891,6 +902,45 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         float rise = -(normal.x * inputDir.x + normal.z * inputDir.z) / Mathf.Max(normal.y, 0.1f);
         moveDir = new Vector3(inputDir.x, rise, inputDir.z);
     }
+
+    /// <summary>
+    /// How far above the surface under it the capsule may hover and still count as standing on it,
+    /// on top of the lift its rounded bottom gets on a slope.
+    /// </summary>
+    private const float AirborneGap = 0.15f;
+
+    /// <summary>
+    /// True when the capsule is clearly in the air over the ground the probe found. On a slope the
+    /// bottom hemisphere rests r / cos(angle) above the surface straight under its centre, not r,
+    /// so that is the baseline the gap is measured from. Never while a platform carries the player:
+    /// the cabin owns the vertical there.
+    /// </summary>
+    private bool IsAboveGround(RaycastHit hit, float groundAngle)
+    {
+        if (IsCarriedByPlatform || capsuleColl == null) return false;
+
+        float radius = capsuleColl.radius;
+        float sphereCentreY = transform.TransformPoint(capsuleColl.center).y
+                            - Mathf.Max(0f, capsuleColl.height * 0.5f - radius);
+        float restHeight = radius / Mathf.Max(Mathf.Cos(groundAngle * Mathf.Deg2Rad), 0.1f);
+
+        return sphereCentreY - hit.point.y > restHeight + AirborneGap;
+    }
+
+    /// <summary>
+    /// The vertical speed the movement writes. Moving and Crouch rewrite the velocity every frame,
+    /// and handing back desired.y (zero on flat ground) erased the one physics step of gravity the
+    /// body had built since: a player running off a pallet or a ledge drifted out level, a metre
+    /// up if need be, until the keys were released — the probe still found floor below, so the
+    /// Moving state never dropped to Idle. With gravity on, a fall already under way is now kept;
+    /// upward speed is still capped at desired.y exactly as before, so cresting a ramp launches
+    /// nobody. With gravity off (on a ramp) the slope term is the whole answer, and aboard a lift
+    /// the cabin owns the vertical.
+    /// </summary>
+    private float MoveVerticalSpeed(float desiredY) =>
+        rigBody.useGravity && !IsCarriedByPlatform
+            ? Mathf.Min(desiredY, rigBody.linearVelocity.y)
+            : desiredY;
 
     /// <summary>Margin the stand-up probe is shrunk by so brushing a wall does not read as a ceiling.</summary>
     private const float StandCheckSkin = 0.05f;
@@ -971,7 +1021,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         float horizontalSpeed = horizontal.magnitude;
         if (horizontalSpeed < 0.01f || obstacleMask.value == 0)
         {
-            rigBody.linearVelocity = desired;
+            rigBody.linearVelocity = new Vector3(desired.x, MoveVerticalSpeed(desired.y), desired.z);
             return;
         }
 
@@ -1015,7 +1065,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
             if (Vector3.Dot(slide, firstNormal) < -0.001f) slide = Vector3.zero;
         }
 
-        rigBody.linearVelocity = new Vector3(slide.x, desired.y, slide.z);
+        rigBody.linearVelocity = new Vector3(slide.x, MoveVerticalSpeed(desired.y), slide.z);
     }
 
     /// <summary>How many surfaces one step may slide off. Two covers a corner; a third wall in the
