@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SO_StabilizationPuzzleData
   puzzleId: puzzle_central_piso2
   requiredPuzzleIds:
-  - p2_sp1_calderas
-  - p2_sp2_switches
+  - p2_sp1_mechanism
+  - p2_sp2_mechanism
   - p2_sp3_mechanism
   startPrompt: Start stabilization
   pendingInfoFormat: 'Pending systems: {0}'

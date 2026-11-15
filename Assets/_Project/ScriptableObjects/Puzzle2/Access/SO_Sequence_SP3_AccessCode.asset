@@ -15,6 +15,9 @@ MonoBehaviour:
   puzzleId: p2_sp3_access_code
   requiredSocketId: 
   promptText: Enter access code
-  rewardItem: {fileID: 0}
+  rewardItem: {fileID: 11400000, guid: 538dbd61e54da6f448a6adf9bb4761c4, type: 2}
   correctSequence: 05000000020000000900000001000000
+  randomizeEachRun: 0
+  minDigit: 1
+  maxDigit: 9
   completedSoundId: 

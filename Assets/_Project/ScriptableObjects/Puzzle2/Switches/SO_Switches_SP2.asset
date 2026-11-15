@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: SO_Switches_SP2
   m_EditorClassIdentifier: Assembly-CSharp::SO_SwitchPuzzleData
   puzzleId: p2_sp2_switches
+  rewardItem: {fileID: 11400000, guid: 473f6cbdca5afe041b2a33fe860a3359, type: 2}
   correctUp: 0100010100
-  startUp: 0
+  startPosition: 0
   revealMode: 0
   revealFadeSeconds: 0.5
   lightReachFraction: 0.6

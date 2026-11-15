@@ -29,12 +29,17 @@ using UnityEngine.SceneManagement;
 /// (<see cref="CinematicState.IsPlaying"/>), and refused by the component itself while the player is
 /// hidden or being captured. It only moves the player: nothing else is skipped or solved.
 ///
+/// <b>F1 — go to Zona 2's hub.</b> Puts the player on <c>Respawn Hub Zona 2</c> (the hub room, facing
+/// its panel), through <see cref="Zone2EntryTeleport.TeleportPlayer"/>, the same path as F6, with
+/// the same refusals. Only the player moves: nothing is solved, and a capture still sends the player
+/// to the active checkpoint. With F12 (<c>Puzzle2FinishTestKey</c>) it is the short way to the exit.
+///
 /// <b>F10 console in the blockout.</b> <c>NemesisTestConsole</c> is added to scenes by hand and the
 /// blockout's Nemesis never had one. Rather than edit the scene, every Nemesis that turns up
 /// without a console gets one here. Editor and development builds, like the console itself.
 ///
-/// F2, F5 and F6 are this component's: the game itself uses W A S D, E, F, Tab, Esc, Ctrl, Shift,
-/// Space, 1, 2, and the other debug keys are F3, F4, F7, F8, F9, F10, F11 and 0-6 (see the list in
+/// F1, F2, F5 and F6 are this component's: the game itself uses W A S D, E, F, Tab, Esc, Ctrl, Shift,
+/// Space, 1, 2, and the other debug keys are F3, F4, F7, F8, F9, F10, F11, F12 and 0-6 (see the list in
 /// <c>docs/CLAUDE.md</c>).
 ///
 /// No setup: the object that polls the keys builds itself on the first frame, like
@@ -45,6 +50,10 @@ public class DevLevelKeys : MonoBehaviour
     private const KeyCode WakeNemesisKey = KeyCode.F5;
     private const KeyCode TestZoneKey = KeyCode.F2;
     private const KeyCode Zone2Key = KeyCode.F6;
+    private const KeyCode Zone2HubKey = KeyCode.F1;
+
+    /// <summary>Zona 2's hub respawn point, under ---- CHECKPOINTS ---- in Zona1.</summary>
+    private const string Zone2HubPoint = "Respawn Hub Zona 2";
 
     /// <summary>The real level: Zona1 + LevelUI. The name is misleading, see <c>build-no-test-content</c>.</summary>
     private const string LevelGroup = "TestBlocking";
@@ -57,7 +66,7 @@ public class DevLevelKeys : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        var host = new GameObject("Dev Level Keys (F2 / F5 / F6)") { hideFlags = HideFlags.DontSave };
+        var host = new GameObject("Dev Level Keys (F1 / F2 / F5 / F6)") { hideFlags = HideFlags.DontSave };
         host.AddComponent<DevLevelKeys>();
         DontDestroyOnLoad(host);
     }
@@ -83,6 +92,21 @@ public class DevLevelKeys : MonoBehaviour
         // Not under a cinematic: it owns the player and the cameras, and would cut back to a body
         // that is no longer where its shots were framed.
         if (Input.GetKeyDown(Zone2Key) && !CinematicState.IsPlaying) GoToZone2();
+        if (Input.GetKeyDown(Zone2HubKey) && !CinematicState.IsPlaying) GoToZone2Hub();
+    }
+
+    private static void GoToZone2Hub()
+    {
+        GameObject point = GameObject.Find(Zone2HubPoint);
+        if (point == null)
+        {
+            Debug.LogWarning($"[{nameof(DevLevelKeys)}] F1: no active '{Zone2HubPoint}' in the loaded scenes " +
+                             "(it is under ---- CHECKPOINTS ---- in Zona1).");
+            return;
+        }
+
+        if (Zone2EntryTeleport.TeleportPlayer(point.transform, point))
+            Debug.Log($"[{nameof(DevLevelKeys)}] F1: player moved to Zona 2's hub ('{Zone2HubPoint}').");
     }
 
     /// <summary>Through the component's own teleport, never a copy of it: F6 must show what the

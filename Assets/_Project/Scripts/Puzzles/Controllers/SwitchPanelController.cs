@@ -22,6 +22,9 @@ public class SwitchPanelController : MonoBehaviour
 
     [SerializeField] private SO_SwitchPuzzleData puzzleData;
 
+    [Tooltip("Where the reward lands if it can be neither boxed nor carried. Empty = in front of the player.")]
+    [SerializeField] private Transform rewardDropPoint;
+
     private SwitchInteractable[] switches = new SwitchInteractable[0];
 
     public SO_SwitchPuzzleData PuzzleData => puzzleData;
@@ -105,6 +108,9 @@ public class SwitchPanelController : MonoBehaviour
 
         if (AudioManager.Exists && !string.IsNullOrEmpty(puzzleData.CompletedSoundId))
             AudioManager.Instance.PlaySFX(puzzleData.CompletedSoundId);   // 2D: heard alike from anywhere
+
+        // The component for the hub, as Zona 1's sub-puzzles hand out theirs: to this puzzle's box.
+        PuzzleRewardDelivery.Deliver(puzzleData.PuzzleId, puzzleData.RewardItem, rewardDropPoint, this);
 
         Debug.Log($"[{nameof(SwitchPanelController)}] Puzzle completed: {puzzleData.PuzzleId}");
     }

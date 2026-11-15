@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: SO_LeverSequence_SP1_Calderas
   m_EditorClassIdentifier: Assembly-CSharp::SO_LeverSequencePuzzleData
   puzzleId: p2_sp1_calderas
+  rewardItem: {fileID: 11400000, guid: 0b5ec6413a75abe489c4a31c4ed7ed32, type: 2}
   leverCount: 5
   sequence:
   - lever: 2
