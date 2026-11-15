@@ -58,6 +58,10 @@ public class HidingSpot : BaseRangeInteractable
     {
         active.Clear();
         Occupied = null;
+        // The global blend slot itself is not cleared: it may hold someone else's handler.
+        // InstallCutIntoInterior recognises its own on the next Play.
+        cutInstalled = false;
+        previousBlendOverride = null;
     }
 
     [Header("Identity")]
@@ -91,7 +95,8 @@ public class HidingSpot : BaseRangeInteractable
     [Header("Camera")]
     [Tooltip("The interior virtual camera, with this type's look clamps authored on it. It is " +
              "switched off on Awake, enabled above the player rig on entry and switched off again " +
-             "on exit; the Cinemachine brain blends both ways — do NOT hand-lerp the main camera, " +
+             "on exit. Getting in is always a cut, centred straight ahead (see InstallCutIntoInterior); " +
+             "getting out uses the brain's blend — do NOT hand-lerp the main camera, " +
              "PlayerCameraController and SO_CameraConfig own the normal rig.")]
     [SerializeField] private CinemachineCamera interiorCamera;
 
@@ -376,6 +381,9 @@ public class HidingSpot : BaseRangeInteractable
         Occupied = null;
 
         if (InteractionManager.Exists) InteractionManager.Instance.ClearForcedInteractable(this);
+        // Before the camera drops: the brain blends to the rig from the next LateUpdate, and the
+        // rig has to be facing out by then.
+        FaceExit(p, landing);
         DropInteriorCamera();
         RestoreOutsideMix();
 
@@ -466,9 +474,95 @@ public class HidingSpot : BaseRangeInteractable
     private void RaiseInteriorCamera()
     {
         if (interiorCamera == null) return;
+
+        // Straight ahead on every entry. The pan/tilt keeps its values between uses, so without
+        // this the player comes back in looking wherever they left it — and then watches the
+        // recentering ease it to the middle.
+        CinemachinePanTilt panTilt = interiorCamera.GetComponent<CinemachinePanTilt>();
+        if (panTilt != null)
+        {
+            panTilt.PanAxis.Value = panTilt.PanAxis.Center;
+            panTilt.TiltAxis.Value = panTilt.TiltAxis.Center;
+            panTilt.PanAxis.CancelRecentering();
+            panTilt.TiltAxis.CancelRecentering();
+        }
+
+        InstallCutIntoInterior();
         cachedCameraPriority = interiorCamera.Priority;
         interiorCamera.Priority = interiorCameraPriority;
         interiorCamera.enabled = true;
+    }
+
+    // ── The cut in ──────────────────────────────────────────────────────────
+    //
+    // Getting in is always a CUT, never a blend, whatever the scene's brain is set up with. It
+    // used to depend on CB_HidingSpotBlends being assigned to each level's brain, and a level
+    // that lost it (WIRED_Zona1_Blockout, in a merge) fell back to the brain's 2 s default: a
+    // slow swing from the shoulder camera round to the inside of the locker. The way OUT is left
+    // to the brain's blend settings.
+    //
+    // CinemachineCore.GetBlendOverride is a single global slot: whatever was there is kept and
+    // asked first, and this only overrides the transitions INTO an interior camera.
+
+    private static CinemachineCore.GetBlendOverrideDelegate previousBlendOverride;
+    private static bool cutInstalled;
+
+    private static void InstallCutIntoInterior()
+    {
+        if (cutInstalled) return;
+        cutInstalled = true;
+
+        CinemachineCore.GetBlendOverrideDelegate ours = CutIntoInterior;
+        // With domain reload off the slot can still hold this handler from the previous Play
+        // session; wrapping it again would only make it call itself.
+        if (CinemachineCore.GetBlendOverride == ours) return;
+
+        previousBlendOverride = CinemachineCore.GetBlendOverride;
+        CinemachineCore.GetBlendOverride = ours;
+    }
+
+    private static CinemachineBlendDefinition CutIntoInterior(ICinemachineCamera fromCam,
+        ICinemachineCamera toCam, CinemachineBlendDefinition defaultBlend, UnityEngine.Object owner)
+    {
+        CinemachineBlendDefinition blend = previousBlendOverride != null
+            ? previousBlendOverride(fromCam, toCam, defaultBlend, owner)
+            : defaultBlend;
+
+        for (int i = 0; i < active.Count; i++)
+        {
+            HidingSpot spot = active[i];
+            if (spot == null) continue;
+
+            // In: always a cut.
+            if (ReferenceEquals(toCam, spot.interiorCamera))
+                return new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut, 0f);
+
+            // Out: a short ease back to the shoulder camera, which FaceExit has already turned to
+            // look the way the player steps out. With the brain's 2 s default and the rig still
+            // facing the locker, the view used to swing all the way round.
+            if (ReferenceEquals(fromCam, spot.interiorCamera) && spot.data != null)
+            {
+                float seconds = spot.data.ExitCameraBlendSeconds;
+                return seconds <= 0f
+                    ? new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut, 0f)
+                    : new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, seconds);
+            }
+        }
+
+        return blend;
+    }
+
+    /// <summary>
+    /// Turns the player's shoulder camera to look the way they step out, so the blend out of the
+    /// interior camera is a pull back and not a turn. Its orbit is wherever it was when they
+    /// climbed in — usually facing the locker, the opposite way.
+    /// </summary>
+    private static void FaceExit(PlayerStateManager p, Transform landing)
+    {
+        if (p == null || landing == null) return;
+
+        PlayerCameraController rig = p.GetComponentInChildren<PlayerCameraController>(true);
+        if (rig != null) rig.FaceYaw(landing.eulerAngles.y);
     }
 
     private void DropInteriorCamera()

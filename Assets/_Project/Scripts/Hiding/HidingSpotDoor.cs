@@ -55,6 +55,17 @@ public class HidingSpotDoor : MonoBehaviour
     [SoundId]
     [SerializeField] private string closeSoundId = "sfx_interaction_cerrar_puerta";
 
+    [Header("While the player is inside")]
+    [Tooltip("Hide the door from the camera while the player is inside. The interior camera sits a " +
+             "hand from the door and the HUD's locker overlay draws the door and its slits; the real " +
+             "mesh in between would cover the view through them. It still casts its shadow, and it " +
+             "is back the moment the player starts to get out, before it swings open.")]
+    [SerializeField] private bool hideFromCameraWhileInside = true;
+
+    private Renderer[] doorRenderers = new Renderer[0];
+    private UnityEngine.Rendering.ShadowCastingMode[] cachedShadowModes = new UnityEngine.Rendering.ShadowCastingMode[0];
+    private bool hiddenFromCamera;
+
     private Quaternion closedRotation;
 
     // The swing in flight: from the angle it had when it started, to open, held, back to 0.
@@ -65,11 +76,19 @@ public class HidingSpotDoor : MonoBehaviour
     private void Awake()
     {
         if (spot == null) spot = GetComponent<HidingSpot>();
-        if (door != null) closedRotation = door.localRotation;
+        if (door != null)
+        {
+            closedRotation = door.localRotation;
+            doorRenderers = door.GetComponentsInChildren<Renderer>(true);
+            cachedShadowModes = new UnityEngine.Rendering.ShadowCastingMode[doorRenderers.Length];
+        }
     }
 
     private void OnEnable()
     {
+        HidingEvents.OnEntered += HandleEntered;
+        HidingEvents.OnExited += HandleExited;
+
         if (spot == null) return;
         spot.ClimbStarted += HandleClimbStarted;
         spot.PulledOpen += HandlePulledOpen;
@@ -77,6 +96,10 @@ public class HidingSpotDoor : MonoBehaviour
 
     private void OnDisable()
     {
+        HidingEvents.OnEntered -= HandleEntered;
+        HidingEvents.OnExited -= HandleExited;
+        ShowToCamera();
+
         if (spot != null)
         {
             spot.ClimbStarted -= HandleClimbStarted;
@@ -104,6 +127,35 @@ public class HidingSpotDoor : MonoBehaviour
     }
 
     private void HandlePulledOpen() => Play(yankOpenSeconds, yankHoldSeconds, yankCloseSeconds);
+
+    // Entered comes on the cut inside; Exited on every way out, before the climb-out starts — so
+    // the door is visible again before it swings open, and after a capture or a respawn too.
+    private void HandleEntered(HidingSpot entered)
+    {
+        if (!hideFromCameraWhileInside || entered != spot || hiddenFromCamera) return;
+        hiddenFromCamera = true;
+
+        for (int i = 0; i < doorRenderers.Length; i++)
+        {
+            if (doorRenderers[i] == null) continue;
+            cachedShadowModes[i] = doorRenderers[i].shadowCastingMode;
+            doorRenderers[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+        }
+    }
+
+    private void HandleExited(HidingSpot exited)
+    {
+        if (exited == spot) ShowToCamera();
+    }
+
+    private void ShowToCamera()
+    {
+        if (!hiddenFromCamera) return;
+        hiddenFromCamera = false;
+
+        for (int i = 0; i < doorRenderers.Length; i++)
+            if (doorRenderers[i] != null) doorRenderers[i].shadowCastingMode = cachedShadowModes[i];
+    }
 
     private void Play(float open, float hold, float close)
     {

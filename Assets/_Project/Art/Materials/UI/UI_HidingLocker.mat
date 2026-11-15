@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _BladeDepth: 0.16
-    - _BladeLight: 0.3
+    - _BladeLight: 0
     - _BladeShadow: 0.4
     - _BladeShadowReach: 0.16
     - _Bleed: 0.22
@@ -44,16 +44,16 @@ Material:
     - _DitherFade: 1
     - _EdgeWear: 0.15
     - _EnableDither: 1
-    - _FaceLight: 0.16
+    - _FaceLight: 0
     - _FaceReach: 1
     - _FaceShade: 0.6
     - _FadeSteps: 5
-    - _Grain: 0.008
+    - _Grain: 0
     - _GrainFps: 12
     - _GridRows: 256
-    - _Grime: 0.4
+    - _Grime: 0
     - _GrimeScale: 7
-    - _LipStrength: 0.6
+    - _LipStrength: 0
     - _LipWidth: 1
     - _Louvers: 6
     - _Opacity: 1
@@ -64,7 +64,7 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _Streaks: 0.25
+    - _Streaks: 0
     - _UseUIAlphaClip: 0
     - _VentCentre: 0.52
     - _VentHeight: 0.8
@@ -73,7 +73,7 @@ Material:
     - _VignetteStart: 0.5
     m_Colors:
     - _LightColor: {r: 0.45, g: 0.49, b: 0.53, a: 1}
-    - _MetalColor: {r: 0.06, g: 0.066, b: 0.08, a: 1}
-    - _ShadeColor: {r: 0.015, g: 0.015, b: 0.02, a: 1}
+    - _MetalColor: {r: 0, g: 0, b: 0, a: 1}
+    - _ShadeColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

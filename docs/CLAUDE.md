@@ -874,8 +874,8 @@ screen exactly as before.
 **Which of the two happens is decided in `ScriptableObjects/Escape/SO_EscapeEndingConfig`**, read by
 the director when the last shot ends: `Outcome` = To Be Continued (the Win screen, whatever the slot
 says; shipped from 30/10 to 08/11) or Continue To Zone 2 (the handover above; **the shipping setting
-since 08/11**). Nothing in Zona 2 reports a win yet, so the "to be continued" screen has no trigger
-until a `WinTrigger` is placed there.
+since 08/11**). Zona 2's end is `WinTrigger Zona 2` (15/11, see *Zona 2's exit A* under Current
+state), which puts up that same "to be continued" screen.
 `WinView` takes the screen's title from the same asset. F6 still teleports in either case.
 
 `TeleportNow()` is the one path, shared with the **F6** key of `DevLevelKeys`: `PlayerStateManager.TeleportTo`
@@ -898,9 +898,10 @@ Nemesis is put back at a Zona 2 spawn point. Before this, a capture after F6 sen
 ### Inventory
 
 Spec: *Inventory System v2.0*. **The inventory is unlimited** — no slots, no capacity counter, no
-weight. The only management decision is the discard, and it is voluntary and irreversible. Anything
-that reintroduces a cap contradicts the design, which puts the pressure on the module timers and
-the Nemesis instead.
+weight. **Items cannot be discarded** (no discard dialog; `InventoryManager.DiscardItem` is still
+there but has no callers), which is why a key can lock the only way back and never strand the
+player. Anything that reintroduces a cap contradicts the design, which puts the pressure on the
+module timers and the Nemesis instead.
 
 `InventoryManager` (`_Project/Scripts/Managers/`) is the model: a flat `List<SO_InventoryItem>` with
 `AddItem` / `DiscardItem` / `ConsumeItem`, each raising an `InventoryEvents` static event, plus the
@@ -945,8 +946,6 @@ panel, discard footer.
   (`Mail Header`), then the body. Any other item folds the panel and unfolds the pop-up as before.
   The panel is painted in the pop-up's grey (`SurfacePanel` / `SurfaceTabs`), on purpose not in the
   red of `DocumentReaderController`'s sheet: the inventory is re-reading, not the first pickup.
-- `DiscardDialogView` confirms. `RequestDiscard` only opens the dialog; `InventoryManager.DiscardItem`
-  is the only thing that removes anything, and it is called on confirm alone.
 - `ModuleHUDView` + `ModuleRowView` + `ActiveModuleTimerView` + `FailuresPipsView` are the device
   HUD of spec §3, inside the inventory: they subscribe to `ModuleEvents` and read `ModuleManager`
   (`GetActiveModule()`, `GetExplodedCount()`) rather than polling, and they keep counting with the
@@ -1031,10 +1030,25 @@ with `SubscribeAndCatchUp` for consumers that load before the gameplay scene.
 > built in Blender from the industrial pack's rusty locker texture; the door is its own object,
 > pivoted on the hinge). `HidingSpotDoor` (`HidingSpot.ClimbStarted`) opens it during the climb-in
 > and shuts it just after, once the camera has CUT inside; on the way out it opens and shuts inside
-> the climb-out; a pull-out (`HidingSpot.PulledOpen`) flings it open. The cut is
-> `CB_HidingSpotBlends` (any → `Interior Camera`: Cut; `Interior Camera` → any: 0.5 s ease, the
-> turn back out), assigned to the level's `Main Camera` brain since 14/11 — before, the level used
-> the brain's 2 s default and the climb-in read as a slow 180° spin. It is visual only: the window and what the Nemesis can do
+> the climb-out; a pull-out (`HidingSpot.PulledOpen`) flings it open. Getting in is always a CUT
+> to the interior camera, centred straight ahead: `HidingSpot` forces it through
+> `CinemachineCore.GetBlendOverride` and zeroes the pan/tilt on every entry (15/11), because
+> `CB_HidingSpotBlends` on the brain got lost from `WIRED_Zona1_Blockout` in a merge and the level
+> fell back to the brain's 2 s blend. The way out is overridden too: the shoulder rig is turned to
+> the exit pose's yaw first (`PlayerCameraController.FaceYaw`) and the blend back is
+> `SO_HidingData.ExitCameraBlendSeconds` (0.3 s ease), so it reads as a pull back, not a 180° swing.
+> While inside, `HidingSpotDoor` sets the door's renderers to ShadowsOnly (the interior camera sits
+> a hand from it and would see only the door; the HUD overlay draws the door and its slits) and
+> restores them on `HidingEvents.OnExited`, before it swings open. `HidingSpot_Locker` has an
+> `InteriorCover`: one quad across the front opening, just behind the closed door, facing out
+> (`M_LockerInteriorBlack`, unlit, back faces culled, no collider, no shadow). An open locker
+> reads as black instead of showing the body's grey inner faces, and from inside the camera sees
+> its back face, which is not drawn. While inside, `PlayerHiddenVisuals`
+> (Player root) switches `HS_CHARA_RIG` off — body and the carried modules, whose LED lights lit
+> the inside of the door orange — and back on at `HidingEvents.OnExited`, before the climb-out.
+> Only the model: the root keeps the breathing and hold-breath logic running. The locker's
+> overlay (`UI_HidingLocker.mat`) draws the door pure black (no lip light, grime or grain): only
+> the slits show the room. It is visual only: the window and what the Nemesis can do
 > in it are unchanged. Phases 1–2 of `docs/Plan-IA-Stalker.md` built the hiding system (`Scripts/Hiding/`, `NemesisHidingAwareness`); the plan's §3 and §17.6
 > are the current description. One rule from 27/09 contradicts what follows: **holding breath
 > inside a spot takes the player out of extreme proximity and out of what the Nemesis makes out
@@ -1240,10 +1254,16 @@ Beyond the FSM described above:
   doorway is walkable and a `NavMeshAgent` ignores the leaf's collider: what stops the Nemesis at a
   closed door is opening it. `EnsureNavMeshObstacle()` adds an avoidance-only obstacle on doors it
   can open (`autoCarveNavMesh` turns that off — `DoorMetalRed` and its variants, most of Zona1, ship
-  with it off). A door it may NOT open — sealed by a sequence (`SetSequenceLocked`) or
-  `nemesisCanOpen` off — carves the NavMesh for as long as that lasts (`RefreshNemesisBlock`, taking
-  the door's obstacle or adding one on the leaf collider), since carving a door it can open would erase
-  the doorway from its paths and it would never walk up to open it.
+  with it off). A door it may NOT open — sealed by a sequence (`SetSequenceLocked`), `nemesisCanOpen`
+  off, or **locked with `nemesisCanForceLocked` off and not yet unlocked by the player**
+  (`LockedForNemesis`: a key or puzzle requirement and `wasEverOpened` false; carrying the key or
+  having solved the puzzle is not enough) — carves the NavMesh for as long as that lasts
+  (`RefreshNemesisBlock`, taking the door's obstacle or adding one on the leaf collider), since carving
+  a door it can open would erase the doorway from its paths and it would never walk up to open it.
+  The player's first unlock (`OpenDoor`) gives the doorway back, and from then on it is an ordinary
+  door. Before 15/11 `nemesisCanForceLocked` off only refused the opening and left the doorway in its
+  paths, so it walked into the leaf; no door had it off until Zona 2's service doors. On (the
+  default, every Zona 1 door) locks do not exist for it.
 - **`NemesisAudio`** — per-state looping audio with crossfades. `stateLoops` is a designer-authored
   array, so **adding a value to `ENemesisState` without an entry crossfades the monster to
   silence**. `NemesisChaseMusic` is separate and driven by `OnChaseStarted/Ended`.
@@ -2810,11 +2830,27 @@ The systems below are **implemented but not connected to anything**. Read this b
 
 **Still not wired:**
 
-- **Zona 1's win is a "to be continued".** `WinTrigger` (past the gate) is `ReportWin`'s only caller; `SO_EscapeEndingConfig` can make the escape's ending hand over to Zona 2 instead (see *Zona 1 → Zona 2*), and nothing in Zona 2 reports a win yet.
+- **Both zones end on a "to be continued".** Zona 1's `WinTrigger` (past the gate) hands over to Zona 2 through `SO_EscapeEndingConfig` (see *Zona 1 → Zona 2*); `WinTrigger Zona 2`, at the top of exit A, is the one that shows the screen. There is no Zona 3: when there is, swap it for a `LevelTransition` (`Prefabs/Levels/LevelTransition.prefab`).
+- **Zona 2's switch puzzle (SP2): the arrows are spread over the SUB_01 (2026-11-15).** `SwitchPanel` (SP5_SWITCHES) and `---- PUZZLES ---- / ArrowWall` (`LightRevealWall`), both driven by `SO_Switches_SP2`. The arrows are `ArrowWall`'s children in hierarchy order (Arrow1 = switch 1), turned up or down from the asset, and invisible until the player's module light reaches them (`RevealMode` Module Light: about 2.6 m with the fallback range, less with the asset's degradation, and only with a clear line from the light to a point 15 cm in front of the paint). **They are matched to the switches by colour, not by position**: each arrow's material is the colour of its switch's plate. So they no longer sit in a row on the panel; they are transform overrides on the instance (the prefab still has the row):
+  - Arrow1 red: ALMACEN_S1, east wall (209.08, z 50), clear of the locker against that wall.
+  - Arrow2 green: SP5_SWITCHES, north wall (192.5, z 59.45).
+  - Arrow3 blue: still on the ArrowWall panel in SALIDA_ZONA3 (187.56, z 40).
+  - Arrow4 yellow: inside the VENTS duct, on the inner face of the truss `Bridges_1 (14)` (201.9, −14.15, z 63.70), the stretch heading east out of SP5_SWITCHES.
+  - Arrow5 dark grey: inside the VENTS duct, on the inner face of `Bridges_1 (16)` (209.2, −14.16, z 62.45), the long straight stretch.
+  The three in rooms sit 1.6 m above the SUB_01 floor; the two in the duct 0.75 m above its floor, halfway up its 1.5 m. Each faces out of its wall, and each line of sight was checked with a linecast from where the player stands (from feet + 1 m in the duct: the light is the player's pivot plus the asset's Light Height, because no `FogLightSource` is placed).
+  **The VENTS duct** (`ZONE VENTS`, x 197.6–215.2, z 58.4–65.3) is a crouch-height ventilation duct joining SP5_SWITCHES (mouth at x 197.7–199.3 in its north wall) and SALA_BOMBAS_S1 (mouth at x 212.7–214.3 in its north wall, under `Wall_H50_S1_20`). Its walls are the `Bridges_1 (10…32)` trusses standing on edge, and floor and roof are the `Fence` / `Fence (n)` box pairs, 1.48 m apart, on the Default layer (so they block the reveal light). The trusses' mesh colliders are one-sided: a ray from above passes through, so measure the duct from below or by its `Fence` boxes. Nothing on the room walls just above either mouth: the wall over it starts at about −13.6 and an arrow centred at 1.6 m hangs over the hole (the yellow arrow did, on SALA_BOMBAS's north wall, before it moved into the duct). Moving one: keep it a direct child of `ArrowWall`, its local yaw facing out of the wall, roll 0 (the script sets it), and check props in front: a locker or a crate between the player and the paint hides it for good. The `RevealZone` child only matters in Trigger Zone mode, which this asset does not use. Not checked in Play.
+- **The hierarchy was tidied on 15/11.** 175 objects had piled up at the root since the 04/11 Restore (Gian's Zona 2 dressing from `Dress` and his 46 cameras). Props went to `---- PROPS SUELTOS LV1/LV2 ---- / PIPES | STRUCTURE | PROPS` by zone and kind, and the cameras to `---- GAMEPLAY ---- / SECURITY CAMERAS / Zona 1 | Zona 2`; world positions untouched. The root is the eight `----` folders again. `SO_SceneHierarchyLayout_Zona1` lists the new folders (`SECURITY CAMERAS`, its `Zona 1` / `Zona 2`, and `SALIDA_A`), so Flatten empties them too. The scene is in its organised layout: press Flatten in that asset before a build and save.
+- **Zona 2's exit A (2026-11-15), a grey-box blockout.** Chosen over the drained passage (C) and the hub's west wall (B, dropped). SALIDA_ZONA3 in the SUB_01 had a sealed strip south of the room (x 187.3–201, z 33.7–36.9, behind `Wall_H25_S1_21`) that nobody could reach. That strip is now the stairwell:
+  - `Compuerta Salida Zona 3` (`---- PUZZLES ----`, a copy of `AccessDoor`: the garage-door `PuzzleGate`) in a 2.2 × 2.7 m opening at the west end of that wall (188.6, −15.08, 36.95). It opens on `puzzle_central_piso2`, the hub's stabilization. `Wall_H25_S1_21` was shortened to the east part and `Wall_H25_S1_21_W` / `Header_SALIDA_A` frame the opening.
+  - `---- NIVEL ---- / WIRED_ZONA_02 / SALIDA_A`: `SALIDA_A_Ramp`, one 30° flight (Ground layer; the player walks up to 45°) from (189.9, −15.08) to (198.56, −10.08) along x, then `SALIDA_A_Landing` at −10.08 against the east wall. Walls up to −6.2 and `SALIDA_A_Ceil`. `SALIDA_ZONA3_Ceil` now covers only the room (z 36.95–43.56). They are copies of Gian's cubes, so they keep his material, layer and static flag.
+  - `Manometro Salida Zona 3`, the pressure gauge beside the door on the room side: `Prefabs/Puzzle2/PuzzleStatusLamp` (`PuzzleStatusLamp`: one renderer and one light, red `M_StatusLamp_Locked` until its puzzle completes, then green `M_StatusLamp_Completed`; URP Unlit so the fog does not wash them out).
+  - `WinTrigger Zona 2` (`---- GAMEPLAY ----`) fills the landing, with `requiredPuzzleId` = `puzzle_central_piso2`.
+  - Checked with physics queries in the editor: the ramp and landing heights, a player-sized box clear along the whole route, the opening clear but for the gate's leaf. Not played. Not in the NavMesh or the occlusion bake yet: re-bake both (the Nemesis cannot follow up the stair until then). The lore it stands for (a pressure bulkhead that only opens once the system is stable) is in the *Recorrido Zona 2* artifact.
 - **M1 is the fatal module and it ends on Lose.** `SO_GameOverRules`: `fatalModule` = `M1_Legs`, `explosionResult` = Lose (Retry, the save is kept; only GameOver deletes it). `SO_ModuleExplosionConfig` § Run-ending explosion: every module's blast goes off on its own LED, one after the other, and the body disappears. Only what is seen: the other modules keep their real status. Nothing brings the body back, because Retry reloads the level. The same frame the body goes, `MeatChunkBurst` throws the pieces of meat left on the floor (`Prefabs/VFX/MeatChunks`, rigidbodies on the Ignore Raycast layer, count and speed in the same section of the config). They only come from the explosion, not from a capture. They live in the level's scene, so its unload removes them.
 - **In `WIRED_Zona1_Blockout` only pure decoration is unpacked (2026-10-30), and the scene is saved flat.** A prefab instance was unpacked only if it sits under `PROPS SUELTOS LV1/LV2`, `NIVEL` or the tutorial's `PROPS` / `PIPES` / `STRUCTURE` **and** has no script on it or under it. Puzzles, doors, the player, the Nemesis and anything with a script are still prefabs, so editing the prefab reaches the scene. The hierarchy has two layouts, switched from the inspector of `ScriptableObjects/Levels/SO_SceneHierarchyLayout_Zona1`: **Flatten** empties the organiser folders into the root, **Restore** puts the organised tree back, exact. `---- PUZZLES ----` is not in the asset's folder list, so the puzzles stay under it in both layouts. To edit the level comfortably: Restore, work, Flatten. Flatten records the tree as it finds it and saves the scene first. A new folder is added by hand to the asset's list.
 - **`WIRED_Zona1_Blockout` has baked occlusion culling (2026-10-30, re-baked 2026-11-12 with Zona 2).** The data is `WIRED_Zona1_Blockout/OcclusionCullingData.asset`, baked with a smallest occluder of 2 m. View cells exist only inside the two view volumes under `---- SISTEMA ----`: `Occlusion Area Zona 1` and `Occlusion Area Zona 2` (58.5 x 23.7 x 49.25 m around (205.6, -15.7, 42.0): the entry at -9 down to SUB_03, sized from the floor the player can actually reach plus 3 m). The 12/11 bake also made the Zona 2 dressing added on the `Dress` branch static (142 renderers with no script, Rigidbody or Animator on them; prefab instances carry it as an `m_StaticEditorFlags` override), so new dressing has to be flagged static before the next bake or it is neither occluder nor baked occludee. Not checked in Play or in the Occlusion window's Visualization yet. Static level geometry that moves, or a new wall, needs a re-bake (Window > Rendering > Occlusion Culling > Bake). Objects without the static flags are never occluders, so doors do not hide what is behind them.
-- **Zona 1 security cameras (2026-11-14): 20 `SecurityCamera_TrackOnly` under `---- GAMEPLAY ---- / SECURITY CAMERAS`**, one or two per area: wake-up room, tutorial, key room, hub (2), ground corridor (4), ELECTRICITY, BOXES (one high over the north catwalk, one low), VALVES, the north bathroom corridor, lockers, west hallway, upper corridor (3) and the upstairs bathroom. They are there so the player feels watched: they sweep and turn to follow the player, and **none scans**. Iñaki turned the scan off; do not swap in the base `SecurityCamera` without asking. Each sits just under the ceiling, its root on the wall surface, with `sweepCenterOffset` / `sweepStartPhase` / `sweepTilt` set per camera. `SecCam_Corridor (CAM 02)` and `SecCam_Gate (CAM 04)` are the physical cameras behind the escape's feed shots `Cam_Slam` and `Cam_4_Gate`. They are mounted behind those shot cameras, so neither shows up in its own shot. `SecurityCameraEvents` still has no listener, so a sighting changes nothing. `SecurityCamera` is in the GizmoManager's `cameras` family. Not tested in Play yet.
+- **Security cameras (2026-11-15): Gian's 46 `SecurityCamera_TrackOnly (n)` from the `Dress` branch, at the scene root**: 24 in Zona 1 (x −30…34) and 22 in Zona 2 (x 185…232). They replaced the 20 named `SecCam_*` under `---- GAMEPLAY ---- / SECURITY CAMERAS` (14/11), which were removed in the merge with `Dress` because both sets covered the same Zona 1 rooms; they are in commit `78193ed5` if any is wanted back. They are there so the player feels watched: they sweep and turn to follow the player, and **none scans**. Iñaki turned the scan off; do not swap in the base `SecurityCamera` without asking. Gian's cameras use the prefab's default sweep (no per-camera `sweepCenterOffset` / `sweepStartPhase` / `sweepTilt`). The escape's feed shots `Cam_Slam` and `Cam_4_Gate` had `SecCam_Corridor (CAM 02)` / `SecCam_Gate (CAM 04)` mounted behind them as their physical cameras; those went with the rest, and nothing referenced them. `SecurityCameraEvents` still has no listener, so a sighting changes nothing. `SecurityCamera` is in the GizmoManager's `cameras` family. Not tested in Play yet.
+- **Zona 2's service key (2026-11-15).** `InventoryItemKeyService` (the `InventoryItemLlaveIngenieria` prefab, kinematic, under `ZONE 2`) hangs from Gian's `KeyHook (1)` in SERV_01 at the SUB_01 level (218.3, −13.3, 40.3), placed like the Zona 1 valve key. Its item is `ScriptableObjects/Puzzle2/Items/SO_LlaveServicio` (`llave_servicio_p2`, metallic, consumable). It opens `DoorMetalWire (2)` (stair A) and `DoorMetalWire (1)` (SERV_01), both on the SUB_02 side, through `ScriptableObjects/Puzzle2/Doors/SO_Door_P2_Servicio` (`puerta_p2_servicio`; the key is spent on the second door). So the SUB_01 is only reached by climbing the SERV_03 from the SUB_03, and the key opens two short ways back to the hub. Both doors have `nemesisCanForceLocked` off: the Nemesis treats them as walls until the player unlocks them. No pump shaft (Iñaki, 15/11): the pump has no timer, so the long carry from the SUB_03 is fine, and items can no longer be discarded (`InventoryManager.DiscardItem` has no callers), so the key cannot be lost before use. The notes A/B/C, the pump, the arrow and the keypad were already where the *Recorrido Zona 2* plan puts them. Not tested in Play.
 - **Zona 1 after the 04/11 playday (08–09/11).** Re-applied by **Tools > Levels > Zona 1 > Apply
   Playday Layout** (`Scripts/Editor/Levels/Zona1PlaydayLayout.cs`), safe to re-run: it finds each
   object by name and puts it back, so after a merge that took the scene from the other side, run it,

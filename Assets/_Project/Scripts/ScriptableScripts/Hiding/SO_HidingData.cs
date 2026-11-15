@@ -117,6 +117,14 @@ public class SO_HidingData : ScriptableObject
              "the eye arrive inside together.")]
     [SerializeField, Range(0f, 2f)] private float snapshotTransitionSeconds = 0.3f;
 
+    [Header("Camera on the way out")]
+    [Tooltip("Seconds the view takes to go from the interior camera back to the player's shoulder " +
+             "camera. The shoulder camera is turned to face the way the player steps out first, so " +
+             "this is a short pull back, not a turn. 0 = a cut. Getting in is always a cut.")]
+    [SerializeField, Range(0f, 2f)] private float exitCameraBlendSeconds = 0.3f;
+
+    public float ExitCameraBlendSeconds => exitCameraBlendSeconds;
+
     public float BreathingInterval { get => breathingInterval; set => breathingInterval = value; }
     public float BreathingPulseDuration { get => breathingPulseDuration; set => breathingPulseDuration = value; }
     public float BreathingNoiseRadius { get => breathingNoiseRadius; set => breathingNoiseRadius = value; }
