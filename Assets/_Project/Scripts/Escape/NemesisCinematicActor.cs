@@ -44,6 +44,20 @@ public class NemesisCinematicActor : MonoBehaviour
     [Tooltip("Velocidad (m/s) con la que termina de frenar, justo antes de pararse.")]
     [SerializeField, Min(0.05f)] private float brakeEndSpeed = 0.6f;
 
+    [Header("Stuck recovery")]
+    [Tooltip("Seconds of a cinematic walk or run with no real progress before this steps in. The " +
+             "Nemesis's own stuck watchdog does not run here: it is ticked by the FSM, which is off " +
+             "while a cinematic has the body.")]
+    [SerializeField, Min(0.1f)] private float stuckSeconds = 0.5f;
+
+    [Tooltip("Metres it has to cover in Stuck Seconds to count as moving. Under the brake's end " +
+             "speed times Stuck Seconds, or a normal arrival would read as stuck.")]
+    [SerializeField, Min(0.01f)] private float stuckMinProgress = 0.2f;
+
+    [Tooltip("Metres it is moved ahead along its own path when asking for the path again did not " +
+             "free it. Short: in the fog and mid-run it reads as a stumble, not a teleport.")]
+    [SerializeField, Min(0.1f)] private float stuckSkipDistance = 0.8f;
+
     [Header("Attack")]
     [Tooltip("Estado del Animator del Nemesis con el golpe. No tiene transiciones: se llega por " +
              "CrossFade, y al terminar el clip este componente lo devuelve a Idle.")]
@@ -65,6 +79,15 @@ public class NemesisCinematicActor : MonoBehaviour
     private Transform facing;
     private float moveSpeed;
     private float turnVelocity;
+
+    private Transform moveTarget;
+    private NemesisStateManager.EGait moveGait;
+    private Vector3 stuckSample;
+    private float stuckTimer;
+    private int stuckStrikes;
+
+    private ObstacleAvoidanceType savedAvoidance;
+    private bool avoidanceSaved;
 
     public bool HasControl => hasControl;
 
@@ -137,10 +160,41 @@ public class NemesisCinematicActor : MonoBehaviour
 
         nemesis.enabled = false;
         nemesis.SetStoppingDistance(arrivalDistance);
+        DisableAvoidance();
         Stand();
 
         hasControl = true;
         return true;
+    }
+
+    /// <summary>
+    /// No local avoidance while a cinematic drives the body. The path is already the NavMesh's,
+    /// with every carving prop cut out of it; what avoidance adds is the push of the obstacles
+    /// that do NOT carve (the corridor's transformer boxes and floor wires, the doors). Those
+    /// never move the path round them, so a run aimed through one ended pressed against it,
+    /// running in place, until the cinematic gave up (14/11/2026). Given back by
+    /// <see cref="Release"/>: the chase avoids as before.
+    /// </summary>
+    private void DisableAvoidance()
+    {
+        NavMeshAgent agent = nemesis.NavAgent;
+        if (agent == null) return;
+
+        if (!avoidanceSaved)
+        {
+            savedAvoidance = agent.obstacleAvoidanceType;
+            avoidanceSaved = true;
+        }
+        agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
+    }
+
+    private void RestoreAvoidance()
+    {
+        if (!avoidanceSaved) return;
+        avoidanceSaved = false;
+
+        NavMeshAgent agent = nemesis.NavAgent;
+        if (agent != null) agent.obstacleAvoidanceType = savedAvoidance;
     }
 
     /// <summary>Puts the Nemesis on the marker, facing where the marker faces.</summary>
@@ -165,6 +219,11 @@ public class NemesisCinematicActor : MonoBehaviour
     public void WalkTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Walking, walkSpeed);
 
     public void RunTo(Transform marker) => MoveTo(marker, NemesisStateManager.EGait.Running, runSpeed);
+
+    /// <summary>A run at a speed of the caller's own, for one cinematic that wants it faster or
+    /// slower than the others (the reveal's charge). 0 or less = <see cref="RunSpeed"/>.</summary>
+    public void RunTo(Transform marker, float speed) =>
+        MoveTo(marker, NemesisStateManager.EGait.Running, speed > 0f ? speed : runSpeed);
 
     /// <summary>
     /// Shows or hides the Nemesis's eyes (the two points that read through the fog), so a shot can
@@ -278,7 +337,9 @@ public class NemesisCinematicActor : MonoBehaviour
         hasControl = false;
         moving = false;
         facing = null;
+        moveTarget = null;
 
+        RestoreAvoidance();
         nemesis.SetStoppingDistance(nemesis.DefaultStoppingDistance);
         if (nemesis.IsAgentReady) nemesis.NavAgent.isStopped = false;
 
@@ -294,11 +355,97 @@ public class NemesisCinematicActor : MonoBehaviour
         facing = null;
         moving = true;
         moveSpeed = speed;
+        moveGait = gait;
+        moveTarget = marker;
+        ResetStuck();
 
         NavMeshAgent agent = nemesis.NavAgent;
         agent.isStopped = false;
         nemesis.SetGait(gait, speed);
         agent.SetDestination(marker.position);
+    }
+
+    private void ResetStuck()
+    {
+        stuckSample = nemesis.transform.position;
+        stuckTimer = 0f;
+        stuckStrikes = 0;
+    }
+
+    /// <summary>
+    /// The cinematic's own stuck watchdog, the same two rungs as the Nemesis's
+    /// (<see cref="NemesisStuckEscape"/>): the first window with no progress asks for the path again
+    /// (a stale or corrupt one is the usual cause), the next one moves it a short step ahead along
+    /// that path and sends it on. Without it a wedged run stood there until whatever was waiting on
+    /// it timed out — the charge after its max seconds, the ending never.
+    /// </summary>
+    private void TickStuck(NavMeshAgent agent)
+    {
+        if (agent.pathPending) return;
+
+        stuckTimer += Time.deltaTime;
+        if (stuckTimer < stuckSeconds) return;
+
+        Vector3 position = nemesis.transform.position;
+        Vector3 moved = position - stuckSample;
+        moved.y = 0f;
+
+        stuckTimer = 0f;
+        stuckSample = position;
+
+        if (moved.magnitude >= stuckMinProgress)
+        {
+            stuckStrikes = 0;
+            return;
+        }
+
+        stuckStrikes++;
+        Vector3 destination = moveTarget != null ? moveTarget.position : agent.destination;
+
+        if (stuckStrikes == 1)
+        {
+            agent.ResetPath();
+            agent.SetDestination(destination);
+            return;
+        }
+
+        Vector3 ahead = PointAlongPath(agent, stuckSkipDistance);
+        Debug.LogWarning($"[{nameof(NemesisCinematicActor)}] The Nemesis made no progress for " +
+                         $"{stuckSeconds * stuckStrikes:0.0}s at {position}: moved {stuckSkipDistance} m " +
+                         "ahead along its path. If it keeps happening at the same spot, there is " +
+                         "something in the way the NavMesh does not know about.", this);
+
+        if (nemesis.WarpTo(ahead))
+        {
+            nemesis.ResetGaitSampling();
+            agent.isStopped = false;
+            nemesis.SetGait(moveGait, moveSpeed);
+            agent.SetDestination(destination);
+        }
+
+        stuckSample = nemesis.transform.position;
+        stuckStrikes = 0;
+    }
+
+    /// <summary>The point <paramref name="distance"/> metres ahead along the agent's current path
+    /// (its end, when the path is shorter).</summary>
+    private static Vector3 PointAlongPath(NavMeshAgent agent, float distance)
+    {
+        Vector3[] corners = agent.path.corners;
+        Vector3 from = agent.transform.position;
+        if (corners == null || corners.Length == 0) return from;
+
+        for (int i = 0; i < corners.Length; i++)
+        {
+            Vector3 to = corners[i];
+            float leg = Vector3.Distance(from, to);
+            if (leg >= distance) return leg > 0.0001f ? Vector3.Lerp(from, to, distance / leg) : to;
+
+            distance -= leg;
+            from = to;
+        }
+
+        return corners[corners.Length - 1];
     }
 
     /// <summary>
@@ -361,7 +508,11 @@ public class NemesisCinematicActor : MonoBehaviour
         {
             NavMeshAgent agent = nemesis.NavAgent;
             Brake(agent);
-            if (agent.pathPending || agent.remainingDistance > agent.stoppingDistance + 0.05f) return;
+            if (agent.pathPending || agent.remainingDistance > agent.stoppingDistance + 0.05f)
+            {
+                TickStuck(agent);
+                return;
+            }
 
             Stand();
             Arrived?.Invoke();

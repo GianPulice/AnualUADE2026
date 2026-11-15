@@ -11,7 +11,7 @@ using UnityEngine.AI;
 /// is thrown up out of the way, and it goes through. From then on the pass is open to everybody.
 ///
 /// Its one job is to be that barrier: to say whether it still stands, and to open when told. The
-/// walking up, the strike and the crossing are the Nemesis's (<c>NemesisElevatorUser</c>, which finds
+/// walking up, the strike and the crossing are the Nemesis's (<c>NemesisLinkUser</c>, which finds
 /// this on the link it steps onto).
 ///
 /// HOW THE NEMESIS IS KEPT OUT. Not by the bake: the barrier carries a carving NavMeshObstacle, so the

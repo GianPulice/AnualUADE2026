@@ -150,7 +150,7 @@ public class NemesisTraceRecorder : MonoBehaviour
         Append(agentReady ? agent.velocity.magnitude : 0f);
         Append(stateManager.NetFlatSpeed);
         Append(agent != null ? agent.speed : 0f);
-        Append(stateManager.IsUsingElevator);
+        Append(stateManager.IsCrossingLink);
         Append(stateManager.IsChaseStagnant);
         Append(stateManager.StuckRepathCount);
         Append(stateManager.StuckWarpCount);

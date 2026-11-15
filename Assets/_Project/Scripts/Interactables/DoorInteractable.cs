@@ -25,8 +25,10 @@ public class DoorInteractable : BaseRangeInteractable
     [SerializeField] private bool nemesisCanOpen = true;
 
     [Tooltip("Whether the Nemesis can force the door even when it is locked or gated behind an " +
-             "unsolved puzzle. On is the Mr. X behaviour: locks do not exist for it. Off makes it " +
-             "respect the same conditions as the player.")]
+             "unsolved puzzle. On is the Mr. X behaviour: locks do not exist for it. Off keeps it " +
+             "out until the PLAYER has unlocked the door once (carrying the key or having solved " +
+             "the puzzle is not enough): until then the doorway is carved out of the NavMesh, so its " +
+             "paths go around instead of into the leaf. After the first unlock it is an ordinary door.")]
     [SerializeField] private bool nemesisCanForceLocked = true;
 
     [Tooltip("Give the swinging leaf a NavMeshObstacle on Awake, when it has none.\n\n" +
@@ -125,6 +127,14 @@ public class DoorInteractable : BaseRangeInteractable
 
     public bool NemesisCanOpen => nemesisCanOpen;
 
+    /// <summary>Kept shut against the Nemesis by its own lock: it may not force locks here
+    /// (<see cref="nemesisCanForceLocked"/> off), the door has a key or puzzle requirement, and the
+    /// player has not unlocked it yet. While true the doorway is a wall for its paths
+    /// (<see cref="RefreshNemesisBlock"/>).</summary>
+    private bool LockedForNemesis =>
+        !nemesisCanForceLocked && !wasEverOpened && doorData != null &&
+        (doorData.RequiredKey != null || !string.IsNullOrWhiteSpace(doorData.RequiredCompletedPuzzleId));
+
     /// <summary>Whether a collider belongs to the swinging leaf (it hangs off the hinge) rather than to
     /// the frame. For NemesisDoorUser: rubbing a frame is walking through a doorway, not bumping a
     /// door.</summary>
@@ -137,15 +147,16 @@ protected override void Awake()
 
         CacheClosedRotation();
 
+        // Before RefreshNemesisBlock, which asks whether the player already unlocked this door.
+        lockId = BuildLockId();
+        wasEverOpened = lockId != null && PuzzleStateManager.Exists &&
+                        PuzzleStateManager.Instance.IsDoorOpened(lockId);
+
         // After CacheClosedRotation, which is what validates the hinge reference this
         // depends on, and before ApplyOpenStateImmediate below: a door restored as already
         // open has to carve where the leaf actually ENDS UP, not where it started.
         EnsureNavMeshObstacle();
         RefreshNemesisBlock();
-
-        lockId = BuildLockId();
-        wasEverOpened = lockId != null && PuzzleStateManager.Exists &&
-                        PuzzleStateManager.Instance.IsDoorOpened(lockId);
 
         isOpen = wasEverOpened;
         if (isOpen) ApplyOpenStateImmediate();
@@ -233,6 +244,9 @@ public void OpenDoor()
         // and GetInfoText briefly advertises "You need X" — even though the door is opening.
         bool firstUnlock = !wasEverOpened;
         wasEverOpened = true;
+
+        // A lock that kept the Nemesis out is gone: give it the doorway back.
+        if (firstUnlock) RefreshNemesisBlock();
 
         // Recorded BEFORE the key check below, which asks every door whether it is still locked
         // and must already count this one as open.
@@ -366,7 +380,7 @@ public void OpenDoor()
         // as the swing that is closing it: the leaf is on that arc.
         if (IsClosing)
         {
-            if (!nemesisCanForceLocked && !wasEverOpened) return false;
+            if (LockedForNemesis) return false;
 
             if (swing != null) StopCoroutine(swing);
             swing = StartCoroutine(AnimateReopen());
@@ -378,9 +392,10 @@ public void OpenDoor()
 
         if (isOpen || isAnimating) return false;
 
-        // CanInteractInCloseRange is the player's condition (key + puzzle). It is only consulted
-        // when this door canNOT be forced.
-        if (!nemesisCanForceLocked && !CanInteractInCloseRange()) return false;
+        // A door that canNOT be forced stays shut until the player has unlocked it. Not the player's
+        // CanInteractInCloseRange: that one opens the moment the player carries the key, and the
+        // doorway would still be carved out of the Nemesis' paths (RefreshNemesisBlock).
+        if (LockedForNemesis) return false;
 
         // Nemesis-side swing: same "away from whoever is opening" rule, but the reference is the
         // Nemesis itself, not the player. Falls back to the player if we cannot locate one.
@@ -714,7 +729,8 @@ private void CacheClosedRotation()
 
     /// <summary>
     /// Carves the doorway out of the NavMesh while the Nemesis may not open this door — sealed by a
-    /// sequence, or Nemesis Can Open off — and gives it back when that ends (playtest 27/09).
+    /// sequence, Nemesis Can Open off, or locked and not forceable (<see cref="LockedForNemesis"/>)
+    /// — and gives it back when that ends (playtest 27/09; the lock case 15/11).
     ///
     /// WHY: a door the Nemesis cannot open has to be a wall for its paths, or it walks through the
     /// leaf. The auto obstacle above only carves for Nemesis Can Open off, it is fixed at Awake, and a
@@ -730,7 +746,7 @@ private void CacheClosedRotation()
     /// </summary>
     private void RefreshNemesisBlock()
     {
-        bool block = sequenceLocked || !nemesisCanOpen;
+        bool block = sequenceLocked || !nemesisCanOpen || LockedForNemesis;
 
         if (block)
         {

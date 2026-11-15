@@ -68,7 +68,6 @@ public class NemesisDebugHUD : MonoBehaviour
     private static readonly Color InvestigColor  = new Color(0.54f, 0.71f, 0.83f);
     private static readonly Color SearchColor    = new Color(0.65f, 0.55f, 0.85f);
     private static readonly Color ChaseColor     = new Color(1.00f, 0.78f, 0.31f);
-    private static readonly Color TraverseColor  = new Color(0.55f, 0.75f, 0.45f);
     private static readonly Color CatchColor     = new Color(0.80f, 0.10f, 0.10f);
 
     private readonly struct Sample
@@ -229,7 +228,6 @@ public class NemesisDebugHUD : MonoBehaviour
         Row(ref line, "cúmulo", DescribeCluster());
         Row(ref line, "agente", DescribeAgent());
         Row(ref line, "trabas", DescribeStuck());
-        Row(ref line, "bajada", DescribeDrop());
 
         line.y += 6f;
         Row(ref line, "ritmo", DescribePacing());
@@ -914,43 +912,6 @@ public class NemesisDebugHUD : MonoBehaviour
         return $"{repaths} recalculo  ·  {warpText}";
     }
 
-    /// <summary>
-    /// The drop between floors in progress (plan §15.4): which kind, how tall, which phase and for
-    /// how long, and whether the grab is off. Between drops, how many are cooling down — the reason
-    /// it takes the stairs down a way it used a moment ago.
-    /// </summary>
-    private string DescribeDrop()
-    {
-        NemesisElevatorUser user = stateManager.ElevatorUser;
-        if (user == null) return "—";
-
-        if (user.CurrentDrop == null)
-        {
-            int cooling = user.SuspendedDropCount;
-            return cooling > 0 ? $"—  ·  {cooling} en enfriamiento" : "—";
-        }
-
-        string grab = user.IsDroppingOrRecovering ? "  ·  <b>no agarra</b>" : "";
-
-        return $"<b>DROP</b> {user.CurrentDropKind} {user.CurrentDropHeight:0.0} m  ·  " +
-               $"fase {DescribeDropPhase(user.CurrentDropPhase)}  ·  {user.DropPhaseTime:0.0} s{grab}";
-    }
-
-    private static string DescribeDropPhase(EDropPhase phase)
-    {
-        switch (phase)
-        {
-            case EDropPhase.Align:       return "Alinear";
-            case EDropPhase.Look:        return "Anticipar";
-            case EDropPhase.HopTakeoff:  return "Despegar";
-            case EDropPhase.HangTurn:    return "Darse vuelta";
-            case EDropPhase.HangRelease: return "Colgarse";
-            case EDropPhase.Fall:        return "En el aire";
-            case EDropPhase.Land:        return "Recuperarse";
-            default:                     return phase.ToString();
-        }
-    }
-
     /// <summary>The Director's pacing (plan §6.4): without it, "why did it leave just now" has no answer.</summary>
     private static string DescribePacing()
     {
@@ -1198,7 +1159,6 @@ public class NemesisDebugHUD : MonoBehaviour
         NemesisStateManager.ENemesisState.Investigating => InvestigColor,
         NemesisStateManager.ENemesisState.Searching     => SearchColor,
         NemesisStateManager.ENemesisState.Chasing       => ChaseColor,
-        NemesisStateManager.ENemesisState.Traversing    => TraverseColor,
         NemesisStateManager.ENemesisState.Catch         => CatchColor,
         _                                               => Color.grey,
     };

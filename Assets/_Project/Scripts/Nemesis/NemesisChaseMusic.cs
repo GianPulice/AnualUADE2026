@@ -248,17 +248,15 @@ public class NemesisChaseMusic : MonoBehaviour
     /// <summary>
     /// Ends the tail once the Nemesis stops looking for the player.
     ///
-    /// Searching is the committed sweep the music is held for. Traversing counts too: it is the
-    /// same pursuit continuing by lift, with the player a floor away rather than lost. Anything
-    /// else — back on patrol, or investigating a noise with no idea where the player is — is the
-    /// encounter being over, which is the one thing silence here is allowed to mean.
+    /// Searching is the committed sweep the music is held for. Anything else — back on patrol, or
+    /// investigating a noise with no idea where the player is — is the encounter being over, which is
+    /// the one thing silence here is allowed to mean.
     /// </summary>
     private void HandleStateChanged(NemesisStateManager.ENemesisState state)
     {
         if (!isTrailingSearch) return;
 
-        if (state == NemesisStateManager.ENemesisState.Searching ||
-            state == NemesisStateManager.ENemesisState.Traversing) return;
+        if (state == NemesisStateManager.ENemesisState.Searching) return;
 
         EndMusic();
     }

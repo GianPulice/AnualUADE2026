@@ -10,7 +10,6 @@ using UnityEngine.AI;
 /// ladder now, in the same order and for the same reasons:
 ///
 ///   rung 1  close enough to grab            → Catch
-///   rung 2  the route there crosses a lift  → Traversing
 ///   rung 4  lost sight, grace still running → stay here
 ///
 /// What is left is the running. Where its EYES point while it runs is not here either:
@@ -70,9 +69,8 @@ public class NemesisChasingState : BaseState<NemesisStateManager.ENemesisState>
 
     public override void UpdateState()
     {
-        // The agent may be switched off on purpose: NemesisElevatorUser disables it for the whole
-        // freight elevator ride. Without this, every frame of that ride writes destination on a
-        // dead agent and floods the console with errors.
+        // The agent may be off the NavMesh (a warp that did not land): asking it for a destination
+        // then floods the console with errors.
         if (!nemesisStateManager.IsAgentReady) return;
 
         // Everything about WHERE to run lives in NemesisPursuit now: this used to be

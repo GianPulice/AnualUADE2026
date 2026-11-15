@@ -133,26 +133,28 @@ public class SO_DirectorPacing : ScriptableObject
              "esto es un encuentro. Una pista (señuelo, ruido del Director) no cuenta: no es el jugador.")]
     [SerializeField, Min(0f)] private float encounterBeliefFreshness = 10f;
 
-    [Header("Presencia: desaparece y aparece cerca (Zona 2)")]
+    [Header("Presencia: desaparece y se asoma (Zona 2)")]
     //
     // Dos jugadas del Director que mueven al cuerpo, no sus decisiones. Las dos respetan lo mismo que
     // la entrada en escena: nada pasa a la vista del jugador ni a menos de la distancia mínima.
 
-    [Tooltip("Probabilidad de que, cuando una búsqueda termina sin encontrarte, el Nemesis desaparezca: " +
-             "pasa a un punto de aparición lejos de vos, fuera de tu cono y detrás de geometría. Sólo " +
-             "si en ese momento no lo tenés cerca ni a la vista. 0 la apaga.")]
-    [SerializeField, Range(0f, 1f)] private float vanishChance = 0.35f;
+    [Tooltip("Probabilidad de que, cuando el Nemesis deja de perseguirte, desaparezca: pasa a un punto " +
+             "de aparición lejos de vos, fuera de tu cono y detrás de geometría. Espera a que termine de " +
+             "buscar y a que NO PUEDAS VER SUS OJOS (rayo de la cámara a los ojos sin paredes, a cualquier " +
+             "distancia, y en pantalla): así nunca ves que se apagan de la nada. 1 = siempre; 0 la apaga.")]
+    [SerializeField, Range(0f, 1f)] private float vanishChance = 1f;
 
-    [Tooltip("Segundos (se sortea entre x e y) entre el fin de la búsqueda y el momento de desaparecer. " +
-             "Es lo que tarda en 'irse'; no se hace en el mismo instante.")]
+    [Tooltip("Segundos (se sortea entre x e y) entre que deja de perseguirte y el primer momento en que " +
+             "puede desaparecer. Es lo que tarda en 'irse'; no se hace en el mismo instante.")]
     [SerializeField] private Vector2 vanishDelay = new Vector2(2f, 6f);
 
-    [Tooltip("Segundos que reintenta desaparecer si al vencer lo tenés cerca o a la vista. Pasado eso " +
-             "se descarta: no hay una cita pendiente para siempre.")]
-    [SerializeField, Min(1f)] private float vanishRetrySeconds = 12f;
+    [Tooltip("Segundos, contados desde que dejó de perseguirte, que espera su momento: que termine de " +
+             "buscar, que salga de tu área, que haya un punto seguro. Pasado eso se descarta: no hay " +
+             "una cita pendiente para siempre.")]
+    [SerializeField, Min(1f)] private float vanishRetrySeconds = 60f;
 
-    [Tooltip("Distancia mínima por NavMesh al jugador para poder desaparecer. Es la garantía de que " +
-             "nunca se lo ve irse.")]
+    [Tooltip("Distancia mínima por NavMesh al jugador para poder desaparecer (además de que no puedas " +
+             "ver sus ojos). Mientras esté más cerca, espera: así tampoco se oyen cortarse los pasos.")]
     [SerializeField, Min(4f)] private float vanishMinPlayerDistance = 14f;
 
     [Tooltip("Segundos (se sortea entre x e y) entre una aparición cerca tuyo y la siguiente tirada. " +
@@ -164,24 +166,26 @@ public class SO_DirectorPacing : ScriptableObject
              "con el Nemesis patrullando, en BuildUp y con el jugador fuera del Hub.")]
     [SerializeField, Range(0f, 1f)] private float ambientEntranceChance = 0.5f;
 
-    [Tooltip("Probabilidad de que, después de desaparecer, vuelva a aparecer en el umbral de tu " +
-             "habitación (con la mano en la pared y la otra estirada hacia vos): el susto de cuando " +
-             "creías que ya lo habías perdido. 0 = desaparece y sigue patrullando.")]
+    [Tooltip("Probabilidad de que, después de desaparecer, se asome DELANTE tuyo (en el umbral de una " +
+             "puerta o un pasillo, con la mano en la pared y la otra estirada hacia vos, animación " +
+             "de peek). 0 = desaparece y sigue patrullando.")]
     [SerializeField, Range(0f, 1f)] private float vanishReturnChance = 0.6f;
 
-    [Tooltip("Segundos (se sortea entre x e y) entre desaparecer y volver a asomarse. Lo bastante " +
-             "largo como para que el jugador baje la guardia.")]
-    [SerializeField] private Vector2 vanishReturnDelay = new Vector2(10f, 25f);
+    [Tooltip("Segundos (se sortea entre x e y) entre desaparecer y asomarse. Unos pocos: lo bastante " +
+             "como para que el jugador crea que se fue.")]
+    [SerializeField] private Vector2 vanishReturnDelay = new Vector2(5f, 12f);
 
     [Tooltip("Segundos que reintenta asomarse si al vencer el Nemesis está cazando, el jugador está en " +
-             "el Hub o no hay un umbral válido. Pasado eso se descarta.")]
+             "el Hub o no hay un lugar válido delante tuyo. Pasado eso se descarta.")]
     [SerializeField, Min(1f)] private float vanishReturnRetrySeconds = 20f;
 
     [Header("Asomarse si hace rato que no lo ves (Zona 2)")]
-    [Tooltip("Segundos sin que el jugador vea al Nemesis (con él despierto y patrullando, en BuildUp y con el " +
-             "jugador fuera del Hub) a partir de los cuales empieza a crecer la chance de que se asome " +
-             "delante tuyo: saliendo de otra habitación a un pasillo, o entrando a una. 0 lo apaga.")]
-    [SerializeField, Min(0f)] private float unseenPeekAfterSeconds = 30f;
+    [Tooltip("Segundos sin que el jugador vea al Nemesis, POR PURA LÍNEA DE VISTA (un rayo del ojo al " +
+             "pecho sin paredes en el medio: sin límite de distancia ni cono de cámara), con él despierto " +
+             "y patrullando, en BuildUp y con el jugador fuera del Hub, a partir de los cuales empieza a " +
+             "crecer la chance de que se asome delante tuyo: saliendo de otra habitación a un pasillo, o " +
+             "entrando a una. 0 lo apaga.")]
+    [SerializeField, Min(0f)] private float unseenPeekAfterSeconds = 25f;
 
     [Tooltip("Segundos, pasados los de arriba, hasta que la chance de cada tirada llega al máximo.")]
     [SerializeField, Min(1f)] private float unseenPeekRampSeconds = 60f;

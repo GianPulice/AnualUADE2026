@@ -84,11 +84,11 @@ public class NemesisTestArea : MonoBehaviour
         }
 
         NemesisStateManager nemesis = FindAnyObjectByType<NemesisStateManager>();
-        if (nemesis != null && (nemesis.IsUsingElevator ||
+        if (nemesis != null && (nemesis.IsCrossingLink ||
                                 nemesis.CurrentStateKey == NemesisStateManager.ENemesisState.Catch))
         {
             Debug.LogWarning($"[{nameof(NemesisTestArea)}] '{displayName}': the Nemesis is catching or " +
-                             "crossing a lift or a drop. Try again in a moment.", this);
+                             "crossing a link. Try again in a moment.", this);
             return false;
         }
 

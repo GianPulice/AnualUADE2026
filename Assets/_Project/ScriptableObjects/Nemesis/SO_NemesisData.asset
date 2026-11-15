@@ -44,7 +44,6 @@ MonoBehaviour:
   routeVerdictInterval: 0.4
   routeVerdictSettleTime: 0.75
   floorHeightThreshold: 2.5
-  elevatorCommitTime: 12
   searchSweepRadius: 8
   searchPauseTime: 1.2
   roomSweepRadius: 8
@@ -54,8 +53,6 @@ MonoBehaviour:
   chaseDetourTolerance: 1.25
   beliefTraceRadius: 4
   beliefMemoryTime: 45
-  elevatorWaitTimeout: 20
-  elevatorAbandonCooldown: 10
   stuckCheckInterval: 3
   stuckMinDistance: 0.5
   stuckRepathGrace: 1.5
@@ -125,7 +122,6 @@ MonoBehaviour:
   hearingLocalizationError: 0.6
   hearingErrorDriftTime: 4
   searchPreciseNoiseRadius: 1.5
-  dropLinkCooldown: 8
   searchMinTime: 6
   searchQuietWindow: 8
   searchHardCap: 0

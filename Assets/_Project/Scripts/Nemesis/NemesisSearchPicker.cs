@@ -32,11 +32,8 @@ using UnityEngine;
 ///
 ///   SCENE (here): how long each zone takes to WALK to — a path query, at the search's speed — and
 ///   the roll, by SearchPickRules.Worth. A zone it cannot reach on foot is worth nothing, and "on
-///   foot" excludes the freight elevator: a search that walks onto the lift's link hands the body to
-///   NemesisElevatorUser, the ladder calls that Traversing, and the ride ends back in Searching. The
-///   lift is the ladder's decision ("para llegar hay que tomar el montacargas"), never a side effect
-///   of where a search happened to roll. Drops stay allowed: they are the hunting shortcut the plan
-///   gives it (§15), one way, with their own cooldown.
+///   foot" excludes any lift: the Nemesis lives only in Zona 2, which has stairs and no freight
+///   elevator, and there are no drops between floors either.
 ///
 /// A ROLL AND NOT AN ARGMAX, like every other selection in this system. And only among places WORTH
 /// THE WALK (SearchCooling.NothingWorthTheWalk): when the best of them is under the threshold the

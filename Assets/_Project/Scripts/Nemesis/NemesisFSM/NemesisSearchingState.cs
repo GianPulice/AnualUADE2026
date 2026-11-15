@@ -649,7 +649,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
     /// Whether this pick answers evidence that has just come in — so the walk it starts is a visit
     /// the search owes it, and a long walk weighs in the roll but cannot cancel it
     /// (SearchPickRules.TakesPart, 07/10, WIR-058): evidence that moved the value, and the first pick
-    /// out of a chase or a lift ride, which carry the sighting or the noise that set them off.
+    /// out of a chase, which carries the sighting or the noise that set it off.
     ///
     /// Not every other pick: once it has got to a place and looked, "revisó todo" is a verdict about
     /// the map, and a place far away is rightly not worth the walk. Nor the first pick out of an
@@ -661,8 +661,7 @@ public class NemesisSearchingState : BaseState<NemesisStateManager.ENemesisState
         if (why != EPickReason.Entered || !nemesisStateManager.HasPreviousState) return false;
 
         NemesisStateManager.ENemesisState from = nemesisStateManager.PreviousStateKey;
-        return from == NemesisStateManager.ENemesisState.Chasing ||
-               from == NemesisStateManager.ENemesisState.Traversing;
+        return from == NemesisStateManager.ENemesisState.Chasing;
     }
 
     /// <summary>The slowest the player may have been seen going for it to count as a heading: under

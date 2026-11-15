@@ -54,61 +54,6 @@ MonoBehaviour:
       threshold: 0
       customSeconds: 0
   - enabled: 1
-    target: 5
-    interrupts: 1
-    note: esta cruzando el montacargas
-    conditions:
-    - predicate: 10
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 5
-    interrupts: 0
-    note: ya se comprometio con el montacargas
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 5
-      threshold: 0
-      customSeconds: 0
-    - predicate: 11
-      negate: 1
-      state: 0
-      threshold: 0
-      customSeconds: 0
-    - predicate: 8
-      negate: 0
-      state: 0
-      threshold: 3
-      customSeconds: 0
-    - predicate: 7
-      negate: 0
-      state: 0
-      threshold: 3
-      customSeconds: 0
-  - enabled: 1
-    target: 5
-    interrupts: 0
-    note: para llegar hay que tomar el montacargas
-    conditions:
-    - predicate: 4
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-    - predicate: 7
-      negate: 0
-      state: 0
-      threshold: 3
-      customSeconds: 0
-    - predicate: 22
-      negate: 1
-      state: 0
-      threshold: 0
-      customSeconds: 0
-  - enabled: 1
     target: 2
     interrupts: 1
     note: "lo est\xE1 viendo"
@@ -237,26 +182,6 @@ MonoBehaviour:
       negate: 0
       state: 0
       threshold: 0
-      customSeconds: 0
-  - enabled: 1
-    target: 3
-    interrupts: 0
-    note: "ven\xEDa hacia el montacargas y todav\xEDa cree algo"
-    conditions:
-    - predicate: 6
-      negate: 0
-      state: 5
-      threshold: 0
-      customSeconds: 0
-    - predicate: 2
-      negate: 0
-      state: 0
-      threshold: 0
-      customSeconds: 0
-    - predicate: 7
-      negate: 0
-      state: 0
-      threshold: 3
       customSeconds: 0
   - enabled: 1
     target: 1

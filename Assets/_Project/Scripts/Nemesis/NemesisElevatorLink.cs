@@ -11,7 +11,7 @@ using UnityEngine.AI;
 /// moves, so whatever gets baked from it stays at its bake position and is useless as a bridge
 /// between floors. A NavMeshLink between the two landings is what tells the agent "there is a way
 /// to the other floor here, and it costs this much" — and then something has to actually perform
-/// that crossing, which is <see cref="NemesisElevatorUser"/>'s job.
+/// that crossing, which is NemesisElevatorUser (retired)'s job.
 ///
 /// SCENE SETUP — the hierarchy is not a matter of taste, it is the whole thing:
 ///
@@ -128,7 +128,7 @@ public class NemesisElevatorLink : MonoBehaviour
     /// <summary>
     /// Takes the shaft link out of pathfinding, or puts it back.
     ///
-    /// <see cref="NemesisElevatorUser"/> switches it off for the duration of a crossing it is
+    /// NemesisElevatorUser (retired) switches it off for the duration of a crossing it is
     /// already performing, and that is not tidiness: an agent standing on a link it may not
     /// auto-traverse cannot be steered anywhere — asked to keep going, it grinds along the link
     /// direction, which points through the shaft wall. Removing the link is what hands the body
@@ -144,7 +144,7 @@ public class NemesisElevatorLink : MonoBehaviour
     }
 
     /// <summary>
-    /// Whether the elevator is set up correctly and can be used. <see cref="NemesisElevatorUser"/>
+    /// Whether the elevator is set up correctly and can be used. NemesisElevatorUser (retired)
     /// checks this before starting a traversal: with it false, the link is treated as a plain one
     /// (crossed by interpolation) instead of blowing up on a null platform.
     /// </summary>
@@ -220,7 +220,7 @@ public class NemesisElevatorLink : MonoBehaviour
     /// <summary>
     /// Adds the cabin's NavMesh component when the shaft is asking for one.
     ///
-    /// Auto-added, unlike <see cref="NemesisElevatorUser"/> which deliberately is not, because the
+    /// Auto-added, unlike NemesisElevatorUser (retired) which deliberately is not, because the
     /// two are different kinds of thing. That one is a feature with scene wiring behind it, and a
     /// level with no lift should not silently grow a monster that uses one. This one has NO wiring:
     /// it derives everything it needs from the cabin's collider and the two landings, which this

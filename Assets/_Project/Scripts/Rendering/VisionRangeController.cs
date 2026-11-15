@@ -128,6 +128,9 @@ public class VisionRangeController : MonoBehaviour
     // Current transition speed (in units per second, derived from transitionDuration).
     private float _lerpRate = 4f;
 
+    // Runtime multiplier on the clear range, see SetVisionScale.
+    private float _visionScale = 1f;
+
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
     private void OnEnable()
@@ -212,6 +215,11 @@ public class VisionRangeController : MonoBehaviour
             frame.playerLightColor = _playerLight.OverrideColor;
         }
 
+        // A pulse on top of whatever preset rules (the escape's sirens): on the frame only, like the
+        // light override above, so it never leaks into the lerp.
+        frame.visionStart *= _visionScale;
+        frame.visionEnd *= _visionScale;
+
         Vector3 centre = _centreOverride != null ? _centreOverride.position : _player.position;
         frame.PushToShader(centre, lightPos);
         PushBypassZones(frame);
@@ -279,6 +287,17 @@ public class VisionRangeController : MonoBehaviour
     {
         if (_centreOverride == centre) _centreOverride = null;
     }
+
+    /// <summary>
+    /// Multiplies the clear range (visionStart and visionEnd) of whatever preset is on, every frame,
+    /// with no lerp: for an effect that pumps the fog faster than a preset transition can (the
+    /// escape's sirens widen it on each flash, <see cref="EscapeAlarmLights"/>). 1 = as the preset
+    /// says. One caller at a time: whoever sets it puts it back to 1.
+    /// </summary>
+    public void SetVisionScale(float scale) => _visionScale = Mathf.Max(0.01f, scale);
+
+    /// <summary>The multiplier <see cref="SetVisionScale"/> set (1 = none).</summary>
+    public float VisionScale => _visionScale;
 
     /// <summary>Change the default config at runtime (e.g. on a level change).</summary>
     public void SetDefaultConfig(SO_VisionFogConfig newDefault)

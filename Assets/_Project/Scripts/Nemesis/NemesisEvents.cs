@@ -82,9 +82,8 @@ public static class NemesisEvents
     /// where it believed the player was as it left — the belief, not the player — and found says
     /// whether it left for Chasing or Catch.
     ///
-    /// A search carried to another floor has not ended: Searching → Traversing keeps it open, and it
-    /// is reported once the Nemesis settles into something else. A Nemesis switched off mid-search
-    /// keeps it open too, and reports it when it next leaves Searching (see NemesisTelemetry).
+    /// A Nemesis switched off mid-search keeps it open, and reports it when it next leaves Searching
+    /// (see NemesisTelemetry).
     ///
     /// Leaving for Investigating is an end, even when what it goes to investigate is the player's own
     /// breath: a listener that wants "it gave up" rather than "it stopped searching" has to tell the

@@ -25,6 +25,10 @@ using UnityEngine;
 /// Refuses, with a warning, while the player is inside a hiding spot or being captured: those own
 /// the body and the camera, and a teleport under them leaves both in a state nothing undoes.
 ///
+/// The save point of the level it starts (<see cref="saveLevel"/>): arriving through the escape's end
+/// (never F6) empties the inventory and saves the run into its slot (<see cref="SaveGame.ReachLevel"/>),
+/// and a run loaded from that save starts with the player put here, on the same path.
+///
 /// SETUP: on <c>Zona_2_Spawnpoint</c> (target empty = this transform), its blue arrow pointing where
 /// the player should face on arrival, standing on the floor of Zona 2.
 /// </summary>
@@ -40,12 +44,49 @@ public class Zone2EntryTeleport : MonoBehaviour
              "works). Read when the component is enabled.")]
     [SerializeField] private bool continueAfterEscape = true;
 
+    [Header("Save")]
+    [Tooltip("The level this entry starts. Arriving through the escape's end empties the inventory and " +
+             "saves the run into its slot; loading that save puts the player here. Empty = no save and " +
+             "no inventory clear (the old behaviour).")]
+    [SerializeField] private SO_SaveLevel saveLevel;
+
+    // How long a loaded run waits for the player to register before giving up on the spawn.
+    private const float LoadSpawnTimeoutSeconds = 10f;
+
     private Action continueRun;
 
     /// <summary>Where the player lands: <see cref="target"/>, or this transform when it is empty.</summary>
     public Transform Target => target != null ? target : transform;
 
     private void Awake() => continueRun = HandleEscapeEnded;
+
+    /// <summary>
+    /// A run loaded from this level's save: put the player here. The managers were restored before
+    /// the scene loaded (<see cref="SaveGame.ApplyLoadedRun"/>), so only the body is left to place.
+    /// A frame after the player's own Start, the same reason NemesisZoneWake waits one: whatever the
+    /// player sets up on Start must not undo the move. The loading screen still covers it.
+    /// </summary>
+    private System.Collections.IEnumerator Start()
+    {
+        if (saveLevel == null || !SaveGame.HasPendingSpawn(saveLevel.LevelId)) yield break;
+
+        float waited = 0f;
+        while (!PlayerRegistry.HasPlayer && waited < LoadSpawnTimeoutSeconds)
+        {
+            yield return null;
+            waited += Time.unscaledDeltaTime;
+        }
+
+        yield return null;
+
+        if (!SaveGame.TryConsumePendingSpawn(saveLevel.LevelId)) yield break;
+
+        if (TeleportNow())
+            Debug.Log($"[{nameof(Zone2EntryTeleport)}] Loaded run: the player starts at '{Target.name}'.", this);
+        else
+            Debug.LogError($"[{nameof(Zone2EntryTeleport)}] Loaded run, but the player could not be moved " +
+                           $"to '{Target.name}'.", this);
+    }
 
     // Enabled-scoped like GameResultManager.GameOverPresenter's owner, and not Awake/OnDestroy like a
     // static event: this is a slot that changes how the run ends, and a disabled component must not
@@ -64,8 +105,13 @@ public class Zone2EntryTeleport : MonoBehaviour
     private void HandleEscapeEnded()
     {
         if (TeleportNow())
+        {
             Debug.Log($"[{nameof(Zone2EntryTeleport)}] The escape is over: the player is at " +
                       $"'{Target.name}'.", this);
+
+            // Only on the real path, never F6: the run has genuinely reached the next level.
+            if (saveLevel != null) SaveGame.ReachLevel(saveLevel);
+        }
         else
             Debug.LogWarning($"[{nameof(Zone2EntryTeleport)}] The escape is over but the player " +
                              "could not be moved: they keep control where the ending left them.", this);

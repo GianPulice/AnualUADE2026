@@ -34,6 +34,16 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
 
     private MusicCrossfadePlaylist menuMusic;
 
+    /// <summary>
+    /// New Game was pressed with every save slot holding a save: nothing starts yet. The Save Slots
+    /// panel opens asking which slot to overwrite (<see cref="SaveSlotsController.ShowOverwrite"/>);
+    /// this is for anything else that wants to know.
+    /// </summary>
+    public event System.Action OnNoFreeSlot;
+
+    // A second click while the first one is still taking the menu down must not start a second run.
+    private bool enteringGameplay;
+
     //To unsubscribe lambdas
     private System.Action _onNewGame;
     private System.Action _onLoadGame;
@@ -52,8 +62,10 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         FreeCursor();
         PlayMenuMusic();
 
+        enteringGameplay = false;
+
         // With no saved games there is nothing to load: the button starts disabled.
-        view.SetLoadGameInteractable(_saveSlotsController != null && _saveSlotsController.HasAnySave);
+        RefreshLoadGameButton();
 
         _onNewGame = () => HandleNewGame().Forget();
         _onLoadGame = () => HandleLoadGame().Forget();
@@ -65,7 +77,11 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         view.OnExitClicked += HandleExit;
 
         if (_saveSlotsController != null)
+        {
             _saveSlotsController.OnSlotSelected += HandleSlotSelected;
+            _saveSlotsController.OnSlotOverwrite += HandleSlotOverwrite;
+            _saveSlotsController.OnSlotDeleted += HandleSlotDeleted;
+        }
     }
 
     protected override void OnBeforeClose()
@@ -76,8 +92,17 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         view.OnExitClicked -= HandleExit;
 
         if (_saveSlotsController != null)
+        {
             _saveSlotsController.OnSlotSelected -= HandleSlotSelected;
+            _saveSlotsController.OnSlotOverwrite -= HandleSlotOverwrite;
+            _saveSlotsController.OnSlotDeleted -= HandleSlotDeleted;
+        }
     }
+
+    private void RefreshLoadGameButton() =>
+        view.SetLoadGameInteractable(_saveSlotsController != null && _saveSlotsController.HasAnySave);
+
+    private void HandleSlotDeleted(int slotIndex) => RefreshLoadGameButton();
 
     /// <summary>
     /// Cursor safety net when entering the menu.
@@ -132,10 +157,33 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         menuMusic = null;
     }
 
+    /// <summary>
+    /// A new run in the first free save slot (empty, else resolved). With every slot holding a save
+    /// the Save Slots panel opens asking which one to overwrite (<see cref="OnNoFreeSlot"/>).
+    /// </summary>
     private async UniTask HandleNewGame()
     {
-        await EnterGameplay(firstSceneLabel);
+        if (_saveSlotsController == null)
+        {
+            Debug.LogWarning("[MainMenuController] No SaveSlotsController: the new run will not be saved.");
+            await StartNewRun(SaveGame.NoSlot);
+            return;
+        }
+
+        int slot = _saveSlotsController.FindFirstEmptySlot();
+        if (slot == SaveGame.NoSlot)
+        {
+            Debug.Log("[MainMenuController] New Game: every save slot is taken. Asking which one to overwrite.");
+            OnNoFreeSlot?.Invoke();
+            _saveSlotsController.ShowOverwrite();
+            return;
+        }
+
+        await StartNewRun(slot);
     }
+
+    private UniTask StartNewRun(int slotIndex) =>
+        EnterGameplay(firstSceneLabel, () => SaveGame.BeginNewRun(slotIndex));
 
     private UniTask HandleLoadGame()
     {
@@ -157,30 +205,65 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         return UniTask.CompletedTask;
     }
 
+    /// <summary>
+    /// A card was clicked: an empty slot ("[ new game ]") starts a new run in it, one with a save
+    /// ("[ load game ]") loads it — the level it was saved at, with the run as it was then.
+    /// A file that cannot be read shows as an empty card, and is treated as one.
+    /// </summary>
     private void HandleSlotSelected(int slotIndex)
     {
-        SO_SaveSlotData slot = _saveSlotsController.GetSlot(slotIndex);
+        if (enteringGameplay) return;
 
-        // With the current pieces there is no real game restore: both an empty slot
-        // ("[ new game ]") and one with data ("[ load game ]") enter the same gameplay
-        // scene. Once the save system exists, this is where we decide to load the slot's
-        // data (currentZoneId, modules, items). See TODO-UI · Save Slots.
-        string label = firstSceneLabel;
-        Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} " +
-                  $"({(slot != null && slot.IsEmpty ? "empty -> new" : "with data -> load")}) " +
-                  $"-> entering '{label}'.</color>");
+        // Empty, unreadable or resolved (a won run frees its slot, as a lost one does): a new run.
+        if (!SaveGame.TryReadSlot(slotIndex, out SaveData data) || data.resolved)
+        {
+            Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} is " +
+                      $"{(data != null && data.resolved ? "resolved" : "empty")} -> new run.</color>");
+            _saveSlotsController.Hide();
+            StartNewRun(slotIndex).Forget();
+            return;
+        }
+
+        if (!ValidateSceneGroup(data.sceneGroupLabel))
+        {
+            Debug.LogError($"[MainMenuController] Slot {slotIndex} was saved in group '{data.sceneGroupLabel}', " +
+                           "which no longer exists: it cannot be loaded.");
+            return;
+        }
+
+        Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} -> loading '{data.levelId}' " +
+                  $"in '{data.sceneGroupLabel}'.</color>");
 
         _saveSlotsController.Hide();
-        EnterGameplay(label).Forget();
+        EnterGameplay(data.sceneGroupLabel, () => SaveGame.ApplyLoadedRun(data)).Forget();
+    }
+
+    /// <summary>
+    /// New Game with every slot taken, and the player said YES to overwriting this one: a new run in
+    /// it. The old save goes when the run begins (<see cref="SaveGame.BeginNewRun"/>), not before, so a
+    /// failed start leaves it where it was.
+    /// </summary>
+    private void HandleSlotOverwrite(int slotIndex)
+    {
+        if (enteringGameplay) return;
+
+        Debug.Log($"<color=cyan>[MainMenuController] Slot {slotIndex} overwritten -> new run.</color>");
+        _saveSlotsController.Hide();
+        StartNewRun(slotIndex).Forget();
     }
 
     /// <summary>
     /// Shared New Game / Load flow: closes the menu, unloads the bootstrap,
     /// resets the result session and pushes the gameplay scene group.
     /// </summary>
-    private async UniTask EnterGameplay(string sceneLabel)
+    /// <param name="afterSessionReset">Runs right after the persistent managers are cleared and
+    /// before the level is pushed: where a run picks its slot, or a save is restored.</param>
+    private async UniTask EnterGameplay(string sceneLabel, System.Action afterSessionReset = null)
     {
+        if (enteringGameplay) return;
         if (!ValidateSceneGroup(sceneLabel)) return;
+
+        enteringGameplay = true;
 
         StopMenuMusic();
         await Close();
@@ -190,6 +273,7 @@ public class MainMenuController : BaseScreenController<MainMenuView,EmptyScreenM
         // Clears every persistent manager (modules, inventory, puzzles, result). New managers
         // opt in by implementing ISessionResettable — see GameSession.
         GameSession.BeginNewSession();
+        afterSessionReset?.Invoke();
         screenChannel.RaisePushScreen(sceneLabel);
     }
 

@@ -474,11 +474,10 @@ public class FieldOfView : MonoBehaviour
     ///
     /// WHAT COUNTS AS HUNTING is read off the state, and a state is not enough on its own: the
     /// rule also wants a sighting behind the hunt, which it keeps track of itself. So Searching that
-    /// grew out of a footstep (plan D26) and a lift ride towards a noise are hunting STATES with
-    /// nothing earned, and they run on the base range. Investigating is deliberately not on the list
-    /// at all: walking to a noise or a glimpse is "something is there", not "I am after him", and
-    /// sneaking past a Nemesis that only heard you has to stay as hard as it was. Traversing is: the
-    /// lift is how a chase follows someone it saw go up a floor.
+    /// grew out of a footstep (plan D26) is a hunting STATE with nothing earned, and runs on the base
+    /// range. Investigating is deliberately not on the list at all: walking to a noise or a glimpse is
+    /// "something is there", not "I am after him", and sneaking past a Nemesis that only heard you has
+    /// to stay as hard as it was.
     ///
     /// AT REST — back on patrol, or dormant — is when what a sighting earned is dropped. Not on any
     /// state in between: a decoy that takes its attention for a moment in the middle of a search does
@@ -504,8 +503,7 @@ public class FieldOfView : MonoBehaviour
         NemesisStateManager.ENemesisState? state = owner != null ? owner.CurrentStateKey : null;
 
         bool hunting = state == NemesisStateManager.ENemesisState.Chasing ||
-                       state == NemesisStateManager.ENemesisState.Searching ||
-                       state == NemesisStateManager.ENemesisState.Traversing;
+                       state == NemesisStateManager.ENemesisState.Searching;
 
         bool atRest = !state.HasValue || state == NemesisStateManager.ENemesisState.Patrolling;
 

@@ -199,12 +199,9 @@ public class NemesisPossibilityMap : MonoBehaviour, IClusterValueSource
         if (!TakeEvidence(data, now)) BlockTrail(data);
         if (!map.HasValue) return;
 
-        // Held still while its body is on a lift or a drop (plan §19.3 WIR-058, D7). The crossing takes
-        // seconds in which it is not looking anywhere, and the value was spreading at the player's
-        // running speed the whole time: it landed on a map that had gone flat, and the place it
-        // had been sent to by a noise was no longer owed a visit. What it knew when it set off is
-        // what it lands with; the next tick that sees it spread again.
-        if (!stateManager.IsUsingElevator)
+        // Held still while its body is crossing a link by hand: it is not looking anywhere, and the
+        // value would spread at the player's running speed the whole time (plan §19.3 WIR-058, D7).
+        if (!stateManager.IsCrossingLink)
             map.Spread(dt, data.SearchMapSpreadSpeed, now, data.SearchMapHeadingBias, data.SearchMapHeadingDuration);
 
         ClearWhatItSees(data);

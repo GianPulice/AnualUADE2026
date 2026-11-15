@@ -37,6 +37,11 @@ using UnityEngine;
 /// colours at once and only half the beacons are lit at any time. The period is clamped so the
 /// flashing stays under 3 Hz (photosensitivity).
 ///
+/// The fog pulses with them: each flash widens the fog's clear range quickly and lets it shrink
+/// back before the next (<see cref="VisionRangeController.SetVisionScale"/>, config
+/// <see cref="SO_EscapeSequenceConfig.AlarmFogPulse"/>), on top of the slow open / close of
+/// <see cref="EscapeFogCycle"/>. Never during a cinematic, whose shots carry their own fog.
+///
 /// Nothing is left behind: <see cref="Begin"/> remembers each lamp (active, enabled, colour,
 /// intensity, everything it touches on the bypass, and any beacon or volume the lamp already had)
 /// and <see cref="End"/> puts all of it back, removing what it added. The lamps' prefab (Light
@@ -102,6 +107,7 @@ public class EscapeAlarmLights : MonoBehaviour
 
     private LampState[] states = Array.Empty<LampState>();
     private SO_EscapeSequenceConfig config;
+    private VisionRangeController fog;
     private float elapsed;
 
     /// <summary>The sirens are going.</summary>
@@ -141,7 +147,9 @@ public class EscapeAlarmLights : MonoBehaviour
 
         elapsed = 0f;
         IsRunning = true;
+        fog = FindAnyObjectByType<VisionRangeController>();
         Apply();
+        ApplyFogPulse();
 
         // The sirens are easy to lose: a lamp that never woke, a pool with no bypass on it, or the
         // fog's light-volume slots taken by the lamps of another room. Say what was actually set up.
@@ -224,6 +232,9 @@ public class EscapeAlarmLights : MonoBehaviour
     {
         IsRunning = false;
 
+        if (fog != null) fog.SetVisionScale(1f);
+        fog = null;
+
         for (int i = 0; i < states.Length; i++)
         {
             LampState s = states[i];
@@ -272,17 +283,61 @@ public class EscapeAlarmLights : MonoBehaviour
 
         elapsed += Time.deltaTime;
         Apply();
+        ApplyFogPulse();
     }
 
     /// <summary>Which group is lit right now (0 or 1), or -1 in the dark gap between them.</summary>
     private int LitGroup()
     {
-        float period = Mathf.Max(MinPeriod, config.AlarmPeriod);
-        float phase = Mathf.Repeat(elapsed, period) / period;
-
+        float phase = CyclePhase();
         int group = phase < 0.5f ? 0 : 1;
+        return FlashProgress(phase) >= 0f ? group : -1;
+    }
+
+    /// <summary>Where in the period we are, 0 to 1: the first half is group 0, the second group 1.</summary>
+    private float CyclePhase()
+    {
+        float period = Mathf.Max(MinPeriod, config.AlarmPeriod);
+        return Mathf.Repeat(elapsed, period) / period;
+    }
+
+    /// <summary>How far through the current flash, 0 to 1, or -1 in the dark gap after it.</summary>
+    private float FlashProgress(float phase)
+    {
         float withinHalf = Mathf.Repeat(phase, 0.5f) * 2f;
-        return withinHalf < 1f - config.AlarmGap ? group : -1;
+        float lit = 1f - config.AlarmGap;
+        return lit > 0f && withinHalf < lit ? withinHalf / lit : -1f;
+    }
+
+    /// <summary>
+    /// The fog's pulse: every flash widens the clear range fast and lets it shrink back before the
+    /// next one, so the corridor seems to open and close with the light. 0 to 1: it eases up over
+    /// the config's rise fraction of the flash and decays (fast, then slower) to nothing by the end
+    /// of it, so the dark gap and the start of each flash are always at the preset's own range.
+    /// </summary>
+    private float FlashEnvelope()
+    {
+        float t = FlashProgress(CyclePhase());
+        if (t < 0f) return 0f;
+
+        float rise = Mathf.Clamp(config.AlarmFogPulseRise, 0.01f, 0.99f);
+        if (t < rise) return Mathf.Sin(t / rise * Mathf.PI * 0.5f);
+
+        float fall = 1f - (t - rise) / (1f - rise);
+        return fall * fall;
+    }
+
+    /// <summary>
+    /// Gameplay only: a cinematic in the middle of the chase (the ending, a retry's reveal) carries a
+    /// fog of its own, framed for its shot, and the pulse would pump it.
+    /// </summary>
+    private void ApplyFogPulse()
+    {
+        if (fog == null) return;
+
+        float amount = config.AlarmFogPulse;
+        bool pulsing = amount > 0f && !CinematicState.IsPlaying;
+        fog.SetVisionScale(pulsing ? 1f + amount * FlashEnvelope() : 1f);
     }
 
     private void Apply()
