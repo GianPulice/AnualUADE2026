@@ -123,12 +123,20 @@ public class Zone2EntryTeleport : MonoBehaviour
     /// look camera behind them at the rig's resting height, snapped rather than swung across the map.
     /// </summary>
     /// <returns>false when there is no player, or it is hidden or being captured (logged).</returns>
-    public bool TeleportNow()
+    public bool TeleportNow() => TeleportPlayer(Target, this);
+
+    /// <summary>
+    /// The teleport itself, for any destination: the same refusals, body move and camera cut as
+    /// <see cref="TeleportNow"/>. Public for the debug key that drops the player in Zona 2's hub
+    /// (<c>DevLevelKeys</c>, F1), so that key shows what this path does and is not a copy of it.
+    /// </summary>
+    /// <returns>false when there is no player, or it is hidden or being captured (logged).</returns>
+    public static bool TeleportPlayer(Transform destination, UnityEngine.Object context)
     {
         PlayerStateManager player = PlayerRegistry.Current;
         if (player == null)
         {
-            Debug.LogWarning($"[{nameof(Zone2EntryTeleport)}] No player registered: nothing to move.", this);
+            Debug.LogWarning($"[{nameof(Zone2EntryTeleport)}] No player registered: nothing to move.", context);
             return false;
         }
 
@@ -137,11 +145,10 @@ public class Zone2EntryTeleport : MonoBehaviour
         {
             Debug.LogWarning($"[{nameof(Zone2EntryTeleport)}] The player is " +
                              (inHidingSpot ? "inside a hiding spot" : "being captured") +
-                             ": not moved. Try again once they have control.", this);
+                             ": not moved. Try again once they have control.", context);
             return false;
         }
 
-        Transform destination = Target;
         float yaw = destination.eulerAngles.y;
 
         // Yaw only: a spawn marker tilted by accident must not lay the capsule over.

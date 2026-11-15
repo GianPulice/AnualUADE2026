@@ -10,7 +10,7 @@ using UnityEngine;
 /// player's light reveals them, degradation included.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_SwitchPuzzleData", menuName = "Scriptable Objects/Puzzles/Switch Puzzle Data")]
-public class SO_SwitchPuzzleData : ScriptableObject
+public class SO_SwitchPuzzleData : ScriptableObject, IPuzzleRewardSource
 {
     public enum RevealMode
     {
@@ -37,6 +37,10 @@ public class SO_SwitchPuzzleData : ScriptableObject
 
     [Tooltip("Completed in PuzzleStateManager when every switch matches its arrow.")]
     [SerializeField] private string puzzleId;
+
+    [Tooltip("The component this puzzle hands out, to be installed in the hub. Goes to the reward box " +
+             "linked to this puzzle's id, or straight to the inventory when there is none.")]
+    [SerializeField] private SO_InventoryItem rewardItem;
 
     [Header("Switches (element 0 = the leftmost)")]
     [Tooltip("The answer: ticked = that switch must be UP, unticked = DOWN. Its length is the " +
@@ -88,6 +92,7 @@ public class SO_SwitchPuzzleData : ScriptableObject
     [SerializeField, Min(0.01f)] private float flipSeconds = 0.15f;
 
     public string PuzzleId => puzzleId;
+    public SO_InventoryItem RewardItem => rewardItem;
     public int SwitchCount => correctUp != null ? correctUp.Length : 0;
     public StartPosition StartsAt => startPosition;
     public RevealMode Reveal => revealMode;

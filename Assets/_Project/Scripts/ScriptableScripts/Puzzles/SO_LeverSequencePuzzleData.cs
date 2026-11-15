@@ -11,7 +11,7 @@ using UnityEngine;
 /// order. Only the order is judged — the rhythm is there to help the player remember it.
 /// </summary>
 [CreateAssetMenu(fileName = "SO_LeverSequencePuzzleData", menuName = "Scriptable Objects/Puzzles/Lever Sequence Puzzle Data")]
-public class SO_LeverSequencePuzzleData : ScriptableObject
+public class SO_LeverSequencePuzzleData : ScriptableObject, IPuzzleRewardSource
 {
     [Serializable]
     public struct Knock
@@ -25,6 +25,10 @@ public class SO_LeverSequencePuzzleData : ScriptableObject
 
     [Tooltip("Completed in PuzzleStateManager when the levers are pulled in the right order.")]
     [SerializeField] private string puzzleId;
+
+    [Tooltip("The component this puzzle hands out, to be installed in the hub. Goes to the reward box " +
+             "linked to this puzzle's id, or straight to the inventory when there is none.")]
+    [SerializeField] private SO_InventoryItem rewardItem;
 
     [Header("Levers")]
     [Tooltip("Levers on the panel. The prefab carries 6; the ones past this number are hidden.")]
@@ -81,6 +85,7 @@ public class SO_LeverSequencePuzzleData : ScriptableObject
     [SerializeField, Min(0.05f)] private float leverPullSeconds = 0.4f;
 
     public string PuzzleId => puzzleId;
+    public SO_InventoryItem RewardItem => rewardItem;
     public int LeverCount => leverCount;
     public Knock[] Sequence => sequence ?? Array.Empty<Knock>();
     public AudioClip BoilerSequenceClip => boilerSequenceClip;

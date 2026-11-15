@@ -4,7 +4,8 @@ using UnityEngine;
 /// <summary>
 /// F11 completes the three sub-puzzles of Central Puzzle 2 (boilers, switches, mechanism) in Play
 /// Mode, so the Ventilation Hub's stabilization panel opens without solving them first — the short
-/// way to test the stabilization checks. F11 is free: F2 to F10 are taken by the other debug keys.
+/// way to test the stabilization checks. F12 (<see cref="Puzzle2FinishTestKey"/>) also completes the
+/// stabilization, for testing what comes after it.
 ///
 /// The ids are not written here: they are the RequiredPuzzleIds of the SO_StabilizationPuzzleData
 /// on every <see cref="StabilizationPanelInteractable"/> in the loaded scenes, so the key follows
