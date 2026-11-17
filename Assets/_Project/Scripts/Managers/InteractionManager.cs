@@ -47,6 +47,13 @@ public class InteractionManager : Singleton<InteractionManager>
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
 
+    // E pressed during the cooldown to let go of a box in hand. Kept and honoured the moment the
+    // cooldown ends instead of being dropped: grabbing and letting go within 0.2 s used to swallow
+    // the second press and leave the player pushing ("E does not work"). Only for releasing a held
+    // box (the box pinned as the forced target), so every other interactable keeps the plain
+    // cooldown and a double press on a door, a lever or a locker still counts once.
+    private bool bufferedBoxRelease;
+
     private void Awake()
     {
         CreateSingleton(true);
@@ -66,6 +73,7 @@ public class InteractionManager : Singleton<InteractionManager>
             CinematicState.IsPlaying ||
             (PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp))
         {
+            bufferedBoxRelease = false;   // a press from before the pause/cinematic is stale by now
             if (currentInteractable != null)
             {
                 currentInteractable = null;
@@ -204,10 +212,28 @@ public class InteractionManager : Singleton<InteractionManager>
         return InteractionProbe.Find(playerCamera, PlayerRegistry.Current, config, out _);
     }
 
+    /// <summary>The target is a box the player is holding: E on it lets go.</summary>
+    private bool TargetIsHeldBox =>
+        currentInteractable is PushableBox && ReferenceEquals(currentInteractable, forcedInteractable);
+
     private void Interact()
     {
-        if (!GameInput.InteractPressed) return;
-        if (Time.unscaledTime - lastInteractTime < InteractCooldown) return;
+        bool pressed = GameInput.InteractPressed;
+
+        if (Time.unscaledTime - lastInteractTime < InteractCooldown)
+        {
+            if (pressed && TargetIsHeldBox) bufferedBoxRelease = true;
+            return;
+        }
+
+        if (!pressed)
+        {
+            if (!bufferedBoxRelease) return;
+            bufferedBoxRelease = false;
+            if (!TargetIsHeldBox) return;   // let go some other way meanwhile (basket, capture)
+        }
+        bufferedBoxRelease = false;
+
         if (currentInteractable == null) return;
         if (!currentInteractable.CanInteract())
         {

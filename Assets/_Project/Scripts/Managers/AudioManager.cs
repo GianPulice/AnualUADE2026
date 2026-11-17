@@ -492,6 +492,14 @@ public class AudioManager : Singleton<AudioManager>
     /// </summary>
     public AudioMixerGroup VoiceGroup => voiceGroup;
 
+    /// <summary>
+    /// The SFX bus. Exposed for <see cref="PuzzleKnockVoices"/> (the boiler puzzle's knocks), which
+    /// owns its AudioSources instead of borrowing from the pool: while the game is paused a pooled
+    /// source frozen by AudioListener.pause reports isPlaying = false, so the first pause-menu sound
+    /// takes it over and the knock never resumes.
+    /// </summary>
+    public AudioMixerGroup SfxGroup => sfxGroup;
+
     // ──────────────────────────────────────────────────────────────────────────
     // Volume — setters
     // ──────────────────────────────────────────────────────────────────────────

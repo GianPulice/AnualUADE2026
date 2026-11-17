@@ -28,6 +28,7 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
 
     private Coroutine playRoutine;
     private Quaternion valveRest;
+    private PuzzleKnockVoices voices;
 
     private bool IsPlaying => playRoutine != null;
 
@@ -38,6 +39,7 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
     protected override void Awake()
     {
         base.Awake();
+        voices = new PuzzleKnockVoices(transform);
         if (valveWheel != null) valveRest = valveWheel.localRotation;
         if (puzzleData == null)
             Debug.LogError($"[{nameof(BoilerInteractable)}] No SO_LeverSequencePuzzleData on '{name}'.", this);
@@ -71,6 +73,7 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         // A coroutine dies with the object; the flag must not outlive it.
         playRoutine = null;
         if (valveWheel != null) valveWheel.localRotation = valveRest;   // its turn died with it too
+        voices?.StopAll();                                              // and so did its knocks
     }
 
     /// <summary>How long <see cref="PlaySequence"/> runs, lead-in included: the time the valve has for its turn.</summary>
@@ -124,10 +127,11 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         InteractionEvents.RequestPromptRefresh();   // back to "Activate the boiler"
     }
 
+    // On sources of its own, not the pooled PlaySFX: see PuzzleKnockVoices — a knock heard when the
+    // game is paused comes back from where it was on unpausing instead of being lost.
     private void Play(AudioClip clip)
     {
-        if (clip == null || !AudioManager.Exists) return;
-        AudioManager.Instance.PlaySFX(clip, transform.position, puzzleData.VolumeAt(transform.position), 1f,
-                                      1f, puzzleData.MaxHearingDistance);
+        if (clip == null) return;
+        voices.Play(clip, puzzleData.VolumeAt(transform.position), puzzleData.MaxHearingDistance);
     }
 }
