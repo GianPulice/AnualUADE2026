@@ -26,6 +26,19 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
     [Tooltip("Axis the wheel turns on, in its parent's space (the valve stem).")]
     [SerializeField] private Vector3 valveAxis = Vector3.up;
 
+    [Header("Letter screen")]
+    [Tooltip("Where the little screen goes, in this object's space: just above the valve, facing out.")]
+    [SerializeField] private Vector3 screenPosition = new Vector3(-0.5017f, 1.78f, 0.5017f);
+
+    [Tooltip("Direction the screen faces, as a yaw in degrees (0 = looks towards -Z). 135 = out of the valve's corner.")]
+    [SerializeField] private float screenYaw = 135f;
+
+    [SerializeField] private Vector2 screenSize = new Vector2(0.34f, 0.22f);
+
+    [Tooltip("Material of the screen's body. Empty = the default one.")]
+    [SerializeField] private Material screenBodyMaterial;
+
+    private PuzzleLetterScreen screen;
     private Coroutine playRoutine;
     private Quaternion valveRest;
     private PuzzleKnockVoices voices;
@@ -41,6 +54,8 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         base.Awake();
         voices = new PuzzleKnockVoices(transform);
         if (valveWheel != null) valveRest = valveWheel.localRotation;
+        screen = PuzzleLetterScreen.Create(transform, screenPosition, Quaternion.Euler(0f, screenYaw, 0f),
+                                           screenSize, screenBodyMaterial);
         if (puzzleData == null)
             Debug.LogError($"[{nameof(BoilerInteractable)}] No SO_LeverSequencePuzzleData on '{name}'.", this);
     }
@@ -74,6 +89,7 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         playRoutine = null;
         if (valveWheel != null) valveWheel.localRotation = valveRest;   // its turn died with it too
         voices?.StopAll();                                              // and so did its knocks
+        if (screen != null) screen.Clear();
     }
 
     /// <summary>How long <see cref="PlaySequence"/> runs, lead-in included: the time the valve has for its turn.</summary>
@@ -112,19 +128,41 @@ public class BoilerInteractable : BaseRangeInteractable, IPuzzleInteractable
         if (puzzleData.BoilerSequenceClip != null)
         {
             Play(puzzleData.BoilerSequenceClip);
-            yield return new WaitForSeconds(puzzleData.BoilerSequenceClip.length);
+            // One clip with the whole sequence: its knocks are not known, so the screen follows the
+            // authored rhythm. Keep that rhythm in step with the clip.
+            float elapsed = 0f;
+            foreach (SO_LeverSequencePuzzleData.Knock knock in puzzleData.Sequence)
+            {
+                yield return ShowKnock(knock);
+                elapsed += KnockSeconds(knock);
+            }
+            float rest = puzzleData.BoilerSequenceClip.length - elapsed;
+            if (rest > 0f) yield return new WaitForSeconds(rest);
         }
         else
         {
             foreach (SO_LeverSequencePuzzleData.Knock knock in puzzleData.Sequence)
             {
                 Play(puzzleData.GetKnockClip(knock.lever));
-                yield return new WaitForSeconds(KnockSeconds(knock));
+                yield return ShowKnock(knock);
             }
         }
 
+        screen.Clear();
         playRoutine = null;
         InteractionEvents.RequestPromptRefresh();   // back to "Activate the boiler"
+    }
+
+    // The knock's letter while it sounds, then dark for the pause (so a repeated lever shows twice).
+    // Adds up to KnockSeconds, the same time the sequence waits.
+    private IEnumerator ShowKnock(SO_LeverSequencePuzzleData.Knock knock)
+    {
+        float total = KnockSeconds(knock);
+        float lit = Mathf.Min(total, Mathf.Max(0.25f, total - knock.pauseAfter));
+        screen.Show(knock.lever);
+        yield return new WaitForSeconds(lit);
+        screen.Clear();
+        if (total > lit) yield return new WaitForSeconds(total - lit);
     }
 
     // On sources of its own, not the pooled PlaySFX: see PuzzleKnockVoices — a knock heard when the

@@ -60,6 +60,9 @@ public static class InteractableHighlightSetup
         // leaves read far brighter than a socket at the same values and washed out to white. The
         // profile is only ever filled in when empty, so re-running this keeps it.
         "Assets/_Project/Prefabs/DoorFather/Door.prefab",
+        // Every hiding spot (locker, container, under-table) is a variant of this one. They lit up
+        // with nothing before 17/11: playtest, "the lockers have no outline".
+        "Assets/_Project/Prefabs/HidingSpotFather/HidingSpot.prefab",
     };
 
     /// <summary>Carries its highlight on a child already (RideButton/Visual); only needs a profile.</summary>

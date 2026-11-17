@@ -628,9 +628,14 @@ first, so only the seed decides) and moves the whole lamp, fixture included, to 
 that is the lamp lit first. Then it copies the prefab's `Lamp` child (the Light with its
 `BoxSymbolRevealLight` and the fog pieces, no fixture model: nobody sees the ceiling through the fog)
 over every other box, switched off. Only one lamp is lit at a time; the levers still power the whole
-prefab. Heights never change, so the hand-fitted pool fits under every copy. The lamps do not follow
-the boxes once pushed. If no box is found it warns and the lamp stays where the scene has it. In the
-editor and development builds it logs `this run's UV lamp starts over …`.
+prefab. Heights never change, so the hand-fitted pool fits under every copy. **A box's lamp follows its
+box** (Iñaki, 17/11, from a playtest: players pushed the boxes before turning the lamps on and the
+lamps hung over empty floor): `LateUpdate` copies the box's X and Z onto its lamp every frame, and
+`OnEnable` does it once more when the levers power the prefab back on, so boxes pushed while the lamps
+were off are lit when they come on. The extra spots are the fixed lamps; with 3 boxes and 1 spot the
+light has 4 places, 3 that follow and 1 that does not. The ceiling fixture stays over the drawn box's
+starting place (it is not the light). If no box is found it warns and the lamp stays where the scene
+has it. In the editor and development builds it logs `this run's UV lamp starts over …`.
 *Extra Spots* adds places that are not over a box, copied the same way after the boxes (so a box keeps
 its index and the seed its draw; a spot is never the first lamp lit): a fixed pool the player can
 push a box into instead of bringing the light to it. Zona1 has one, `UV Lamp Spot - Frente Caja SP2`
@@ -644,9 +649,11 @@ where that lamp hangs) and lights the next place (the boxes in id order, then th
 `travelSeconds` (1.2) later. It
 only works while the levers have the lamps on. Its screen (`RevealLampTabletScreen`, shader
 `WIRED/Puzzles/UV Lamp Tablet Screen`) is a top-down map of the lamps as seen from in front of it: a
-refresh band sweeps down, the violet light travels to its new place and pings when it lands. Where
-the tablet left the light is not stored: a reload, a checkpoint or a capture puts it back over the
-drawn box.
+refresh band sweeps down, the violet light travels to its new place and pings when it lands. The map's
+centre and scale are fixed once from where the lamps start; after that its dots follow the lamps, so
+a lamp that follows its box shows where the box is (a dot pushed past the picture's edge sticks to
+it). Where the tablet left the light is not stored: a reload, a checkpoint or a capture puts it back
+over the drawn box.
 
 The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
 fills the text's placeholders with the run's values (`ClueText`). The newspaper uses `{1}`…`{4}`
@@ -2903,10 +2910,86 @@ The systems below are **implemented but not connected to anything**. Read this b
   italic Share Tech Mono with the outline material, faded in and out, a new thought replaces the one
   on screen. Its own `CanvasGroup`, so it never fights the HUD's `ModalVisibilityGate`. Only the dark
   push box raises one today. Player-facing text stays in English.
-- **The grab gesture (09/11).** `PlayerGrabGesture` (on the Player prefab, `SO_GrabGestureConfig` in
-  `ScriptableObjects/Player/`) reaches out with the left arm on `InteractionEvents.OnInteracted` for a
-  `PickupInteractable`, a `DoorInteractable` or a `PuzzleRewardBox`; never for a push box, which has
-  its own animation. It plays on the **Grab Arm** layer of `PlayerController` (override, default
+- **The grab gesture (09/11; the arm goes to the object since 17/11).** `PlayerGrabGesture` (on the
+  Player prefab, `SO_GrabGestureConfig` in `ScriptableObjects/Player/`) reaches out on
+  `InteractionEvents.OnInteractedAt` for a `PickupInteractable`, a `DoorInteractable` or a
+  `PuzzleRewardBox`; never for a push box, which has its own animation.
+  **17/11 (playtest: "the character is left-handed" and "I took a key on my right and the hand went
+  to the air").** The gesture was one fixed left-arm clip that knew nothing of where the object was.
+  Now:
+  - `InteractionManager` keeps the `RaycastHit.point` the crosshair's probe hit this frame and sends
+    it with the press (`InteractionEvents.Interacted(target, point)`, read BEFORE `Interact()` — a
+    pickup disables itself there). `OnInteracted` is unchanged for its other listeners. The point is
+    null for a forced or zone target; the gesture then uses the object's collider centre.
+  - The **nearest arm** takes it: distance from each shoulder to the point, with
+    `rightArmBias` (0.12 m) so the right hand wins ties — straight ahead is the right hand, and
+    something clearly to the left is the left. A door out of the arm's reach is reached toward with
+    the arm stretched (`maxReachFraction`, 0.88), which is what Iñaki asked for with doors.
+  - `ArmReachIK` (static two-bone solver, law of cosines, shortest-arc turns) bends `<prefix>Arm` and
+    `<prefix>ForeArm` toward the point in `LateUpdate`, over the pose the Animator left, with a weight
+    that follows `reachProfile` (an `AnimationCurve` over `reachSeconds`, 0.76 s). It blends from the
+    animated arm, so there is no bind pose in between. **The profile and the elbow are the old clip's
+    own, measured** (17/11, "make it move like the animation"): forward kinematics of the three bones
+    on the prefab's rest pose, sampled every 0.054 s, with the weight being how far the arm had
+    turned toward its peak. That gives a small lift and dip first, the main reach from 0.24 to 0.54 s
+    (the peak, at 67 % of the clip), a short hold and a quick return by 0.70 s; the clip's last 0.05 s
+    is the arm standing still, so it is left out. At the peak the clip's hand sat 0.36 m ahead of and
+    0.17 m below the shoulder with the arm at **0.85 of its length and the elbow bent ~64°**, and its
+    elbow was 11 cm below and 6 cm behind the shoulder-hand line; `elbowDown` 2 / `elbowOut` 0.5
+    reproduces that elbow within 1 mm (the first guess, 1 / 0.5, was 3 cm off). A second grab with
+    the same arm while it is still out continues the profile from the same weight instead of
+    snapping back. The rig is Generic and the Animation Rigging
+    package is not installed, so Unity's IK is not an option. Bones are found by name under the
+    Animator (`bonePrefix` = `mixamorig:`); the prefab has no new references. The arm never turns more
+    than `maxAngleFromBody` (100°) from where the body faces, and the elbow drops and flares outward
+    (`elbowDown` / `elbowOut`). Each arm has its own weight and task, so two grabs with different
+    hands do not snap the first.
+  - **Fallback:** with the bones missing or `reachToObject` off, the old clip below plays.
+  **17/11, second round (playtest: "the arm is too fixed, copy my animation", "passing through a door
+  mid-gesture the arm goes behind the character", "lockers: no gesture, no outline").**
+  - **The arm follows the clip's own arc, not a straight line.** `Tools > Player > Bake Grab Reach From
+    Clip` (`GrabReachBaker`, re-runnable) poses the Player prefab with `reachSourceClip` and writes into
+    `SO_GrabGestureConfig` the hand's path and the elbow's bend (29 samples over 0.76 s, in the body's
+    level frame, as a share of the arm's length, LEFT arm) plus the profile. `ArmReach.Apply` (static,
+    called by `PlayerGrabGesture` every LateUpdate) puts the hand on that path (x mirrored for the right
+    arm) plus the way from the path's peak to the object, scaled by the profile: on the object at the
+    peak, on the clip's arc everywhere else. Re-run the bake after editing or re-timing the clip. The
+    bake read 0.36 m ahead / 0.17 m below the shoulder at the peak (0.54 s), same as the outside check.
+    Hand rotation (wrist) and fingers are not copied: the clip's wrist is not mirrorable without
+    knowing the rig's axes.
+  - **Constraints, so the arm never goes behind the body:** the direction to the object is clamped to
+    `maxAngleFromBody` (70°, was 100° and unclamped in effect) either side of the body's facing, so there
+    is no place for the hand to go but in front; past that angle the reach fades out over `letGoDegrees`
+    (25°) and the arm goes back to the walking pose. Checked by numbers on the rig: walking past a door
+    at 1.6 m/s the weight goes 1.0 → 0.33 (85°) → 0 (108°), and the hand stayed ≥ 2 cm in front of the
+    shoulder in every frame of every case.
+  - **Lockers** (`HidingSpot`, only on the way in; E from inside to get out raises no gesture) now play
+    the gesture. Their outline never showed: the highlight component was already on the prefab, but
+    the body and door use `M_Industrial2`, embedded in `industrial.fbx` with Emission off (URP compiles
+    it out; Set Up Highlights does not touch FBX-embedded materials). `HidingSpot_Locker` now uses
+    its own copy, `Art/Materials/Props/M_Locker.mat`, with Emission on (black), and the father is in
+    Set Up Highlights' `PropRoots`. The interior (`M_LockerInteriorBlack`, Unlit) stays dark on purpose.
+    Their own profile, `SO_Highlight_Lockers` (`litEmissionScale` 1.2; the shared props profile's 6 was
+    far too strong on a big flat locker, like the doors' 2), set on the father.
+  - **A door in the reward box's shot:** `PuzzleRewardBox.doorsToCloseForShot`. Any of them that is open
+    is shut by itself (`CloseDoor`, or `Slam` if mid-swing) when the box starts to open, and the shot
+    begins once they have landed (3 s at most). They stay shut; the player can open them again.
+    Wired on `BoxSupport P2_SP1/Caja Panel` (puzzle `p2_sp1_calderas`) → `DoorMetalWire (6)`, the
+    door 1.24 m in front of it. Other boxes: add their doors the same way.
+
+  **Not seen in Play at the time of writing.** Checked in batchmode on the real Player rig (Idle
+  pose sampled, IK applied, rendered from behind, the side and above): the hand aims at the target
+  with 0° error, a target out of reach leaves the arm stretched to its `maxReachFraction` of its
+  0.48 m (so almost every object, and every door, is "reached toward"), weight 0 leaves the pose
+  untouched, and the right and left arms both bend naturally. That render was made with the first
+  guesses (97 % stretch, elbow 1 / 0.5); the clip-matched values above came after it and were
+  checked by numbers, not by a new render. Tune them with the SO.
+  **Known artifact:** with the RIGHT arm reaching straight ahead, a small white triangle shows on the
+  vest's upper right back (seen from behind, not with the left arm or at rest). It is the same
+  skin-weight problem as the left shoulder's (see the clip notes below): vest vertices weighted to the
+  arm are pulled through the sleeve. Fixing the weights in Blender is the real fix.
+
+  The old clip. It plays on the **Grab Arm** layer of `PlayerController` (override, default
   weight 0, **no avatar mask**) and fades that layer's weight in and out itself (smoothstep), so
   walking carries on under it. What limits it to the arm is the clip, not a mask: it animates only
   LeftArm, LeftForeArm and LeftHand, and both states of the layer have Write Defaults off, so every

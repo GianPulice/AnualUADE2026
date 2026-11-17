@@ -65,7 +65,7 @@ public class LeverInteractable : BaseRangeInteractable, IPuzzleInteractable
     private SO_LeverSequencePuzzleData Data => panel != null ? panel.PuzzleData : null;
 
     public override string GetPromptText() =>
-        Data != null ? string.Format(Data.LeverPrompt, leverNumber) : "Unconfigured lever";
+        Data != null ? string.Format(Data.LeverPrompt, LeverSymbols.Letter(leverNumber)) : "Unconfigured lever";
 
     /// <summary>
     /// The boiler's "Listen..." while its knock sounds (there is nothing to press), kept through the

@@ -277,11 +277,11 @@ PrefabInstance:
     - target: {fileID: -6652725513331149018, guid: 7f06f31b2eac24f44bf2c20d40c5a42b, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2768758430471500384, guid: 78c25ee0c3b36c844bdfe869a51aebcf, type: 3}
+      objectReference: {fileID: 2100000, guid: 5461247d450c66b498cfe80e9993c84d, type: 2}
     - target: {fileID: -305091885687274788, guid: 7f06f31b2eac24f44bf2c20d40c5a42b, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2768758430471500384, guid: 78c25ee0c3b36c844bdfe869a51aebcf, type: 3}
+      objectReference: {fileID: 2100000, guid: 5461247d450c66b498cfe80e9993c84d, type: 2}
     - target: {fileID: 919132149155446097, guid: 7f06f31b2eac24f44bf2c20d40c5a42b, type: 3}
       propertyPath: m_Name
       value: LockerTall

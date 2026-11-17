@@ -323,6 +323,10 @@ MonoBehaviour:
   puzzleData: {fileID: 11400000, guid: 7805e09841528a54db74d1fffd1a9b5a, type: 2}
   valveWheel: {fileID: 8827944134453416924}
   valveAxis: {x: 0, y: 1, z: 0}
+  screenPosition: {x: -0.5017, y: 1.78, z: 0.5017}
+  screenYaw: 135
+  screenSize: {x: 0.34, y: 0.22}
+  screenBodyMaterial: {fileID: 2100000, guid: 2498d90871580324396d6784b51fa806, type: 2}
 --- !u!114 &3902352922744349702
 MonoBehaviour:
   m_ObjectHideFlags: 0

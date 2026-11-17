@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 /// <summary>
@@ -45,7 +46,52 @@ public class LeverPanelController : MonoBehaviour
             bool used = i < puzzleData.LeverCount;
             levers[i].Bind(this, i + 1);
             levers[i].gameObject.SetActive(used);
+            if (used) WriteLetter(levers[i].transform, i + 1);
         }
+    }
+
+    /// <summary>
+    /// Writes the lever's letter (A, B, C…) on the plate under it, in the lever's colour, the same
+    /// ones the boiler's screen shows when it knocks that lever. Reuses a "Label" text if the lever
+    /// still has one; otherwise makes one just in front of its "LabelPlate".
+    /// </summary>
+    private void WriteLetter(Transform lever, int number)
+    {
+        TextMeshPro text = null;
+        Transform existing = lever.Find("Label");
+        if (existing != null) text = existing.GetComponent<TextMeshPro>();
+
+        if (text == null)
+        {
+            Transform plate = FindDeep(lever, "LabelPlate");
+            if (plate == null) return;
+
+            var go = new GameObject("Label", typeof(RectTransform));
+            go.layer = lever.gameObject.layer;
+            go.transform.SetParent(lever, false);
+            go.transform.rotation = lever.rotation;
+            // The plate is a cube: its front is half its depth towards -Z; a hair more clears it.
+            Vector3 front = plate.TransformPoint(new Vector3(0f, 0f, -0.5f));
+            go.transform.position = front - lever.forward * 0.004f;
+            ((RectTransform)go.transform).sizeDelta = new Vector2(0.18f, 0.14f);
+
+            text = go.AddComponent<TextMeshPro>();
+            text.fontSize = 1.6f;
+            text.alignment = TextAlignmentOptions.Center;
+            text.fontStyle = FontStyles.Bold;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.raycastTarget = false;
+        }
+
+        text.text = LeverSymbols.Letter(number);
+        text.color = LeverSymbols.ColorOf(number);
+    }
+
+    private static Transform FindDeep(Transform root, string childName)
+    {
+        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+            if (t.name == childName) return t;
+        return null;
     }
 
     /// <summary>A lever was pulled. Judges the attempt once it is complete.</summary>
