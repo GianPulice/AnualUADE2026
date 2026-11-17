@@ -26,7 +26,12 @@ MonoBehaviour:
     pauseAfter: 0.25
   - lever: 3
     pauseAfter: 0.6
-  leverKnockClips: []
+  leverKnockClips:
+  - {fileID: 8300000, guid: e4c1d92a0a8ec3f4583edbfca9e49433, type: 3}
+  - {fileID: 8300000, guid: fb5d50d60b13aac4db72bb415270fa9a, type: 3}
+  - {fileID: 8300000, guid: 64319bdc1421085478190ca975630461, type: 3}
+  - {fileID: 8300000, guid: dc9c17a14eda42f409b4bbbe44c622cf, type: 3}
+  - {fileID: 8300000, guid: 1718d47d6b6bd754b95c91c12bf62a34, type: 3}
   boilerSequenceClip: {fileID: 0}
   volume: 1
   maxHearingDistance: 18

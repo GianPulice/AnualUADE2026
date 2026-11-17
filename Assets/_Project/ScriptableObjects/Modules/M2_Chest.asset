@@ -16,8 +16,12 @@ MonoBehaviour:
   moduleLogLabel: M2
   penalty: 1
   associatedPuzzleId: puzzle_central_piso2
-  startMode: 0
-  startedByPuzzleIds: []
+  startMode: 1
+  startedByPuzzleIds:
+  - p2_sp1_calderas
+  - p2_sp2_switches
+  - p2_sp3_access_code
+  - p2_sp3_mechanism
   timerDuration: 900
   walkAndRunSpeedPercent: 60
   sprintReduction: 0.25

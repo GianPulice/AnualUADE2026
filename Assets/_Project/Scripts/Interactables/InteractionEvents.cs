@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 public static class InteractionEvents
 {
@@ -9,7 +10,23 @@ public static class InteractionEvents
     // systems that react to player activity rather than to one object, like the Architect's
     // inactivity timer.
     public static event Action<IInteractable> OnInteracted;
-    public static void Interacted(IInteractable interactable) => OnInteracted?.Invoke(interactable);
+
+    /// <summary>
+    /// <see cref="OnInteracted"/> plus where on the target the interaction landed: the world point
+    /// the crosshair's probe hit, or null when the target was not picked by the crosshair (a box
+    /// held as the forced target, a zone prompt). For what has to look at the spot and not only at
+    /// the object, like the arm that reaches out (<see cref="PlayerGrabGesture"/>). Read at the
+    /// press: a pickup is gone by the time anything else looks for it.
+    /// </summary>
+    public static event Action<IInteractable, Vector3?> OnInteractedAt;
+
+    public static void Interacted(IInteractable interactable) => Interacted(interactable, null);
+
+    public static void Interacted(IInteractable interactable, Vector3? point)
+    {
+        OnInteracted?.Invoke(interactable);
+        OnInteractedAt?.Invoke(interactable, point);
+    }
 
     // Fired by an interactable when its own state changes and the currently displayed prompt
     // would go stale (e.g. a door that just opened needs to advertise "Close" instead of

@@ -347,7 +347,11 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     public Rigidbody PushedBox { get; private set; }
 
     /// <summary>Called by <see cref="PushableBox"/> when the player grabs it.</summary>
-    public void SetPushedBox(Rigidbody box) => PushedBox = box;
+    public void SetPushedBox(Rigidbody box)
+    {
+        PushedBox = box;
+        releasedBox = null;   // a new grab ends any hold left by the last release
+    }
 
     /// <summary>
     /// Called by <see cref="PushableBox"/> on release. Ignores a box that is not the one held, same
@@ -355,7 +359,46 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
     /// </summary>
     public void ClearPushedBox(Rigidbody box)
     {
-        if (ReferenceEquals(PushedBox, box)) PushedBox = null;
+        if (!ReferenceEquals(PushedBox, box)) return;
+        PushedBox = null;
+
+        // Letting go with the push key still down used to walk the player straight into the box
+        // they had just released, playing the walk against it — it read as "E did not let go".
+        // Until the keys are released (or turned away from it), walking into it is held back.
+        releasedBox = box;
+    }
+
+    // The box just let go of while a direction may still be held, or null. Walking into it is held
+    // back until the move input goes neutral or turns off it — see HoldBackIntoReleasedBox.
+    private Rigidbody releasedBox;
+
+    // Inputs pointing within ~40° of the released box count as walking into it. A diagonal off its
+    // face (W+A, W+D) is not held: it slides along the box like against any wall.
+    private const float IntoReleasedBoxDot = 0.75f;
+
+    /// <summary>
+    /// <paramref name="direction"/>, or zero while it still walks into the box just released with
+    /// the key held. The hold ends for good once the move input goes neutral or points away from
+    /// the box, so a player who means to walk off — sideways, back, or anywhere after letting go of
+    /// the keys — is never held: only the press that was pushing the box stops short of it.
+    /// </summary>
+    private Vector3 HoldBackIntoReleasedBox(Vector2 move, Vector3 direction)
+    {
+        if (releasedBox == null) return direction;
+
+        if (move.sqrMagnitude < 0.01f)
+        {
+            releasedBox = null;
+            return direction;
+        }
+
+        Vector3 toBox = releasedBox.position - transform.position;
+        toBox.y = 0f;
+        if (toBox.sqrMagnitude > 0.0001f && Vector3.Dot(direction, toBox.normalized) > IntoReleasedBoxDot)
+            return Vector3.zero;
+
+        releasedBox = null;
+        return direction;
     }
 
     /// <summary>
@@ -757,6 +800,7 @@ public class PlayerStateManager : StateManager<PlayerStateManager.EPlayerState>
         inputDir = orientation.forward * move.y
                  + orientation.right   * move.x;
         inputDir.Normalize();
+        inputDir = HoldBackIntoReleasedBox(move, inputDir);
 
         // Crouch mechanic. Standing back up is gated on headroom: pressing crouch under a low
         // ceiling must NOT grow the capsule into it — that wedges the Rigidbody between the floor

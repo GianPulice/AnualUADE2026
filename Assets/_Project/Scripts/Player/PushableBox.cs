@@ -303,9 +303,16 @@ public class PushableBox : BaseRangeInteractable
             rb.isKinematic = wasKinematic;
         }
 
+        // The player's BoxColl (the hands, in front of the body) stays out of it while the box is
+        // still held: PlayerBoxInteractingState keeps that pair ignored for the whole grab and turns
+        // it back on itself when the grab ends. Turning it on here instead opened a gap between the
+        // end of this wait and the state's next Update; at low frame rates the physics steps that
+        // fell in it shoved the box (1 kg while held) a few centimetres off the hands on every grab.
+        Collider hands = isGrabbed ? snapPlayer.BoxColl : null;
+
         foreach (Collider p in playerCols)
         {
-            if (p == null || p.isTrigger) continue;
+            if (p == null || p.isTrigger || p == hands) continue;
             foreach (Collider b in boxCols)
             {
                 if (b == null || b.isTrigger) continue;
@@ -440,6 +447,15 @@ public class PushableBox : BaseRangeInteractable
         rb.mass = 1;
         player.SetPushedBox(rb);
         player.IsInteracting = true;
+
+        // Drop the speed the player arrived with. The collision with this box is off for the snap
+        // (below), so a player who pressed E while running kept that speed through the box: at
+        // 60 fps the snap pulled them back out at once, but at 20–30 fps each frame carried them
+        // 20 cm or more on, into the box or out the far side of it before the snap caught up.
+        // Vertical left alone, so a grab on a slope still rests on it.
+        Rigidbody playerBody = player.RigBody;
+        if (playerBody != null && !playerBody.isKinematic)
+            playerBody.linearVelocity = new Vector3(0f, playerBody.linearVelocity.y, 0f);
 
         // Suspend player↔box collision for the length of the 0.2s snap animation in
         // PlayerBoxInteractingState. During that snap the player's collider slides onto the

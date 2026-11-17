@@ -31,6 +31,11 @@ public class InteractionManager : Singleton<InteractionManager>
     private IInteractable lastInteractable;
     public IInteractable CurrentInteractable => currentInteractable;
 
+    // Where the crosshair's probe hit the current target this frame, for the arm that reaches out
+    // when it is used. Only set when the probe picked the target: a forced or zone target has none.
+    private Vector3 currentHitPoint;
+    private bool hasHitPoint;
+
     // While non-null, this replaces the crosshair raycast as the active target. Used by
     // interactables that latch on once picked up (a push box the player is currently pushing) so
     // E keeps working even if the camera swings and the reticle slides off the mesh. Cleared
@@ -46,6 +51,13 @@ public class InteractionManager : Singleton<InteractionManager>
     // Cooldown between E presses to avoid double activations.
     private const float InteractCooldown = 0.2f;
     private float lastInteractTime = -999f;
+
+    // E pressed during the cooldown to let go of a box in hand. Kept and honoured the moment the
+    // cooldown ends instead of being dropped: grabbing and letting go within 0.2 s used to swallow
+    // the second press and leave the player pushing ("E does not work"). Only for releasing a held
+    // box (the box pinned as the forced target), so every other interactable keeps the plain
+    // cooldown and a double press on a door, a lever or a locker still counts once.
+    private bool bufferedBoxRelease;
 
     private void Awake()
     {
@@ -66,6 +78,7 @@ public class InteractionManager : Singleton<InteractionManager>
             CinematicState.IsPlaying ||
             (PlayerRegistry.Current != null && PlayerRegistry.Current.IsStandingUp))
         {
+            bufferedBoxRelease = false;   // a press from before the pause/cinematic is stale by now
             if (currentInteractable != null)
             {
                 currentInteractable = null;
@@ -99,6 +112,7 @@ public class InteractionManager : Singleton<InteractionManager>
 
     private void UpdateCurrentInteractable()
     {
+        hasHitPoint = false;
         IInteractable detected = forcedInteractable != null
             ? forcedInteractable
             : RaycastForInteractable();
@@ -201,13 +215,38 @@ public class InteractionManager : Singleton<InteractionManager>
         // Camera.main is the CinemachineBrain camera, i.e. the one actually rendering the frame
         // the crosshair is drawn over — not the CinemachineCamera rig, whose transform lags the
         // brain by a frame and is not what ScreenPointToRay would agree with.
-        return InteractionProbe.Find(playerCamera, PlayerRegistry.Current, config, out _);
+        IInteractable found = InteractionProbe.Find(playerCamera, PlayerRegistry.Current, config,
+                                                    out RaycastHit hit);
+        if (found != null)
+        {
+            currentHitPoint = hit.point;
+            hasHitPoint = true;
+        }
+        return found;
     }
+
+    /// <summary>The target is a box the player is holding: E on it lets go.</summary>
+    private bool TargetIsHeldBox =>
+        currentInteractable is PushableBox && ReferenceEquals(currentInteractable, forcedInteractable);
 
     private void Interact()
     {
-        if (!GameInput.InteractPressed) return;
-        if (Time.unscaledTime - lastInteractTime < InteractCooldown) return;
+        bool pressed = GameInput.InteractPressed;
+
+        if (Time.unscaledTime - lastInteractTime < InteractCooldown)
+        {
+            if (pressed && TargetIsHeldBox) bufferedBoxRelease = true;
+            return;
+        }
+
+        if (!pressed)
+        {
+            if (!bufferedBoxRelease) return;
+            bufferedBoxRelease = false;
+            if (!TargetIsHeldBox) return;   // let go some other way meanwhile (basket, capture)
+        }
+        bufferedBoxRelease = false;
+
         if (currentInteractable == null) return;
         if (!currentInteractable.CanInteract())
         {
@@ -225,8 +264,11 @@ public class InteractionManager : Singleton<InteractionManager>
         IInteractable interactableToUse = currentInteractable;
         bool wasRepeatable = interactableToUse.IsRepeatable();
 
+        // Read before Interact: a pickup disables itself there, and the point is where it was.
+        Vector3? hitPoint = hasHitPoint ? currentHitPoint : (Vector3?)null;
+
         interactableToUse.Interact();
-        InteractionEvents.Interacted(interactableToUse);
+        InteractionEvents.Interacted(interactableToUse, hitPoint);
 
         if (!wasRepeatable)
         {

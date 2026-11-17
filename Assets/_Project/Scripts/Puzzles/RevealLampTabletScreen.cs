@@ -57,6 +57,14 @@ public class RevealLampTabletScreen : MonoBehaviour
     private Vector2[] slots = new Vector2[0];
     private float aspect = 1f;
 
+    // The map's frame, fixed by LayOutMap: the two directions it is read along, the metres at its
+    // centre, the screen units per metre and how far a dot may go from the centre.
+    private Vector3 mapRight = Vector3.right;
+    private Vector3 mapAhead = Vector3.forward;
+    private Vector2 mapCentre;
+    private float mapFit;
+    private Vector2 mapHalfExtent;
+
     private int from;
     private int to;
     private float travel = 1f;
@@ -121,6 +129,8 @@ public class RevealLampTabletScreen : MonoBehaviour
         // Not on a move: the light sits wherever the lamps say, whoever moved it.
         if (travel >= 1f) from = to = lamps.Selected;
 
+        TrackLamps();
+
         lit = Mathf.MoveTowards(lit, isLit ? 1f : 0f, dt * 8f);
         ping = Mathf.MoveTowards(ping, 1f, dt / pingSeconds);
 
@@ -130,17 +140,20 @@ public class RevealLampTabletScreen : MonoBehaviour
     /// <summary>
     /// Places each lamp on the screen, in screen units: x from -aspect/2 to aspect/2, y from -0.5 to
     /// 0.5. The lamps keep their real proportions and the map is centred and fitted inside the margin.
+    ///
+    /// Done once, with the lamps where the level starts: that fixes the map's centre and scale.
+    /// After that <see cref="TrackLamps"/> moves the dots as the lamps move, with the same centre and
+    /// scale, so a lamp that follows its box shows where the box is.
     /// </summary>
     private void LayOutMap()
     {
         Vector3 scale = transform.lossyScale;
         aspect = Mathf.Abs(scale.y) > 1e-4f ? Mathf.Abs(scale.x / scale.y) : 1f;
 
-        Vector3 right = transform.right;
         Vector3 ahead = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
         if (ahead.sqrMagnitude < 1e-6f) ahead = Vector3.ProjectOnPlane(transform.up, Vector3.up);
-        ahead.Normalize();
-        right = Vector3.ProjectOnPlane(right, Vector3.up).normalized;
+        mapAhead = ahead.normalized;
+        mapRight = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
 
         int count = Mathf.Min(lamps.Count, MaxSlots);
         slots = new Vector2[count];
@@ -150,24 +163,42 @@ public class RevealLampTabletScreen : MonoBehaviour
         Vector2 max = new Vector2(float.MinValue, float.MinValue);
         for (int i = 0; i < count; i++)
         {
-            Vector3 position = lamps.PositionOf(i);
-            slots[i] = new Vector2(Vector3.Dot(position, right), Vector3.Dot(position, ahead));
-            min = Vector2.Min(min, slots[i]);
-            max = Vector2.Max(max, slots[i]);
+            Vector2 raw = ToMapPlane(lamps.PositionOf(i));
+            min = Vector2.Min(min, raw);
+            max = Vector2.Max(max, raw);
         }
 
-        Vector2 centre = (min + max) * 0.5f;
+        mapCentre = (min + max) * 0.5f;
         Vector2 halfSize = (max - min) * 0.5f;
         float halfWidth = Mathf.Max(0.01f, aspect * 0.5f - margin);
         float halfHeight = Mathf.Max(0.01f, 0.5f - margin);
+        mapHalfExtent = new Vector2(halfWidth, halfHeight);
 
         float fit = float.PositiveInfinity;
         if (halfSize.x > 1e-4f) fit = Mathf.Min(fit, halfWidth / halfSize.x);
         if (halfSize.y > 1e-4f) fit = Mathf.Min(fit, halfHeight / halfSize.y);
         if (float.IsInfinity(fit)) fit = 0f;
+        mapFit = fit;
 
-        for (int i = 0; i < count; i++)
-            slots[i] = (slots[i] - centre) * fit;
+        TrackLamps();
+    }
+
+    /// <summary>A world position on the map's plane: its right and its up, in metres.</summary>
+    private Vector2 ToMapPlane(Vector3 position) =>
+        new Vector2(Vector3.Dot(position, mapRight), Vector3.Dot(position, mapAhead));
+
+    /// <summary>
+    /// Puts each dot where its lamp is now. A box's lamp follows its box, so the dot does too; one
+    /// pushed past the edge of the map sticks to the edge of the picture instead of leaving it.
+    /// </summary>
+    private void TrackLamps()
+    {
+        for (int i = 0; i < slots.Length; i++)
+        {
+            Vector2 onMap = (ToMapPlane(lamps.PositionOf(i)) - mapCentre) * mapFit;
+            slots[i] = new Vector2(Mathf.Clamp(onMap.x, -mapHalfExtent.x, mapHalfExtent.x),
+                                   Mathf.Clamp(onMap.y, -mapHalfExtent.y, mapHalfExtent.y));
+        }
     }
 
     private void Apply()

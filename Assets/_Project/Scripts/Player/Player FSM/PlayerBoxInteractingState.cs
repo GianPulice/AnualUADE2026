@@ -201,6 +201,14 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
         {
             if (!finishAnim)
             {
+                // The snap places the player by transform; its Rigidbody must not carry it anywhere
+                // meanwhile. Player↔box collision is off for the snap (PushableBox), so any speed
+                // left over — a run into the box, a push from something — went straight through
+                // the box at low frame rates. Vertical left to the physics.
+                Rigidbody body = playerStateManager.RigBody;
+                if (body != null && !body.isKinematic)
+                    body.linearVelocity = new Vector3(0f, body.linearVelocity.y, 0f);
+
                 if (currentTimer < animTimer)
                 {
                     playerStateManager.transform.position = Vector3.Slerp(playerStateManager.transform.position, playerStateManager.NextPosition,currentTimer/animTimer);
@@ -212,6 +220,17 @@ public class PlayerBoxInteractingState : BaseState<PlayerStateManager.EPlayerSta
                     playerStateManager.transform.position = Vector3.Slerp(playerStateManager.transform.position, playerStateManager.NextPosition, 1);
                     playerStateManager.PlayerBody.forward = Vector3.Slerp(playerStateManager.PlayerBody.forward, playerStateManager.NextDirection, 1);
                     finishAnim = true;
+                }
+
+                // The Rigidbody goes along on the floor plane. Written only to the transform, the
+                // snap did not always reach the body: at 20–30 fps the interpolated Rigidbody never
+                // took it, the latch below was read off the body where the player had stopped (still
+                // against the box, hands inside it) and the transform was put back there right after.
+                // Height stays with the physics: the anchors sit at the box's mid height.
+                if (body != null)
+                {
+                    Vector3 snapped = playerStateManager.transform.position;
+                    body.position = new Vector3(snapped.x, body.position.y, snapped.z);
                 }
             }
             else

@@ -77,7 +77,7 @@ public class SO_LeverSequencePuzzleData : ScriptableObject, IPuzzleRewardSource
     [Header("Prompts")]
     [SerializeField] private string boilerPrompt = "Activate the boiler";
     [SerializeField] private string boilerPlayingInfo = "Listen...";
-    [Tooltip("{0} = lever number.")]
+    [Tooltip("{0} = lever letter (A, B, C…).")]
     [SerializeField] private string leverPrompt = "Pull lever {0}";
 
     [Header("Feel")]

@@ -49,6 +49,15 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
     [Tooltip("What the shot keeps centred.")]
     [SerializeField] private Transform shotTarget;
 
+    [Tooltip("Doors that would stand in the shot's way, like the one right in front of a box support. " +
+             "Any of them that is open is shut by itself when the box starts to open, and the shot " +
+             "begins once they have landed. They stay shut afterwards: the player can open them again.")]
+    [SerializeField] private DoorInteractable[] doorsToCloseForShot = Array.Empty<DoorInteractable>();
+
+    // How fast a door caught mid-swing is shut, and how long the shot waits for the doors at most.
+    private const float DoorShutSeconds = 0.5f;
+    private const float MaxDoorWaitSeconds = 3f;
+
     private enum BoxState { Locked, Opening, Stocked, Empty }
 
     private static readonly Dictionary<string, PuzzleRewardBox> Boxes =
@@ -201,6 +210,9 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
         skipRequested = false;
         if (config.PlayCinematic && shot != null)
         {
+            // An open door in front of the box would be in the shot: shut it first.
+            yield return CloseDoorsForShot();
+
             // A panel still closing, another cinematic, a capture: wait for the screen, but not forever.
             float waited = 0f;
             while (!RewardBoxCinematic.ScreenIsFree() && waited < config.MaxWaitSeconds)
@@ -235,6 +247,40 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
 
         opening = null;
         FinishOpening();
+    }
+
+    /// <summary>
+    /// Shuts every door in <see cref="doorsToCloseForShot"/> that is open (a swing in progress is cut
+    /// short: <see cref="DoorInteractable.Slam"/>) and waits for them to land, but not forever.
+    /// </summary>
+    private IEnumerator CloseDoorsForShot()
+    {
+        if (doorsToCloseForShot == null || doorsToCloseForShot.Length == 0) yield break;
+
+        bool any = false;
+        foreach (DoorInteractable door in doorsToCloseForShot)
+        {
+            if (door == null || !door.isActiveAndEnabled) continue;
+
+            if (door.IsAnimating) { door.Slam(DoorShutSeconds); any = true; }
+            else if (door.IsOpen) { door.CloseDoor(); any = true; }
+        }
+        if (!any) yield break;
+
+        float waited = 0f;
+        do
+        {
+            yield return null;
+            waited += Time.deltaTime;
+        }
+        while (waited < MaxDoorWaitSeconds && AnyDoorMoving());
+    }
+
+    private bool AnyDoorMoving()
+    {
+        foreach (DoorInteractable door in doorsToCloseForShot)
+            if (door != null && door.IsAnimating) return true;
+        return false;
     }
 
     private IEnumerator OpenLock(RewardBoxRig.Side side)

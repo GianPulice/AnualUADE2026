@@ -3996,7 +3996,7 @@ MonoBehaviour:
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-395085748-0
     sibling: 0
     localPosition: {x: 10.762, y: 0.645, z: -18.007}
-    localRotation: {x: 0, y: -0.7071068, z: 0, w: 0.7071068}
+    localRotation: {x: -0, y: 0.7071068, z: -0, w: -0.7071068}
     localScale: {x: 1, y: 1, z: 1}
   - id: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-6133474145954848426-1388904833
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-395085748-0
@@ -12984,7 +12984,7 @@ MonoBehaviour:
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-2092143169-0
     sibling: 137
     localPosition: {x: 216.64737, y: -15.491675, z: 53.560127}
-    localRotation: {x: 0.5806388, y: -0.37009835, z: -0.64379215, w: -0.33379275}
+    localRotation: {x: 0.58063877, y: -0.37009832, z: -0.6437921, w: -0.33379272}
     localScale: {x: 945.9035, y: 945.9034, z: 945.9036}
   - id: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-7278723741371514728-0
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-2092143169-0
@@ -13086,7 +13086,7 @@ MonoBehaviour:
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-2092143169-0
     sibling: 154
     localPosition: {x: 216.64737, y: -15.491675, z: 53.560127}
-    localRotation: {x: 0.5806388, y: -0.37009835, z: -0.64379215, w: -0.33379275}
+    localRotation: {x: 0.58063877, y: -0.37009832, z: -0.6437921, w: -0.33379272}
     localScale: {x: 945.9035, y: 945.9034, z: 945.9036}
   - id: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-7278723741878328394-0
     parentId: GlobalObjectId_V1-2-8cccb62fce69da94ca2cec142fd180ad-2092143169-0

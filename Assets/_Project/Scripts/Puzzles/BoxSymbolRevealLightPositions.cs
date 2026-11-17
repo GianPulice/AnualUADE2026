@@ -18,7 +18,14 @@ using UnityEngine;
 ///
 /// ONLY X AND Z MOVE. Every lamp keeps the height the prefab has in the scene, so the hand-fitted
 /// fog pool (the preset, the bypass and the trigger, all local to the lamp) fits under each of them
-/// without re-fitting. The lamps are fixtures: they do not follow a box once the player pushes it.
+/// without re-fitting.
+///
+/// A BOX'S LAMP FOLLOWS ITS BOX. Every frame its X and Z are the box's, wherever the player has
+/// pushed it, and the moment the levers power the lamps on (<see cref="OnEnable"/>) they are
+/// brought over the boxes too: a box pushed around while the lamps were off is still lit when they
+/// come on. The extra spots are the fixed lamps: the one place the light always is, whatever the
+/// boxes did. So with three boxes and one spot the light has four places: three that follow the
+/// boxes and one that does not.
 ///
 /// The draw is not stored, and neither is where the tablet left the light: a scene reload, a
 /// checkpoint or a capture puts the light back over the drawn box. The boxes are sorted by id before
@@ -54,6 +61,10 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
     [SerializeField] private Transform[] extraSpots = System.Array.Empty<Transform>();
 
     private readonly List<GameObject> lamps = new List<GameObject>();
+
+    // Parallel to lamps: the box each lamp follows, or null for a fixed lamp (an extra spot). A box
+    // destroyed along the way leaves its lamp where it last was.
+    private readonly List<Transform> followed = new List<Transform>();
     private bool built;
     private int selected;
     private bool lit;
@@ -91,11 +102,18 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
     /// <summary>The levers have the lamps switched on.</summary>
     public bool IsPowered => gameObject.activeInHierarchy;
 
-    /// <summary>World position of the lamp at <paramref name="index"/>, where its beam comes from.</summary>
+    /// <summary>
+    /// World position of the lamp at <paramref name="index"/>, where its beam comes from. A box's
+    /// lamp is read over the box as it is right now, so this is right even while the lamps are off
+    /// and not following.
+    /// </summary>
     public Vector3 PositionOf(int index)
     {
         EnsureBuilt();
-        return lamps[index].transform.position;
+
+        Vector3 at = lamps[index].transform.position;
+        Transform box = followed[index];
+        return box != null ? new Vector3(box.position.x, at.y, box.position.z) : at;
     }
 
     /// <summary>Switches the lit lamp off. <see cref="Selected"/> keeps pointing at it.</summary>
@@ -119,6 +137,32 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
 
     private void Awake() => EnsureBuilt();
 
+    // The levers switch this whole object off and on. While it is off nothing runs, so the boxes
+    // may have been pushed anywhere: the lamps catch up before the first frame they shine in.
+    private void OnEnable()
+    {
+        if (built) FollowBoxes();
+    }
+
+    // After everything that moves a box this frame, so the beam is never a frame behind it.
+    private void LateUpdate() => FollowBoxes();
+
+    private void FollowBoxes()
+    {
+        for (int i = 0; i < lamps.Count; i++)
+        {
+            Transform box = followed[i];
+            if (box == null) continue;
+
+            Transform lampTransform = lamps[i].transform;
+            Vector3 at = lampTransform.position;
+            Vector3 boxAt = box.position;
+            if (at.x == boxAt.x && at.z == boxAt.z) continue;
+
+            lampTransform.position = new Vector3(boxAt.x, at.y, boxAt.z);
+        }
+    }
+
     private void EnsureBuilt()
     {
         if (built) return;
@@ -140,6 +184,7 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
             Debug.LogWarning($"[{nameof(BoxSymbolRevealLightPositions)}] '{name}' found no box linked " +
                              $"to puzzle '{puzzleId}'. The lamp stays where the scene has it.", this);
             lamps.Add(lamp);
+            followed.Add(null);
             AddExtraSpots(lamp.transform.position.y);
             TurnOn(0);
             return;
@@ -162,6 +207,7 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
             if (i != drawn) boxLamp.name = $"{lamp.name} ({boxes[i].BallId})";
 
             lamps.Add(boxLamp);
+            followed.Add(boxes[i].transform);
         }
 
         AddExtraSpots(lampHeight);
@@ -187,6 +233,7 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
             spotLamp.transform.position = new Vector3(at.x, lampHeight, at.z);
             spotLamp.name = $"{lamp.name} ({spot.name})";
             lamps.Add(spotLamp);
+            followed.Add(null);
         }
     }
 
