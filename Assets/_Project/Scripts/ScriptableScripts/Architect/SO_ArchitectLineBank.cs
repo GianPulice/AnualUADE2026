@@ -33,6 +33,16 @@ public class SO_ArchitectLineBank : ScriptableObject
         [Tooltip("Plays even with a menu, the inventory or a result screen open (spec §7: ARC_03 and " +
                  "ARC_10 are part of those moments).")]
         public bool playsOverMenus;
+
+        [Tooltip("Plays another line right after this one ends, once Follow Up Delay has passed. " +
+                 "Skipped if this line is cut short.")]
+        public bool hasFollowUp;
+
+        [Tooltip("The line chained after this one. Only read when Has Follow Up is on.")]
+        public ArchitectLineID followUp;
+
+        [Tooltip("Silence between the end of this line (hold included) and the follow-up, in seconds.")]
+        [Min(0f)] public float followUpDelay = 1f;
     }
 
     [SerializeField] private List<Line> lines = new List<Line>();

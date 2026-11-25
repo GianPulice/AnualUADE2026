@@ -95,6 +95,7 @@ public class ArchitectVoiceController : MonoBehaviour
     private int capturesSeen;
     private Request? chained;
     private bool chainedIsInternal;
+    private float chainedPlayAt;   // unscaled time before which the chained line waits; 0 = no wait
     private readonly List<Request> deferred = new List<Request>();
 
     private readonly HashSet<ArchitectLineID> contextPlayed = new HashSet<ArchitectLineID>();
@@ -400,8 +401,17 @@ public class ArchitectVoiceController : MonoBehaviour
 
     private void FinishLine()
     {
-        ArchitectLineID finished = currentLine.id;
+        SO_ArchitectLineBank.Line finishedLine = currentLine;
+        ArchitectLineID finished = finishedLine.id;
         EndLine(interrupted: false);
+
+        // A line's own follow-up, after a pause. Not when something is already chained (wake-up).
+        if (finishedLine.hasFollowUp && !chained.HasValue)
+        {
+            chained = new Request { Id = finishedLine.followUp };
+            chainedIsInternal = false;
+            chainedPlayAt = Time.unscaledTime + finishedLine.followUpDelay;
+        }
 
         if (finished == ArchitectLineID.WakeUpMoment1)
         {
@@ -424,6 +434,7 @@ public class ArchitectVoiceController : MonoBehaviour
         ArchitectLineID stopped = currentLine.id;
         EndLine(interrupted);
         chained = null;
+        chainedPlayAt = 0f;
 
         if (IsWakeUpLine(stopped))
         {
@@ -445,10 +456,13 @@ public class ArchitectVoiceController : MonoBehaviour
     {
         if (chained.HasValue)
         {
+            if (Time.unscaledTime < chainedPlayAt) return;   // still in the pause before the follow-up
+
             Request next = chained.Value;
             bool isInternal = chainedIsInternal;
             chained = null;
             chainedIsInternal = false;
+            chainedPlayAt = 0f;
 
             if (isInternal)
             {

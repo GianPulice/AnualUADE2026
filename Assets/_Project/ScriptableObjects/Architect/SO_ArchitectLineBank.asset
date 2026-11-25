@@ -252,15 +252,28 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 6323c8463da74e44e872b5d05fac3c10, type: 3}
     alert: 
     playsOverMenus: 0
-  - id: 17
-    category: 0
+  - id: 20
+    category: 1
     variants:
-    - The lockers help you to Confuse the creature, but not hold your breath for
-      too long, you will alert it.
+    - How thoughtful of the building to leave you somewhere to hide. Step inside unseen and it loses you. Hold your breath too long and it finds you.
     clips:
     - {fileID: 0}
-    alert: 
+    alert:
     playsOverMenus: 0
+    hasFollowUp: 1
+    followUp: 21
+    followUpDelay: 1
+  - id: 21
+    category: 1
+    variants:
+    - Ah, one more thing. If it saw you go in, breathing only buys you time. It won't lose you that way.
+    clips:
+    - {fileID: 0}
+    alert:
+    playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   readingCharsPerSecond: 14
   minLineDuration: 2
   holdAfterLine: 0.6

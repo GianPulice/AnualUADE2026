@@ -23,12 +23,13 @@ public enum ArchitectLineID
     Captured,           // ARC_09 — 15 variants
     GameOver,           // ARC_10 — absolute priority
     Idle,               // ARC_R — inactivity pool, the lines that never mention the Nemesis
-    Lockers,
 
     // Added after spec v1.2: not in its §6 table.
     ContextBoxRoom,     // ARC_CTX_06 — first time in the SP2 box room
     ContextBoxLights,   // ARC_CTX_07 — SP1 solved: the box room's lights have power
     IdleNemesis,        // ARC_R — inactivity pool about the Nemesis: only once it is out (Zona 2)
+    Lockers,            // First time the player reaches the lockers (Zona 2): how hiding works
+    LockersAfterthought, // Chained after Lockers with a pause, as if it forgot to say it: seen-entering rule
 }
 
 /// <summary>Spec §1.2. Decides what happens to a trigger that cannot play right now.</summary>

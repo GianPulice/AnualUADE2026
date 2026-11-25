@@ -100299,7 +100299,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b09f24c4f80d1ae4c85728e9e4879af0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArchitectZoneTrigger
-  line: 17
+  line: 20
   delaySeconds: 1.5
 --- !u!65 &2079954388
 BoxCollider:
