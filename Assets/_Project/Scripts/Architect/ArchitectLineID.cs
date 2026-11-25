@@ -23,6 +23,7 @@ public enum ArchitectLineID
     Captured,           // ARC_09 — 15 variants
     GameOver,           // ARC_10 — absolute priority
     Idle,               // ARC_R — inactivity pool, the lines that never mention the Nemesis
+    Lockers,
 
     // Added after spec v1.2: not in its §6 table.
     ContextBoxRoom,     // ARC_CTX_06 — first time in the SP2 box room
