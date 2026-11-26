@@ -165,6 +165,7 @@ public class PoweredLightSwitch : BaseRangeInteractable
         switches.Add(this);
         ResolveSwitchAnimation();
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted += HandlePuzzleRestarted;
     }
 
     private void Start()
@@ -180,12 +181,25 @@ public class PoweredLightSwitch : BaseRangeInteractable
     {
         switches.Remove(this);
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted -= HandlePuzzleRestarted;
     }
 
     private void HandlePuzzleCompleted(string puzzleId)
     {
         if (puzzleId != sp1PuzzleId || Ignored) return;
         sp1Completed = true;
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    /// <summary>
+    /// SP1 starts over (a capture took its core): the power goes with it. The switch is dead again
+    /// and the lights it holds go out, as on a fresh start; they come back when SP1 is solved anew.
+    /// </summary>
+    private void HandlePuzzleRestarted(string puzzleId)
+    {
+        if (puzzleId != sp1PuzzleId) return;
+        sp1Completed = false;
+        SetLights(false);
         InteractionEvents.RequestPromptRefresh();
     }
 

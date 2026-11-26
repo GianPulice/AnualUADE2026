@@ -22,6 +22,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 203931a37efb69b4c92da328a289b145, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 1
     category: 0
     variants:
@@ -30,6 +33,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 8c63bddd07c7f34449bdf54674acfcca, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 2
     category: 0
     variants:
@@ -39,6 +45,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 408be11c093d12a4a8fdc987bc6db6b9, type: 3}
     alert: '> CONTAINMENT BREACH'
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 3
     category: 0
     variants:
@@ -47,6 +56,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: f8f2cf034356cfe4c9d7582488b79a69, type: 3}
     alert: <color=#2EB847>> {0} DISARMED</color>
     playsOverMenus: 1
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 4
     category: 1
     variants:
@@ -56,6 +68,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: a8ff40e58a1b0e941bce32c5bb55cce9, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 5
     category: 1
     variants:
@@ -64,6 +79,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 6e23a4b3d9165bf4fa5c541eb40624ca, type: 3}
     alert: <color=#EC8316>>  G o o d     L u c k </color>
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 6
     category: 1
     variants:
@@ -72,6 +90,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: f215e5080b7f66f40908762989631900, type: 3}
     alert: <color=#2EB847>> M1 DISARMED</color>
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 7
     category: 1
     variants:
@@ -80,6 +101,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: be2327f463e276c4da0d773edb889fa9, type: 3}
     alert: <color=#2EB847>> M2 DISARMED</color>
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 8
     category: 1
     variants:
@@ -88,6 +112,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 637e5c48ba92ac24e84554fd7fdea9c5, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 9
     category: 2
     variants:
@@ -100,6 +127,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: d36eef5454276bb45b6d1aa6991cce1e, type: 3}
     alert: '> {0} CRITICAL'
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 10
     category: 2
     variants:
@@ -108,6 +138,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 90873633d66157c45b1b023b940ac859, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 11
     category: 2
     variants:
@@ -116,6 +149,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: c3420bf17fae94c45bf52080cf9e47fc, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 12
     category: 2
     variants:
@@ -124,6 +160,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: cd4965bda3e3ffd4ca7724f3588224c6, type: 3}
     alert: '> {0} DETONATED'
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 13
     category: 2
     variants:
@@ -134,6 +173,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 32ed9484b9e907541bb10c242df56d06, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 14
     category: 2
     variants:
@@ -170,6 +212,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: eb30a80edb5426a4bb950de7cc14eb09, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 15
     category: 2
     variants:
@@ -178,6 +223,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: e774961ec240e3b4e90be0776454553d, type: 3}
     alert: 
     playsOverMenus: 1
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 16
     category: 3
     variants:
@@ -204,6 +252,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 7da2161c7c5fa604d86b95ac3e12c2f1, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 17
     category: 1
     variants:
@@ -212,6 +263,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 163c0d35913d3624eb2811ee5717af48, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 18
     category: 1
     variants:
@@ -220,6 +274,9 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 232263102f9bd2248b0102c3bf6a63e2, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 19
     category: 3
     variants:
@@ -252,13 +309,17 @@ MonoBehaviour:
     - {fileID: 8300000, guid: 6323c8463da74e44e872b5d05fac3c10, type: 3}
     alert: 
     playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
   - id: 20
     category: 1
     variants:
-    - How thoughtful of the building to leave you somewhere to hide. Step inside unseen and it loses you. Hold your breath too long and it finds you.
+    - How thoughtful of the building to leave you somewhere to hide. Step inside
+      unseen and it loses you. Hold your breath too long and it finds you.
     clips:
-    - {fileID: 0}
-    alert:
+    - {fileID: 8300000, guid: b088ff7f2595d7c40b1ca62e18e26d34, type: 3}
+    alert: 
     playsOverMenus: 0
     hasFollowUp: 1
     followUp: 21
@@ -266,10 +327,25 @@ MonoBehaviour:
   - id: 21
     category: 1
     variants:
-    - Ah, one more thing. If it saw you go in, breathing only buys you time. It won't lose you that way.
+    - Ah, one more thing. If it saw you go in, breathing only buys you time.
+    clips:
+    - {fileID: 8300000, guid: 5b68e79be2dd8b144aecf953c063fb68, type: 3}
+    alert: 
+    playsOverMenus: 0
+    hasFollowUp: 0
+    followUp: 0
+    followUpDelay: 1
+  - id: 22
+    category: 0
+    variants:
+    - It keeps what it takes from you, and the puzzle goes back to the start with
+      it. Install a component before you take chances.
+    - That component is gone. The puzzle it came from starts over. Don't carry what
+      you can install.
     clips:
     - {fileID: 0}
-    alert:
+    - {fileID: 0}
+    alert: 
     playsOverMenus: 0
     hasFollowUp: 0
     followUp: 0

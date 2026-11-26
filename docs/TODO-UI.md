@@ -148,8 +148,8 @@ a los 30 s de la explosión; el agarre no cuesta tiempo. Ver `UI-System.md` § T
 - [x] **Bip de cuenta regresiva** (`ModuleTimerBeeper`): cada 10 s desde que arranca el módulo (antes 30 s bajando a 10 s; 26/10), igual hasta
       el ámbar, 5 s en el rojo y de ahí exponencial a 0.5 s; clip urgente desde los últimos 10 s.
       Se calla solo en pausa y durante el agarre. Falta oírlo en Play (ver `BeepCadence`).
-- [x] **El agarre no cuesta tiempo**: `SO_PlayerMovement.captureModuleTimePenalty = 0`; el timer
-      sigue frenado desde el agarre hasta que el player se levanta.
+- [x] **El agarre cuesta 1 minuto** (2026-11-26, antes 0): `SO_PlayerMovement.captureModuleTimePenalty = 60`;
+      el timer sigue frenado desde el agarre hasta que el player se levanta, así que el minuto es todo el costo.
 - [x] **Borrar el builder de un solo uso** `Editor/UIStyle/ModuleTimerHUDBuilder.cs`: la ventana ya
       se retocó a mano (380×210, sin barra de título) y correrlo de nuevo pisaría esos cambios.
       Borrado el 2026-09-22 junto con `UIBuildKit.cs` y `HidingHUDBuilder.cs`: el prefab es la fuente

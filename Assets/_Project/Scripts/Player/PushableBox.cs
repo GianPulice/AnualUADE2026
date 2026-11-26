@@ -65,6 +65,10 @@ public class PushableBox : BaseRangeInteractable
     // grabbable again the moment the slide ends so it can be pulled back out.
     private bool snapping;
 
+    // Where the box stood when the level came up: where a restarted puzzle puts it back.
+    private Vector3 startPosition;
+    private Quaternion startRotation;
+
     // Tracks IsWithinGrabRange between frames so Update fires a prompt refresh exactly on the
     // frame the answer flips (in-range ↔ out-of-range). Null means "no cached answer" — used
     // whenever the box is not the crosshair's current target, so re-acquiring the target does
@@ -93,6 +97,8 @@ public class PushableBox : BaseRangeInteractable
     {
         base.Awake();
         rb = GetComponent<Rigidbody>();
+        startPosition = transform.position;
+        startRotation = transform.rotation;
         CacheSideAnchors();
         EnsurePushLoopSource();
     }
@@ -672,6 +678,39 @@ public class PushableBox : BaseRangeInteractable
         foreach (PushBoxTriggerLogic t in GetComponentsInChildren<PushBoxTriggerLogic>(true))
             t.enabled = false;
 
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    /// <summary>
+    /// The opposite of <see cref="LockInPlace"/> and of a basket's snap: lets go, drops a slide in
+    /// progress, unfreezes the box and puts it back where the level had it, ready to be pushed again.
+    /// For a container puzzle that starts over (<see cref="PuzzleCaptureRestart"/>).
+    /// </summary>
+    public void RestartAtStartingPlace()
+    {
+        if (isGrabbed) ForceRelease();
+        StopPushSound();
+        LeanTween.cancel(gameObject);
+
+        locked = false;
+        snapping = false;
+
+        foreach (PushBoxTriggerLogic t in GetComponentsInChildren<PushBoxTriggerLogic>(true))
+            t.enabled = true;
+
+        transform.SetPositionAndRotation(startPosition, startRotation);
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.position = startPosition;
+            rb.rotation = startRotation;
+        }
+
+        // The baskets poll with overlap queries: they have to see the box where it is now.
+        Physics.SyncTransforms();
         InteractionEvents.RequestPromptRefresh();
     }
 }

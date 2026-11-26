@@ -576,7 +576,7 @@ El `NavMeshSurface` de Zona1 hornea Default + Ground + Wall + Props; el de la te
 
 ## Errores comunes
 
-**"El Nemesis nunca aparece."** En Zona1 es lo esperado: `Wake Only From Script` está prendido y sólo lo despierta el escape. En la Zona 2, hasta que se resuelve un sub-puzzle de la lista de `NemesisZoneWake`; después, si no aparece, es que ningún spawn point de esa lista pasa los tres tests. En otra escena, ningún spawn point pasa los tres tests. Mirá la consola, dice cuál falla. Casi siempre están todos demasiado cerca de donde termina el puzzle de activación.
+**"El Nemesis nunca aparece."** En Zona1 es lo esperado: `Wake Only From Script` está prendido y sólo lo despierta el escape. En la Zona 2, hasta que se agarra el primer objeto de una caja de recompensa (`wakeItems` de `NemesisZoneWake`): ahí se ve la cinemática del portón y después pasa a un spawn; si no aparece, es que ningún spawn point de esa lista pasa los tres tests (con el jugador quieto mirando hacia ellos, espera a que gire). En otra escena, ningún spawn point pasa los tres tests. Mirá la consola, dice cuál falla. Casi siempre están todos demasiado cerca de donde termina el puzzle de activación.
 
 **"Se queda trabado contra una esquina."** Hay un watchdog (`NemesisStuckEscape`) que escala: primero recalcula el camino y le da `stuckRepathGrace` (1.5 s), después lo teletransporta a un waypoint fuera de la vista del jugador, desde el que pueda seguir hacia donde iba y a 3 m o más de donde se trabó. Si pasa seguido en un lugar concreto, es geometría, no IA — corré el validador.
 

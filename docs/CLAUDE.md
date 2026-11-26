@@ -628,12 +628,13 @@ first, so only the seed decides) and moves the whole lamp, fixture included, to 
 that is the lamp lit first. Then it copies the prefab's `Lamp` child (the Light with its
 `BoxSymbolRevealLight` and the fog pieces, no fixture model: nobody sees the ceiling through the fog)
 over every other box, switched off. Only one lamp is lit at a time; the levers still power the whole
-prefab. Heights never change, so the hand-fitted pool fits under every copy. **A box's lamp follows its
-box** (Iñaki, 17/11, from a playtest: players pushed the boxes before turning the lamps on and the
-lamps hung over empty floor): `LateUpdate` copies the box's X and Z onto its lamp every frame, and
-`OnEnable` does it once more when the levers power the prefab back on, so boxes pushed while the lamps
-were off are lit when they come on. The extra spots are the fixed lamps; with 3 boxes and 1 spot the
-light has 4 places, 3 that follow and 1 that does not. The ceiling fixture stays over the drawn box's
+prefab. Heights never change, so the hand-fitted pool fits under every copy. **A box's lamp appears over its
+box and then stays put** (Iñaki, 17/11, from a playtest: players pushed the boxes before turning the
+lamps on and the lamps hung over empty floor; 26/11: the lamp must not chase the box while it is
+pushed): `TurnOn` and `OnEnable` (the levers powering the prefab back on) copy the box's X and Z onto
+its lamp once, so boxes pushed while the lamps were off are lit when they come on; there is no
+per-frame follow. The extra spots are the fixed lamps; with 3 boxes and 1 spot the light has 4 places,
+3 that appear over their box and 1 that never moves. The ceiling fixture stays over the drawn box's
 starting place (it is not the light). If no box is found it warns and the lamp stays where the scene
 has it. In the editor and development builds it logs `this run's UV lamp starts over …`.
 *Extra Spots* adds places that are not over a box, copied the same way after the boxes (so a box keeps
@@ -651,8 +652,8 @@ only works while the levers have the lamps on. Its screen (`RevealLampTabletScre
 `WIRED/Puzzles/UV Lamp Tablet Screen`) is a top-down map of the lamps as seen from in front of it: a
 refresh band sweeps down, the violet light travels to its new place and pings when it lands. The map's
 centre and scale are fixed once from where the lamps start; after that its dots follow the lamps, so
-a lamp that follows its box shows where the box is (a dot pushed past the picture's edge sticks to
-it). Where the tablet left the light is not stored: a reload, a checkpoint or a capture puts it back
+the dot of a lamp that is off follows its box (that is where it will appear), the lit one stays put (a
+dot pushed past the picture's edge sticks to it). Where the tablet left the light is not stored: a reload, a checkpoint or a capture puts it back
 over the drawn box.
 
 The clue notes follow through `SO_InventoryItem` *Clue Source* (an `IClueSource`): `TextContent`
@@ -788,10 +789,12 @@ NemesisCatchState -> PlayerStateManager.OnCaptured() -> PlayerEvents.OnPlayerCap
                  -> CheckpointManager.OnRespawned    -> NemesisStateManager (subscribed)
 ```
 
-**A capture costs no module time** (design decision): `SO_PlayerMovement.captureModuleTimePenalty`
-is 0, so `ApplyCaptureCost` returns early, and the timer is frozen from the grab until the player is
-back on their feet (`PlayerStateManager.captureTimerPaused`). Raising the value brings the cost back
-without code changes.
+**A capture costs one minute of module time** (design decision, 2026-11-26; it was 0 before):
+`SO_PlayerMovement.captureModuleTimePenalty` is 60, and `CheckpointManager.ApplyCaptureCost` takes it
+off the running module at the respawn. The timer is still frozen from the grab until the player is
+back on their feet (`PlayerStateManager.captureTimerPaused`), so the minute is the whole cost — the
+cinematic and the black cover don't eat extra time. With less than a minute left the timer clamps at
+0 and the module explodes on the first unpaused frame. 0 turns the cost off without code changes.
 
 The Nemesis never calls into save or UI; it only raises and only listens. `Checkpoint` activates by
 physical trigger, by puzzle id, or either, once only — and **snapshots puzzle progress at
@@ -865,6 +868,45 @@ sets the Grabbing gait from `Capture()` and nowhere earlier. The pull-out of a h
 in the Idle gait for that reason: started there, the clip ran `HiddenPullOutTime` ahead of the
 player's.
 
+#### A capture while carrying a reward restarts its puzzle (`PuzzleCaptureRestart`, 26/11/2026)
+
+If the player is caught with a puzzle's **reward in the inventory** (not yet installed in the hub; one
+still in its box, installed, or on the floor does not count) the capture takes the item and the puzzle
+starts over. `CheckpointManager` raises `OnPuzzleProgressRestored` right after the snapshot rollback
+and the teleport, before `OnRespawned`; `PuzzleCaptureRestart` (`Scripts/Puzzles/`, static, installed at
+load, nothing to place in a scene) listens, finds the carried rewards and, per puzzle, runs
+`IPuzzleRestartable.ResetState` (the manager's progress: "solved", valve and switch positions, box
+slots) and `ResetObjects` (the world), discards the item, and raises `Restarted(puzzleId)` and then
+`CaptureRestartedPuzzles(count)`. It has to run before `ContainerPuzzleController.HandleRespawned`,
+which would otherwise find the boxes still in their baskets and solve the puzzle a second time.
+
+- Implemented by the six puzzles with a reward: `SequencePanelInteractable` (Zona 1 panel and the
+  Zona 2 keypad), `ContainerPuzzleController` (`PushableBox.RestartAtStartingPlace`: unlocked and back
+  where it stood at Awake; `BasketTrigger.ForgetOccupant`), `ValvePuzzleController`
+  (`ValveInteractable.SnapToStoredPosition`), `LeverPanelController`, `SwitchPanelController`. Each
+  registers in OnEnable.
+- Listeners of `Restarted`: `PuzzleRewardBox` (locked and red again, locks back on their hasps
+  through `RewardBoxRig.Close`, holds the next solve for its opening) and `PuzzleGate` (shut again,
+  silently: the keypad's `AccessDoor`, the Zona 1 gates the first panel opens).
+- **The checkpoint's snapshot still says "solved"**, so `PuzzleCaptureRestart` keeps `Pending` (restarted,
+  not solved again) and re-runs `ResetState` after every later rollback until `OnPuzzleCompleted`
+  clears it. The snapshot is not edited.
+- **What is final (Iñaki, 26/11)**: a piece installed in the hub is consumed (every hub socket has
+  `consumeItem`), so it is never carried and its puzzle stays solved, the hub's lights being the sign.
+  And once a module is Resolved, none of the sub-puzzles that start it can restart
+  (`PuzzleCaptureRestart.ModuleIsDone`): the earlier module is behind the player and never asks them to
+  repeat what they finished.
+- **Taken back with the puzzle**: the power SP1 switched on (`PoweredLightSwitch` listens to `Restarted`:
+  the levers are dead again and the lamps go out until SP1 is solved anew).
+- **Not undone**: the Nemesis route and wake-up, the module clock and the checkpoint the puzzle
+  activated. Those latch, so solving the puzzle again does not repeat them. The Director's puzzle
+  triggers (pressure, staged entrance) do **not** latch: solving it again applies its pressure again.
+- **The Architect says so**: `ArchitectLineID.PuzzleReset` (Mandatory, two text variants, no clips yet:
+  the entries are `{fileID: 0}`), played when `CaptureFadeView.OnCaptureRevealed` fires after a capture
+  that restarted something, so it is read, not heard behind the black. Independent of the 1-in-N rule of
+  `Captured`; it queues behind it if that one is still speaking.
+- Not played yet; checked only that it compiles.
+
 #### Zona 1 → Zona 2 (`Zone2EntryTeleport`)
 
 Zona 1 ends at the level's `WinTrigger`, past the gate: `GameResultManager.ReportWin` hands the win
@@ -908,6 +950,68 @@ completed puzzle). `p2_sp3_access_code` has none: a capture after the keypad sti
 `AccessDoor` again. Nothing locked stands between the entry and the hub,
 so respawning there skips nothing. Measured in Play: F6, a capture in SUB_02, back on that point; the
 Nemesis is put back at a Zona 2 spawn point. Before this, a capture after F6 sent the player to Zona 1.
+
+#### The Nemesis's entrance in Zona 2 (`NemesisGateEntrance`, 26/11/2026, HacknPlan #890)
+
+On the playday nobody noticed the Nemesis had come out: it woke in silence, out of sight. Now the
+**first time the player takes an item out of one of Zona 2's three reward boxes** (Válvula de
+calderas, Placa de relés, Bomba centrífuga — `NemesisZoneWake.wakeItems`, on
+`InventoryEvents.OnItemAdded`) a ~10 s cinematic plays on a security camera (`Cam_5_Porton`, the
+escape's `SecurityCameraFeed` look, "CAM 05 // ACCESS"): three blows on `Porton Zona 2` from behind,
+each denting the leaf more; the last knocks it flat onto the floor (a baked physics fall), with
+dust; the Nemesis is seen standing in the stretch of Zona 1's corridor behind it, where the
+escape left it; its eyes light up and it walks out over the fallen leaf and past the camera. Then the
+player gets control back and `NemesisZoneWake` moves the Nemesis, unseen, to the safest Zona 2 spawn
+point (the vestibule's NavMesh stops halfway down its stairs, ~(197, −12.4, 26), and does not reach
+the zone's floors: left there it would patrol nothing). `wakePuzzleIds` is now only the load
+catch-up. Skippable with F (the end state at once); with no free screen within 10 s it skips itself.
+
+Everything hangs off `---- GAMEPLAY ---- / Nemesis Zona 2 / Entrada Porton`, tuned in
+`ScriptableObjects/Nemesis/SO_NemesisGateEntranceConfig` (blows, timings, clips, flare) and
+`SO_VisionFog_NemesisGateShot` (the shot's fog). Single-purpose pieces:
+- **`GateKnockOff`** (`Scripts/Puzzles/`) moves the leaf: `Shudder` per blow, `KnockOffAsync` (plays
+  the baked fall; completes on its first hard hit, for the dust/sound/shake), `StepHeightAt` (a ray
+  down through the leaf's undented box as it lies now, for whatever walks on it). Turns on
+  `Bloqueador Abertura`: there is no level behind the gate for the player.
+- **The fall is Unity physics, baked once in the editor** (26/11/2026): button "Hornear caída con
+  física" on `GateKnockOff`'s inspector (`Editor/GateFallBaker`), recorded into
+  `ScriptableObjects/Nemesis/SO_GateFallTrack_PortonZona2` (world poses at 60/s; physics at 4 steps a
+  sample) and played back the same every time — nothing has a rigidbody in play. A preview scene
+  has no physics of its own in edit mode, so the bake steps **the open scene's** physics (Script
+  mode for the duration): every loose rigidbody made kinematic, the gate frame's and the blocker's
+  colliders off, the leaf a temporary box with a rigidbody, the last blow an impulse; all put back
+  after. Setting `Physics.simulationMode` makes Unity re-save `ProjectSettings/DynamicsManager.asset`
+  in its current format (same values). The simulated box is the mesh's **trimmed** (`sideTrim` 10 cm,
+  `topTrim` 14 cm): the leaf is 3 cm into each side wall and 9 cm into the vestibule ceiling (3.45 m
+  for a 3.54 m leaf) — whole, it stays jammed or bounces off the ceiling and falls back into the
+  void. Checks it logs: what the leaf starts inside, what it first hits, and **the floor check** (its
+  mesh's lowest vertex over the whole track; poses the solver sank into the floor are lifted out).
+  The yellow box on the gizmo is where it ends. Move the gate or a prop in the vestibule → bake again.
+- **The vestibule was cleared for it** (26/11/2026): the leaf, flat, covers 2.65 of the vestibule's
+  3.5 m for 3.6 m from the gate, so the cabinet `Building_13` and the rusty pipe `Pipes_out_2 (2)` moved
+  +2.35 m along it, the `Rock` +2.33 m to the far end, the leaning `MetalSheet` shortened to 55 % beside
+  it, `Pipes_vertical_long` +0.12 m and `(1)` +0.42 m into the right wall. **Same offsets on their
+  copies in Zona 1's `VESTIBULO_DESCENSO/PROPS (copia de ACCESO Zona 2)`**, so the two vestibules still
+  match. The NavMesh was not rebaked (their old holes stay carved, the new spots are not).
+- **`MeshDent`** (`Scripts/VFX/`, on `Porton Zona 2/Door`, the instance's one override) dents a
+  runtime copy of the mesh. The garage-door mesh has 146 vertices, all on the slat edges: it is
+  subdivided to ≤0.2 m edges (17 486 vertices) the first time, or a dent in the middle moves nothing.
+  **`Garage Doors.fbx` has Read/Write on for this** (a build cannot read vertices without it). The
+  dents bulge outward, which is the underside once the leaf lies: inside the floor, out of sight.
+  Blow sound: `Audio/SFX/Puzzles/sfx_porton_golpe_metalico`.
+- **`NemesisGateEntrance`** (`Scripts/Nemesis/`) is the conductor. Screen taken and given back with
+  `RewardBoxCinematic` (new `Begin(shot, lookAt, skippable, prompt)` overload). The Nemesis is its own
+  `NemesisCinematicActor`; behind the gate there is no NavMesh, so its agent is **switched off** and
+  the body walked by hand to `NemesisMark_Abertura` (2.2 m/s), then back on the NavMesh (the legs
+  follow the displacement, `TickLocomotionRate`) and on at the actor's `walkSpeed` (2.4 m/s, set on
+  this actor only). Over the fallen leaf its agent's `baseOffset` is raised by the sheet's thickness
+  (measured in Play 26/11/2026: never inside the leaf, feet at worst 1.7 cm into it while stepping
+  on). It is never put in front of the gate before the leaf is down:
+  the falling leaf sweeps every point there. `Luz Nemesis` (Light + `FogLightBypass`, the escape gate
+  lamp's recipe) lights the gate during the blows and rides on the Nemesis after.
+- `Pasillo Zona 1 (copia…)` is decoration copied from behind the escape gate (same place relative to
+  its `V_Puzzle1Gate`) plus a cube shell (floor, ceiling, walls) in that corridor's materials. Not in
+  the NavMesh bake.
 
 ### Inventory
 
@@ -2860,7 +2964,7 @@ The systems below are **implemented but not connected to anything**. Read this b
   - SP1 (levers) gives the **Boiler Valve** (`Items/SO_Item_ValvulaCalderas`, `valvula_calderas`) from `BoxSupport P2_SP1` in SALA_BOMBAS; SP2 (switches) the **Relay Board** (`SO_Item_PlacaReles`, `placa_reles`) from `BoxSupport P2_SP2` in SP5_SWITCHES; the keypad (SP3) the **Centrifugal Pump** from `BoxSupport P2_SP3` inside the pump room, with the pump model in the box (the loose pump pickup on the floor there is gone). Valve and board are **temporary names**, with the pump's icon and no world model; the three boxes are the ones Gian placed, now linked by `puzzleId` / `puzzleSource`.
   - `SO_LeverSequencePuzzleData` and `SO_SwitchPuzzleData` got a `rewardItem` (they implement `IPuzzleRewardSource`), and `LeverPanelController` / `SwitchPanelController` call `PuzzleRewardDelivery.Deliver` after completing, as `ValvePuzzleController` does.
   - Installed in the hub: `Socket Valvula Calderas (SP1)` and `Socket Placa Reles (SP2)` (`SocketFather/Socket` instances) are **on the `VentilationHubPanel` itself** (Iñaki, 15/11: the panel is what receives the components, and installing one lights its indicator): two 30 × 10 × 30 cm slots on the generator's top (x 193.3, top of the panel −19.87), each in line with its light (`Indicator1` z 28.74, `Indicator2` z 28.24; `Indicator3` is the pump, installed in `PumpStationSocket` beside the panel). On these two instances the Rigidbody is kinematic without gravity (the generic socket falls otherwise) and the material is `M_Generator_Rubber`; their colliders sit above the panel's own, so an eye ray from in front hits the slot first. They complete `p2_sp1_mechanism` / `p2_sp2_mechanism` through `Hub SP1 Valvula Calderas` / `Hub SP2 Placa Reles` (`HubPuzzleController` instances, `Hub/SO_Hub_SP1_*` / `SO_Hub_SP2_*`); the pump still goes into `PumpStationSocket` (`p2_sp3_mechanism`).
-  - `SO_Stabilization_VentilationHub.requiredPuzzleIds` is now those three *installed* ids, so the monitor's lights turn green on installing, not on solving, and the stabilization waits for all three installs. `NemesisZoneWake` and the `Checkpoint Zona 2 SP1/SP2` still key on solving (`p2_sp1_calderas`, `p2_sp2_switches`); `Checkpoint Zona 2 SP3` on installing the pump.
+  - `SO_Stabilization_VentilationHub.requiredPuzzleIds` is now those three *installed* ids, so the monitor's lights turn green on installing, not on solving, and the stabilization waits for all three installs. The `Checkpoint Zona 2 SP1/SP2` still key on solving (`p2_sp1_calderas`, `p2_sp2_switches`); `Checkpoint Zona 2 SP3` on installing the pump. `NemesisZoneWake` keys on taking the first reward out of a box since 26/11 (see *The Nemesis's entrance in Zona 2*).
   - Not played. The boxes' shot cameras are framed as Gian left them.
 - **Zona 2's exit A (2026-11-15), a grey-box blockout.** Chosen over the drained passage (C) and the hub's west wall (B, dropped). It is in SALIDA_ZONA3's west wall (`Wall_V38_S1_22`, x 187.19), centred between the two `Bridges_support_1` pillars (z 38.2 and 42.2), and the stair climbs straight west from the door, out of the level box (moved there on 15/11 by Iñaki; the first version used a sealed strip south of the room, now closed again: `Wall_H25_S1_21` is back to its full 14 m and `Header_SALIDA_A` is gone):
   - `Compuerta Salida Zona 3` (`---- PUZZLES ----`, a copy of `AccessDoor`: the garage-door `PuzzleGate`, yaw 90) in a 2.2 × 2.7 m opening at (187.19, −15.08, 40.2). It opens on `puzzle_central_piso2`, the hub's stabilization. The wall is three pieces: `Wall_V38_S1_22_S` (z 33.56–39.1), `Header_SALIDA_Z3` over the door, and `Wall_V38_S1_22` (z 41.3–59.56). `SALIDA_ZONA3_Ceil` stops at the wall's west face (x 187.09) so it does not poke into the stairwell.

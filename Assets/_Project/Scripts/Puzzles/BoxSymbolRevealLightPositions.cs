@@ -20,12 +20,12 @@ using UnityEngine;
 /// fog pool (the preset, the bypass and the trigger, all local to the lamp) fits under each of them
 /// without re-fitting.
 ///
-/// A BOX'S LAMP FOLLOWS ITS BOX. Every frame its X and Z are the box's, wherever the player has
-/// pushed it, and the moment the levers power the lamps on (<see cref="OnEnable"/>) they are
-/// brought over the boxes too: a box pushed around while the lamps were off is still lit when they
-/// come on. The extra spots are the fixed lamps: the one place the light always is, whatever the
-/// boxes did. So with three boxes and one spot the light has four places: three that follow the
-/// boxes and one that does not.
+/// A BOX'S LAMP APPEARS OVER ITS BOX AND STAYS THERE. A box's lamp is put over the box as it is the
+/// moment the lamp lights (<see cref="TurnOn"/>) and when the levers power the lamps back on
+/// (<see cref="OnEnable"/>): a box pushed around while the lamp was off is still lit when it comes
+/// on. From then on the lamp stays put: pushing the box away from under a lit lamp leaves the light
+/// where it was, it does not chase the box. The extra spots are the fixed lamps: the one place the
+/// light always is, whatever the boxes did.
 ///
 /// The draw is not stored, and neither is where the tablet left the light: a scene reload, a
 /// checkpoint or a capture puts the light back over the drawn box. The boxes are sorted by id before
@@ -62,8 +62,8 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
 
     private readonly List<GameObject> lamps = new List<GameObject>();
 
-    // Parallel to lamps: the box each lamp follows, or null for a fixed lamp (an extra spot). A box
-    // destroyed along the way leaves its lamp where it last was.
+    // Parallel to lamps: the box each lamp is put over when it lights, or null for a fixed lamp (an
+    // extra spot). A box destroyed along the way leaves its lamp where it last was.
     private readonly List<Transform> followed = new List<Transform>();
     private bool built;
     private int selected;
@@ -103,9 +103,9 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
     public bool IsPowered => gameObject.activeInHierarchy;
 
     /// <summary>
-    /// World position of the lamp at <paramref name="index"/>, where its beam comes from. A box's
-    /// lamp is read over the box as it is right now, so this is right even while the lamps are off
-    /// and not following.
+    /// World position of the lamp at <paramref name="index"/>, where its beam comes from. The lit
+    /// lamp is where it hangs. A box's lamp that is not lit is read over the box as it is right
+    /// now, which is where it will appear if it is lit.
     /// </summary>
     public Vector3 PositionOf(int index)
     {
@@ -113,7 +113,8 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
 
         Vector3 at = lamps[index].transform.position;
         Transform box = followed[index];
-        return box != null ? new Vector3(box.position.x, at.y, box.position.z) : at;
+        bool shining = lit && index == selected;
+        return box != null && !shining ? new Vector3(box.position.x, at.y, box.position.z) : at;
     }
 
     /// <summary>Switches the lit lamp off. <see cref="Selected"/> keeps pointing at it.</summary>
@@ -132,35 +133,30 @@ public class BoxSymbolRevealLightPositions : MonoBehaviour
 
         selected = index;
         lit = true;
+        PutOverBox(index);
         ApplyLit();
     }
 
     private void Awake() => EnsureBuilt();
 
-    // The levers switch this whole object off and on. While it is off nothing runs, so the boxes
-    // may have been pushed anywhere: the lamps catch up before the first frame they shine in.
+    // The levers switch this whole object off and on. While it is off the boxes may have been
+    // pushed anywhere: the lit lamp appears over its box as it is now, before the first frame it
+    // shines in.
     private void OnEnable()
     {
-        if (built) FollowBoxes();
+        if (built && lit) PutOverBox(selected);
     }
 
-    // After everything that moves a box this frame, so the beam is never a frame behind it.
-    private void LateUpdate() => FollowBoxes();
-
-    private void FollowBoxes()
+    // Puts a box's lamp over the box where it is right now, at the lamp's own height. A fixed lamp
+    // (an extra spot) has no box and stays where it is.
+    private void PutOverBox(int index)
     {
-        for (int i = 0; i < lamps.Count; i++)
-        {
-            Transform box = followed[i];
-            if (box == null) continue;
+        Transform box = followed[index];
+        if (box == null) return;
 
-            Transform lampTransform = lamps[i].transform;
-            Vector3 at = lampTransform.position;
-            Vector3 boxAt = box.position;
-            if (at.x == boxAt.x && at.z == boxAt.z) continue;
-
-            lampTransform.position = new Vector3(boxAt.x, at.y, boxAt.z);
-        }
+        Transform lampTransform = lamps[index].transform;
+        Vector3 boxAt = box.position;
+        lampTransform.position = new Vector3(boxAt.x, lampTransform.position.y, boxAt.z);
     }
 
     private void EnsureBuilt()

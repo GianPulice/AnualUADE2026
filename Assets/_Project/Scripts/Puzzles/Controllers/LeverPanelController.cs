@@ -12,7 +12,7 @@ using UnityEngine;
 /// record is cleared, an error sound plays, nothing else (no penalty). Right: the puzzle completes.
 /// The record itself is not saved: a half-entered attempt is worth nothing after a capture.
 /// </summary>
-public class LeverPanelController : MonoBehaviour
+public class LeverPanelController : MonoBehaviour, IPuzzleRestartable
 {
     [SerializeField] private SO_LeverSequencePuzzleData puzzleData;
 
@@ -48,6 +48,27 @@ public class LeverPanelController : MonoBehaviour
             levers[i].gameObject.SetActive(used);
             if (used) WriteLetter(levers[i].transform, i + 1);
         }
+    }
+
+    private void OnEnable() => PuzzleCaptureRestart.Register(this);
+    private void OnDisable() => PuzzleCaptureRestart.Unregister(this);
+
+    // ── IPuzzleRestartable ──────────────────────────────────────────────────
+
+    public string PuzzleId => puzzleData != null ? puzzleData.PuzzleId : string.Empty;
+    public SO_InventoryItem RewardItem => puzzleData != null ? puzzleData.RewardItem : null;
+
+    public void ResetState()
+    {
+        if (puzzleData != null && PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.ClearPuzzleCompleted(puzzleData.PuzzleId);
+    }
+
+    /// <summary>The levers hold no position (each springs back); only the half-entered attempt does.</summary>
+    public void ResetObjects()
+    {
+        entered.Clear();
+        InteractionEvents.RequestPromptRefresh();
     }
 
     /// <summary>

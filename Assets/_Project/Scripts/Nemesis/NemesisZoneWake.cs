@@ -3,8 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Wakes the Nemesis in one part of the level the first time any of that part's puzzles is solved,
-/// and hands it that part's routes and spawn points to do it with. Its one job.
+/// Wakes the Nemesis in one part of the level the first time the player takes one of that part's
+/// rewards (the items its reward boxes hand out), and hands it that part's routes and spawn points
+/// to do it with. Its one job. HOW it shows up is not decided here: with an
+/// <see cref="entrance"/> it comes out in that cinematic (Zona 2: it knocks the arrival gate down,
+/// seen on a security camera); without one, or when it cannot play, at the safest spawn point.
+///
+/// Until 26/11/2026 it woke on the first of the part's puzzles being solved, at a spawn point out of
+/// sight — and on the playday nobody noticed it had come out at all.
 ///
 /// Built for Zona 2 (plan D25: the Nemesis belongs to Zona 2; in Zona1 it only appears in the escape).
 /// The Nemesis in the scene is Zona 1's, asleep for a script (NemesisController.WakeOnlyFromScript),
@@ -15,9 +21,10 @@ using UnityEngine;
 ///                      sleep there, and woken here.
 ///   F6, no escape      still asleep: woken here.
 ///
-/// Either way it is woken the way a puzzle wakes it anywhere else: at the safest of these spawn
-/// points (far over the NavMesh, out of the player's view cone, behind geometry), or the moment one
-/// is — never in sight of the player.
+/// Without the entrance it is woken the way a puzzle wakes it anywhere else: at the safest of these
+/// spawn points (far over the NavMesh, out of the player's view cone, behind geometry), or the
+/// moment one is — never in sight of the player. The spawn points are also where a capture puts it
+/// back, entrance or not.
 ///
 /// Its routes and spawn points REPLACE the Nemesis's own (<see cref="NemesisController.ReplaceArea"/>):
 /// the NavMesh does not join the two zones (the way between them is a teleport), so Zona 1's routes
@@ -28,10 +35,18 @@ using UnityEngine;
 /// </summary>
 public class NemesisZoneWake : MonoBehaviour
 {
-    [Tooltip("Puzzles that wake the Nemesis here. The first of them to be solved does it; the rest do " +
-             "nothing more.\n\n" +
-             "Zona 2: its three sub-puzzles, the ones its hub asks for (p2_sp1_calderas, " +
-             "p2_sp2_switches, p2_sp3_mechanism).")]
+    [Tooltip("Objetos que despiertan al Nemesis acá: el primero que el jugador agarra lo despierta; " +
+             "los demás ya no hacen nada.\n\n" +
+             "Zona 2: lo que dan sus tres cajas (Válvula de calderas, Placa de relés, Bomba centrífuga).")]
+    [SerializeField] private List<SO_InventoryItem> wakeItems = new List<SO_InventoryItem>();
+
+    [Tooltip("Cómo aparece: la cinemática del portón. Vacío (o si no puede jugarse) = aparece en el " +
+             "spawn más seguro, fuera de vista.")]
+    [SerializeField] private NemesisGateEntrance entrance;
+
+    [Tooltip("Solo para cargar una partida: si al cargar ya está resuelto alguno de estos puzzles, " +
+             "despierta en un spawn, sin cinemática. En vivo lo despiertan los objetos de arriba.\n\n" +
+             "Zona 2: p2_sp1_calderas, p2_sp2_switches, p2_sp3_mechanism.")]
     [PuzzleId]
     [SerializeField] private List<string> wakePuzzleIds = new List<string>();
 
@@ -47,13 +62,14 @@ public class NemesisZoneWake : MonoBehaviour
     private bool woken;
 
     // Static event: subscribed in Awake and released in OnDestroy, per docs/CLAUDE.md.
-    private void Awake() => PuzzleCompletionAftermath.Settled += HandlePuzzleSettled;
+    private void Awake() => InventoryEvents.OnItemAdded += HandleItemAdded;
 
-    private void OnDestroy() => PuzzleCompletionAftermath.Settled -= HandlePuzzleSettled;
+    private void OnDestroy() => InventoryEvents.OnItemAdded -= HandleItemAdded;
 
     /// <summary>
     /// Catch-up, same as NemesisStateManager and NemesisRoute: one of the puzzles may already be solved
-    /// by the time this loads (a restored snapshot), and Settled only fires on the transition.
+    /// by the time this loads (a restored snapshot), and the pickup that would have woken it happened
+    /// in another session. Wakes it at a spawn point: the entrance is for the moment it happens.
     ///
     /// A frame late on purpose: the Nemesis's own Start puts it to sleep, and waking it first would
     /// have that undo the wake.
@@ -68,19 +84,19 @@ public class NemesisZoneWake : MonoBehaviour
         {
             if (!PuzzleStateManager.Instance.IsPuzzleCompleted(wakePuzzleIds[i])) continue;
 
-            Wake();
+            Wake(withEntrance: false);
             yield break;
         }
     }
 
-    private void HandlePuzzleSettled(string puzzleId)
+    private void HandleItemAdded(SO_InventoryItem item)
     {
-        if (woken || string.IsNullOrWhiteSpace(puzzleId) || !wakePuzzleIds.Contains(puzzleId)) return;
+        if (woken || item == null || !wakeItems.Contains(item)) return;
 
-        Wake();
+        Wake(withEntrance: true);
     }
 
-    private void Wake()
+    private void Wake(bool withEntrance)
     {
         if (woken) return;
 
@@ -97,15 +113,46 @@ public class NemesisZoneWake : MonoBehaviour
             Debug.LogWarning($"[{nameof(NemesisZoneWake)}] '{name}' has no spawn points: the Nemesis " +
                              "goes to sleep and never appears.", this);
 
-        // Handed back before anything else: while the cinematic holds it, its FSM is off and nothing
-        // below would move it.
-        NemesisCinematicActor actor = FindAnyObjectByType<NemesisCinematicActor>();
-        if (actor != null && actor.HasControl) actor.Release();
-
+        // The area first, whichever way it comes out: it patrols these routes once it is free.
         if (nemesis.NemesisController != null) nemesis.NemesisController.ReplaceArea(routes, spawnPoints);
 
+        // The entrance shows it coming out; once the shot is over it is moved to a spawn point like
+        // any other wake. The arrival vestibule's NavMesh does not reach the zone's floors, so left
+        // where the shot leaves it, it would patrol nothing. The player is far away by then and
+        // cannot see the vestibule: the move is never seen.
+        if (withEntrance && entrance != null)
+        {
+            entrance.Finished += HandleEntranceFinished;
+            if (entrance.TryPlay())
+            {
+                Debug.Log($"[{nameof(NemesisZoneWake)}] '{name}': the Nemesis comes out through " +
+                          $"'{entrance.name}' ({routes.Count} routes, {spawnPoints.Count} spawn points).", this);
+                return;
+            }
+            entrance.Finished -= HandleEntranceFinished;
+        }
+
+        WakeAtSpawnPoint(nemesis);
+    }
+
+    private void HandleEntranceFinished()
+    {
+        entrance.Finished -= HandleEntranceFinished;
+
+        NemesisStateManager nemesis = FindAnyObjectByType<NemesisStateManager>();
+        if (nemesis != null) WakeAtSpawnPoint(nemesis);
+    }
+
+    private void WakeAtSpawnPoint(NemesisStateManager nemesis)
+    {
+        // Handed back before anything else: while a cinematic holds it, its FSM is off and nothing
+        // below would move it.
+        foreach (NemesisCinematicActor actor in FindObjectsByType<NemesisCinematicActor>())
+            if (actor.HasControl) actor.Release();
+
         // Asleep first, because Activate does nothing to a Nemesis that is already awake: this is
-        // what moves it from Zona 1's gate to one of the spawn points here.
+        // what moves it from wherever it stands (Zona 1's gate, the arrival vestibule) to one of the
+        // spawn points here.
         nemesis.Sleep();
         nemesis.Activate();
 

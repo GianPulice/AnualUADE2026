@@ -75,6 +75,17 @@ public class PuzzleStateManager : Singleton<PuzzleStateManager>, ISessionResetta
     }
 
     /// <summary>
+    /// Takes the "completed" mark off a puzzle so it can be solved again. Silent, like
+    /// <see cref="RestoreSnapshot"/>: a restart is a rollback, not progress. Only for
+    /// <see cref="PuzzleCaptureRestart"/>.
+    /// </summary>
+    public void ClearPuzzleCompleted(string puzzleId)
+    {
+        if (string.IsNullOrWhiteSpace(puzzleId)) return;
+        completedPuzzles.Remove(puzzleId);
+    }
+
+    /// <summary>
     /// How many puzzles are completed right now. The story's progress as a number, for the
     /// Nemesis's escalation (plan Fase 7): read this rather than tallying OnPuzzleCompleted,
     /// because RestoreSnapshot refills the set without raising the event.

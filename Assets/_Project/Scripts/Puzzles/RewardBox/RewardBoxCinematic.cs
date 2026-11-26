@@ -46,10 +46,18 @@ public sealed class RewardBoxCinematic
     /// <paramref name="lookAt"/>. False (and nothing taken) when there is no player or no shot.</summary>
     public bool Begin(EscapeShotCamera shot, Transform lookAt, SO_RewardBoxConfig config)
     {
+        if (config == null) return false;
+        return Begin(shot, lookAt, config.Skippable, config.SkipPromptText);
+    }
+
+    /// <summary>The same, for a cinematic that is not a reward box (the Nemesis's entrance in Zona 2):
+    /// the skip settings come from its own config.</summary>
+    public bool Begin(EscapeShotCamera shot, Transform lookAt, bool skippable, string skipPromptText)
+    {
         if (IsPlaying) return true;
 
         PlayerStateManager player = PlayerRegistry.Current;
-        if (shot == null || player == null || config == null) return false;
+        if (shot == null || player == null) return false;
 
         if (!player.IsDisabled)
         {
@@ -57,7 +65,7 @@ public sealed class RewardBoxCinematic
             lockedPlayer = player;
         }
 
-        CinematicState.Begin(config.Skippable, config.SkipPromptText);
+        CinematicState.Begin(skippable, skipPromptText);
         HoldNemeses();
 
         brain = CinemachineBrain.ActiveBrainCount > 0 ? CinemachineBrain.GetActiveBrain(0) : null;

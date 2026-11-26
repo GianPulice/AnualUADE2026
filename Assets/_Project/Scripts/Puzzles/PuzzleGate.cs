@@ -71,11 +71,24 @@ public class PuzzleGate : MonoBehaviour
     private void OnEnable()
     {
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted += HandlePuzzleRestarted;
     }
 
     private void OnDisable()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted -= HandlePuzzleRestarted;
+    }
+
+    /// <summary>
+    /// The puzzle that opened this gate starts over (a capture took its reward): the gate is shut
+    /// again, silently and at once, and opens when the puzzle is solved anew. The player is being
+    /// put back at a checkpoint when this runs, so nobody watches it fall.
+    /// </summary>
+    private void HandlePuzzleRestarted(string restartedId)
+    {
+        if (!opensOnPuzzleCompleted || restartedId != puzzleId) return;
+        CloseImmediate();
     }
 
     private void OnDestroy() => CancelMotion();

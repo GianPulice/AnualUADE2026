@@ -1,12 +1,44 @@
+using System.Collections.Generic;
 using UnityEngine;
 
-public class ValvePuzzleController : MonoBehaviour
+public class ValvePuzzleController : MonoBehaviour, IPuzzleRestartable
 {
     [SerializeField] private SO_ValvePuzzleData valvePuzzleData;
     [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
     [SerializeField] private Transform rewardDropPoint;
 
     public string PuzzleId => valvePuzzleData != null ? valvePuzzleData.PuzzleId : string.Empty;
+    public SO_InventoryItem RewardItem => valvePuzzleData != null ? valvePuzzleData.RewardItem : null;
+
+    private void OnEnable() => PuzzleCaptureRestart.Register(this);
+    private void OnDisable() => PuzzleCaptureRestart.Unregister(this);
+
+    // ── IPuzzleRestartable ──────────────────────────────────────────────────
+
+    /// <summary>Not solved, and every valve of the puzzle at the position its asset starts it in.</summary>
+    public void ResetState()
+    {
+        if (valvePuzzleData == null || !PuzzleStateManager.Exists) return;
+
+        PuzzleStateManager state = PuzzleStateManager.Instance;
+        state.ClearPuzzleCompleted(valvePuzzleData.PuzzleId);
+        foreach (ValveInteractable valve in ValvesOfThisPuzzle())
+            state.SetValvePosition(valve.ValveId, valve.InitialPosition);
+    }
+
+    public void ResetObjects()
+    {
+        foreach (ValveInteractable valve in ValvesOfThisPuzzle()) valve.SnapToStoredPosition();
+        InteractionEvents.RequestPromptRefresh();
+    }
+
+    private List<ValveInteractable> ValvesOfThisPuzzle()
+    {
+        var valves = new List<ValveInteractable>();
+        foreach (ValveInteractable valve in FindObjectsByType<ValveInteractable>(FindObjectsInactive.Include))
+            if (valve.LinkedPuzzleId == valvePuzzleData.PuzzleId) valves.Add(valve);
+        return valves;
+    }
 
     public void CheckValves()
     {

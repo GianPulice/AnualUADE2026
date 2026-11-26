@@ -92,6 +92,17 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
         return true;
     }
 
+    /// <summary>
+    /// The item the box for <paramref name="puzzleId"/> gives (its override, what the puzzle handed
+    /// over, or the puzzle's own), or null with no such box. What a capture looks for in the
+    /// inventory (<see cref="PuzzleCaptureRestart"/>).
+    /// </summary>
+    public static SO_InventoryItem RewardItemOf(string puzzleId)
+    {
+        if (string.IsNullOrWhiteSpace(puzzleId)) return null;
+        return Boxes.TryGetValue(puzzleId, out PuzzleRewardBox box) && box != null ? box.ResolveReward() : null;
+    }
+
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
     protected override void Awake()
@@ -99,13 +110,15 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
         base.Awake();
         if (rig == null) rig = GetComponent<RewardBoxRig>();
 
-        // Static event: subscribed for the object's lifetime, not while enabled (docs/CLAUDE.md).
+        // Static events: subscribed for the object's lifetime, not while enabled (docs/CLAUDE.md).
         PuzzleStateManager.OnPuzzleCompleted += HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted += HandlePuzzleRestarted;
     }
 
     private void OnDestroy()
     {
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
+        PuzzleCaptureRestart.Restarted -= HandlePuzzleRestarted;
     }
 
     private void OnEnable()
@@ -195,6 +208,33 @@ public class PuzzleRewardBox : BaseRangeInteractable, IPromptPresentation
         if (!isActiveAndEnabled) return; // OnEnable catches up
 
         opening = StartCoroutine(OpenSequence());
+    }
+
+    /// <summary>
+    /// The puzzle starts over (a capture took its reward from the player): the box is locked and red
+    /// again, and holds the next solve for its opening like the first time. Whatever it still held is
+    /// forgotten: the puzzle hands the reward over again when it is solved.
+    /// </summary>
+    private void HandlePuzzleRestarted(string restartedId)
+    {
+        if (!string.Equals(restartedId, puzzleId, StringComparison.Ordinal)) return;
+        if (config == null || rig == null) return;
+
+        if (state == BoxState.Opening) FinishOpening();
+
+        state = BoxState.Locked;
+        receivedReward = null;
+        stockedItem = null;
+        skipRequested = false;
+        rig.Close(config);
+
+        if (registered && !presenting)
+        {
+            PuzzleCompletionAftermath.RegisterPresenter(puzzleId);
+            presenting = true;
+        }
+
+        InteractionEvents.RequestPromptRefresh();
     }
 
     private IEnumerator OpenSequence()

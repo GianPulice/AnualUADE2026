@@ -61,11 +61,20 @@ public class CheckpointManager : Singleton<CheckpointManager>
     /// <summary>The player was respawned at the given checkpoint after a capture.</summary>
     public static event Action<Checkpoint> OnRespawned;
 
+    /// <summary>
+    /// The puzzle progress is settled for this respawn: rolled back to the checkpoint's snapshot, or
+    /// untouched when there was no checkpoint, with the player already at the respawn point. Raised
+    /// right before <see cref="OnRespawned"/>, so whatever adjusts the puzzles after the rollback
+    /// (<see cref="PuzzleCaptureRestart"/>) does it before the puzzles' own respawn handlers read them.
+    /// </summary>
+    public static event Action OnPuzzleProgressRestored;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
         OnCheckpointActivated = null;
         OnRespawned = null;
+        OnPuzzleProgressRestored = null;
     }
 
     private void Awake()
@@ -205,6 +214,8 @@ public class CheckpointManager : Singleton<CheckpointManager>
         {
             return false;
         }
+
+        OnPuzzleProgressRestored?.Invoke();
 
         if (applyModuleTimePenalty) ApplyCaptureCost(player);
 

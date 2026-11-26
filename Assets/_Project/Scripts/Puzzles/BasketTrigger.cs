@@ -165,6 +165,17 @@ public class BasketTrigger : MonoBehaviour
         PuzzleStateManager.Instance.SetContainerSlot(occupant.BallId, basketId);
     }
 
+    /// <summary>
+    /// Forgets the seated box without writing anything to <see cref="PuzzleStateManager"/>: the
+    /// puzzle is starting over and has just moved its boxes away (<see cref="PuzzleCaptureRestart"/>).
+    /// The box is no longer owed a full exit before coming back, either.
+    /// </summary>
+    public void ForgetOccupant()
+    {
+        occupant = null;
+        awaitingFullExit.Clear();
+    }
+
     private void CollectBallsInZone(List<BallPuzzleItem> result)
     {
         result.Clear();

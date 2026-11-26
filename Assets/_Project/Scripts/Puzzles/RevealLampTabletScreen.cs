@@ -143,7 +143,7 @@ public class RevealLampTabletScreen : MonoBehaviour
     ///
     /// Done once, with the lamps where the level starts: that fixes the map's centre and scale.
     /// After that <see cref="TrackLamps"/> moves the dots as the lamps move, with the same centre and
-    /// scale, so a lamp that follows its box shows where the box is.
+    /// scale, so a lamp that is not lit shows where its box is, which is where it will appear.
     /// </summary>
     private void LayOutMap()
     {
@@ -188,8 +188,9 @@ public class RevealLampTabletScreen : MonoBehaviour
         new Vector2(Vector3.Dot(position, mapRight), Vector3.Dot(position, mapAhead));
 
     /// <summary>
-    /// Puts each dot where its lamp is now. A box's lamp follows its box, so the dot does too; one
-    /// pushed past the edge of the map sticks to the edge of the picture instead of leaving it.
+    /// Puts each dot where its lamp is now. The lit lamp stays where it hangs; the dot of a box's
+    /// lamp that is off follows its box, as that is where the lamp will appear. One pushed past the
+    /// edge of the map sticks to the edge of the picture instead of leaving it.
     /// </summary>
     private void TrackLamps()
     {

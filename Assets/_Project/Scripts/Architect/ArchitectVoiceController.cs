@@ -93,6 +93,7 @@ public class ArchitectVoiceController : MonoBehaviour
     private float lineEndTime;
     private float lastLineEndTime = float.NegativeInfinity;
     private int capturesSeen;
+    private bool puzzleResetPending;   // a capture restarted a puzzle; the hint plays at the reveal
     private Request? chained;
     private bool chainedIsInternal;
     private float chainedPlayAt;   // unscaled time before which the chained line waits; 0 = no wait
@@ -198,6 +199,8 @@ public class ArchitectVoiceController : MonoBehaviour
         ModuleEvents.OnTimerTick += HandleTimerTick;
         ModuleEvents.OnStateChanged += HandleModuleStateChanged;
         PlayerEvents.OnPlayerCaptured += HandlePlayerCaptured;
+        PuzzleCaptureRestart.CaptureRestartedPuzzles += HandlePuzzlesRestarted;
+        CaptureFadeView.OnCaptureRevealed += HandleCaptureRevealed;
         // ARC_02 (NemesisReleased) has no trigger on purpose: the Nemesis only wakes up for the
         // escape cinematic, and the announcement is not wanted there.
         InteractionEvents.OnInteracted += HandleInteracted;
@@ -216,6 +219,8 @@ public class ArchitectVoiceController : MonoBehaviour
         ModuleEvents.OnTimerTick -= HandleTimerTick;
         ModuleEvents.OnStateChanged -= HandleModuleStateChanged;
         PlayerEvents.OnPlayerCaptured -= HandlePlayerCaptured;
+        PuzzleCaptureRestart.CaptureRestartedPuzzles -= HandlePuzzlesRestarted;
+        CaptureFadeView.OnCaptureRevealed -= HandleCaptureRevealed;
         InteractionEvents.OnInteracted -= HandleInteracted;
         InventoryEvents.OnItemAdded -= HandleItemAdded;
         PuzzleStateManager.OnPuzzleCompleted -= HandlePuzzleCompleted;
@@ -683,6 +688,23 @@ public class ArchitectVoiceController : MonoBehaviour
 
         if (speaks) TriggerLine(ArchitectLineID.Captured);
         else Log($"{ArchitectLineID.Captured} skipped: capture {capturesSeen}, speaks every {every}.");
+    }
+
+    /// <summary>
+    /// The capture took a reward the player carried and its puzzle started over. The hint waits for
+    /// the screen to clear (<see cref="HandleCaptureRevealed"/>): said behind the black cover it would
+    /// be heard and never seen, and it is the one thing the player has to catch.
+    /// </summary>
+    private void HandlePuzzlesRestarted(int count) => puzzleResetPending = true;
+
+    private void HandleCaptureRevealed()
+    {
+        if (!puzzleResetPending) return;
+        puzzleResetPending = false;
+
+        // Mandatory, so it queues behind the Captured line if that one is still going and is never
+        // rationed: it does not depend on the 1-in-N rule the Captured line follows.
+        TriggerLine(ArchitectLineID.PuzzleReset);
     }
 
     private void HandleInteracted(IInteractable interactable)

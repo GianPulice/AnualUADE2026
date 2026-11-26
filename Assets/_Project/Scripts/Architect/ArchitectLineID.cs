@@ -30,6 +30,7 @@ public enum ArchitectLineID
     IdleNemesis,        // ARC_R — inactivity pool about the Nemesis: only once it is out (Zona 2)
     Lockers,            // First time the player reaches the lockers (Zona 2): how hiding works
     LockersAfterthought, // Chained after Lockers with a pause, as if it forgot to say it: seen-entering rule
+    PuzzleReset,        // A capture took the reward the player carried and its puzzle started over
 }
 
 /// <summary>Spec §1.2. Decides what happens to a trigger that cannot play right now.</summary>

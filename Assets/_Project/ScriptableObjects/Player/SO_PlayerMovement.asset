@@ -24,4 +24,4 @@ MonoBehaviour:
   runNoiseRadius: 10
   footstepNoiseRadius: 4
   crouchNoiseRadius: 1
-  captureModuleTimePenalty: 0
+  captureModuleTimePenalty: 60

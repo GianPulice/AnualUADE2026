@@ -22,6 +22,11 @@ public class ValveInteractable : BaseRangeInteractable, IPuzzleInteractable
 
     public string ValveId => valveData != null ? valveData.ValveId : string.Empty;
     public string LinkedPuzzleId => valveData != null ? valveData.LinkedPuzzleId : string.Empty;
+    public int InitialPosition => valveData != null ? valveData.InitialPosition : 0;
+
+    /// <summary>The wheel at the angle of the position the manager holds, at once (a turn in
+    /// progress is cut). For a restart that has just written the start position back.</summary>
+    public void SnapToStoredPosition() => SnapRotatorToPosition(CurrentPosition);
 
     public int CurrentPosition
     {

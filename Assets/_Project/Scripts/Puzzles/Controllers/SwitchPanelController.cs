@@ -13,7 +13,7 @@ using UnityEngine;
 /// an arrow, so every switch has to be flipped at least once. Checked on every flip, as the spec
 /// asks: the moment the last switch lands right, the puzzle completes and the row locks.
 /// </summary>
-public class SwitchPanelController : MonoBehaviour
+public class SwitchPanelController : MonoBehaviour, IPuzzleRestartable
 {
     /// <summary>Never flipped yet: the handle stands straight out, neither up nor down.</summary>
     public const int Middle = -1;
@@ -54,6 +54,31 @@ public class SwitchPanelController : MonoBehaviour
     }
 
     private void Start() => StartCoroutine(RegisterStartPositions());
+
+    private void OnEnable() => PuzzleCaptureRestart.Register(this);
+    private void OnDisable() => PuzzleCaptureRestart.Unregister(this);
+
+    // ── IPuzzleRestartable ──────────────────────────────────────────────────
+
+    public string PuzzleId => puzzleData != null ? puzzleData.PuzzleId : string.Empty;
+    public SO_InventoryItem RewardItem => puzzleData != null ? puzzleData.RewardItem : null;
+
+    /// <summary>Not solved, and every switch back at the position the puzzle starts it in.</summary>
+    public void ResetState()
+    {
+        if (puzzleData == null || !PuzzleStateManager.Exists) return;
+
+        PuzzleStateManager state = PuzzleStateManager.Instance;
+        state.ClearPuzzleCompleted(puzzleData.PuzzleId);
+        for (int i = 0; i < puzzleData.SwitchCount; i++)
+            state.SetValvePosition(puzzleData.SwitchStateKey(i), StartPosition());
+    }
+
+    public void ResetObjects()
+    {
+        foreach (SwitchInteractable handle in switches) handle.SnapToState();
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     /// <summary>
     /// Puts the starting positions on record once the Data scene's manager exists — the same wait

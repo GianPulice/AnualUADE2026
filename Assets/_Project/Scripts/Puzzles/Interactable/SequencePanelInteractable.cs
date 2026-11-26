@@ -8,7 +8,7 @@ using UnityEngine;
 /// On interact, it opens the SequencePanelUIController UI. The puzzle logic lives here;
 /// the UI is only view + input.
 /// </summary>
-public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteractable
+public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteractable, IPuzzleRestartable
 {
     [Header("Puzzle data")]
     [SerializeField] private SO_SequencePuzzleData sequenceData;
@@ -55,6 +55,27 @@ public class SequencePanelInteractable : BaseRangeInteractable, IPuzzleInteracta
         {
             isCompleted = true;
         }
+    }
+
+    private void OnEnable() => PuzzleCaptureRestart.Register(this);
+    private void OnDisable() => PuzzleCaptureRestart.Unregister(this);
+
+    // ── IPuzzleRestartable ──────────────────────────────────────────────────
+
+    public SO_InventoryItem RewardItem => sequenceData != null ? sequenceData.RewardItem : null;
+
+    public void ResetState()
+    {
+        if (sequenceData != null && PuzzleStateManager.Exists)
+            PuzzleStateManager.Instance.ClearPuzzleCompleted(sequenceData.PuzzleId);
+    }
+
+    /// <summary>Open for a new attempt, from the first key.</summary>
+    public void ResetObjects()
+    {
+        isCompleted = false;
+        currentSequence.Clear();
+        InteractionEvents.RequestPromptRefresh();
     }
 
     public override string GetPromptText()

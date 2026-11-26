@@ -26,6 +26,7 @@ public class RewardBoxRig : MonoBehaviour
     private const string LatchRightLayer = "LatchRight";
     private const string LatchLeftLayer = "LatchLeft";
     private const string OpenState = "Open";
+    private const string ClosedState = "Closed";
 
     [Header("Animation")]
     [Tooltip("Runs BoxController: one layer per part (Lid, LatchRight, LatchLeft), each with a Closed " +
@@ -83,10 +84,21 @@ public class RewardBoxRig : MonoBehaviour
         public Quaternion EndRotation;
     }
 
+    // Where a lock hangs on its hasp: its parent and its pose in it. A falling lock leaves the box's
+    // hierarchy (Detach), so putting it back needs this.
+    private struct LockHome
+    {
+        public Transform Parent;
+        public Vector3 LocalPosition;
+        public Quaternion LocalRotation;
+    }
+
     private readonly List<GlowSlot> glowSlots = new List<GlowSlot>();
     private MaterialPropertyBlock block;
     private LockFall fallRight;
     private LockFall fallLeft;
+    private LockHome homeRight;
+    private LockHome homeLeft;
 
     public float LidSeconds => lidClip != null ? lidClip.length : 1f;
     public float LatchSeconds(Side side)
@@ -103,6 +115,8 @@ public class RewardBoxRig : MonoBehaviour
         // Rest poses read before anything can move them.
         fallRight = new LockFall { RestPosition = PositionOf(lockRight), RestRotation = RotationOf(lockRight) };
         fallLeft = new LockFall { RestPosition = PositionOf(lockLeft), RestRotation = RotationOf(lockLeft) };
+        homeRight = HomeOf(lockRight);
+        homeLeft = HomeOf(lockLeft);
 
         if (itemVisual != null) itemVisual.SetActive(false);
     }
@@ -116,6 +130,24 @@ public class RewardBoxRig : MonoBehaviour
         SetGlow(GlowOwner.LockRight, config.LockedColor, config.LockedEmission);
         SetGlow(GlowOwner.LockLeft, config.LockedColor, config.LockedEmission);
         SetLight(true, config.LockedColor, config.LockedLightIntensity);
+    }
+
+    /// <summary>
+    /// A box that was open goes back to how it started: latches and lid shut, both locks back on
+    /// their hasps, the item out of sight, glow and light red. For a puzzle that starts over.
+    /// </summary>
+    public void Close(SO_RewardBoxConfig config)
+    {
+        PlayClosed(LatchRightLayer);
+        PlayClosed(LatchLeftLayer);
+        PlayClosed(LidLayer);
+        if (HasController) animator.Update(0f);
+
+        Rehang(lockRight, homeRight);
+        Rehang(lockLeft, homeLeft);
+
+        HideItem();
+        ShowLocked(config);
     }
 
     /// <summary>The screen and the light turn green: both locks are off.</summary>
@@ -232,6 +264,25 @@ public class RewardBoxRig : MonoBehaviour
         int layer = animator.GetLayerIndex(layerName);
         if (layer < 0) return;
         animator.Play(OpenState, layer, normalizedTime);
+    }
+
+    private void PlayClosed(string layerName)
+    {
+        if (!HasController) return;
+        int layer = animator.GetLayerIndex(layerName);
+        if (layer < 0) return;
+        animator.Play(ClosedState, layer, 0f);
+    }
+
+    private static LockHome HomeOf(Transform lockPart) => lockPart == null
+        ? default
+        : new LockHome { Parent = lockPart.parent, LocalPosition = lockPart.localPosition, LocalRotation = lockPart.localRotation };
+
+    private static void Rehang(Transform lockPart, LockHome home)
+    {
+        if (lockPart == null) return;
+        lockPart.SetParent(home.Parent, false);
+        lockPart.SetLocalPositionAndRotation(home.LocalPosition, home.LocalRotation);
     }
 
     private void SnapLockDown(Side side, SO_RewardBoxConfig config)

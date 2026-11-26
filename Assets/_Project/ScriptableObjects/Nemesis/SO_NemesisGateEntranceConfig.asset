@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4b0da0c3cacbcf41b3d22a197ba450f, type: 3}
+  m_Name: SO_NemesisGateEntranceConfig
+  m_EditorClassIdentifier: Assembly-CSharp::SO_NemesisGateEntranceConfig
+  startDelay: 0.6
+  maxWaitForScreen: 10
+  skippable: 1
+  skipKey: 102
+  skipPromptFormat: '[Press {0} to skip]'
+  holdBefore: 1
+  shotFog: {fileID: 11400000, guid: 61df1090266baa84ca214d83a8c661b0, type: 2}
+  blows:
+  - delay: 0
+    push: 0.04
+    leanDegrees: 0.6
+    dentRadius: 0.9
+    dentDepth: 0.12
+    shake: 0.03
+    shakeSeconds: 0.3
+    volume: 0.7
+  - delay: 1.2
+    push: 0.07
+    leanDegrees: 1.4
+    dentRadius: 1.1
+    dentDepth: 0.2
+    shake: 0.05
+    shakeSeconds: 0.35
+    volume: 0.85
+  - delay: 1.2
+    push: 0.1
+    leanDegrees: 0
+    dentRadius: 1.3
+    dentDepth: 0.3
+    shake: 0.07
+    shakeSeconds: 0.35
+    volume: 1
+  blowClip: {fileID: 8300000, guid: 6caba74ba71387c43906dc10f8bc9bea, type: 3}
+  knockOffDelay: 0.2
+  flySeconds: 0.9
+  landClip: {fileID: 8300000, guid: ca18a50d12d5a594ca03497e70031822, type: 3}
+  landVolume: 1
+  landShake: 0.12
+  landShakeSeconds: 0.6
+  settleSeconds: 0.8
+  appearSoundId: sfx_nemesis_activacion
+  eyesToWalkSeconds: 0.2
+  walkMaxSeconds: 6
+  holdEnd: 0.6
+  eyesFlarePower: 2.5
+  eyesFlareCoreRadius: 12
+  eyesFlareHaloIntensity: 0.5
+  eyesFlareHaloRadius: 45
+  eyesFlareRiseSeconds: 0.25
+  eyesFlareHoldSeconds: 0.6
+  eyesFlareFallSeconds: 0.7

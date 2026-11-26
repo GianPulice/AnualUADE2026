@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ContainerPuzzleController : MonoBehaviour
+public class ContainerPuzzleController : MonoBehaviour, IPuzzleRestartable
 {
     [SerializeField] private SO_ContainerPuzzleData containerPuzzleData;
     [Tooltip("Where the reward is left if the player cannot carry it (one-Special-at-a-time rule). Empty = in front of the player.")]
@@ -9,8 +9,56 @@ public class ContainerPuzzleController : MonoBehaviour
     public string PuzzleId => containerPuzzleData != null ? containerPuzzleData.PuzzleId : string.Empty;
     public SO_ContainerPuzzleData PuzzleData => containerPuzzleData;
 
-    private void OnEnable() => CheckpointManager.OnRespawned += HandleRespawned;
-    private void OnDisable() => CheckpointManager.OnRespawned -= HandleRespawned;
+    public SO_InventoryItem RewardItem => containerPuzzleData != null ? containerPuzzleData.RewardItem : null;
+
+    private void OnEnable()
+    {
+        CheckpointManager.OnRespawned += HandleRespawned;
+        PuzzleCaptureRestart.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        CheckpointManager.OnRespawned -= HandleRespawned;
+        PuzzleCaptureRestart.Unregister(this);
+    }
+
+    // ── IPuzzleRestartable ──────────────────────────────────────────────────
+
+    /// <summary>Not solved, and no box recorded in any basket.</summary>
+    public void ResetState()
+    {
+        if (containerPuzzleData == null || !PuzzleStateManager.Exists) return;
+
+        PuzzleStateManager state = PuzzleStateManager.Instance;
+        state.ClearPuzzleCompleted(containerPuzzleData.PuzzleId);
+        foreach (SO_ContainerPuzzleData.ContainerRequirement requirement in containerPuzzleData.Requirements)
+            state.ClearContainerSlot(requirement.containerId);
+    }
+
+    /// <summary>
+    /// Every box of the puzzle unfrozen and back where it started, and the baskets empty: the next
+    /// physics step has nothing on them. Without clearing the baskets by hand they would still hold
+    /// the boxes that just left, and the respawn handler below would write them back and solve the
+    /// puzzle a second time.
+    /// </summary>
+    public void ResetObjects()
+    {
+        if (containerPuzzleData == null) return;
+
+        foreach (BallPuzzleItem ball in FindObjectsByType<BallPuzzleItem>(FindObjectsInactive.Exclude))
+        {
+            if (!ball.IsConfigured || ball.LinkedPuzzleId != containerPuzzleData.PuzzleId) continue;
+
+            PushableBox box = ball.GetComponentInParent<PushableBox>();
+            if (box != null) box.RestartAtStartingPlace();
+        }
+
+        foreach (BasketTrigger basket in FindObjectsByType<BasketTrigger>(FindObjectsInactive.Exclude))
+            if (basket.LinkedPuzzleId == containerPuzzleData.PuzzleId) basket.ForgetOccupant();
+
+        InteractionEvents.RequestPromptRefresh();
+    }
 
     private void Start()
     {
